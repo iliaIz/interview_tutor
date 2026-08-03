@@ -1,13 +1,11 @@
-@tailwindcss base;
-@tailwindcss components;
-@tailwindcss utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-@layer base {
-  body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: #FAF8F5;
-    color: #2C303E;
-  }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #FAF8F5;
+  color: #2C303E;
 }
 
 /* Custom scrollbar */
