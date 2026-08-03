@@ -1,10 +1,13 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const StudyDeck: React.FC = () => {
   const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName } = useAppStore();
+  const [copied, setCopied] = React.useState(false);
 
   if (!currentBatch || currentBatch.length === 0) {
     return (
@@ -23,6 +26,12 @@ export const StudyDeck: React.FC = () => {
   const currentQ = currentBatch[currentQuestionIndex];
   const isLast = currentQuestionIndex === currentBatch.length - 1;
 
+  const handleCopyCode = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Navigation Header */}
@@ -34,7 +43,7 @@ export const StudyDeck: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Выбор тем
         </button>
 
-        <span className="text-xs font-bold px-3 py-1 bg-pastel-lavender text-pastel-accentViolet rounded-full border border-pastel-accentViolet/20">
+        <span className="text-xs font-bold px-3.5 py-1 bg-pastel-lavender text-pastel-accentViolet rounded-full border border-pastel-accentViolet/20">
           {selectedTopicName} — Изучение карточек
         </span>
 
@@ -47,14 +56,14 @@ export const StudyDeck: React.FC = () => {
       <AnimatePresence mode="wait">
         <motion.div
           key={currentQ.id}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.25 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -15 }}
+          transition={{ duration: 0.2 }}
           className="bg-white rounded-3xl p-6 md:p-8 border border-pastel-border shadow-sm mb-6 relative"
         >
           <div className="flex items-center gap-2 text-xs font-semibold text-pastel-accentRose mb-3">
-            <BookOpen className="w-4 h-4" /> Вопрос #{currentQ.num}
+            <BookOpen className="w-4 h-4" /> Вопрос #{currentQ.num} `[{currentQ.id}]`
           </div>
 
           <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-6 leading-snug">
@@ -62,23 +71,75 @@ export const StudyDeck: React.FC = () => {
           </h2>
 
           <div className="border-t border-pastel-border/60 pt-6">
-            <div className="text-xs font-semibold uppercase tracking-wider text-pastel-muted mb-3 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" /> Подробный ответ для изучения:
+            <div className="text-xs font-semibold uppercase tracking-wider text-pastel-muted mb-4 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-pastel-accentRose" /> Подробный эталонный ответ:
             </div>
 
-            {/* Answer Display */}
-            <div className="prose prose-slate max-w-none text-sm md:text-base leading-relaxed text-pastel-text space-y-4">
-              {currentQ.answer.split('\n\n').map((paragraph, idx) => {
-                if (paragraph.startsWith('```')) {
-                  const codeContent = paragraph.replace(/```[a-z]*/g, '').trim();
-                  return (
-                    <pre key={idx} className="bg-slate-900 text-slate-100 p-4 rounded-2xl text-xs md:text-sm font-mono overflow-x-auto my-4 shadow-inner">
-                      <code>{codeContent}</code>
-                    </pre>
-                  );
-                }
-                return <p key={idx} className="text-pastel-text/90">{paragraph}</p>;
-              })}
+            {/* Rich Markdown Answer Renderer */}
+            <div className="prose prose-slate max-w-none text-sm md:text-base leading-relaxed text-pastel-text">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h3: ({ node, ...props }) => (
+                    <h3 className="text-base font-bold text-pastel-accentViolet mt-5 mb-2 flex items-center gap-2" {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p className="mb-4 text-pastel-text/90 leading-relaxed" {...props} />
+                  ),
+                  strong: ({ node, ...props }) => (
+                    <strong className="font-bold text-pastel-text" {...props} />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1" {...props} />
+                  ),
+                  ol: ({ node, ...props }) => (
+                    <ol className="list-decimal list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1" {...props} />
+                  ),
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-x-auto my-6 rounded-2xl border border-pastel-border shadow-sm">
+                      <table className="w-full text-xs md:text-sm text-left border-collapse" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => (
+                    <thead className="bg-pastel-rose/60 text-pastel-text font-bold uppercase text-[11px] tracking-wider border-b border-pastel-border" {...props} />
+                  ),
+                  th: ({ node, ...props }) => (
+                    <th className="px-4 py-3 font-bold" {...props} />
+                  ),
+                  td: ({ node, ...props }) => (
+                    <td className="px-4 py-3 border-b border-pastel-border/50 align-top" {...props} />
+                  ),
+                  code: ({ node, inline, className, children, ...props }: any) => {
+                    const codeStr = String(children).replace(/\n$/, '');
+                    if (!inline && (className || codeStr.includes('\n'))) {
+                      return (
+                        <div className="relative group my-4 rounded-2xl overflow-hidden border border-slate-800 shadow-md">
+                          <div className="bg-slate-800 px-4 py-2 flex items-center justify-between text-xs text-slate-400 font-mono border-b border-slate-700">
+                            <span>Code</span>
+                            <button
+                              onClick={() => handleCopyCode(codeStr)}
+                              className="flex items-center gap-1 hover:text-white transition"
+                            >
+                              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copied ? 'Скопировано' : 'Копировать'}
+                            </button>
+                          </div>
+                          <pre className="bg-slate-900 text-slate-100 p-4 font-mono text-xs md:text-sm overflow-x-auto m-0 leading-relaxed">
+                            <code>{codeStr}</code>
+                          </pre>
+                        </div>
+                      );
+                    }
+                    return (
+                      <code className="px-1.5 py-0.5 rounded-md bg-pastel-lavender/60 text-pastel-accentViolet font-mono text-xs font-semibold" {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                }}
+              >
+                {currentQ.answer}
+              </ReactMarkdown>
             </div>
           </div>
         </motion.div>
@@ -89,7 +150,7 @@ export const StudyDeck: React.FC = () => {
         <button
           disabled={currentQuestionIndex === 0}
           onClick={() => setQuestionIndex(currentQuestionIndex - 1)}
-          className="px-4 py-2.5 rounded-xl border border-pastel-border text-sm font-semibold text-pastel-muted hover:text-pastel-text disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-2 bg-white"
+          className="px-4 py-2.5 rounded-xl border border-pastel-border text-sm font-semibold text-pastel-muted hover:text-pastel-text disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-2 bg-white shadow-sm"
         >
           <ArrowLeft className="w-4 h-4" /> Назад
         </button>
