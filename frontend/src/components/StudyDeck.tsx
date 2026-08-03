@@ -62,8 +62,13 @@ export const StudyDeck: React.FC = () => {
           transition={{ duration: 0.2 }}
           className="bg-white rounded-3xl p-6 md:p-8 border border-pastel-border shadow-sm mb-6 relative"
         >
-          <div className="flex items-center gap-2 text-xs font-semibold text-pastel-accentRose mb-3">
-            <BookOpen className="w-4 h-4" /> Вопрос #{currentQ.num} `[{currentQ.id}]`
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-pastel-accentRose">
+              <BookOpen className="w-4 h-4" /> Вопрос #{currentQ.num}
+              <span className="px-2.5 py-0.5 rounded-md bg-pastel-rose text-pastel-accentRose font-mono text-[11px] border border-pastel-accentRose/20">
+                {currentQ.id}
+              </span>
+            </div>
           </div>
 
           <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-6 leading-snug">
