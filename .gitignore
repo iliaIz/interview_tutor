@@ -16,3 +16,5 @@ Thumbs.db
 
 # Temporary logs
 *.log
+
+.env
