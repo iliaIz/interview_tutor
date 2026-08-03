@@ -1,0 +1,832 @@
+[
+  {
+    "id": "SPRING-001",
+    "global_id": 301,
+    "num": 1,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring Framework?",
+    "answer": "Spring Framework (или просто Spring) - это популярный и мощный\nфреймворк для разработки приложений на языке Java. Он\nпредоставляет комплексный набор инструментов и функций для\nупрощения разработки Java-приложений, особенно в области\nсоздания веб-приложений и веб-сервисов. Spring был создан для\nрешения проблем, связанных с разработкой сложных и\nмасштабируемых приложений, и он стал одним из самых популярных\nфреймворков для разработки на Java.\nSpring Framework является открытым исходным кодом и имеет\nбольшое сообщество разработчиков, что делает его надежным и\nактивно поддерживаемым фреймворком для создания разнообразных\nJava-приложений.",
+    "source_pages": [
+      2
+    ]
+  },
+  {
+    "id": "SPRING-002",
+    "global_id": 302,
+    "num": 2,
+    "topic": "Spring Framework",
+    "question": "Из каких частей состоит Spring Framework?",
+    "answer": "Основной контейнер – предоставляет основной функционал Spring. Главным\nSpring context – конфигурационный файл, который предоставляет информация\nSpring AOP – отвечает за интеграцию аспектно-ориентированного\nSpring DAO – абстрактный уровень Spring JDBC DAO предоставляет иерархию\nSpring ORM – отвечает за интеграцию Spring и таких популярных ORM-\nSpring Web module – отвечает за context web-приложений.\nSpring MVC framework – реализация паттерна MVC для построения Web-\nВот основные модули:\nкомпонентом контейнера является BeanFactory – реализация паттерна Фабрика.\nBeanFactory позволяет разделить конфигурацию приложения и информацию о\nзависимостях от кода.\nоб окружающей среде для Spring. Сюда входят такие enterprise-сервисы, как\nJNDI, EJB, интернационализация, валиадция и т.п.\nпрограммирования во фреймворк. Spring AOP обеспечивает сервис управления\nтранзакциями для Spring-приложения.\nисключений и множество сообщений об ошибках для разных БД. Эта иерархия\nупрощает обработку исключений и значительно уменьшает количество кода,\nкоторое вам нужно было бы написать для таких операций, как,например,открытие\nи закрытие соединения.\nфреймворков, как Hibernate, iBatis и JDO.\nприложений.",
+    "source_pages": [
+      3
+    ]
+  },
+  {
+    "id": "SPRING-003",
+    "global_id": 303,
+    "num": 3,
+    "topic": "Spring Framework",
+    "question": "В чем преимущества Spring?",
+    "answer": "Вот некоторые из ключевых особенностей Spring Framework:\n1.IoC (Inversion of Control): Spring предлагает механизм инверсии управления,\nкоторый позволяет управлять жизненным циклом и зависимостями объектов в\nприложении. Контейнер Spring заботится о связывании зависимостей различных\nобъектов вместо создания или поиска зависимых объектов.Это делает код более\nгибким и управляемым.\n2.DI (Dependency Injection): Spring поддерживает внедрение зависимостей, что\nупрощает создание и управление зависимостями между компонентами\nприложения.\n3.Аспектно-ориентированное программирование (AOP): Spring предоставляет\nподдержку AOP для реализации перехватчиков (aspects), таких как логирование,\nбезопасность и другие аспекты приложения.\n4.Модульность: Spring разделен на модули, что позволяет вам выбирать только\nнеобходимые части фреймворка для вашего проекта.\n5.Поддержка транзакций: Spring предоставляет механизм управления\nтранзакциями в приложении, что делает его отличным выбором для работы с\nбазами данных.\n6.Поддержка веб-приложений: Spring MVC - часть Spring Framework,\nпредоставляющая мощные средства для разработки веб-приложений и API.\n7.Тестирование: Spring обеспечивает хорошую поддержку для тестирования\nприложений с помощью модулей, таких как Spring Test и JUnit.",
+    "source_pages": [
+      4
+    ]
+  },
+  {
+    "id": "SPRING-004",
+    "global_id": 304,
+    "num": 4,
+    "topic": "Spring Framework",
+    "question": "Объясните суть паттерна DI или IoC",
+    "answer": "Dependency injection (DI) – паттерн проектирования и архитектурная модель, так же\nизвестная как Inversion of Control (IoC).\nВ полном соответствии с принципом единой обязанности объект отдаёт заботу о\nпостроении требуемых ему зависимостей внешнему, специально предназначенному для\nэтого общему механизму.\nСуть DI заключается в том, что объекты не создают свои зависимости сами, а вместо\nэтого получают их из внешних источников. DI описывает ситуацию, когда один объект\nреализует свой функционал через другой объект. Например, соединение с базой данных\nпередается конструктору объекта через аргумент, вместо того чтобы конструктор сам\nустанавливал соединение. Термин \"dependency injection\" немного неправильный, т.к.\nвнедряются не зависимости, а функциональность или ресурсы. Существуют три формы\nвнедрения (но не типа) зависимостей: сэттер, конструктор и внедрение путем\nинтерфейса.\nDI – это способ достижения слабой связанности. IoC предоставляет возможность\nобъекту получать ссылки на свои зависимости. Обычно это реализуется через lookup-\nметод. Преимущество IoC в том, что эта модель позволяет отделить объекты от\nреализации механизмов, которые он использует.\nВ результате мы получаем большую гибкость как при разработке приложений, так и при\nих тестировании.",
+    "source_pages": [
+      5
+    ]
+  },
+  {
+    "id": "SPRING-005",
+    "global_id": 305,
+    "num": 5,
+    "topic": "Spring Framework",
+    "question": "Как реализуется DI в Spring Framework?",
+    "answer": "Реализация DI в Spring основана на двух ключевых концепциях Java —\nкомпонентах JavaBean и интерфейсах.\nПри использовании Spring в качестве поставщика DI вы получаете гибкость\nопределения конфигурации зависимостей внутри своих приложений\nразнообразными путями (т.е. с помощью XML-файлов, с помощью\nконфигурационных Java классов Spring или посредством аннотаций Java в\nкоде).\nКомпоненты JavaBean (также называемые POJO (Plain Old Java Object —\nпростой старый объект Java)) предоставляют стандартный механизм для\nсоздания ресурсов Java, которые являются конфигурируемыми множеством\nспособов.\nЗа счет применения DI объем кода, который необходим при проектировании\nприложения на основе интерфейсов, снижается почти до нуля.\nКроме того, с помощью интерфейсов можно получить максимальную отдачу от\nDI, потому что бины могут использовать любую реализацию интерфейса для\nудовлетворения их зависимости.\n\nК типам реализации внедрения зависимостей в Spring относят:\nConstructor Dependency Injection — это тип внедрения зависимостей, при котором\nзависимости компонента предоставляются ему в его конструкторе (или конструкторах).\n```java\npublic class ConstructorInjection {\nprivate Dependency dependency;\npublic ConstructorInjection(Dependency dependency) {\nthis.dependency = dependency;\n}\n}\n```\nSetter Dependency Injection — контейнер IoC внедряет зависимости компонента в\nкомпонент через методы установки в стиле JavaBean.\n```java\npublic class SetterInjection {\nprivate Dependency dependency;\npublic void setDependency(Dependency dependency) {\nthis.dependency = dependency;\n}\n}\n```",
+    "source_pages": [
+      6,
+      7
+    ]
+  },
+  {
+    "id": "SPRING-006",
+    "global_id": 306,
+    "num": 6,
+    "topic": "Spring Framework",
+    "question": "BeanFactory Spring Объясните работу в",
+    "answer": "BeanFactory – это реализация паттерна Фабрика, является основным интерфейсом,\nотвечающим за создание и управление бинами в Spring-приложениях. Он служит как\nконтейнер для бинов. BeanFactory обычно настраивается с помощью конфигурационных\nфайлов, таких как XML-файлы, аннотации или Java-конфигурации. Он понимает, какие\nбины должны быть созданы и как они связаны друг с другом.\nОдин из ключевых моментов - ленивая инициализация. BeanFactory создает бины\nтолько в тот момент, когда они действительно нужны, что способствует оптимизации\nиспользования ресурсов.\nСуществует несколько реализаций BeanFactory, самая используемся –\n\"org.springframework.beans.factory.xml.XmlBeanFactory\". Она загружает бины на\nоснове конфигурационного XML-файла. Чтобы создать XmlBeanFactory передайте\nконструктору InputStream, например:\nBeanFactory factory = new XmlBeanFactory(new FileInputStream(\"myBean.xml\"));\nПосле этой строки фабрика знает о бинах, но их экземпляры еще не созданы. Чтобы\nинстанцировать бин нужно вызвать метод getBean().\nНапример:\nmyBean bean1 = (myBean)factory.getBean(\"myBean\");",
+    "source_pages": [
+      8
+    ]
+  },
+  {
+    "id": "SPRING-007",
+    "global_id": 307,
+    "num": 7,
+    "topic": "Spring Framework",
+    "question": "В чем роль ApplicationContext в Spring?",
+    "answer": "В то время, как BeanFactory используется в простых приложениях, Application\nContext – это более сложный контейнер. Как и BeanFactory он может быть\nиспользован для загрузки и связывания бинов, но еще он предоставляет:\n1.возможность получения текстовых сообщений, в том числе поддержку\nинтернационализации;\n2.общий механизм работы с ресурсами;\n3.события для бинов, которые зарегестрированы как слушатели.\nИз-за большей функциональности рекомендуется использование Application\nContext вместо BeanFactory. Последний используется только в случаях нехватки\nресурсов, например при разработке для мобильных устройств.\nСуществует 3 основных реализации Application context:\n1.ClassPathXmlApplicationContext – получает информацию из xml-файла,\nнаходящегося в classpath. Пример: ApplicationContext context = new\nClassPathXmlApplicationContext(\"bean.xml\");\n2.FileSystemXmlApplicationContext – получает информацию из xml-файла.\nНапример: ApplicationContext context = new\nFileSystemXmlApplicationContext(\"bean.xml\");\n3.XmlWebApplicationContext – получает информацию из xml-файла за\nпределами web-приложения.",
+    "source_pages": [
+      9
+    ]
+  },
+  {
+    "id": "SPRING-008",
+    "global_id": 308,
+    "num": 8,
+    "topic": "Spring Framework",
+    "question": "Что такое AOP? Как это относиться к IoC?",
+    "answer": "AOP (Aspect-Oriented Programming) - это методология программирования, которая\nпозволяет выделять и абстрагировать \"аспекты\" поведения приложения, такие как\nлогирование, безопасность, транзакции и другие поперечно-распределенные задачи, и\nвнедрять их в приложение независимо от основной логики программы.\nAOP решает проблему размещения кода, который не является частью бизнес-логики, внутри\nклассов, что может сделать их менее читаемыми и сложными для поддержки. Вместо этого,\nвы можете создать аспекты, которые содержат этот поперечно-распределенный код, и затем\nприменять эти аспекты к классам или методам, где он должен выполняться.\nКак это связано с IoC (Inversion of Control)? Внедрение зависимостей (DI) и управление\nконтейнером (IoC) являются фундаментальными концепциями Spring, которые позволяют\nразделить создание объектов и их зависимостей от основной логики приложения. AOP в\nSpring интегрируется с DI и IoC для обеспечения более гибкого управления поведением\nвашего приложения.\nКак это работает:\n1.Аспекты: В Spring AOP вы можете создать аспекты, которые описывают поведение,\nкоторое вы хотите выделить. Например, аспект для логирования.\n2.Цели (Targets): Цели - это компоненты вашего приложения, к которым вы хотите\nприменить аспект. Это могут быть классы или методы.\n3.Советы (Advices): Аспекты содержат советы, которые представляют собой фрагменты\nкода, выполняющиеся в определенные моменты времени, например, до выполнения\nметода, после выполнения метода и так далее.\n4.Точки среза (Pointcuts): Точки среза определяют, когда и где должны выполняться\nсоветы. Они определяют условия для применения аспекта.",
+    "source_pages": [
+      10
+    ]
+  },
+  {
+    "id": "SPRING-009",
+    "global_id": 309,
+    "num": 9,
+    "topic": "Spring Framework",
+    "question": "Что такое DAO?",
+    "answer": "Пример с Hibernate:\n```java\n@Repository\npublic class MyEntityDao {\n@Autowired\nprivate SessionFactory sessionFactory;\npublic void save(MyEntity entity) {\nSession session = sessionFactory.getCurrentSession();\nsession.save(entity);\n}\n}\n```\nПример:\n```java\n@Autowired\nprivate JdbcTemplate jdbcTemplate;\npublic void insertData(String data) {\njdbcTemplate.update(\"INSERT INTO my_table (data) VALUES (?)\", data);\n}\n```\nSpring предоставляет различные возможности и механизмы для поддержки DAO (Data Access Object) в приложениях. DAO\n- это шаблон проектирования, который используется для абстрагирования доступа к данным и обеспечения уровня\nабстракции между приложением и базой данных. Вот как Spring поддерживает DAO:\n1). JDBC Template: Spring предоставляет класс JdbcTemplate, который упрощает работу с JDBC (Java\nDatabase Connectivity). Он обрабатывает открытие и закрытие соединений с базой данных, управление\nтранзакциями и обработку исключений. Вы можете использовать JdbcTemplate для выполнения SQL-\nзапросов и обновления данных в базе данных.\n2). Интеграция с ORM (Object-Relational Mapping): Spring обеспечивает интеграцию с различными ORM-\nфреймворками, такими как Hibernate, JPA (Java Persistence API), и JDO (Java Data Objects). Это позволяет\nвам создавать DAO, которые работают с объектами Java, а не с SQL-запросами напрямую. Spring управляет\nжизненным циклом сессии или Entity Manager'а и обеспечивает транзакционность.\n\n3). Декларативная транзакционность: Spring позволяет определять транзакции для методов DAO с\nпомощью аннотаций или XML-конфигурации. Это обеспечивает управление транзакциями на уровне\nметодов без необходимости явно управлять транзакциями.\nПример с аннотациями:\n@Transactional\n```java\npublic class MyEntityService {\n@Autowired\nprivate MyEntityDao entityDao;\npublic void saveEntity(MyEntity entity) {\nentityDao.save(entity);\n}\n}\n```\n4). Поддержка исключений: Spring предоставляет возможность определять, какие исключения\nдолжны считаться checked или unchecked (что влияет на поведение транзакции) при работе с\nDAO.\n5). Поддержка JNDI и DataSource: Spring упрощает настройку и использование источников\nданных (DataSource), что делает его более гибким при переносе приложения между разными\nсредами.",
+    "source_pages": [
+      11,
+      12
+    ]
+  },
+  {
+    "id": "SPRING-010",
+    "global_id": 310,
+    "num": 10,
+    "topic": "Spring Framework",
+    "question": "Been? Что такое",
+    "answer": "Spring Beans — это объекты Java, которые инициализируются контейнером Spring IoC.\nSpring контейнер обеспечивает удобный способ управления их жизненным циклом и\nконфигурацией.",
+    "source_pages": [
+      13
+    ]
+  },
+  {
+    "id": "SPRING-011",
+    "global_id": 311,
+    "num": 11,
+    "topic": "Spring Framework",
+    "question": "Какие вы знаете различные scope у Spring Bean?",
+    "answer": "Какие вы знаете различные scope у Spring Bean?\nВ Spring предусмотрены различные области времени действия бинов:\n1.singleton — может быть создан только один экземпляр бина. Этот тип\nиспользуется спрингом по умолчанию, если не указано другое. Следует\nосторожно использовать публичные свойства класса, т.к. они не будут\nпотокобезопасными.\n2.prototype — создается новый экземпляр при каждом запросе.\n3.request — аналогичен prototype, но название служит пояснением к\nиспользованию бина в веб приложении. Создается новый экземпляр\nпри каждом HTTP request.\n4.session — новый бин создается в контейнере при каждой новой HTTP\nсессии.\n5.global-session: используется для создания глобальных бинов на уровне\nсессии для Portlet приложений.\nПо умолчанию Spring Bean инициализируется как singleton.",
+    "source_pages": [
+      14
+    ]
+  },
+  {
+    "id": "SPRING-012",
+    "global_id": 312,
+    "num": 12,
+    "topic": "Spring Framework",
+    "question": "Что такое жизненный цикл Bean?",
+    "answer": "Жизненный цикл Spring бина — время существования класса. Spring бины инициализируются\nпри инициализации Spring контейнера и происходит внедрение всех зависимостей. Когда\nконтейнер уничтожается, то уничтожается и всё содержимое. Если нам необходимо задать\nкакое-либо действие при инициализации и уничтожении бина, то нужно воспользоваться\nметодами init() и destroy(). Для этого можно использовать аннотации @PostConstruct и\n@PreDestroy().\n@PostConstruct\n```java\npublic void init(){\nSystem.out.println(\"Bean init method called\");\n}\n```\n@PreDestroy\n```java\npublic void destroy(){\nSystem.out.println(\"Bean destroy method called\");\n}\n```\nИли через xml конфигурацию:\n<bean name=\"myBean\" class=\"ru.readandwritecode.spring.MyBean\"\ninit-method=\"init\" destroy-method=\"destroy\">\n<property name=\"someProp\" ref=\"someProp\"></property>\n</bean>",
+    "source_pages": [
+      15
+    ]
+  },
+  {
+    "id": "SPRING-013",
+    "global_id": 313,
+    "num": 13,
+    "topic": "Spring Framework",
+    "question": "Как получить объекты ServletContext и ServletConfig внутри Spring Bean?",
+    "answer": "Реализовать один из Spring*Aware (ApplicationContextAware, ServletContextAware,\n```java\nИспользовать автоматическое связывание @Autowired в спринг. Способ работает внутри\n```\nДоступны два способа для получения основных объектов контейнера внутри бина:\nServletConfigAware и др.) интерфейсов.\nконтейнера спринг.\n```java\n@Autowired\nServletContext servletContext;\n```",
+    "source_pages": [
+      16
+    ]
+  },
+  {
+    "id": "SPRING-014",
+    "global_id": 314,
+    "num": 14,
+    "topic": "Spring Framework",
+    "question": "Являются ли Singleton Beans потокобезопасными?",
+    "answer": "Нет, singleton bean-компоненты не потокобезопасны, поскольку\nпотокобезопасность связана с выполнением, тогда как singleton — это шаблон\nпроектирования, ориентированный на создание.\nБезопасность потоков зависит только от самой реализации компонента.",
+    "source_pages": [
+      17
+    ]
+  },
+  {
+    "id": "SPRING-015",
+    "global_id": 315,
+    "num": 15,
+    "topic": "Spring Framework",
+    "question": "Перечислите некоторые важные аннотации",
+    "answer": "Важные аннотации:\n@Required;\n```java\n@Autowired;\n@Qualifier;\n@Resource;\n@PostConstruct;\n@PreDestroy;\n@Component;\n@Controller;\n@Repository;\n@Service;\n```\n@Transactional.",
+    "source_pages": [
+      18
+    ]
+  },
+  {
+    "id": "SPRING-016",
+    "global_id": 316,
+    "num": 16,
+    "topic": "Spring Framework",
+    "question": "Как выглядит типичная реализция метода используя Spring?",
+    "answer": "Интерфейс, описывающий функционал приложения\nРеализация интерфейса, содержащая свойства, сэттеры-гэттеры,\nфункции и т.п.\nКонфигурационный XML-файл Spring'а.\nКлиентское приложение, которое использует функцию.\nДля типичного Spring-приложения нам необходимы следующие\nфайлы:",
+    "source_pages": [
+      19
+    ]
+  },
+  {
+    "id": "SPRING-017",
+    "global_id": 317,
+    "num": 17,
+    "topic": "Spring Framework",
+    "question": "Что такое связывание в Spring и расскажите об аннотации @Autowired?",
+    "answer": "Процесс внедрения зависимостей в бины при инициализации называется Spring Bean\nWiring.\nСчитается хорошей практикой задавать явные связи между зависимостями, но в\n```java\nSpring предусмотрен дополнительный механизм связывания @Autowired. Аннотация\n```\nможет использоваться над полем или методом для связывания по типу. Чтобы\nаннотация заработала, необходимо указать небольшие настройки в\nконфигурационном файле спринг с помощью элемента\ncontext:annotation-config.",
+    "source_pages": [
+      20
+    ]
+  },
+  {
+    "id": "SPRING-018",
+    "global_id": 318,
+    "num": 18,
+    "topic": "Spring Framework",
+    "question": "Какие различные типы автоматического связывания в Spring?",
+    "answer": "autowire byName,\nautowire byType,\nautowire by constructor,\n```java\nautowiring by @Autowired and @Qualifier annotations\n```\nСуществует четыре вида связывания в спринг:",
+    "source_pages": [
+      21
+    ]
+  },
+  {
+    "id": "SPRING-019",
+    "global_id": 319,
+    "num": 19,
+    "topic": "Spring Framework",
+    "question": "Что такое контроллер в Spring MVC?",
+    "answer": "Ключевым интерфейсом в Spring MVC является Controller. Контроллер обрабатывает\nзапросы к действиям, осуществляемые пользователями в пользовательском интерфейсе,\nвзаимодействуя с уровнем обслуживания, обновляя модель и направляя пользователей\nна соответствующие представления в зависимости от результатов выполнения. Controller\n— управление, связь между моделью и видом.\nПроще говоря, все запросы, обрабатываемые\nDispatcherServlet , направляются к классам,\n```java\nаннотированным @Controller . Каждый класс\n```\nконтроллера сопоставляет один или несколько\nзапросов с методами, которые обрабатывают и\nвыполняют запросы с предоставленными входными\nданными.",
+    "source_pages": [
+      22
+    ]
+  },
+  {
+    "id": "SPRING-020",
+    "global_id": 320,
+    "num": 20,
+    "topic": "Spring Framework",
+    "question": "Какая разница между аннотациями @Component, @Repository и @Service в Spring?",
+    "answer": "```java\n@Component используется для указания класса в качестве компонента спринг.\n```\nПри использовании поиска аннотаций, такой класс будет сконфигурирован как\nspring bean.\n```java\n@Controller специальный тип класса, применяемый в MVC приложениях.\n```\nОбрабатывает запросы и часто используется с аннотацией @RequestMapping.\n```java\n@Repository указывает, что класс используется для работы с поиском,\n```\nполучением и хранением данных. Аннотация может использоваться для\nреализации шаблона DAO.\n```java\n@Service указывает, что класс является сервисом для реализации бизнес\n```\nлогики (на самом деле не отличается от Component, но просто помогает\nразработчику указать смысловую нагрузку класса).\nДля указания контейнеру на класс-бин можно использовать любую из этих\nаннотаций. Но различные имена позволяют различать назначение того или\nиного класса.",
+    "source_pages": [
+      23
+    ]
+  },
+  {
+    "id": "SPRING-021",
+    "global_id": 321,
+    "num": 21,
+    "topic": "Spring Framework",
+    "question": "Расскажите, что вы знаете о DispatcherServlet и ContextLoaderListener",
+    "answer": "DispatcherServlet — сервлет диспетчера. Этот сервлет анализирует запросы и\nнаправляет их соответствующему контроллеру для обработки. В Spring MVC класс\nDispatcherServlet является центральным сервлетом, который получает запросы и\nнаправляет их соответствующим контроллерам. В приложении Spring MVC может\nсуществовать произвольное количество экземпляров DispatcherServlet, предназначенных\nдля разных целей (например, для обработки запросов пользовательского интерфейса,\nзапросов веб-служб REST и т.д.). Каждый экземпляр DispatcherServlet имеет собственную\nконфигурацию WebApplicationContext, которая определяет характеристики уровня\nсервлета, такие как контроллеры, поддерживающие сервлет, отображение обработчиков,\nраспознавание представлений, интернационализация, оформление темами, проверка\nдостоверности, преобразование типов и форматирование и т.п.\nContextLoaderListener — слушатель при старте и завершении корневого класса Spring\nWebApplicationContext. Основным назначением является связывание жизненного цикла\nApplicationContext и ServletContext, а так же автоматического создания ApplicationContext.\nМожно использовать этот класс для доступа к бинам из различных контекстов спринг.\nНастраивается в web.xml:\n<context-param>\n<param-name>contextConfigLocation</param-name>\n<param-value>/WEB-INF/spring/root-context.xml</param-value>\n</context-param>\n<listener>\n<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>\n</listener>",
+    "source_pages": [
+      24
+    ]
+  },
+  {
+    "id": "SPRING-022",
+    "global_id": 322,
+    "num": 22,
+    "topic": "Spring Framework",
+    "question": "Что такое ViewResolver в Spring?",
+    "answer": "ViewResolver — распознаватель представлений. Интерфейс ViewResolver в Spring MVC\n(из пакета org.springframework.web.servlet) поддерживает распознавание\nпредставлений на основе логического имени, возвращаемого контроллером. Для\nподдержки различных механизмов распознавания представлений предусмотрено\nмножество классов реализации. Например, класс UrlBasedViewResolver поддерживает\nпрямое преобразование логических имен в URL.\nКласс ContentNegotiatingViewResolver поддерживает динамическое распознавание\nпредставлений в зависимости от типа медиа, поддерживаемого клиентом (XML, PDF,\nJSON и т.д.). Существует также несколько реализаций для интеграции с различными\nтехнологиями представлений, такими как FreeMarker (FreeMarkerViewResolver), Velocity\n(VelocityViewResolver) и JasperReports (JasperReportsViewResolver).\n```java\n<!-- Resolves views selected for rendering by @Controllers to .jsp resources\n```\nin the /WEB-INF/views directory -->\n<bean\nclass=\"org.springframework.web.servlet.view.InternalResourceViewResolver\">\n<property name=\"prefix\" value=\"/WEB-INF/views/\" />\n<property name=\"suffix\" value=\".jsp\" />\n</bean>\nInternalResourceViewResolver — реализация ViewResolver, которая позволяет находить\nпредставления, которые возвращает контроллер для последующего перехода к нему.\nИщет по заданному пути, префиксу, суффиксу и имени.",
+    "source_pages": [
+      25
+    ]
+  },
+  {
+    "id": "SPRING-023",
+    "global_id": 323,
+    "num": 23,
+    "topic": "Spring Framework",
+    "question": "Что такое MultipartResolver и когда его использовать?",
+    "answer": "Интерфейс MultipartResolver используется для загрузки файлов. Существуют две\nреализации: CommonsMultipartResolver и StandardServletMultipartResolver,\nкоторые позволяют фреймворку загружать файлы. По умолчанию этот интерфейс\nне включается в приложении и необходимо указывать его в файле конфигурации.\nПосле настройки любой запрос о загрузке будет отправляться этому интерфейсу.\n<beans:bean id=\"multipartResolver\"\nclass=\"org.springframework.web.multipart.commons.CommonsMultipartResolver\">\n<!-- setting maximum upload size -->\n<beans:property name=\"maxUploadSize\" value=\"100000\" />\n</beans:bean>",
+    "source_pages": [
+      26
+    ]
+  },
+  {
+    "id": "SPRING-024",
+    "global_id": 324,
+    "num": 24,
+    "topic": "Spring Framework",
+    "question": "Как обрабатывать исключения в Spring MVC Framework?",
+    "answer": "В Spring MVC интерфейс HandlerExceptionResolver (из пакета\norg.springframework.web.servlet) предназначен для работы с непредвиденными\nисключениями, возникающими во время выполнения обработчиков.\nПо умолчанию DispatcherServlet регистрирует класс DefaultHandlerExceptionResolver (из\nпакета org.springframework.web.servlet.mvc.support).\nЭтот распознаватель обрабатывает определенные стандартные исключения Spring MVC,\nустанавливая специальный код состояния ответа. Можно также реализовать собственный\nобработчик исключений, аннотировав метод контроллера с помощью аннотации\n@ExceptionHandler и передав ей в качестве атрибута тип исключения. В общем случае\nобработку исключений можно описать таким образом:\nController Based – указать методы для обработки исключения в классе контроллера. Для\nэтого нужно пометить такие методы аннотацией @ExceptionHandler.\nGlobal Exception Handler – для обработки глобальных исключений спринг предоставляет\n```java\nаннотацию @ControllerAdvice.\n```\nHandlerExceptionResolver implementation – Spring Framework предоставляет интерфейс\nHandlerExceptionResolver, который позволяет задать глобального обработчика исключений.\nРеализацию этого интерфейса можно использовать для создания собственных глобальных\nобработчиков исключений в приложении.",
+    "source_pages": [
+      27
+    ]
+  },
+  {
+    "id": "SPRING-025",
+    "global_id": 325,
+    "num": 25,
+    "topic": "Spring Framework",
+    "question": "Можем ли мы иметь несколько файлов конфигурации Spring?",
+    "answer": "С помощью указания contextConfigLocation можно задать несколько файлов конфигурации Spring.\nПараметры указываются через запятую или пробел:\n<servlet>\n<servlet-name>appServlet</servlet-name>\n<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>\n<init-param>\n<param-name>contextConfigLocation</param-name>\n<param-value>/WEB-INF/spring/appServlet/servlet-context.xml,/WEB-INF/spring/appServlet/servlet-jdbc.xml</param-value>\n</init-param>\n<load-on-startup>1</load-on-startup>\n</servlet>\nПоддерживается возможность указания нескольких корневых файлов конфигурации Spring:\n<context-param>\n<param-name>contextConfigLocation</param-name>\n<param-value>/WEB-INF/spring/root-context.xml /WEB-INF/spring/root-security.xml</param-value>\n</context-param>\nФайл конфигурации можно импортировать:\n```java\n<beans:import resource=\"spring-jdbc.xml\"/>\n```",
+    "source_pages": [
+      28
+    ]
+  },
+  {
+    "id": "SPRING-026",
+    "global_id": 326,
+    "num": 26,
+    "topic": "Spring Framework",
+    "question": "Какие минимальные настройки нужны, чтобы создать приложение Spring MVC?",
+    "answer": "Добавить зависимости spring-context и spring-webmvc в проект.\nУказать DispatcherServlet в web.xml для обработки запросов внутри\nприложения.\nЗадать определение spring bean (аннотацией или в xml). Добавить\nопределение view resolver для представлений.\nНастроить класс контроллер для обработки клиентских запросов.\nДля создания простого Spring MVC приложения необходимо пройти\nследующие шаги:",
+    "source_pages": [
+      29
+    ]
+  },
+  {
+    "id": "SPRING-027",
+    "global_id": 327,
+    "num": 27,
+    "topic": "Spring Framework",
+    "question": "Как бы вы связали Spring MVC Framework и архитектуру MVC?",
+    "answer": "Моделью (Model) выступает любой Java bean в Spring. Внутри класса\nмогут быть заданы различные атрибуты и свойства для\nиспользования в представлении.\nПреставление (View) — JSP страница, HTML файл и т.п. служат для\nотображения необходимой информации пользователю.\nПредставление передает обработку запросов к диспетчеру\nсервлетов (контроллеру).\nDispatcherServlet (Controller) — это главный контроллер в\nприложении Spring MVC, который обрабатывает все входящие\nзапросы и передает их для обработки в различные методы в\nконтроллеры.",
+    "source_pages": [
+      30
+    ]
+  },
+  {
+    "id": "SPRING-028",
+    "global_id": 328,
+    "num": 28,
+    "topic": "Spring Framework",
+    "question": "Как добиться локализации в приложениях Spring MVC?",
+    "answer": "Создать файл resource bundle, в котором будут заданы различные варианты локализированной информации.\nОпределить messageSource в конфигурации Spring используя классы ResourceBundleMessageSource или\nReloadableResourceBundleMessageSource.\nОпределить localeResolver класса CookieLocaleResolver для включения возможности переключения локали.\nС помощью элемента spring:message DispatcherServlet будет определять в каком месте необходимо\nподставлять локализированное сообщение в ответе.\nSpring MVC предоставляет очень простую и удобную возможность локализации приложения. Для этого\nнеобходимо сделать следующее:\n<beans:bean id=\"messageSource\"\nclass=\"org.springframework.context.support.ReloadableResourceBundleMessageSource\">\n<beans:property name=\"basename\" value=\"classpath:messages\" />\n<beans:property name=\"defaultEncoding\" value=\"UTF-8\" />\n</beans:bean>\n<beans:bean id=\"localeResolver\"\nclass=\"org.springframework.web.servlet.i18n.CookieLocaleResolver\">\n<beans:property name=\"defaultLocale\" value=\"en\" />\n<beans:property name=\"cookieName\" value=\"myAppLocaleCookie\"></beans:property>\n<beans:property name=\"cookieMaxAge\" value=\"3600\"></beans:property>\n</beans:bean>\n<interceptors>\n<beans:bean\nclass=\"org.springframework.web.servlet.i18n.LocaleChangeInterceptor\">\n<beans:property name=\"paramName\" value=\"locale\" />\n</beans:bean>\n</interceptors>",
+    "source_pages": [
+      31
+    ]
+  },
+  {
+    "id": "SPRING-029",
+    "global_id": 329,
+    "num": 29,
+    "topic": "Spring Framework",
+    "question": "Как мы можем использовать Spring для создания веб- службы RESTful, возвращающей JSON?",
+    "answer": "Добавить зависимости Jackson JSON. С помощью maven это делается так:\nSpring Framework позволяет создавать Restful веб сервисы и возвращать данные в\nформате JSON. Spring обеспечивает интеграцию с Jackson JSON API для\nвозможности отправки JSON ответов в restful web сервисе. Для отправки ответа в\nформате JSON из Spring MVC приложения необходимо произвести следующие\nнастройки:\n<!-- Jackson -->\n<dependency>\n<groupId>com.fasterxml.jackson.core</groupId>\n<artifactId>jackson-databind</artifactId>\n<version>${jackson.databind-version}</version>\n</dependency>\n\nНастроить бин RequestMappingHandlerAdapter в файле конфигурации Spring и задать свойство\nmessageConverters на использование бина MappingJackson2HttpMessageConverter.\nВ контроллере указать с помощью аннотации @ResponseBody возвращение Object:\n<!-- Configure to plugin JSON as request and response in method handler -->\n<beans:bean class=\"org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter\">\n<beans:property name=\"messageConverters\">\n<beans:list>\n<beans:ref bean=\"jsonMessageConverter\"/>\n</beans:list>\n</beans:property>\n</beans:bean>\n<!-- Configure bean to convert JSON to POJO and vice versa -->\n<beans:bean id=\"jsonMessageConverter\"\nclass=\"org.springframework.http.converter.json.MappingJackson2HttpMessageConverter\">\n</beans:bean>\n@RequestMapping(value = EmpRestURIConstants.GET_EMP, method = RequestMethod.GET)\n```java\npublic @ResponseBody Employee getEmployee(@PathVariable(\"id\") int empId) {\nlogger.info(\"Start getEmployee. ID=\"+empId);\nreturn empData.get(empId);\n}\n```",
+    "source_pages": [
+      32,
+      33
+    ]
+  },
+  {
+    "id": "SPRING-030",
+    "global_id": 330,
+    "num": 30,
+    "topic": "Spring Framework",
+    "question": "Можем ли мы послать объект как ответ метода обработчика контроллера?",
+    "answer": "Да, это возможно. Для этого используется аннотация @ResponseBody.\nТак можно отправлять ответы в виде JSON, XML в restful веб сервисах.",
+    "source_pages": [
+      34
+    ]
+  },
+  {
+    "id": "SPRING-031",
+    "global_id": 331,
+    "num": 31,
+    "topic": "Spring Framework",
+    "question": "Как проверить (валидировать) данные формы в Spring Web MVC Framework?",
+    "answer": "Spring поддерживает аннотации валидации из JSR-303, а так же\nвозможность создания своих реализаций классов валидаторов. Пример\nиспользования аннотаций:\n@Size(min=2, max=30)\n```java\nprivate String name;\n```\n@NotEmpty @Email\n```java\nprivate String email;\n```\n@NotNull @Min(18) @Max(100)\nprivate Integer age;\n@NotNull\nprivate Gender gender;\n@DateTimeFormat(pattern=\"MM/dd/yyyy\")\n@NotNull @Past\nprivate Date birthday;",
+    "source_pages": [
+      35
+    ]
+  },
+  {
+    "id": "SPRING-032",
+    "global_id": 332,
+    "num": 32,
+    "topic": "Spring Framework",
+    "question": "Что вы знаете о Spring MVC Interceptor и как он используется?",
+    "answer": "preHandle — метод используется для обработки запросов, которые еще не были\nпереданы в метода обработчик контроллера. Должен вернуть true для передачи\nследующему перехватчику или в handler method. False укажет на обработку\nзапроса самим обработчиком и отсутствию необходимости передавать его дальше.\nМетод имеет возможность выкидывать исключения и пересылать ошибки к\nпредставлению.\npostHandle — вызывается после handler method, но до обработки\nDispatcherServlet для передачи представлению. Может использоваться для\nдобавления параметров в объект ModelAndView.\nafterCompletion — вызывается после отрисовки представления.\nПерехватчики в Spring (Spring Interceptor) являются аналогом Servlet Filter и\nпозволяют перехватывать запросы клиента и обрабатывать их. Перехватить запрос\nклиента можно в трех местах: preHandle, postHandle и afterCompletion.\nДля создания обработчика необходимо расширить абстрактный класс\nHandlerInterceptorAdapter или реализовать интерфейс HandlerInterceptor. Так же нужно\nуказать перехватчики в конфигурационном файле Spring.\n<!-- Configuring interceptors based on URI -->\n<interceptors>\n<interceptor>\n<mapping path=\"/home\" />\n<beans:bean class=\"ru.readandwritecode.spring.RequestProcessingTimeInterceptor\"></beans:bean>\n</interceptor>\n</interceptors>",
+    "source_pages": [
+      36
+    ]
+  },
+  {
+    "id": "SPRING-033",
+    "global_id": 333,
+    "num": 33,
+    "topic": "Spring Framework",
+    "question": "Spring JdbcTemplate класс и его применение",
+    "answer": "Spring предоставляет отличную поддержку JDBC API и предлагает класс утилиту\nJdbcTemplate, с помощью которого можно избавиться от многократного повторения\nпохожего кода в приложении (вроде операций open \\ closing connection; ResultSet,\nPreparedStatement и др.). Для подключения необходимо настроить файл\nконфигурации spring и получить объект JdbcTemplate. Например.\nspring.xml:\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<beans xmlns=\"http://www.springframework.org/schema/beans\"\nxmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\nxsi:schemaLocation=\"http://www.springframework.org/schema/beans\nhttp://www.springframework.org/schema/beans/spring-beans.xsd\">\n<bean id=\"employeeDAO\" class=\"com.readandwritecode.spring.jdbc.dao.EmployeeDAOImpl\">\n<property name=\"dataSource\" ref=\"dataSource\" />\n</bean>\n<bean id=\"dataSource\" class=\"org.springframework.jdbc.datasource.DriverManagerDataSource\">\n<property name=\"driverClassName\" value=\"com.mysql.jdbc.Driver\" />\n<property name=\"url\" value=\"jdbc:mysql://localhost:3306/TestDB\" />\n<property name=\"username\" value=\"rwc\" />\n<property name=\"password\" value=\"rwc123\" />\n</bean>\n</beans>\n\nПример использования JdbcTemplate:\n@Override\n```java\npublic void save(Employee employee) {\nString query = \"insert into Employee (id, name, role) values (?,?,?)\";\nJdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);\nObject[] args = new Object[] {employee.getId(), employee.getName(),employee.getRole()};\nint out = jdbcTemplate.update(query, args);\nif(out !=0){\nSystem.out.println(\"Employee saved with id=\"+employee.getId());\n}else System.out.println(\"Employee save failed with id=\"+employee.getId());\n}\n```",
+    "source_pages": [
+      37,
+      38
+    ]
+  },
+  {
+    "id": "SPRING-034",
+    "global_id": 334,
+    "num": 34,
+    "topic": "Spring Framework",
+    "question": "Как использовать Tomcat JNDI DataSource в веб- приложении Spring?",
+    "answer": "Для использования контейнера сервлетов настроенного на использование\nJNDI DataSource, необходимо задать соответствующее свойство в файле\nконфигурации и затем внедрять его как зависимость. Далее мы можем\nиспользовать объект JdbcTemplate для выполнения операций с базами\nданных.\n<beans:bean id=\"dbDataSource\" class=\"org.springframework.jndi.JndiObjectFactoryBean\">\n<beans:property name=\"jndiName\" value=\"java:comp/env/jdbc/MyLocalDB\"/>\n</beans:bean>",
+    "source_pages": [
+      39
+    ]
+  },
+  {
+    "id": "SPRING-035",
+    "global_id": 335,
+    "num": 35,
+    "topic": "Spring Framework",
+    "question": "Каким образом можно управлять транзакциями в Spring?",
+    "answer": "Транзакциями в Spring управляют с помощью Declarative Transaction\nManagement (программное управление). Используется аннотация\n@Transactional для описания необходимости управления транзакцией. В\nфайле конфигурации нужно добавить настройку transactionManager для\nDataSource.\n<bean id=\"transactionManager\"\nclass=\"org.springframework.jdbc.datasource.DataSourceTransactionManager\">\n<property name=\"dataSource\" ref=\"dataSource\" />\n</bean>",
+    "source_pages": [
+      40
+    ]
+  },
+  {
+    "id": "SPRING-036",
+    "global_id": 336,
+    "num": 36,
+    "topic": "Spring Framework",
+    "question": "Расскажите о Spring DAO",
+    "answer": "Spring DAO предоставляет возможность работы с доступом к данным с помощью\nтехнологий вроде JDBC, Hibernate в удобном виде. Существуют специальные классы:\nJdbcDaoSupport, HibernateDaoSupport, JdoDaoSupport, JpaDaoSupport.\nВ Spring DAO поддерживается иерархия исключений, что помогает не обрабатывать\nнекоторые исключения.\n```java\nimport java.util.List;\nimport org.springframework.jdbc.core.support.JdbcDaoSupport;\npublic class PersonDao extends JdbcDaoSupport{\npublic void insert(Person person){\nString insertSql =\"INSERT INTO PERSON (NAME, EMAIL) VALUES(?,?);\";\nString name = person.getName();\nString email = person.getEmail();\ngetJdbcTemplate().update(insertSql,new Object[]{name,email});\n}\npublic List<Person> selectAll(){\nString selectAllSql = \"SELECT * FROM PERSON;\";\nreturn getJdbcTemplate().query(selectAllSql, new PersonRowMapper());\n}\n}\n```",
+    "source_pages": [
+      41
+    ]
+  },
+  {
+    "id": "SPRING-037",
+    "global_id": 337,
+    "num": 37,
+    "topic": "Spring Framework",
+    "question": "Как внедрить java.util.Properties в Spring Bean?",
+    "answer": "Для возможности использования Spring для внедрения свойств (properties) в различные\nбины необходимо определить propertyConfigure bean, который будет загружать файл\nсвойств.\n<bean id=\"propertyConfigurer\"\nclass=\"org.springframework.context.support.PropertySourcesPlaceholderConfigurer\">\n<property name=\"location\" value=\"/WEB-INF/application.properties\" />\n</bean>\n<bean class=\"com.readandwritecode.spring.EmployeeDaoImpl\">\n<property name=\"maxReadResults\" value=\"${results.read.max}\"/>\n</bean>\nИли через аннотации:\n@Value(\"${maxReadResults}\")\n```java\nprivate int maxReadResults;\n```",
+    "source_pages": [
+      42
+    ]
+  },
+  {
+    "id": "SPRING-038",
+    "global_id": 338,
+    "num": 38,
+    "topic": "Spring Framework",
+    "question": "Как задаются файлы маппинга Hibernate в Spring?",
+    "answer": "Через applicationContext.xml в web/WEB-INF. Например:\n<property name=\"mappingResources\">\n<list>\n<value>com/example/domain/Entity1.hbm.xml</value>\nlist>\nproperty>",
+    "source_pages": [
+      43
+    ]
+  },
+  {
+    "id": "SPRING-039",
+    "global_id": 339,
+    "num": 39,
+    "topic": "Spring Framework",
+    "question": "Как добавить поддержку Spring в web-приложение",
+    "answer": "Достаточно просто указать ContextLoaderListener в web.xml файле приложения:\n<listener>\n<listener-class>org.springframework.web.context.ContextLoaderListenerlistener-class>\nlistener>",
+    "source_pages": [
+      44
+    ]
+  },
+  {
+    "id": "SPRING-040",
+    "global_id": 340,
+    "num": 40,
+    "topic": "Spring Framework",
+    "question": "Можно ли использовать xyz.xml вместо applicationContext.xml?",
+    "answer": "ContextLoaderListener – это ServletContextListener, который инициализируется когда\nваше web-приложение стартует. По-умолчанию оно загружает файл WEB-\nINF/applicationContext.xml. Вы можете изменить значение по-умолчанию, указав\nпараметр contextConfigLocation.\nПример:\n<listener>\n<listener-class>org.springframework.web.context.ContextLoaderListener\n<context-param>\n<param-name>contextConfigLocation</param-name>\n<param-value>/WEB-INF/xyz.xml</param-value>\ncontext-param>\nlistener-class>\nlistener>",
+    "source_pages": [
+      45
+    ]
+  },
+  {
+    "id": "SPRING-041",
+    "global_id": 341,
+    "num": 41,
+    "topic": "Spring Framework",
+    "question": "Как настраивается соединение с БД в Spring?",
+    "answer": "Используя datasource \"org.springframework.jdbc.datasource.DriverManagerDataSource\".\nПример:\n<bean id=\"dataSource\" class=\"org.springframework.jdbc.datasource.DriverManagerDataSource\">\n<property name=\"driverClassName\" value=\"com.mysql.cj.jdbc.Driver\" />\n<property name=\"url\" value=\"jdbc:mysql://localhost/mydb\" />\n<property name=\"username\" value=\"myuser\" />\n<property name=\"password\" value=\"mypassword\" />\n</bean>",
+    "source_pages": [
+      46
+    ]
+  },
+  {
+    "id": "SPRING-042",
+    "global_id": 342,
+    "num": 42,
+    "topic": "Spring Framework",
+    "question": "Назовите некоторые из шаблонов проектирования, используемых в Spring Framework?",
+    "answer": "Singleton Pattern\nFactory Pattern\nPrototype Pattern\nAdapter Pattern\nProxy Pattern\nTemplate Method Pattern\nFront Controller\nData Access Object\nDependency Injection и Aspect Oriented Programming\nSpring Framework использует множество шаблонов проектирования,\nнапример:\n1.\n2.\n3.\n4.\n5.\n6.\n7.\n8.\n9.",
+    "source_pages": [
+      47
+    ]
+  },
+  {
+    "id": "SPRING-043",
+    "global_id": 343,
+    "num": 43,
+    "topic": "Spring Framework",
+    "question": "Для чего нужен @ComponentScan?",
+    "answer": "Если вы понимаете как работает Component Scan, то вы понимаете Spring\nПервый шаг для описания Spring Beans это добавление аннотации —\n```java\n@Component, или @Service, или @Repository.\n```\nОднако, Spring ничего не знает об этих бинах, если он не знает где искать их.\nТо, что скажет Spring где искать эти бины и называется Component Scan. В\n```java\n@ComponentScan вы указываете пакеты, которые должны сканироваться.\n```\nSpring будет искать бины не только в пакетах для сканирования, но и в их\nподпакетах.",
+    "source_pages": [
+      48
+    ]
+  },
+  {
+    "id": "SPRING-044",
+    "global_id": 344,
+    "num": 44,
+    "topic": "Spring Framework",
+    "question": "Как вы добавите Component Scan в Spring Boot?",
+    "answer": "@SpringBootApplication\n```java\npublic class Application {\npublic static void main(String[] args) {\nSpringApplication.run(Application.class, args);\n}\n}\n```\n@SpringBootApplication определяет автоматическое сканирование пакета,\nгде находится класс Application\nВсё будет в порядке, ваш код целиком находится в указанном пакете или его\nподпакетах.\nОднако, если необходимый вам компонент находится в другом пакете, вы\n```java\nдолжны использовать дополнительно аннотацию @ComponentScan, где\n```\nперечислите все дополнительные пакеты для сканирования.",
+    "source_pages": [
+      49
+    ]
+  },
+  {
+    "id": "SPRING-045",
+    "global_id": 345,
+    "num": 45,
+    "topic": "Spring Framework",
+    "question": "В чём отличие между @Component и @ComponentScan?",
+    "answer": "```java\n@Component и @ComponentScan предназначены для разных целей.\n@Component помечает класс в качестве кандидата для создания Spring\n```\nбина.\n```java\n@ComponentScan указывает где Spring искать классы, помеченные\nаннотацией @Component или его производной.\n```",
+    "source_pages": [
+      50
+    ]
+  },
+  {
+    "id": "SPRING-046",
+    "global_id": 346,
+    "num": 46,
+    "topic": "Spring Framework",
+    "question": "Для чего используется аннотация @Bean?",
+    "answer": "```java\nВ классах конфигурации Spring, @Bean используется для определения\n```\nкомпонентов с кастомной логикой.",
+    "source_pages": [
+      51
+    ]
+  },
+  {
+    "id": "SPRING-047",
+    "global_id": 347,
+    "num": 47,
+    "topic": "Spring Framework",
+    "question": "В чём разница между @Bean и @Component?",
+    "answer": "```java\n@Bean используется в конфигурационных классах Spring. Он используется\n```\nдля непосредственного создания бина.\n```java\n@Component используется со всеми классами, которыми должен управлять\nSpring. Когда Spring видит класс с @Component, Spring определяет этот\n```\nкласс как кандидата для создания bean.",
+    "source_pages": [
+      52
+    ]
+  },
+  {
+    "id": "SPRING-048",
+    "global_id": 348,
+    "num": 48,
+    "topic": "Spring Framework",
+    "question": "Можем ли мы использовать @Component вместо @Service для бизнес логики?",
+    "answer": "Да. конечно.\n```java\nЕсли @Component является универсальным стереотипом для любого\nSpring компонента, то @Service в настоящее время является его\n```\nпсевдонимом. Однако, в официальной документации Spring рекомендуется\n```java\nиспользовать именно @Service для бизнес логики.\n```\nВполне возможно, что в будущих версиях фреймворка, для данного\nстереотипа добавится дополнительная семантика, и его бины станут\nобладать дополнительной логикой.",
+    "source_pages": [
+      53
+    ]
+  },
+  {
+    "id": "SPRING-049",
+    "global_id": 349,
+    "num": 49,
+    "topic": "Spring Framework",
+    "question": "В чем различие между web.xml и servlet.xml?",
+    "answer": "web.xml — Метаданные и конфигурация любого веб-приложения,\nсовместимого с Java EE. Java EE стандарт для веб-приложений.\nservlet.xml — файл конфигурации, специфичный для Spring Framework.",
+    "source_pages": [
+      54
+    ]
+  },
+  {
+    "id": "SPRING-050",
+    "global_id": 350,
+    "num": 50,
+    "topic": "Spring Framework",
+    "question": "Что предпочитаете использовать для конфигурации Spring - xml или аннотирование?",
+    "answer": "Предпочитаю аннотации, если кодовая база хорошо описывается такими\n```java\nэлементами, как @Service, @Component, @Autowired.\n```\nОднако когда дело доходит до конфигурации, у меня нет каких-либо\nпредпочтений. Я бы оставил этот вопрос команде с которой я буду\nработать.",
+    "source_pages": [
+      55
+    ]
+  },
+  {
+    "id": "SPRING-051",
+    "global_id": 351,
+    "num": 51,
+    "topic": "Spring Framework",
+    "question": "Можем ли мы применить @Autowired с не сеттерами и не конструкторами методами?",
+    "answer": "Да, конечно.\n```java\n@Autowired может использоваться вместе с конструкторами, сеттерами\nили любыми другими методами. Когда Spring находит @Autowired на\n```\nметоде, Spring автоматически вызовет этот метод, после создания\nэкземпляра бина. В качестве аргументов, будут подобраны подходящие\nобъекты из контекста Spring.",
+    "source_pages": [
+      56
+    ]
+  },
+  {
+    "id": "SPRING-052",
+    "global_id": 352,
+    "num": 52,
+    "topic": "Spring Framework",
+    "question": "В чем разница между Сквозной Функциональностью (Cross Cutting Concerns) и АОП (аспектно оринтированное программирование)?",
+    "answer": "Сквозная Функциональность — функциональность, которая может\nпотребоваться вам на нескольких различных уровнях — логирование,\nуправление производительностью, безопасность и т.д.\nАОП — один из подходов к реализации данной проблемы.",
+    "source_pages": [
+      57
+    ]
+  },
+  {
+    "id": "SPRING-053",
+    "global_id": 353,
+    "num": 53,
+    "topic": "Spring Framework",
+    "question": "В чем разница между IOC (Inversion of Control) и Application Context?",
+    "answer": "IOC — инверсия управления. Вместо ручного внедрения зависимостей,\nфреймворк забирает ответственность за это.\nApplicationContext — реализация IOC спрингом.\nBean Factory — это базовая версия IOC контейнера\nApplication Context также включает дополнительные функции, которые\nобычно нужны для разработки корпоративных приложений.",
+    "source_pages": [
+      58
+    ]
+  },
+  {
+    "id": "SPRING-054",
+    "global_id": 354,
+    "num": 54,
+    "topic": "Spring Framework",
+    "question": "В чем разница между classPathXmlApplicationContext и annotationConfigApplicationContext?",
+    "answer": "classPathXmlApplicationContext — если вы хотите\nинициализировать контекст Spring при помощи xml\nannotationConfigApplicationContext — если вы хотите\nинициализировать контекст Spring при помощи\nконфигурационного класса java.",
+    "source_pages": [
+      59
+    ]
+  },
+  {
+    "id": "SPRING-055",
+    "global_id": 355,
+    "num": 55,
+    "topic": "Spring Framework",
+    "question": "Почему возвращаемое значение при применении аспекта @Around может потеряться? Назовите причины.",
+    "answer": "Метод, помеченный аннотацией @Around, должен возвращать\nзначение, которое он (метод) получил из joinpoint.proceed()\n@Around(\"trackTimeAnnotation()\")\n```java\npublic Object around(ProceedingJoinPoint joinPoint) throwsThrowable{\nlong startTime = System.currentTimeMillis();\nObject retVal = joinPoint.proceed();\nlong timeTaken = System.currentTimeMillis() - startTime;\nlogger.info(\"Time taken by {} is equal to {}\",joinPoint, timeTaken);\nreturn retVal;\n}\n```",
+    "source_pages": [
+      60
+    ]
+  },
+  {
+    "id": "SPRING-056",
+    "global_id": 356,
+    "num": 56,
+    "topic": "Spring Framework",
+    "question": "Как вы решаете какой бин инжектить, если у вас несколько подходящих бинов. Расскажите о @Primary и @Qualifier?",
+    "answer": "Если есть бин, который вы предпочитаете большую часть времени по\nсравнению с другими, то используйте @Primary, и используйте\n@Qualifier для нестандартных сценариев. Когда Spring обнаруживает\nнеоднозначность при инжекте бина, он выбирает тот бин, который\nпомечен аннотацией @Primary.\nЕсли все бины имеют одинаковый приоритет, мы всегда будем\nиспользовать @Qualifier.\n@Qualifier - это аннотация, которую вы можете использовать для явного\nуказания имени или значения квалификатора для бина, который должен\nбыть инжектирован.\nЕсли бин надо выбрать во время исполнения программы, то эти\nаннотации вам не подойдут. Вам надо в конфигурационном классе\n```java\nсоздать метод, пометить его аннотацией @Bean, и вернуть им\n```\nтребуемый бин.",
+    "source_pages": [
+      61
+    ]
+  },
+  {
+    "id": "SPRING-057",
+    "global_id": 357,
+    "num": 57,
+    "topic": "Spring Framework",
+    "question": "В чём разница между @Controller и @RestController?",
+    "answer": "```java\n@RestController = @Controller + @ResponseBody\n@RestController превращает помеченный класс в Spring-бин. Этот бин\n```\nдля конвертации входящих/исходящих данных использует Jackson\nmessage converter. Как правило целевые данные представлены в json\nили xml.",
+    "source_pages": [
+      62
+    ]
+  },
+  {
+    "id": "SPRING-058",
+    "global_id": 358,
+    "num": 58,
+    "topic": "Spring Framework",
+    "question": "Почему иногда мы используем @ResponseBody, а иногда ResponseEntity?",
+    "answer": "ResponseEntity необходим, только если мы хотим кастомизировать ответ, добавив к нему\nстатус ответа. Во всех остальных случаях будем использовать @ResponseBody.\n@GetMapping(value=\"/resource\")\n@ResponseBody\n```java\npublic Resource sayHello() { return resource; }\n```\n@PostMapping(value=\"/resource\")\n```java\npublic ResponseEntity createResource() {\n```\n….\nreturn ResponseEntity.created(resource).build();\n```java\n}\n```\nСтандартные HTTP коды статусов ответов, которые можно использовать.\n200 — SUCCESS\n201 — CREATED\n404 — RESOURCE NOT FOUND\n400 — BAD REQUEST\n401 — UNAUTHORIZED\n500 — SERVER ERROR\nДля @ResponseBody единственные состояния статуса это SUCCESS(200), если всё ок и\nSERVER ERROR(500), если произошла какая-либо ошибка.\nДопустим мы что-то создали и хотим отправить статус CREATED(201). В этом случае мы\nиспользуем ResponseEntity.",
+    "source_pages": [
+      63
+    ]
+  },
+  {
+    "id": "SPRING-059",
+    "global_id": 359,
+    "num": 59,
+    "topic": "Spring Framework",
+    "question": "В чем разница между Filters, Listeners и Interceptors?",
+    "answer": "Концептуально всё просто, фильтры сервлетов могут перехватывать только\nHTTPServlets. Listeners могут перехватывать специфические события. Как\nперехватить события которые относятся ни к тем не другим?\nФильтры и перехватчики делают по сути одно и тоже: они перехватывают какое-то\nсобытие, и делают что-то до или после.\nJava EE использует термин Filter, Spring называет их Interceptors.\nИменно здесь AOP используется в полную силу, благодаря чему возможно\nперехватывание вызовов любых объектов.",
+    "source_pages": [
+      64
+    ]
+  },
+  {
+    "id": "SPRING-060",
+    "global_id": 360,
+    "num": 60,
+    "topic": "Spring Framework",
+    "question": "Как работает аннотация @RequestMapping ?",
+    "answer": "Аннотация @RequestMapping используется для сопоставления веб-запросов с\nметодами Spring Controller. Помимо простых вариантов использования, мы можем\nиспользовать его для сопоставления заголовков HTTP, привязки частей URI с\nпомощью @PathVariable и работы с параметрами URI и аннотацией\n@RequestParam .",
+    "source_pages": [
+      65
+    ]
+  },
+  {
+    "id": "SPRING-061",
+    "global_id": 361,
+    "num": 61,
+    "topic": "Spring Framework",
+    "question": "В чем разница между ModelMap и ModelAndView?",
+    "answer": "ModelMap и ModelAndView - это два разных способа передачи модели (данных) из\nконтроллера в представление в Spring MVC.\nModelMap:\nModelMap - это простая структура данных, используемая для хранения модели\n(данных), которые должны быть переданы в представление. ModelMap\nпредставляет собой обычный словарь, где ключи - это имена атрибутов, а\nзначения - это сами данные. Вы можете добавлять и удалять атрибуты в ModelMap\nи передавать её в представление.\nПример использования ModelMap:\n@GetMapping(\"/example\")\n```java\npublic String example(ModelMap model) {\nmodel.addAttribute(\"message\", \"Hello, World!\");\nreturn \"exampleView\";\n}\n```\nЗдесь мы добавляем атрибут \"message\" в ModelMap, который будет доступен в\nпредставлении \"exampleView\".\n\nModelAndView:\nModelAndView - это объект, который сочетает в себе модель (данные) и\nинформацию о представлении (название представления). В отличие от ModelMap,\nModelAndView позволяет явно указать, какое представление должно быть\nиспользовано для отображения данных.\nПример использования ModelAndView:\n@GetMapping(\"/example\")\n```java\npublic ModelAndView example() {\nModelAndView modelAndView = new ModelAndView(\"exampleView\");\nmodelAndView.addObject(\"message\", \"Hello, World!\");\nreturn modelAndView;\n}\n```\nЗдесь мы создаем ModelAndView, указываем название представления\n\"exampleView\" и добавляем атрибут \"message\" к модели. В результате, Spring MVC\nзнает, какое представление использовать для отображения данных.\nРазница между ними заключается в том, что ModelMap предоставляет только\nданные (модель), но не указывает, как их отображать, в то время как ModelAndView\nпозволяет объединить модель и представление в один объект, что может быть\nудобно в некоторых случаях. Выбор между ними зависит от ваших предпочтений и\nтребований для конкретного контроллера и представления.",
+    "source_pages": [
+      66,
+      67
+    ]
+  },
+  {
+    "id": "SPRING-062",
+    "global_id": 362,
+    "num": 62,
+    "topic": "Spring Framework",
+    "question": "В чем разница между model.put() и model.addAttribute()?",
+    "answer": "model.put() - это метод, который предоставляется Java Map, и его\nможно использовать для добавления атрибутов в модель.\nmodel.addAttribute() - это специфичный метод, предоставляемый\nSpring MVC для добавления атрибутов в модель.\nМетод addAttribute отделяет нас от работы с базовой структурой\nhashmap. По сути addAttribute это обертка над put, где делается\nдополнительная проверка на null.\nМетод addAttribute в отличии от put возвращает modelmap.\nmodel.addAttribute(\"attribute1\",\"value1\").addAttribute(\"attribute2\",\"value2\");",
+    "source_pages": [
+      68
+    ]
+  },
+  {
+    "id": "SPRING-063",
+    "global_id": 363,
+    "num": 63,
+    "topic": "Spring Framework",
+    "question": "Что можете рассказать про Form Binding?",
+    "answer": "Нам это может понадобиться, если мы, например, захотим взять\nнекоторое значение с HTML страницы и сохранить его в БД. Для этого\nнам надо это значение переместить в контроллер Спринга.\nЕсли мы будем использовать Spring MVC form tags, Spring\nавтоматически свяжет переменные на HTML странице с Бином\nСпринга.",
+    "source_pages": [
+      69
+    ]
+  },
+  {
+    "id": "SPRING-064",
+    "global_id": 364,
+    "num": 64,
+    "topic": "Spring Framework",
+    "question": "Почему мы используем Hibernate Validator?",
+    "answer": "Hibernate Validator никак не связан с БД. Это просто библиотека для\nвалидации.\nHibernate Validator версии 5.x является эталонной реализацией Bean\nValidation 1.1\nHibernate Validator является сертифицированным.",
+    "source_pages": [
+      70
+    ]
+  },
+  {
+    "id": "SPRING-065",
+    "global_id": 365,
+    "num": 65,
+    "topic": "Spring Framework",
+    "question": "Где должны располагаться статические (css, js, html) ресурсы в Spring MVC приложении?",
+    "answer": "Расположение статических ресурсов можно настроить. В документации\nSpring Boot рекомендуется использовать /static, или /public, или\n/resources, или /META-INF/resources.",
+    "source_pages": [
+      71
+    ]
+  },
+  {
+    "id": "SPRING-066",
+    "global_id": 366,
+    "num": 66,
+    "topic": "Spring Framework",
+    "question": "Почему для конфиденциальных данных рекомендуется использовать POST, а не GET запросы?",
+    "answer": "В случае GET запроса передаваемые параметры являются частью url, и\nвсе маршрутизаторы, через которые пройдет наш GET запрос, смогут\nих прочитать.\nВ случае POST запроса передаваемые параметры являются частью\nтела запроса. При использовании HTTPs, тело запроса шифруется.\nСледовательно, использование POST запросов является более\nбезопасным.",
+    "source_pages": [
+      72
+    ]
+  },
+  {
+    "id": "SPRING-067",
+    "global_id": 367,
+    "num": 67,
+    "topic": "Spring Framework",
+    "question": "Можно ли передать в запросе один и тот же параметр несколько раз?",
+    "answer": "Пример:\nhttp://localhost:8080/login?name=Ranga&name=John&name=Smith\nДа, можно принять все значения, используя массив в методе\nконтроллера.\n```java\npublic String method(@RequestParam(value=\"name\") String[] names){\n}\n```",
+    "source_pages": [
+      73
+    ]
+  },
+  {
+    "id": "SPRING-068",
+    "global_id": 368,
+    "num": 68,
+    "topic": "Spring Framework",
+    "question": "В чем разница между Spring Boot и Spring MVC? Или между Spring Boot и Spring Framework? Можете ли вы использовать их вместе в одном проекте?",
+    "answer": "Он всегда автоматически ищет файлы application.properties в различных заранее\nопределенных местах и ​считывает их.\nОн всегда загружает встроенный Tomcat, поэтому вы можете сразу увидеть\n```java\nрезультаты написания ваших @RestControllers и начать писать веб-приложения.\n```\nОн автоматически настраивает все для отправки / получения JSON, не\nбеспокоясь о конкретных зависимостях Maven / Gradle. Всё, путем запуска\nосновного метода в классе Java, который аннотируется аннотацией\n@SpringBootApplication.\nSpring Boot построен поверх Spring Framework.\nПример: Spring Framework предлагает вам возможность читать файлы свойств\n.properties из различных мест, например, с помощью аннотаций @PropertySource. Он\nтакже предлагает вам возможность писать JSON REST контроллеры с помощью\nинфраструктуры Web MVC.\nПроблема в том, что вы должны указать Spring откуда читать свойства приложения и\nправильно настроить веб-фреймворк, например, для поддержки JSON. Spring Boot, с\nдругой стороны, берет эти отдельные части и предварительно настраивает их для\nвас.\nНапример:",
+    "source_pages": [
+      74
+    ]
+  },
+  {
+    "id": "SPRING-069",
+    "global_id": 369,
+    "num": 69,
+    "topic": "Spring Framework",
+    "question": "Почему вам не нужно указывать версии зависимостей в файле pom.xml при включении сторонних библиотек? Верно ли это для всех сторонних библиотек или только для некоторых?",
+    "answer": "Это потому, что Spring Boot выполняет за вас некоторое управление\nзависимостями.\nНа верхнем уровне стартеры Spring Boot закачивают родительский файл\npom.xml (или файл build.gradle), в котором определены все зависимости и\nсоответствующие версии, которые поддерживает конкретная версия Spring\nBoot - так называемый BOM (Bill Of Materials). Затем вы можете просто\nиспользовать эти предопределенные версии или переопределить номера\nверсий в своих собственных сценариях сборки.",
+    "source_pages": [
+      75
+    ]
+  },
+  {
+    "id": "SPRING-070",
+    "global_id": 370,
+    "num": 70,
+    "topic": "Spring Framework",
+    "question": "Расскажите о Spring Security.",
+    "answer": "Проект Spring Security предоставляет широкие возможности для защиты\nприложения. Кроме стандартных настроек для аутентификации, авторизации\nи распределения ролей и маппинга доступных страниц, ссылок и т.п.,\nпредоставляет защиту от различных вариантов атак (например CSRF). Имеет\nмножество различных настроек, но остается легким в использовании.\nЧтобы использовать Spring Security в веб-приложениях, мы можем начать с\nпростой аннотации @EnableWebSecurity .",
+    "source_pages": [
+      76
+    ]
+  },
+  {
+    "id": "SPRING-071",
+    "global_id": 371,
+    "num": 71,
+    "topic": "Spring Framework",
+    "question": "Как работает прототип Scope?",
+    "answer": "Prototype Scope означает, что каждый раз, когда мы вызываем экземпляр\nBean, Spring будет создавать новый экземпляр и возвращать его. Это\nотличается от singleton по умолчанию, где один экземпляр объекта\nсоздается один раз для контейнера Spring IoC.",
+    "source_pages": [
+      77
+    ]
+  },
+  {
+    "id": "SPRING-072",
+    "global_id": 372,
+    "num": 72,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring Boot?",
+    "answer": "Spring Boot – это Java-фреймворк с открытым исходным кодом, используемый для\nсоздания микросервисов. Это проект, построенный на основе Spring, чтобы\nупростить задачу развертывания приложений Java. Его двумя основными\nкомпонентами являются Spring Framework и встроенные HTTP-серверы.\nSpring Boot используется для:\n• Упрощение процесса разработки готовых к производству пружинных\nприложений\n• Избегания конфигурации XML Spring\n• Сокращения времени разработки за счет уменьшения количества необходимых\nинструкций по импорту\n• Обеспечения взвешенного подхода к развитию\nЧасто используются для быстрого запуска приложений Spring.",
+    "source_pages": [
+      78
+    ]
+  },
+  {
+    "id": "SPRING-073",
+    "global_id": 373,
+    "num": 73,
+    "topic": "Spring Framework",
+    "question": "Как проще всего развернуть приложение Spring Boot в рабочей среде? Какие еще есть варианты?",
+    "answer": "Самый простой способ развернуть приложение Spring Boot — это\nпоместить .jar файл со встроенным контейнером сервлетов на любой\nсервер или платформу, на которой установлена ​JRE.\nПо организационным и историческим причинам вы также можете\nразвернуть приложение Spring Boot как файл .war в существующем\nконтейнере сервлетов или сервере приложений.\nИ последнее, но не менее важное: вы, конечно, также можете поместить\nсвой .jar файл в образ Docker и даже развернуть его с помощью\nKubernetes.",
+    "source_pages": [
+      79
+    ]
+  },
+  {
+    "id": "SPRING-074",
+    "global_id": 374,
+    "num": 74,
+    "topic": "Spring Framework",
+    "question": "Что такое Реактивное программирование?",
+    "answer": "Реактивное программирование – это парадигма программирования,\nкоторая основывается на запрограммированных действиях, запускаемых в\nсвязи с событиями, а не на хронологическом порядке кода. Реактивные\nпрограммы эффективно используют компьютерные ресурсы и хорошо\nмасштабируются всего несколькими потоками. Его непоследовательная\nформа позволяет избежать блокировки стека и поддерживать\nоперативность реагирования.",
+    "source_pages": [
+      80
+    ]
+  },
+  {
+    "id": "SPRING-075",
+    "global_id": 375,
+    "num": 75,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring webflux?",
+    "answer": "Webflux – это реактивный веб-фреймворк, который служит альтернативой\nMVC. Webflux обеспечивает лучшую масштабируемость и предотвращает\nблокировку стека.",
+    "source_pages": [
+      81
+    ]
+  }
+]
