@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies for better-sqlite3 native addon
-RUN apk add --no-python3 make g++ gcc
+RUN apk add --no-cache make g++ gcc python3
 
 COPY package*.json ./
 RUN npm ci
@@ -17,7 +17,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-python3 sqlite
+RUN apk add --no-cache sqlite
+
 
 COPY package*.json ./
 RUN npm ci --only=production
