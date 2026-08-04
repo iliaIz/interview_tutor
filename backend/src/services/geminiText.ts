@@ -15,12 +15,11 @@ export async function evaluateAnswerWithGemini(
   userAnswer: string
 ): Promise<EvalResult> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not configured');
-  }
-
-  // Model fallback list
-  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+  const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
+  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
 
   const systemPrompt = `Ты профессиональный технический интервьюер по Java, Spring, Hibernate и Docker. 
 Твоя задача — объективно оценить ответ кандидата на технический вопрос, сравнив его с эталонным ответом.
@@ -43,9 +42,54 @@ ${referenceAnswer}
 Ответ кандидата:
 ${userAnswer}`;
 
+  // 1. Primary: Try LiteLLM Proxy (OpenAI Compatible API)
   try {
+    console.log(`🤖 Evaluating text answer via LiteLLM Proxy (${endpointUrl}) using model [${modelName}]...`);
+    const proxyRes = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${proxyApiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2
+      })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      const rawText = data.choices?.[0]?.message?.content || '{}';
+      const parsed = JSON.parse(rawText);
+
+      return {
+        score: parsed.score ?? 70,
+        isPassed: parsed.isPassed ?? (parsed.score >= 70),
+        positivePoints: parsed.positivePoints || ['Ответ совпадает с основными мыслями темы'],
+        missingPoints: parsed.missingPoints || [],
+        feedback: parsed.feedback || 'Ответ принят!'
+      };
+    } else {
+      const errText = await proxyRes.text();
+      console.warn(`LiteLLM Proxy returned ${proxyRes.status}: ${errText}. Falling back to direct Gemini API...`);
+    }
+  } catch (err: any) {
+    console.warn(`LiteLLM Proxy connection failed (${err.message}). Falling back to direct Gemini API...`);
+  }
+
+  // 2. Secondary Fallback: Direct Google Gemini API
+  try {
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is not configured');
+    }
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

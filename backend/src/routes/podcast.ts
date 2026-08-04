@@ -77,4 +77,38 @@ router.get('/audio/:jobId', async (req, res) => {
   }
 });
 
+// GET /api/podcast/sample-audio - Stream MP3 sample for voice preview
+router.get('/sample-audio', async (req, res) => {
+  try {
+    const voice = (req.query.voice as string) || 'ru-RU-SvetlanaNeural';
+    const sampleTexts: Record<string, string> = {
+      'ru-RU-SvetlanaNeural': 'Привет! Я Светлана. Помогу вам легко подготовиться к техническому собеседованию.',
+      'ru-RU-DmitryNeural': 'Здравствуйте! Я Дмитрий. Давайте детально изучим ключевые концепции и архитектуру.',
+      'ru-RU-ElenaNeural': 'Приветствую! Я Елена. Разберу ответы и подводные камни, которые спрашивают интервьюеры.',
+      'ru-RU-DariyaNeural': 'Всем привет! Я Дарья. Разберем практические задачи backend-разработки ярко и понятно.',
+    };
+
+    const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного диктора.';
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ru&client=tw-ob`;
+
+    const response = await fetch(ttsUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (response.ok) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buffer);
+    }
+
+    res.status(500).json({ error: 'Failed to fetch sample audio stream' });
+  } catch (err: any) {
+    console.error('Error fetching sample audio:', err);
+    res.status(500).json({ error: err.message || 'Sample audio error' });
+  }
+});
+
 export default router;

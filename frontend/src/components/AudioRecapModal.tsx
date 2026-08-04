@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { X, Headphones, Sparkles, Loader2, Music, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, User, Users, Settings2, Sliders, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,6 +40,7 @@ export const AudioRecapModal: React.FC = () => {
   const [voice1, setVoice1] = useState<string>('ru-RU-SvetlanaNeural');
   const [voice2, setVoice2] = useState<string>('ru-RU-DmitryNeural');
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+  const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [tone, setTone] = useState<string>('Fun');
   const [length, setLength] = useState<string>('Medium (10-15 min)');
@@ -61,36 +62,84 @@ export const AudioRecapModal: React.FC = () => {
     handleToneChange(tone, newMode);
   };
 
+  const stopPreview = () => {
+    if (sampleAudioRef.current) {
+      sampleAudioRef.current.pause();
+      sampleAudioRef.current = null;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setPreviewingVoice(null);
+  };
+
   const handlePreviewVoice = (voiceId: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      alert('Ваш браузер не поддерживает встроенный синтез речи для превью.');
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
     if (previewingVoice === voiceId) {
-      setPreviewingVoice(null);
+      stopPreview();
       return;
     }
 
-    const sampleText = VOICE_SAMPLES[voiceId] || 'Привет! Это пример звучания голоса.';
-    const utterance = new SpeechSynthesisUtterance(sampleText);
-    utterance.lang = 'ru-RU';
-
-    const voices = window.speechSynthesis.getVoices();
-    const voiceObj = RUSSIAN_VOICES.find((v) => v.id === voiceId);
-    if (voiceObj && voices.length > 0) {
-      const matched = voices.find((v) => v.lang.includes('ru') && v.name.toLowerCase().includes(voiceObj.name.toLowerCase()));
-      if (matched) utterance.voice = matched;
-    }
-
+    stopPreview();
     setPreviewingVoice(voiceId);
 
-    utterance.onend = () => setPreviewingVoice(null);
-    utterance.onerror = () => setPreviewingVoice(null);
+    const sampleText = VOICE_SAMPLES[voiceId] || 'Привет! Это пример звучания выбранного голоса.';
 
-    window.speechSynthesis.speak(utterance);
+    // 1. Try HTML5 Audio MP3 stream from backend
+    const audioUrl = `/api/podcast/sample-audio?voice=${encodeURIComponent(voiceId)}`;
+    const audio = new Audio(audioUrl);
+    sampleAudioRef.current = audio;
+
+    let playedAudio = false;
+
+    audio.onended = () => setPreviewingVoice(null);
+    audio.onerror = () => {
+      if (!playedAudio) playWebSpeech();
+    };
+
+    audio.play().then(() => {
+      playedAudio = true;
+    }).catch(() => {
+      playWebSpeech();
+    });
+
+    function playWebSpeech() {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        setPreviewingVoice(null);
+        return;
+      }
+
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+
+        const utterance = new SpeechSynthesisUtterance(sampleText);
+        utterance.lang = 'ru-RU';
+
+        if (voiceId === 'ru-RU-DmitryNeural') {
+          utterance.pitch = 0.6;
+          utterance.rate = 0.9;
+        } else if (voiceId === 'ru-RU-SvetlanaNeural') {
+          utterance.pitch = 1.2;
+          utterance.rate = 1.0;
+        } else if (voiceId === 'ru-RU-ElenaNeural') {
+          utterance.pitch = 0.9;
+          utterance.rate = 0.95;
+        } else if (voiceId === 'ru-RU-DariyaNeural') {
+          utterance.pitch = 1.4;
+          utterance.rate = 1.1;
+        }
+
+        utterance.onend = () => setPreviewingVoice(null);
+        utterance.onerror = () => setPreviewingVoice(null);
+
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.error('SpeechSynthesis error:', e);
+        setPreviewingVoice(null);
+      }
+    }
   };
 
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
@@ -100,6 +149,7 @@ export const AudioRecapModal: React.FC = () => {
 
   useEffect(() => {
     if (!isRecapModalOpen) {
+      stopPreview();
       setStatus('idle');
       setJobId(null);
       setErrorMessage(null);
@@ -196,7 +246,7 @@ export const AudioRecapModal: React.FC = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.25 }}
-          className="w-full max-w-xl bg-white/95 rounded-3xl p-5 md:p-7 shadow-2xl border border-pastel-rose/80 relative overflow-hidden my-auto max-h-[92vh] flex flex-col"
+          className="w-full max-w-3xl bg-white/95 rounded-3xl p-5 md:p-8 shadow-2xl border border-pastel-rose/80 relative overflow-hidden my-auto max-h-[92vh] flex flex-col"
         >
           {/* Decorative ambient blurs */}
           <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
