@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Coffee, Leaf, Database, Container, Play, RotateCcw, Shuffle, Sparkles, BookOpen } from 'lucide-react';
+import { Coffee, Leaf, Database, Container, Play, RotateCcw, Shuffle, Sparkles, BookOpen, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ICON_MAP: Record<string, any> = {
@@ -11,7 +11,7 @@ const ICON_MAP: Record<string, any> = {
 };
 
 export const TopicSelector: React.FC = () => {
-  const { setView, setSelectedTopic, setBatch, shuffleMap, toggleShuffle, topicsProgress, resetTopicProgress } = useAppStore();
+  const { setView, setSelectedTopic, setBatch, shuffleMap, toggleShuffle, topicsProgress, resetTopicProgress, openRecapModal } = useAppStore();
   const [topics, setTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,6 +52,14 @@ export const TopicSelector: React.FC = () => {
     }
   };
 
+  const handleTopicRecap = (topicId: string, topicName: string) => {
+    openRecapModal({
+      topicId,
+      topicName,
+      title: `Обзорный подкаст: ${topicName}`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -72,7 +80,7 @@ export const TopicSelector: React.FC = () => {
           Подготовка к техническим собеседованиям
         </h1>
         <p className="text-pastel-muted max-w-xl mx-auto text-sm md:text-base">
-          Выбери тему для изучения. Начни с прочтения карточек, а затем проверь знания с помощью текстового или голосового ИИ.
+          Выбери тему для изучения. Начни с прочтения карточек, послушай AI-аудиопересказ, а затем проверь знания.
         </p>
       </div>
 
@@ -102,21 +110,19 @@ export const TopicSelector: React.FC = () => {
                     <IconComponent className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-pastel-text">{t.name}</h3>
-                    <p className="text-xs text-pastel-muted font-medium">
-                      Всего вопросов: <span className="text-pastel-text font-semibold">{t.total}</span>
-                    </p>
+                    <h3 className="font-bold text-lg text-pastel-text">{t.name}</h3>
+                    <p className="text-xs text-pastel-muted">{t.total} вопросов в базе</p>
                   </div>
                 </div>
 
-                {/* Circular Progress Ring */}
+                {/* Progress Circle */}
                 <div className="relative w-14 h-14 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90">
                     <circle
                       cx="28"
                       cy="28"
                       r="22"
-                      stroke="#FAF8F5"
+                      className="text-pastel-border"
                       strokeWidth="5"
                       fill="transparent"
                     />
@@ -159,13 +165,21 @@ export const TopicSelector: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleStartTopic(t.id, t.name, false)}
                   className="flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white py-2.5 px-4 rounded-xl font-semibold text-sm hover:opacity-95 transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   {percentage > 0 ? 'Продолжить' : 'Начать обучение'}
+                </button>
+
+                <button
+                  onClick={() => handleTopicRecap(t.id, t.name)}
+                  title="Аудиопересказ всей темы"
+                  className="p-2.5 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center"
+                >
+                  <Headphones className="w-4 h-4" />
                 </button>
 
                 {percentage > 0 && (

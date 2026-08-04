@@ -1,12 +1,12 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export const StudyDeck: React.FC = () => {
-  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName } = useAppStore();
+  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, openRecapModal } = useAppStore();
   const [copied, setCopied] = React.useState(false);
 
   if (!currentBatch || currentBatch.length === 0) {
@@ -32,10 +32,26 @@ export const StudyDeck: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleRecapCurrentQuestion = () => {
+    openRecapModal({
+      questionIds: [currentQ.id],
+      topicName: selectedTopicName || currentQ.topic,
+      title: `Вопрос #${currentQ.num}: ${currentQ.question.slice(0, 40)}...`,
+    });
+  };
+
+  const handleRecapBatch = () => {
+    openRecapModal({
+      questionIds: currentBatch.map((q) => q.id),
+      topicName: selectedTopicName || currentQ.topic,
+      title: `Порция из ${currentBatch.length} вопросов (${selectedTopicName || 'Тема'})`,
+    });
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Navigation Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <button
           onClick={() => setView('topics')}
           className="flex items-center gap-2 text-xs font-semibold text-pastel-muted hover:text-pastel-text transition"
@@ -47,9 +63,19 @@ export const StudyDeck: React.FC = () => {
           {selectedTopicName} — Изучение карточек
         </span>
 
-        <span className="text-xs font-semibold text-pastel-muted">
-          Карточка <strong className="text-pastel-text">{currentQuestionIndex + 1}</strong> из {currentBatch.length}
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRecapBatch}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-full text-xs font-bold shadow-sm hover:opacity-95 transition transform hover:scale-105"
+            title="Сгенерировать аудиопересказ для всех карточек в этой порции"
+          >
+            <Headphones className="w-3.5 h-3.5" /> Аудиопересказ порции
+          </button>
+
+          <span className="text-xs font-semibold text-pastel-muted">
+            Карточка <strong className="text-pastel-text">{currentQuestionIndex + 1}</strong> из {currentBatch.length}
+          </span>
+        </div>
       </div>
 
       {/* Main Card View */}
@@ -69,6 +95,14 @@ export const StudyDeck: React.FC = () => {
                 {currentQ.id}
               </span>
             </div>
+
+            <button
+              onClick={handleRecapCurrentQuestion}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition"
+              title="Сгенерировать аудиопересказ для этого вопроса"
+            >
+              <Headphones className="w-3.5 h-3.5" /> Озвучить вопрос
+            </button>
           </div>
 
           <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-6 leading-snug">

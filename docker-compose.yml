@@ -10,6 +10,9 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-2.5-flash}
       - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-2.5-flash-native-audio-latest}
+      - PODCAST_SERVICE_URL=${PODCAST_SERVICE_URL:-http://host.docker.internal:8765}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - backend_data:/app/data
       - ./json:/json:ro

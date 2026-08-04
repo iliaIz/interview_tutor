@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import topicsRouter from './routes/topics';
 import evalRouter from './routes/eval';
+import podcastRouter from './routes/podcast';
 import { seedQuestionsFromJSON } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
@@ -18,6 +19,7 @@ app.use(express.json());
 // API Routes
 app.use('/api/topics', topicsRouter);
 app.use('/api/eval', evalRouter);
+app.use('/api/podcast', podcastRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

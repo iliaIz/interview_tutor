@@ -24,6 +24,22 @@ export interface TopicProgress {
   masteredIds: string[];
 }
 
+export interface ActiveAudioJob {
+  jobId: string;
+  audioUrl: string;
+  title: string;
+  topic?: string;
+  transcript?: string;
+  metadata?: any;
+}
+
+export interface RecapTarget {
+  questionIds?: string[];
+  topicId?: string;
+  topicName?: string;
+  title: string;
+}
+
 interface AppState {
   currentView: 'topics' | 'study' | 'quiz';
   selectedTopicId: string | null;
@@ -33,7 +49,12 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
-  
+
+  // Audio Recap State
+  activeAudioJob: ActiveAudioJob | null;
+  isRecapModalOpen: boolean;
+  recapTarget: RecapTarget | null;
+
   // Actions
   setView: (view: 'topics' | 'study' | 'quiz') => void;
   setSelectedTopic: (topicId: string, name: string) => void;
@@ -43,6 +64,12 @@ interface AppState {
   setBatchSize: (topicId: string, size: number) => void;
   updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean) => void;
   resetTopicProgress: (topicId: string) => void;
+
+  // Audio Recap Actions
+  openRecapModal: (target: RecapTarget) => void;
+  closeRecapModal: () => void;
+  setActiveAudioJob: (job: ActiveAudioJob | null) => void;
+  clearActiveAudioJob: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -56,6 +83,10 @@ export const useAppStore = create<AppState>()(
       shuffleMap: { java: false, spring: false, hibernate: false, docker: false },
       batchSizeMap: { java: 5, spring: 5, hibernate: 5, docker: 5 },
       topicsProgress: {},
+
+      activeAudioJob: null,
+      isRecapModalOpen: false,
+      recapTarget: null,
 
       setView: (view) => set({ currentView: view }),
       setSelectedTopic: (topicId, name) => set({ selectedTopicId: topicId, selectedTopicName: name }),
@@ -113,10 +144,15 @@ export const useAppStore = create<AppState>()(
             }
           }
         };
-      })
+      }),
+
+      openRecapModal: (target) => set({ isRecapModalOpen: true, recapTarget: target }),
+      closeRecapModal: () => set({ isRecapModalOpen: false }),
+      setActiveAudioJob: (job) => set({ activeAudioJob: job }),
+      clearActiveAudioJob: () => set({ activeAudioJob: null }),
     }),
     {
-      name: 'interview-prep-storage-v1'
+      name: 'interview-prep-storage-v2'
     }
   )
 );

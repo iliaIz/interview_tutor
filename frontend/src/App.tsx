@@ -3,13 +3,15 @@ import { useAppStore } from './store/useAppStore';
 import { TopicSelector } from './components/TopicSelector';
 import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
-import { Sparkles, Heart } from 'lucide-react';
+import { AudioRecapModal } from './components/AudioRecapModal';
+import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { Sparkles, Heart, Headphones } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { currentView } = useAppStore();
 
   return (
-    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text">
+    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24">
       {/* Header Bar */}
       <header className="border-b border-pastel-border/60 bg-white/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -24,7 +26,7 @@ export const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-            <Heart className="w-3.5 h-3.5 fill-current" /> Pastel Edition
+            <Headphones className="w-3.5 h-3.5" /> Audio Recap Enabled
           </div>
         </div>
       </header>
@@ -36,9 +38,13 @@ export const App: React.FC = () => {
         {currentView === 'quiz' && <ExamQuiz />}
       </main>
 
+      {/* Audio Modal & Floating Player */}
+      <AudioRecapModal />
+      <AudioPlayerBar />
+
       {/* Footer */}
       <footer className="border-t border-pastel-border/60 bg-white py-4 text-center text-xs text-pastel-muted">
-        <p>© 2026 InterviewPrep AI Platform. Gemini 3.5 Flash Lite & Gemini 3 Flash Live Multimodal Engine.</p>
+        <p>© 2026 InterviewPrep AI Platform. Open-NotebookLM Audio Engine & Gemini 3 LiteLLM Proxy.</p>
       </footer>
     </div>
   );
