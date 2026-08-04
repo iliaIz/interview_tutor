@@ -14,7 +14,7 @@ const TOPIC_MAP: Record<string, string> = {
 // POST /api/podcast/generate - Start audio recap job
 router.post('/generate', async (req, res) => {
   try {
-    const { questionIds, topicId, topicName, tone, length, language } = req.body;
+    const { questionIds, topicId, topicName, tone, length, language, systemPrompt, userPrompt, mode, voice1, voice2 } = req.body;
 
     const resolvedTopicName = topicName || (topicId ? TOPIC_MAP[topicId.toLowerCase()] : undefined);
 
@@ -26,8 +26,13 @@ router.post('/generate', async (req, res) => {
       questionIds,
       topicName: resolvedTopicName,
       tone: tone || 'Fun',
-      length: length || 'Medium (3-5 min)',
-      language: language || 'Russian'
+      length: length || 'Medium (10-15 min)',
+      language: language || 'Russian',
+      systemPrompt,
+      userPrompt,
+      mode,
+      voice1,
+      voice2,
     });
 
     res.json(job);

@@ -56,7 +56,7 @@ export const TopicSelector: React.FC = () => {
     openRecapModal({
       topicId,
       topicName,
-      title: `Обзорный подкаст: ${topicName}`,
+      title: `Обзор ключевых вопросов: ${topicName}`,
     });
   };
 

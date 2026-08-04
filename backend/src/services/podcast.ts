@@ -11,6 +11,11 @@ export interface GeneratePodcastOptions {
   tone?: string;
   length?: string;
   language?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  mode?: 'solo' | 'duo';
+  voice1?: string;
+  voice2?: string;
 }
 
 export interface QuestionRow {
@@ -63,8 +68,13 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
     text: text,
     question: `Audio recap of interview questions for topic: ${topic}`,
     tone: options.tone || 'Fun',
-    length: options.length || 'Medium (3-5 min)',
+    length: options.length || 'Medium (10-15 min)',
     language: options.language || 'Russian',
+    system_prompt: options.systemPrompt,
+    user_prompt: options.userPrompt,
+    mode: options.mode || 'duo',
+    voice_1: options.voice1 || 'ru-RU-SvetlanaNeural',
+    voice_2: options.voice2 || 'ru-RU-DmitryNeural',
   });
 
   const url = `${PODCAST_SERVICE_URL}/api/v1/jobs`;
