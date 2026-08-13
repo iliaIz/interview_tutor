@@ -85,7 +85,7 @@ router.get('/sample-audio', async (req, res) => {
     const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного голоса.';
 
     const buffer = await synthesizeTTSBuffer(text, voice);
-    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(buffer);
   } catch (err: any) {

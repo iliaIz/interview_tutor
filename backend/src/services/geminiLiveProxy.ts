@@ -21,27 +21,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       return;
     }
 
-    // Determine target WS URL
-    let geminiWsUrl = '';
-    if (rawProxyUrl) {
-      const cleanProxyHost = rawProxyUrl
-        .replace(/^https?:\/\//, '')
-        .replace(/\/v1\/?$/, '')
-        .replace(/\/$/, '');
-      const wsProtocol = rawProxyUrl.startsWith('https') ? 'wss' : 'ws';
-      geminiWsUrl = `${wsProtocol}://${cleanProxyHost}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${proxyApiKey}`;
-      console.log(`🌐 Connecting via LiteLLM Proxy WS (${wsProtocol}://${cleanProxyHost}) using model [${liveModel}]...`);
-    } else {
-      geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
-      console.log(`⚡ Connecting directly to Gemini Live WS using model [${liveModel}]...`);
-    }
+    const targetApiKey = apiKey || proxyApiKey;
+    const resolvedModelName = (liveModel === 'gemini-live-v3' || liveModel === 'gemini-live-all')
+      ? 'gemini-3.1-flash-live-preview'
+      : (liveModel === 'gemini-live-v2' ? 'gemini-2.5-flash-native-audio-latest' : liveModel);
+
+    const modelId = resolvedModelName.startsWith('models/') ? resolvedModelName : `models/${resolvedModelName}`;
+    const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${targetApiKey}`;
+    
+    console.log(`⚡ Connecting to Gemini Multimodal Live WS (${modelId})...`);
 
     let geminiWs: WebSocket | null = new WebSocket(geminiWsUrl);
 
     geminiWs.on('open', () => {
-      console.log(`✅ Connected to Gemini Multimodal Live API (Model: ${liveModel})`);
-
-      const modelId = liveModel.startsWith('models/') ? liveModel : `models/${liveModel}`;
+      console.log(`✅ Connected to Gemini Multimodal Live API (${modelId})`);
 
       // Send initial setup config
       const setupMessage = {

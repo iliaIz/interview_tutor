@@ -15,6 +15,45 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const outputAudioCtxRef = useRef<AudioContext | null>(null);
+  const nextStartTimeRef = useRef<number>(0);
+
+  const playPcm24kChunk = (base64Data: string) => {
+    try {
+      if (!outputAudioCtxRef.current) {
+        outputAudioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      }
+      const audioCtx = outputAudioCtxRef.current;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const pcm16 = new Int16Array(bytes.buffer);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768;
+      }
+
+      const audioBuffer = audioCtx.createBuffer(1, float32.length, 24000);
+      audioBuffer.getChannelData(0).set(float32);
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioCtx.destination);
+
+      const currentTime = audioCtx.currentTime;
+      const startTime = Math.max(currentTime, nextStartTimeRef.current);
+      source.start(startTime);
+      nextStartTimeRef.current = startTime + audioBuffer.duration;
+    } catch (e) {
+      console.error('Error playing PCM audio chunk:', e);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -56,6 +95,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
               if (part.text) {
                 setTranscript((prev) => [...prev, `🤖 Gemini: ${part.text}`]);
               }
+              if (part.inlineData && part.inlineData.data) {
+                playPcm24kChunk(part.inlineData.data);
+              }
             }
           }
         }
@@ -72,6 +114,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
     return () => {
       stopMicrophone();
       if (wsRef.current) wsRef.current.close();
+      if (outputAudioCtxRef.current) {
+        outputAudioCtxRef.current.close();
+        outputAudioCtxRef.current = null;
+      }
     };
   }, [isOpen, currentQuestionText]);
 

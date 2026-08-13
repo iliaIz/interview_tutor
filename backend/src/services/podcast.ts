@@ -149,52 +149,100 @@ ${text}`;
 }
 
 /**
- * Synthesize TTS audio for single text line via LiteLLM Proxy / Gemini TTS API
+ * Convert 16-bit 24kHz mono PCM buffer into a valid WAV file by prepending RIFF header.
+ */
+export function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitDepth = 16): Buffer {
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcmBuffer.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * numChannels * (bitDepth / 8), 28);
+  header.writeUInt16LE(numChannels * (bitDepth / 8), 32);
+  header.writeUInt16LE(bitDepth, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcmBuffer.length, 40);
+
+  return Buffer.concat([header, pcmBuffer]);
+}
+
+/**
+ * Synthesize TTS audio for single text line via Gemini 3.1 Flash TTS API
  */
 export async function synthesizeTTSBuffer(text: string, voice: string): Promise<Buffer> {
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const endpointUrl = `${cleanProxyBase}/v1/audio/speech`;
+  const apiKey = process.env.GEMINI_API_KEY;
   const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const keyToUse = apiKey || proxyApiKey;
+  const validVoice = (['Kore', 'Puck', 'Charon'].includes(voice)) ? voice : 'Kore';
 
-  // 1. Primary: LiteLLM Proxy Audio Speech API
+  // 1. Primary: Gemini 3.1 Flash TTS REST API generateContent
   try {
-    const res = await fetch(endpointUrl, {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${keyToUse}`;
+
+    const res = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: validVoice }
+            }
+          }
+        }
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      if (inlineData && inlineData.data) {
+        const rawPcm = Buffer.from(inlineData.data, 'base64');
+        return pcmToWav(rawPcm, 24000, 1, 16);
+      }
+    } else {
+      const errTxt = await res.text();
+      console.warn('Gemini TTS generateContent response error:', errTxt);
+    }
+  } catch (err: any) {
+    console.warn('Gemini TTS generateContent connection failed:', err.message);
+  }
+
+  // 2. Secondary: LiteLLM Proxy /v1/audio/speech API
+  try {
+    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+    const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    const speechUrl = `${cleanProxyBase}/v1/audio/speech`;
+
+    const sRes = await fetch(speechUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${proxyApiKey}`,
       },
       body: JSON.stringify({
-        model: ttsModel,
+        model: 'gemini-tts-v3',
         input: text,
-        voice: voice || 'Kore',
+        voice: validVoice,
         response_format: 'mp3'
       })
     });
 
-    if (res.ok) {
-      const arrayBuf = await res.arrayBuffer();
+    if (sRes.ok) {
+      const arrayBuf = await sRes.arrayBuffer();
       return Buffer.from(arrayBuf);
     }
   } catch (err: any) {
-    console.warn('LiteLLM Proxy TTS failed:', err.message);
+    console.warn('LiteLLM Speech fallback failed:', err.message);
   }
 
-  // 2. Fallback: Google Translate TTS endpoint for safety
-  const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ru&client=tw-ob`;
-  const gRes = await fetch(googleTtsUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
-    }
-  });
-
-  if (gRes.ok) {
-    return Buffer.from(await gRes.arrayBuffer());
-  }
-
-  throw new Error('All TTS synthesis providers failed.');
+  throw new Error('TTS synthesis failed.');
 }
 
 /**
