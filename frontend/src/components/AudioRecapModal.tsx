@@ -84,58 +84,23 @@ export const AudioRecapModal: React.FC = () => {
     stopPreview();
     setPreviewingVoice(voiceId);
 
-    const sampleText = VOICE_SAMPLES[voiceId] || 'Привет! Это пример звучания выбранного голоса.';
-
-    // 1. Try HTML5 Audio MP3 stream from backend
-    const audioUrl = `/api/podcast/sample-audio?voice=${encodeURIComponent(voiceId)}`;
+    // Stream WAV sample for voice preview from backend
+    const audioUrl = `/api/podcast/sample-audio?voice=${encodeURIComponent(voiceId)}&t=${Date.now()}`;
     const audio = new Audio(audioUrl);
     sampleAudioRef.current = audio;
 
-    let playedAudio = false;
-
     audio.onended = () => setPreviewingVoice(null);
-    audio.onerror = () => {
-      if (!playedAudio) playWebSpeech();
+    audio.onerror = (e) => {
+      console.error('TTS Audio Sample playback error:', e);
+      setPreviewingVoice(null);
+      alert(`Ошибка воспроизведения голоса ${voiceId}. Сервер Gemini TTS недоступен или превышен лимит запросов.`);
     };
 
-    audio.play().then(() => {
-      playedAudio = true;
-    }).catch(() => {
-      playWebSpeech();
+    audio.play().catch((err) => {
+      console.error('Audio play failed:', err);
+      setPreviewingVoice(null);
+      alert(`Не удалось воспроизвести голос ${voiceId}: ${err.message || 'Ошибка воспроизведения'}`);
     });
-
-    function playWebSpeech() {
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-        setPreviewingVoice(null);
-        return;
-      }
-
-      try {
-        window.speechSynthesis.cancel();
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-
-        const utterance = new SpeechSynthesisUtterance(sampleText);
-        utterance.lang = 'ru-RU';
-
-        if (voiceId === 'Puck' || voiceId === 'Charon' || voiceId === 'Fenrir') {
-          utterance.pitch = 0.7;
-          utterance.rate = 0.95;
-        } else {
-          utterance.pitch = 1.1;
-          utterance.rate = 1.0;
-        }
-
-        utterance.onend = () => setPreviewingVoice(null);
-        utterance.onerror = () => setPreviewingVoice(null);
-
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        console.error('SpeechSynthesis error:', e);
-        setPreviewingVoice(null);
-      }
-    }
   };
 
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');

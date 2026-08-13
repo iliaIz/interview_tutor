@@ -174,44 +174,59 @@ export function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1,
  * Synthesize TTS audio for single text line via Gemini 3.1 Flash TTS API
  */
 export async function synthesizeTTSBuffer(text: string, voice: string): Promise<Buffer> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const keyToUse = apiKey || proxyApiKey;
   const validVoice = (['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voice)) ? voice : 'Kore';
 
-  // 1. Primary: Gemini 3.1 Flash TTS REST API generateContent
-  try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${keyToUse}`;
+  // Gather available keys for key-rotation and rate-limit mitigation
+  const apiKeys = [
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY
+  ].filter((k): k is string => Boolean(k && k.trim().length > 0));
 
-    const res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: validVoice }
+  if (apiKeys.length === 0) {
+    apiKeys.push('AQ.Ab8RN6JLrWJnSwMz20ChyboKHIYCOcnJ3u6otbDOoqk7I0BEPg');
+  }
+
+  let lastError = '';
+
+  // 1. Try Gemini 3.1 Flash TTS generateContent across all available keys
+  for (let i = 0; i < apiKeys.length; i++) {
+    const currentKey = apiKeys[i];
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${currentKey}`;
+
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: validVoice }
+              }
             }
           }
-        }
-      })
-    });
+        })
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-      if (inlineData && inlineData.data) {
-        const rawPcm = Buffer.from(inlineData.data, 'base64');
-        return pcmToWav(rawPcm, 24000, 1, 16);
+      if (res.ok) {
+        const data = await res.json();
+        const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+        if (inlineData && inlineData.data) {
+          const rawPcm = Buffer.from(inlineData.data, 'base64');
+          return pcmToWav(rawPcm, 24000, 1, 16);
+        }
+      } else {
+        const errTxt = await res.text();
+        lastError = `Key #${i + 1} Error (${res.status}): ${errTxt}`;
+        console.warn(`[Gemini TTS] ${lastError}. Trying next key...`);
       }
-    } else {
-      const errTxt = await res.text();
-      console.warn('Gemini TTS generateContent response error:', errTxt);
+    } catch (err: any) {
+      lastError = `Key #${i + 1} Connection error: ${err.message}`;
+      console.warn(`[Gemini TTS] ${lastError}`);
     }
-  } catch (err: any) {
-    console.warn('Gemini TTS generateContent connection failed:', err.message);
   }
 
   // 2. Secondary: LiteLLM Proxy /v1/audio/speech API
@@ -219,6 +234,7 @@ export async function synthesizeTTSBuffer(text: string, voice: string): Promise<
     const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
     const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const speechUrl = `${cleanProxyBase}/v1/audio/speech`;
+    const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-litellm-local-proxy-master-key-12345';
 
     const sRes = await fetch(speechUrl, {
       method: 'POST',
@@ -242,7 +258,8 @@ export async function synthesizeTTSBuffer(text: string, voice: string): Promise<
     console.warn('LiteLLM Speech fallback failed:', err.message);
   }
 
-  throw new Error('TTS synthesis failed.');
+  // Explicit unmasked failure
+  throw new Error(`Синтез речи Gemini TTS не удался. Причина: ${lastError || 'Неизвестная ошибка сервера'}`);
 }
 
 /**
