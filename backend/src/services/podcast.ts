@@ -1,8 +1,7 @@
 import { db } from './db';
-import http from 'http';
-import https from 'https';
-
-const PODCAST_SERVICE_URL = process.env.PODCAST_SERVICE_URL || 'http://host.docker.internal:8765';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 
 export interface GeneratePodcastOptions {
   questionIds?: string[];
@@ -27,9 +26,30 @@ export interface QuestionRow {
   answer: string;
 }
 
-/**
- * Fetch questions from SQLite DB and format a combined prompt for Open-NotebookLM.
- */
+export interface DialogueItem {
+  speaker: 'Host' | 'Guest';
+  text: string;
+}
+
+export interface PodcastJobState {
+  job_id: string;
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  created_at: string;
+  audio_url?: string;
+  transcript?: string;
+  metadata?: any;
+  error?: string;
+  audioPath?: string;
+}
+
+const STORAGE_DIR = path.join(process.cwd(), 'storage');
+if (!fs.existsSync(STORAGE_DIR)) {
+  fs.mkdirSync(STORAGE_DIR, { recursive: true });
+}
+
+// In-memory Job DB
+const JOBS_DB = new Map<string, PodcastJobState>();
+
 export function buildPodcastText(questionIds?: string[], topicName?: string): { text: string; topic: string } {
   let questions: QuestionRow[] = [];
 
@@ -59,65 +79,217 @@ export function buildPodcastText(questionIds?: string[], topicName?: string): { 
 }
 
 /**
- * Trigger job on Open-NotebookLM microservice.
+ * Generate dialogue script using Gemini / LiteLLM Proxy
  */
-export async function startPodcastJob(options: GeneratePodcastOptions): Promise<any> {
-  const { text, topic } = buildPodcastText(options.questionIds, options.topicName);
+async function generateDialogueScript(
+  text: string,
+  options: GeneratePodcastOptions
+): Promise<{ name_of_guest: string; dialogue: DialogueItem[] }> {
+  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+  const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
+  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
 
-  const payload = JSON.stringify({
-    text: text,
-    question: `Audio recap of interview questions for topic: ${topic}`,
-    tone: options.tone || 'Fun',
-    length: options.length || 'Medium (10-15 min)',
-    language: options.language || 'Russian',
-    system_prompt: options.systemPrompt,
-    user_prompt: options.userPrompt,
-    mode: options.mode || 'duo',
-    voice_1: options.voice1 || 'ru-RU-SvetlanaNeural',
-    voice_2: options.voice2 || 'ru-RU-DmitryNeural',
-  });
+  const isDuo = options.mode !== 'solo';
+  const systemPrompt = options.systemPrompt || `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать структурированный ${isDuo ? 'диалог двух ведущих (Host и Guest)' : 'монолог ведущего (Host)'} на русском языке.`;
+  const userPrompt = options.userPrompt || `Создай разбор следующего материала.`;
 
-  const url = `${PODCAST_SERVICE_URL}/api/v1/jobs`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: payload,
-  });
+  const scriptPrompt = `${systemPrompt}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Open-NotebookLM service error (${response.status}): ${errorText}`);
+${userPrompt}
+
+Инструкции к формату:
+Верни ответ СТРОГО в JSON формате без разметки markdown:
+{
+  "name_of_guest": "${isDuo ? 'Эксперт' : 'Ведущий'}",
+  "dialogue": [
+    ${isDuo ? '{"speaker": "Host", "text": "..."}, {"speaker": "Guest", "text": "..."}' : '{"speaker": "Host", "text": "..."}'}
+  ]
+}
+
+Исходный материал:
+${text}`;
+
+  try {
+    const res = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${proxyApiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: scriptPrompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.3
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const rawJson = data.choices?.[0]?.message?.content || '{}';
+      const parsed = JSON.parse(rawJson);
+      if (parsed.dialogue && Array.isArray(parsed.dialogue)) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('LiteLLM script generation failed, fallback to default script:', err);
   }
 
-  return await response.json();
+  // Fallback simple script
+  return {
+    name_of_guest: isDuo ? 'Эксперт' : 'Ведущий',
+    dialogue: [
+      { speaker: 'Host', text: `Приветствую! Сегодня мы разбираем важные вопросы по теме: ${text.slice(0, 100)}...` },
+      { speaker: isDuo ? 'Guest' : 'Host', text: 'Давайте подробно пройдемся по каждому вопросу и ключевым концепциям.' }
+    ]
+  };
 }
 
 /**
- * Fetch status of a job from Open-NotebookLM microservice.
+ * Synthesize TTS audio for single text line via LiteLLM Proxy / Gemini TTS API
  */
-export async function fetchJobStatus(jobId: string): Promise<any> {
-  const url = `${PODCAST_SERVICE_URL}/api/v1/jobs/${jobId}`;
-  const response = await fetch(url);
+export async function synthesizeTTSBuffer(text: string, voice: string): Promise<Buffer> {
+  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+  const endpointUrl = `${cleanProxyBase}/v1/audio/speech`;
+  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch job status (${response.status}): ${errorText}`);
+  // 1. Primary: LiteLLM Proxy Audio Speech API
+  try {
+    const res = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${proxyApiKey}`,
+      },
+      body: JSON.stringify({
+        model: ttsModel,
+        input: text,
+        voice: voice || 'Kore',
+        response_format: 'mp3'
+      })
+    });
+
+    if (res.ok) {
+      const arrayBuf = await res.arrayBuffer();
+      return Buffer.from(arrayBuf);
+    }
+  } catch (err: any) {
+    console.warn('LiteLLM Proxy TTS failed:', err.message);
   }
 
-  return await response.json();
+  // 2. Fallback: Google Translate TTS endpoint for safety
+  const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ru&client=tw-ob`;
+  const gRes = await fetch(googleTtsUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+    }
+  });
+
+  if (gRes.ok) {
+    return Buffer.from(await gRes.arrayBuffer());
+  }
+
+  throw new Error('All TTS synthesis providers failed.');
 }
 
 /**
- * Stream MP3 audio from Open-NotebookLM microservice to response.
+ * Start asynchronous podcast generation job in Node.js backend.
  */
-export async function streamAudioFile(jobId: string): Promise<Response> {
-  const url = `${PODCAST_SERVICE_URL}/api/v1/jobs/${jobId}/audio`;
-  const response = await fetch(url);
+export async function startPodcastJob(options: GeneratePodcastOptions): Promise<PodcastJobState> {
+  const jobId = crypto.randomBytes(16).toString('hex');
+  const now = new Date().toISOString();
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch audio for job ${jobId}`);
+  const jobState: PodcastJobState = {
+    job_id: jobId,
+    status: 'QUEUED',
+    created_at: now,
+  };
+
+  JOBS_DB.set(jobId, jobState);
+
+  // Execute processing asynchronously in background
+  processPodcastJobAsync(jobId, options).catch((err) => {
+    console.error(`Background job ${jobId} unhandled error:`, err);
+  });
+
+  return jobState;
+}
+
+async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOptions) {
+  const job = JOBS_DB.get(jobId);
+  if (!job) return;
+
+  try {
+    job.status = 'PROCESSING';
+    const { text, topic } = buildPodcastText(options.questionIds, options.topicName);
+
+    // 1. Generate Script
+    const script = await generateDialogueScript(text, options);
+
+    // 2. Synthesize each dialogue line
+    const voice1 = options.voice1 || 'Kore';
+    const voice2 = options.voice2 || 'Puck';
+
+    const audioBuffers: Buffer[] = [];
+    let transcriptText = `Topic: ${topic}\n\n`;
+
+    for (let i = 0; i < script.dialogue.length; i++) {
+      const line = script.dialogue[i];
+      const selectedVoice = line.speaker === 'Host' ? voice1 : voice2;
+      const speakerName = line.speaker === 'Host' ? 'Host (Ведущий)' : (script.name_of_guest || 'Guest');
+
+      transcriptText += `**${speakerName}**: ${line.text}\n\n`;
+
+      const lineBuffer = await synthesizeTTSBuffer(line.text, selectedVoice);
+      audioBuffers.push(lineBuffer);
+    }
+
+    // Combine audio buffers
+    const combinedBuffer = Buffer.concat(audioBuffers);
+    const fileName = `podcast_${jobId}.mp3`;
+    const filePath = path.join(STORAGE_DIR, fileName);
+
+    await fs.promises.writeFile(filePath, combinedBuffer);
+
+    job.status = 'COMPLETED';
+    job.audioPath = filePath;
+    job.audio_url = `/api/podcast/audio/${jobId}`;
+    job.transcript = transcriptText;
+    job.metadata = {
+      dialogue_count: script.dialogue.length,
+      voice1,
+      voice2,
+      topic,
+    };
+  } catch (err: any) {
+    console.error(`Podcast job ${jobId} failed:`, err);
+    job.status = 'FAILED';
+    job.error = err.message || 'Podcast generation failed';
+  }
+}
+
+export async function fetchJobStatus(jobId: string): Promise<PodcastJobState> {
+  const job = JOBS_DB.get(jobId);
+  if (!job) {
+    throw new Error('Job not found');
+  }
+  return job;
+}
+
+export async function streamAudioFile(jobId: string): Promise<{ filePath: string }> {
+  const job = JOBS_DB.get(jobId);
+  if (!job || job.status !== 'COMPLETED' || !job.audioPath) {
+    throw new Error('Audio file not ready or job failed');
   }
 
-  return response;
+  if (!fs.existsSync(job.audioPath)) {
+    throw new Error('Audio file does not exist on server');
+  }
+
+  return { filePath: job.audioPath };
 }

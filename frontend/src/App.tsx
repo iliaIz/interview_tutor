@@ -44,7 +44,7 @@ export const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-pastel-border/60 bg-white py-4 text-center text-xs text-pastel-muted">
-        <p>© 2026 InterviewPrep AI Platform. Open-NotebookLM Audio Engine & Gemini 3 LiteLLM Proxy.</p>
+        <p>© 2026 InterviewPrep AI Platform. Gemini 3 TTS Engine & LiteLLM Proxy.</p>
       </footer>
     </div>
   );

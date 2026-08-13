@@ -4,17 +4,19 @@ import { X, Headphones, Sparkles, Loader2, Music, CheckCircle2, AlertCircle, Che
 import { motion, AnimatePresence } from 'framer-motion';
 
 const RUSSIAN_VOICES = [
-  { id: 'ru-RU-SvetlanaNeural', name: 'Светлана', gender: 'Женский', desc: 'Уверенный, чёткий' },
-  { id: 'ru-RU-DmitryNeural', name: 'Дмитрий', gender: 'Мужской', desc: 'Глубокий, спокойный' },
-  { id: 'ru-RU-ElenaNeural', name: 'Елена', gender: 'Женский', desc: 'Мягкий, повествовательный' },
-  { id: 'ru-RU-DariyaNeural', name: 'Дарья', gender: 'Женский', desc: 'Энергичный, живой' },
+  { id: 'Kore', name: 'Kore (Светлана)', gender: 'Женский', desc: 'Уверенный, чёткий' },
+  { id: 'Puck', name: 'Puck (Дмитрий)', gender: 'Мужской', desc: 'Живой, динамичный' },
+  { id: 'Charon', name: 'Charon (Алексей)', gender: 'Мужской', desc: 'Глубокий, спокойный' },
+  { id: 'Aoede', name: 'Aoede (Елена)', gender: 'Женский', desc: 'Выразительный, мягкий' },
+  { id: 'Fenrir', name: 'Fenrir (Максим)', gender: 'Мужской', desc: 'Строгий, авторитетный' },
 ];
 
 const VOICE_SAMPLES: Record<string, string> = {
-  'ru-RU-SvetlanaNeural': 'Привет! Я Светлана. Помогу вам легко подготовиться к техническому собеседованию.',
-  'ru-RU-DmitryNeural': 'Здравствуйте! Я Дмитрий. Давайте детально изучим ключевые концепции и архитектуру.',
-  'ru-RU-ElenaNeural': 'Приветствую! Я Елена. Разберу ответы и подводные камни, которые спрашивают интервьюеры.',
-  'ru-RU-DariyaNeural': 'Всем привет! Я Дарья. Разберем практические задачи backend-разработки ярко и понятно.',
+  'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
+  'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
+  'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
+  'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
+  'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
 };
 
 const DEFAULT_SYSTEM_PROMPT = `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать качественные аудиопересказы вопросов и ответов на русском языке. Объясняй материал глубоко и доступно, используй жизненные аналогии из реальной backend-разработки, подсвечивай ключевые слова и подводные камни.`;
@@ -37,8 +39,8 @@ export const AudioRecapModal: React.FC = () => {
   const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob } = useAppStore();
 
   const [mode, setMode] = useState<'duo' | 'solo'>('duo');
-  const [voice1, setVoice1] = useState<string>('ru-RU-SvetlanaNeural');
-  const [voice2, setVoice2] = useState<string>('ru-RU-DmitryNeural');
+  const [voice1, setVoice1] = useState<string>('Kore');
+  const [voice2, setVoice2] = useState<string>('Puck');
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
   const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -117,18 +119,12 @@ export const AudioRecapModal: React.FC = () => {
         const utterance = new SpeechSynthesisUtterance(sampleText);
         utterance.lang = 'ru-RU';
 
-        if (voiceId === 'ru-RU-DmitryNeural') {
-          utterance.pitch = 0.6;
-          utterance.rate = 0.9;
-        } else if (voiceId === 'ru-RU-SvetlanaNeural') {
-          utterance.pitch = 1.2;
-          utterance.rate = 1.0;
-        } else if (voiceId === 'ru-RU-ElenaNeural') {
-          utterance.pitch = 0.9;
+        if (voiceId === 'Puck' || voiceId === 'Charon' || voiceId === 'Fenrir') {
+          utterance.pitch = 0.7;
           utterance.rate = 0.95;
-        } else if (voiceId === 'ru-RU-DariyaNeural') {
-          utterance.pitch = 1.4;
-          utterance.rate = 1.1;
+        } else {
+          utterance.pitch = 1.1;
+          utterance.rate = 1.0;
         }
 
         utterance.onend = () => setPreviewingVoice(null);
@@ -203,7 +199,7 @@ export const AudioRecapModal: React.FC = () => {
   const handleStartGeneration = async () => {
     setStatus('queued');
     setErrorMessage(null);
-    setProgressMsg('Отправка запроса к Open-NotebookLM & LiteLLM Proxy...');
+    setProgressMsg('Генерация сценария и аудио через Gemini TTS...');
 
     try {
       const res = await fetch('/api/podcast/generate', {
