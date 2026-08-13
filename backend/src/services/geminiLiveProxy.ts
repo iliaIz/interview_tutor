@@ -10,25 +10,43 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     console.log('🎙️ Browser connected to Live Audio WS Proxy');
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error('❌ GEMINI_API_KEY is missing');
-      clientWs.send(JSON.stringify({ error: 'GEMINI_API_KEY is missing on server' }));
+    const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL;
+    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3';
+
+    if (!apiKey && !rawProxyUrl) {
+      console.error('❌ Neither GEMINI_API_KEY nor LITELLM_PROXY_URL is configured');
+      clientWs.send(JSON.stringify({ error: 'GEMINI_API_KEY and LiteLLM Proxy are missing on server' }));
       clientWs.close();
       return;
     }
 
-    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-2.5-flash-native-audio-latest';
-    const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
+    // Determine target WS URL
+    let geminiWsUrl = '';
+    if (rawProxyUrl) {
+      const cleanProxyHost = rawProxyUrl
+        .replace(/^https?:\/\//, '')
+        .replace(/\/v1\/?$/, '')
+        .replace(/\/$/, '');
+      const wsProtocol = rawProxyUrl.startsWith('https') ? 'wss' : 'ws';
+      geminiWsUrl = `${wsProtocol}://${cleanProxyHost}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${proxyApiKey}`;
+      console.log(`🌐 Connecting via LiteLLM Proxy WS (${wsProtocol}://${cleanProxyHost}) using model [${liveModel}]...`);
+    } else {
+      geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
+      console.log(`⚡ Connecting directly to Gemini Live WS using model [${liveModel}]...`);
+    }
 
     let geminiWs: WebSocket | null = new WebSocket(geminiWsUrl);
 
     geminiWs.on('open', () => {
-      console.log('✅ Connected to Gemini Multimodal Live API');
+      console.log(`✅ Connected to Gemini Multimodal Live API (Model: ${liveModel})`);
+
+      const modelId = liveModel.startsWith('models/') ? liveModel : `models/${liveModel}`;
 
       // Send initial setup config
       const setupMessage = {
         setup: {
-          model: `models/${liveModel}`,
+          model: modelId,
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: {
