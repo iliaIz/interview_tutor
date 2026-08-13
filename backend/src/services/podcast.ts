@@ -177,7 +177,7 @@ export async function synthesizeTTSBuffer(text: string, voice: string): Promise<
   const apiKey = process.env.GEMINI_API_KEY;
   const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
   const keyToUse = apiKey || proxyApiKey;
-  const validVoice = (['Kore', 'Puck', 'Charon'].includes(voice)) ? voice : 'Kore';
+  const validVoice = (['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voice)) ? voice : 'Kore';
 
   // 1. Primary: Gemini 3.1 Flash TTS REST API generateContent
   try {
