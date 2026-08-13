@@ -70,23 +70,33 @@ router.get('/audio/:jobId', async (req, res) => {
   }
 });
 
-// GET /api/podcast/sample-audio - Stream MP3 sample for voice preview using Gemini TTS
+const sampleAudioCache = new Map<string, Buffer>();
+
+// GET /api/podcast/sample-audio - Stream WAV sample for voice preview using Gemini TTS
 router.get('/sample-audio', async (req, res) => {
   try {
     const voice = (req.query.voice as string) || 'Kore';
+
+    // 1. Return instantly from in-memory cache if generated previously
+    if (sampleAudioCache.has(voice)) {
+      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.send(sampleAudioCache.get(voice));
+    }
+
     const sampleTexts: Record<string, string> = {
       'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
       'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
       'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
-      'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
-      'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
     };
 
     const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного голоса.';
 
     const buffer = await synthesizeTTSBuffer(text, voice);
+    sampleAudioCache.set(voice, buffer);
+
     res.setHeader('Content-Type', 'audio/wav');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(buffer);
   } catch (err: any) {
     console.error('Error fetching sample audio:', err);
