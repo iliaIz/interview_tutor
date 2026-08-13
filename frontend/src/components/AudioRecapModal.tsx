@@ -329,11 +329,11 @@ export const AudioRecapModal: React.FC = () => {
                     <label className="block text-xs font-semibold text-pastel-text mb-1.5 flex items-center justify-between">
                       <span>Выберите диктора (Русский)</span>
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <select
                         value={voice1}
                         onChange={(e) => setVoice1(e.target.value)}
-                        className="flex-1 bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none"
+                        className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none truncate"
                       >
                         {RUSSIAN_VOICES.map((v) => (
                           <option key={v.id} value={v.id}>
@@ -344,7 +344,7 @@ export const AudioRecapModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handlePreviewVoice(voice1)}
-                        className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
+                        className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
                           previewingVoice === voice1
                             ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
                             : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose'
@@ -357,16 +357,16 @@ export const AudioRecapModal: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+                    <div className="min-w-0">
                       <label className="block text-xs font-semibold text-pastel-text mb-1 flex items-center justify-between">
                         <span>Голос 1 (Ведущий)</span>
                       </label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <select
                           value={voice1}
                           onChange={(e) => setVoice1(e.target.value)}
-                          className="flex-1 bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none"
+                          className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none truncate"
                         >
                           {RUSSIAN_VOICES.map((v) => (
                             <option key={v.id} value={v.id}>
@@ -377,7 +377,7 @@ export const AudioRecapModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handlePreviewVoice(voice1)}
-                          className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
+                          className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
                             previewingVoice === voice1
                               ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
                               : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose'
@@ -389,15 +389,15 @@ export const AudioRecapModal: React.FC = () => {
                       </div>
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-semibold text-pastel-text mb-1 flex items-center justify-between">
                         <span>Голос 2 (Соведущий)</span>
                       </label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <select
                           value={voice2}
                           onChange={(e) => setVoice2(e.target.value)}
-                          className="flex-1 bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentViolet outline-none"
+                          className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentViolet outline-none truncate"
                         >
                           {RUSSIAN_VOICES.map((v) => (
                             <option key={v.id} value={v.id}>
@@ -408,7 +408,7 @@ export const AudioRecapModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handlePreviewVoice(voice2)}
-                          className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
+                          className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
                             previewingVoice === voice2
                               ? 'bg-pastel-accentViolet text-white border-pastel-accentViolet'
                               : 'bg-white text-pastel-accentViolet border-pastel-accentViolet/30 hover:bg-pastel-lavender'
