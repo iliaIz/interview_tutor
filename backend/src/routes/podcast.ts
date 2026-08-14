@@ -54,14 +54,14 @@ router.get('/status/:jobId', async (req, res) => {
   }
 });
 
-// GET /api/podcast/audio/:jobId - Stream MP3 audio
+// GET /api/podcast/audio/:jobId - Stream WAV audio
 router.get('/audio/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
     const { filePath } = await streamAudioFile(jobId);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `inline; filename="podcast_${jobId}.mp3"`);
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Disposition', `inline; filename="podcast_${jobId}.wav"`);
 
     res.sendFile(filePath);
   } catch (error: any) {
@@ -79,7 +79,7 @@ router.get('/sample-audio', async (req, res) => {
 
     // 1. Return instantly from in-memory cache if generated previously
     if (sampleAudioCache.has(voice)) {
-      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Type', 'audio/wav');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return res.send(sampleAudioCache.get(voice));
     }
@@ -97,7 +97,7 @@ router.get('/sample-audio', async (req, res) => {
     const buffer = await synthesizeTTSBuffer(text, voice);
     sampleAudioCache.set(voice, buffer);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(buffer);
   } catch (err: any) {

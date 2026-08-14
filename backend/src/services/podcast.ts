@@ -31,12 +31,53 @@ export interface DialogueItem {
   text: string;
 }
 
+export interface StepTelemetry {
+  index: number;
+  speaker: string;
+  voice: string;
+  text: string;
+  durationMs: number;
+  status: 'completed' | 'failed';
+}
+
+export interface JobTelemetry {
+  startTime: number;
+  endTime?: number;
+  totalDurationSec?: number;
+  scriptDurationSec?: number;
+  ttsDurationSec?: number;
+  audioDurationEstimateSec?: number;
+  totalBytes?: number;
+  modelsUsed: {
+    scriptModel: string;
+    ttsModel: string;
+  };
+  voices: {
+    voice1: string;
+    voice2?: string;
+    mode: 'solo' | 'duo';
+  };
+  steps: StepTelemetry[];
+}
+
+export interface PodcastJobProgress {
+  percentage: number;
+  stage: 'script' | 'synthesis' | 'merging' | 'completed' | 'failed';
+  stageLabel: string;
+  currentStep: number;
+  totalSteps: number;
+  currentSpeaker?: string;
+  currentTextSnippet?: string;
+  telemetry?: JobTelemetry;
+}
+
 export interface PodcastJobState {
   job_id: string;
   status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   created_at: string;
   audio_url?: string;
   transcript?: string;
+  progress?: PodcastJobProgress;
   metadata?: any;
   error?: string;
   audioPath?: string;
@@ -48,6 +89,11 @@ if (!fs.existsSync(STORAGE_DIR)) {
 }
 
 function saveJob(job: PodcastJobState) {
+  const mergedMetadata = {
+    ...(job.metadata || {}),
+    progress: job.progress
+  };
+
   const stmt = db.prepare(`
     INSERT INTO podcast_jobs (job_id, status, created_at, audio_url, transcript, metadata, error, audio_path)
     VALUES (@job_id, @status, @created_at, @audio_url, @transcript, @metadata, @error, @audio_path)
@@ -65,7 +111,7 @@ function saveJob(job: PodcastJobState) {
     created_at: job.created_at,
     audio_url: job.audio_url || null,
     transcript: job.transcript || null,
-    metadata: job.metadata ? JSON.stringify(job.metadata) : null,
+    metadata: JSON.stringify(mergedMetadata),
     error: job.error || null,
     audio_path: job.audioPath || null,
   });
@@ -75,13 +121,20 @@ export function getJob(jobId: string): PodcastJobState | undefined {
   const stmt = db.prepare('SELECT * FROM podcast_jobs WHERE job_id = ?');
   const row = stmt.get(jobId) as any;
   if (!row) return undefined;
+  
+  let parsedMetadata: any = {};
+  try {
+    if (row.metadata) parsedMetadata = JSON.parse(row.metadata);
+  } catch {}
+
   return {
     job_id: row.job_id,
     status: row.status,
     created_at: row.created_at,
     audio_url: row.audio_url || undefined,
     transcript: row.transcript || undefined,
-    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    progress: parsedMetadata.progress,
+    metadata: parsedMetadata,
     error: row.error || undefined,
     audioPath: row.audio_path || undefined,
   };
@@ -129,8 +182,8 @@ async function generateDialogueScript(
   const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
 
   const isDuo = options.mode !== 'solo';
-  const systemPrompt = options.systemPrompt || `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать структурированный ${isDuo ? 'диалог двух ведущих (Host и Guest)' : 'монолог ведущего (Host)'} на русском языке.`;
-  const userPrompt = options.userPrompt || `Создай разбор следующего материала.`;
+  const systemPrompt = options.systemPrompt || `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать структурированный ${isDuo ? 'динамичный диалог двух ведущих (Host и Guest)' : 'увлекательный монолог ведущего (Host)'} на русском языке.`;
+  const userPrompt = options.userPrompt || `Создай глубокий и полезный разбор следующего материала.`;
 
   const scriptPrompt = `${systemPrompt}
 
@@ -167,7 +220,7 @@ ${text}`;
       const data = await res.json();
       const rawJson = data.choices?.[0]?.message?.content || '{}';
       const parsed = JSON.parse(rawJson);
-      if (parsed.dialogue && Array.isArray(parsed.dialogue)) {
+      if (parsed.dialogue && Array.isArray(parsed.dialogue) && parsed.dialogue.length > 0) {
         return parsed;
       }
     }
@@ -179,8 +232,8 @@ ${text}`;
   return {
     name_of_guest: isDuo ? 'Эксперт' : 'Ведущий',
     dialogue: [
-      { speaker: 'Host', text: `Приветствую! Сегодня мы разбираем важные вопросы по теме: ${text.slice(0, 100)}...` },
-      { speaker: isDuo ? 'Guest' : 'Host', text: 'Давайте подробно пройдемся по каждому вопросу и ключевым концепциям.' }
+      { speaker: 'Host', text: `Приветствуем всех слушателей! Сегодня мы подробно разбираем ключевые вопросы темы: ${text.slice(0, 100)}...` },
+      { speaker: isDuo ? 'Guest' : 'Host', text: 'Давайте последовательно пройдемся по каждому вопросу, архитектуре и важным деталям для собеседования.' }
     ]
   };
 }
@@ -249,10 +302,30 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
   const jobId = crypto.randomBytes(16).toString('hex');
   const now = new Date().toISOString();
 
+  const scriptModel = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
+  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+
   const jobState: PodcastJobState = {
     job_id: jobId,
     status: 'QUEUED',
     created_at: now,
+    progress: {
+      percentage: 0,
+      stage: 'script',
+      stageLabel: 'Инициализация и постановка в очередь...',
+      currentStep: 0,
+      totalSteps: 1,
+      telemetry: {
+        startTime: Date.now(),
+        modelsUsed: { scriptModel, ttsModel },
+        voices: {
+          voice1: options.voice1 || 'Kore',
+          voice2: options.voice2 || 'Puck',
+          mode: options.mode || 'duo'
+        },
+        steps: []
+      }
+    }
   };
 
   saveJob(jobState);
@@ -269,55 +342,174 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
   const job = getJob(jobId);
   if (!job) return;
 
+  const startTime = Date.now();
+  const scriptModel = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
+  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const voice1 = options.voice1 || 'Kore';
+  const voice2 = options.voice2 || 'Puck';
+  const mode = options.mode || 'duo';
+
+  const telemetry: JobTelemetry = {
+    startTime,
+    modelsUsed: { scriptModel, ttsModel },
+    voices: { voice1, voice2, mode },
+    steps: []
+  };
+
   try {
     job.status = 'PROCESSING';
+    job.progress = {
+      percentage: 5,
+      stage: 'script',
+      stageLabel: 'ИИ создает подробный сценарий и реплики диалога...',
+      currentStep: 0,
+      totalSteps: 1,
+      telemetry
+    };
     saveJob(job);
 
     const { text, topic } = buildPodcastText(options.questionIds, options.topicName);
 
     // 1. Generate Script
+    const scriptStartTime = Date.now();
     const script = await generateDialogueScript(text, options);
+    const scriptDurationSec = Math.round((Date.now() - scriptStartTime) / 100) / 10;
+    telemetry.scriptDurationSec = scriptDurationSec;
 
-    // 2. Synthesize each dialogue line
-    const voice1 = options.voice1 || 'Kore';
-    const voice2 = options.voice2 || 'Puck';
+    const totalLines = script.dialogue.length;
 
-    const audioBuffers: Buffer[] = [];
+    job.progress = {
+      percentage: 15,
+      stage: 'synthesis',
+      stageLabel: `Сценарий готов (${totalLines} реплик). Запуск синтеза речи...`,
+      currentStep: 0,
+      totalSteps: totalLines,
+      telemetry
+    };
+    saveJob(job);
+
+    // 2. Synthesize audio lines with controlled batching (concurrency = 2) for 2x speedup
+    const ttsStartTime = Date.now();
+    const rawPcmBuffers: (Buffer | null)[] = new Array(totalLines).fill(null);
     let transcriptText = `Topic: ${topic}\n\n`;
 
-    for (let i = 0; i < script.dialogue.length; i++) {
-      const line = script.dialogue[i];
-      const selectedVoice = line.speaker === 'Host' ? voice1 : voice2;
-      const speakerName = line.speaker === 'Host' ? 'Host (Ведущий)' : (script.name_of_guest || 'Guest');
+    // Process in batches of 2 parallel requests
+    const CONCURRENCY = 2;
+    for (let i = 0; i < totalLines; i += CONCURRENCY) {
+      const batchIndices = [];
+      for (let b = 0; b < CONCURRENCY && (i + b) < totalLines; b++) {
+        batchIndices.push(i + b);
+      }
 
-      transcriptText += `**${speakerName}**: ${line.text}\n\n`;
+      await Promise.all(batchIndices.map(async (idx) => {
+        const line = script.dialogue[idx];
+        const selectedVoice = line.speaker === 'Host' ? voice1 : voice2;
+        const speakerLabel = line.speaker === 'Host' ? `Host (${voice1})` : `${script.name_of_guest || 'Guest'} (${voice2})`;
 
-      const lineBuffer = await synthesizeTTSBuffer(line.text, selectedVoice);
-      audioBuffers.push(lineBuffer);
+        const stepStart = Date.now();
+        let stepStatus: 'completed' | 'failed' = 'completed';
+
+        try {
+          const wavBuffer = await synthesizeTTSBuffer(line.text, selectedVoice);
+          // Strip 44-byte WAV header so we concatenate pure 24kHz PCM data
+          const pcmChunk = wavBuffer.length > 44 ? wavBuffer.subarray(44) : wavBuffer;
+          rawPcmBuffers[idx] = pcmChunk;
+        } catch (ttsErr) {
+          console.error(`TTS Error on line ${idx + 1}:`, ttsErr);
+          stepStatus = 'failed';
+        }
+
+        const stepDurationMs = Date.now() - stepStart;
+        telemetry.steps.push({
+          index: idx + 1,
+          speaker: speakerLabel,
+          voice: selectedVoice,
+          text: line.text,
+          durationMs: stepDurationMs,
+          status: stepStatus
+        });
+      }));
+
+      // Update progress after each batch completes
+      const completedCount = Math.min(i + batchIndices.length, totalLines);
+      const percentage = 15 + Math.round((completedCount / totalLines) * 75);
+      const currentLine = script.dialogue[Math.min(i + batchIndices.length - 1, totalLines - 1)];
+
+      job.progress = {
+        percentage,
+        stage: 'synthesis',
+        stageLabel: `Озвучено ${completedCount} из ${totalLines} реплик (${percentage}%)`,
+        currentStep: completedCount,
+        totalSteps: totalLines,
+        currentSpeaker: currentLine.speaker === 'Host' ? `Ведущий (${voice1})` : `${script.name_of_guest || 'Эксперт'} (${voice2})`,
+        currentTextSnippet: currentLine.text,
+        telemetry
+      };
+      saveJob(job);
     }
 
-    // Combine audio buffers
-    const combinedBuffer = Buffer.concat(audioBuffers);
-    const fileName = `podcast_${jobId}.mp3`;
-    const filePath = path.join(STORAGE_DIR, fileName);
+    const ttsDurationSec = Math.round((Date.now() - ttsStartTime) / 100) / 10;
+    telemetry.ttsDurationSec = ttsDurationSec;
 
-    await fs.promises.writeFile(filePath, combinedBuffer);
+    // 3. Merging pure PCM into master RIFF WAV
+    job.progress = {
+      percentage: 92,
+      stage: 'merging',
+      stageLabel: 'Сборка и нормализация мастер-аудиодорожки...',
+      currentStep: totalLines,
+      totalSteps: totalLines,
+      telemetry
+    };
+    saveJob(job);
+
+    // Build transcript
+    script.dialogue.forEach((line) => {
+      const speakerName = line.speaker === 'Host' ? `Host (${voice1})` : `${script.name_of_guest || 'Guest'} (${voice2})`;
+      transcriptText += `**${speakerName}**: ${line.text}\n\n`;
+    });
+
+    const validPcmChunks = rawPcmBuffers.filter((b): b is Buffer => b !== null);
+    const combinedPcm = Buffer.concat(validPcmChunks);
+    const finalWavBuffer = pcmToWav(combinedPcm, 24000, 1, 16);
+
+    const fileName = `podcast_${jobId}.wav`;
+    const filePath = path.join(STORAGE_DIR, fileName);
+    await fs.promises.writeFile(filePath, finalWavBuffer);
+
+    const totalDurationSec = Math.round((Date.now() - startTime) / 100) / 10;
+    telemetry.endTime = Date.now();
+    telemetry.totalDurationSec = totalDurationSec;
+    telemetry.totalBytes = finalWavBuffer.length;
+    telemetry.audioDurationEstimateSec = Math.round(combinedPcm.length / 48000); // 24000 samples * 2 bytes = 48000 bytes/sec
 
     job.status = 'COMPLETED';
     job.audioPath = filePath;
     job.audio_url = `/api/podcast/audio/${jobId}`;
     job.transcript = transcriptText;
+    job.progress = {
+      percentage: 100,
+      stage: 'completed',
+      stageLabel: 'Аудиопересказ успешно создан!',
+      currentStep: totalLines,
+      totalSteps: totalLines,
+      telemetry
+    };
     job.metadata = {
-      dialogue_count: script.dialogue.length,
+      dialogue_count: totalLines,
       voice1,
       voice2,
       topic,
+      telemetry
     };
     saveJob(job);
   } catch (err: any) {
     console.error(`Podcast job ${jobId} failed:`, err);
     job.status = 'FAILED';
     job.error = err.message || 'Podcast generation failed';
+    if (job.progress) {
+      job.progress.stage = 'failed';
+      job.progress.stageLabel = `Ошибка: ${job.error}`;
+    }
     saveJob(job);
   }
 }

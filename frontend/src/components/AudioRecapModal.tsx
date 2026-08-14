@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { X, Headphones, Sparkles, Loader2, Music, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, User, Users, Settings2, Sliders, Volume2, VolumeX } from 'lucide-react';
+import { 
+  X, Headphones, Sparkles, Loader2, Music, CheckCircle2, AlertCircle, 
+  ChevronDown, ChevronUp, User, Users, Settings2, Sliders, Volume2, VolumeX,
+  BarChart3, Download, Clock, Cpu, Layers, FileText, Check, Copy
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const RUSSIAN_VOICES = [
@@ -10,14 +14,6 @@ const RUSSIAN_VOICES = [
   { id: 'Aoede', name: 'Aoede (Елена)', gender: 'Женский', desc: 'Выразительный, мягкий' },
   { id: 'Fenrir', name: 'Fenrir (Максим)', gender: 'Мужской', desc: 'Строгий, авторитетный' },
 ];
-
-const VOICE_SAMPLES: Record<string, string> = {
-  'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
-  'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
-  'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
-  'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
-  'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
-};
 
 const DEFAULT_SYSTEM_PROMPT = `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать качественные аудиопересказы вопросов и ответов на русском языке. Объясняй материал глубоко и доступно, используй жизненные аналогии из реальной backend-разработки, подсвечивай ключевые слова и подводные камни.`;
 
@@ -42,7 +38,9 @@ export const AudioRecapModal: React.FC = () => {
   const [voice1, setVoice1] = useState<string>('Kore');
   const [voice2, setVoice2] = useState<string>('Puck');
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+  
   const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
+  const activeBlobUrlRef = useRef<string | null>(null);
 
   const [tone, setTone] = useState<string>('Fun');
   const [length, setLength] = useState<string>('Medium (10-15 min)');
@@ -50,6 +48,16 @@ export const AudioRecapModal: React.FC = () => {
   const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);
   const [userPrompt, setUserPrompt] = useState<string>(DUO_TONE_PROMPTS['Fun']);
   const [showAdvancedPrompts, setShowAdvancedPrompts] = useState<boolean>(false);
+
+  // Status & Granular Progress State
+  const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState<string>('Инициализация...');
+  const [progressData, setProgressData] = useState<any | null>(null);
+  const [completedJobData, setCompletedJobData] = useState<any | null>(null);
+  const [showTelemetry, setShowTelemetry] = useState<boolean>(false);
+  const [reportCopied, setReportCopied] = useState<boolean>(false);
 
   const handleToneChange = (newTone: string, targetMode: 'duo' | 'solo' = mode) => {
     setTone(newTone);
@@ -67,8 +75,12 @@ export const AudioRecapModal: React.FC = () => {
   const stopPreview = () => {
     if (sampleAudioRef.current) {
       sampleAudioRef.current.pause();
-      sampleAudioRef.current.currentTime = 0;
+      sampleAudioRef.current.src = '';
       sampleAudioRef.current = null;
+    }
+    if (activeBlobUrlRef.current) {
+      URL.revokeObjectURL(activeBlobUrlRef.current);
+      activeBlobUrlRef.current = null;
     }
     setPreviewingVoice(null);
   };
@@ -105,14 +117,21 @@ export const AudioRecapModal: React.FC = () => {
         return;
       }
 
-      const blob = await res.blob();
+      const arrayBuf = await res.arrayBuffer();
+      const blob = new Blob([arrayBuf], { type: 'audio/wav' });
       const blobUrl = URL.createObjectURL(blob);
-      const audio = new Audio(blobUrl);
+      activeBlobUrlRef.current = blobUrl;
+
+      const audio = new Audio();
+      audio.src = blobUrl;
       sampleAudioRef.current = audio;
 
       audio.onended = () => {
         setPreviewingVoice(null);
-        URL.revokeObjectURL(blobUrl);
+        if (activeBlobUrlRef.current) {
+          URL.revokeObjectURL(activeBlobUrlRef.current);
+          activeBlobUrlRef.current = null;
+        }
       };
 
       audio.onerror = (e) => {
@@ -120,8 +139,8 @@ export const AudioRecapModal: React.FC = () => {
         setPreviewingVoice(null);
         showToast({
           type: 'error',
-          title: `Ошибка декодирования аудио`,
-          message: `Не удалось декодировать аудиопоток для голоса ${voiceId}.`,
+          title: `Ошибка воспроизведения звука`,
+          message: `Браузер не смог воспроизвести аудиопоток для голоса ${voiceId}.`,
           technicalDetails: String(e)
         });
       };
@@ -139,21 +158,19 @@ export const AudioRecapModal: React.FC = () => {
     }
   };
 
-  const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [progressMsg, setProgressMsg] = useState<string>('');
-
   useEffect(() => {
     if (!isRecapModalOpen) {
       stopPreview();
       setStatus('idle');
       setJobId(null);
       setErrorMessage(null);
+      setProgressData(null);
+      setCompletedJobData(null);
+      setShowTelemetry(false);
     }
   }, [isRecapModalOpen]);
 
-  // Poll status when jobId is set
+  // Poll status with high precision when jobId is set
   useEffect(() => {
     if (!jobId || status === 'completed' || status === 'failed') return;
 
@@ -162,15 +179,21 @@ export const AudioRecapModal: React.FC = () => {
         const res = await fetch(`/api/podcast/status/${jobId}`);
         if (res.ok) {
           const data = await res.json();
+          if (data.progress) {
+            setProgressData(data.progress);
+            if (data.progress.stageLabel) {
+              setProgressMsg(data.progress.stageLabel);
+            }
+          }
+
           if (data.status === 'QUEUED') {
             setStatus('queued');
-            setProgressMsg('В очереди на генерацию сценария...');
           } else if (data.status === 'PROCESSING') {
             setStatus('processing');
-            setProgressMsg('Gemini 3 создает глубокий сценарий & Edge-TTS озвучивает...');
           } else if (data.status === 'COMPLETED') {
             setStatus('completed');
-            setProgressMsg('Аудиопересказ готов!');
+            setCompletedJobData(data);
+            setProgressMsg('Аудиопересказ успешно готов!');
             setActiveAudioJob({
               jobId: data.job_id,
               audioUrl: `/api/podcast/audio/${data.job_id}`,
@@ -179,9 +202,6 @@ export const AudioRecapModal: React.FC = () => {
               transcript: data.transcript,
               metadata: data.metadata,
             });
-            setTimeout(() => {
-              closeRecapModal();
-            }, 1200);
           } else if (data.status === 'FAILED') {
             setStatus('failed');
             setErrorMessage(data.error || 'Ошибка во время генерации аудиопересказа');
@@ -190,17 +210,24 @@ export const AudioRecapModal: React.FC = () => {
       } catch (err: any) {
         console.error('Error polling status:', err);
       }
-    }, 2000);
+    }, 1200);
 
     return () => clearInterval(interval);
-  }, [jobId, status, recapTarget, setActiveAudioJob, closeRecapModal]);
+  }, [jobId, status, recapTarget, setActiveAudioJob]);
 
   if (!isRecapModalOpen || !recapTarget) return null;
 
   const handleStartGeneration = async () => {
     setStatus('queued');
     setErrorMessage(null);
-    setProgressMsg('Генерация сценария и аудио через Gemini TTS...');
+    setProgressData({
+      percentage: 5,
+      stage: 'script',
+      stageLabel: 'Инициализация генерации сценария...',
+      currentStep: 0,
+      totalSteps: 1
+    });
+    setProgressMsg('Инициализация генерации сценария...');
 
     try {
       const res = await fetch('/api/podcast/generate', {
@@ -235,6 +262,74 @@ export const AudioRecapModal: React.FC = () => {
     }
   };
 
+  const generateMarkdownReport = (): string => {
+    const job = completedJobData || {};
+    const telemetry = progressData?.telemetry || job.metadata?.telemetry || {};
+    const title = recapTarget?.title || 'Аудиопересказ темы';
+    const topic = recapTarget?.topicName || 'Обзор темы';
+
+    let md = `# Отчет о генерации аудиопересказа: ${title}\n\n`;
+    md += `**Тема:** ${topic}  \n`;
+    md += `**Дата:** ${new Date().toLocaleString('ru-RU')}  \n`;
+    md += `**Идентификатор задачи (Job ID):** \`${jobId || 'N/A'}\`  \n\n`;
+    
+    md += `## 📊 Сводные метрики пайплайна\n\n`;
+    md += `| Параметр | Значение |\n`;
+    md += `| :--- | :--- |\n`;
+    md += `| **Общее время генерации** | \`${telemetry.totalDurationSec || '—'} сек\` |\n`;
+    md += `| **Время написания сценария (LLM)** | \`${telemetry.scriptDurationSec || '—'} сек\` |\n`;
+    md += `| **Время синтеза речи (TTS)** | \`${telemetry.ttsDurationSec || '—'} сек\` |\n`;
+    md += `| **Модель сценария** | \`${telemetry.modelsUsed?.scriptModel || 'gemini-v3'}\` |\n`;
+    md += `| **Модель синтеза речи** | \`${telemetry.modelsUsed?.ttsModel || 'gemini-tts-v3'}\` |\n`;
+    md += `| **Формат озвучки** | \`${mode === 'duo' ? 'Диалог двух ведущих' : 'Соло монолог'}\` |\n`;
+    md += `| **Голоса дикторов** | \`${voice1}${mode === 'duo' ? ` + ${voice2}` : ''}\` |\n`;
+    md += `| **Количество реплик** | \`${telemetry.steps?.length || progressData?.totalSteps || '—'}\` |\n`;
+    md += `| **Оценка длительности аудио** | \`~${telemetry.audioDurationEstimateSec || '—'} сек\` |\n`;
+    md += `| **Размер WAV-файла** | \`${telemetry.totalBytes ? `${Math.round(telemetry.totalBytes / 1024)} KB` : '—'}\` |\n\n`;
+
+    if (telemetry.steps && telemetry.steps.length > 0) {
+      md += `## ⏱️ Тайминг синтеза по репликам\n\n`;
+      md += `| # | Диктор | Задержка | Текст реплики |\n`;
+      md += `| :--- | :--- | :--- | :--- |\n`;
+      telemetry.steps.forEach((s: any) => {
+        md += `| ${s.index} | **${s.speaker}** | \`${s.durationMs}ms\` | ${s.text.replace(/\|/g, '-')} |\n`;
+      });
+      md += `\n`;
+    }
+
+    if (job.transcript) {
+      md += `## 📜 Полный транскрипт диалога\n\n`;
+      md += `${job.transcript}\n\n`;
+    }
+
+    md += `---\n*Сгенерировано платформой InterviewPrep AI с Gemini 3.1 Flash TTS Engine & LiteLLM Proxy.*`;
+    return md;
+  };
+
+  const handleDownloadReport = () => {
+    const md = generateMarkdownReport();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recap_report_${recapTarget?.topicName ? recapTarget.topicName.toLowerCase().replace(/\s+/g, '_') : 'podcast'}_${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyReport = () => {
+    const md = generateMarkdownReport();
+    navigator.clipboard.writeText(md).then(() => {
+      setReportCopied(true);
+      setTimeout(() => setReportCopied(false), 2500);
+    });
+  };
+
+  const currentPercent = progressData?.percentage ?? (status === 'queued' ? 5 : status === 'completed' ? 100 : 15);
+  const telemetryObj = progressData?.telemetry || completedJobData?.metadata?.telemetry || {};
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/50 backdrop-blur-md overflow-y-auto">
@@ -245,38 +340,40 @@ export const AudioRecapModal: React.FC = () => {
           transition={{ duration: 0.25 }}
           className="w-full max-w-3xl bg-white/95 rounded-3xl p-5 md:p-8 shadow-2xl border border-pastel-rose/80 relative overflow-hidden my-auto max-h-[92vh] flex flex-col"
         >
-          {/* Decorative ambient blurs */}
+          {/* Ambient blurs */}
           <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
           <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-pastel-accentViolet/20 blur-2xl pointer-events-none" />
 
-          {/* Close button */}
-          <button
-            onClick={closeRecapModal}
-            className="absolute top-4 right-4 p-2 text-pastel-muted hover:text-pastel-text rounded-full hover:bg-pastel-rose/60 transition z-10"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Modal Header */}
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-sm">
+                <Headphones className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base md:text-lg font-bold text-pastel-text">
+                  {status === 'idle' ? 'Настройки аудиопересказа' : 'Генерация аудиопересказа'}
+                </h3>
+                <p className="text-[11px] text-pastel-muted">
+                  Gemini 3.1 Flash TTS Studio • 24 kHz Нативный звук
+                </p>
+              </div>
+            </div>
 
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-4 shrink-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-md shadow-pastel-accentRose/20">
-              <Headphones className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-pastel-accentRose px-2 py-0.5 rounded-md bg-pastel-rose border border-pastel-accentRose/20">
-                AI Audio Studio • Русская озвучка
-              </span>
-              <h3 className="text-lg font-bold text-pastel-text mt-0.5">
-                Настройки аудиопересказа
-              </h3>
-            </div>
+            <button
+              onClick={closeRecapModal}
+              className="w-8 h-8 rounded-full bg-pastel-bg text-pastel-muted hover:text-pastel-text flex items-center justify-center hover:bg-pastel-rose/30 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="bg-pastel-bg/80 p-2.5 rounded-xl border border-pastel-border/60 text-xs text-pastel-muted mb-3 shrink-0">
             <span className="font-semibold text-pastel-text">Материал:</span> {recapTarget.title}
           </div>
 
-          {!systemHealth.isAiReady && (
+          {/* Warmup notice if AI Gateway is not ready */}
+          {!systemHealth.isAiReady && status === 'idle' && (
             <div className="mb-4 p-3 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 shadow-xs">
               <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
               <div>
@@ -288,10 +385,10 @@ export const AudioRecapModal: React.FC = () => {
             </div>
           )}
 
+          {/* ===================== VIEW 1: SETTINGS (IDLE) ===================== */}
           {status === 'idle' && (
             <div className="space-y-4 overflow-y-auto pr-1 flex-1">
-              
-              {/* 1. Format Mode: Solo vs Duo */}
+              {/* 1. Format Mode */}
               <div>
                 <label className="block text-xs font-semibold text-pastel-text mb-1.5 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-pastel-accentRose" /> Формат озвучки
@@ -300,7 +397,7 @@ export const AudioRecapModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleModeChange('duo')}
-                    className={`p-3 rounded-2xl text-xs font-semibold border flex items-center gap-2.5 transition ${
+                    className={`p-3 rounded-2xl text-xs font-semibold border flex items-center gap-2.5 transition cursor-pointer ${
                       mode === 'duo'
                         ? 'bg-pastel-rose/80 text-pastel-accentRose border-pastel-accentRose/40 shadow-sm'
                         : 'bg-pastel-card text-pastel-muted border-pastel-border hover:border-pastel-accentRose/20'
@@ -310,15 +407,15 @@ export const AudioRecapModal: React.FC = () => {
                       <Users className="w-4 h-4 text-pastel-accentRose" />
                     </div>
                     <div className="text-left">
-                      <div className="font-bold">Дуэт (Подкаст)</div>
-                      <div className="text-[10px] opacity-80">2 ведущих в диалоге</div>
+                      <div>Диалог двух экспертов</div>
+                      <div className="text-[10px] opacity-80 font-normal">2 диктора • Живая дискуссия</div>
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleModeChange('solo')}
-                    className={`p-3 rounded-2xl text-xs font-semibold border flex items-center gap-2.5 transition ${
+                    className={`p-3 rounded-2xl text-xs font-semibold border flex items-center gap-2.5 transition cursor-pointer ${
                       mode === 'solo'
                         ? 'bg-pastel-lavender/80 text-pastel-accentViolet border-pastel-accentViolet/40 shadow-sm'
                         : 'bg-pastel-card text-pastel-muted border-pastel-border hover:border-pastel-accentViolet/20'
@@ -328,8 +425,8 @@ export const AudioRecapModal: React.FC = () => {
                       <User className="w-4 h-4 text-pastel-accentViolet" />
                     </div>
                     <div className="text-left">
-                      <div className="font-bold">Соло (Монолог)</div>
-                      <div className="text-[10px] opacity-80">1 диктор / лектор</div>
+                      <div>Соло пересказ</div>
+                      <div className="text-[10px] opacity-80 font-normal">1 диктор • Структурированный разбор</div>
                     </div>
                   </button>
                 </div>
@@ -476,7 +573,7 @@ export const AudioRecapModal: React.FC = () => {
                       type="button"
                       key={l.id}
                       onClick={() => setLength(l.id)}
-                      className={`p-2.5 rounded-xl text-xs font-semibold border text-center transition ${
+                      className={`p-2.5 rounded-xl text-xs font-semibold border text-center transition cursor-pointer ${
                         length === l.id
                           ? 'bg-pastel-lavender text-pastel-accentViolet border-pastel-accentViolet/40 shadow-sm'
                           : 'bg-pastel-card text-pastel-muted border-pastel-border hover:border-pastel-accentViolet/20'
@@ -489,49 +586,50 @@ export const AudioRecapModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* 4. Tone Selector */}
+              {/* 4. Tone of Voice */}
               <div>
-                <label className="block text-xs font-semibold text-pastel-text mb-1.5">Стиль подачи</label>
+                <label className="block text-xs font-semibold text-pastel-text mb-1.5">Тон и подача</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'Fun', label: '😊 Живой' },
-                    { id: 'Informative', label: '💡 Понятный' },
-                    { id: 'Formal', label: '💼 Строгий' },
+                    { id: 'Fun', label: '🔥 Непринужденный', desc: 'Живой, с юмором' },
+                    { id: 'Informative', label: '💡 Экспертный', desc: 'Четко по делу' },
+                    { id: 'Formal', label: '🎓 Академический', desc: 'Строго по стандартам' },
                   ].map((t) => (
                     <button
                       type="button"
                       key={t.id}
                       onClick={() => handleToneChange(t.id)}
-                      className={`py-2 px-3 rounded-xl text-xs font-semibold border text-center transition ${
+                      className={`p-2.5 rounded-xl text-xs font-semibold border text-center transition cursor-pointer ${
                         tone === t.id
-                          ? 'bg-pastel-sage text-pastel-accentTeal border-pastel-accentTeal/40 shadow-sm'
-                          : 'bg-pastel-card text-pastel-muted border-pastel-border hover:border-pastel-accentTeal/20'
+                          ? 'bg-pastel-rose text-pastel-accentRose border-pastel-accentRose/40 shadow-sm'
+                          : 'bg-pastel-card text-pastel-muted border-pastel-border hover:border-pastel-accentRose/20'
                       }`}
                     >
-                      {t.label}
+                      <div>{t.label}</div>
+                      <div className="text-[10px] font-normal opacity-75">{t.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 5. Custom Prompts Accordion */}
-              <div className="border border-pastel-border/70 rounded-2xl overflow-hidden bg-pastel-card/40">
+              {/* 5. Advanced Prompt Settings */}
+              <div className="border-t border-pastel-border/60 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAdvancedPrompts(!showAdvancedPrompts)}
-                  className="w-full p-3 text-left text-xs font-bold text-pastel-text flex items-center justify-between hover:bg-pastel-rose/30 transition"
+                  className="flex items-center justify-between w-full text-xs font-semibold text-pastel-muted hover:text-pastel-text py-1 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Settings2 className="w-3.5 h-3.5 text-pastel-accentRose" /> Настройка промпта для ИИ (System & User)
+                    <Settings2 className="w-3.5 h-3.5" /> Настройки системных промптов (Advanced)
                   </span>
                   {showAdvancedPrompts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
 
                 {showAdvancedPrompts && (
-                  <div className="p-3 space-y-3 border-t border-pastel-border/60 bg-white">
+                  <div className="mt-3 space-y-3 p-3 bg-white rounded-2xl border border-pastel-border shadow-xs">
                     <div>
                       <label className="block text-[11px] font-semibold text-pastel-muted mb-1">
-                        Системный промпт (System Role)
+                        Системный промпт роли (System Prompt)
                       </label>
                       <textarea
                         rows={3}
@@ -559,7 +657,7 @@ export const AudioRecapModal: React.FC = () => {
                         setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
                         setUserPrompt(DEFAULT_USER_PROMPT);
                       }}
-                      className="text-[10px] text-pastel-accentRose hover:underline"
+                      className="text-[10px] text-pastel-accentRose hover:underline cursor-pointer"
                     >
                       Сбросить промпты к дефолтным
                     </button>
@@ -594,25 +692,231 @@ export const AudioRecapModal: React.FC = () => {
             </div>
           )}
 
+          {/* ===================== VIEW 2: PROGRESS & TELEMETRY ===================== */}
           {(status === 'queued' || status === 'processing' || status === 'completed') && (
-            <div className="py-10 text-center flex flex-col items-center justify-center">
-              {status !== 'completed' ? (
-                <div className="relative w-16 h-16 mb-4">
-                  <div className="absolute inset-0 rounded-full border-4 border-pastel-rose border-t-pastel-accentRose animate-spin" />
-                  <div className="absolute inset-2 rounded-full border-4 border-pastel-lavender border-b-pastel-accentViolet animate-spin" style={{ animationDirection: 'reverse' }} />
-                  <Music className="w-6 h-6 text-pastel-accentRose absolute inset-0 m-auto animate-pulse" />
+            <div className="py-4 flex-1 flex flex-col justify-between overflow-y-auto pr-1">
+              <div className="space-y-5">
+                {/* Header Status Block */}
+                <div className="text-center space-y-1.5">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/20">
+                    {status === 'completed' ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Генерация успешно завершена</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentViolet" />
+                        <span>Выполняется генерация подкаста</span>
+                      </>
+                    )}
+                  </div>
+                  <h4 className="text-base md:text-lg font-bold text-pastel-text">
+                    {progressMsg}
+                  </h4>
                 </div>
-              ) : (
-                <CheckCircle2 className="w-16 h-16 text-emerald-500 mb-4 animate-bounce" />
-              )}
 
-              <h4 className="text-base font-bold text-pastel-text mb-1">
-                {status === 'completed' ? 'Пересказ готов!' : 'Генерация подкаста...'}
-              </h4>
-              <p className="text-xs text-pastel-muted max-w-xs">{progressMsg}</p>
+                {/* Rich Progress Bar */}
+                <div className="bg-pastel-bg/80 p-4 rounded-2xl border border-pastel-border/80 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-pastel-muted flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-pastel-accentRose" />
+                      Прогресс пайплайна:
+                    </span>
+                    <span className="font-bold text-sm text-pastel-accentViolet">
+                      {currentPercent}%
+                    </span>
+                  </div>
+
+                  {/* The Track */}
+                  <div className="w-full h-3.5 bg-gray-200/80 rounded-full overflow-hidden p-0.5 shadow-inner relative">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${currentPercent}%` }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      className="h-full rounded-full bg-gradient-to-r from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-sm relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                    </motion.div>
+                  </div>
+
+                  {/* 3 Step Indicator Pills */}
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className={`p-2 rounded-xl text-[11px] font-semibold border flex items-center gap-1.5 transition ${
+                      currentPercent >= 15 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-white text-gray-400 border-gray-200'
+                    }`}>
+                      {currentPercent >= 15 ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />}
+                      <span className="truncate">1. Сценарий</span>
+                    </div>
+
+                    <div className={`p-2 rounded-xl text-[11px] font-semibold border flex items-center gap-1.5 transition ${
+                      currentPercent >= 92 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : currentPercent > 15 ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse' : 'bg-white text-gray-400 border-gray-200'
+                    }`}>
+                      {currentPercent >= 92 ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : currentPercent > 15 ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+                      )}
+                      <span className="truncate">
+                        2. Синтез {progressData?.totalSteps ? `(${progressData.currentStep}/${progressData.totalSteps})` : ''}
+                      </span>
+                    </div>
+
+                    <div className={`p-2 rounded-xl text-[11px] font-semibold border flex items-center gap-1.5 transition ${
+                      currentPercent === 100 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : currentPercent >= 92 ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse' : 'bg-white text-gray-400 border-gray-200'
+                    }`}>
+                      {currentPercent === 100 ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+                      )}
+                      <span className="truncate">3. Сборка трека</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Speaker & Script Ticker (When generating) */}
+                {progressData?.currentTextSnippet && status === 'processing' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3.5 rounded-2xl bg-white border border-pastel-border/80 shadow-xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-[11px] text-pastel-muted font-medium">
+                      <span className="flex items-center gap-1.5 text-pastel-accentRose font-bold">
+                        <Music className="w-3.5 h-3.5 animate-bounce" />
+                        Сейчас озвучивается: {progressData.currentSpeaker}
+                      </span>
+                      <span>Шаг {progressData.currentStep} из {progressData.totalSteps}</span>
+                    </div>
+                    <p className="text-xs text-pastel-text italic font-medium leading-relaxed bg-pastel-bg/50 p-2.5 rounded-xl border border-pastel-border/40">
+                      «{progressData.currentTextSnippet}»
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Telemetry Toggle & Expanded Panel */}
+                <div className="border border-pastel-border/80 rounded-2xl overflow-hidden bg-white shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setShowTelemetry(!showTelemetry)}
+                    className="w-full p-3 flex items-center justify-between text-xs font-bold text-pastel-text bg-pastel-bg/40 hover:bg-pastel-bg/80 transition cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 text-pastel-accentViolet">
+                      <BarChart3 className="w-4 h-4" />
+                      Статистика и телеметрия генерации
+                    </span>
+                    <div className="flex items-center gap-1 text-pastel-muted">
+                      <span className="text-[11px] font-normal">
+                        {showTelemetry ? 'Скрыть детали' : 'Показать метрики'}
+                      </span>
+                      {showTelemetry ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
+
+                  {showTelemetry && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="p-4 space-y-4 border-t border-pastel-border/60 text-xs"
+                    >
+                      {/* Metric Cards Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="p-2.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/60">
+                          <span className="text-[10px] text-pastel-muted flex items-center gap-1 mb-0.5">
+                            <Clock className="w-3 h-3" /> Общее время
+                          </span>
+                          <span className="font-bold text-pastel-text">
+                            {telemetryObj.totalDurationSec ? `${telemetryObj.totalDurationSec} с` : 'В процессе...'}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/60">
+                          <span className="text-[10px] text-pastel-muted flex items-center gap-1 mb-0.5">
+                            <FileText className="w-3 h-3" /> Сценарий (LLM)
+                          </span>
+                          <span className="font-bold text-pastel-text">
+                            {telemetryObj.scriptDurationSec ? `${telemetryObj.scriptDurationSec} с` : '...'}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/60">
+                          <span className="text-[10px] text-pastel-muted flex items-center gap-1 mb-0.5">
+                            <Cpu className="w-3 h-3" /> Модели AI
+                          </span>
+                          <span className="font-bold text-pastel-accentViolet truncate block" title={telemetryObj.modelsUsed?.ttsModel || 'gemini-tts-v3'}>
+                            {telemetryObj.modelsUsed?.ttsModel || 'gemini-tts-v3'}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/60">
+                          <span className="text-[10px] text-pastel-muted flex items-center gap-1 mb-0.5">
+                            <Headphones className="w-3 h-3" /> Голоса
+                          </span>
+                          <span className="font-bold text-pastel-accentRose">
+                            {voice1}{mode === 'duo' ? ` + ${voice2}` : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Export Report Actions */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-pastel-border/40">
+                        <span className="text-[11px] text-pastel-muted font-medium">
+                          Экспорт отчета с таймингами и сценарием:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCopyReport}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-pastel-border hover:bg-pastel-bg text-pastel-text transition cursor-pointer shadow-2xs"
+                          >
+                            {reportCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-pastel-muted" />}
+                            <span>{reportCopied ? 'Скопировано!' : 'Скопировать .md'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDownloadReport}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-pastel-lavender text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Скачать отчет (.md)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer Actions when completed */}
+              {status === 'completed' && (
+                <div className="pt-4 border-t border-pastel-border/60 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleDownloadReport}
+                    className="px-4 py-2.5 rounded-xl border border-pastel-border text-xs font-semibold text-pastel-text hover:bg-pastel-bg transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-pastel-accentViolet" />
+                    <span>Скачать отчет (.md)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeRecapModal}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold shadow-md hover:opacity-95 transition cursor-pointer"
+                  >
+                    Готово / Слушать
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
+          {/* ===================== VIEW 3: ERROR STATE ===================== */}
           {status === 'failed' && (
             <div className="py-6 text-center">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
@@ -623,9 +927,9 @@ export const AudioRecapModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setStatus('idle')}
-                className="px-6 py-2.5 bg-pastel-card border border-pastel-border hover:bg-pastel-bg text-pastel-text font-semibold text-xs rounded-xl transition"
+                className="px-5 py-2.5 bg-pastel-bg border border-pastel-border text-pastel-text font-bold text-xs rounded-xl hover:bg-pastel-card transition cursor-pointer"
               >
-                Попробовать снова
+                Вернуться к настройкам
               </button>
             </div>
           )}
