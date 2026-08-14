@@ -47,8 +47,45 @@ if (!fs.existsSync(STORAGE_DIR)) {
   fs.mkdirSync(STORAGE_DIR, { recursive: true });
 }
 
-// In-memory Job DB
-const JOBS_DB = new Map<string, PodcastJobState>();
+function saveJob(job: PodcastJobState) {
+  const stmt = db.prepare(`
+    INSERT INTO podcast_jobs (job_id, status, created_at, audio_url, transcript, metadata, error, audio_path)
+    VALUES (@job_id, @status, @created_at, @audio_url, @transcript, @metadata, @error, @audio_path)
+    ON CONFLICT(job_id) DO UPDATE SET
+      status = excluded.status,
+      audio_url = excluded.audio_url,
+      transcript = excluded.transcript,
+      metadata = excluded.metadata,
+      error = excluded.error,
+      audio_path = excluded.audio_path
+  `);
+  stmt.run({
+    job_id: job.job_id,
+    status: job.status,
+    created_at: job.created_at,
+    audio_url: job.audio_url || null,
+    transcript: job.transcript || null,
+    metadata: job.metadata ? JSON.stringify(job.metadata) : null,
+    error: job.error || null,
+    audio_path: job.audioPath || null,
+  });
+}
+
+export function getJob(jobId: string): PodcastJobState | undefined {
+  const stmt = db.prepare('SELECT * FROM podcast_jobs WHERE job_id = ?');
+  const row = stmt.get(jobId) as any;
+  if (!row) return undefined;
+  return {
+    job_id: row.job_id,
+    status: row.status,
+    created_at: row.created_at,
+    audio_url: row.audio_url || undefined,
+    transcript: row.transcript || undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    error: row.error || undefined,
+    audioPath: row.audio_path || undefined,
+  };
+}
 
 export function buildPodcastText(questionIds?: string[], topicName?: string): { text: string; topic: string } {
   let questions: QuestionRow[] = [];
@@ -171,95 +208,38 @@ export function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1,
 }
 
 /**
- * Synthesize TTS audio for single text line via Gemini 3.1 Flash TTS API
+ * Synthesize TTS audio for single text line via LiteLLM Gateway
  */
 export async function synthesizeTTSBuffer(text: string, voice: string): Promise<Buffer> {
   const validVoice = (['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voice)) ? voice : 'Kore';
 
-  // Gather available keys for key-rotation and rate-limit mitigation
-  const apiKeys = [
-    process.env.GEMINI_API_KEY_1,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY
-  ].filter((k): k is string => Boolean(k && k.trim().length > 0));
+  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+  const speechUrl = `${cleanProxyBase}/v1/audio/speech`;
+  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
 
-  if (apiKeys.length === 0) {
-    apiKeys.push('AQ.Ab8RN6JLrWJnSwMz20ChyboKHIYCOcnJ3u6otbDOoqk7I0BEPg');
+  const res = await fetch(speechUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${proxyApiKey}`,
+    },
+    body: JSON.stringify({
+      model: ttsModel,
+      input: text,
+      voice: validVoice,
+      response_format: 'wav'
+    })
+  });
+
+  if (!res.ok) {
+    const errTxt = await res.text();
+    throw new Error(`Ошибка синтеза речи через LiteLLM Gateway (${res.status}): ${errTxt}`);
   }
 
-  let lastError = '';
-
-  // 1. Try Gemini 3.1 Flash TTS generateContent across all available keys
-  for (let i = 0; i < apiKeys.length; i++) {
-    const currentKey = apiKeys[i];
-    try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${currentKey}`;
-
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: validVoice }
-              }
-            }
-          }
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-        if (inlineData && inlineData.data) {
-          const rawPcm = Buffer.from(inlineData.data, 'base64');
-          return pcmToWav(rawPcm, 24000, 1, 16);
-        }
-      } else {
-        const errTxt = await res.text();
-        lastError = `Key #${i + 1} Error (${res.status}): ${errTxt}`;
-        console.warn(`[Gemini TTS] ${lastError}. Trying next key...`);
-      }
-    } catch (err: any) {
-      lastError = `Key #${i + 1} Connection error: ${err.message}`;
-      console.warn(`[Gemini TTS] ${lastError}`);
-    }
-  }
-
-  // 2. Secondary: LiteLLM Proxy /v1/audio/speech API
-  try {
-    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-    const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-    const speechUrl = `${cleanProxyBase}/v1/audio/speech`;
-    const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-litellm-local-proxy-master-key-12345';
-
-    const sRes = await fetch(speechUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gemini-tts-v3',
-        input: text,
-        voice: validVoice,
-        response_format: 'mp3'
-      })
-    });
-
-    if (sRes.ok) {
-      const arrayBuf = await sRes.arrayBuffer();
-      return Buffer.from(arrayBuf);
-    }
-  } catch (err: any) {
-    console.warn('LiteLLM Speech fallback failed:', err.message);
-  }
-
-  // Explicit unmasked failure
-  throw new Error(`Синтез речи Gemini TTS не удался. Причина: ${lastError || 'Неизвестная ошибка сервера'}`);
+  const arrayBuf = await res.arrayBuffer();
+  return Buffer.from(arrayBuf);
 }
 
 /**
@@ -275,7 +255,7 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
     created_at: now,
   };
 
-  JOBS_DB.set(jobId, jobState);
+  saveJob(jobState);
 
   // Execute processing asynchronously in background
   processPodcastJobAsync(jobId, options).catch((err) => {
@@ -286,11 +266,13 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
 }
 
 async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOptions) {
-  const job = JOBS_DB.get(jobId);
+  const job = getJob(jobId);
   if (!job) return;
 
   try {
     job.status = 'PROCESSING';
+    saveJob(job);
+
     const { text, topic } = buildPodcastText(options.questionIds, options.topicName);
 
     // 1. Generate Script
@@ -331,15 +313,17 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
       voice2,
       topic,
     };
+    saveJob(job);
   } catch (err: any) {
     console.error(`Podcast job ${jobId} failed:`, err);
     job.status = 'FAILED';
     job.error = err.message || 'Podcast generation failed';
+    saveJob(job);
   }
 }
 
 export async function fetchJobStatus(jobId: string): Promise<PodcastJobState> {
-  const job = JOBS_DB.get(jobId);
+  const job = getJob(jobId);
   if (!job) {
     throw new Error('Job not found');
   }
@@ -347,7 +331,7 @@ export async function fetchJobStatus(jobId: string): Promise<PodcastJobState> {
 }
 
 export async function streamAudioFile(jobId: string): Promise<{ filePath: string }> {
-  const job = JOBS_DB.get(jobId);
+  const job = getJob(jobId);
   if (!job || job.status !== 'COMPLETED' || !job.audioPath) {
     throw new Error('Audio file not ready or job failed');
   }

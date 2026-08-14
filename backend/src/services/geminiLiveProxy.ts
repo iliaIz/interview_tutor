@@ -9,37 +9,23 @@ export function setupLiveWebSocketProxy(server: http.Server) {
   wss.on('connection', (clientWs: WebSocket) => {
     console.log('🎙️ Browser connected to Live Audio WS Proxy');
 
-    const apiKey = process.env.GEMINI_API_KEY;
     const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL;
-    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3';
+    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
+    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-tts-live-v3';
 
-    if (!apiKey && !rawProxyUrl) {
-      console.error('❌ Neither GEMINI_API_KEY nor LITELLM_PROXY_URL is configured');
-      clientWs.send(JSON.stringify({ error: 'GEMINI_API_KEY and LiteLLM Proxy are missing on server' }));
-      clientWs.close();
-      return;
-    }
+    const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
+    console.log(`⚡ Connecting to LiteLLM Gateway Live WS (${upstreamWsUrl})...`);
 
-    const targetApiKey = apiKey || proxyApiKey;
-    const resolvedModelName = (liveModel === 'gemini-live-v3' || liveModel === 'gemini-live-all')
-      ? 'gemini-3.1-flash-live-preview'
-      : (liveModel === 'gemini-live-v2' ? 'gemini-2.5-flash-native-audio-latest' : liveModel);
-
-    const modelId = resolvedModelName.startsWith('models/') ? resolvedModelName : `models/${resolvedModelName}`;
-    const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${targetApiKey}`;
-    
-    console.log(`⚡ Connecting to Gemini Multimodal Live WS (${modelId})...`);
-
-    let geminiWs: WebSocket | null = new WebSocket(geminiWsUrl);
+    let geminiWs: WebSocket | null = new WebSocket(upstreamWsUrl);
 
     geminiWs.on('open', () => {
-      console.log(`✅ Connected to Gemini Multimodal Live API (${modelId})`);
+      console.log(`✅ Connected to Upstream Live WebSocket (${liveModel})`);
 
       // Send initial setup config
       const setupMessage = {
         setup: {
-          model: modelId,
+          model: `models/${liveModel}`,
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: {

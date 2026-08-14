@@ -75,7 +75,7 @@ export const AudioRecapModal: React.FC = () => {
     setPreviewingVoice(null);
   };
 
-  const handlePreviewVoice = (voiceId: string) => {
+  const handlePreviewVoice = async (voiceId: string) => {
     if (previewingVoice === voiceId) {
       stopPreview();
       return;
@@ -84,23 +84,45 @@ export const AudioRecapModal: React.FC = () => {
     stopPreview();
     setPreviewingVoice(voiceId);
 
-    // Stream WAV sample for voice preview from backend
-    const audioUrl = `/api/podcast/sample-audio?voice=${encodeURIComponent(voiceId)}&t=${Date.now()}`;
-    const audio = new Audio(audioUrl);
-    sampleAudioRef.current = audio;
+    try {
+      const audioUrl = `/api/podcast/sample-audio?voice=${encodeURIComponent(voiceId)}&t=${Date.now()}`;
+      const res = await fetch(audioUrl);
 
-    audio.onended = () => setPreviewingVoice(null);
-    audio.onerror = (e) => {
-      console.error('TTS Audio Sample playback error:', e);
-      setPreviewingVoice(null);
-      alert(`Ошибка воспроизведения голоса ${voiceId}. Сервер Gemini TTS недоступен или превышен лимит запросов.`);
-    };
+      if (!res.ok) {
+        let errDetail = 'Сбой сервера при генерации аудио';
+        try {
+          const errData = await res.json();
+          errDetail = errData.error || errDetail;
+        } catch {
+          errDetail = await res.text();
+        }
+        setPreviewingVoice(null);
+        alert(`Ошибка воспроизведения голоса ${voiceId}:\n${errDetail}`);
+        return;
+      }
 
-    audio.play().catch((err) => {
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const audio = new Audio(blobUrl);
+      sampleAudioRef.current = audio;
+
+      audio.onended = () => {
+        setPreviewingVoice(null);
+        URL.revokeObjectURL(blobUrl);
+      };
+
+      audio.onerror = (e) => {
+        console.error('TTS Audio Sample playback error:', e);
+        setPreviewingVoice(null);
+        alert(`Не удалось декодировать аудиопоток для голоса ${voiceId}`);
+      };
+
+      await audio.play();
+    } catch (err: any) {
       console.error('Audio play failed:', err);
       setPreviewingVoice(null);
-      alert(`Не удалось воспроизвести голос ${voiceId}: ${err.message || 'Ошибка воспроизведения'}`);
-    });
+      alert(`Ошибка при запросе голоса ${voiceId}: ${err.message || 'Ошибка сети'}`);
+    }
   };
 
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');

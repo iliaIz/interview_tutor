@@ -14,17 +14,20 @@ const TOPIC_MAP: Record<string, string> = {
 // GET /api/topics - List all topics with progress summary
 router.get('/', (req, res) => {
   const topics = [
-    { id: 'java', name: 'Java Core', total: 240, icon: 'coffee', color: '#E08E89' },
-    { id: 'spring', name: 'Spring Framework', total: 75, icon: 'leaf', color: '#5A9E96' },
-    { id: 'hibernate', name: 'Hibernate ORM', total: 60, icon: 'database', color: '#8B78E6' },
-    { id: 'docker', name: 'Docker', total: 30, icon: 'container', color: '#6C5CE7' }
+    { id: 'java', name: 'Java Core', icon: 'coffee', color: '#E08E89' },
+    { id: 'spring', name: 'Spring Framework', icon: 'leaf', color: '#5A9E96' },
+    { id: 'hibernate', name: 'Hibernate ORM', icon: 'database', color: '#8B78E6' },
+    { id: 'docker', name: 'Docker', icon: 'container', color: '#6C5CE7' }
   ];
 
-  const stmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
+  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
+  const countStmt = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?');
 
   const result = topics.map(t => {
     const dbTopicName = TOPIC_MAP[t.id];
-    const row = stmt.get(dbTopicName) as any;
+    const row = progressStmt.get(dbTopicName) as any;
+    const countRow = countStmt.get(dbTopicName) as any;
+    const total = countRow ? countRow.count : 0;
     
     let completedIds: string[] = [];
     let masteredIds: string[] = [];
@@ -38,10 +41,11 @@ router.get('/', (req, res) => {
       batchSize = row.batch_size || 5;
     }
 
-    const percentage = Math.round((completedIds.length / t.total) * 100) || 0;
+    const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
     return {
       ...t,
+      total,
       completedCount: completedIds.length,
       masteredCount: masteredIds.length,
       percentage,

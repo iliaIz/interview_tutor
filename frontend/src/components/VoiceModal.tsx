@@ -118,6 +118,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
         outputAudioCtxRef.current.close();
         outputAudioCtxRef.current = null;
       }
+      nextStartTimeRef.current = 0;
     };
   }, [isOpen, currentQuestionText]);
 

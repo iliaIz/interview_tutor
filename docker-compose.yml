@@ -7,9 +7,8 @@ services:
       - "${BACKEND_PORT:-8091}:5000"
     environment:
       - PORT=5000
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-v3}
-      - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-live-v3}
+      - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-tts-live-v3}
       - LITELLM_BASE_URL=${LITELLM_BASE_URL:-${LITELLM_PROXY_URL:-http://host.docker.internal:4000/v1}}
       - LITELLM_API_KEY=${LITELLM_API_KEY:-sk-1234}
       - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-tts-v3}

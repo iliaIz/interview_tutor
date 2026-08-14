@@ -42,7 +42,7 @@ ${referenceAnswer}
 Ответ кандидата:
 ${userAnswer}`;
 
-  // 1. Primary: Try LiteLLM Proxy (OpenAI Compatible API)
+  // Route strictly via LiteLLM Proxy
   try {
     console.log(`🤖 Evaluating text answer via LiteLLM Proxy (${endpointUrl}) using model [${modelName}]...`);
     const proxyRes = await fetch(endpointUrl, {
@@ -76,65 +76,10 @@ ${userAnswer}`;
       };
     } else {
       const errText = await proxyRes.text();
-      console.warn(`LiteLLM Proxy returned ${proxyRes.status}: ${errText}. Falling back to direct Gemini API...`);
+      throw new Error(`LiteLLM Proxy (${proxyRes.status}): ${errText}`);
     }
   } catch (err: any) {
-    console.warn(`LiteLLM Proxy connection failed (${err.message}). Falling back to direct Gemini API...`);
-  }
-
-  // 2. Secondary Fallback: Direct Google Gemini API
-  try {
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not configured');
-    }
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\n${prompt}` }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.2
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Gemini API Error:', errText);
-      throw new Error(`Gemini API returned status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const parsed = JSON.parse(rawText);
-
-    return {
-      score: parsed.score ?? 70,
-      isPassed: parsed.isPassed ?? (parsed.score >= 70),
-      positivePoints: parsed.positivePoints || ['Ответ совпадает с основными мыслями темы'],
-      missingPoints: parsed.missingPoints || [],
-      feedback: parsed.feedback || 'Ответ принят!'
-    };
-  } catch (error) {
-    console.error('Error evaluating answer:', error);
-    // Fallback heuristic evaluation
-    const userWords = userAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-    const refWords = referenceAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-    const matches = userWords.filter(w => refWords.includes(w));
-    const matchRatio = refWords.length > 0 ? (matches.length / refWords.length) : 0.5;
-    const score = Math.min(100, Math.max(30, Math.round(matchRatio * 150)));
-
-    return {
-      score,
-      isPassed: score >= 65,
-      positivePoints: ['Ответ содержит ключевые термины'],
-      missingPoints: ['Рекомендуется свериться с полной формулировкой'],
-      feedback: 'Оценка построена на эвристическом анализе терминов.'
-    };
+    console.error(`LiteLLM Proxy evaluation error:`, err);
+    throw new Error(`Ошибка оценки ответа через LiteLLM Proxy: ${err.message}`);
   }
 }

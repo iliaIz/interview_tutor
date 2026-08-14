@@ -79,7 +79,7 @@ router.get('/sample-audio', async (req, res) => {
 
     // 1. Return instantly from in-memory cache if generated previously
     if (sampleAudioCache.has(voice)) {
-      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return res.send(sampleAudioCache.get(voice));
     }
@@ -88,6 +88,8 @@ router.get('/sample-audio', async (req, res) => {
       'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
       'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
       'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
+      'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
+      'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
     };
 
     const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного голоса.';
@@ -95,7 +97,7 @@ router.get('/sample-audio', async (req, res) => {
     const buffer = await synthesizeTTSBuffer(text, voice);
     sampleAudioCache.set(voice, buffer);
 
-    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(buffer);
   } catch (err: any) {

@@ -34,6 +34,17 @@ db.exec(`
     batch_size INTEGER DEFAULT 5,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS podcast_jobs (
+    job_id TEXT PRIMARY KEY,
+    status TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    audio_url TEXT,
+    transcript TEXT,
+    metadata TEXT,
+    error TEXT,
+    audio_path TEXT
+  );
 `);
 
 export function seedQuestionsFromJSON() {
