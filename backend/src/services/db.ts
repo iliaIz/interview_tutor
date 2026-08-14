@@ -66,22 +66,17 @@ export function seedQuestionsFromJSON() {
   const rawData = fs.readFileSync(jsonPath, 'utf-8');
   const questions = JSON.parse(rawData);
 
-  // Upsert all questions so reformatted text is updated
-  const upsertStmt = db.prepare(`
+  // Clean old questions and insert fresh questions from JSON in a single transaction
+  const deleteOldStmt = db.prepare('DELETE FROM questions');
+  const insertStmt = db.prepare(`
     INSERT INTO questions (id, global_id, num, topic, question, answer, source_pages)
     VALUES (@id, @global_id, @num, @topic, @question, @answer, @source_pages)
-    ON CONFLICT(id) DO UPDATE SET
-      global_id = excluded.global_id,
-      num = excluded.num,
-      topic = excluded.topic,
-      question = excluded.question,
-      answer = excluded.answer,
-      source_pages = excluded.source_pages
   `);
 
-  const upsertMany = db.transaction((qs: any[]) => {
+  const syncAll = db.transaction((qs: any[]) => {
+    deleteOldStmt.run();
     for (const q of qs) {
-      upsertStmt.run({
+      insertStmt.run({
         id: q.id,
         global_id: q.global_id,
         num: q.num,
@@ -93,6 +88,6 @@ export function seedQuestionsFromJSON() {
     }
   });
 
-  upsertMany(questions);
-  console.log(`✅ Database synced with ${questions.length} reformatted questions!`);
+  syncAll(questions);
+  console.log(`✅ Database synced with ${questions.length} questions from enhorse/java-interview!`);
 }

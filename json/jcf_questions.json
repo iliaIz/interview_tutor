@@ -1,0 +1,970 @@
+[
+  {
+    "id": "JCF-001",
+    "global_id": 127,
+    "num": 1,
+    "topic": "Java Collections Framework",
+    "question": "Что такое _«коллекция»_?",
+    "answer": "_«Коллекция»_ - это структура данных, набор каких-либо объектов. Данными (объектами в наборе) могут быть числа, строки, объекты пользовательских классов и т.п.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-002",
+    "global_id": 128,
+    "num": 2,
+    "topic": "Java Collections Framework",
+    "question": "Назовите основные интерфейсы JCF и их реализации.",
+    "answer": "На вершине иерархии в Java Collection Framework располагаются 2 интерфейса: `Collection` и `Map`. Эти интерфейсы разделяют все коллекции, входящие во фреймворк на две части по типу хранения данных: простые последовательные наборы элементов и наборы пар «ключ — значение» соответственно.\n\nИнтерфейс `Collection` расширяют интерфейсы:\n\n+ `List` (список) представляет собой коллекцию, в которой допустимы дублирующие значения. Реализации:\n    + `ArrayList` - инкапсулирует в себе обычный массив, длина которого автоматически увеличивается при добавлении новых элементов. Элементы такой коллекции пронумерованы, начиная от нуля, к ним можно обратиться по индексу.\n    + `LinkedList` (двунаправленный связный список) - состоит из узлов, каждый из которых содержит как собственно данные, так и две ссылки на следующий и предыдущий узел.\n    + `Vector` — реализация динамического массива объектов, методы которой синхронизированы.\n    + `Stack` — реализация стека LIFO (last-in-first-out).\n+ `Set` (сет) описывает неупорядоченную коллекцию, не содержащую повторяющихся элементов. Реализации:\n    + `HashSet` - использует HashMap для хранения данных. В качестве ключа используется добавляемый элемент, в качестве значения - заглушка Object. Из-за особенностей реализации порядок элементов не гарантируется при добавлении.\n    + `LinkedHashSet` — гарантирует, что порядок элементов при обходе коллекции будет идентичен порядку добавления элементов.\n    + `TreeSet` — предоставляет возможность управлять порядком элементов в коллекции при помощи объекта `Comparator`, либо сохраняет элементы с использованием «natural ordering».\n+ `Queue` (очередь) предназначена для хранения элементов с предопределённым способом вставки и извлечения FIFO (first-in-first-out):\n    + `PriorityQueue` — предоставляет возможность управлять порядком элементов в коллекции при помощи объекта `Comparator`, либо сохраняет элементы с использованием «natural ordering».\n    + `ArrayDeque` — реализация интерфейса `Deque`, который расширяет интерфейс `Queue` методами, позволяющими реализовать конструкцию вида LIFO (last-in-first-out). \n\nИнтерфейс `Map` реализован классами:\n\n+ `Hashtable` — хэш-таблица, методы которой синхронизированы. Не позволяет использовать `null` в качестве значения или ключа и не является упорядоченной.\n+ `HashMap` — хэш-таблица. Позволяет использовать `null` в качестве значения или ключа и не является упорядоченной.\n+ `LinkedHashMap` — упорядоченная реализация хэш-таблицы.\n+ `TreeMap` — реализация, основанная на красно-чёрных деревьях. Является упорядоченной и предоставляет возможность управлять порядком элементов в коллекции при помощи объекта `Comparator`, либо сохраняет элементы с использованием «natural ordering».\n+ `WeakHashMap` — реализация хэш-таблицы, которая организована с использованием _weak references_ для ключей (сборщик мусора автоматически удалит элемент из коллекции при следующей сборке мусора, если на ключ этого элемента нет жёстких ссылок).",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-003",
+    "global_id": 129,
+    "num": 3,
+    "topic": "Java Collections Framework",
+    "question": "Расположите в виде иерархии следующие интерфейсы: `List`, `Set`, `Map`, `SortedSet`, `SortedMap`, `Collection`, `Iterable`, `Iterator`, `NavigableSet`, `NavigableMap`.",
+    "answer": "+ `Iterable`\n    + `Collection`\n        + `List`\n        + `Set`\n            + `SortedSet`\n                + `NavigableSet`\n+ `Map`\n    + `SortedMap` \n        + `NavigableMap`\n+ `Iterator`",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-004",
+    "global_id": 130,
+    "num": 4,
+    "topic": "Java Collections Framework",
+    "question": "Почему `Map` — это не `Collection`, в то время как `List` и `Set` являются `Collection`?",
+    "answer": "`Collection` представляет собой совокупность некоторых элементов. `Map` - это совокупность пар «ключ-значение».",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-005",
+    "global_id": 131,
+    "num": 5,
+    "topic": "Java Collections Framework",
+    "question": "В чем разница между классами `java.util.Collection` и `java.util.Collections`?",
+    "answer": "`java.util.Collections` - набор статических методов для работы с коллекциями.\n\n`java.util.Collection` - один из основных интерфейсов Java Collections Framework.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-006",
+    "global_id": 132,
+    "num": 6,
+    "topic": "Java Collections Framework",
+    "question": "Что такое «fail-fast поведение»?",
+    "answer": "__fail-fast поведение__ означает, что при возникновении ошибки или состояния, которое может привести к ошибке, система немедленно прекращает дальнейшую работу и уведомляет об этом. Использование fail-fast подхода позволяет избежать недетерминированного поведения программы в течение времени.\n\nВ Java Collections API некоторые итераторы ведут себя как fail-fast и выбрасывают `ConcurrentModificationException`, если после его создания была произведена модификация коллекции, т.е. добавлен или удален элемент напрямую из коллекции, а не используя методы итератора. \n\nРеализация такого поведения осуществляется за счет подсчета количества модификаций коллекции (modification count):\n\n+ при изменении коллекции счетчик модификаций так же изменяется;\n+ при создании итератора ему передается текущее значение счетчика;\n+ при каждом обращении к итератору сохраненное значение счетчика сравнивается с текущим, и, если они не совпадают, возникает исключение.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-007",
+    "global_id": 133,
+    "num": 7,
+    "topic": "Java Collections Framework",
+    "question": "Какая разница между fail-fast и fail-safe?",
+    "answer": "В противоположность fail-fast, итераторы fail-safe не вызывают никаких исключений при изменении структуры, потому что они работают с клоном коллекции вместо оригинала.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-008",
+    "global_id": 134,
+    "num": 8,
+    "topic": "Java Collections Framework",
+    "question": "Приведите примеры итераторов, реализующих поведение fail-safe",
+    "answer": "Итератор коллекции `CopyOnWriteArrayList` и итератор представления `keySet` коллекции `ConcurrentHashMap` являются примерами итераторов fail-safe.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-009",
+    "global_id": 135,
+    "num": 9,
+    "topic": "Java Collections Framework",
+    "question": "Чем различаются `Enumeration` и `Iterator`.",
+    "answer": "Хотя оба интерфейса и предназначены для обхода коллекций между ними имеются существенные различия:\n\n+ с помощью `Enumeration` нельзя добавлять/удалять элементы;\n+ в `Iterator` исправлены имена методов для повышения читаемости кода (`Enumeration.hasMoreElements()` соответствует `Iterator.hasNext()`, `Enumeration.nextElement()` соответствует `Iterator.next()` и т.д);\n+ `Enumeration` присутствуют в устаревших классах, таких как `Vector`/`Stack`, тогда как `Iterator` есть во всех современных классах-коллекциях.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-010",
+    "global_id": 136,
+    "num": 10,
+    "topic": "Java Collections Framework",
+    "question": "Как между собой связаны `Iterable` и `Iterator`?",
+    "answer": "Интерфейс `Iterable` имеет только один метод - `iterator()`, который возвращает `Iterator`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-011",
+    "global_id": 137,
+    "num": 11,
+    "topic": "Java Collections Framework",
+    "question": "Как между собой связаны `Iterable`, `Iterator` и «for-each»?",
+    "answer": "Классы, реализующие интерфейс `Iterable`, могут применяться в конструкции `for-each`, которая использует `Iterator`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-012",
+    "global_id": 138,
+    "num": 12,
+    "topic": "Java Collections Framework",
+    "question": "Сравните `Iterator` и `ListIterator`.",
+    "answer": "+ `ListIterator` расширяет интерфейс `Iterator`\n+ `ListIterator` может быть использован только для перебора элементов коллекции `List`;\n+ `Iterator` позволяет перебирать элементы только в одном направлении, при помощи метода `next()`. Тогда как `ListIterator` позволяет перебирать список в обоих направлениях, при помощи методов `next()` и `previous()`;\n+ `ListIterator` не указывает на конкретный элемент: его текущая позиция располагается между элементами, которые возвращают методы `previous()` и `next()`.\n+ При помощи `ListIterator` вы можете модифицировать список, добавляя/удаляя элементы с помощью методов `add()` и `remove()`. `Iterator` не поддерживает данного функционала.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-013",
+    "global_id": 139,
+    "num": 13,
+    "topic": "Java Collections Framework",
+    "question": "Что произойдет при вызове `Iterator.next()` без предварительного вызова `Iterator.hasNext()`?",
+    "answer": "Если итератор указывает на последний элемент коллекции, то возникнет исключение `NoSuchElementException`, иначе будет возвращен следующий элемент.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-014",
+    "global_id": 140,
+    "num": 14,
+    "topic": "Java Collections Framework",
+    "question": "Сколько элементов будет пропущено, если `Iterator.next()` будет вызван после 10-ти вызовов `Iterator.hasNext()`?",
+    "answer": "Нисколько - `hasNext()` осуществляет только проверку наличия следующего элемента.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-015",
+    "global_id": 141,
+    "num": 15,
+    "topic": "Java Collections Framework",
+    "question": "Как поведёт себя коллекция, если вызвать `iterator.remove()`?",
+    "answer": "Если вызову `iterator.remove()` предшествовал вызов `iterator.next()`, то `iterator.remove()` удалит элемент коллекции, на который указывает итератор, в противном случае будет выброшено `IllegalStateException()`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-016",
+    "global_id": 142,
+    "num": 16,
+    "topic": "Java Collections Framework",
+    "question": "Как поведёт себя уже инстанциированный итератор для `collection`, если вызвать `collection.remove()`?",
+    "answer": "При следующем вызове методов итератора будет выброшено `ConcurrentModificationException`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-017",
+    "global_id": 143,
+    "num": 17,
+    "topic": "Java Collections Framework",
+    "question": "Как избежать `ConcurrentModificationException` во время перебора коллекции?",
+    "answer": "+ Попробовать подобрать или реализовать самостоятельно другой итератор, работающий по принципу fail-safe.\n+ Использовать `ConcurrentHashMap` и `CopyOnWriteArrayList`.\n+ Преобразовать список в массив и перебирать массив.\n+ Блокировать изменения списка на время перебора с помощью блока `synchronized`.\n\nОтрицательная сторона последних двух вариантов - ухудшение производительности.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-018",
+    "global_id": 144,
+    "num": 18,
+    "topic": "Java Collections Framework",
+    "question": "Какая коллекция реализует дисциплину обслуживания FIFO?",
+    "answer": "FIFO, First-In-First-Out («первым пришел-первым ушел») - по этому принципу построена коллекция `Queue`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-019",
+    "global_id": 145,
+    "num": 19,
+    "topic": "Java Collections Framework",
+    "question": "Какая коллекция реализует дисциплину обслуживания FILO?",
+    "answer": "FILO, First-In-Last-Out («первым пришел, последним ушел») - по этому принципу построена коллекция `Stack`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-020",
+    "global_id": 146,
+    "num": 20,
+    "topic": "Java Collections Framework",
+    "question": "Чем отличается `ArrayList` от `Vector`?",
+    "answer": "_Ответ в процессе дополнения._",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-021",
+    "global_id": 147,
+    "num": 21,
+    "topic": "Java Collections Framework",
+    "question": "Зачем добавили `ArrayList`, если уже был `Vector`?",
+    "answer": "+ Методы класса `Vector` синхронизированы, а `ArrayList` - нет;\n+ По умолчанию, `Vector` удваивает свой размер, когда заканчивается выделенная под элементы память. `ArrayList` же увеличивает свой размер только на половину.\n\n`Vector` это устаревший класс и его использование не рекомендовано.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-022",
+    "global_id": 148,
+    "num": 22,
+    "topic": "Java Collections Framework",
+    "question": "Чем отличается `ArrayList` от `LinkedList`? В каких случаях лучше использовать первый, а в каких второй?",
+    "answer": "`ArrayList` это список, реализованный на основе массива, а `LinkedList` — это классический двусвязный список, основанный на объектах с ссылками между ними.\n\n`ArrayList`:\n\n+ доступ к произвольному элементу по индексу за _константное_ время _O(1)_;\n+ доступ к элементам по значению за _линейное_ время _O(N)_;\n+ вставка в конец в среднем производится за _константное_ время _O(1)_;\n+ удаление произвольного элемента из списка занимает значительное время т.к. при этом все элементы, находящиеся «правее» смещаются на одну ячейку влево (реальный размер массива (capacity) не изменяется);\n+ вставка элемента в произвольное место списка занимает значительное время т.к. при этом все элементы, находящиеся «правее» смещаются на одну ячейку вправо;\n+ минимум накладных расходов при хранении.\n\n`LinkedList`:\n\n+ на получение элемента по индексу или значению потребуется _линейное_ время _O(N)_;\n+ но доступ к первому и последнему элементу списка всегда осуществляется за _константное_ время _O(1)_ — ссылки постоянно хранятся на первый и последний элемент;\n+ на добавление и удаление в начало или конец списка потребуется _константное_ _O(1)_;\n+ вставка или удаление в/из произвольного место _константное_ _O(1)_;\n+ но поиск позиции вставки и удаления за _линейное_ время _O(N)_;\n+ требует больше памяти для хранения такого же количества элементов, потому что кроме самого элемента хранятся еще указатели на следующий и предыдущий элементы списка.\n\nВ целом, `LinkedList` в абсолютных величинах проигрывает `ArrayList` и по потребляемой памяти, и по скорости выполнения операций. `LinkedList` предпочтительно применять, когда нужны частые операции вставки/удаления или в случаях, когда необходимо гарантированное время добавления элемента в список.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-023",
+    "global_id": 149,
+    "num": 23,
+    "topic": "Java Collections Framework",
+    "question": "Что работает быстрее `ArrayList` или `LinkedList`?",
+    "answer": "Смотря какие действия будут выполняться над структурой. \n\nсм. [Чем отличается `ArrayList` от `LinkedList`](#Чем-отличается-arraylist-от-linkedlist-В-каких-случаях-лучше-использовать-первый-а-в-каких-второй)",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-024",
+    "global_id": 150,
+    "num": 24,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода `contains()` для элемента, который есть в `LinkedList`?",
+    "answer": "_O(N)_. Время поиска элемента линейно пропорционально количеству элементов в списке.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-025",
+    "global_id": 151,
+    "num": 25,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода `contains()` для элемента, который есть в `ArrayList`?",
+    "answer": "_O(N)_. Время поиска элемента линейно пропорционально количеству элементов с списке.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-026",
+    "global_id": 152,
+    "num": 26,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода `add()` для `LinkedList`?",
+    "answer": "_O(N)_. Добавление в начало/конец списка осуществляется за время _O(1)_.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-027",
+    "global_id": 153,
+    "num": 27,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода `add()` для `ArrayList`?",
+    "answer": "_O(N)_. Вставка элемента в конец списка осуществляется за время _O(1)_, но если вместимость массива недостаточна, то происходит создание нового массива с увеличенным размером и копирование всех элементов из старого массива в новый.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-028",
+    "global_id": 154,
+    "num": 28,
+    "topic": "Java Collections Framework",
+    "question": "Необходимо добавить 1 млн. элементов, какую структуру вы используете?",
+    "answer": "Однозначный ответ можно дать только исходя из информации о том в какую часть списка происходит добавление элементов, что потом будет происходить с элементами списка, существуют ли какие-то ограничения по памяти или скорости выполнения.\n\nсм. [Чем отличается `ArrayList` от `LinkedList`](#Чем-отличается-arraylist-от-linkedlist-В-каких-случаях-лучше-использовать-первый-а-в-каких-второй)",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-029",
+    "global_id": 155,
+    "num": 29,
+    "topic": "Java Collections Framework",
+    "question": "Как происходит удаление элементов из `ArrayList`? Как меняется в этом случае размер `ArrayList`?",
+    "answer": "При удалении произвольного элемента из списка, все элементы, находящиеся «правее» смещаются на одну ячейку влево и реальный размер массива (его емкость, capacity) не изменяется никак. Механизм автоматического «расширения» массива существует, а вот автоматического «сжатия» нет, можно только явно выполнить «сжатие» командой `trimToSize()`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-030",
+    "global_id": 156,
+    "num": 30,
+    "topic": "Java Collections Framework",
+    "question": "Предложите эффективный алгоритм удаления нескольких рядом стоящих элементов из середины списка, реализуемого `ArrayList`.",
+    "answer": "Допустим нужно удалить `n` элементов с позиции `m` в списке. Вместо выполнения удаления одного элемента `n` раз (каждый раз смещая на 1 позицию элементы, стоящие «правее» в списке), нужно выполнить смещение всех элементов, стоящих «правее» `n + m` позиции на `n` элементов «левее» к началу списка. Таким образом, вместо выполнения `n` итераций перемещения элементов списка, все выполняется за 1 проход. Но если говорить об общей эффективности - то самый быстрый способ будет с использованием `System.arraycopy()`, и получить к нему доступ можно через метод - `subList(int fromIndex, int toIndex)`\n\nПример:\n\n```java\nimport java.io.*;\nimport java.util.ArrayList;\n\npublic class Main {\n    //позиция, с которой удаляем\n    private static int m = 0;\n    //количество удаляемых элементов\n    private static int n = 0;\n    //количество элементов в списке\n    private static final int size = 1000000;\n    //основной список (для удаления вызовом remove() и его копия для удаления путём перезаписи)\n    private static ArrayList<Integer> initList, copyList;\n    \n    public static void main(String[] args){\n        \n        initList = new ArrayList<>(size);\n        for (int i = 0; i < size; i++) {\n            initList.add(i);\n        }\n        System.out.println(\"Список из 1.000.000 элементов заполнен\");\n        \n        copyList = new ArrayList<>(initList);\n        System.out.println(\"Создана копия списка\\n\");\n        \n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        try{\n            System.out.print(\"С какой позиции удаляем? > \");\n            m = Integer.parseInt(br.readLine());\n            System.out.print(\"Сколько удаляем? > \");\n            n = Integer.parseInt(br.readLine());\n        } catch(IOException e){\n            System.err.println(e.toString());\n        }\n        System.out.println(\"\\nВыполняем удаление вызовом remove()...\");\n        long start = System.currentTimeMillis();\n        \n        for (int i = m - 1; i < m + n - 1; i++) {\n            initList.remove(i);\n        }\n        \n        long finish = System.currentTimeMillis() - start;\n        System.out.println(\"Время удаления с помощью вызова remove(): \" + finish);\n        System.out.println(\"Размер исходного списка после удаления: \" + initList.size());\n        \n        System.out.println(\"\\nВыполняем удаление путем перезаписи...\\n\");\n        start = System.currentTimeMillis();\n        \n        removeEfficiently();\n        \n        finish = System.currentTimeMillis() - start;\n        System.out.println(\"Время удаления путём смещения: \" + finish);\n        System.out.println(\"Размер копии списка:\" + copyList.size());\n\n        System.out.println(\"\\nВыполняем удаление через SubList...\\n\");\n        start = System.currentTimeMillis();\n\n        initList.subList(m - 1, m + n).clear();\n\n        finish = System.currentTimeMillis() - start;\n        System.out.println(\"Время удаления через саблист: \" + finish);\n        System.out.println(\"Размер копии списка:\" + copyList.size());\n    }\n    \n    private static void removeEfficiently(){\n        /* если необходимо удалить все элементы, начиная с указанного,\n         * то удаляем элементы с конца до m\n         */\n        if (m + n >= size){\n            int i = size - 1;\n            while (i != m - 1){\n                copyList.remove(i);\n                i--;\n            }\n        } else{\n            //переменная k необходима для отсчёта сдвига начиная от места вставка m\n            for (int i  = m + n, k = 0; i < size; i++, k++) {\n               copyList.set(m + k, copyList.get(i));\n            }\n            \n            /* удаляем ненужные элементы в конце списка\n             * удаляется всегда последний элемент, так как время этого действия\n             * фиксировано и не зависит от размера списка\n             */\n            int i = size - 1;\n            while (i != size - n - 1){\n                copyList.remove(i);\n                i--;\n            }\n            //сокращаем длину списка путём удаления пустых ячеек\n            copyList.trimToSize();\n        }\n    }\n}\n```\n\nРезультат выполнения:\n```\nrun:\nСписок из 1.000.000 элементов заполнен\nСоздана копия списка\n\nС какой позиции удаляем? > 600000\nСколько удаляем? > 20000\n\nВыполняем удаление вызовом remove()...\nВремя удаления с помощью вызова remove(): 928\nРазмер исходного списка после удаления: 980000\n\nВыполняем удаление путем перезаписи...\n\nВремя удаления путём смещения: 17\nРазмер копии списка:980000\n\nВыполняем удаление через SubList...\n\nВремя удаления через саблист: 1\nРазмер копии списка:980000\nСБОРКА УСПЕШНО ЗАВЕРШЕНА (общее время: 33 секунды)\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-031",
+    "global_id": 157,
+    "num": 31,
+    "topic": "Java Collections Framework",
+    "question": "Сколько необходимо дополнительной памяти при вызове `ArrayList.add()`?",
+    "answer": "Если в массиве достаточно места для размещения нового элемента, то дополнительной памяти не требуется. Иначе происходит создание нового массива размером в 1,5 раза превышающим существующий (это верно для JDK выше 1.7, в более ранних версиях размер увеличения иной).",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-032",
+    "global_id": 158,
+    "num": 32,
+    "topic": "Java Collections Framework",
+    "question": "Сколько выделяется дополнительно памяти при вызове `LinkedList.add()`?",
+    "answer": "Создается один новый экземпляр вложенного класса `Node`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-033",
+    "global_id": 159,
+    "num": 33,
+    "topic": "Java Collections Framework",
+    "question": "Оцените количество памяти на хранение одного примитива типа `byte` в `LinkedList`?",
+    "answer": "Каждый элемент `LinkedList` хранит ссылку на предыдущий элемент, следующий элемент и ссылку на данные.\n\n```java\nprivate static class Node<E> {\n        E item;\n        Node<E> next;\n        Node<E> prev;\n//...\n}\n```\n\nДля 32-битных систем каждая ссылка занимает 32 бита (4 байта). Сам объект (заголовок) вложенного класса `Node` занимает 8 байт. 4 + 4 + 4 + 8 = 20 байт, а т.к. размер каждого объекта в Java кратен 8, соответственно получаем 24 байта. Примитив типа `byte` занимает 1 байт памяти, но в JCF примитивы упаковываются: объект типа `Byte` занимает в памяти 16 байт (8 байт на заголовок объекта, 1 байт на поле типа `byte` и 7 байт для кратности 8). Также напомню, что значения от -128 до 127 кэшируются и для них новые объекты каждый раз не создаются. Таким образом, в x32 JVM 24 байта тратятся на хранение одного элемента в списке и 16 байт - на хранение упакованного объекта типа `Byte`. Итого 40 байт.\n\nДля 64-битной JVM каждая ссылка занимает 64 бита (8 байт), размер заголовка каждого объекта составляет 16 байт (два машинных слова). Вычисления аналогичны: 8 + 8 + 8 + 16 = 40байт и 24 байта. Итого 64 байта.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-034",
+    "global_id": 160,
+    "num": 34,
+    "topic": "Java Collections Framework",
+    "question": "Оцените количество памяти на хранение одного примитива типа `byte` в `ArrayList`?",
+    "answer": "`ArrayList` основан на массиве, для примитивных типов данных осуществляется автоматическая упаковка значения, поэтому 16 байт тратится на хранение упакованного объекта и 4 байта (8 для x64) - на хранение ссылки на этот объект в самой структуре данных. Таким образом, в x32 JVM 4 байта используются на хранение одного элемента и 16 байт - на хранение упакованного объекта типа `Byte`. Для x64 - 8 байт и 24 байта соответственно.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-035",
+    "global_id": 161,
+    "num": 35,
+    "topic": "Java Collections Framework",
+    "question": "Для `ArrayList` или для `LinkedList` операция добавления элемента в середину (`list.add(list.size()/2, newElement)`) медленнее?",
+    "answer": "Для `ArrayList`:\n\n+ проверка массива на вместимость. Если вместимости недостаточно, то увеличение размера массива и копирование всех элементов в новый массив (_O(N)_);\n+ копирование всех элементов, расположенных правее от позиции вставки, на одну позицию вправо (_O(N)_);\n+ вставка элемента (_O(1)_).\n\nДля `LinkedList`:\n\n+ поиск позиции вставки (_O(N)_);\n+ вставка элемента (_O(1)_).\n\nВ худшем случае вставка в середину списка эффективнее для `LinkedList`. В остальных - скорее всего, для `ArrayList`, поскольку копирование элементов осуществляется за счет вызова быстрого системного метода `System.arraycopy()`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-036",
+    "global_id": 162,
+    "num": 36,
+    "topic": "Java Collections Framework",
+    "question": "В реализации класса `ArrayList` есть следующие поля: `Object[] elementData`, `int size`. Объясните, зачем хранить отдельно `size`, если всегда можно взять `elementData.length`?",
+    "answer": "Размер массива `elementData` представляет собой вместимость (capacity) `ArrayList`, которая всегда больше переменной `size` - реального количества хранимых элементов. При необходимости вместимость автоматически возрастает.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-037",
+    "global_id": 163,
+    "num": 37,
+    "topic": "Java Collections Framework",
+    "question": "Сравните интерфейсы `Queue` и `Deque`.",
+    "answer": "_Ответ в процессе дополнения._",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-038",
+    "global_id": 164,
+    "num": 38,
+    "topic": "Java Collections Framework",
+    "question": "Кто кого расширяет: `Queue` расширяет `Deque`, или `Deque` расширяет `Queue`?",
+    "answer": "`Queue` - это очередь, которая обычно (но необязательно) строится по принципу FIFO (First-In-First-Out) - соответственно извлечение элемента осуществляется с начала очереди, вставка элемента - в конец очереди. Хотя этот принцип нарушает, к примеру, `PriorityQueue`, использующая «natural ordering» или переданный `Comparator` при вставке нового элемента.\n\n`Deque` (Double Ended Queue) расширяет `Queue` и согласно документации, это линейная коллекция, поддерживающая вставку/извлечение элементов с обоих концов. Помимо этого, реализации интерфейса `Deque` могут строится по принципу FIFO, либо LIFO.\n\nРеализации и `Deque`, и `Queue` обычно не переопределяют методы `equals()` и `hashCode()`, вместо этого используются унаследованные методы класса Object, основанные на сравнении ссылок.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-039",
+    "global_id": 165,
+    "num": 39,
+    "topic": "Java Collections Framework",
+    "question": "Почему `LinkedList` реализует и `List`, и `Deque`?",
+    "answer": "`LinkedList` позволяет добавлять элементы в начало и конец списка за константное время, что хорошо согласуется с поведением интерфейса `Deque`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-040",
+    "global_id": 166,
+    "num": 40,
+    "topic": "Java Collections Framework",
+    "question": "`LinkedList` — это односвязный, двусвязный или четырехсвязный список?",
+    "answer": "`Двусвязный`: каждый элемент `LinkedList` хранит ссылку на предыдущий и следующий элементы.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-041",
+    "global_id": 167,
+    "num": 41,
+    "topic": "Java Collections Framework",
+    "question": "Как перебрать элементы `LinkedList` в обратном порядке, не используя медленный `get(index)`?",
+    "answer": "Для этого в `LinkedList` есть обратный итератор, который можно получить вызва метод `descendingIterator()`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-042",
+    "global_id": 168,
+    "num": 42,
+    "topic": "Java Collections Framework",
+    "question": "Что позволяет сделать `PriorityQueue`?",
+    "answer": "Особенностью `PriorityQueue` является возможность управления порядком элементов. По-умолчанию, элементы сортируются с использованием «natural ordering», но это поведение может быть переопределено при помощи объекта `Comparator`, который задаётся при создании очереди. Данная коллекция не поддерживает null в качестве элементов.\n\nИспользуя `PriorityQueue`, можно, например, реализовать алгоритм Дейкстры для поиска кратчайшего пути от одной вершины графа к другой. Либо для хранения объектов согласно определённого свойства.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-043",
+    "global_id": 169,
+    "num": 43,
+    "topic": "Java Collections Framework",
+    "question": "`Stack` считается «устаревшим». Чем его рекомендуют заменять? Почему?",
+    "answer": "`Stack` был добавлен в Java 1.0 как реализация стека LIFO (last-in-first-out) и является расширением коллекции `Vector`, хотя это несколько нарушает понятие стека (например, класс `Vector` предоставляет возможность обращаться к любому элементу по индексу). Является частично синхронизированной коллекцией (кроме метода добавления `push()`) с вытекающими отсюда последствиями в виде негативного воздействия на производительность. После добавления в Java 1.6 интерфейса `Deque`, рекомендуется использовать реализации именно этого интерфейса, например, `ArrayDeque`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-044",
+    "global_id": 170,
+    "num": 44,
+    "topic": "Java Collections Framework",
+    "question": "Зачем нужен `HashMap`, если есть `Hashtable`?",
+    "answer": "+ Методы класса `Hashtable` синхронизированы, что приводит к снижению производительности, а `HashMap` - нет;\n+ `HashTable` не может содержать элементы `null`, тогда как `HashMap` может содержать один ключ `null` и любое количество значений `null`;\n+ Iterator у `HashMap`, в отличие от Enumeration у `HashTable`, работает по принципу «fail-fast» (выдает исключение при любой несогласованности данных).\n\n`Hashtable` это устаревший класс и его использование не рекомендовано.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-045",
+    "global_id": 171,
+    "num": 45,
+    "topic": "Java Collections Framework",
+    "question": "В чем разница между `HashMap` и `IdentityHashMap`? Для чего нужна `IdentityHashMap`?",
+    "answer": "`IdentityHashMap` - это структура данных, так же реализующая интерфейс `Map` и использующая при сравнении ключей (значений) сравнение ссылок, а не вызов метода `equals()`. Другими словами, в `IdentityHashMap` два ключа `k1` и `k2` будут считаться равными, если они указывают на один объект, т.е. выполняется условие `k1` == `k2`.\n\n`IdentityHashMap` не использует метод `hashCode()`, вместо которого применяется метод `System.identityHashCode()`, по этой причине `IdentityHashMap` по сравнению с `HashMap` имеет более высокую производительность, особенно если последний хранит объекты с дорогостоящими методами `equals()` и `hashCode()`.\n\nОдним из основных требований к использованию `HashMap` является неизменяемость ключа, а, т.к. `IdentityHashMap` не использует методы  `equals()` и `hashCode()`, то это правило на него не распространяется.\n\n`IdentityHashMap` может применяться для реализации сериализации/клонирования. При выполнении подобных алгоритмов программе необходимо обслуживать хэш-таблицу со всеми ссылками на объекты, которые уже были обработаны. Такая структура не должна рассматривать уникальные объекты как равные, даже если метод `equals()` возвращает `true`.\n\nПример кода:\n```java\nimport java.util.HashMap;\nimport java.util.IdentityHashMap;\nimport java.util.Map;\n\npublic class Q2 {\n\n    public static void main(String[] args) {\n        Q2 q = new Q2();\n        q.testHashMapAndIdentityHashMap();\n    }\n\n    private void testHashMapAndIdentityHashMap() {\n        CreditCard visa = new CreditCard(\"VISA\", \"04/12/2019\");\n\n        Map<CreditCard, String> cardToExpiry = new HashMap<>();\n        Map<CreditCard, String> cardToExpiryIdenity = new IdentityHashMap<>();\n\n        System.out.println(\"adding to HM\");\n        // inserting objects to HashMap\n        cardToExpiry.put(visa, visa.getExpiryDate());\n\n        // inserting objects to IdentityHashMap\n        cardToExpiryIdenity.put(visa, visa.getExpiryDate());\n        System.out.println(\"adding to IHM\");\n\n        System.out.println(\"before modifying keys\");\n        String result = cardToExpiry.get(visa) != null ? \"Yes\" : \"No\";\n        System.out.println(\"Does VISA card exists in HashMap? \" + result);\n\n        result = cardToExpiryIdenity.get(visa) != null ? \"Yes\" : \"No\";\n        System.out.println(\"Does VISA card exists in IdenityHashMap? \" + result);\n\n        // modifying value object\n        visa.setExpiryDate(\"02/11/2030\");\n\n        System.out.println(\"after modifying keys\");\n        result = cardToExpiry.get(visa) != null ? \"Yes\" : \"No\";\n        System.out.println(\"Does VISA card exists in HashMap? \" + result);\n\n        result = cardToExpiryIdenity.get(visa) != null ? \"Yes\" : \"No\";\n        System.out.println(\"Does VISA card exists in IdenityHashMap? \" + result);\n\n        System.out.println(\"cardToExpiry.containsKey\");\n        System.out.println(cardToExpiry.containsKey(visa));\n        System.out.println(\"cardToExpiryIdenity.containsKey\");\n        System.out.println(cardToExpiryIdenity.containsKey(visa));\n    }\n\n}\n\nclass CreditCard {\n    private String issuer;\n    private String expiryDate;\n\n    public CreditCard(String issuer, String expiryDate) {\n        this.issuer = issuer;\n        this.expiryDate = expiryDate;\n    }\n\n    public String getIssuer() {\n        return issuer;\n    }\n\n    public String getExpiryDate() {\n        return expiryDate;\n    }\n\n    public void setExpiryDate(String expiry) {\n        this.expiryDate = expiry;\n    }\n\n    @Override\n    public int hashCode() {\n        final int prime = 31;\n        int result = 1;\n        result = prime * result + ((expiryDate == null) ? 0 : expiryDate.hashCode());\n        result = prime * result + ((issuer == null) ? 0 : issuer.hashCode());\n        System.out.println(\"hashCode = \" + result);\n        return result;\n    }\n\n    @Override\n    public boolean equals(Object obj) {\n        System.out.println(\"equals !!! \");\n        if (this == obj)\n            return true;\n        if (obj == null)\n            return false;\n        if (getClass() != obj.getClass())\n            return false;\n        CreditCard other = (CreditCard) obj;\n        if (expiryDate == null) {\n            if (other.expiryDate != null)\n                return false;\n        } else if (!expiryDate.equals(other.expiryDate))\n            return false;\n        if (issuer == null) {\n            if (other.issuer != null)\n                return false;\n        } else if (!issuer.equals(other.issuer))\n            return false;\n        return true;\n    }\n\n}\n```\n\nРезультат выполнения кода:\n```\nadding to HM\nhashCode = 1285631513\nadding to IHM\nbefore modifying keys\nhashCode = 1285631513\nDoes VISA card exists in HashMap? Yes\nDoes VISA card exists in IdenityHashMap? Yes\nafter modifying keys\nhashCode = 791156485\nDoes VISA card exists in HashMap? No\nDoes VISA card exists in IdenityHashMap? Yes\ncardToExpiry.containsKey\nhashCode = 791156485\nfalse\ncardToExpiryIdenity.containsKey\ntrue\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-046",
+    "global_id": 172,
+    "num": 46,
+    "topic": "Java Collections Framework",
+    "question": "В чем разница между `HashMap` и `WeakHashMap`? Для чего используется `WeakHashMap`?",
+    "answer": "В Java существует 4 типа ссылок: _сильные (strong reference)_, _мягкие (SoftReference)_, _слабые (WeakReference)_ и _фантомные (PhantomReference)_. Особенности каждого типа ссылок связаны с работой Garbage Collector. Если объект можно достичь только с помощью цепочки WeakReference (то есть на него отсутствуют сильные и мягкие ссылки), то данный объект будет помечен на удаление.\n\n`WeakHashMap` - это структура данных, реализующая интерфейс `Map` и основанная на использовании WeakReference для хранения ключей. Таким образом, пара «ключ-значение» будет удалена из `WeakHashMap`, если на объект-ключ более не имеется сильных ссылок.\n\nВ качестве примера использования такой структуры данных можно привести следующую ситуацию: допустим имеются объекты, которые необходимо расширить дополнительной информацией, при этом изменение класса этих объектов нежелательно либо невозможно. В этом случае добавляем каждый объект в `WeakHashMap` в качестве ключа, а в качестве значения - нужную информацию. Таким образом, пока на объект имеется сильная ссылка (либо мягкая), можно проверять хэш-таблицу и извлекать информацию. Как только объект будет удален, то WeakReference для этого ключа будет помещен в ReferenceQueue и затем соответствующая запись для этой слабой ссылки будет удалена из `WeakHashMap`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-047",
+    "global_id": 173,
+    "num": 47,
+    "topic": "Java Collections Framework",
+    "question": "В `WeakHashMap` используются WeakReferences. А почему бы не создать `SoftHashMap` на SoftReferences?",
+    "answer": "`SoftHashMap` представлена в сторонних библиотеках, например, в `Apache Commons`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-048",
+    "global_id": 174,
+    "num": 48,
+    "topic": "Java Collections Framework",
+    "question": "В `WeakHashMap` используются WeakReferences. А почему бы не создать `PhantomHashMap` на PhantomReferences?",
+    "answer": "PhantomReference при вызове метода `get()` возвращает всегда `null`, поэтому тяжело представить назначение такой структуры данных.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-049",
+    "global_id": 175,
+    "num": 49,
+    "topic": "Java Collections Framework",
+    "question": "`LinkedHashMap` - что в нем от `LinkedList`, а что от `HashMap`?",
+    "answer": "Реализация `LinkedHashMap` отличается от `HashMap` поддержкой двухсвязанного списка, определяющего порядок итерации по элементам структуры данных. По умолчанию элементы списка упорядочены согласно их порядку добавления в `LinkedHashMap` (insertion-order). Однако порядок итерации можно изменить, установив параметр конструктора `accessOrder` в значение `true`. В этом случае доступ осуществляется по порядку последнего обращения к элементу (access-order). Это означает, что при вызове методов `get()` или `put()` элемент, к которому обращаемся, перемещается в конец списка.\n\nПри добавлении элемента, который уже присутствует в `LinkedHashMap` (т.е. с одинаковым ключом), порядок итерации по элементам не изменяется.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-050",
+    "global_id": 176,
+    "num": 50,
+    "topic": "Java Collections Framework",
+    "question": "В чем проявляется «сортированность» `SortedMap`, кроме того, что `toString()` выводит все элементы по порядку?",
+    "answer": "Так же оно проявляется при итерации по коллекции.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-051",
+    "global_id": 177,
+    "num": 51,
+    "topic": "Java Collections Framework",
+    "question": "Как устроен `HashMap`?",
+    "answer": "`HashMap` состоит из «корзин» (bucket). С технической точки зрения «корзины» — это элементы массива, которые хранят ссылки на списки элементов. При добавлении новой пары «ключ-значение», вычисляет хэш-код ключа, на основании которого вычисляется номер корзины (номер ячейки массива), в которую попадет новый элемент. Если корзина пустая, то в нее сохраняется ссылка на вновь добавляемый элемент, если же там уже есть элемент, то происходит последовательный переход по ссылкам между элементами в цепочке, в поисках последнего элемента, от которого и ставится ссылка на вновь добавленный элемент. Если в списке был найден элемент с таким же ключом, то он заменяется.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-052",
+    "global_id": 178,
+    "num": 52,
+    "topic": "Java Collections Framework",
+    "question": "Согласно Кнуту и Кормену существует две основных реализации хэш-таблицы: на основе открытой адресации и на основе метода цепочек. Как реализована `HashMap`? Почему, по вашему мнению, была выбрана именно эта реализация? В чем плюсы и минусы каждого подхода?",
+    "answer": "`HashMap` реализован с использованием метода цепочек, т.е. каждой ячейке массива (корзине) соответствует свой связный список и при возникновении коллизии осуществляется добавление нового элемента в этот список.\n\nДля метода цепочек коэффициент заполнения может быть больше 1 и с увеличением числа элементов производительность убывает линейно. Такие таблицы удобно использовать, если заранее неизвестно количество хранимых элементов, либо их может быть достаточно много, что приводит к большим значениям коэффициента заполнения.\n\nСреди методов открытой адресации различают:\n\n+ линейное пробирование;\n+ квадратичное пробирование;\n+ двойное хэширование.\n\nНедостатки структур с методом открытой адресации:\n\n+ Количество элементов в хэш-таблице не может превышать размера массива. По мере увеличения числа элементов и повышения коэффициента заполнения производительность структуры резко падает, поэтому необходимо проводить перехэширование.\n+ Сложно организовать удаление элемента.\n+ Первые два метода открытой адресации приводят к проблеме первичной и вторичной группировок.\n\nПреимущества хэш-таблицы с открытой адресацией: \n\n+ отсутствие затрат на создание и хранение объектов списка; \n+ простота организации сериализации/десериализации объекта.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-053",
+    "global_id": 179,
+    "num": 53,
+    "topic": "Java Collections Framework",
+    "question": "Как работает `HashMap` при попытке сохранить в него два элемента по ключам с одинаковым `hashCode()`, но для которых `equals() == false`?",
+    "answer": "По значению `hashCode()` вычисляется индекс ячейки массива, в список которой этот элемент будет добавлен. Перед добавлением осуществляется проверка на наличие элементов в этой ячейке. Если элементы с таким `hashCode()` уже присутствует, но их `equals()` методы не равны, то элемент будет добавлен в конец списка.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-054",
+    "global_id": 180,
+    "num": 54,
+    "topic": "Java Collections Framework",
+    "question": "Какое начальное количество корзин в `HashMap`?",
+    "answer": "В конструкторе по умолчанию - 16, используя конструкторы с параметрами можно задавать произвольное начальное количество корзин.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-055",
+    "global_id": 181,
+    "num": 55,
+    "topic": "Java Collections Framework",
+    "question": "Какова оценка временной сложности операций над элементами из `HashMap`? Гарантирует ли `HashMap` указанную сложность выборки элемента?",
+    "answer": "В общем случае операции добавления, поиска и удаления элементов занимают константное время. \n\nДанная сложность не гарантируется, т.к. если хэш-функция распределяет элементы по корзинам равномерно, временная сложность станет не хуже [_Логарифмического времени_ ](https://ru.wikipedia.org/wiki/%D0%92%D1%80%D0%B5%D0%BC%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%BB%D0%BE%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D0%B0#%D0%9B%D0%BE%D0%B3%D0%B0%D1%80%D0%B8%D1%84%D0%BC%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B5_%D0%B2%D1%80%D0%B5%D0%BC%D1%8F) O(log(N)), а в случае, когда хэш-функция постоянно возвращает одно и то же значение, `HashMap` превратится в связный список со сложностью О(n).\n\nПример кода двоичного поиска:\n```java\npublic class Q {\n    public static void main(String[] args) {\n        Q q = new Q();\n        q.binSearch();\n    }\n\n    private void binSearch() {\n        int[] inpArr = {1, 2, 3, 4, 5, 6, 7, 8, 9};\n        Integer result = binSearchF(inpArr, 1, 0, inpArr.length - 1);\n        System.out.println(\"-----------------------\");\n        result = binSearchF(inpArr, 2, 0, inpArr.length - 1);\n        System.out.println(\"Found at position \" + result);\n    }\n\n    private Integer binSearchF(int[] inpArr, int searchValue, int low, int high) {\n        Integer index = null;\n        while (low <= high) {\n            System.out.println(\"New iteration, low = \" + low + \", high = \" + high);\n            int mid = (low + high) / 2;\n            System.out.println(\"trying mid = \" + mid + \" inpArr[mid] = \" + inpArr[mid]);\n            if (inpArr[mid] < searchValue) {\n                low = mid + 1;\n                System.out.println(\"inpArr[mid] (\" + inpArr[mid] + \") < searchValue(\" + searchValue + \"), mid = \" + mid\n                        + \", setting low = \" + low);\n            } else if (inpArr[mid] > searchValue) {\n                high = mid - 1;\n                System.out.println(\"inpArr[mid] (\" + inpArr[mid] + \") > searchValue(\" + searchValue + \"), mid = \" + mid\n                        + \", setting high = \" + high);\n            } else if (inpArr[mid] == searchValue) {\n                index = mid;\n                System.out.println(\"found at index \" + mid);\n                break;\n            }\n        }\n        return index;\n    }\n}\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-056",
+    "global_id": 182,
+    "num": 56,
+    "topic": "Java Collections Framework",
+    "question": "Возможна ли ситуация, когда `HashMap` выродится в список даже с ключами имеющими разные `hashCode()`?",
+    "answer": "Это возможно в случае, если метод, определяющий номер корзины будет возвращать одинаковые значения.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-057",
+    "global_id": 183,
+    "num": 57,
+    "topic": "Java Collections Framework",
+    "question": "В каком случае может быть потерян элемент в `HashMap`?",
+    "answer": "Допустим, в качестве ключа используется не примитив, а объект с несколькими полями. После добавления элемента в `HashMap` у объекта, который выступает в качестве ключа, изменяют одно поле, которое участвует в вычислении хэш-кода. В результате при попытке найти данный элемент по исходному ключу, будет происходить обращение к правильной корзине, а вот `equals` уже не найдет указанный ключ в списке элементов. Тем не менее, даже если `equals` реализован таким образом, что изменение данного поля объекта не влияет на результат, то после увеличения размера корзин и пересчета хэш-кодов элементов, указанный элемент, с измененным значением поля, с большой долей вероятности попадет в совершенно другую корзину и тогда уже потеряется совсем.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-058",
+    "global_id": 184,
+    "num": 58,
+    "topic": "Java Collections Framework",
+    "question": "Почему нельзя использовать `byte[]` в качестве ключа в `HashMap`?",
+    "answer": "Хэш-код массива не зависит от хранимых в нем элементов, а присваивается при создании массива (метод вычисления хэш-кода массива не переопределен и вычисляется по стандартному `Object.hashCode()` на основе алгоритма генерации простых чисел). Так же у массивов не переопределен `equals` и выполняется сравнение указателей. Это приводит к тому, что обратиться к сохраненному с ключом-массивом элементу не получится при использовании другого массива такого же размера и с такими же элементами, доступ можно осуществить лишь в одном случае — при использовании той же самой ссылки на массив, что использовалась для сохранения элемента.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-059",
+    "global_id": 185,
+    "num": 59,
+    "topic": "Java Collections Framework",
+    "question": "Какова роль `equals()` и `hashCode()` в `HashMap`?",
+    "answer": "`hashCode` позволяет определить корзину для поиска элемента, а `equals` используется для сравнения ключей элементов в списке корзины и искомого ключа.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-060",
+    "global_id": 186,
+    "num": 60,
+    "topic": "Java Collections Framework",
+    "question": "Каково максимальное число значений `hashCode()`?",
+    "answer": "Число значений следует из сигнатуры `int hashCode()` и равно диапазону типа `int` — __2<sup>32</sup>__.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-061",
+    "global_id": 187,
+    "num": 61,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода get(key) для ключа, которого нет в `HashMap`?",
+    "answer": "_Ответ в процессе дополнения._",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-062",
+    "global_id": 188,
+    "num": 62,
+    "topic": "Java Collections Framework",
+    "question": "Какое худшее время работы метода get(key) для ключа, который есть в `HashMap`?",
+    "answer": "___O(N)___. Худший случай - это поиск ключа в `HashMap`, вырожденного в список по причине совпадения ключей по `hashCode()` и для выяснения хранится ли элемент с определённым ключом может потребоваться перебор всего списка.\n\nНо начиная с Java 8, после определенного числа элементов в списке, связный список преобразовывается в красно-черное дерево и сложность выборки, даже в случае плохой хеш-функции, не хуже _логарифмической_ _O(log(N))_",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-063",
+    "global_id": 189,
+    "num": 63,
+    "topic": "Java Collections Framework",
+    "question": "Почему несмотря на то, что ключ в `HashMap` не обязан реализовывать интерфейс `Comparable`, двусвязный список всегда удается преобразовать в красно-черное дерево?",
+    "answer": "Красно-черное дерево - это самобалансирующееся бинарное дерево поиска. Это означает, что для его построения нужно уметь сравнивать элементы между собой. \n\nВ Java обычно сравнение объектов происходит с помощью метода `compareTo()`, который определен в интерфейсе `Comparable`. На первый взгляд кажется логичным, если бы после Java 8 у ключа в `HashMap` появилось дополнительное требование - реализовывать `Comparable`.\n\nЧтобы избежать этого, используется следующий алгоритм при сравнении ключей:\n1. Сначала делается попытка сравнить хэши ключей\n2. Если хэши равны и оба ключа реализуют `Comparable`, то для сравнения вызывается метод `compareTo()`\n3. Если ключи не реализуют `Comparable`, то сравнение происходит с помощью метода `tieBreakOrder()`, в котором\n    + сначала будет совершена попытка сравнить ключи через названия их классов (`getClass().getName()`)\n    + если ключи являются экземплярами одного класса, то сравниваться будут результаты метода `System.identityHashCode()`",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-064",
+    "global_id": 190,
+    "num": 64,
+    "topic": "Java Collections Framework",
+    "question": "Сколько переходов происходит в момент вызова `HashMap.get(key)` по ключу, который есть в таблице?",
+    "answer": "+ ключ равен `null`: __1__ - выполняется единственный метод `getForNullKey()`.\n+ любой ключ отличный от `null`: __4__ - вычисление хэш-кода ключа; определение номера корзины; поиск значения; возврат значения.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-065",
+    "global_id": 191,
+    "num": 65,
+    "topic": "Java Collections Framework",
+    "question": "Сколько создается новых объектов, когда вы добавляете новый элемент в `HashMap`?",
+    "answer": "__Один__ новый объект статического вложенного класса `Entry<K,V>`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-066",
+    "global_id": 192,
+    "num": 66,
+    "topic": "Java Collections Framework",
+    "question": "Как и когда происходит увеличение количества корзин в `HashMap`?",
+    "answer": "Помимо `capacity` у `HashMap` есть еще поле `loadFactor`, на основании которого, вычисляется предельное количество занятых корзин `capacity * loadFactor`. По умолчанию `loadFactor = 0.75`. По достижению предельного значения, число корзин увеличивается в 2 раза и для всех хранимых элементов вычисляется новое «местоположение» с учетом нового числа корзин.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-067",
+    "global_id": 193,
+    "num": 67,
+    "topic": "Java Collections Framework",
+    "question": "Объясните смысл параметров в конструкторе `HashMap(int initialCapacity, float loadFactor)`.",
+    "answer": "+ `initialCapacity` - исходный размер `HashMap`, количество корзин в хэш-таблице в момент её создания.\n+ `loadFactor` - коэффициент заполнения `HashMap`, при превышении которого происходит увеличение количества корзин и автоматическое перехэширование. Равен отношению числа уже хранимых элементов в таблице к её размеру.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-068",
+    "global_id": 194,
+    "num": 68,
+    "topic": "Java Collections Framework",
+    "question": "Будет ли работать `HashMap`, если все добавляемые ключи будут иметь одинаковый `hashCode()`?",
+    "answer": "Да, будет, но в этом случае `HashMap` вырождается в связный список и теряет свои преимущества.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-069",
+    "global_id": 195,
+    "num": 69,
+    "topic": "Java Collections Framework",
+    "question": "Как перебрать все ключи `Map`?",
+    "answer": "Использовать метод `keySet()`, который возвращает множество `Set<K>` ключей.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-070",
+    "global_id": 196,
+    "num": 70,
+    "topic": "Java Collections Framework",
+    "question": "Как перебрать все значения `Map`?",
+    "answer": "Использовать метод `values()`, который возвращает коллекцию `Collection<V>` значений.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-071",
+    "global_id": 197,
+    "num": 71,
+    "topic": "Java Collections Framework",
+    "question": "Как перебрать все пары «ключ-значение» в `Map`?",
+    "answer": "Использовать метод `entrySet()`, который возвращает множество `Set<Map.Entry<K, V>>` пар «ключ-значение».",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-072",
+    "global_id": 198,
+    "num": 72,
+    "topic": "Java Collections Framework",
+    "question": "В чем отличия `TreeSet` и `HashSet`?",
+    "answer": "`TreeSet` обеспечивает упорядоченно хранение элементов в виде красно-черного дерева. Сложность выполнения основных операций не хуже _O(log(N))_ (_Логарифмическое время_). \n\n`HashSet` использует для хранения элементов такой же подход, что и `HashMap`, за тем отличием, что в `HashSet` в качестве ключа и значения выступает сам `элемент`, кроме того, `HashSet` не поддерживает упорядоченное хранение элементов и обеспечивает временную сложность выполнения операций аналогично `HashMap`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-073",
+    "global_id": 199,
+    "num": 73,
+    "topic": "Java Collections Framework",
+    "question": "Что будет, если добавлять элементы в `TreeSet` по возрастанию?",
+    "answer": "В основе `TreeSet` лежит красно-черное дерево, которое умеет само себя балансировать. В итоге, `TreeSet` все равно в каком порядке вы добавляете в него элементы, преимущества этой структуры данных будут сохраняться.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-074",
+    "global_id": 200,
+    "num": 74,
+    "topic": "Java Collections Framework",
+    "question": "Чем `LinkedHashSet` отличается от `HashSet`?",
+    "answer": "`LinkedHashSet` отличается от `HashSet` только тем, что в его основе лежит `LinkedHashMap` вместо `HashMap`. Благодаря этому порядок элементов при обходе коллекции является идентичным порядку добавления элементов (insertion-order). При добавлении элемента, который уже присутствует в `LinkedHashSet` (т.е. с одинаковым ключом), порядок обхода элементов не изменяется.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-075",
+    "global_id": 201,
+    "num": 75,
+    "topic": "Java Collections Framework",
+    "question": "Для `Enum` есть специальный класс `java.util.EnumSet`. Зачем? Чем авторов не устраивал `HashSet` или `TreeSet`?",
+    "answer": "`EnumSet` - это реализация интерфейса `Set` для использования с перечислениями (`Enum`). В структуре данных хранятся объекты только одного типа `Enum`, указываемого при создании. Для хранения значений `EnumSet` использует массив битов (_bit vector_), - это позволяет получить высокую компактность и эффективность. Проход по `EnumSet` осуществляется согласно порядку объявления элементов перечисления. \n\nВсе основные операции выполняются за _O(1)_ и обычно (но негарантированно) быстрей аналогов из `HashSet`, а пакетные операции (_bulk operations_), такие как `containsAll()` и `retainAll()` выполняются даже гораздо быстрей. \n\nПомимо всего `EnumSet` предоставляет множество статических методов инициализации для упрощенного и удобного создания экземпляров.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-076",
+    "global_id": 202,
+    "num": 76,
+    "topic": "Java Collections Framework",
+    "question": "Какие существуют способы перебирать элементы списка?",
+    "answer": "+ Цикл с итератором\n\n```java\nIterator<String> iterator = list.iterator();\nwhile (iterator.hasNext()) {\n    //iterator.next();\n}\n```\n\n+ Цикл `for`\n\n```java\nfor (int i = 0; i < list.size(); i++) {\n    //list.get(i);\n}\n```\n\n+ Цикл `while`\n\n```java\nint i = 0;\nwhile (i < list.size()) {\n    //list.get(i);\n    i++;\n}\n```\n\n+ «for-each»\n\n```java\nfor (String element : list) {\n    //element;\n}\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-077",
+    "global_id": 203,
+    "num": 77,
+    "topic": "Java Collections Framework",
+    "question": "Каким образом можно получить синхронизированные объекты стандартных коллекций?",
+    "answer": "С помощью статических методов `synchronizedMap()` и `synchronizedList()` класса `Collections`. Данные методы возвращают синхронизированный декоратор переданной коллекции. При этом все равно в случае обхода по коллекции требуется ручная синхронизация. \n\n```java\n  Map m = Collections.synchronizedMap(new HashMap());\n  List l = Collections.synchronizedList(new ArrayList());\n```\n\nНачиная с Java 6 JCF был расширен специальными коллекциями, поддерживающими многопоточный доступ, такими как `CopyOnWriteArrayList` и `ConcurrentHashMap`.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-078",
+    "global_id": 204,
+    "num": 78,
+    "topic": "Java Collections Framework",
+    "question": "Как получить коллекцию только для чтения?",
+    "answer": "При помощи:\n\n+ `Collections.unmodifiableList(list)`;\n+ `Collections.unmodifiableSet(set)`;\n+ `Collections.unmodifiableMap(map)`.\n\nЭти методы принимают коллекцию в качестве параметра, и возвращают коллекцию только для чтения с теми же элементами внутри.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-079",
+    "global_id": 205,
+    "num": 79,
+    "topic": "Java Collections Framework",
+    "question": "Напишите однопоточную программу, которая заставляет коллекцию выбросить `ConcurrentModificationException`.",
+    "answer": "```java\npublic static void main(String[] args) {\n    List<Integer> list = new ArrayList<>();\n    list.add(1);\n    list.add(2);\n    list.add(3);\n\n    for (Integer integer : list) {\n        list.remove(1);\n    }\n}\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-080",
+    "global_id": 206,
+    "num": 80,
+    "topic": "Java Collections Framework",
+    "question": "Приведите пример, когда какая-либо коллекция выбрасывает `UnsupportedOperationException`.",
+    "answer": "```java\npublic static void main(String[] args) {\n    List<Integer> list = Collections.emptyList();\n    list.add(0);\n}\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-081",
+    "global_id": 207,
+    "num": 81,
+    "topic": "Java Collections Framework",
+    "question": "Реализуйте симметрическую разность двух коллекций используя методы `Collection` (`addAll(...)`, `removeAll(...)`, `retainAll(...)`).",
+    "answer": "Симметрическая разность двух коллекций - это множество элементов, одновременно не принадлежащих обоим исходным коллекциям.\n\n```java\n<T> Collection<T> symmetricDifference(Collection<T> a, Collection<T> b) {    \n    // Объединяем коллекции.\n    Collection<T> result = new ArrayList<>(a);\n    result.addAll(b);\n    \n    // Получаем пересечение коллекций.\n    Collection<T> intersection = new ArrayList<>(a);\n    intersection.retainAll(b);\n    \n    // Удаляем элементы, расположенные в обоих коллекциях.\n    result.removeAll(intersection);\n\n    return result;\n}\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-082",
+    "global_id": 208,
+    "num": 82,
+    "topic": "Java Collections Framework",
+    "question": "Как, используя LinkedHashMap, сделать кэш c «invalidation policy»?",
+    "answer": "Необходимо использовать _LRU-алгоритм (Least Recently Used algorithm)_ и `LinkedHashMap` с access-order. В этом случае при обращении к элементу он будет перемещаться в конец списка, а наименее используемые элементы будут постепенно группироваться в начале списка. Так же в стандартной реализации `LinkedHashMap` есть метод `removeEldestEntries()`, который возвращает `true`, если текущий объект `LinkedHashMap` должен удалить наименее используемый элемент из коллекции при использовании методов `put()` и `putAll()`.\n\n```java\npublic class LRUCache<K, V> extends LinkedHashMap<K, V> {\n    private static final int MAX_ENTRIES = 10;\n\n    public LRUCache(int initialCapacity) {\n        super(initialCapacity, 0.85f, true);\n    }\n\n    @Override\n    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {\n        return size() > MAX_ENTRIES;\n    }\n}\n```\n\nСтоит заметить, что `LinkedHashMap` не позволяет полностью реализовать LRU-алгоритм, поскольку при вставке уже имеющегося в коллекции элемента порядок итерации по элементам не меняется.",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-083",
+    "global_id": 209,
+    "num": 83,
+    "topic": "Java Collections Framework",
+    "question": "Как одной строчкой скопировать элементы любой `collection` в массив?",
+    "answer": "```java\nObject[] array = collection.toArray();\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-084",
+    "global_id": 210,
+    "num": 84,
+    "topic": "Java Collections Framework",
+    "question": "Как одним вызовом из `List` получить `List` со всеми элементами, кроме первых и последних 3-х?",
+    "answer": "```java\nList<Integer> subList = list.subList(3, list.size() - 3);\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-085",
+    "global_id": 211,
+    "num": 85,
+    "topic": "Java Collections Framework",
+    "question": "Как одной строчкой преобразовать `HashSet` в `ArrayList`?",
+    "answer": "```java\nArrayList<Integer> list = new ArrayList<>(new HashSet<>());\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-086",
+    "global_id": 212,
+    "num": 86,
+    "topic": "Java Collections Framework",
+    "question": "Как одной строчкой преобразовать `ArrayList` в `HashSet`?",
+    "answer": "```java\nHashSet<Integer> set = new HashSet<>(new ArrayList<>());\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-087",
+    "global_id": 213,
+    "num": 87,
+    "topic": "Java Collections Framework",
+    "question": "Сделайте `HashSet` из ключей `HashMap`.",
+    "answer": "```java\nHashSet<Object> set = new HashSet<>(map.keySet());\n```",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  },
+  {
+    "id": "JCF-088",
+    "global_id": 214,
+    "num": 88,
+    "topic": "Java Collections Framework",
+    "question": "Сделайте `HashMap` из `HashSet<Map.Entry<K, V>>`.",
+    "answer": "```java\nHashMap<K, V> map = new HashMap<>(set.size());\nfor (Map.Entry<K, V> entry : set) {\n    map.put(entry.getKey(), entry.getValue());\n}\n```\n\n\n\n# Источник\n+ [parshinpn.pro](http://www.parshinpn.pro/content/voprosy-i-otvety-na-sobesedovanii-po-teme-java-collection-framework-chast-1)\n+ [Хабрахабр](https://habrahabr.ru/post/162017/)\n+ [Quizful](http://www.quizful.net/interview/java)\n+ [JavaRush](http://info.javarush.ru/)\n+ [Хабрахабр:Справочник по Java Collections Framework](https://habrahabr.ru/post/237043/)",
+    "source_pages": [
+      "enhorse/java-interview:jcf.md"
+    ]
+  }
+]

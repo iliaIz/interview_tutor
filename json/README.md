@@ -1,35 +1,22 @@
 # ⚙️ База Вопросов и Ответов в формате JSON
 
-В этой директории находятся структурированные JSON-датасеты, предназначенные для автономной работы без ИИ, интеграции в веб-приложения, Telegram-боты или системы интервального повторения (Anki, Flashcards).
+В этой директории находятся структурированные JSON-датасеты из репозитория [enhorse/java-interview](https://github.com/enhorse/java-interview), предназначенные для интеграции в веб-приложения, Telegram-боты, системы интервального повторения (Anki) или локальной работы через Python.
 
 ## 🗂 Файлы датасетов:
 
-* [`java_core_questions.json`](./java_core_questions.json) — 240 объектов Java Core
-* [`spring_questions.json`](./spring_questions.json) — 75 объектов Spring Framework
-* [`hibernate_questions.json`](./hibernate_questions.json) — 60 объектов Hibernate ORM
-* [`docker_questions.json`](./docker_questions.json) — 30 объектов Docker
-* [`all_interview_questions.json`](./all_interview_questions.json) — Единый JSON датасет (405 вопросов)
+* [`all_interview_questions.json`](./all_interview_questions.json) — Единый мастер-датасет со всеми **694 вопросами**
+* [`topics_metadata.json`](./topics_metadata.json) — Реестр метаданных 22 тем (категории, иконки, цвета, описания)
+* 22 отдельных JSON файла по темам (`core_questions.json`, `concurrency_questions.json`, `kafka_questions.json`, `sql_questions.json`, и т.д.)
 
-## 📋 Схема объекта:
+## 📋 Схема объекта вопроса:
 ```json
 {
-  "id": "JAVA-001",
+  "id": "CORE-001",
   "global_id": 1,
   "num": 1,
   "topic": "Java Core",
-  "question": "Что такое статические блоки и статическая инициализация в Java?",
-  "answer": "Статические блоки или статическая инициализация...",
-  "source_pages": [2]
+  "question": "Чем различаются JRE, JVM и JDK?",
+  "answer": "__JVM__, Java Virtual Machine...",
+  "source_pages": ["enhorse/java-interview:core.md"]
 }
-```
-
-## 🐍 Пример чтения в Python:
-```python
-import json
-
-with open("json/java_core_questions.json", encoding="utf-8") as f:
-    questions = json.load(f)
-
-# первые 20 вопросов:
-first_20 = questions[:20]
 ```

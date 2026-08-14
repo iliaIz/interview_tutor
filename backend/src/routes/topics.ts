@@ -1,30 +1,16 @@
 import { Router } from 'express';
 import { db } from '../services/db';
+import { TOPIC_DEFINITIONS, TOPIC_MAP } from '../services/topics';
 
 const router = Router();
 
-// Map friendly topic slugs to DB topic names
-const TOPIC_MAP: Record<string, string> = {
-  'java': 'Java Core',
-  'spring': 'Spring Framework',
-  'hibernate': 'Hibernate ORM',
-  'docker': 'Docker'
-};
-
-// GET /api/topics - List all topics with progress summary
+// GET /api/topics - List all topics with progress summary and category grouping
 router.get('/', (req, res) => {
-  const topics = [
-    { id: 'java', name: 'Java Core', icon: 'coffee', color: '#E08E89' },
-    { id: 'spring', name: 'Spring Framework', icon: 'leaf', color: '#5A9E96' },
-    { id: 'hibernate', name: 'Hibernate ORM', icon: 'database', color: '#8B78E6' },
-    { id: 'docker', name: 'Docker', icon: 'container', color: '#6C5CE7' }
-  ];
-
   const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?');
 
-  const result = topics.map(t => {
-    const dbTopicName = TOPIC_MAP[t.id];
+  const result = TOPIC_DEFINITIONS.map(t => {
+    const dbTopicName = t.name;
     const row = progressStmt.get(dbTopicName) as any;
     const countRow = countStmt.get(dbTopicName) as any;
     const total = countRow ? countRow.count : 0;

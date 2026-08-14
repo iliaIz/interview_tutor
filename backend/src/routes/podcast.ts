@@ -3,13 +3,7 @@ import { startPodcastJob, fetchJobStatus, streamAudioFile, synthesizeTTSBuffer }
 
 const router = Router();
 
-// TOPIC MAP matching topics.ts
-const TOPIC_MAP: Record<string, string> = {
-  'java': 'Java Core',
-  'spring': 'Spring Framework',
-  'hibernate': 'Hibernate ORM',
-  'docker': 'Docker'
-};
+import { TOPIC_MAP } from '../services/topics';
 
 // POST /api/podcast/generate - Start audio recap job
 router.post('/generate', async (req, res) => {

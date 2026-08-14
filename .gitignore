@@ -45,3 +45,4 @@ pnpm-debug.log*
 # Temporary files
 .tmp/
 scratch/
+_temp_enhorse/

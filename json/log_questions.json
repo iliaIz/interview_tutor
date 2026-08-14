@@ -1,0 +1,79 @@
+[
+  {
+    "id": "LOG-001",
+    "global_id": 639,
+    "num": 1,
+    "topic": "Журналирование (Logging)",
+    "question": "Какие существуют типы логов?",
+    "answer": "+ системы (System);\n+ безопасности (Security);\n+ приложения (Application, Buisness).\n\n> Пользователь входит в приложение, проверяется пароль. Это действие относится к безопасности (Security). Дальше он запускает какой-нибудь модуль. Это событие уровня приложения (Application). Модуль при старте обращается к другому модулю за какими-то дополнительными данными, производит какие-либо еще вызовы – это уже системные действия (System).",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-002",
+    "global_id": 640,
+    "num": 2,
+    "topic": "Журналирование (Logging)",
+    "question": "Из каких частей состоит система журналирования log4j?",
+    "answer": "Система журналирования состоит из трёх основных частей:\n\n+ управляющей журналированием - __logger__;\n+ добавляющей в журнал - __appender__;\n+ определяющей формат добавления - __layout__.",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-003",
+    "global_id": 641,
+    "num": 3,
+    "topic": "Журналирование (Logging)",
+    "question": "Что такое _Logger_ в log4j?",
+    "answer": "__Logger__ представляет собой объект класса `org.apache.log4j.Logger`, который используется как управляющий интерфейс для журналирования сообщений с возможностью задавать уровень детализации. Именно logger проверяет нужно ли обрабатывать сообщение и если журналирование необходимо, то сообщение передаётся в appender, если нет - система завершает обработку данного сообщения.",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-004",
+    "global_id": 642,
+    "num": 4,
+    "topic": "Журналирование (Logging)",
+    "question": "Что такое _Appender_ в log4j?",
+    "answer": "__Appender__ - это именованный объект журнала событий, реализующий интерфейс `org.apache.log4j.Appender` и добавляющий события в журнал. Appender вызывает разные вспомогательные инструменты - компоновщик, фильтр, обработчик ошибок (если они определены и необходимы). В ходе этой работы окончательно устанавливается необходимость записи сообщения, сообщению придаются окончательные содержание и форма.\n\nВ log4j журнал может представлять:\n\n+ консоль;\n+ файл;\n+ сокет;\n+ объект класса реализующего `java.io.Writer` или `java.io.OutputStream`;\n+ JDBC хранилище;\n+ тему (topic) JMS;\n+ NT Event Log;\n+ SMTP;\n+ Syslog;\n+ Telnet.\n\nНаиболее часто используемые log4j appender-ы:\n\n+ `org.apache.log4j.ConsoleAppender` - вывод в консоль;\n+ `org.apache.log4j.FileAppender` - добавление в файл;\n+ `org.apache.log4j.DailyRollingFileAppender` - добавление в файл с обновлением файла через заданный промежуток времени;\n+ `org.apache.log4j.RollingFileAppender` - добавление в файл с обновлением файла по достижению определенного размера;\n+ `org.apache.log4j.varia.ExternallyRolledFileAppender` - расширение _RollingFileAppender_ обновляющее файл по команде принятой с заданного порта;\n+ `org.apache.log4j.net.SMTPAppender` - сообщение по SMTP;\n+ `org.apache.log4j.AsyncAppender` - позволяет, используя отдельный поток, организовать асинхронную работу, когда сообщения фиксируются лишь при достижении определенного уровня заполненности промежуточного буфера.\n+ `org.apache.log4j.nt.NTEventLogAppender` - добавление в NT Event Log;\n+ `org.apache.log4j.net.SyslogAppender` - добавление в Syslog;\n+ `org.apache.log4j.jdbc.JDBCAppender` - запись в хранилище JDBC;\n+ `org.apache.log4j.lf5.LF5Appender` - сообщение передаётся в специальный GUI интерфейс LogFactor5\n+ `org.apache.log4j.net.SocketAppender` - трансляция сообщения по указанному адресу и порту;\n+ `org.apache.log4j.net.SocketHubAppender` - рассылка сообщения сразу нескольким удалённым серверам, соединённым по заданному порту;\n+ `org.apache.log4j.net.TelnetAppender` - отсылка сообщения по протоколу Telenet;\n+ `org.apache.log4j.net.JMSAppender` - добавление сообщения в JMS.",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-005",
+    "global_id": 643,
+    "num": 5,
+    "topic": "Журналирование (Logging)",
+    "question": "Что такое _Layout_ в log4j?",
+    "answer": "__Layout__ - наследник класса `org.apache.log4j.Layout` предоставляющий возможность форматирования сообщения перед добавлением в журнал.\n\nВ log4j существуют следующие типы layout-ов:\n\n+ `org.apache.log4j.SimpleLayout` - на выходе получается строка содержащая лишь уровень вывода и сообщение;\n+ `org.apache.log4j.HTMLLayout` - форматирует сообщение в виде элемента HTML-таблицы;\n+ `org.apache.log4j.xml.XMLLayout` - компонует сообщение в виде XML формате;\n+ `org.apache.log4j.TTCCLayout` - на выходе сообщение дополняется информацией о времени, потоке, имени логгера и вложенном диагностическом контексте;\n+ `org.apache.log4j.PatternLayout` / `org.apache.log4j.EnhancedPatternLayout` - настройка форматирования сообщения при помощи шаблона заданного пользователем.",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-006",
+    "global_id": 644,
+    "num": 6,
+    "topic": "Журналирование (Logging)",
+    "question": "Перечислите уровни журналирования в log4j? Назовите порядок их приоритетности.",
+    "answer": "+ __OFF__ - отсутствие журналирования;\n+ __FATAL__ - фатальная ошибка;\n+ __ERROR__ - ошибка;\n+ __WARN__ - предупреждение;\n+ __INFO__ - информация;\n+ __DEBUG__ - детальная информация для отладки;\n+ __TRACE__ – трассировка всех сообщений.\n\nМежду уровнями логирования установлен следующий порядок приоритетов:\n\n`ALL < TRACE < DEBUG < INFO < WARN < ERROR < FATAL < OFF`",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  },
+  {
+    "id": "LOG-007",
+    "global_id": 645,
+    "num": 7,
+    "topic": "Журналирование (Logging)",
+    "question": "Какие существуют способы конфигурирования log4j?",
+    "answer": "Для того, чтобы log4j начал работать нужно предоставить ему конфигурацию. Это можно сделать несколькими путями:\n\n+ Создать конфигурацию программно, т.е. получить logger, определить уровень журналирования, прикрепить appender и задать способ форматирования.\n+ Указать файл или URL как аргумент при запуске java-машины `-Dlog4j.configuration=путь/к/файлу/конфигурации`, а затем прочитать его в программе при помощи `PropertyConfigurator.configure(...)`/ `DOMConfigurator.configure(...)` для формата `.properties` или `XML` соответственно.\n+ Загрузить конфигурацию из файла в формате `XML` или `.properties`: log4j ищет файл конфигурации в classpath. Сначала ищется файл `log4j.xml` и, если таковой не найден, -  файл `log4j.properties`.\n\n\n\n# Источники\n+ [Quizful](http://www.quizful.net/)\n+ [Skipy](http://skipy.ru/useful/logging.html#log4j_concepts_logger)",
+    "source_pages": [
+      "enhorse/java-interview:log.md"
+    ]
+  }
+]
