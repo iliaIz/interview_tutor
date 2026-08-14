@@ -144,6 +144,30 @@
     "md_file": "jdbc_interview_questions.md"
   },
   {
+    "id": "spring",
+    "name": "Spring Framework",
+    "prefix": "SPRING",
+    "category": "Web & Enterprise",
+    "icon": "leaf",
+    "color": "#5A9E96",
+    "description": "IoC/DI контейнер, бины, скоупы, AOP, @Transactional, Spring MVC, WebFlux",
+    "count": 20,
+    "json_file": "spring_questions.json",
+    "md_file": "spring_interview_questions.md"
+  },
+  {
+    "id": "spring-boot",
+    "name": "Spring Boot",
+    "prefix": "BOOT",
+    "category": "Web & Enterprise",
+    "icon": "zap",
+    "color": "#6DB33F",
+    "description": "Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3, GraalVM AOT",
+    "count": 13,
+    "json_file": "spring-boot_questions.json",
+    "md_file": "spring-boot_interview_questions.md"
+  },
+  {
     "id": "reactive",
     "name": "Реактивное программирование",
     "prefix": "REACT",

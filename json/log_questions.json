@@ -1,7 +1,7 @@
 [
   {
     "id": "LOG-001",
-    "global_id": 639,
+    "global_id": 672,
     "num": 1,
     "topic": "Журналирование (Logging)",
     "question": "Какие существуют типы логов?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "LOG-002",
-    "global_id": 640,
+    "global_id": 673,
     "num": 2,
     "topic": "Журналирование (Logging)",
     "question": "Из каких частей состоит система журналирования log4j?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "LOG-003",
-    "global_id": 641,
+    "global_id": 674,
     "num": 3,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Logger_ в log4j?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "LOG-004",
-    "global_id": 642,
+    "global_id": 675,
     "num": 4,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Appender_ в log4j?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "LOG-005",
-    "global_id": 643,
+    "global_id": 676,
     "num": 5,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Layout_ в log4j?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "LOG-006",
-    "global_id": 644,
+    "global_id": 677,
     "num": 6,
     "topic": "Журналирование (Logging)",
     "question": "Перечислите уровни журналирования в log4j? Назовите порядок их приоритетности.",
@@ -67,7 +67,7 @@
   },
   {
     "id": "LOG-007",
-    "global_id": 645,
+    "global_id": 678,
     "num": 7,
     "topic": "Журналирование (Logging)",
     "question": "Какие существуют способы конфигурирования log4j?",

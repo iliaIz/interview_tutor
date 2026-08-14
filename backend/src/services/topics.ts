@@ -118,6 +118,24 @@ export const TOPIC_DEFINITIONS: TopicDefinition[] = [
     description: 'Драйверы, Connection, Statement, PreparedStatement, ResultSet, пулы соединений'
   },
   {
+    id: 'spring',
+    name: 'Spring Framework',
+    prefix: 'SPRING',
+    category: 'Web & Enterprise',
+    icon: 'leaf',
+    color: '#5A9E96',
+    description: 'IoC/DI контейнер, бины, скоупы, AOP, @Transactional, Spring MVC, WebFlux'
+  },
+  {
+    id: 'spring-boot',
+    name: 'Spring Boot',
+    prefix: 'BOOT',
+    category: 'Web & Enterprise',
+    icon: 'zap',
+    color: '#6DB33F',
+    description: 'Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3, GraalVM AOT'
+  },
+  {
     id: 'reactive',
     name: 'Реактивное программирование',
     prefix: 'REACT',

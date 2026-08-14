@@ -1,7 +1,7 @@
 [
   {
     "id": "WEB-001",
-    "global_id": 568,
+    "global_id": 601,
     "num": 1,
     "topic": "Основы Web & REST",
     "question": "Что такое _WWW_?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "WEB-002",
-    "global_id": 569,
+    "global_id": 602,
     "num": 2,
     "topic": "Основы Web & REST",
     "question": "Что такое _W3C_?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "WEB-003",
-    "global_id": 570,
+    "global_id": 603,
     "num": 3,
     "topic": "Основы Web & REST",
     "question": "Какие существуют уровни модели _OSI_?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "WEB-004",
-    "global_id": 571,
+    "global_id": 604,
     "num": 4,
     "topic": "Основы Web & REST",
     "question": "Что такое _TCP/IP_?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "WEB-005",
-    "global_id": 572,
+    "global_id": 605,
     "num": 5,
     "topic": "Основы Web & REST",
     "question": "Что такое _UDP_?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "WEB-006",
-    "global_id": 573,
+    "global_id": 606,
     "num": 6,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются _TCP_ и _UDP_?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "WEB-007",
-    "global_id": 574,
+    "global_id": 607,
     "num": 7,
     "topic": "Основы Web & REST",
     "question": "Что такое протокол передачи данных? Какие протоколы вы знаете?",
@@ -78,7 +78,7 @@
   },
   {
     "id": "WEB-008",
-    "global_id": 575,
+    "global_id": 608,
     "num": 8,
     "topic": "Основы Web & REST",
     "question": "Что такое _HTTP_ и _HTTPS_? Чем они отличаются?",
@@ -89,7 +89,7 @@
   },
   {
     "id": "WEB-009",
-    "global_id": 576,
+    "global_id": 609,
     "num": 9,
     "topic": "Основы Web & REST",
     "question": "Что такое _FTP_?",
@@ -100,7 +100,7 @@
   },
   {
     "id": "WEB-010",
-    "global_id": 577,
+    "global_id": 610,
     "num": 10,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются методы _GET_ и _POST_?",
@@ -111,7 +111,7 @@
   },
   {
     "id": "WEB-011",
-    "global_id": 578,
+    "global_id": 611,
     "num": 11,
     "topic": "Основы Web & REST",
     "question": "Что такое _MIME тип_?",
@@ -122,7 +122,7 @@
   },
   {
     "id": "WEB-012",
-    "global_id": 579,
+    "global_id": 612,
     "num": 12,
     "topic": "Основы Web & REST",
     "question": "Что такое _Web server_?",
@@ -133,7 +133,7 @@
   },
   {
     "id": "WEB-013",
-    "global_id": 580,
+    "global_id": 613,
     "num": 13,
     "topic": "Основы Web & REST",
     "question": "Что такое _Web application_?",
@@ -144,7 +144,7 @@
   },
   {
     "id": "WEB-014",
-    "global_id": 581,
+    "global_id": 614,
     "num": 14,
     "topic": "Основы Web & REST",
     "question": "Что такое _Application server_?",
@@ -155,7 +155,7 @@
   },
   {
     "id": "WEB-015",
-    "global_id": 582,
+    "global_id": 615,
     "num": 15,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются _Web server_ и _Application server_?",
@@ -166,7 +166,7 @@
   },
   {
     "id": "WEB-016",
-    "global_id": 583,
+    "global_id": 616,
     "num": 16,
     "topic": "Основы Web & REST",
     "question": "Что такое _AJAX_? Как принципиально устроена эта технология?",
@@ -177,7 +177,7 @@
   },
   {
     "id": "WEB-017",
-    "global_id": 584,
+    "global_id": 617,
     "num": 17,
     "topic": "Основы Web & REST",
     "question": "Что такое _WebSocket_?",
@@ -188,7 +188,7 @@
   },
   {
     "id": "WEB-018",
-    "global_id": 585,
+    "global_id": 618,
     "num": 18,
     "topic": "Основы Web & REST",
     "question": "Что такое _JSON_?",
@@ -199,7 +199,7 @@
   },
   {
     "id": "WEB-019",
-    "global_id": 586,
+    "global_id": 619,
     "num": 19,
     "topic": "Основы Web & REST",
     "question": "Что такое _JSON схема_?",
@@ -210,7 +210,7 @@
   },
   {
     "id": "WEB-020",
-    "global_id": 587,
+    "global_id": 620,
     "num": 20,
     "topic": "Основы Web & REST",
     "question": "Что такое _cookies_?",
@@ -221,7 +221,7 @@
   },
   {
     "id": "WEB-021",
-    "global_id": 588,
+    "global_id": 621,
     "num": 21,
     "topic": "Основы Web & REST",
     "question": "Что такое _«сессия»_?",
@@ -232,7 +232,7 @@
   },
   {
     "id": "WEB-022",
-    "global_id": 589,
+    "global_id": 622,
     "num": 22,
     "topic": "Основы Web & REST",
     "question": "Что такое _«авторизация»_ и _«аутентификация»_? Чем они отличаются?",

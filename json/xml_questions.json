@@ -1,7 +1,7 @@
 [
   {
     "id": "XML-001",
-    "global_id": 646,
+    "global_id": 679,
     "num": 1,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _XML_?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "XML-002",
-    "global_id": 647,
+    "global_id": 680,
     "num": 2,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _DTD_?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "XML-003",
-    "global_id": 648,
+    "global_id": 681,
     "num": 3,
     "topic": "XML & JSON Парсеры",
     "question": "Чем _well-formed XML_ отличается от _valid XML_?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "XML-004",
-    "global_id": 649,
+    "global_id": 682,
     "num": 4,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое «_пространство имен_» в XML?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "XML-005",
-    "global_id": 650,
+    "global_id": 683,
     "num": 5,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое XSD? В чём его преимущества перед XML DTD?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "XML-006",
-    "global_id": 651,
+    "global_id": 684,
     "num": 6,
     "topic": "XML & JSON Парсеры",
     "question": "Какие типы существуют в XSD?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "XML-007",
-    "global_id": 652,
+    "global_id": 685,
     "num": 7,
     "topic": "XML & JSON Парсеры",
     "question": "Какие вы знаете методы чтения XML? Опишите сильные и слабые стороны каждого метода.",
@@ -78,7 +78,7 @@
   },
   {
     "id": "XML-008",
-    "global_id": 653,
+    "global_id": 686,
     "num": 8,
     "topic": "XML & JSON Парсеры",
     "question": "Когда следует использовать _DOM_, а когда _SAX_, _StAX_ анализаторы?",
@@ -89,7 +89,7 @@
   },
   {
     "id": "XML-009",
-    "global_id": 654,
+    "global_id": 687,
     "num": 9,
     "topic": "XML & JSON Парсеры",
     "question": "Какие вы знаете способы записи XML?",
@@ -100,7 +100,7 @@
   },
   {
     "id": "XML-010",
-    "global_id": 655,
+    "global_id": 688,
     "num": 10,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _JAXP_?",
@@ -111,7 +111,7 @@
   },
   {
     "id": "XML-011",
-    "global_id": 656,
+    "global_id": 689,
     "num": 11,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _XSLT_?",

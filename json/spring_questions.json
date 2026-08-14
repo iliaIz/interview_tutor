@@ -1,0 +1,222 @@
+[
+  {
+    "id": "SPRING-001",
+    "global_id": 465,
+    "num": 1,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring Framework и каковы его ключевые преимущества?",
+    "answer": "**Spring Framework** — это наиболее популярный в корпоративной Java-разработке легковесный фреймворк и контейнер управления жизненным циклом компонентов (Inversion of Control).\n\n### Ключевые преимущества:\n* **Слабая связанность (Loose Coupling):** достигается благодаря паттерну *Inversion of Control (IoC)* и *Dependency Injection (DI)*.\n* **Минимум бойлерплейта:** интеграция с JDBC, JPA, JMS, транзакциями с автоматическим освобождением ресурсов и маппингом исключений.\n* **Декларативное управление транзакциями (`@Transactional`):** разделение бизнес-логики и инфраструктурного управления транзакциями.\n* **Аспектно-ориентированное программирование (Spring AOP):** сквозная функциональность (логирование, аудит, безопасность, кэширование) выносится в отдельные аспекты.\n* **Модульность и экосистема:** возможность подключать только необходимые модули (Spring MVC, Spring Data, Spring Security, Spring WebFlux).\n* **Тестируемость:** благодаря DI и интерфейсам компоненты легко тестируются с помощью Mock-объектов (Mockito) без поднятия тяжелого окружения.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-002",
+    "global_id": 466,
+    "num": 2,
+    "topic": "Spring Framework",
+    "question": "Что такое Inversion of Control (IoC) и Dependency Injection (DI)?",
+    "answer": "* **Inversion of Control (IoC, Инверсия управления):** фундаментальный архитектурный принцип, при котором управление созданием объектов, связыванием их зависимостей и контролем их жизненного цикла передается внешнему контейнеру (Spring IoC Container), а не осуществляется вручную через оператор `new`.\n* **Dependency Injection (DI, Внедрение зависимостей):** конкретный паттерн реализации IoC, при котором зависимости передаются объекту извне (через конструктор, сеттер или поле).\n\n```java\n// Без IoC/DI (жесткая связанность)\npublic class UserService {\n    private final UserRepository repository = new UserRepositoryImpl();\n}\n\n// С IoC/DI (слабая связанность, управление контейнером)\n@Service\npublic class UserService {\n    private final UserRepository repository;\n\n    @Autowired\n    public UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-003",
+    "global_id": 467,
+    "num": 3,
+    "topic": "Spring Framework",
+    "question": "В чем разница между BeanFactory и ApplicationContext?",
+    "answer": "Оба интерфейса представляют собой Spring IoC контейнеры, однако имеют разный уровень возможностей:\n\n| Характеристика | BeanFactory | ApplicationContext |\n| :--- | :--- | :--- |\n| **Уровень** | Базовый интерфейс контейнера (root interface) | Расширенный интерфейс (наследник BeanFactory) |\n| **Инициализация бинов** | **Lazy** (по умолчанию бины создаются при вызове `getBean()`) | **Eager** (все Singleton-бины создаются при старте приложения) |\n| **Интернационализация (i18n)** | Не поддерживается | Поддерживается через `MessageSource` |\n| **Публикация событий (Events)** | Не поддерживается | Поддерживается через `ApplicationEventPublisher` |\n| **Интеграция с AOP** | Базовая | Полная автоматическая интеграция с `BeanPostProcessor` |\n| **Сфера применения** | Ограниченные по ресурсам мобильные/IoT системы (устарело) | Стандарт для всех современных Spring-приложений |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-004",
+    "global_id": 468,
+    "num": 4,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring Bean и какие существуют способы его объявления?",
+    "answer": "**Spring Bean** — это объект, который создается, настраивается, связывается и управляется контейнером Spring IoC.\n\n### Способы объявления бинов:\n1. **Аннотации стереотипов (Component Scanning):**\n   ```java\n   @Component // Базовая аннотация\n   @Service    // Слой бизнес-логики\n   @Repository // Слой доступа к данным (с трансляцией исключений)\n   @Controller // Слой Web MVC\n   public class PaymentService { ... }\n   ```\n2. **Java-based Configuration (`@Configuration` + `@Bean`):**\n   ```java\n   @Configuration\n   public class AppConfig {\n       @Bean\n       public ObjectMapper objectMapper() {\n           return new ObjectMapper();\n       }\n   }\n   ```\n3. **XML-конфигурация (Legacy):** `<bean id=\"paymentService\" class=\"com.example.PaymentService\" />`.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-005",
+    "global_id": 469,
+    "num": 5,
+    "topic": "Spring Framework",
+    "question": "Какие способы внедрения зависимостей (Dependency Injection) существуют и какой является предпочтительным?",
+    "answer": "В Spring существует 3 способа внедрения зависимостей:\n\n1. **Constructor Injection (Внедрение через конструктор — РЕКОМЕНДУЕТСЯ):**\n   ```java\n   @Service\n   public class OrderService {\n       private final PaymentService paymentService;\n\n       @Autowired // Начиная со Spring 4.3 аннотация необязательна, если конструктор один\n       public OrderService(PaymentService paymentService) {\n           this.paymentService = paymentService;\n       }\n   }\n   ```\n   * *Плюсы:* поля можно объявить `final` (неизменяемость); невозможно создать объект в неполном состоянии; легко писать Unit-тесты без Spring-контекста; выявляет циклические зависимости на этапе компиляции/старта.\n\n2. **Setter Injection (Внедрение через сеттер):**\n   ```java\n   @Service\n   public class OrderService {\n       private PaymentService paymentService;\n\n       @Autowired\n       public void setPaymentService(PaymentService paymentService) {\n           this.paymentService = paymentService;\n       }\n   }\n   ```\n   * *Плюсы:* подходит для опциональных зависимостей и возможности реконфигурации во время работы.\n\n3. **Field Injection (Внедрение через поле — НЕ РЕКОМЕНДУЕТСЯ / Code Smell):**\n   ```java\n   @Service\n   public class OrderService {\n       @Autowired\n       private PaymentService paymentService;\n   }\n   ```\n   * *Минусы:* нарушает инкапсуляцию; невозможно сделать поле `final`; затрудняет Unit-тестирование (требует Reflection/Mockito).",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-006",
+    "global_id": 470,
+    "num": 6,
+    "topic": "Spring Framework",
+    "question": "Какие существуют Scope (области видимости) Spring бинов?",
+    "answer": "В Spring Framework поддерживаются следующие скоупы бинов:\n\n1. **Singleton (по умолчанию):** создается ровно **один экземпляр** бина на весь Spring IoC контейнер (ApplicationContext).\n2. **Prototype:** каждый раз при запросе бина из контейнера (`getBean()`) или при внедрении создается **новый экземпляр**.\n\n### Веб-скоупы (доступны в веб-контекстах, например Spring MVC):\n3. **Request:** создается один экземпляр бина на каждый входящий HTTP-запрос.\n4. **Session:** создается один экземпляр бина на время существования HTTP-сессии.\n5. **Application:** создается один экземпляр на весь жизненный цикл `ServletContext` (в отличие от Singleton, может разделяться между несколькими ApplicationContext в одном ServletContext).\n6. **WebSocket:** экземпляр привязан к жизненному циклу конкретной WebSocket-сессии.\n\n```java\n@Component\n@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)\npublic class PrototypeBean { ... }\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-007",
+    "global_id": 471,
+    "num": 7,
+    "topic": "Spring Framework",
+    "question": "Являются ли Singleton-бины в Spring потокобезопасными (Thread-Safe)?",
+    "answer": "**Нет, сами по себе Singleton-бины в Spring НЕ являются потокобезопасными.**\n\n* Spring гарантирует лишь то, что будет создан **один экземпляр** бина на контейнер.\n* Если несколько потоков одновременно вызывают методы этого бина, а бин имеет **изменяемое состояние (mutable state)** (например, поля экземпляра, списки, счетчики), возникнет состояние гонки (*race condition*).\n* **Best Practice:** Singleton-бины должны быть **Stateless (без изменяемого состояния)**. Все промежуточные данные должны храниться в локальных переменных методов (стек вызова потока) или передаваться как аргументы.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-008",
+    "global_id": 472,
+    "num": 8,
+    "topic": "Spring Framework",
+    "question": "Как решить проблему внедрения Prototype-бина в Singleton-бин (Method Injection)?",
+    "answer": "Если внедрить `Prototype` бин в `Singleton` бин обычным способом через `@Autowired`, то `Prototype` бин внедрится **ровно один раз** при создании Singleton-бина и фактически станет Singleton.\n\n### Способы решения:\n1. **`@Lookup` (Method Injection — РЕКОМЕНДУЕТСЯ):** Spring переопределяет метод с помощью CGLIB и вызывает контейнер при каждом обращении:\n   ```java\n   @Service\n   public class SingletonService {\n       @Lookup\n       public PrototypeBean getPrototypeBean() {\n           return null; // Spring CGLIB переопределит тело метода\n       }\n   }\n   ```\n2. **`ObjectFactory<T>` / `ObjectProvider<T>`:**\n   ```java\n   @Service\n   public class SingletonService {\n       private final ObjectProvider<PrototypeBean> prototypeProvider;\n\n       public SingletonService(ObjectProvider<PrototypeBean> prototypeProvider) {\n           this.prototypeProvider = prototypeProvider;\n       }\n\n       public void process() {\n           PrototypeBean bean = prototypeProvider.getObject(); // Каждый раз новый\n       }\n   }\n   ```\n3. **`@Scope(proxyMode = ScopedProxyMode.TARGET_CLASS)`:** создает CGLIB-прокси вокруг бина.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-009",
+    "global_id": 473,
+    "num": 9,
+    "topic": "Spring Framework",
+    "question": "Опишите полный жизненный цикл Spring бина (Bean Life Cycle).",
+    "answer": "Жизненный цикл бина в Spring состоит из четких этапов:\n\n### 1. Создание и внедрение:\n1. **Загрузка определений бинов (`BeanDefinition`)** и работа `BeanFactoryPostProcessor`.\n2. **Инстанцирование:** вызов конструктора (создание Java-объекта).\n3. **Внедрение зависимостей (Populating Properties):** внедрение значений полей и ссылок на другие бины.\n\n### 2. Awareness интерфейсы (Осведомленность):\n4. Вызов `BeanNameAware.setBeanName()`.\n5. Вызов `BeanFactoryAware.setBeanFactory()`.\n6. Вызов `ApplicationContextAware.setApplicationContext()`.\n\n### 3. Инициализация (Initialization):\n7. Вызов `BeanPostProcessor.postProcessBeforeInitialization()`.\n8. Вызов методов с аннотацией `@PostConstruct` (JSR-250).\n9. Вызов `InitializingBean.afterPropertiesSet()`.\n10. Вызов кастомного метода `init-method` (заданного в `@Bean(initMethod = \"...\")`).\n11. Вызов `BeanPostProcessor.postProcessAfterInitialization()` (здесь создаются AOP-прокси!).\n\n### 4. Использование (Ready for use):\n12. Бин готов к обработке запросов.\n\n### 5. Уничтожение (Destruction — при закрытии ApplicationContext):\n13. Вызов методов с аннотацией `@PreDestroy`.\n14. Вызов `DisposableBean.destroy()`.\n15. Вызов кастомного метода `destroy-method` (в `@Bean(destroyMethod = \"...\")`).",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-010",
+    "global_id": 474,
+    "num": 10,
+    "topic": "Spring Framework",
+    "question": "В чем разница между BeanPostProcessor и BeanFactoryPostProcessor?",
+    "answer": "| Критерий | BeanFactoryPostProcessor (BFPP) | BeanPostProcessor (BPP) |\n| :--- | :--- | :--- |\n| **Момент выполнения** | До создания экземпляров бинов | Во время инициализации каждого конкретного экземпляра бина |\n| **С чем работает** | С метаданными (`BeanDefinition`), хранящимися в контейнере | С готовыми созданными Java-объектами |\n| **Что может менять** | Значения свойств в `BeanDefinition` (например, подставить переменные из `application.properties`) | Обернуть бин в Proxy (AOP, `@Transactional`, `@Async`), валидировать поля |\n| **Примеры реализации** | `PropertySourcesPlaceholderConfigurer`, `CustomScopeConfigurer` | `AutowiredAnnotationBeanPostProcessor`, `CommonAnnotationBeanPostProcessor`, AOP auto-proxy creators |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-011",
+    "global_id": 475,
+    "num": 11,
+    "topic": "Spring Framework",
+    "question": "В чем разница между аннотациями @Autowired, @Resource и @Inject?",
+    "answer": "* **`@Autowired` (Spring Framework):**\n  - По умолчанию ищет зависимость **по типу (byType)**.\n  - Если найдено несколько кандидатов, можно уточнить с помощью `@Qualifier(\"beanName\")` или `@Primary`.\n  - Имеет флаг `required = false`.\n* **`@Resource` (Jakarta EE / JSR-250):**\n  - По умолчанию ищет зависимость **по имени (byName)**.\n  - Если по имени не найдено, выполняет поиск по типу (byType).\n* **`@Inject` (Jakarta Dependency Injection / JSR-330):**\n  - Ищет **по типу (byType)**.\n  - Для разрешения неоднозначности используется аннотация `@Named` вместо `@Qualifier`.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-012",
+    "global_id": 476,
+    "num": 12,
+    "topic": "Spring Framework",
+    "question": "В чем разница между @Component, @Service, @Repository и @Controller?",
+    "answer": "Все эти аннотации являются **стереотипами** Spring и помечены мета-аннотацией `@Component`, поэтому автоматически обнаруживаются механизмом Component Scan:\n\n* **`@Component`:** базовый универсальный стереотип для любого Spring-управляемого компонента.\n* **`@Service`:** семантический маркер для классов слоя бизнес-логики (Service Layer). Не добавляет особого поведения, служит для архитектурной выразительности.\n* **`@Repository`:** маркер для слоя доступа к данным (DAO / Data Access). **Важная особенность:** Spring автоматически применяет к нему `PersistenceExceptionTranslationPostProcessor`, который перехватывает специфичные SQL/ORM исключения и транслирует их в унифицированную иерархию unchecked исключений `DataAccessException`.\n* **`@Controller` / `@RestController`:** маркер для презентационного слоя (Spring Web MVC). `@RestController` объединяет `@Controller` и `@ResponseBody`.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-013",
+    "global_id": 477,
+    "num": 13,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring AOP и каковы его основные концепции (Aspect, JoinPoint, Pointcut, Advice)?",
+    "answer": "**Spring AOP (Aspect-Oriented Programming)** — парадигма программирования, позволяющая модульно выделять сквозную функциональность (Cross-Cutting Concerns: безопасность, логирование, аудит, кэширование, управление транзакциями), не засоряя основную бизнес-логику.\n\n### Ключевые термины AOP:\n* **Aspect (Аспект):** модуль/класс, инкапсулирующий сквозную логику (помечается `@Aspect`).\n* **JoinPoint (Точка соединения):** конкретная точка в выполнении программы, где может быть применен аспект (в Spring AOP это **всегда вызов метода**).\n* **Pointcut (Срез точек):** предикат/выражение (например, `execution(* com.example.service.*.*(..))`), определяющее, к каким именно JoinPoint применяется Advice.\n* **Advice (Совет/Действие):** код, выполняемый в точке соединения:\n  - `@Before`: перед выполнением целевого метода.\n  - `@AfterReturning`: после успешного возврата значения.\n  - `@AfterThrowing`: после выброса исключения.\n  - `@After`: (finally) после завершения метода в любом случае.\n  - `@Around`: оборачивает вызов метода, позволяя изменить аргументы, перехватить вызов или изменить возвращаемое значение (`joinPoint.proceed()`).\n* **Weaving (Связывание):** процесс внедрения аспектов в целевой код (в Spring AOP выполняется в Runtime через динамические Proxy).",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-014",
+    "global_id": 478,
+    "num": 14,
+    "topic": "Spring Framework",
+    "question": "В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring?",
+    "answer": "Spring AOP использует динамические прокси для оборачивания бинов:\n\n| Характеристика | JDK Dynamic Proxy | CGLIB Proxy |\n| :--- | :--- | :--- |\n| **Механизм** | Встроен в Java Reflection API (`java.lang.reflect.Proxy`) | Сторонняя библиотека генерации байткода (упакована в Spring) |\n| **Требование** | Класс **обязан реализовывать интерфейс** | Создает класс-наследник (subclass) целевого класса |\n| **Ограничения** | Проксирует только методы интерфейса | Не может проксировать `final` классы и `final` методы |\n| **Использование в Spring** | Использовался по умолчанию в Spring Framework до 5.x при наличии интерфейса | **Используется по умолчанию в Spring Boot 2+ и Spring 6** (`spring.aop.proxy-target-class=true`) |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-015",
+    "global_id": 479,
+    "num": 15,
+    "topic": "Spring Framework",
+    "question": "Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект?",
+    "answer": "Потому что Spring AOP построен на **динамических Proxy-объектах**.\n\n1. Когда внешний класс вызывает метод проксируемого бина, вызов идет через `Proxy` -> срабатывает `Advice` (например, открывается транзакция) -> `Proxy` делегирует вызов целевому объекту `Target`.\n2. Когда один метод внутри целевого объекта напрямую вызывает другой метод того же объекта (`this.otherMethod()`), вызов происходит напрямую в обход Proxy:\n   ```java\n   @Service\n   public class OrderService {\n       public void processOrder() {\n           // Вызов идет напрямую через this, Proxy не участвует!\n           saveToDatabase(); \n       }\n\n       @Transactional\n       public void saveToDatabase() { ... }\n   }\n   ```\n\n### Решения:\n* Вынести метод `@Transactional` в отдельный сервис.\n* Внедрить ссылку на `self` (через `@Autowired private OrderService self;` или `ObjectProvider`).\n* Использовать AspectJ Compile-time/Load-time Weaving вместо Spring Proxy AOP.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-016",
+    "global_id": 480,
+    "num": 16,
+    "topic": "Spring Framework",
+    "question": "Как работает аннотация @Transactional и какие параметры она имеет?",
+    "answer": "`@Transactional` декларативно оборачивает выполнение метода в транзакцию базы данных с помощью Spring AOP и `PlatformTransactionManager`.\n\n### Ключевые параметры `@Transactional`:\n1. **`propagation` (Распространение):** поведение при вызове одного транзакционного метода из другого:\n   * `REQUIRED` (по умолчанию): использует текущую транзакцию, если она есть; если нет — создает новую.\n   * `REQUIRES_NEW`: всегда создает новую независимую физическую транзакцию (текущая приостанавливается).\n   * `NESTED`: создает savepoint внутри текущей транзакции (вложенный откат).\n   * `SUPPORTS`: выполняется в транзакции, если она есть, иначе без нее.\n   * `MANDATORY`: требует существующую транзакцию, иначе выбрасывает `IllegalTransactionStateException`.\n   * `NOT_SUPPORTED`: выполняется без транзакции (текущая приостанавливается).\n   * `NEVER`: требует отсутствие транзакции, иначе выбрасывает исключение.\n2. **`isolation` (Уровень изоляции):** `DEFAULT`, `READ_UNCOMMITTED`, `READ_COMMITTED`, `REPEATABLE_READ`, `SERIALIZABLE`.\n3. **`readOnly = true`:** оптимизация производительности (Hibernate отключает dirty checking, JDBC драйвер направляет запросы на read-only реплики).\n4. **`rollbackFor`:** по умолчанию транзакция откатывается **только при `RuntimeException` и `Error`**. Чтобы откатывать при checked исключениях, указывают `@Transactional(rollbackFor = Exception.class)`.\n5. **`timeout`:** максимальное время выполнения транзакции в секундах.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-017",
+    "global_id": 481,
+    "num": 17,
+    "topic": "Spring Framework",
+    "question": "Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet?",
+    "answer": "Spring MVC реализует паттерн *Front Controller* через центральный сервлет **`DispatcherServlet`**.\n\n### Путь обработки входящего HTTP-запроса:\n1. Запрос приходит на **`DispatcherServlet`**.\n2. `DispatcherServlet` обращается к **`HandlerMapping`**, чтобы найти подходящий контроллер и метод обработки (по URL, HTTP-методу, заголовкам).\n3. `DispatcherServlet` вызывает **`HandlerAdapter`**, который выполняет подготовку аргументов (валидация, `@RequestBody`, `@PathVariable`) и вызывает метод контроллера.\n4. Метод контроллера выполняет бизнес-логику и возвращает результат (`ModelAndView` или объект данных).\n5. Если это REST API (`@RestController` / `@ResponseBody`), **`HttpMessageConverter`** (например, Jackson) сериализует объект напрямую в JSON/XML и записывает в HTTP Response.\n6. Если это классический MVC с шаблонами (Thymeleaf/JSP), `DispatcherServlet` передает имя представления в **`ViewResolver`**, который рендерит HTML-страницу.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-018",
+    "global_id": 482,
+    "num": 18,
+    "topic": "Spring Framework",
+    "question": "В чем разница между @ControllerAdvice и @ExceptionHandler?",
+    "answer": "* **`@ExceptionHandler`:** объявляется внутри метода контроллера для обработки конкретного типа исключения. По умолчанию перехватывает ошибки **только внутри того контроллера, где объявлен**.\n* **`@ControllerAdvice` / `@RestControllerAdvice`:** глобальный перехватчик исключений для всего приложения. Позволяет централизованно обрабатывать ошибки всех контроллеров и возвращать унифицированные ответы (например, RFC 7807 Problem Details / `ResponseEntity<ErrorDto>`):\n\n```java\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n\n    @ExceptionHandler(EntityNotFoundException.class)\n    public ResponseEntity<ErrorResponse> handleNotFound(EntityNotFoundException ex) {\n        return ResponseEntity.status(HttpStatus.NOT_FOUND)\n                .body(new ErrorResponse(\"NOT_FOUND\", ex.getMessage()));\n    }\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-019",
+    "global_id": 483,
+    "num": 19,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring WebFlux и чем он отличается от Spring MVC?",
+    "answer": "**Spring WebFlux** — это реактивный неблокирующий веб-фреймворк, появившийся в Spring 5, построенный на базе Project Reactor и спецификации Reactive Streams.\n\n| Характеристика | Spring Web MVC | Spring WebFlux |\n| :--- | :--- | :--- |\n| **Модель потоков** | One Thread per Request (Блокирующий I/O) | Event Loop (Неблокирующий асинхронный I/O) |\n| **Сервер по умолчанию** | Apache Tomcat, Jetty | Netty, Undertow |\n| **Типы данных** | Синхронные объекты (`User`, `List<User>`) | Реактивные типы (`Mono<User>`, `Flux<User>`) |\n| **Работа с БД** | Блокирующие JDBC, JPA / Hibernate | Неблокирующие R2DBC, Reactive Mongo/Redis |\n| **Потребление ресурсов** | Требует много потоков и памяти при высокой нагрузке | Высокая пропускная способность при малом числе потоков |\n| **Применение** | Стандартные CRUD корпоративные приложения | Высоконагруженные микросервисы, стриминг данных, WebSockets |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-020",
+    "global_id": 484,
+    "num": 20,
+    "topic": "Spring Framework",
+    "question": "В чем разница между реактивными типами Mono и Flux в Project Reactor?",
+    "answer": "* **`Mono<T>`:** реактивный поток, эмитирующий **от 0 до 1 элемента** (или ошибку `onError`). Аналог `Optional<T>` или `CompletableFuture<T>` в реактивном мире.\n* **`Flux<T>`:** реактивный поток, эмитирующий **от 0 до N элементов** (бесконечный поток событий или конечная последовательность), завершающийся сигналом `onComplete` или `onError`.\n\n```java\nMono<User> userMono = Mono.just(new User(\"Alice\"));\nFlux<String> namesFlux = Flux.just(\"Alice\", \"Bob\", \"Charlie\");\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  }
+]

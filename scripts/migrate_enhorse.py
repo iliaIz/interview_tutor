@@ -2,6 +2,7 @@
 """
 Скрипт миграции и генерации актуальной базы вопросов и ответов
 из репозитория enhorse/java-interview (https://github.com/enhorse/java-interview.git)
+и источников по Spring / Spring Boot (Baeldung + InterviewBit).
 """
 
 import os
@@ -20,7 +21,10 @@ JSON_DIR = os.path.join(BASE_DIR, "json")
 FRONTEND_PUBLIC_DIR = os.path.join(BASE_DIR, "frontend", "public")
 TEMP_ENHORSE_DIR = os.path.join(BASE_DIR, "_temp_enhorse")
 
-# 22 topics specification
+# Import curated Spring & Spring Boot datasets
+from build_spring_topics import get_spring_framework_questions, get_spring_boot_questions
+
+# 24 topics specification
 TOPIC_CONFIGS = [
     {
         "file": "core.md",
@@ -30,7 +34,8 @@ TOPIC_CONFIGS = [
         "category": "Core Java & JVM",
         "icon": "coffee",
         "color": "#E08E89",
-        "description": "Основы языка, синтаксис, типы данных, память, исключения и классы"
+        "description": "Основы языка, синтаксис, типы данных, память, исключения и классы",
+        "is_custom": False
     },
     {
         "file": "oop.md",
@@ -40,7 +45,8 @@ TOPIC_CONFIGS = [
         "category": "Core Java & JVM",
         "icon": "boxes",
         "color": "#6C5CE7",
-        "description": "Принципы ООП, абстракция, инкапсуляция, наследование, полиморфизм"
+        "description": "Принципы ООП, абстракция, инкапсуляция, наследование, полиморфизм",
+        "is_custom": False
     },
     {
         "file": "jvm.md",
@@ -50,7 +56,8 @@ TOPIC_CONFIGS = [
         "category": "Core Java & JVM",
         "icon": "cpu",
         "color": "#A29BFE",
-        "description": "Архитектура JVM, загрузчики классов, стек, куча, сборка мусора"
+        "description": "Архитектура JVM, загрузчики классов, стек, куча, сборка мусора",
+        "is_custom": False
     },
     {
         "file": "jcf.md",
@@ -60,7 +67,8 @@ TOPIC_CONFIGS = [
         "category": "Core Java & JVM",
         "icon": "layers",
         "color": "#00CEC9",
-        "description": "List, Set, Map, Queue, внутреннее устройство HashMap, TreeMap и Concurrent коллекций"
+        "description": "List, Set, Map, Queue, внутреннее устройство HashMap, TreeMap и Concurrent коллекций",
+        "is_custom": False
     },
     {
         "file": "java8.md",
@@ -70,7 +78,8 @@ TOPIC_CONFIGS = [
         "category": "Core Java & JVM",
         "icon": "sparkles",
         "color": "#FD79A8",
-        "description": "Лямбда-выражения, Stream API, Optional, функциональные интерфейсы, default методы"
+        "description": "Лямбда-выражения, Stream API, Optional, функциональные интерфейсы, default методы",
+        "is_custom": False
     },
     {
         "file": "concurrency.md",
@@ -80,7 +89,8 @@ TOPIC_CONFIGS = [
         "category": "Architecture & Concurrency",
         "icon": "zap",
         "color": "#FF7675",
-        "description": "Threads, volatile, synchronized, JMM, java.util.concurrent, блокировки и пулы потоков"
+        "description": "Threads, volatile, synchronized, JMM, java.util.concurrent, блокировки и пулы потоков",
+        "is_custom": False
     },
     {
         "file": "io.md",
@@ -90,7 +100,8 @@ TOPIC_CONFIGS = [
         "category": "Architecture & Concurrency",
         "icon": "arrow-left-right",
         "color": "#FDCB6E",
-        "description": "Байтовые и символьные потоки, буферизация, неблокирующий ввод/вывод (NIO/NIO2)"
+        "description": "Байтовые и символьные потоки, буферизация, неблокирующий ввод/вывод (NIO/NIO2)",
+        "is_custom": False
     },
     {
         "file": "serialization.md",
@@ -100,7 +111,8 @@ TOPIC_CONFIGS = [
         "category": "Architecture & Concurrency",
         "icon": "archive",
         "color": "#E17055",
-        "description": "Serializable, Externalizable, serialVersionUID, transient поля и безопасность"
+        "description": "Serializable, Externalizable, serialVersionUID, transient поля и безопасность",
+        "is_custom": False
     },
     {
         "file": "patterns.md",
@@ -110,7 +122,8 @@ TOPIC_CONFIGS = [
         "category": "Architecture & Concurrency",
         "icon": "git-fork",
         "color": "#0984E3",
-        "description": "Порождающие, структурные и поведенческие шаблоны проектирования (GoF)"
+        "description": "Порождающие, структурные и поведенческие шаблоны проектирования (GoF)",
+        "is_custom": False
     },
     {
         "file": "db.md",
@@ -120,7 +133,8 @@ TOPIC_CONFIGS = [
         "category": "Data & Storage",
         "icon": "database",
         "color": "#00B894",
-        "description": "Реляционная модель, транзакции (ACID), уровни изоляции, нормализация и индексы"
+        "description": "Реляционная модель, транзакции (ACID), уровни изоляции, нормализация и индексы",
+        "is_custom": False
     },
     {
         "file": "sql.md",
@@ -130,7 +144,8 @@ TOPIC_CONFIGS = [
         "category": "Data & Storage",
         "icon": "table",
         "color": "#55EFC4",
-        "description": "SELECT, JOIN, группировки, агрегаты, оконные функции RANK, DENSE_RANK, NTILE"
+        "description": "SELECT, JOIN, группировки, агрегаты, оконные функции RANK, DENSE_RANK, NTILE",
+        "is_custom": False
     },
     {
         "file": "jdbc.md",
@@ -140,7 +155,32 @@ TOPIC_CONFIGS = [
         "category": "Data & Storage",
         "icon": "link",
         "color": "#81ECEC",
-        "description": "Драйверы, Connection, Statement, PreparedStatement, ResultSet, пулы соединений"
+        "description": "Драйверы, Connection, Statement, PreparedStatement, ResultSet, пулы соединений",
+        "is_custom": False
+    },
+    {
+        "file": "spring.md",
+        "slug": "spring",
+        "name": "Spring Framework",
+        "prefix": "SPRING",
+        "category": "Web & Enterprise",
+        "icon": "leaf",
+        "color": "#5A9E96",
+        "description": "IoC/DI контейнер, бины, скоупы, AOP, @Transactional, Spring MVC, WebFlux",
+        "is_custom": True,
+        "loader": get_spring_framework_questions
+    },
+    {
+        "file": "spring_boot.md",
+        "slug": "spring-boot",
+        "name": "Spring Boot",
+        "prefix": "BOOT",
+        "category": "Web & Enterprise",
+        "icon": "zap",
+        "color": "#6DB33F",
+        "description": "Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3, GraalVM AOT",
+        "is_custom": True,
+        "loader": get_spring_boot_questions
     },
     {
         "file": "reactive.md",
@@ -150,7 +190,8 @@ TOPIC_CONFIGS = [
         "category": "Web & Enterprise",
         "icon": "activity",
         "color": "#D63031",
-        "description": "Reactive Streams, Mono, Flux, Backpressure, Project Reactor и RxJava"
+        "description": "Reactive Streams, Mono, Flux, Backpressure, Project Reactor и RxJava",
+        "is_custom": False
     },
     {
         "file": "servlets.md",
@@ -160,7 +201,8 @@ TOPIC_CONFIGS = [
         "category": "Web & Enterprise",
         "icon": "server",
         "color": "#74B9FF",
-        "description": "Жизненный цикл сервлетов, фильтры, слушатели, HttpSession, JSP и Servlet API"
+        "description": "Жизненный цикл сервлетов, фильтры, слушатели, HttpSession, JSP и Servlet API",
+        "is_custom": False
     },
     {
         "file": "web.md",
@@ -170,7 +212,8 @@ TOPIC_CONFIGS = [
         "category": "Web & Enterprise",
         "icon": "globe",
         "color": "#0984E3",
-        "description": "Протокол HTTP/HTTPS, методы, коды ответов, REST архитектура, Cookies и Сессии"
+        "description": "Протокол HTTP/HTTPS, методы, коды ответов, REST архитектура, Cookies и Сессии",
+        "is_custom": False
     },
     {
         "file": "kafka.md",
@@ -180,7 +223,8 @@ TOPIC_CONFIGS = [
         "category": "Web & Enterprise",
         "icon": "radio",
         "color": "#E84393",
-        "description": "Брокеры, топики, партиции, Consumer Groups, гарантии доставки (at-least-once, exactly-once)"
+        "description": "Брокеры, топики, партиции, Consumer Groups, гарантии доставки (at-least-once, exactly-once)",
+        "is_custom": False
     },
     {
         "file": "test.md",
@@ -190,7 +234,8 @@ TOPIC_CONFIGS = [
         "category": "Engineering & Tools",
         "icon": "check-circle-2",
         "color": "#2ECC71",
-        "description": "Модульное тестирование, TDD, аннотации JUnit 5, моки, стабы, Mockito и ассерты"
+        "description": "Модульное тестирование, TDD, аннотации JUnit 5, моки, стабы, Mockito и ассерты",
+        "is_custom": False
     },
     {
         "file": "log.md",
@@ -200,7 +245,8 @@ TOPIC_CONFIGS = [
         "category": "Engineering & Tools",
         "icon": "file-text",
         "color": "#B2BEC3",
-        "description": "Уровни логирования (DEBUG, INFO, WARN, ERROR), SLF4J фасад, Logback, Log4j2"
+        "description": "Уровни логирования (DEBUG, INFO, WARN, ERROR), SLF4J фасад, Logback, Log4j2",
+        "is_custom": False
     },
     {
         "file": "xml.md",
@@ -210,7 +256,8 @@ TOPIC_CONFIGS = [
         "category": "Engineering & Tools",
         "icon": "code-2",
         "color": "#636E72",
-        "description": "DOM, SAX, StAX парсеры, валидация DTD/XSD, маршалинг JAXB и работа с JSON"
+        "description": "DOM, SAX, StAX парсеры, валидация DTD/XSD, маршалинг JAXB и работа с JSON",
+        "is_custom": False
     },
     {
         "file": "uml.md",
@@ -220,7 +267,8 @@ TOPIC_CONFIGS = [
         "category": "Engineering & Tools",
         "icon": "network",
         "color": "#2D3436",
-        "description": "Диаграммы классов, последовательности (Sequence), состояний и отношений в ООП"
+        "description": "Диаграммы классов, последовательности (Sequence), состояний и отношений в ООП",
+        "is_custom": False
     },
     {
         "file": "html.md",
@@ -230,7 +278,8 @@ TOPIC_CONFIGS = [
         "category": "Frontend Basics",
         "icon": "file-code",
         "color": "#E67E22",
-        "description": "Структура документа, теги, семантический HTML5, формы, ссылки и таблицы"
+        "description": "Структура документа, теги, семантический HTML5, формы, ссылки и таблицы",
+        "is_custom": False
     },
     {
         "file": "css.md",
@@ -240,7 +289,8 @@ TOPIC_CONFIGS = [
         "category": "Frontend Basics",
         "icon": "palette",
         "color": "#3498DB",
-        "description": "Селекторы, блочная модель (Box Model), Flexbox, Grid, каскадность и специфичность"
+        "description": "Селекторы, блочная модель (Box Model), Flexbox, Grid, каскадность и специфичность",
+        "is_custom": False
     }
 ]
 
@@ -271,28 +321,34 @@ def copy_images():
         print(f"Copied image assets to {dst_images}")
 
 def clean_text_quotes(text):
-    """Normalize typography quotes for clean rendering."""
     return text.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
 
 def clean_answer_content(body, slug):
-    """Clean markdown answer body: remove TOC anchors, fix code blocks and image paths."""
-    # 1. Remove navigation links
     body = re.sub(r'\[к оглавлению\]\(.*?\)', '', body, flags=re.IGNORECASE)
     body = re.sub(r'\[к оглавлению\]', '', body, flags=re.IGNORECASE)
     body = re.sub(r'\[Вопросы для собеседования\]\(.*?\)', '', body, flags=re.IGNORECASE)
-    
-    # 2. Normalize image paths so they resolve from /images/... in web app
     body = re.sub(r'!\[(.*?)\]\(images/(.*?)\)', r'![\1](/images/\2)', body)
-    
-    # 3. Clean quotes
     body = clean_text_quotes(body)
-    
-    # 4. Clean trailing whitespace and extra newlines
-    body = body.strip()
-    return body
+    return body.strip()
 
 def parse_topic_file(config):
-    """Parse an individual markdown file into structured questions and answers."""
+    if config.get("is_custom") and "loader" in config:
+        raw_items = config["loader"]()
+        questions = []
+        for idx, item in enumerate(raw_items, 1):
+            q_id = f"{config['prefix']}-{idx:03d}"
+            questions.append({
+                "id": q_id,
+                "num": idx,
+                "topic": config["name"],
+                "topic_slug": config["slug"],
+                "category": config["category"],
+                "question": clean_text_quotes(item["question"]),
+                "answer": clean_answer_content(item["answer"], config["slug"]),
+                "source_pages": ["Baeldung / InterviewBit (Curated)"]
+            })
+        return questions
+
     file_path = os.path.join(TEMP_ENHORSE_DIR, config["file"])
     if not os.path.exists(file_path):
         print(f"Warning: {file_path} not found!")
@@ -339,38 +395,10 @@ def parse_topic_file(config):
 
     return questions
 
-def remove_legacy_files():
-    """Remove legacy/outdated 4-topic json and markdown files."""
-    legacy_md = [
-        "docker_interview_questions.md",
-        "hibernate_interview_questions.md",
-        "spring_interview_questions.md",
-        "java_core_interview_questions.md"
-    ]
-    legacy_json = [
-        "docker_questions.json",
-        "hibernate_questions.json",
-        "spring_questions.json",
-        "java_core_questions.json"
-    ]
-
-    for fname in legacy_md:
-        p = os.path.join(MD_DIR, fname)
-        if os.path.exists(p):
-            os.remove(p)
-            print(f"Removed legacy markdown file: {fname}")
-
-    for fname in legacy_json:
-        p = os.path.join(JSON_DIR, fname)
-        if os.path.exists(p):
-            os.remove(p)
-            print(f"Removed legacy JSON file: {fname}")
-
 def main():
-    print("🚀 Starting enhorse/java-interview migration...\n")
+    print("🚀 Starting unified questions migration (24 topics including Spring & Spring Boot)...\n")
     ensure_source_repo()
     copy_images()
-    remove_legacy_files()
 
     os.makedirs(MD_DIR, exist_ok=True)
     os.makedirs(JSON_DIR, exist_ok=True)
@@ -384,9 +412,10 @@ def main():
         print(f"  • {cfg['name']:32s} [{cfg['slug']:14s}]: {len(cards):3d} вопросов")
         
         topic_json_data = []
+        source_label = "Baeldung / InterviewBit" if cfg.get("is_custom") else "[enhorse/java-interview](https://github.com/enhorse/java-interview)"
         topic_md_lines = [
             f"# {cfg['name']} — Вопросы и Ответы для Собеседования",
-            f"\n> **Раздел:** {cfg['category']} | **Всего вопросов:** {len(cards)} | **Источник:** [enhorse/java-interview](https://github.com/enhorse/java-interview)\n",
+            f"\n> **Раздел:** {cfg['category']} | **Всего вопросов:** {len(cards)} | **Источник:** {source_label}\n",
             f"*{cfg['description']}*\n",
             "---",
             "## Содержание / Быстрый переход\n"
@@ -449,7 +478,7 @@ def main():
     # Generate master Markdown
     master_md_lines = [
         "# Полная База Вопросов и Ответов для Собеседований Java Developer",
-        f"\n> **Всего вопросов в базе:** {len(all_master_questions)} | **22 тематических раздела** | **Источник:** [enhorse/java-interview](https://github.com/enhorse/java-interview)\n",
+        f"\n> **Всего вопросов в базе:** {len(all_master_questions)} | **24 тематических раздела** | **Источники:** enhorse/java-interview, Baeldung, InterviewBit\n",
         "## Категории и разделы базы знаний\n"
     ]
 
@@ -481,7 +510,7 @@ def main():
     with open(topics_meta_path, "w", encoding="utf-8") as f:
         json.dump(topic_summaries, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✨ Migration complete!")
+    print(f"\n✨ Unified migration complete!")
     print(f"✅ Generated {len(all_master_questions)} questions across {len(TOPIC_CONFIGS)} topics.")
     print(f"📄 Master JSON: {master_json_path}")
     print(f"📄 Master MD:   {master_md_path}")

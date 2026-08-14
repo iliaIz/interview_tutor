@@ -1,0 +1,145 @@
+[
+  {
+    "id": "BOOT-001",
+    "global_id": 485,
+    "num": 1,
+    "topic": "Spring Boot",
+    "question": "Что такое Spring Boot и в чем его основные преимущества перед классическим Spring Framework?",
+    "answer": "**Spring Boot** — это надстройка над Spring Framework, предназначенная для быстрого создания готовых к production автономных (*stand-alone*) приложений с минимальными начальными настройками (*convention-over-configuration*).\n\n### Ключевые преимущества:\n1. **Auto-Configuration (Автоконфигурация):** автоматическая настройка бинов на основе присутствующих в classpath библиотек и свойств.\n2. **Spring Boot Starters:** агрегированные зависимости (starter POMs), избавляющие от ручного разрешения конфликтов версий библиотек.\n3. **Встроенный сервлет-контейнер (Embedded Server):** Tomcat, Jetty или Undertow встроены прямо в исполняемый JAR. Не требуется внешний сервер приложений (Tomcat/WildFly).\n4. **Production-Ready Features (Actuator):** встроенный мониторинг, проверка здоровья (`/health`), метрики (Micrometer/Prometheus), просмотр конфигурации (`/env`, `/beans`).\n5. **Никакой генерации XML-кода:** полностью декларативная настройка через свойства и аннотации.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-002",
+    "global_id": 486,
+    "num": 2,
+    "topic": "Spring Boot",
+    "question": "Что делает аннотация @SpringBootApplication и из каких аннотаций она состоит?",
+    "answer": "`@SpringBootApplication` — это составная мета-аннотация, объединяющая три ключевые аннотации:\n\n1. **`@SpringBootConfiguration`:** специализированная версия `@Configuration`, обозначающая класс как источник определения бинов.\n2. **`@EnableAutoConfiguration`:** включает интеллектуальный механизм автоконфигурации Spring Boot.\n3. **`@ComponentScan`:** запускает сканирование компонентов (`@Component`, `@Service`, `@Repository`, `@Controller`) в текущем пакете и всех его подпакетах.\n\n```java\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-003",
+    "global_id": 487,
+    "num": 3,
+    "topic": "Spring Boot",
+    "question": "Как устроен механизм Auto-Configuration в Spring Boot?",
+    "answer": "Механизм автоконфигурации работает следующим образом:\n\n1. При запуске аннотация `@EnableAutoConfiguration` ищет классы автоконфигураций:\n   - В Spring Boot 2.x: через файл `META-INF/spring.factories`.\n   - В Spring Boot 3.x: через `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.\n2. Каждая автоконфигурация проверяет условия с помощью аннотаций семейства **`@Conditional`**:\n   - `@ConditionalOnClass`: класс присутствует в classpath (например, `DataSource.class`).\n   - `@ConditionalOnMissingBean`: бин еще не объявлен разработчиком (позволяет легко переопределить стандартное поведение).\n   - `@ConditionalOnProperty`: в свойствах включен соответствующий флаг.\n   - `@ConditionalOnWebApplication`: приложение является веб-приложением.\n3. Если все условия истинны, конфигурация регистрирует стандартный набор бинов.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-004",
+    "global_id": 488,
+    "num": 4,
+    "topic": "Spring Boot",
+    "question": "Как отключить конкретную автоконфигурацию в Spring Boot?",
+    "answer": "Есть два основных способа:\n\n1. **Через аннотацию `@SpringBootApplication` или `@EnableAutoConfiguration`:**\n   ```java\n   @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class, SecurityAutoConfiguration.class })\n   public class Application { ... }\n   ```\n2. **Через файл конфигурации `application.properties` / `application.yml`:**\n   ```properties\n   spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration\n   ```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-005",
+    "global_id": 489,
+    "num": 5,
+    "topic": "Spring Boot",
+    "question": "Что такое Spring Boot Starters и какие популярные стартеры вы знаете?",
+    "answer": "**Spring Boot Starter** — это готовый дескриптор зависимостей, объединяющий библиотеки, совместимые версии и транзитивные зависимости для решения определенной задачи.\n\n### Популярные стартеры:\n* `spring-boot-starter-web`: Spring MVC, RESTful сервисы, валидация, Jackson и встроенный Tomcat.\n* `spring-boot-starter-data-jpa`: Spring Data JPA, Hibernate, HikariCP пул соединений.\n* `spring-boot-starter-security`: Spring Security с базовой аутентификацией.\n* `spring-boot-starter-actuator`: конечные точки мониторинга и сбора метрик.\n* `spring-boot-starter-test`: JUnit 5, Mockito, AssertJ, Hamcrest, Spring Test.\n* `spring-boot-starter-validation`: валидация моделей на базе Hibernate Validator / Bean Validation.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-006",
+    "global_id": 490,
+    "num": 6,
+    "topic": "Spring Boot",
+    "question": "В чем разница между application.properties и application.yml?",
+    "answer": "Оба формата служат для внешней конфигурации приложения, но имеют синтаксические различия:\n\n| Критерий | `application.properties` | `application.yml` |\n| :--- | :--- | :--- |\n| **Формат** | Плоский `key=value` синтаксис | Иерархический YAML с отступами |\n| **Читаемость** | При длинных префиксах много повторений | Наглядная древовидная структура |\n| **Сложные типы (Lists, Maps)** | `app.servers[0]=127.0.0.1` | Естественные списки (`- 127.0.0.1`) |\n| **Использование с `@PropertySource`** | Поддерживается по умолчанию | Не поддерживается стандартным `@PropertySource` без кастомного `YamlPropertySourceFactory` |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-007",
+    "global_id": 491,
+    "num": 7,
+    "topic": "Spring Boot",
+    "question": "В каком порядке Spring Boot загружает конфигурационные свойства (Property Precedence)?",
+    "answer": "Spring Boot загружает свойства из множества источников с четким приоритетом (от наивысшего к низшему):\n\n1. **Аргументы командной строки (`--server.port=9090`)** — наивысший приоритет.\n2. `SPRING_APPLICATION_JSON` (свойства в формате JSON в переменной окружения).\n3. Системные свойства Java (`System.getProperties()`, переданные через `-Dserver.port=9090`).\n4. **Переменные окружения ОС (`OS Environment Variables`, например `SERVER_PORT=9090`).**\n5. Профиль-зависимый конфиг вне JAR (`file:./config/application-{profile}.properties`).\n6. Профиль-зависимый конфиг внутри JAR (`classpath:application-{profile}.properties`).\n7. Общий конфиг приложения вне JAR (`file:./config/application.properties`).\n8. **Общий конфиг приложения внутри JAR (`classpath:application.properties`)** — наименьший приоритет.\n9. Значения по умолчанию в `@ConfigurationProperties` / `@Value`.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-008",
+    "global_id": 492,
+    "num": 8,
+    "topic": "Spring Boot",
+    "question": "Что такое Spring Profiles и как их активировать?",
+    "answer": "**Spring Profiles** — механизм изолирования конфигураций и бинов для различных сред выполнения (например, `dev`, `test`, `stage`, `prod`).\n\n### Использование:\n1. **На уровне бинов и классов конфигураций:**\n   ```java\n   @Configuration\n   @Profile(\"dev\")\n   public class DevDatabaseConfig { ... }\n   ```\n2. **Через раздельные файлы настроек:**\n   - `application-dev.yml` (активен при профиле `dev`)\n   - `application-prod.yml` (активен при профиле `prod`)\n\n### Способы активации профиля:\n* В свойствах: `spring.profiles.active=dev,k8s`\n* В аргументах JVM: `-Dspring.profiles.active=prod`\n* В переменных окружения: `export SPRING_PROFILES_ACTIVE=prod`\n* В тестах: `@ActiveProfiles(\"test\")`",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-009",
+    "global_id": 493,
+    "num": 9,
+    "topic": "Spring Boot",
+    "question": "Что такое Spring Boot Actuator и для чего он используется?",
+    "answer": "**Spring Boot Actuator** — модуль, предоставляющий готовые HTTP-эндпоинты и JMX-интерфейсы для мониторинга, проверки жизнеспособности (*health checks*) и управления приложением в production.\n\n### Основные эндпоинты:\n* **`/actuator/health`:** статус доступности приложения (Liveness и Readiness пробы для Kubernetes, статус БД, Redis, диска).\n* **`/actuator/info`:** информация о версии, git commit hash, сборке.\n* **`/actuator/metrics`:** системные и кастомные метрики через Micrometer (CPU, JVM Heap, Garbage Collection, HTTP Latency).\n* **`/actuator/env`:** просмотр текущих свойств и переменных окружения.\n* **`/actuator/loggers`:** просмотр и **динамическое изменение уровня логирования на лету** без перезапуска приложения (`POST /actuator/loggers/com.example.service`).\n* **`/actuator/beans`:** список всех зарегистрированных бинов в ApplicationContext.\n\n```yaml\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: health, info, metrics, prometheus\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-010",
+    "global_id": 494,
+    "num": 10,
+    "topic": "Spring Boot",
+    "question": "В чем разница между @ConfigurationProperties и @Value?",
+    "answer": "| Критерий | `@ConfigurationProperties` | `@Value` |\n| :--- | :--- | :--- |\n| **Назначение** | Привязка иерархического блока свойств к POJO-классу | Внедрение единичного скалярного значения или SpEL выражения |\n| **Поддержка Relaxed Binding** | **Да** (`kebab-case`, `camelCase`, `SNAKE_CASE` автоматически маппятся) | **Нет** (требует строгого совпадения имени) |\n| **Валидация (JSR-380)** | **Да** (через `@Validated`, `@NotNull`, `@Min`) | Нет |\n| **Типобезопасность** | Высокая (статическая типизация полей) | Низкая (строковые литералы) |\n| **Поддержка SpEL** | Нет | **Да** (`@Value(\"#{systemProperties['user.home']}\")`) |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-011",
+    "global_id": 495,
+    "num": 11,
+    "topic": "Spring Boot",
+    "question": "Какие встроенные сервлет-контейнеры поддерживает Spring Boot и как заменить Tomcat на Jetty или Undertow?",
+    "answer": "По умолчанию `spring-boot-starter-web` использует **Apache Tomcat**. Также поддерживаются **Jetty** и **Undertow**.\n\n### Как заменить Tomcat на Undertow в Maven:\n```xml\n<dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-web</artifactId>\n    <exclusions>\n        <exclusion>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-tomcat</artifactId>\n        </exclusion>\n    </exclusions>\n</dependency>\n\n<dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-undertow</artifactId>\n</dependency>\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-012",
+    "global_id": 496,
+    "num": 12,
+    "topic": "Spring Boot",
+    "question": "Как работают аннотации тестирования в Spring Boot (@SpringBootTest, @WebMvcTest, @DataJpaTest, @MockBean)?",
+    "answer": "Spring Boot предоставляет специализированные аннотации для интеграционного и срезового (slice) тестирования:\n\n* **`@SpringBootTest`:** поднимает **полный контекст** приложения (ApplicationContext). Используется для полноценных end-to-end интеграционных тестов.\n* **`@WebMvcTest`:** тестирует только веб-слой (контроллеры, фильтры, `Security`). Контроллер тестируется изолированно с помощью `MockMvc`, сервисы заменяются на моки.\n* **`@DataJpaTest`:** тестирует слой доступа к данным (репозитории Spring Data JPA). Автоматически настраивает in-memory БД (H2) и включает откат транзакций после каждого теста.\n* **`@MockBean` (в Spring Boot 3.4+ заменяется на `@MockitoBean`):** создает Mockito-мок и помещает его в Spring ApplicationContext вместо реального бина.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-013",
+    "global_id": 497,
+    "num": 13,
+    "topic": "Spring Boot",
+    "question": "Что нового появилось в Spring Boot 3.x и Spring Framework 6.x?",
+    "answer": "Ключевые новшества Spring Boot 3 и Spring 6 (актуальные стандарты на 2026 год):\n\n1. **Минимальная версия Java:** базовой версией стала **Java 17** (с полной поддержкой Java 21 Virtual Threads / Project Loom).\n2. **Миграция на Jakarta EE 10:** пакет `javax.*` заменен на `jakarta.*` (сервлеты `jakarta.servlet`, валидация `jakarta.validation`, JPA `jakarta.persistence`).\n3. **GraalVM Native Image & AOT:** встроенная поддержка Ahead-of-Time компиляции в нативные бинарники с мгновенным стартом (< 50мс) и низким потреблением памяти.\n4. **Виртуальные потоки (Virtual Threads):** включение одной строчкой `spring.threads.virtual.enabled=true`.\n5. **Унифицированная обработка ошибок (RFC 7807):** стандартная поддержка спецификации `ProblemDetail`.\n6. **HTTP Interfaces (Declarative Clients):** декларативные HTTP-клиенты через аннотации `@HttpExchange` без необходимости Feign.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  }
+]
