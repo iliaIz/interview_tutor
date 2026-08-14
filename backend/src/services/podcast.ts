@@ -38,6 +38,7 @@ export interface StepTelemetry {
   text: string;
   durationMs: number;
   status: 'completed' | 'failed';
+  retries?: number;
 }
 
 export interface JobTelemetry {
@@ -87,6 +88,19 @@ const STORAGE_DIR = path.join(process.cwd(), 'storage');
 if (!fs.existsSync(STORAGE_DIR)) {
   fs.mkdirSync(STORAGE_DIR, { recursive: true });
 }
+
+export const DEFAULT_STRICT_SYSTEM_PROMPT = `Ты — ведущий технический архитектор и автор обучающих IT-подкастов по подготовке к техническим собеседованиям.
+Перед тобой структурированный список вопросов с ЭТАЛОННЫМИ профессиональными ответами (Answer) из нашей базы знаний.
+
+КРИТИЧЕСКИЕ ПРАВИЛА СОЗДАНИЯ СЦЕНАРИЯ:
+1. ОБЯЗАТЕЛЬНАЯ ПОЛНОТА: Ты ОБЯЗАН последовательно и глубоко разобрать КАЖДЫЙ вопрос из списка (от первого до последнего) без единого пропуска и без поверхностных объединений.
+2. СООТВЕТСТВИЕ ЭТАЛОНУ: В репликах эксперта ОБЯЗАТЕЛЬНО должны прозвучать все ключевые концепции, названия классов, аннотаций, интерфейсов, фаз жизненного цикла, исключений и архитектурных нюансов, содержащихся в блоке "Answer".
+3. СТРУКТУРА ДИАЛОГА: На каждый вопрос выдели от 2 до 4 связанных реплик:
+   - Ведущий (Host) четко формулирует вопрос, озвучивает практический контекст или задает каверзные вопросы интервьюера.
+   - Эксперт (Guest) дает исчерпывающий, структурированный и глубокий ответ, опираясь на эталонные факты и приводя жизненные аналогии из коммерческой разработки.
+4. ЖИВАЯ И ПОНЯТНАЯ ПОДАЧА: Веди диалог на безупречном русском языке с естественными интонациями, но никогда не жертвуй технической точностью ради сокращения объема.`;
+
+export const DEFAULT_STRICT_USER_PROMPT = `Создай глубокий, увлекательный и на 100% соответствующий эталонным ответам аудиоразбор. Раскрой все технические термины и архитектурные концепции, чтобы слушатель идеально сдал эту тему на собеседовании.`;
 
 function saveJob(job: PodcastJobState) {
   const mergedMetadata = {
@@ -140,7 +154,7 @@ export function getJob(jobId: string): PodcastJobState | undefined {
   };
 }
 
-export function buildPodcastText(questionIds?: string[], topicName?: string): { text: string; topic: string } {
+export function buildPodcastText(questionIds?: string[], topicName?: string): { text: string; topic: string; questionsCount: number } {
   let questions: QuestionRow[] = [];
 
   if (questionIds && questionIds.length > 0) {
@@ -158,14 +172,17 @@ export function buildPodcastText(questionIds?: string[], topicName?: string): { 
 
   const topic = topicName || questions[0].topic || 'Java & Spring Interview Prep';
 
-  let text = `Topic: ${topic}\n\nHere are the interview questions and detailed answers to discuss in the audio podcast recap:\n\n`;
+  let text = `Тема пересказа: ${topic}\n`;
+  text += `Всего вопросов: ${questions.length}\n\n`;
+  text += `Ниже представлены вопросы для собеседования и ЭТАЛОННЫЕ ответы из базы данных, которые ОБЯЗАТЕЛЬНО должны быть последовательно и полностью раскрыты в диалоге:\n\n`;
 
   questions.forEach((q, idx) => {
-    text += `Question #${idx + 1} (${q.topic}): ${q.question}\n`;
-    text += `Answer: ${q.answer}\n\n`;
+    text += `────────────────────────────────────────────────────────────────\n`;
+    text += `ВОПРОС #${idx + 1} (${q.topic}): ${q.question}\n`;
+    text += `ЭТАЛОННЫЙ ОТВЕТ (ANSWER):\n${q.answer}\n\n`;
   });
 
-  return { text, topic };
+  return { text, topic, questionsCount: questions.length };
 }
 
 /**
@@ -173,7 +190,8 @@ export function buildPodcastText(questionIds?: string[], topicName?: string): { 
  */
 async function generateDialogueScript(
   text: string,
-  options: GeneratePodcastOptions
+  options: GeneratePodcastOptions,
+  questionsCount: number
 ): Promise<{ name_of_guest: string; dialogue: DialogueItem[] }> {
   const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
   const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -182,23 +200,27 @@ async function generateDialogueScript(
   const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
 
   const isDuo = options.mode !== 'solo';
-  const systemPrompt = options.systemPrompt || `Ты — ведущий эксперт по IT-собеседованиям. Твоя задача — создавать структурированный ${isDuo ? 'динамичный диалог двух ведущих (Host и Guest)' : 'увлекательный монолог ведущего (Host)'} на русском языке.`;
-  const userPrompt = options.userPrompt || `Создай глубокий и полезный разбор следующего материала.`;
+  const systemPrompt = options.systemPrompt || DEFAULT_STRICT_SYSTEM_PROMPT;
+  const userPrompt = options.userPrompt || DEFAULT_STRICT_USER_PROMPT;
 
   const scriptPrompt = `${systemPrompt}
 
 ${userPrompt}
 
-Инструкции к формату:
-Верни ответ СТРОГО в JSON формате без разметки markdown:
+ИНСТРУКЦИИ К ФОРМАТУ ВЫВОДА:
+Верни ответ СТРОГО в JSON формате без символов markdown:
 {
   "name_of_guest": "${isDuo ? 'Эксперт' : 'Ведущий'}",
   "dialogue": [
-    ${isDuo ? '{"speaker": "Host", "text": "..."}, {"speaker": "Guest", "text": "..."}' : '{"speaker": "Host", "text": "..."}'}
+    ${isDuo 
+      ? '{"speaker": "Host", "text": "Вопрос/вводная ведущего..."}, {"speaker": "Guest", "text": "Развернутый ответ эксперта с опорой на эталон..."}' 
+      : '{"speaker": "Host", "text": "Структурированный разбор вопроса..."}'}
   ]
 }
 
-Исходный материал:
+ВАЖНО: В диалоге должно быть последовательно раскрыто ВСЕ ${questionsCount} вопросов с опорой на эталонный блок Answer!
+
+Исходный материал для разбора:
 ${text}`;
 
   try {
@@ -296,6 +318,42 @@ export async function synthesizeTTSBuffer(text: string, voice: string): Promise<
 }
 
 /**
+ * Synthesize TTS audio with smart exponential backoff retry on 429/502/503 limits
+ */
+export async function synthesizeTTSWithRetry(
+  text: string, 
+  voice: string, 
+  maxRetries = 4,
+  onRetry?: (attempt: number, delayMs: number, reason: string) => void
+): Promise<{ buffer: Buffer; retries: number }> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      const buffer = await synthesizeTTSBuffer(text, voice);
+      return { buffer, retries: attempt };
+    } catch (err: any) {
+      attempt++;
+      const isRateLimit = err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED') || err?.message?.includes('quota');
+      const isGateway502 = err?.message?.includes('502') || err?.message?.includes('503') || err?.message?.includes('ECONNREFUSED');
+
+      if ((isRateLimit || isGateway502) && attempt < maxRetries) {
+        // Backoff: 4s, 8s, 16s...
+        const delayMs = Math.min(attempt * 4000, 20000);
+        const reason = isRateLimit ? 'Превышен лимит запросов к Gemini TTS (429)' : 'Временный сбой шлюза LiteLLM (502/503)';
+        console.warn(`[TTS Retry ${attempt}/${maxRetries}] ${reason}. Ожидание ${delayMs / 1000}s перед повтором...`);
+        if (onRetry) {
+          onRetry(attempt, delayMs, reason);
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`Превышено количество попыток синтеза речи (${maxRetries})`);
+}
+
+/**
  * Start asynchronous podcast generation job in Node.js backend.
  */
 export async function startPodcastJob(options: GeneratePodcastOptions): Promise<PodcastJobState> {
@@ -361,18 +419,18 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
     job.progress = {
       percentage: 5,
       stage: 'script',
-      stageLabel: 'ИИ создает подробный сценарий и реплики диалога...',
+      stageLabel: 'ИИ создает подробный сценарий на основе эталонных ответов базы знаний...',
       currentStep: 0,
       totalSteps: 1,
       telemetry
     };
     saveJob(job);
 
-    const { text, topic } = buildPodcastText(options.questionIds, options.topicName);
+    const { text, topic, questionsCount } = buildPodcastText(options.questionIds, options.topicName);
 
-    // 1. Generate Script
+    // 1. Generate Script with strict coverage
     const scriptStartTime = Date.now();
-    const script = await generateDialogueScript(text, options);
+    const script = await generateDialogueScript(text, options, questionsCount);
     const scriptDurationSec = Math.round((Date.now() - scriptStartTime) / 100) / 10;
     telemetry.scriptDurationSec = scriptDurationSec;
 
@@ -381,59 +439,63 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
     job.progress = {
       percentage: 15,
       stage: 'synthesis',
-      stageLabel: `Сценарий готов (${totalLines} реплик). Запуск синтеза речи...`,
+      stageLabel: `Сценарий готов (${totalLines} реплик по ${questionsCount} вопросам). Запуск синтеза речи...`,
       currentStep: 0,
       totalSteps: totalLines,
       telemetry
     };
     saveJob(job);
 
-    // 2. Synthesize audio lines with controlled batching (concurrency = 2) for 2x speedup
+    // 2. Synthesize audio lines with pacing & retry
     const ttsStartTime = Date.now();
     const rawPcmBuffers: (Buffer | null)[] = new Array(totalLines).fill(null);
     let transcriptText = `Topic: ${topic}\n\n`;
 
-    // Process in batches of 2 parallel requests
-    const CONCURRENCY = 2;
-    for (let i = 0; i < totalLines; i += CONCURRENCY) {
-      const batchIndices = [];
-      for (let b = 0; b < CONCURRENCY && (i + b) < totalLines; b++) {
-        batchIndices.push(i + b);
+    for (let i = 0; i < totalLines; i++) {
+      const line = script.dialogue[i];
+      const selectedVoice = line.speaker === 'Host' ? voice1 : voice2;
+      const speakerLabel = line.speaker === 'Host' ? `Host (${voice1})` : `${script.name_of_guest || 'Guest'} (${voice2})`;
+
+      const stepStart = Date.now();
+      let stepStatus: 'completed' | 'failed' = 'completed';
+      let retriesCount = 0;
+
+      try {
+        const { buffer: wavBuffer, retries } = await synthesizeTTSWithRetry(
+          line.text, 
+          selectedVoice, 
+          4, 
+          (attempt, delayMs, reason) => {
+            if (job.progress) {
+              job.progress.stageLabel = `Лимит Gemini TTS (429), повтор через ${Math.round(delayMs / 1000)}с (реплика ${i + 1}/${totalLines})...`;
+              saveJob(job);
+            }
+          }
+        );
+        retriesCount = retries;
+
+        // Strip 44-byte WAV header so we concatenate pure 24kHz PCM data
+        const pcmChunk = wavBuffer.length > 44 ? wavBuffer.subarray(44) : wavBuffer;
+        rawPcmBuffers[i] = pcmChunk;
+      } catch (ttsErr: any) {
+        console.error(`TTS Fatal Error on line ${i + 1}:`, ttsErr);
+        stepStatus = 'failed';
       }
 
-      await Promise.all(batchIndices.map(async (idx) => {
-        const line = script.dialogue[idx];
-        const selectedVoice = line.speaker === 'Host' ? voice1 : voice2;
-        const speakerLabel = line.speaker === 'Host' ? `Host (${voice1})` : `${script.name_of_guest || 'Guest'} (${voice2})`;
+      const stepDurationMs = Date.now() - stepStart;
+      telemetry.steps.push({
+        index: i + 1,
+        speaker: speakerLabel,
+        voice: selectedVoice,
+        text: line.text,
+        durationMs: stepDurationMs,
+        status: stepStatus,
+        retries: retriesCount
+      });
 
-        const stepStart = Date.now();
-        let stepStatus: 'completed' | 'failed' = 'completed';
-
-        try {
-          const wavBuffer = await synthesizeTTSBuffer(line.text, selectedVoice);
-          // Strip 44-byte WAV header so we concatenate pure 24kHz PCM data
-          const pcmChunk = wavBuffer.length > 44 ? wavBuffer.subarray(44) : wavBuffer;
-          rawPcmBuffers[idx] = pcmChunk;
-        } catch (ttsErr) {
-          console.error(`TTS Error on line ${idx + 1}:`, ttsErr);
-          stepStatus = 'failed';
-        }
-
-        const stepDurationMs = Date.now() - stepStart;
-        telemetry.steps.push({
-          index: idx + 1,
-          speaker: speakerLabel,
-          voice: selectedVoice,
-          text: line.text,
-          durationMs: stepDurationMs,
-          status: stepStatus
-        });
-      }));
-
-      // Update progress after each batch completes
-      const completedCount = Math.min(i + batchIndices.length, totalLines);
+      // Update progress after each replica
+      const completedCount = i + 1;
       const percentage = 15 + Math.round((completedCount / totalLines) * 75);
-      const currentLine = script.dialogue[Math.min(i + batchIndices.length - 1, totalLines - 1)];
 
       job.progress = {
         percentage,
@@ -441,11 +503,16 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
         stageLabel: `Озвучено ${completedCount} из ${totalLines} реплик (${percentage}%)`,
         currentStep: completedCount,
         totalSteps: totalLines,
-        currentSpeaker: currentLine.speaker === 'Host' ? `Ведущий (${voice1})` : `${script.name_of_guest || 'Эксперт'} (${voice2})`,
-        currentTextSnippet: currentLine.text,
+        currentSpeaker: line.speaker === 'Host' ? `Ведущий (${voice1})` : `${script.name_of_guest || 'Эксперт'} (${voice2})`,
+        currentTextSnippet: line.text,
         telemetry
       };
       saveJob(job);
+
+      // Polite delay between lines to be gentle on Gemini TTS quotas
+      if (i < totalLines - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
 
     const ttsDurationSec = Math.round((Date.now() - ttsStartTime) / 100) / 10;
@@ -469,6 +536,10 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
     });
 
     const validPcmChunks = rawPcmBuffers.filter((b): b is Buffer => b !== null);
+    if (validPcmChunks.length === 0) {
+      throw new Error('Не удалось синтезировать ни одной реплики аудиопересказа.');
+    }
+
     const combinedPcm = Buffer.concat(validPcmChunks);
     const finalWavBuffer = pcmToWav(combinedPcm, 24000, 1, 16);
 
@@ -489,7 +560,7 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
     job.progress = {
       percentage: 100,
       stage: 'completed',
-      stageLabel: 'Аудиопересказ успешно создан!',
+      stageLabel: `Аудиопересказ успешно создан (${validPcmChunks.length}/${totalLines} реплик)!`,
       currentStep: totalLines,
       totalSteps: totalLines,
       telemetry
