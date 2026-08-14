@@ -36,7 +36,7 @@ const SOLO_TONE_PROMPTS: Record<string, string> = {
 };
 
 export const AudioRecapModal: React.FC = () => {
-  const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob, showToast } = useAppStore();
+  const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob, showToast, systemHealth } = useAppStore();
 
   const [mode, setMode] = useState<'duo' | 'solo'>('duo');
   const [voice1, setVoice1] = useState<string>('Kore');
@@ -272,9 +272,21 @@ export const AudioRecapModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-pastel-bg/80 p-2.5 rounded-xl border border-pastel-border/60 text-xs text-pastel-muted mb-4 shrink-0">
+          <div className="bg-pastel-bg/80 p-2.5 rounded-xl border border-pastel-border/60 text-xs text-pastel-muted mb-3 shrink-0">
             <span className="font-semibold text-pastel-text">Материал:</span> {recapTarget.title}
           </div>
+
+          {!systemHealth.isAiReady && (
+            <div className="mb-4 p-3 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 shadow-xs">
+              <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+              <div>
+                <span className="font-semibold block">Инициализация AI Шлюза LiteLLM...</span>
+                <p className="text-[11px] text-amber-800/80 mt-0.5">
+                  Сервер подключается к Google Gemini API. Кнопки прослушивания и генерации станут активны автоматически через несколько секунд.
+                </p>
+              </div>
+            </div>
+          )}
 
           {status === 'idle' && (
             <div className="space-y-4 overflow-y-auto pr-1 flex-1">
@@ -344,16 +356,25 @@ export const AudioRecapModal: React.FC = () => {
                       </select>
                       <button
                         type="button"
+                        disabled={!systemHealth.isAiReady}
                         onClick={() => handlePreviewVoice(voice1)}
                         className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                          previewingVoice === voice1
+                          !systemHealth.isAiReady
+                            ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
+                            : previewingVoice === voice1
                             ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
-                            : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose'
+                            : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
                         }`}
-                        title="Прослушать пример голоса"
+                        title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать пример голоса"}
                       >
-                        {previewingVoice === voice1 ? <VolumeX className="w-4 h-4 animate-pulse" /> : <Volume2 className="w-4 h-4" />}
-                        <span className="hidden sm:inline">Тест</span>
+                        {!systemHealth.isAiReady ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        ) : previewingVoice === voice1 ? (
+                          <VolumeX className="w-4 h-4 animate-pulse" />
+                        ) : (
+                          <Volume2 className="w-4 h-4" />
+                        )}
+                        <span className="hidden sm:inline">{!systemHealth.isAiReady ? 'Запуск...' : 'Тест'}</span>
                       </button>
                     </div>
                   </div>
@@ -377,15 +398,24 @@ export const AudioRecapModal: React.FC = () => {
                         </select>
                         <button
                           type="button"
+                          disabled={!systemHealth.isAiReady}
                           onClick={() => handlePreviewVoice(voice1)}
                           className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                            previewingVoice === voice1
+                            !systemHealth.isAiReady
+                              ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
+                              : previewingVoice === voice1
                               ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
-                              : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose'
+                              : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
                           }`}
-                          title="Прослушать голос 1"
+                          title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать голос 1"}
                         >
-                          {previewingVoice === voice1 ? <VolumeX className="w-4 h-4 animate-pulse" /> : <Volume2 className="w-4 h-4" />}
+                          {!systemHealth.isAiReady ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                          ) : previewingVoice === voice1 ? (
+                            <VolumeX className="w-4 h-4 animate-pulse" />
+                          ) : (
+                            <Volume2 className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -408,15 +438,24 @@ export const AudioRecapModal: React.FC = () => {
                         </select>
                         <button
                           type="button"
+                          disabled={!systemHealth.isAiReady}
                           onClick={() => handlePreviewVoice(voice2)}
                           className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                            previewingVoice === voice2
+                            !systemHealth.isAiReady
+                              ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
+                              : previewingVoice === voice2
                               ? 'bg-pastel-accentViolet text-white border-pastel-accentViolet'
-                              : 'bg-white text-pastel-accentViolet border-pastel-accentViolet/30 hover:bg-pastel-lavender'
+                              : 'bg-white text-pastel-accentViolet border-pastel-accentViolet/30 hover:bg-pastel-lavender cursor-pointer'
                           }`}
-                          title="Прослушать голос 2"
+                          title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать голос 2"}
                         >
-                          {previewingVoice === voice2 ? <VolumeX className="w-4 h-4 animate-pulse" /> : <Volume2 className="w-4 h-4" />}
+                          {!systemHealth.isAiReady ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                          ) : previewingVoice === voice2 ? (
+                            <VolumeX className="w-4 h-4 animate-pulse" />
+                          ) : (
+                            <Volume2 className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -531,10 +570,26 @@ export const AudioRecapModal: React.FC = () => {
               {/* Submit Button */}
               <button
                 type="button"
+                disabled={!systemHealth.isAiReady}
                 onClick={handleStartGeneration}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-pastel-accentRose/25 flex items-center justify-center gap-2 transition transform active:scale-[0.98] mt-2"
+                className={`w-full py-3.5 px-4 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 transition transform mt-2 ${
+                  !systemHealth.isAiReady
+                    ? 'opacity-60 cursor-not-allowed bg-gray-400 text-white'
+                    : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-95 text-white shadow-pastel-accentRose/25 active:scale-[0.98] cursor-pointer'
+                }`}
+                title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Генерация станет доступна через несколько секунд" : "Запустить генерацию аудио"}
               >
-                <Sparkles className="w-4 h-4" /> Запустить генерацию аудио
+                {!systemHealth.isAiReady ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Ожидание готовности AI Шлюза...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Запустить генерацию аудио</span>
+                  </>
+                )}
               </button>
             </div>
           )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Mic, MicOff, X, Volume2, Sparkles } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Sparkles, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/useAppStore';
 
@@ -10,7 +10,7 @@ interface VoiceModalProps {
 }
 
 export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, currentQuestionText }) => {
-  const { showToast } = useAppStore();
+  const { showToast, systemHealth } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState<string[]>([]);
@@ -224,6 +224,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
           </button>
         </div>
 
+        {/* Warmup alert if AI not ready */}
+        {!systemHealth.isAiReady && (
+          <div className="mb-4 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center gap-3 shadow-xs">
+            <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+            <div>
+              <span className="font-semibold block">Инициализация голосового AI Шлюза...</span>
+              <p className="text-[11px] text-amber-800/80 mt-0.5">
+                Канал Live WebSocket станет доступен автоматически через несколько секунд.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Animated Waveform Indicator */}
         <div className="my-8 flex flex-col items-center justify-center">
           <div className="relative flex items-center justify-center w-28 h-28">
@@ -237,17 +250,31 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
             />
             <button
               onClick={toggleMic}
-              className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition transform hover:scale-105 ${
-                isRecording
-                  ? 'bg-rose-500 hover:bg-rose-600'
-                  : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet'
+              disabled={!systemHealth.isAiReady}
+              className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition transform ${
+                !systemHealth.isAiReady
+                  ? 'bg-gray-300 opacity-60 cursor-not-allowed'
+                  : isRecording
+                  ? 'bg-rose-500 hover:bg-rose-600 hover:scale-105 cursor-pointer'
+                  : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:scale-105 cursor-pointer'
               }`}
+              title={!systemHealth.isAiReady ? "Инициализация AI Шлюза..." : isRecording ? "Остановить запись" : "Начать запись"}
             >
-              {isRecording ? <Mic className="w-8 h-8 animate-pulse" /> : <MicOff className="w-8 h-8" />}
+              {!systemHealth.isAiReady ? (
+                <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+              ) : isRecording ? (
+                <Mic className="w-8 h-8 animate-pulse" />
+              ) : (
+                <MicOff className="w-8 h-8" />
+              )}
             </button>
           </div>
           <p className="mt-4 text-xs font-semibold text-pastel-muted">
-            {isRecording ? '🎙️ Запись активна. Говорите в микрофон...' : 'Нажмите на микрофон, чтобы начать говорить'}
+            {!systemHealth.isAiReady
+              ? '⏳ Ожидание подключения к AI Шлюзу...'
+              : isRecording
+              ? '🎙️ Запись активна. Говорите в микрофон...'
+              : 'Нажмите на микрофон, чтобы начать говорить'}
           </p>
         </div>
 

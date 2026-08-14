@@ -41,6 +41,14 @@ export interface ToastNotification {
   technicalDetails?: string;
 }
 
+export interface SystemHealth {
+  status: 'ready' | 'warming_up' | 'unreachable' | 'checking';
+  isAiReady: boolean;
+  message?: string;
+  latencyMs?: number;
+  error?: string;
+}
+
 export interface RecapTarget {
   questionIds?: string[];
   topicId?: string;
@@ -57,6 +65,9 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
+
+  // System Readiness State
+  systemHealth: SystemHealth;
 
   // Toast Notification State
   activeToast: ToastNotification | null;
@@ -75,6 +86,9 @@ interface AppState {
   setBatchSize: (topicId: string, size: number) => void;
   updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean) => void;
   resetTopicProgress: (topicId: string) => void;
+
+  // System Health Action
+  checkHealth: () => Promise<void>;
 
   // Toast Actions
   showToast: (notification: Omit<ToastNotification, 'id'>) => void;
@@ -99,6 +113,12 @@ export const useAppStore = create<AppState>()(
       batchSizeMap: { java: 5, spring: 5, hibernate: 5, docker: 5 },
       topicsProgress: {},
 
+      systemHealth: {
+        status: 'checking',
+        isAiReady: false,
+        message: 'Проверка готовности AI шлюза...'
+      },
+
       activeToast: null,
       activeAudioJob: null,
       isRecapModalOpen: false,
@@ -116,6 +136,45 @@ export const useAppStore = create<AppState>()(
       setBatchSize: (topicId, size) => set((state) => ({
         batchSizeMap: { ...state.batchSizeMap, [topicId]: size }
       })),
+
+      checkHealth: async () => {
+        try {
+          const res = await fetch('/api/health');
+          if (res.ok) {
+            const data = await res.json();
+            set({
+              systemHealth: {
+                status: data.isAiReady ? 'ready' : (data.aiGateway?.status === 'connecting' ? 'warming_up' : 'unreachable'),
+                isAiReady: !!data.isAiReady,
+                latencyMs: data.aiGateway?.latencyMs,
+                error: data.aiGateway?.error,
+                message: data.isAiReady
+                  ? 'AI Шлюз готов к работе'
+                  : (data.aiGateway?.status === 'connecting' ? 'Инициализация AI шлюза...' : 'AI Шлюз недоступен')
+              }
+            });
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            set({
+              systemHealth: {
+                status: 'warming_up',
+                isAiReady: false,
+                error: errData.aiGateway?.error || `HTTP ${res.status}`,
+                message: 'AI Шлюз запускается...'
+              }
+            });
+          }
+        } catch (err: any) {
+          set({
+            systemHealth: {
+              status: 'unreachable',
+              isAiReady: false,
+              error: err?.message,
+              message: 'Нет связи с сервером'
+            }
+          });
+        }
+      },
 
       showToast: (notification) => {
         const id = Math.random().toString(36).substring(2, 9);
@@ -174,7 +233,15 @@ export const useAppStore = create<AppState>()(
       clearActiveAudioJob: () => set({ activeAudioJob: null }),
     }),
     {
-      name: 'interview-prep-storage-v2'
+      name: 'interview-prep-storage-v2',
+      partialize: (state) => ({
+        currentView: state.currentView,
+        selectedTopicId: state.selectedTopicId,
+        selectedTopicName: state.selectedTopicName,
+        shuffleMap: state.shuffleMap,
+        batchSizeMap: state.batchSizeMap,
+        topicsProgress: state.topicsProgress,
+      })
     }
   )
 );

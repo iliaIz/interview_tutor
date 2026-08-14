@@ -6,10 +6,69 @@ import { ExamQuiz } from './components/ExamQuiz';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { Toast } from './components/Toast';
-import { Sparkles, Heart, Headphones } from 'lucide-react';
+import { Sparkles, Heart, Headphones, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { currentView } = useAppStore();
+  const { currentView, systemHealth, checkHealth } = useAppStore();
+
+  React.useEffect(() => {
+    // Initial check
+    checkHealth();
+
+    // Polling interval depending on readiness
+    let intervalId: any = null;
+    const runPoller = () => {
+      const pollMs = systemHealth.isAiReady ? 25000 : 2500;
+      intervalId = setInterval(() => {
+        checkHealth();
+      }, pollMs);
+    };
+
+    runPoller();
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [systemHealth.isAiReady]);
+
+  const renderHealthBadge = () => {
+    if (systemHealth.isAiReady) {
+      return (
+        <div
+          title="AI Шлюз активен. Синтез речи Gemini 3.1 Flash TTS и оценка ответов готовы к работе."
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs cursor-default"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <Headphones className="w-3.5 h-3.5" />
+          <span>AI Шлюз готов</span>
+          {systemHealth.latencyMs && (
+            <span className="text-[10px] opacity-70">({systemHealth.latencyMs}мс)</span>
+          )}
+        </div>
+      );
+    }
+
+    if (systemHealth.status === 'warming_up' || systemHealth.status === 'checking') {
+      return (
+        <div
+          title="LiteLLM Gateway и контейнеры запускаются. Голосовые функции станут активны автоматически через несколько секунд..."
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs animate-pulse cursor-help"
+        >
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+          <span>Инициализация AI Шлюза...</span>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        title={systemHealth.error || 'Проверьте запуск docker-compose в D:\\projects\\LiteLLM_Proxy'}
+        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-xs cursor-help"
+      >
+        <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+        <span>AI Шлюз офлайн</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24">
@@ -26,8 +85,8 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-            <Headphones className="w-3.5 h-3.5" /> Audio Recap Enabled
+          <div className="flex items-center gap-2">
+            {renderHealthBadge()}
           </div>
         </div>
       </header>

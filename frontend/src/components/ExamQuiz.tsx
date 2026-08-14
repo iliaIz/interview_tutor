@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { VoiceModal } from './VoiceModal';
-import { ArrowLeft, ArrowRight, Brain, Mic, CheckCircle2, AlertTriangle, Sparkles, Send, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brain, Mic, CheckCircle2, AlertTriangle, Sparkles, Send, RotateCcw, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const ExamQuiz: React.FC = () => {
-  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, selectedTopicId, updateTopicProgress, showToast } = useAppStore();
+  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, selectedTopicId, updateTopicProgress, showToast, systemHealth } = useAppStore();
 
   const [userAnswer, setUserAnswer] = useState('');
   const [loadingEval, setLoadingEval] = useState(false);
@@ -118,11 +118,31 @@ export const ExamQuiz: React.FC = () => {
 
         <button
           onClick={() => setIsVoiceOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold shadow-sm hover:opacity-90 transition"
+          disabled={!systemHealth.isAiReady}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-bold shadow-sm transition ${
+            !systemHealth.isAiReady
+              ? 'opacity-50 cursor-not-allowed bg-gray-400'
+              : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-90 cursor-pointer'
+          }`}
+          title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голосовой режим скоро станет доступен" : "Голосовой режим Live"}
         >
-          <Mic className="w-3.5 h-3.5" /> Голосовой режим Live
+          {!systemHealth.isAiReady ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
+          <span>{!systemHealth.isAiReady ? 'AI Запуск...' : 'Голосовой режим Live'}</span>
         </button>
       </div>
+
+      {/* Warmup alert if AI not ready */}
+      {!systemHealth.isAiReady && (
+        <div className="mb-4 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center gap-3 shadow-xs">
+          <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+          <div>
+            <span className="font-semibold block">Инициализация AI Шлюза LiteLLM...</span>
+            <p className="text-[11px] text-amber-800/80 mt-0.5">
+              Модель оценки и голосовой режим станут доступны автоматически через несколько секунд.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Question Card */}
       <motion.div
@@ -160,13 +180,23 @@ export const ExamQuiz: React.FC = () => {
         {!evalResult && (
           <button
             onClick={handleEvaluate}
-            disabled={loadingEval || !userAnswer.trim()}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold shadow-md hover:opacity-95 disabled:opacity-50 transition flex items-center justify-center gap-2"
+            disabled={loadingEval || !userAnswer.trim() || !systemHealth.isAiReady}
+            className={`w-full py-3.5 rounded-2xl text-white text-sm font-bold shadow-md transition flex items-center justify-center gap-2 ${
+              !systemHealth.isAiReady
+                ? 'opacity-60 cursor-not-allowed bg-gray-400'
+                : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-95 disabled:opacity-50 cursor-pointer'
+            }`}
+            title={!systemHealth.isAiReady ? "Инициализация AI Шлюза..." : "Проверить ответ"}
           >
             {loadingEval ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 Gemini 3.5 Flash Lite анализирует ответ...
+              </>
+            ) : !systemHealth.isAiReady ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Ожидание готовности AI Шлюза...
               </>
             ) : (
               <>
