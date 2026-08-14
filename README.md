@@ -1,8 +1,8 @@
-# 📚 Java & Spring Interview Platform — Актуальная База Вопросов и Ответов (727+ вопросов, 24 темы)
+# 📚 Java & Spring Interview Platform — Актуальная База Вопросов и Ответов (746+ вопросов, 24 темы)
 
 Интерактивная платформа и база знаний для подготовки к техническим собеседованиям на позицию **Java / Spring Developer** (от Junior до Senior/Lead). 
 
-База данных синхронизируется с [enhorse/java-interview](https://github.com/enhorse/java-interview.git), а также дополнена передовыми материалами по **Spring Framework и Spring Boot 3** из [Baeldung](https://www.baeldung.com) и [InterviewBit](https://www.interviewbit.com). Содержит **727 детальных вопросов с ответами**, кодом и диаграммами по **24 ключевым направлениям**.
+База данных синхронизируется с [enhorse/java-interview](https://github.com/enhorse/java-interview.git), а также дополнена передовыми материалами по **Spring Framework и Spring Boot 3** из [Baeldung](https://www.baeldung.com), [InterviewBit](https://www.interviewbit.com) и [Medium 2026 Edition](https://medium.com/illumination/top-50-java-spring-boot-interview-questions-2026-edition-57ecfbdf3061). Содержит **746 детальных вопросов с ответами**, кодом и диаграммами по **24 ключевым направлениям**.
 
 ---
 
@@ -13,10 +13,10 @@
 | **Core Java & JVM** | `core` (Java Core), `oop` (ООП), `jvm` (JVM & Память), `jcf` (Java Collections), `java8` (Java 8+ Features) | ☕ 📦 ⚡ 📚 ✨ | **276** |
 | **Architecture & Concurrency** | `concurrency` (Многопоточность), `io` (I/O & NIO), `serialization` (Сериализация), `patterns` (Паттерны GoF) | ⚡ 🔄 📦 🔀 | **119** |
 | **Data & Storage** | `db` (Базы данных & Транзакции), `sql` (SQL & Оконные функции), `jdbc` (JDBC) | 🗄️ 📊 🔗 | **69** |
-| **Web & Enterprise** | `spring` (Spring Framework), `spring-boot` (Spring Boot 3), `reactive` (WebFlux/Reactor), `servlets` (Servlets & JSP), `web` (HTTP/REST/Web), `kafka` (Apache Kafka) | 🍃 ⚡ 📈 🖥️ 🌐 📡 | **199** |
+| **Web & Enterprise** | `spring` (Spring Framework), `spring-boot` (Spring Boot 3), `reactive` (WebFlux/Reactor), `servlets` (Servlets & JSP), `web` (HTTP/REST/Web), `kafka` (Apache Kafka) | 🍃 ⚡ 📈 🖥️ 🌐 📡 | **218** |
 | **Engineering & Quality** | `test` (JUnit & Mockito), `log` (SLF4J/Logback), `xml` (XML/JSON), `uml` (UML) | ✅ 📝 📄 🕸️ | **35** |
 | **Frontend Basics** | `html` (Основы HTML), `css` (Основы CSS) | 📑 🎨 | **29** |
-| **ВСЕГО** | **24 темы** | — | **727 вопросов** |
+| **ВСЕГО** | **24 темы** | — | **746 вопросов** |
 
 ---
 
@@ -28,7 +28,7 @@ spring/
 ├── 🖥️ backend/                 # Node.js + Express + Better-SQLite3 + Gemini TTS/Live API
 ├── 🚀 quiz.py                  # Консольный тренажер (python quiz.py)
 ├── 📄 markdown/                # 24 тематических Markdown-файла + master all_interview_questions.md
-│   └── sources/                # Исходные файлы Baeldung и InterviewBit (на англ. языке)
+│   └── sources/                # Исходные файлы Baeldung, InterviewBit, Medium 2026 (на англ. языке)
 ├── ⚙️ json/                    # 24 JSON датасета + topics_metadata.json + all_interview_questions.json
 ├── 🖼️ frontend/public/images/  # Диаграммы и схемы (SQL оконные функции и т.д.)
 └── 🛠 scripts/

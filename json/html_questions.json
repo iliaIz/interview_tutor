@@ -1,7 +1,7 @@
 [
   {
     "id": "HTML-001",
-    "global_id": 699,
+    "global_id": 718,
     "num": 1,
     "topic": "Основы HTML",
     "question": "Что такое _«HTML»_?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "HTML-002",
-    "global_id": 700,
+    "global_id": 719,
     "num": 2,
     "topic": "Основы HTML",
     "question": "Что такое _«XHTML»_?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "HTML-003",
-    "global_id": 701,
+    "global_id": 720,
     "num": 3,
     "topic": "Основы HTML",
     "question": "Что такое `DOCTYPE` и зачем он нужен?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "HTML-004",
-    "global_id": 702,
+    "global_id": 721,
     "num": 4,
     "topic": "Основы HTML",
     "question": "Для чего предназначен тег `<head>`?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "HTML-005",
-    "global_id": 703,
+    "global_id": 722,
     "num": 5,
     "topic": "Основы HTML",
     "question": "Чем отличается `<div>` от `<span>`?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "HTML-006",
-    "global_id": 704,
+    "global_id": 723,
     "num": 6,
     "topic": "Основы HTML",
     "question": "Как обозначаются комментарии в HTML?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "HTML-007",
-    "global_id": 705,
+    "global_id": 724,
     "num": 7,
     "topic": "Основы HTML",
     "question": "Каким образом задаётся адрес документа, на который следует перейти?",
@@ -78,7 +78,7 @@
   },
   {
     "id": "HTML-008",
-    "global_id": 706,
+    "global_id": 725,
     "num": 8,
     "topic": "Основы HTML",
     "question": "Как сделать ссылку на адрес электронной почты?",
@@ -89,7 +89,7 @@
   },
   {
     "id": "HTML-009",
-    "global_id": 707,
+    "global_id": 726,
     "num": 9,
     "topic": "Основы HTML",
     "question": "Для чего предназначен тег `<em>`?",
@@ -100,7 +100,7 @@
   },
   {
     "id": "HTML-010",
-    "global_id": 708,
+    "global_id": 727,
     "num": 10,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<ol>`, `<ul>`, `<li>`?",
@@ -111,7 +111,7 @@
   },
   {
     "id": "HTML-011",
-    "global_id": 709,
+    "global_id": 728,
     "num": 11,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<dl>`, `<dt>`, `<dd>`?",
@@ -122,7 +122,7 @@
   },
   {
     "id": "HTML-012",
-    "global_id": 710,
+    "global_id": 729,
     "num": 12,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<tr>`, `<th>`, `<td>`?",
@@ -133,7 +133,7 @@
   },
   {
     "id": "HTML-013",
-    "global_id": 711,
+    "global_id": 730,
     "num": 13,
     "topic": "Основы HTML",
     "question": "Обязательно ли писать атрибут `alt` в теге `<img>`?",
@@ -144,7 +144,7 @@
   },
   {
     "id": "HTML-014",
-    "global_id": 712,
+    "global_id": 731,
     "num": 14,
     "topic": "Основы HTML",
     "question": "В каком регистре лучше писать HTML-код?",
@@ -155,7 +155,7 @@
   },
   {
     "id": "HTML-015",
-    "global_id": 713,
+    "global_id": 732,
     "num": 15,
     "topic": "Основы HTML",
     "question": "Что такое «мнемоника (entity)»?",

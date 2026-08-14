@@ -1,14 +1,14 @@
 # 📄 База Вопросов и Ответов в формате Markdown
 
-Эта директория содержит полную коллекцию вопросов и ответов для собеседований по Java-стеку, перенесённую из репозитория [enhorse/java-interview](https://github.com/enhorse/java-interview), а также дополненную базой [Baeldung](https://www.baeldung.com) и [InterviewBit](https://www.interviewbit.com).
+Эта директория содержит полную коллекцию вопросов и ответов для собеседований по Java-стеку, перенесённую из репозитория [enhorse/java-interview](https://github.com/enhorse/java-interview), а также дополненную базой [Baeldung](https://www.baeldung.com), [InterviewBit](https://www.interviewbit.com) и [Medium 2026 Edition](https://medium.com/illumination/top-50-java-spring-boot-interview-questions-2026-edition-57ecfbdf3061).
 
 ## 🗂 Тематические файлы:
 
-* [`all_interview_questions.md`](./all_interview_questions.md) — **Единый мастер-файл со всеми 727 вопросами**
+* [`all_interview_questions.md`](./all_interview_questions.md) — **Единый мастер-файл со всеми 746 вопросами**
 
 ### Web & Enterprise (Spring, Kafka, Web)
-* [`spring_interview_questions.md`](./spring_interview_questions.md) — **Spring Framework** (20 вопр.)
-* [`spring-boot_interview_questions.md`](./spring-boot_interview_questions.md) — **Spring Boot 3** (13 вопр.)
+* [`spring_interview_questions.md`](./spring_interview_questions.md) — **Spring Framework** (27 вопр.)
+* [`spring-boot_interview_questions.md`](./spring-boot_interview_questions.md) — **Spring Boot 3** (25 вопр.)
 * [`reactive_interview_questions.md`](./reactive_interview_questions.md) — Реактивное программирование (9 вопр.)
 * [`servlets_interview_questions.md`](./servlets_interview_questions.md) — Servlets & JSP (94 вопр.)
 * [`web_interview_questions.md`](./web_interview_questions.md) — Основы Web & REST (22 вопр.)
@@ -49,4 +49,5 @@
 - [`baeldung_spring_interview_questions.md`](./sources/baeldung_spring_interview_questions.md)
 - [`baeldung_spring_boot_interview_questions.md`](./sources/baeldung_spring_boot_interview_questions.md)
 - [`interviewbit_spring_interview_questions.md`](./sources/interviewbit_spring_interview_questions.md)
+- [`medium_spring_boot_2026_interview_questions.md`](./sources/medium_spring_boot_2026_interview_questions.md)
 - [`merged_all_spring_questions.md`](./sources/merged_all_spring_questions.md)

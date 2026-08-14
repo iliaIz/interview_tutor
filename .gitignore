@@ -46,3 +46,5 @@ pnpm-debug.log*
 .tmp/
 scratch/
 _temp_enhorse/
+.playwright-mcp/
+*_raw.txt

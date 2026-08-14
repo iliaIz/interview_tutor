@@ -1,7 +1,7 @@
 [
   {
     "id": "SERV-001",
-    "global_id": 507,
+    "global_id": 526,
     "num": 1,
     "topic": "Servlets & JSP",
     "question": "Что такое _«сервлет»_?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "SERV-002",
-    "global_id": 508,
+    "global_id": 527,
     "num": 2,
     "topic": "Servlets & JSP",
     "question": "В чем заключаются преимущества технологии сервлетов над CGI (Common Gateway Interface)?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "SERV-003",
-    "global_id": 509,
+    "global_id": 528,
     "num": 3,
     "topic": "Servlets & JSP",
     "question": "Какова структура веб-проекта?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "SERV-004",
-    "global_id": 510,
+    "global_id": 529,
     "num": 4,
     "topic": "Servlets & JSP",
     "question": "Что такое _«контейнер сервлетов»_?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "SERV-005",
-    "global_id": 511,
+    "global_id": 530,
     "num": 5,
     "topic": "Servlets & JSP",
     "question": "Зачем нужны сервера приложений, если есть контейнеры сервлетов?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "SERV-006",
-    "global_id": 512,
+    "global_id": 531,
     "num": 6,
     "topic": "Servlets & JSP",
     "question": "Как контейнер сервлетов управляет жизненным циклом сервлета, когда и какие методы вызываются?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "SERV-007",
-    "global_id": 513,
+    "global_id": 532,
     "num": 7,
     "topic": "Servlets & JSP",
     "question": "Что такое _«дескриптор развертывания»_?",
@@ -78,7 +78,7 @@
   },
   {
     "id": "SERV-008",
-    "global_id": 514,
+    "global_id": 533,
     "num": 8,
     "topic": "Servlets & JSP",
     "question": "Какие действия необходимо проделать при создании сервлетов?",
@@ -89,7 +89,7 @@
   },
   {
     "id": "SERV-009",
-    "global_id": 515,
+    "global_id": 534,
     "num": 9,
     "topic": "Servlets & JSP",
     "question": "В каком случае требуется переопределять метод `service()`?",
@@ -100,7 +100,7 @@
   },
   {
     "id": "SERV-010",
-    "global_id": 516,
+    "global_id": 535,
     "num": 10,
     "topic": "Servlets & JSP",
     "question": "Есть ли смысл определять для сервлета конструктор? Каким образом лучше инициализировать данные?",
@@ -111,7 +111,7 @@
   },
   {
     "id": "SERV-011",
-    "global_id": 517,
+    "global_id": 536,
     "num": 11,
     "topic": "Servlets & JSP",
     "question": "Почему необходимо переопределить только `init()` метод без аргументов?",
@@ -122,7 +122,7 @@
   },
   {
     "id": "SERV-012",
-    "global_id": 518,
+    "global_id": 537,
     "num": 12,
     "topic": "Servlets & JSP",
     "question": "Какие наиболее распространенные задачи выполняются в контейнере сервлетов?",
@@ -133,7 +133,7 @@
   },
   {
     "id": "SERV-013",
-    "global_id": 519,
+    "global_id": 538,
     "num": 13,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о _сервлетных фильтрах_?",
@@ -144,7 +144,7 @@
   },
   {
     "id": "SERV-014",
-    "global_id": 520,
+    "global_id": 539,
     "num": 14,
     "topic": "Servlets & JSP",
     "question": "Зачем в сервлетах используются различные _listener_?",
@@ -155,7 +155,7 @@
   },
   {
     "id": "SERV-015",
-    "global_id": 521,
+    "global_id": 540,
     "num": 15,
     "topic": "Servlets & JSP",
     "question": "Когда стоит использовать фильтры сервлетов, а когда слушателей?",
@@ -166,7 +166,7 @@
   },
   {
     "id": "SERV-016",
-    "global_id": 522,
+    "global_id": 541,
     "num": 16,
     "topic": "Servlets & JSP",
     "question": "Как реализовать запуск сервлета одновременно с запуском приложения?",
@@ -177,7 +177,7 @@
   },
   {
     "id": "SERV-017",
-    "global_id": 523,
+    "global_id": 542,
     "num": 17,
     "topic": "Servlets & JSP",
     "question": "Как обработать в приложении исключения, выброшенные другим сервлетом?",
@@ -188,7 +188,7 @@
   },
   {
     "id": "SERV-018",
-    "global_id": 524,
+    "global_id": 543,
     "num": 18,
     "topic": "Servlets & JSP",
     "question": "Что представляет собой `ServletConfig`?",
@@ -199,7 +199,7 @@
   },
   {
     "id": "SERV-019",
-    "global_id": 525,
+    "global_id": 544,
     "num": 19,
     "topic": "Servlets & JSP",
     "question": "Что представляет собой `ServletContext`?",
@@ -210,7 +210,7 @@
   },
   {
     "id": "SERV-020",
-    "global_id": 526,
+    "global_id": 545,
     "num": 20,
     "topic": "Servlets & JSP",
     "question": "В чем отличия `ServletContext` и `ServletConfig`?",
@@ -221,7 +221,7 @@
   },
   {
     "id": "SERV-021",
-    "global_id": 527,
+    "global_id": 546,
     "num": 21,
     "topic": "Servlets & JSP",
     "question": "Для чего нужен интерфейс `ServletResponse`?",
@@ -232,7 +232,7 @@
   },
   {
     "id": "SERV-022",
-    "global_id": 528,
+    "global_id": 547,
     "num": 22,
     "topic": "Servlets & JSP",
     "question": "Для чего нужен интерфейс `ServletRequest`?",
@@ -243,7 +243,7 @@
   },
   {
     "id": "SERV-023",
-    "global_id": 529,
+    "global_id": 548,
     "num": 23,
     "topic": "Servlets & JSP",
     "question": "Что такое `Request Dispatcher`?",
@@ -254,7 +254,7 @@
   },
   {
     "id": "SERV-024",
-    "global_id": 530,
+    "global_id": 549,
     "num": 24,
     "topic": "Servlets & JSP",
     "question": "Как из одного сервлета вызвать другой сервлет?",
@@ -265,7 +265,7 @@
   },
   {
     "id": "SERV-025",
-    "global_id": 531,
+    "global_id": 550,
     "num": 25,
     "topic": "Servlets & JSP",
     "question": "Чем отличается `sendRedirect()` от `forward()`?",
@@ -276,7 +276,7 @@
   },
   {
     "id": "SERV-026",
-    "global_id": 532,
+    "global_id": 551,
     "num": 26,
     "topic": "Servlets & JSP",
     "question": "Для чего используются атрибуты сервлетов и как происходит работа с ними?",
@@ -287,7 +287,7 @@
   },
   {
     "id": "SERV-027",
-    "global_id": 533,
+    "global_id": 552,
     "num": 27,
     "topic": "Servlets & JSP",
     "question": "Каким образом можно допустить в сервлете deadlock?",
@@ -298,7 +298,7 @@
   },
   {
     "id": "SERV-028",
-    "global_id": 534,
+    "global_id": 553,
     "num": 28,
     "topic": "Servlets & JSP",
     "question": "Как получить реальное расположение сервлета на сервере?",
@@ -309,7 +309,7 @@
   },
   {
     "id": "SERV-029",
-    "global_id": 535,
+    "global_id": 554,
     "num": 29,
     "topic": "Servlets & JSP",
     "question": "Как получить информацию о сервере из сервлета?",
@@ -320,7 +320,7 @@
   },
   {
     "id": "SERV-030",
-    "global_id": 536,
+    "global_id": 555,
     "num": 30,
     "topic": "Servlets & JSP",
     "question": "Как получить IP адрес клиента на сервере?",
@@ -331,7 +331,7 @@
   },
   {
     "id": "SERV-031",
-    "global_id": 537,
+    "global_id": 556,
     "num": 31,
     "topic": "Servlets & JSP",
     "question": "Какие классы-обертки для сервлетов вы знаете?",
@@ -342,7 +342,7 @@
   },
   {
     "id": "SERV-032",
-    "global_id": 538,
+    "global_id": 557,
     "num": 32,
     "topic": "Servlets & JSP",
     "question": "В чем отличия `GenericServlet` и `HttpServlet`?",
@@ -353,7 +353,7 @@
   },
   {
     "id": "SERV-033",
-    "global_id": 539,
+    "global_id": 558,
     "num": 33,
     "topic": "Servlets & JSP",
     "question": "Почему `HttpServlet` класс объявлен как абстрактный?",
@@ -364,7 +364,7 @@
   },
   {
     "id": "SERV-034",
-    "global_id": 540,
+    "global_id": 559,
     "num": 34,
     "topic": "Servlets & JSP",
     "question": "Какие основные методы присутствуют в классе `HttpServlet`?",
@@ -375,7 +375,7 @@
   },
   {
     "id": "SERV-035",
-    "global_id": 541,
+    "global_id": 560,
     "num": 35,
     "topic": "Servlets & JSP",
     "question": "Стоит ли волноваться о многопоточной безопасности работая с сервлетами?",
@@ -386,7 +386,7 @@
   },
   {
     "id": "SERV-036",
-    "global_id": 542,
+    "global_id": 561,
     "num": 36,
     "topic": "Servlets & JSP",
     "question": "Какой метод HTTP не является неизменяемым?",
@@ -397,7 +397,7 @@
   },
   {
     "id": "SERV-037",
-    "global_id": 543,
+    "global_id": 562,
     "num": 37,
     "topic": "Servlets & JSP",
     "question": "Какие есть методы отправки данных с клиента на сервер?",
@@ -408,7 +408,7 @@
   },
   {
     "id": "SERV-038",
-    "global_id": 544,
+    "global_id": 563,
     "num": 38,
     "topic": "Servlets & JSP",
     "question": "В чем разница между методами `GET` и `POST`?",
@@ -419,7 +419,7 @@
   },
   {
     "id": "SERV-039",
-    "global_id": 545,
+    "global_id": 564,
     "num": 39,
     "topic": "Servlets & JSP",
     "question": "В чем разница между `PrintWriter` и `ServletOutputStream`?",
@@ -430,7 +430,7 @@
   },
   {
     "id": "SERV-040",
-    "global_id": 546,
+    "global_id": 565,
     "num": 40,
     "topic": "Servlets & JSP",
     "question": "Можно ли одновременно использовать в сервлете `PrintWriter` и `ServletOutputStream`?",
@@ -441,7 +441,7 @@
   },
   {
     "id": "SERV-041",
-    "global_id": 547,
+    "global_id": 566,
     "num": 41,
     "topic": "Servlets & JSP",
     "question": "Расскажите об интерфейсе `SingleThreadModel`.",
@@ -452,7 +452,7 @@
   },
   {
     "id": "SERV-042",
-    "global_id": 548,
+    "global_id": 567,
     "num": 42,
     "topic": "Servlets & JSP",
     "question": "Что означает _URL encoding_? Как это осуществить в Java?",
@@ -463,7 +463,7 @@
   },
   {
     "id": "SERV-043",
-    "global_id": 549,
+    "global_id": 568,
     "num": 43,
     "topic": "Servlets & JSP",
     "question": "Какие различные методы управления сессией в сервлетах вы знаете?",
@@ -474,7 +474,7 @@
   },
   {
     "id": "SERV-044",
-    "global_id": 550,
+    "global_id": 569,
     "num": 44,
     "topic": "Servlets & JSP",
     "question": "Что такое _cookies_?",
@@ -485,7 +485,7 @@
   },
   {
     "id": "SERV-045",
-    "global_id": 551,
+    "global_id": 570,
     "num": 45,
     "topic": "Servlets & JSP",
     "question": "Какие методы для работы с cookies предусмотрены в сервлетах?",
@@ -496,7 +496,7 @@
   },
   {
     "id": "SERV-046",
-    "global_id": 552,
+    "global_id": 571,
     "num": 46,
     "topic": "Servlets & JSP",
     "question": "Что такое _URL Rewriting_?",
@@ -507,7 +507,7 @@
   },
   {
     "id": "SERV-047",
-    "global_id": 553,
+    "global_id": 572,
     "num": 47,
     "topic": "Servlets & JSP",
     "question": "Зачем нужны и чем отличаются методы `encodeURL()` и `encodeRedirectURL()`?",
@@ -518,7 +518,7 @@
   },
   {
     "id": "SERV-048",
-    "global_id": 554,
+    "global_id": 573,
     "num": 48,
     "topic": "Servlets & JSP",
     "question": "Что такое _«сессия»_?",
@@ -529,7 +529,7 @@
   },
   {
     "id": "SERV-049",
-    "global_id": 555,
+    "global_id": 574,
     "num": 49,
     "topic": "Servlets & JSP",
     "question": "Как уведомить объект в сессии, что сессия недействительна или закончилась?",
@@ -540,7 +540,7 @@
   },
   {
     "id": "SERV-050",
-    "global_id": 556,
+    "global_id": 575,
     "num": 50,
     "topic": "Servlets & JSP",
     "question": "Какой существует эффективный способ удостоверится, что все сервлеты доступны только для пользователя с верной сессией?",
@@ -551,7 +551,7 @@
   },
   {
     "id": "SERV-051",
-    "global_id": 557,
+    "global_id": 576,
     "num": 51,
     "topic": "Servlets & JSP",
     "question": "Как мы можем обеспечить _transport layer security_ для нашего веб приложения?",
@@ -562,7 +562,7 @@
   },
   {
     "id": "SERV-052",
-    "global_id": 558,
+    "global_id": 577,
     "num": 52,
     "topic": "Servlets & JSP",
     "question": "Как организовать подключение к базе данных, обеспечить журналирование в сервлете?",
@@ -573,7 +573,7 @@
   },
   {
     "id": "SERV-053",
-    "global_id": 559,
+    "global_id": 578,
     "num": 53,
     "topic": "Servlets & JSP",
     "question": "Какие основные особенности появились в спецификации _Servlet 3_?",
@@ -584,7 +584,7 @@
   },
   {
     "id": "SERV-054",
-    "global_id": 560,
+    "global_id": 579,
     "num": 54,
     "topic": "Servlets & JSP",
     "question": "Какие способы аутентификации доступны сервлету?",
@@ -595,7 +595,7 @@
   },
   {
     "id": "SERV-055",
-    "global_id": 561,
+    "global_id": 580,
     "num": 55,
     "topic": "Servlets & JSP",
     "question": "Что такое _Java Server Pages (JSP)_?",
@@ -606,7 +606,7 @@
   },
   {
     "id": "SERV-056",
-    "global_id": 562,
+    "global_id": 581,
     "num": 56,
     "topic": "Servlets & JSP",
     "question": "Зачем нужен JSP?",
@@ -617,7 +617,7 @@
   },
   {
     "id": "SERV-057",
-    "global_id": 563,
+    "global_id": 582,
     "num": 57,
     "topic": "Servlets & JSP",
     "question": "Опишите, как обрабатываются JSP страницы, начиная от запроса к серверу, заканчивая ответом пользователю.",
@@ -628,7 +628,7 @@
   },
   {
     "id": "SERV-058",
-    "global_id": 564,
+    "global_id": 583,
     "num": 58,
     "topic": "Servlets & JSP",
     "question": "Расскажите об этапах (фазах) жизненного цикла JSP.",
@@ -639,7 +639,7 @@
   },
   {
     "id": "SERV-059",
-    "global_id": 565,
+    "global_id": 584,
     "num": 59,
     "topic": "Servlets & JSP",
     "question": "Расскажите о методах жизненного цикла JSP.",
@@ -650,7 +650,7 @@
   },
   {
     "id": "SERV-060",
-    "global_id": 566,
+    "global_id": 585,
     "num": 60,
     "topic": "Servlets & JSP",
     "question": "Какие методы жизненного цикла JSP могут быть переопределены?",
@@ -661,7 +661,7 @@
   },
   {
     "id": "SERV-061",
-    "global_id": 567,
+    "global_id": 586,
     "num": 61,
     "topic": "Servlets & JSP",
     "question": "Как можно предотвратить прямой доступ к JSP странице из браузера?",
@@ -672,7 +672,7 @@
   },
   {
     "id": "SERV-062",
-    "global_id": 568,
+    "global_id": 587,
     "num": 62,
     "topic": "Servlets & JSP",
     "question": "Какая разница между _динамическим_ и _статическим_ содержимым JSP?",
@@ -683,7 +683,7 @@
   },
   {
     "id": "SERV-063",
-    "global_id": 569,
+    "global_id": 588,
     "num": 63,
     "topic": "Servlets & JSP",
     "question": "Как закомментировать код в JSP?",
@@ -694,7 +694,7 @@
   },
   {
     "id": "SERV-064",
-    "global_id": 570,
+    "global_id": 589,
     "num": 64,
     "topic": "Servlets & JSP",
     "question": "Какие существуют основные типы тегов JSP?",
@@ -705,7 +705,7 @@
   },
   {
     "id": "SERV-065",
-    "global_id": 571,
+    "global_id": 590,
     "num": 65,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о действиях JSP (_Action tag_ и _JSP Action Elements_).",
@@ -716,7 +716,7 @@
   },
   {
     "id": "SERV-066",
-    "global_id": 572,
+    "global_id": 591,
     "num": 66,
     "topic": "Servlets & JSP",
     "question": "Взаимодействие _JSP - сервлет - JSP_.",
@@ -727,7 +727,7 @@
   },
   {
     "id": "SERV-067",
-    "global_id": 573,
+    "global_id": 592,
     "num": 67,
     "topic": "Servlets & JSP",
     "question": "Какие области видимости переменных существуют в JSP?",
@@ -738,7 +738,7 @@
   },
   {
     "id": "SERV-068",
-    "global_id": 574,
+    "global_id": 593,
     "num": 68,
     "topic": "Servlets & JSP",
     "question": "Какие неявные, внутренние объекты и методы есть на JSP странице?",
@@ -749,7 +749,7 @@
   },
   {
     "id": "SERV-069",
-    "global_id": 575,
+    "global_id": 594,
     "num": 69,
     "topic": "Servlets & JSP",
     "question": "Какие неявные объекты не доступны в обычной JSP странице?",
@@ -760,7 +760,7 @@
   },
   {
     "id": "SERV-070",
-    "global_id": 576,
+    "global_id": 595,
     "num": 70,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о `PageContext` и какие преимущества его использования?",
@@ -771,7 +771,7 @@
   },
   {
     "id": "SERV-071",
-    "global_id": 577,
+    "global_id": 596,
     "num": 71,
     "topic": "Servlets & JSP",
     "question": "Как сконфигурировать параметры инициализации для JSP?",
@@ -782,7 +782,7 @@
   },
   {
     "id": "SERV-072",
-    "global_id": 578,
+    "global_id": 597,
     "num": 72,
     "topic": "Servlets & JSP",
     "question": "Почему не рекомендуется использовать скриплеты (скриптовые элементы) в JSP?",
@@ -793,7 +793,7 @@
   },
   {
     "id": "SERV-073",
-    "global_id": 579,
+    "global_id": 598,
     "num": 73,
     "topic": "Servlets & JSP",
     "question": "Можно ли определить класс внутри JSP страницы?",
@@ -804,7 +804,7 @@
   },
   {
     "id": "SERV-074",
-    "global_id": 580,
+    "global_id": 599,
     "num": 74,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о Языке выражений JSP (JSP Expression Language – EL)?",
@@ -815,7 +815,7 @@
   },
   {
     "id": "SERV-075",
-    "global_id": 581,
+    "global_id": 600,
     "num": 75,
     "topic": "Servlets & JSP",
     "question": "Какие типы EL операторов вы знаете?",
@@ -826,7 +826,7 @@
   },
   {
     "id": "SERV-076",
-    "global_id": 582,
+    "global_id": 601,
     "num": 76,
     "topic": "Servlets & JSP",
     "question": "Назовите неявные, внутренние объекты JSP EL и их отличия от объектов JSP.",
@@ -837,7 +837,7 @@
   },
   {
     "id": "SERV-077",
-    "global_id": 583,
+    "global_id": 602,
     "num": 77,
     "topic": "Servlets & JSP",
     "question": "Как отключить возможность использования EL в JSP?",
@@ -848,7 +848,7 @@
   },
   {
     "id": "SERV-078",
-    "global_id": 584,
+    "global_id": 603,
     "num": 78,
     "topic": "Servlets & JSP",
     "question": "Как узнать тип HTTP метода используя JSP EL?",
@@ -859,7 +859,7 @@
   },
   {
     "id": "SERV-079",
-    "global_id": 585,
+    "global_id": 604,
     "num": 79,
     "topic": "Servlets & JSP",
     "question": "Что такое _JSTL (JSP Standard tag library)_?",
@@ -870,7 +870,7 @@
   },
   {
     "id": "SERV-080",
-    "global_id": 586,
+    "global_id": 605,
     "num": 80,
     "topic": "Servlets & JSP",
     "question": "Из каких групп тегов состоит библиотека _JSTL_?",
@@ -881,7 +881,7 @@
   },
   {
     "id": "SERV-081",
-    "global_id": 587,
+    "global_id": 606,
     "num": 81,
     "topic": "Servlets & JSP",
     "question": "Какая разница между `<c:set>` и `<jsp:useBean>`?",
@@ -892,7 +892,7 @@
   },
   {
     "id": "SERV-082",
-    "global_id": 588,
+    "global_id": 607,
     "num": 82,
     "topic": "Servlets & JSP",
     "question": "Чем отличается `<c:import>` от `<jsp:include>` и директивы `<%@include %>`?",
@@ -903,7 +903,7 @@
   },
   {
     "id": "SERV-083",
-    "global_id": 589,
+    "global_id": 608,
     "num": 83,
     "topic": "Servlets & JSP",
     "question": "Как можно расширить функциональность JSP?",
@@ -914,7 +914,7 @@
   },
   {
     "id": "SERV-084",
-    "global_id": 590,
+    "global_id": 609,
     "num": 84,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о написании пользовательских JSP тегов?",
@@ -925,7 +925,7 @@
   },
   {
     "id": "SERV-085",
-    "global_id": 591,
+    "global_id": 610,
     "num": 85,
     "topic": "Servlets & JSP",
     "question": "Приведите пример использования собственных тегов.",
@@ -936,7 +936,7 @@
   },
   {
     "id": "SERV-086",
-    "global_id": 592,
+    "global_id": 611,
     "num": 86,
     "topic": "Servlets & JSP",
     "question": "Как сделать перенос строки в HTML средствами JSP?",
@@ -947,7 +947,7 @@
   },
   {
     "id": "SERV-087",
-    "global_id": 593,
+    "global_id": 612,
     "num": 87,
     "topic": "Servlets & JSP",
     "question": "Почему не нужно конфигурировать стандартные JSP теги в `web.xml`?",
@@ -958,7 +958,7 @@
   },
   {
     "id": "SERV-088",
-    "global_id": 594,
+    "global_id": 613,
     "num": 88,
     "topic": "Servlets & JSP",
     "question": "Как можно обработать ошибки JSP страниц?",
@@ -969,7 +969,7 @@
   },
   {
     "id": "SERV-089",
-    "global_id": 595,
+    "global_id": 614,
     "num": 89,
     "topic": "Servlets & JSP",
     "question": "Как происходит обработка ошибок с помощью JSTL?",
@@ -980,7 +980,7 @@
   },
   {
     "id": "SERV-090",
-    "global_id": 596,
+    "global_id": 615,
     "num": 90,
     "topic": "Servlets & JSP",
     "question": "Как конфигурируется JSP в дескрипторе развертывания.",
@@ -991,7 +991,7 @@
   },
   {
     "id": "SERV-091",
-    "global_id": 597,
+    "global_id": 616,
     "num": 91,
     "topic": "Servlets & JSP",
     "question": "Можно ли использовать Javascript на JSP странице?",
@@ -1002,7 +1002,7 @@
   },
   {
     "id": "SERV-092",
-    "global_id": 598,
+    "global_id": 617,
     "num": 92,
     "topic": "Servlets & JSP",
     "question": "Всегда ли создается объект сессии на JSP странице, можно ли отключить его создание?",
@@ -1013,7 +1013,7 @@
   },
   {
     "id": "SERV-093",
-    "global_id": 599,
+    "global_id": 618,
     "num": 93,
     "topic": "Servlets & JSP",
     "question": "Какая разница между `JSPWriter` и сервлетным `PrintWriter`?",
@@ -1024,7 +1024,7 @@
   },
   {
     "id": "SERV-094",
-    "global_id": 600,
+    "global_id": 619,
     "num": 94,
     "topic": "Servlets & JSP",
     "question": "Опишите общие практические принципы работы с JSP.",

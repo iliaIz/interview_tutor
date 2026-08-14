@@ -1,7 +1,7 @@
 [
   {
     "id": "KAFKA-001",
-    "global_id": 623,
+    "global_id": 642,
     "num": 1,
     "topic": "Apache Kafka",
     "question": "Что такое Apache Kafka?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "KAFKA-002",
-    "global_id": 624,
+    "global_id": 643,
     "num": 2,
     "topic": "Apache Kafka",
     "question": "Основные компоненты Kafka",
@@ -23,7 +23,7 @@
   },
   {
     "id": "KAFKA-003",
-    "global_id": 625,
+    "global_id": 644,
     "num": 3,
     "topic": "Apache Kafka",
     "question": "Архитектура топика",
@@ -34,7 +34,7 @@
   },
   {
     "id": "KAFKA-004",
-    "global_id": 626,
+    "global_id": 645,
     "num": 4,
     "topic": "Apache Kafka",
     "question": "Настройки топика Kafka",
@@ -45,7 +45,7 @@
   },
   {
     "id": "KAFKA-005",
-    "global_id": 627,
+    "global_id": 646,
     "num": 5,
     "topic": "Apache Kafka",
     "question": "Архитектура брокера",
@@ -56,7 +56,7 @@
   },
   {
     "id": "KAFKA-006",
-    "global_id": 628,
+    "global_id": 647,
     "num": 6,
     "topic": "Apache Kafka",
     "question": "Настройки брокера Kafka",
@@ -67,7 +67,7 @@
   },
   {
     "id": "KAFKA-007",
-    "global_id": 629,
+    "global_id": 648,
     "num": 7,
     "topic": "Apache Kafka",
     "question": "Архитектура продюсера",
@@ -78,7 +78,7 @@
   },
   {
     "id": "KAFKA-008",
-    "global_id": 630,
+    "global_id": 649,
     "num": 8,
     "topic": "Apache Kafka",
     "question": "Настройки продюсера",
@@ -89,7 +89,7 @@
   },
   {
     "id": "KAFKA-009",
-    "global_id": 631,
+    "global_id": 650,
     "num": 9,
     "topic": "Apache Kafka",
     "question": "Пример конфигурации Kafka Producer",
@@ -100,7 +100,7 @@
   },
   {
     "id": "KAFKA-010",
-    "global_id": 632,
+    "global_id": 651,
     "num": 10,
     "topic": "Apache Kafka",
     "question": "Архитектура консюмера",
@@ -111,7 +111,7 @@
   },
   {
     "id": "KAFKA-011",
-    "global_id": 633,
+    "global_id": 652,
     "num": 11,
     "topic": "Apache Kafka",
     "question": "Настройки консюмера",
@@ -122,7 +122,7 @@
   },
   {
     "id": "KAFKA-012",
-    "global_id": 634,
+    "global_id": 653,
     "num": 12,
     "topic": "Apache Kafka",
     "question": "Пример конфигурации Kafka Consumer",
@@ -133,7 +133,7 @@
   },
   {
     "id": "KAFKA-013",
-    "global_id": 635,
+    "global_id": 654,
     "num": 13,
     "topic": "Apache Kafka",
     "question": "Основные API Kafka",
@@ -144,7 +144,7 @@
   },
   {
     "id": "KAFKA-014",
-    "global_id": 636,
+    "global_id": 655,
     "num": 14,
     "topic": "Apache Kafka",
     "question": "Какова роль Producer API?",
@@ -155,7 +155,7 @@
   },
   {
     "id": "KAFKA-015",
-    "global_id": 637,
+    "global_id": 656,
     "num": 15,
     "topic": "Apache Kafka",
     "question": "Какова роль Consumer API?",
@@ -166,7 +166,7 @@
   },
   {
     "id": "KAFKA-016",
-    "global_id": 638,
+    "global_id": 657,
     "num": 16,
     "topic": "Apache Kafka",
     "question": "Какова роль Connector API?",
@@ -177,7 +177,7 @@
   },
   {
     "id": "KAFKA-017",
-    "global_id": 639,
+    "global_id": 658,
     "num": 17,
     "topic": "Apache Kafka",
     "question": "Какова роль Streams API?",
@@ -188,7 +188,7 @@
   },
   {
     "id": "KAFKA-018",
-    "global_id": 640,
+    "global_id": 659,
     "num": 18,
     "topic": "Apache Kafka",
     "question": "Какова роль Transactions API?",
@@ -199,7 +199,7 @@
   },
   {
     "id": "KAFKA-019",
-    "global_id": 641,
+    "global_id": 660,
     "num": 19,
     "topic": "Apache Kafka",
     "question": "Какова роль Quota API?",
@@ -210,7 +210,7 @@
   },
   {
     "id": "KAFKA-020",
-    "global_id": 642,
+    "global_id": 661,
     "num": 20,
     "topic": "Apache Kafka",
     "question": "Какова роль AdminClient API?",
@@ -221,7 +221,7 @@
   },
   {
     "id": "KAFKA-021",
-    "global_id": 643,
+    "global_id": 662,
     "num": 21,
     "topic": "Apache Kafka",
     "question": "Kafka Consumer",
@@ -232,7 +232,7 @@
   },
   {
     "id": "KAFKA-022",
-    "global_id": 644,
+    "global_id": 663,
     "num": 22,
     "topic": "Apache Kafka",
     "question": "Для чего нужен координатор группы?",
@@ -243,7 +243,7 @@
   },
   {
     "id": "KAFKA-023",
-    "global_id": 645,
+    "global_id": 664,
     "num": 23,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Consumer heartbeat thread?",
@@ -254,7 +254,7 @@
   },
   {
     "id": "KAFKA-024",
-    "global_id": 646,
+    "global_id": 665,
     "num": 24,
     "topic": "Apache Kafka",
     "question": "Как Kafka обрабатывает сообщения?",
@@ -265,7 +265,7 @@
   },
   {
     "id": "KAFKA-025",
-    "global_id": 647,
+    "global_id": 666,
     "num": 25,
     "topic": "Apache Kafka",
     "question": "Как Kafka обрабатывает задержку консюмера?",
@@ -276,7 +276,7 @@
   },
   {
     "id": "KAFKA-026",
-    "global_id": 648,
+    "global_id": 667,
     "num": 26,
     "topic": "Apache Kafka",
     "question": "Для чего нужны методы subscribe() и poll()?",
@@ -287,7 +287,7 @@
   },
   {
     "id": "KAFKA-027",
-    "global_id": 649,
+    "global_id": 668,
     "num": 27,
     "topic": "Apache Kafka",
     "question": "Для чего нужен метод position()?",
@@ -298,7 +298,7 @@
   },
   {
     "id": "KAFKA-028",
-    "global_id": 650,
+    "global_id": 669,
     "num": 28,
     "topic": "Apache Kafka",
     "question": "Для чего нужны методы commitSync() и commitAsync()?",
@@ -309,7 +309,7 @@
   },
   {
     "id": "KAFKA-029",
-    "global_id": 651,
+    "global_id": 670,
     "num": 29,
     "topic": "Apache Kafka",
     "question": "Другие вопросы",
@@ -320,7 +320,7 @@
   },
   {
     "id": "KAFKA-030",
-    "global_id": 652,
+    "global_id": 671,
     "num": 30,
     "topic": "Apache Kafka",
     "question": "Для чего нужен идемпотентный продюсер?",
@@ -331,7 +331,7 @@
   },
   {
     "id": "KAFKA-031",
-    "global_id": 653,
+    "global_id": 672,
     "num": 31,
     "topic": "Apache Kafka",
     "question": "Для чего нужен интерфейс Partitioner?",
@@ -342,7 +342,7 @@
   },
   {
     "id": "KAFKA-032",
-    "global_id": 654,
+    "global_id": 673,
     "num": 32,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Broker log cleaner thread?",
@@ -353,7 +353,7 @@
   },
   {
     "id": "KAFKA-033",
-    "global_id": 655,
+    "global_id": 674,
     "num": 33,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Kafka Mirror Maker?",
@@ -364,7 +364,7 @@
   },
   {
     "id": "KAFKA-034",
-    "global_id": 656,
+    "global_id": 675,
     "num": 34,
     "topic": "Apache Kafka",
     "question": "Для чего нужна Schema Registry?",
@@ -375,7 +375,7 @@
   },
   {
     "id": "KAFKA-035",
-    "global_id": 657,
+    "global_id": 676,
     "num": 35,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Streams DSL?",
@@ -386,7 +386,7 @@
   },
   {
     "id": "KAFKA-036",
-    "global_id": 658,
+    "global_id": 677,
     "num": 36,
     "topic": "Apache Kafka",
     "question": "Как Kafka обеспечивает версионирование сообщений?",
@@ -397,7 +397,7 @@
   },
   {
     "id": "KAFKA-037",
-    "global_id": 659,
+    "global_id": 678,
     "num": 37,
     "topic": "Apache Kafka",
     "question": "Как потребители получают сообщения от брокера?",
@@ -408,7 +408,7 @@
   },
   {
     "id": "KAFKA-038",
-    "global_id": 660,
+    "global_id": 679,
     "num": 38,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka Streams и Apache Flink?",
@@ -419,7 +419,7 @@
   },
   {
     "id": "KAFKA-039",
-    "global_id": 661,
+    "global_id": 680,
     "num": 39,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka Consumer и Kafka Stream?",
@@ -430,7 +430,7 @@
   },
   {
     "id": "KAFKA-040",
-    "global_id": 662,
+    "global_id": 681,
     "num": 40,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka и Flume?",
@@ -441,7 +441,7 @@
   },
   {
     "id": "KAFKA-041",
-    "global_id": 663,
+    "global_id": 682,
     "num": 41,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka и RabbitMQ?",

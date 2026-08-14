@@ -1,7 +1,7 @@
 [
   {
     "id": "TEST-001",
-    "global_id": 664,
+    "global_id": 683,
     "num": 1,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«модульное тестирование»_?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "TEST-002",
-    "global_id": 665,
+    "global_id": 684,
     "num": 2,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«интеграционное тестирование»_?",
@@ -23,7 +23,7 @@
   },
   {
     "id": "TEST-003",
-    "global_id": 666,
+    "global_id": 685,
     "num": 3,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Чем интеграционное тестирование отличается от модульного?",
@@ -34,7 +34,7 @@
   },
   {
     "id": "TEST-004",
-    "global_id": 667,
+    "global_id": 686,
     "num": 4,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Какие существуют виды тестовых объектов?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "TEST-005",
-    "global_id": 668,
+    "global_id": 687,
     "num": 5,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Чем _stub_ отличается от _mock_?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "TEST-006",
-    "global_id": 669,
+    "global_id": 688,
     "num": 6,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«фикстуры»_?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "TEST-007",
-    "global_id": 670,
+    "global_id": 689,
     "num": 7,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Какие аннотации фикстур существуют в JUnit?",
@@ -78,7 +78,7 @@
   },
   {
     "id": "TEST-008",
-    "global_id": 671,
+    "global_id": 690,
     "num": 8,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Для чего в JUnit используется аннотация `@Ignore`?",

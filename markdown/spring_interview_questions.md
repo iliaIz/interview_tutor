@@ -1,6 +1,6 @@
 # Spring Framework — Вопросы и Ответы для Собеседования
 
-> **Раздел:** Web & Enterprise | **Всего вопросов:** 20 | **Источник:** Baeldung / InterviewBit
+> **Раздел:** Web & Enterprise | **Всего вопросов:** 27 | **Источник:** Baeldung / InterviewBit
 
 *IoC/DI контейнер, бины, скоупы, AOP, @Transactional, Spring MVC, WebFlux*
 
@@ -20,13 +20,20 @@
 - [11. В чем разница между аннотациями @Autowired, @Resource и @Inject?](#q-11)
 - [12. В чем разница между @Component, @Service, @Repository и @Controller?](#q-12)
 - [13. Что такое Spring AOP и каковы его основные концепции (Aspect, JoinPoint, Pointcut, Advice)?](#q-13)
-- [14. В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring?](#q-14)
-- [15. Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект?](#q-15)
-- [16. Как работает аннотация @Transactional и какие параметры она имеет?](#q-16)
-- [17. Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet?](#q-17)
-- [18. В чем разница между @ControllerAdvice и @ExceptionHandler?](#q-18)
-- [19. Что такое Spring WebFlux и чем он отличается от Spring MVC?](#q-19)
-- [20. В чем разница между реактивными типами Mono и Flux в Project Reactor?](#q-20)
+- [14. Как реализовать кастомный аспект AOP для замера времени выполнения методов (@Around + @TrackTime)?](#q-14)
+- [15. В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring?](#q-15)
+- [16. Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект?](#q-16)
+- [17. Как работает аннотация @Transactional и какие параметры она имеет?](#q-17)
+- [18. Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet?](#q-18)
+- [19. В чем разница между @PathVariable, @RequestParam и @RequestBody в Spring MVC?](#q-19)
+- [20. Зачем использовать ResponseEntity и в чем его преимущества перед возвратом обычного DTO?](#q-20)
+- [21. Как устроена валидация входных DTO в Spring (@Valid, @NotBlank, JSR-380) и обработка ошибок валидации?](#q-21)
+- [22. Что такое CORS и как настроить Cross-Origin запросы в Spring?](#q-22)
+- [23. В чем разница между @ControllerAdvice и @ExceptionHandler?](#q-23)
+- [24. В чем разница между HTTP-методами PUT и PATCH в REST API?](#q-24)
+- [25. В чем разница между Authentication и Authorization в Spring Security?](#q-25)
+- [26. Что такое Spring WebFlux и чем он отличается от Spring MVC?](#q-26)
+- [27. В чем разница между реактивными типами Mono и Flux в Project Reactor?](#q-27)
 
 ---
 
@@ -306,7 +313,47 @@ public class PrototypeBean { ... }
 
 ---
 
-### <a id="q-14"></a>14. В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring? `[SPRING-014]`
+### <a id="q-14"></a>14. Как реализовать кастомный аспект AOP для замера времени выполнения методов (@Around + @TrackTime)? `[SPRING-014]`
+
+Для создания кастомного аспекта профилирования выполняются следующие шаги:
+
+1. **Создание аннотации-маркера:**
+   ```java
+   @Target(ElementType.METHOD)
+   @Retention(RetentionPolicy.RUNTIME)
+   public @interface TrackTime { }
+   ```
+2. **Создание аспекта с `@Around` advice:**
+   ```java
+   @Aspect
+   @Component
+   public class PerformanceAspect {
+       private static final Logger log = LoggerFactory.getLogger(PerformanceAspect.class);
+
+       @Around("@annotation(TrackTime)")
+       public Object trackExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
+           long start = System.currentTimeMillis();
+           
+           Object result = joinPoint.proceed(); // Вызов целевого метода
+           
+           long duration = System.currentTimeMillis() - start;
+           log.info("Метод {} выполнен за {} мс", joinPoint.getSignature().getName(), duration);
+           return result;
+       }
+   }
+   ```
+3. **Использование на методе сервиса:**
+   ```java
+   @Service
+   public class ReportService {
+       @TrackTime
+       public Report generateAnnualReport() { ... }
+   }
+   ```
+
+---
+
+### <a id="q-15"></a>15. В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring? `[SPRING-015]`
 
 Spring AOP использует динамические прокси для оборачивания бинов:
 
@@ -319,7 +366,7 @@ Spring AOP использует динамические прокси для о�
 
 ---
 
-### <a id="q-15"></a>15. Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект? `[SPRING-015]`
+### <a id="q-16"></a>16. Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект? `[SPRING-016]`
 
 Потому что Spring AOP построен на **динамических Proxy-объектах**.
 
@@ -345,7 +392,7 @@ Spring AOP использует динамические прокси для о�
 
 ---
 
-### <a id="q-16"></a>16. Как работает аннотация @Transactional и какие параметры она имеет? `[SPRING-016]`
+### <a id="q-17"></a>17. Как работает аннотация @Transactional и какие параметры она имеет? `[SPRING-017]`
 
 `@Transactional` декларативно оборачивает выполнение метода в транзакцию базы данных с помощью Spring AOP и `PlatformTransactionManager`.
 
@@ -365,7 +412,7 @@ Spring AOP использует динамические прокси для о�
 
 ---
 
-### <a id="q-17"></a>17. Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet? `[SPRING-017]`
+### <a id="q-18"></a>18. Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet? `[SPRING-018]`
 
 Spring MVC реализует паттерн *Front Controller* через центральный сервлет **`DispatcherServlet`**.
 
@@ -379,7 +426,126 @@ Spring MVC реализует паттерн *Front Controller* через це�
 
 ---
 
-### <a id="q-18"></a>18. В чем разница между @ControllerAdvice и @ExceptionHandler? `[SPRING-018]`
+### <a id="q-19"></a>19. В чем разница между @PathVariable, @RequestParam и @RequestBody в Spring MVC? `[SPRING-019]`
+
+Эти три аннотации служат для извлечения различных частей входящего HTTP-запроса:
+
+1. **`@PathVariable` (Переменная пути):** извлекает значение напрямую из шаблона URL.
+   ```java
+   // GET /api/users/42
+   @GetMapping("/users/{id}")
+   public UserDto getUserById(@PathVariable("id") Long id) { ... }
+   ```
+2. **`@RequestParam` (Query-параметры):** извлекает параметры строки запроса (`?key=value`) или данные формы.
+   ```java
+   // GET /api/users?page=1&size=20
+   @GetMapping("/users")
+   public List<UserDto> getUsers(@RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "10") int size) { ... }
+   ```
+3. **`@RequestBody` (Тело запроса):** считывает тело HTTP-запроса (JSON, XML) и десериализует его в Java-объект через `HttpMessageConverter` (Jackson).
+   ```java
+   // POST /api/users (Body: {"name": "Alice", "email": "alice@example.com"})
+   @PostMapping("/users")
+   public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest request) { ... }
+   ```
+
+---
+
+### <a id="q-20"></a>20. Зачем использовать ResponseEntity и в чем его преимущества перед возвратом обычного DTO? `[SPRING-020]`
+
+`ResponseEntity<T>` представляет собой полную обертку HTTP-ответа, позволяющую гибко контролировать:
+* **HTTP Статус-код** (например, `201 CREATED`, `204 NO_CONTENT`, `404 NOT_FOUND` вместо дефолтного `200 OK`).
+* **HTTP Заголовки (Headers)** (например, `Location: /api/users/42`, `Cache-Control`, `Set-Cookie`).
+* **Тело ответа (Body)**.
+
+```java
+@PostMapping("/users")
+public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest dto) {
+    UserDto created = userService.create(dto);
+    URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+            .path("/{id}")
+            .buildAndExpand(created.getId())
+            .toUri();
+    
+    return ResponseEntity
+            .created(location) // 201 Created с заголовком Location
+            .body(created);
+}
+```
+
+---
+
+### <a id="q-21"></a>21. Как устроена валидация входных DTO в Spring (@Valid, @NotBlank, JSR-380) и обработка ошибок валидации? `[SPRING-021]`
+
+Валидация основана на спецификации **Jakarta Bean Validation (JSR-380 / Hibernate Validator)**:
+
+1. **Аннотации на полях DTO:**
+   ```java
+   public class CreateUserRequest {
+       @NotBlank(message = "Имя обязательно для заполнения")
+       @Size(min = 2, max = 50, message = "Имя должно содержать от 2 до 50 символов")
+       private String name;
+
+       @NotBlank(message = "Email обязателен")
+       @Email(message = "Некорректный формат email")
+       private String email;
+
+       @Min(value = 18, message = "Возраст должен быть не менее 18 лет")
+       private int age;
+   }
+   ```
+2. **Активация валидации в контроллере через `@Valid`:**
+   ```java
+   @PostMapping("/users")
+   public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest req) { ... }
+   ```
+3. **Глобальный перехват ошибок валидации в `@RestControllerAdvice`:**
+   При провале валидации Spring выбрасывает `MethodArgumentNotValidException`:
+   ```java
+   @ExceptionHandler(MethodArgumentNotValidException.class)
+   public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+       Map<String, String> errors = new HashMap<>();
+       ex.getBindingResult().getFieldErrors().forEach(error -> 
+           errors.put(error.getField(), error.getDefaultMessage())
+       );
+       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+   }
+   ```
+
+---
+
+### <a id="q-22"></a>22. Что такое CORS и как настроить Cross-Origin запросы в Spring? `[SPRING-022]`
+
+**CORS (Cross-Origin Resource Sharing)** — механизм безопасности браузера, блокирующий HTTP-запросы скриптов между разными доменами, протоколами или портами (Same-Origin Policy).
+
+### Настройка CORS в Spring:
+1. **На уровне отдельного контроллера или метода (`@CrossOrigin`):**
+   ```java
+   @CrossOrigin(origins = "https://frontend.example.com", maxAge = 3600)
+   @RestController
+   @RequestMapping("/api/orders")
+   public class OrderController { ... }
+   ```
+2. **Глобальная конфигурация для всего приложения (Рекомендуется):**
+   ```java
+   @Configuration
+   public class WebCorsConfig implements WebMvcConfigurer {
+       @Override
+       public void addCorsMappings(CorsRegistry registry) {
+           registry.addMapping("/api/**")
+                   .allowedOrigins("https://frontend.example.com")
+                   .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+                   .allowedHeaders("*")
+                   .allowCredentials(true)
+                   .maxAge(3600);
+       }
+   }
+   ```
+
+---
+
+### <a id="q-23"></a>23. В чем разница между @ControllerAdvice и @ExceptionHandler? `[SPRING-023]`
 
 * **`@ExceptionHandler`:** объявляется внутри метода контроллера для обработки конкретного типа исключения. По умолчанию перехватывает ошибки **только внутри того контроллера, где объявлен**.
 * **`@ControllerAdvice` / `@RestControllerAdvice`:** глобальный перехватчик исключений для всего приложения. Позволяет централизованно обрабатывать ошибки всех контроллеров и возвращать унифицированные ответы (например, RFC 7807 Problem Details / `ResponseEntity<ErrorDto>`):
@@ -398,7 +564,33 @@ public class GlobalExceptionHandler {
 
 ---
 
-### <a id="q-19"></a>19. Что такое Spring WebFlux и чем он отличается от Spring MVC? `[SPRING-019]`
+### <a id="q-24"></a>24. В чем разница между HTTP-методами PUT и PATCH в REST API? `[SPRING-024]`
+
+| Критерий | `PUT` | `PATCH` |
+| :--- | :--- | :--- |
+| **Семантика** | **Полная замена** ресурса (Full Replacement) | **Частичное обновление** ресурса (Partial Update) |
+| **Непереданные поля** | Сбрасываются в `null` или значения по умолчанию | Остаются без изменений |
+| **Идемпотентность** | **Идемпотентен** (повторные одинаковые вызовы дают тот же результат) | Как правило, **не идемпотентен** (в зависимости от логики операции) |
+| **Тело запроса** | Полный объект сущности | Только изменяемые поля (например, `{ "status": "ACTIVE" }`) |
+
+---
+
+### <a id="q-25"></a>25. В чем разница между Authentication и Authorization в Spring Security? `[SPRING-025]`
+
+* **Authentication (Аутентификация — Кто вы?):** процесс проверки подлинности пользователя (логин/пароль, JWT токен, сертификат, OAuth2).
+  - В Spring Security управляется через `AuthenticationManager`, `AuthenticationProvider`, `UserDetailsService`.
+* **Authorization (Авторизация — Что вам разрешено делать?):** проверка прав/ролей пользователя для доступа к конкретному ресурсу или методу.
+  - В Spring Security настраивается на уровне URL-фильтров (`authorizeHttpRequests`) или методов (`@PreAuthorize("hasRole('ADMIN')")`, `@Secured`).
+
+```java
+@PreAuthorize("hasAuthority('ORDER_DELETE') or hasRole('ADMIN')")
+@DeleteMapping("/orders/{id}")
+public ResponseEntity<Void> deleteOrder(@PathVariable Long id) { ... }
+```
+
+---
+
+### <a id="q-26"></a>26. Что такое Spring WebFlux и чем он отличается от Spring MVC? `[SPRING-026]`
 
 **Spring WebFlux** — это реактивный неблокирующий веб-фреймворк, появившийся в Spring 5, построенный на базе Project Reactor и спецификации Reactive Streams.
 
@@ -413,7 +605,7 @@ public class GlobalExceptionHandler {
 
 ---
 
-### <a id="q-20"></a>20. В чем разница между реактивными типами Mono и Flux в Project Reactor? `[SPRING-020]`
+### <a id="q-27"></a>27. В чем разница между реактивными типами Mono и Flux в Project Reactor? `[SPRING-027]`
 
 * **`Mono<T>`:** реактивный поток, эмитирующий **от 0 до 1 элемента** (или ошибку `onError`). Аналог `Optional<T>` или `CompletableFuture<T>` в реактивном мире.
 * **`Flux<T>`:** реактивный поток, эмитирующий **от 0 до N элементов** (бесконечный поток событий или конечная последовательность), завершающийся сигналом `onComplete` или `onError`.

@@ -151,7 +151,7 @@
     "icon": "leaf",
     "color": "#5A9E96",
     "description": "IoC/DI контейнер, бины, скоупы, AOP, @Transactional, Spring MVC, WebFlux",
-    "count": 20,
+    "count": 27,
     "json_file": "spring_questions.json",
     "md_file": "spring_interview_questions.md"
   },
@@ -163,7 +163,7 @@
     "icon": "zap",
     "color": "#6DB33F",
     "description": "Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3, GraalVM AOT",
-    "count": 13,
+    "count": 25,
     "json_file": "spring-boot_questions.json",
     "md_file": "spring-boot_interview_questions.md"
   },

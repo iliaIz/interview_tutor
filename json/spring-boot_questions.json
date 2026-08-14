@@ -1,7 +1,7 @@
 [
   {
     "id": "BOOT-001",
-    "global_id": 485,
+    "global_id": 492,
     "num": 1,
     "topic": "Spring Boot",
     "question": "Что такое Spring Boot и в чем его основные преимущества перед классическим Spring Framework?",
@@ -12,7 +12,7 @@
   },
   {
     "id": "BOOT-002",
-    "global_id": 486,
+    "global_id": 493,
     "num": 2,
     "topic": "Spring Boot",
     "question": "Что делает аннотация @SpringBootApplication и из каких аннотаций она состоит?",
@@ -23,18 +23,18 @@
   },
   {
     "id": "BOOT-003",
-    "global_id": 487,
+    "global_id": 494,
     "num": 3,
     "topic": "Spring Boot",
     "question": "Как устроен механизм Auto-Configuration в Spring Boot?",
-    "answer": "Механизм автоконфигурации работает следующим образом:\n\n1. При запуске аннотация `@EnableAutoConfiguration` ищет классы автоконфигураций:\n   - В Spring Boot 2.x: через файл `META-INF/spring.factories`.\n   - В Spring Boot 3.x: через `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.\n2. Каждая автоконфигурация проверяет условия с помощью аннотаций семейства **`@Conditional`**:\n   - `@ConditionalOnClass`: класс присутствует в classpath (например, `DataSource.class`).\n   - `@ConditionalOnMissingBean`: бин еще не объявлен разработчиком (позволяет легко переопределить стандартное поведение).\n   - `@ConditionalOnProperty`: в свойствах включен соответствующий флаг.\n   - `@ConditionalOnWebApplication`: приложение является веб-приложением.\n3. Если все условия истинны, конфигурация регистрирует стандартный набор бинов.",
+    "answer": "Механизм автоконфигурации работает следующим образом:\n\n1. При запуске аннотация `@EnableAutoConfiguration` ищет классы автоконфигураций:\n   - В Spring Boot 2.x: через файл `META-INF/spring.factories`.\n   - В Spring Boot 3.x: через `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.\n2. Каждая автоконфигурация проверяет условия с помощью аннотаций семейства **`@Conditional`**:\n   - `@ConditionalOnClass`: класс присутствует в classpath (например, `DataSource.class`).\n   - `@ConditionalOnMissingBean`: бин еще не объявлен разработчиком (позволяет легко переопределить стандартное поведение).\n   - `@ConditionalOnProperty`: в свойствах включен соответствующий флаг.\n   - `@ConditionalOnWebApplication`: приложение является веб-приложением.\n3. Если все условия истинны, конфигурация регистрирует стандартный набор бинов.\n\n*Для отладки автоконфигураций запустите приложение с флагом `--debug` — Spring Boot выведет полный Conditions Evaluation Report.*",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
   },
   {
     "id": "BOOT-004",
-    "global_id": 488,
+    "global_id": 495,
     "num": 4,
     "topic": "Spring Boot",
     "question": "Как отключить конкретную автоконфигурацию в Spring Boot?",
@@ -45,7 +45,7 @@
   },
   {
     "id": "BOOT-005",
-    "global_id": 489,
+    "global_id": 496,
     "num": 5,
     "topic": "Spring Boot",
     "question": "Что такое Spring Boot Starters и какие популярные стартеры вы знаете?",
@@ -56,7 +56,7 @@
   },
   {
     "id": "BOOT-006",
-    "global_id": 490,
+    "global_id": 497,
     "num": 6,
     "topic": "Spring Boot",
     "question": "В чем разница между application.properties и application.yml?",
@@ -67,7 +67,7 @@
   },
   {
     "id": "BOOT-007",
-    "global_id": 491,
+    "global_id": 498,
     "num": 7,
     "topic": "Spring Boot",
     "question": "В каком порядке Spring Boot загружает конфигурационные свойства (Property Precedence)?",
@@ -78,7 +78,7 @@
   },
   {
     "id": "BOOT-008",
-    "global_id": 492,
+    "global_id": 499,
     "num": 8,
     "topic": "Spring Boot",
     "question": "Что такое Spring Profiles и как их активировать?",
@@ -89,7 +89,7 @@
   },
   {
     "id": "BOOT-009",
-    "global_id": 493,
+    "global_id": 500,
     "num": 9,
     "topic": "Spring Boot",
     "question": "Что такое Spring Boot Actuator и для чего он используется?",
@@ -100,7 +100,7 @@
   },
   {
     "id": "BOOT-010",
-    "global_id": 494,
+    "global_id": 501,
     "num": 10,
     "topic": "Spring Boot",
     "question": "В чем разница между @ConfigurationProperties и @Value?",
@@ -111,19 +111,140 @@
   },
   {
     "id": "BOOT-011",
-    "global_id": 495,
+    "global_id": 502,
     "num": 11,
     "topic": "Spring Boot",
-    "question": "Какие встроенные сервлет-контейнеры поддерживает Spring Boot и как заменить Tomcat на Jetty или Undertow?",
-    "answer": "По умолчанию `spring-boot-starter-web` использует **Apache Tomcat**. Также поддерживаются **Jetty** и **Undertow**.\n\n### Как заменить Tomcat на Undertow в Maven:\n```xml\n<dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-web</artifactId>\n    <exclusions>\n        <exclusion>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-tomcat</artifactId>\n        </exclusion>\n    </exclusions>\n</dependency>\n\n<dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-undertow</artifactId>\n</dependency>\n```",
+    "question": "В чем разница между JpaRepository, CrudRepository и PagingAndSortingRepository?",
+    "answer": "Иерархия репозиториев Spring Data:\n\n```\nCrudRepository\n    └── PagingAndSortingRepository\n            └── JpaRepository\n```\n\n* **`CrudRepository`:** предоставляет базовые методы CRUD (`save()`, `findById()`, `existsById()`, `deleteById()`, `count()`).\n* **`PagingAndSortingRepository`:** добавляет методы пагинации и сортировки (`findAll(Pageable pageable)`, `findAll(Sort sort)`).\n* **`JpaRepository`:** добавляет JPA-специфичные операции: сброс сессии (`flush()`, `saveAndFlush()`), пакетное удаление (`deleteInBatch()`), работу с `Example` запросами. В 95% проектов рекомендуется использовать `JpaRepository`.",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
   },
   {
     "id": "BOOT-012",
-    "global_id": 496,
+    "global_id": 503,
     "num": 12,
+    "topic": "Spring Boot",
+    "question": "Что такое проблема N+1 в Spring Data JPA / Hibernate и какими 3 способами её решают?",
+    "answer": "**Проблема N+1** возникает, когда при выборке списка из $N$ родительских сущностей для каждой сущности выполняется отдельный дополнительный SQL-запрос для загрузки её связанной Lazy-коллекции (итого $1 + N$ запросов вместо 1).\n\n### 3 способа решения:\n1. **JPQL `JOIN FETCH` (Рекомендуется для кастомных репозиториев):**\n   ```java\n   @Query(\"SELECT o FROM Order o JOIN FETCH o.customer WHERE o.status = :status\")\n   List<Order> findAllWithCustomer(@Param(\"status\") OrderStatus status);\n   ```\n2. **`@EntityGraph` (Декларативное указание графа загрузки):**\n   ```java\n   @EntityGraph(attributePaths = {\"customer\", \"orderItems\"})\n   List<Order> findByStatus(OrderStatus status);\n   ```\n3. **Пакетная загрузка `@BatchSize`:**\n   ```java\n   @BatchSize(size = 30)\n   @OneToMany(mappedBy = \"order\")\n   private List<OrderItem> items;\n   ```\n   Hibernate объединяет ID сущностей в условие `WHERE order_id IN (?, ?, ...)`.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-013",
+    "global_id": 504,
+    "num": 13,
+    "topic": "Spring Boot",
+    "question": "В чем разница между методами save() и saveAndFlush() в Spring Data JPA?",
+    "answer": "* **`save()`:** сохраняет сущность в контекст постоянства Hibernate (First-Level Cache / Persistence Context). Реальный SQL `INSERT`/`UPDATE` может быть отложен до момента коммита транзакции.\n* **`saveAndFlush()`:** выполняет сохранение и **немедленно принудительно синхронизирует состояние с базой данных** (вызывает `EntityManager.flush()`).\n\n*Когда применять `saveAndFlush()`:* когда в рамках той же транзакции последующий нативный SQL-запрос или триггер БД зависит от уже вставленной записи.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-014",
+    "global_id": 505,
+    "num": 14,
+    "topic": "Spring Boot",
+    "question": "Как организовать версионирование и миграции базы данных в Spring Boot (Flyway / Liquibase)?",
+    "answer": "В production-средах категорически запрещено использовать `ddl-auto: create` или `update`. Используются инструменты миграций:\n\n### Использование Flyway:\n1. Добавить `org.flywaydb:flyway-core` и `flyway-database-postgresql` в зависимости.\n2. Поместить версионированные SQL-скрипты в `src/main/resources/db/migration/`:\n   - `V1__create_users_table.sql`\n   - `V2__add_email_index.sql`\n3. При старте Spring Boot проверяет таблицу `flyway_schema_history` и накатывает только новые миграции.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-015",
+    "global_id": 506,
+    "num": 15,
+    "topic": "Spring Boot",
+    "question": "Как работает декларативное кэширование в Spring Boot (@Cacheable, @CachePut, @CacheEvict)?",
+    "answer": "Кэширование включается аннотацией `@EnableCaching` на конфигурационном классе:\n\n* **`@Cacheable(\"products\")`:** сохраняет результат метода в кэш. При повторном вызове с теми же аргументами метод не выполняется, данные берутся из кэша.\n* **`@CachePut(value = \"products\", key = \"#product.id\")`:** всегда выполняет метод и обновляет запись в кэше.\n* **`@CacheEvict(value = \"products\", key = \"#id\")`:** удаляет запись из кэша (например, при удалении товара).\n\n```java\n@Service\npublic class ProductService {\n    @Cacheable(value = \"products\", key = \"#id\")\n    public ProductDto getById(Long id) {\n        return productRepository.findById(id).map(mapper::toDto).orElseThrow();\n    }\n\n    @CacheEvict(value = \"products\", key = \"#id\")\n    public void delete(Long id) {\n        productRepository.deleteById(id);\n    }\n}\n```\n*В production-среде в качестве Cache Provider подключают **Redis** (`spring-boot-starter-data-redis`).*",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-016",
+    "global_id": 507,
+    "num": 16,
+    "topic": "Spring Boot",
+    "question": "Как настроить несколько источников данных (Multiple DataSources) в Spring Boot?",
+    "answer": "Для подключения к двум разным БД создаются отдельные конфигурации:\n\n```java\n@Configuration\npublic class MultiDataSourceConfig {\n\n    @Primary\n    @Bean\n    @ConfigurationProperties(\"spring.datasource.primary\")\n    public DataSource primaryDataSource() {\n        return DataSourceBuilder.create().build();\n    }\n\n    @Bean\n    @ConfigurationProperties(\"spring.datasource.secondary\")\n    public DataSource secondaryDataSource() {\n        return DataSourceBuilder.create().build();\n    }\n}\n```\nЗатем для каждого источника настраиваются отдельные `LocalContainerEntityManagerFactoryBean` и `PlatformTransactionManager`, привязанные к разным пакетам репозиториев (`@EnableJpaRepositories(basePackages = \"...\", entityManagerFactoryRef = \"...\")`).",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-017",
+    "global_id": 508,
+    "num": 17,
+    "topic": "Spring Boot",
+    "question": "Что такое Spring Cloud и какие основные компоненты он включает?",
+    "answer": "**Spring Cloud** — это экосистема библиотек для упрощения разработки распределенных систем и микросервисов:\n\n* **Spring Cloud Config:** централизованное хранилище конфигураций сервисов (в Git).\n* **Service Discovery (Eureka / Consul):** динамическая регистрация и обнаружение сервисов без хардкода IP/портов.\n* **Spring Cloud Gateway:** API Gateway для маршрутизации, rate limiting и безопасности.\n* **OpenFeign:** декларативный HTTP-клиент для межсервисного взаимодействия.\n* **Resilience4j:** паттерны отказоустойчивости (Circuit Breaker, Retry, RateLimiter, Bulkhead).\n* **Micrometer Tracing:** сквозная распределенная трассировка запросов.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-018",
+    "global_id": 509,
+    "num": 18,
+    "topic": "Spring Boot",
+    "question": "Как работает паттерн Circuit Breaker (Предохранитель) в Spring Boot / Resilience4j?",
+    "answer": "**Circuit Breaker** предотвращает каскадные сбои в микросервисной архитектуре, изолируя временно недоступный сервис.\n\n### 3 состояния Circuit Breaker:\n1. **Closed (Закрыт):** нормальная работа, запросы проходят без задержек. Если процент ошибок превышает порог, переходит в `Open`.\n2. **Open (Открыт):** запросы блокируются немедленно без вызова упавшего сервиса (fail-fast) и сразу вызывается `fallbackMethod`.\n3. **Half-Open (Полуоткрыт):** по истечении таймаута пропускает пробное количество запросов. Если они успешны — возвращается в `Closed`, иначе — снова в `Open`.\n\n```java\n@CircuitBreaker(name = \"paymentService\", fallbackMethod = \"paymentFallback\")\npublic PaymentResponse processPayment(PaymentRequest request) {\n    return paymentClient.executePayment(request);\n}\n\npublic PaymentResponse paymentFallback(PaymentRequest request, Throwable ex) {\n    return new PaymentResponse(\"PENDING\", \"Сервис платежей временно недоступен. Заказ в очереди.\");\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-019",
+    "global_id": 510,
+    "num": 19,
+    "topic": "Spring Boot",
+    "question": "Что такое OpenFeign (@FeignClient) и в чем его преимущества?",
+    "answer": "**OpenFeign** — это декларативный HTTP-клиент, позволяющий описывать межсервисные вызовы через обычные Java-интерфейсы с аннотациями Spring MVC:\n\n```java\n@FeignClient(name = \"inventory-service\", path = \"/api/v1/inventory\")\npublic interface InventoryClient {\n\n    @GetMapping(\"/{sku}\")\n    StockDto checkStock(@PathVariable(\"sku\") String sku);\n\n    @PostMapping(\"/reserve\")\n    ReservationDto reserveItems(@RequestBody ReserveRequest request);\n}\n```\n*Преимущества:* не нужно писать шаблонный код с `RestTemplate`/`WebClient`, автоматическая интеграция с Service Discovery (Eureka), балансировкой нагрузки (Spring Cloud LoadBalancer) и Circuit Breakers (Resilience4j).",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-020",
+    "global_id": 511,
+    "num": 20,
+    "topic": "Spring Boot",
+    "question": "Что такое распределенная трассировка (Distributed Tracing) в Spring Boot 3?",
+    "answer": "В микросервисах один клиентский запрос может проходить через цепочку из 5-10 сервисов. **Distributed Tracing** связывает все логи и вызовы единым идентификатором.\n\n* **`traceId`:** уникальный идентификатор всего сквозного запроса от клиента до финального ответа.\n* **`spanId`:** идентификатор операции внутри конкретного сервиса.\n* **Реализация в Spring Boot 3:** модуль **Micrometer Tracing** (пришедший на смену Spring Cloud Sleuth), экспортирующий трейсы в Zipkin, Jaeger или OpenTelemetry.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-021",
+    "global_id": 512,
+    "num": 21,
+    "topic": "Spring Boot",
+    "question": "Что такое паттерн Saga и в чем разница между Orchestration и Choreography?",
+    "answer": "**Saga** — архитектурный паттерн управления распределенными транзакциями в микросервисах. Транзакция разбивается на цепочку локальных транзакций. Если один из шагов падает, запускаются **компенсирующие транзакции (Compensating Transactions)** для отката изменений.\n\n### Два подхода к реализации Saga:\n1. **Choreography (Хореография):** каждый сервис слушает события (Kafka/RabbitMQ) и самостоятельно решает, когда выполнять свое действие. *Плюсы:* слабая связанность. *Минусы:* сложно отслеживать сложный поток.\n2. **Orchestration (Оркестрация):** выделенный сервис-оркестратор (например, на Camunda/Temporal или Spring Boot) централизованно отправляет команды сервисам и обрабатывает ошибки.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-022",
+    "global_id": 513,
+    "num": 22,
+    "topic": "Spring Boot",
+    "question": "Как работает асинхронная обработка в Spring Boot (@Async, @EnableAsync)?",
+    "answer": "Для выполнения тяжелых задач в фоновом потоке:\n\n1. Включить поддержку аннотацией `@EnableAsync`.\n2. Настроить кастомный `ThreadPoolTaskExecutor`:\n   ```java\n   @Configuration\n   @EnableAsync\n   public class AsyncConfig {\n       @Bean(name = \"taskExecutor\")\n       public Executor taskExecutor() {\n           ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();\n           executor.setCorePoolSize(10);\n           executor.setMaxPoolSize(50);\n           executor.setQueueCapacity(100);\n           executor.setThreadNamePrefix(\"async-worker-\");\n           executor.initialize();\n           return executor;\n       }\n   }\n   ```\n3. Пометить метод аннотацией `@Async`:\n   ```java\n   @Service\n   public class EmailNotificationService {\n       @Async(\"taskExecutor\")\n       public CompletableFuture<Void> sendEmailAsync(String to, String message) {\n           emailClient.send(to, message);\n           return CompletableFuture.completedFuture(null);\n       }\n   }\n   ```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-023",
+    "global_id": 514,
+    "num": 23,
     "topic": "Spring Boot",
     "question": "Как работают аннотации тестирования в Spring Boot (@SpringBootTest, @WebMvcTest, @DataJpaTest, @MockBean)?",
     "answer": "Spring Boot предоставляет специализированные аннотации для интеграционного и срезового (slice) тестирования:\n\n* **`@SpringBootTest`:** поднимает **полный контекст** приложения (ApplicationContext). Используется для полноценных end-to-end интеграционных тестов.\n* **`@WebMvcTest`:** тестирует только веб-слой (контроллеры, фильтры, `Security`). Контроллер тестируется изолированно с помощью `MockMvc`, сервисы заменяются на моки.\n* **`@DataJpaTest`:** тестирует слой доступа к данным (репозитории Spring Data JPA). Автоматически настраивает in-memory БД (H2) и включает откат транзакций после каждого теста.\n* **`@MockBean` (в Spring Boot 3.4+ заменяется на `@MockitoBean`):** создает Mockito-мок и помещает его в Spring ApplicationContext вместо реального бина.",
@@ -132,9 +253,20 @@
     ]
   },
   {
-    "id": "BOOT-013",
-    "global_id": 497,
-    "num": 13,
+    "id": "BOOT-024",
+    "global_id": 515,
+    "num": 24,
+    "topic": "Spring Boot",
+    "question": "Как контейнеризировать Spring Boot приложение: Dockerfile vs Cloud Native Buildpacks?",
+    "answer": "### 1. Многоэтапный Dockerfile (Multi-stage Build с Eclipse Temurin 21):\n```dockerfile\nFROM eclipse-temurin:21-jre-alpine AS builder\nWORKDIR /app\nCOPY target/app.jar app.jar\nEXPOSE 8080\nENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]\n```\n\n### 2. Spring Boot Cloud Native Buildpacks (Рекомендуется в Spring Boot 3+):\nСборка OCI-совместимого Docker-образа без написания Dockerfile:\n```bash\n# Maven\nmvn spring-boot:build-image\n\n# Gradle\n./gradlew bootBuildImage\n```\n*Преимущества Buildpacks:* автоматическое разделение на слои (Dependencies, Spring Boot Loader, Application Classes), обновление базовой JRE без пересборки кода, оптимизированное кэширование слоев в Docker Registry.",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "BOOT-025",
+    "global_id": 516,
+    "num": 25,
     "topic": "Spring Boot",
     "question": "Что нового появилось в Spring Boot 3.x и Spring Framework 6.x?",
     "answer": "Ключевые новшества Spring Boot 3 и Spring 6 (актуальные стандарты на 2026 год):\n\n1. **Минимальная версия Java:** базовой версией стала **Java 17** (с полной поддержкой Java 21 Virtual Threads / Project Loom).\n2. **Миграция на Jakarta EE 10:** пакет `javax.*` заменен на `jakarta.*` (сервлеты `jakarta.servlet`, валидация `jakarta.validation`, JPA `jakarta.persistence`).\n3. **GraalVM Native Image & AOT:** встроенная поддержка Ahead-of-Time компиляции в нативные бинарники с мгновенным стартом (< 50мс) и низким потреблением памяти.\n4. **Виртуальные потоки (Virtual Threads):** включение одной строчкой `spring.threads.virtual.enabled=true`.\n5. **Унифицированная обработка ошибок (RFC 7807):** стандартная поддержка спецификации `ProblemDetail`.\n6. **HTTP Interfaces (Declarative Clients):** декларативные HTTP-клиенты через аннотации `@HttpExchange` без необходимости Feign.",

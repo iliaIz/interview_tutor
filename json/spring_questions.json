@@ -147,8 +147,8 @@
     "global_id": 478,
     "num": 14,
     "topic": "Spring Framework",
-    "question": "В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring?",
-    "answer": "Spring AOP использует динамические прокси для оборачивания бинов:\n\n| Характеристика | JDK Dynamic Proxy | CGLIB Proxy |\n| :--- | :--- | :--- |\n| **Механизм** | Встроен в Java Reflection API (`java.lang.reflect.Proxy`) | Сторонняя библиотека генерации байткода (упакована в Spring) |\n| **Требование** | Класс **обязан реализовывать интерфейс** | Создает класс-наследник (subclass) целевого класса |\n| **Ограничения** | Проксирует только методы интерфейса | Не может проксировать `final` классы и `final` методы |\n| **Использование в Spring** | Использовался по умолчанию в Spring Framework до 5.x при наличии интерфейса | **Используется по умолчанию в Spring Boot 2+ и Spring 6** (`spring.aop.proxy-target-class=true`) |",
+    "question": "Как реализовать кастомный аспект AOP для замера времени выполнения методов (@Around + @TrackTime)?",
+    "answer": "Для создания кастомного аспекта профилирования выполняются следующие шаги:\n\n1. **Создание аннотации-маркера:**\n   ```java\n   @Target(ElementType.METHOD)\n   @Retention(RetentionPolicy.RUNTIME)\n   public @interface TrackTime { }\n   ```\n2. **Создание аспекта с `@Around` advice:**\n   ```java\n   @Aspect\n   @Component\n   public class PerformanceAspect {\n       private static final Logger log = LoggerFactory.getLogger(PerformanceAspect.class);\n\n       @Around(\"@annotation(TrackTime)\")\n       public Object trackExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {\n           long start = System.currentTimeMillis();\n           \n           Object result = joinPoint.proceed(); // Вызов целевого метода\n           \n           long duration = System.currentTimeMillis() - start;\n           log.info(\"Метод {} выполнен за {} мс\", joinPoint.getSignature().getName(), duration);\n           return result;\n       }\n   }\n   ```\n3. **Использование на методе сервиса:**\n   ```java\n   @Service\n   public class ReportService {\n       @TrackTime\n       public Report generateAnnualReport() { ... }\n   }\n   ```",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -158,8 +158,8 @@
     "global_id": 479,
     "num": 15,
     "topic": "Spring Framework",
-    "question": "Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект?",
-    "answer": "Потому что Spring AOP построен на **динамических Proxy-объектах**.\n\n1. Когда внешний класс вызывает метод проксируемого бина, вызов идет через `Proxy` -> срабатывает `Advice` (например, открывается транзакция) -> `Proxy` делегирует вызов целевому объекту `Target`.\n2. Когда один метод внутри целевого объекта напрямую вызывает другой метод того же объекта (`this.otherMethod()`), вызов происходит напрямую в обход Proxy:\n   ```java\n   @Service\n   public class OrderService {\n       public void processOrder() {\n           // Вызов идет напрямую через this, Proxy не участвует!\n           saveToDatabase(); \n       }\n\n       @Transactional\n       public void saveToDatabase() { ... }\n   }\n   ```\n\n### Решения:\n* Вынести метод `@Transactional` в отдельный сервис.\n* Внедрить ссылку на `self` (через `@Autowired private OrderService self;` или `ObjectProvider`).\n* Использовать AspectJ Compile-time/Load-time Weaving вместо Spring Proxy AOP.",
+    "question": "В чем разница между JDK Dynamic Proxy и CGLIB Proxy в Spring?",
+    "answer": "Spring AOP использует динамические прокси для оборачивания бинов:\n\n| Характеристика | JDK Dynamic Proxy | CGLIB Proxy |\n| :--- | :--- | :--- |\n| **Механизм** | Встроен в Java Reflection API (`java.lang.reflect.Proxy`) | Сторонняя библиотека генерации байткода (упакована в Spring) |\n| **Требование** | Класс **обязан реализовывать интерфейс** | Создает класс-наследник (subclass) целевого класса |\n| **Ограничения** | Проксирует только методы интерфейса | Не может проксировать `final` классы и `final` методы |\n| **Использование в Spring** | Использовался по умолчанию в Spring Framework до 5.x при наличии интерфейса | **Используется по умолчанию в Spring Boot 2+ и Spring 6** (`spring.aop.proxy-target-class=true`) |",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -169,8 +169,8 @@
     "global_id": 480,
     "num": 16,
     "topic": "Spring Framework",
-    "question": "Как работает аннотация @Transactional и какие параметры она имеет?",
-    "answer": "`@Transactional` декларативно оборачивает выполнение метода в транзакцию базы данных с помощью Spring AOP и `PlatformTransactionManager`.\n\n### Ключевые параметры `@Transactional`:\n1. **`propagation` (Распространение):** поведение при вызове одного транзакционного метода из другого:\n   * `REQUIRED` (по умолчанию): использует текущую транзакцию, если она есть; если нет — создает новую.\n   * `REQUIRES_NEW`: всегда создает новую независимую физическую транзакцию (текущая приостанавливается).\n   * `NESTED`: создает savepoint внутри текущей транзакции (вложенный откат).\n   * `SUPPORTS`: выполняется в транзакции, если она есть, иначе без нее.\n   * `MANDATORY`: требует существующую транзакцию, иначе выбрасывает `IllegalTransactionStateException`.\n   * `NOT_SUPPORTED`: выполняется без транзакции (текущая приостанавливается).\n   * `NEVER`: требует отсутствие транзакции, иначе выбрасывает исключение.\n2. **`isolation` (Уровень изоляции):** `DEFAULT`, `READ_UNCOMMITTED`, `READ_COMMITTED`, `REPEATABLE_READ`, `SERIALIZABLE`.\n3. **`readOnly = true`:** оптимизация производительности (Hibernate отключает dirty checking, JDBC драйвер направляет запросы на read-only реплики).\n4. **`rollbackFor`:** по умолчанию транзакция откатывается **только при `RuntimeException` и `Error`**. Чтобы откатывать при checked исключениях, указывают `@Transactional(rollbackFor = Exception.class)`.\n5. **`timeout`:** максимальное время выполнения транзакции в секундах.",
+    "question": "Почему вызов метода внутри того же класса (Self-Invocation) не запускает @Transactional или аспект?",
+    "answer": "Потому что Spring AOP построен на **динамических Proxy-объектах**.\n\n1. Когда внешний класс вызывает метод проксируемого бина, вызов идет через `Proxy` -> срабатывает `Advice` (например, открывается транзакция) -> `Proxy` делегирует вызов целевому объекту `Target`.\n2. Когда один метод внутри целевого объекта напрямую вызывает другой метод того же объекта (`this.otherMethod()`), вызов происходит напрямую в обход Proxy:\n   ```java\n   @Service\n   public class OrderService {\n       public void processOrder() {\n           // Вызов идет напрямую через this, Proxy не участвует!\n           saveToDatabase(); \n       }\n\n       @Transactional\n       public void saveToDatabase() { ... }\n   }\n   ```\n\n### Решения:\n* Вынести метод `@Transactional` в отдельный сервис.\n* Внедрить ссылку на `self` (через `@Autowired private OrderService self;` или `ObjectProvider`).\n* Использовать AspectJ Compile-time/Load-time Weaving вместо Spring Proxy AOP.",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -180,8 +180,8 @@
     "global_id": 481,
     "num": 17,
     "topic": "Spring Framework",
-    "question": "Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet?",
-    "answer": "Spring MVC реализует паттерн *Front Controller* через центральный сервлет **`DispatcherServlet`**.\n\n### Путь обработки входящего HTTP-запроса:\n1. Запрос приходит на **`DispatcherServlet`**.\n2. `DispatcherServlet` обращается к **`HandlerMapping`**, чтобы найти подходящий контроллер и метод обработки (по URL, HTTP-методу, заголовкам).\n3. `DispatcherServlet` вызывает **`HandlerAdapter`**, который выполняет подготовку аргументов (валидация, `@RequestBody`, `@PathVariable`) и вызывает метод контроллера.\n4. Метод контроллера выполняет бизнес-логику и возвращает результат (`ModelAndView` или объект данных).\n5. Если это REST API (`@RestController` / `@ResponseBody`), **`HttpMessageConverter`** (например, Jackson) сериализует объект напрямую в JSON/XML и записывает в HTTP Response.\n6. Если это классический MVC с шаблонами (Thymeleaf/JSP), `DispatcherServlet` передает имя представления в **`ViewResolver`**, который рендерит HTML-страницу.",
+    "question": "Как работает аннотация @Transactional и какие параметры она имеет?",
+    "answer": "`@Transactional` декларативно оборачивает выполнение метода в транзакцию базы данных с помощью Spring AOP и `PlatformTransactionManager`.\n\n### Ключевые параметры `@Transactional`:\n1. **`propagation` (Распространение):** поведение при вызове одного транзакционного метода из другого:\n   * `REQUIRED` (по умолчанию): использует текущую транзакцию, если она есть; если нет — создает новую.\n   * `REQUIRES_NEW`: всегда создает новую независимую физическую транзакцию (текущая приостанавливается).\n   * `NESTED`: создает savepoint внутри текущей транзакции (вложенный откат).\n   * `SUPPORTS`: выполняется в транзакции, если она есть, иначе без нее.\n   * `MANDATORY`: требует существующую транзакцию, иначе выбрасывает `IllegalTransactionStateException`.\n   * `NOT_SUPPORTED`: выполняется без транзакции (текущая приостанавливается).\n   * `NEVER`: требует отсутствие транзакции, иначе выбрасывает исключение.\n2. **`isolation` (Уровень изоляции):** `DEFAULT`, `READ_UNCOMMITTED`, `READ_COMMITTED`, `REPEATABLE_READ`, `SERIALIZABLE`.\n3. **`readOnly = true`:** оптимизация производительности (Hibernate отключает dirty checking, JDBC драйвер направляет запросы на read-only реплики).\n4. **`rollbackFor`:** по умолчанию транзакция откатывается **только при `RuntimeException` и `Error`**. Чтобы откатывать при checked исключениях, указывают `@Transactional(rollbackFor = Exception.class)`.\n5. **`timeout`:** максимальное время выполнения транзакции в секундах.",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -191,8 +191,8 @@
     "global_id": 482,
     "num": 18,
     "topic": "Spring Framework",
-    "question": "В чем разница между @ControllerAdvice и @ExceptionHandler?",
-    "answer": "* **`@ExceptionHandler`:** объявляется внутри метода контроллера для обработки конкретного типа исключения. По умолчанию перехватывает ошибки **только внутри того контроллера, где объявлен**.\n* **`@ControllerAdvice` / `@RestControllerAdvice`:** глобальный перехватчик исключений для всего приложения. Позволяет централизованно обрабатывать ошибки всех контроллеров и возвращать унифицированные ответы (например, RFC 7807 Problem Details / `ResponseEntity<ErrorDto>`):\n\n```java\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n\n    @ExceptionHandler(EntityNotFoundException.class)\n    public ResponseEntity<ErrorResponse> handleNotFound(EntityNotFoundException ex) {\n        return ResponseEntity.status(HttpStatus.NOT_FOUND)\n                .body(new ErrorResponse(\"NOT_FOUND\", ex.getMessage()));\n    }\n}\n```",
+    "question": "Как устроен Spring Web MVC и каков путь обработки HTTP-запроса через DispatcherServlet?",
+    "answer": "Spring MVC реализует паттерн *Front Controller* через центральный сервлет **`DispatcherServlet`**.\n\n### Путь обработки входящего HTTP-запроса:\n1. Запрос приходит на **`DispatcherServlet`**.\n2. `DispatcherServlet` обращается к **`HandlerMapping`**, чтобы найти подходящий контроллер и метод обработки (по URL, HTTP-методу, заголовкам).\n3. `DispatcherServlet` вызывает **`HandlerAdapter`**, который выполняет подготовку аргументов (валидация, `@RequestBody`, `@PathVariable`) и вызывает метод контроллера.\n4. Метод контроллера выполняет бизнес-логику и возвращает результат (`ModelAndView` или объект данных).\n5. Если это REST API (`@RestController` / `@ResponseBody`), **`HttpMessageConverter`** (например, Jackson) сериализует объект напрямую в JSON/XML и записывает в HTTP Response.\n6. Если это классический MVC с шаблонами (Thymeleaf/JSP), `DispatcherServlet` передает имя представления в **`ViewResolver`**, который рендерит HTML-страницу.",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -202,8 +202,8 @@
     "global_id": 483,
     "num": 19,
     "topic": "Spring Framework",
-    "question": "Что такое Spring WebFlux и чем он отличается от Spring MVC?",
-    "answer": "**Spring WebFlux** — это реактивный неблокирующий веб-фреймворк, появившийся в Spring 5, построенный на базе Project Reactor и спецификации Reactive Streams.\n\n| Характеристика | Spring Web MVC | Spring WebFlux |\n| :--- | :--- | :--- |\n| **Модель потоков** | One Thread per Request (Блокирующий I/O) | Event Loop (Неблокирующий асинхронный I/O) |\n| **Сервер по умолчанию** | Apache Tomcat, Jetty | Netty, Undertow |\n| **Типы данных** | Синхронные объекты (`User`, `List<User>`) | Реактивные типы (`Mono<User>`, `Flux<User>`) |\n| **Работа с БД** | Блокирующие JDBC, JPA / Hibernate | Неблокирующие R2DBC, Reactive Mongo/Redis |\n| **Потребление ресурсов** | Требует много потоков и памяти при высокой нагрузке | Высокая пропускная способность при малом числе потоков |\n| **Применение** | Стандартные CRUD корпоративные приложения | Высоконагруженные микросервисы, стриминг данных, WebSockets |",
+    "question": "В чем разница между @PathVariable, @RequestParam и @RequestBody в Spring MVC?",
+    "answer": "Эти три аннотации служат для извлечения различных частей входящего HTTP-запроса:\n\n1. **`@PathVariable` (Переменная пути):** извлекает значение напрямую из шаблона URL.\n   ```java\n   // GET /api/users/42\n   @GetMapping(\"/users/{id}\")\n   public UserDto getUserById(@PathVariable(\"id\") Long id) { ... }\n   ```\n2. **`@RequestParam` (Query-параметры):** извлекает параметры строки запроса (`?key=value`) или данные формы.\n   ```java\n   // GET /api/users?page=1&size=20\n   @GetMapping(\"/users\")\n   public List<UserDto> getUsers(@RequestParam(defaultValue = \"0\") int page,\n                                 @RequestParam(defaultValue = \"10\") int size) { ... }\n   ```\n3. **`@RequestBody` (Тело запроса):** считывает тело HTTP-запроса (JSON, XML) и десериализует его в Java-объект через `HttpMessageConverter` (Jackson).\n   ```java\n   // POST /api/users (Body: {\"name\": \"Alice\", \"email\": \"alice@example.com\"})\n   @PostMapping(\"/users\")\n   public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest request) { ... }\n   ```",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
@@ -212,6 +212,83 @@
     "id": "SPRING-020",
     "global_id": 484,
     "num": 20,
+    "topic": "Spring Framework",
+    "question": "Зачем использовать ResponseEntity и в чем его преимущества перед возвратом обычного DTO?",
+    "answer": "`ResponseEntity<T>` представляет собой полную обертку HTTP-ответа, позволяющую гибко контролировать:\n* **HTTP Статус-код** (например, `201 CREATED`, `204 NO_CONTENT`, `404 NOT_FOUND` вместо дефолтного `200 OK`).\n* **HTTP Заголовки (Headers)** (например, `Location: /api/users/42`, `Cache-Control`, `Set-Cookie`).\n* **Тело ответа (Body)**.\n\n```java\n@PostMapping(\"/users\")\npublic ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest dto) {\n    UserDto created = userService.create(dto);\n    URI location = ServletUriComponentsBuilder.fromCurrentRequest()\n            .path(\"/{id}\")\n            .buildAndExpand(created.getId())\n            .toUri();\n    \n    return ResponseEntity\n            .created(location) // 201 Created с заголовком Location\n            .body(created);\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-021",
+    "global_id": 485,
+    "num": 21,
+    "topic": "Spring Framework",
+    "question": "Как устроена валидация входных DTO в Spring (@Valid, @NotBlank, JSR-380) и обработка ошибок валидации?",
+    "answer": "Валидация основана на спецификации **Jakarta Bean Validation (JSR-380 / Hibernate Validator)**:\n\n1. **Аннотации на полях DTO:**\n   ```java\n   public class CreateUserRequest {\n       @NotBlank(message = \"Имя обязательно для заполнения\")\n       @Size(min = 2, max = 50, message = \"Имя должно содержать от 2 до 50 символов\")\n       private String name;\n\n       @NotBlank(message = \"Email обязателен\")\n       @Email(message = \"Некорректный формат email\")\n       private String email;\n\n       @Min(value = 18, message = \"Возраст должен быть не менее 18 лет\")\n       private int age;\n   }\n   ```\n2. **Активация валидации в контроллере через `@Valid`:**\n   ```java\n   @PostMapping(\"/users\")\n   public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserRequest req) { ... }\n   ```\n3. **Глобальный перехват ошибок валидации в `@RestControllerAdvice`:**\n   При провале валидации Spring выбрасывает `MethodArgumentNotValidException`:\n   ```java\n   @ExceptionHandler(MethodArgumentNotValidException.class)\n   public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {\n       Map<String, String> errors = new HashMap<>();\n       ex.getBindingResult().getFieldErrors().forEach(error -> \n           errors.put(error.getField(), error.getDefaultMessage())\n       );\n       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);\n   }\n   ```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-022",
+    "global_id": 486,
+    "num": 22,
+    "topic": "Spring Framework",
+    "question": "Что такое CORS и как настроить Cross-Origin запросы в Spring?",
+    "answer": "**CORS (Cross-Origin Resource Sharing)** — механизм безопасности браузера, блокирующий HTTP-запросы скриптов между разными доменами, протоколами или портами (Same-Origin Policy).\n\n### Настройка CORS в Spring:\n1. **На уровне отдельного контроллера или метода (`@CrossOrigin`):**\n   ```java\n   @CrossOrigin(origins = \"https://frontend.example.com\", maxAge = 3600)\n   @RestController\n   @RequestMapping(\"/api/orders\")\n   public class OrderController { ... }\n   ```\n2. **Глобальная конфигурация для всего приложения (Рекомендуется):**\n   ```java\n   @Configuration\n   public class WebCorsConfig implements WebMvcConfigurer {\n       @Override\n       public void addCorsMappings(CorsRegistry registry) {\n           registry.addMapping(\"/api/**\")\n                   .allowedOrigins(\"https://frontend.example.com\")\n                   .allowedMethods(\"GET\", \"POST\", \"PUT\", \"DELETE\", \"PATCH\", \"OPTIONS\")\n                   .allowedHeaders(\"*\")\n                   .allowCredentials(true)\n                   .maxAge(3600);\n       }\n   }\n   ```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-023",
+    "global_id": 487,
+    "num": 23,
+    "topic": "Spring Framework",
+    "question": "В чем разница между @ControllerAdvice и @ExceptionHandler?",
+    "answer": "* **`@ExceptionHandler`:** объявляется внутри метода контроллера для обработки конкретного типа исключения. По умолчанию перехватывает ошибки **только внутри того контроллера, где объявлен**.\n* **`@ControllerAdvice` / `@RestControllerAdvice`:** глобальный перехватчик исключений для всего приложения. Позволяет централизованно обрабатывать ошибки всех контроллеров и возвращать унифицированные ответы (например, RFC 7807 Problem Details / `ResponseEntity<ErrorDto>`):\n\n```java\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n\n    @ExceptionHandler(EntityNotFoundException.class)\n    public ResponseEntity<ErrorResponse> handleNotFound(EntityNotFoundException ex) {\n        return ResponseEntity.status(HttpStatus.NOT_FOUND)\n                .body(new ErrorResponse(\"NOT_FOUND\", ex.getMessage()));\n    }\n}\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-024",
+    "global_id": 488,
+    "num": 24,
+    "topic": "Spring Framework",
+    "question": "В чем разница между HTTP-методами PUT и PATCH в REST API?",
+    "answer": "| Критерий | `PUT` | `PATCH` |\n| :--- | :--- | :--- |\n| **Семантика** | **Полная замена** ресурса (Full Replacement) | **Частичное обновление** ресурса (Partial Update) |\n| **Непереданные поля** | Сбрасываются в `null` или значения по умолчанию | Остаются без изменений |\n| **Идемпотентность** | **Идемпотентен** (повторные одинаковые вызовы дают тот же результат) | Как правило, **не идемпотентен** (в зависимости от логики операции) |\n| **Тело запроса** | Полный объект сущности | Только изменяемые поля (например, `{ \"status\": \"ACTIVE\" }`) |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-025",
+    "global_id": 489,
+    "num": 25,
+    "topic": "Spring Framework",
+    "question": "В чем разница между Authentication и Authorization в Spring Security?",
+    "answer": "* **Authentication (Аутентификация — Кто вы?):** процесс проверки подлинности пользователя (логин/пароль, JWT токен, сертификат, OAuth2).\n  - В Spring Security управляется через `AuthenticationManager`, `AuthenticationProvider`, `UserDetailsService`.\n* **Authorization (Авторизация — Что вам разрешено делать?):** проверка прав/ролей пользователя для доступа к конкретному ресурсу или методу.\n  - В Spring Security настраивается на уровне URL-фильтров (`authorizeHttpRequests`) или методов (`@PreAuthorize(\"hasRole('ADMIN')\")`, `@Secured`).\n\n```java\n@PreAuthorize(\"hasAuthority('ORDER_DELETE') or hasRole('ADMIN')\")\n@DeleteMapping(\"/orders/{id}\")\npublic ResponseEntity<Void> deleteOrder(@PathVariable Long id) { ... }\n```",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-026",
+    "global_id": 490,
+    "num": 26,
+    "topic": "Spring Framework",
+    "question": "Что такое Spring WebFlux и чем он отличается от Spring MVC?",
+    "answer": "**Spring WebFlux** — это реактивный неблокирующий веб-фреймворк, появившийся в Spring 5, построенный на базе Project Reactor и спецификации Reactive Streams.\n\n| Характеристика | Spring Web MVC | Spring WebFlux |\n| :--- | :--- | :--- |\n| **Модель потоков** | One Thread per Request (Блокирующий I/O) | Event Loop (Неблокирующий асинхронный I/O) |\n| **Сервер по умолчанию** | Apache Tomcat, Jetty | Netty, Undertow |\n| **Типы данных** | Синхронные объекты (`User`, `List<User>`) | Реактивные типы (`Mono<User>`, `Flux<User>`) |\n| **Работа с БД** | Блокирующие JDBC, JPA / Hibernate | Неблокирующие R2DBC, Reactive Mongo/Redis |\n| **Потребление ресурсов** | Требует много потоков и памяти при высокой нагрузке | Высокая пропускная способность при малом числе потоков |\n| **Применение** | Стандартные CRUD корпоративные приложения | Высоконагруженные микросервисы, стриминг данных, WebSockets |",
+    "source_pages": [
+      "Baeldung / InterviewBit (Curated)"
+    ]
+  },
+  {
+    "id": "SPRING-027",
+    "global_id": 491,
+    "num": 27,
     "topic": "Spring Framework",
     "question": "В чем разница между реактивными типами Mono и Flux в Project Reactor?",
     "answer": "* **`Mono<T>`:** реактивный поток, эмитирующий **от 0 до 1 элемента** (или ошибку `onError`). Аналог `Optional<T>` или `CompletableFuture<T>` в реактивном мире.\n* **`Flux<T>`:** реактивный поток, эмитирующий **от 0 до N элементов** (бесконечный поток событий или конечная последовательность), завершающийся сигналом `onComplete` или `onError`.\n\n```java\nMono<User> userMono = Mono.just(new User(\"Alice\"));\nFlux<String> namesFlux = Flux.just(\"Alice\", \"Bob\", \"Charlie\");\n```",
