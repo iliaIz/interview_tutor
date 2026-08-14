@@ -5,6 +5,7 @@ import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { Toast } from './components/Toast';
 import { Sparkles, Heart, Headphones } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -38,9 +39,10 @@ export const App: React.FC = () => {
         {currentView === 'quiz' && <ExamQuiz />}
       </main>
 
-      {/* Audio Modal & Floating Player */}
+      {/* Audio Modal, Floating Player & Toast Notification */}
       <AudioRecapModal />
       <AudioPlayerBar />
+      <Toast />
 
       {/* Footer */}
       <footer className="border-t border-pastel-border/60 bg-white py-4 text-center text-xs text-pastel-muted">

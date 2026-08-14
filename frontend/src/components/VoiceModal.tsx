@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Mic, MicOff, X, Volume2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAppStore } from '../store/useAppStore';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface VoiceModalProps {
 }
 
 export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, currentQuestionText }) => {
+  const { showToast } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState<string[]>([]);
@@ -162,9 +164,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({ isOpen, onClose, current
 
       source.connect(processor);
       processor.connect(audioCtx.destination);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error starting microphone:', err);
-      alert('Не удалось получить доступ к микрофону.');
+      showToast({
+        type: 'error',
+        title: 'Доступ к микрофону заблокирован',
+        message: 'Браузер не смог получить доступ к микрофону. Проверьте разрешения в настройках браузера.',
+        technicalDetails: err?.message || String(err)
+      });
     }
   };
 

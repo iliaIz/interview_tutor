@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Brain, Mic, CheckCircle2, AlertTriangle, Sparkle
 import { motion } from 'framer-motion';
 
 export const ExamQuiz: React.FC = () => {
-  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, selectedTopicId, updateTopicProgress } = useAppStore();
+  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, selectedTopicId, updateTopicProgress, showToast } = useAppStore();
 
   const [userAnswer, setUserAnswer] = useState('');
   const [loadingEval, setLoadingEval] = useState(false);
@@ -28,7 +28,11 @@ export const ExamQuiz: React.FC = () => {
 
   const handleEvaluate = async () => {
     if (!userAnswer.trim()) {
-      alert('Пожалуйста, введите ваш ответ перед отправкой.');
+      showToast({
+        type: 'warning',
+        title: 'Ответ пуст',
+        message: 'Пожалуйста, введите ваш ответ или надиктуйте его голосом перед отправкой.'
+      });
       return;
     }
 
@@ -65,11 +69,23 @@ export const ExamQuiz: React.FC = () => {
           });
         }
       } else {
-        alert('Ошибка при оценке ответа ИИ.');
+        const errText = await res.text();
+        console.error('Error evaluating answer:', errText);
+        showToast({
+          type: 'error',
+          title: 'Ошибка оценки ИИ',
+          message: 'Сервер оценки не смог обработать ответ.',
+          technicalDetails: `HTTP ${res.status}: ${errText}`
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error evaluating answer:', err);
-      alert('Не удалось подключиться к серверу оценки.');
+      showToast({
+        type: 'error',
+        title: 'Сбой подключения к серверу оценки',
+        message: err?.message || 'Не удалось связаться с бэкендом оценки.',
+        technicalDetails: err?.stack || String(err)
+      });
     } finally {
       setLoadingEval(false);
     }

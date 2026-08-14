@@ -36,7 +36,7 @@ const SOLO_TONE_PROMPTS: Record<string, string> = {
 };
 
 export const AudioRecapModal: React.FC = () => {
-  const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob } = useAppStore();
+  const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob, showToast } = useAppStore();
 
   const [mode, setMode] = useState<'duo' | 'solo'>('duo');
   const [voice1, setVoice1] = useState<string>('Kore');
@@ -67,10 +67,8 @@ export const AudioRecapModal: React.FC = () => {
   const stopPreview = () => {
     if (sampleAudioRef.current) {
       sampleAudioRef.current.pause();
+      sampleAudioRef.current.currentTime = 0;
       sampleAudioRef.current = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
     }
     setPreviewingVoice(null);
   };
@@ -97,7 +95,13 @@ export const AudioRecapModal: React.FC = () => {
           errDetail = await res.text();
         }
         setPreviewingVoice(null);
-        alert(`Ошибка воспроизведения голоса ${voiceId}:\n${errDetail}`);
+        console.error(`[TTS Voice Preview Error] Voice: ${voiceId}, HTTP ${res.status}:`, errDetail);
+        showToast({
+          type: 'error',
+          title: `Ошибка воспроизведения голоса ${voiceId}`,
+          message: 'Не удалось синтезировать образец речи через LiteLLM Gateway.',
+          technicalDetails: `HTTP ${res.status}: ${errDetail}`
+        });
         return;
       }
 
@@ -114,14 +118,24 @@ export const AudioRecapModal: React.FC = () => {
       audio.onerror = (e) => {
         console.error('TTS Audio Sample playback error:', e);
         setPreviewingVoice(null);
-        alert(`Не удалось декодировать аудиопоток для голоса ${voiceId}`);
+        showToast({
+          type: 'error',
+          title: `Ошибка декодирования аудио`,
+          message: `Не удалось декодировать аудиопоток для голоса ${voiceId}.`,
+          technicalDetails: String(e)
+        });
       };
 
       await audio.play();
     } catch (err: any) {
       console.error('Audio play failed:', err);
       setPreviewingVoice(null);
-      alert(`Ошибка при запросе голоса ${voiceId}: ${err.message || 'Ошибка сети'}`);
+      showToast({
+        type: 'error',
+        title: `Сетевая ошибка при запросе голоса ${voiceId}`,
+        message: err.message || 'Ошибка сети при обращении к серверу.',
+        technicalDetails: err.stack || err.message
+      });
     }
   };
 

@@ -33,6 +33,14 @@ export interface ActiveAudioJob {
   metadata?: any;
 }
 
+export interface ToastNotification {
+  id: string;
+  type: 'error' | 'success' | 'info' | 'warning';
+  title: string;
+  message?: string;
+  technicalDetails?: string;
+}
+
 export interface RecapTarget {
   questionIds?: string[];
   topicId?: string;
@@ -50,6 +58,9 @@ interface AppState {
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
 
+  // Toast Notification State
+  activeToast: ToastNotification | null;
+
   // Audio Recap State
   activeAudioJob: ActiveAudioJob | null;
   isRecapModalOpen: boolean;
@@ -64,6 +75,10 @@ interface AppState {
   setBatchSize: (topicId: string, size: number) => void;
   updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean) => void;
   resetTopicProgress: (topicId: string) => void;
+
+  // Toast Actions
+  showToast: (notification: Omit<ToastNotification, 'id'>) => void;
+  hideToast: () => void;
 
   // Audio Recap Actions
   openRecapModal: (target: RecapTarget) => void;
@@ -84,6 +99,7 @@ export const useAppStore = create<AppState>()(
       batchSizeMap: { java: 5, spring: 5, hibernate: 5, docker: 5 },
       topicsProgress: {},
 
+      activeToast: null,
       activeAudioJob: null,
       isRecapModalOpen: false,
       recapTarget: null,
@@ -100,6 +116,12 @@ export const useAppStore = create<AppState>()(
       setBatchSize: (topicId, size) => set((state) => ({
         batchSizeMap: { ...state.batchSizeMap, [topicId]: size }
       })),
+
+      showToast: (notification) => {
+        const id = Math.random().toString(36).substring(2, 9);
+        set({ activeToast: { ...notification, id } });
+      },
+      hideToast: () => set({ activeToast: null }),
 
       updateTopicProgress: (topicId, completedId, isMastered) => set((state) => {
         const prev = state.topicsProgress[topicId] || {
