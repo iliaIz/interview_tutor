@@ -57,7 +57,7 @@ export interface RecapTarget {
 }
 
 interface AppState {
-  currentView: 'topics' | 'study' | 'quiz';
+  currentView: 'topics' | 'questions' | 'study' | 'quiz';
   selectedTopicId: string | null;
   selectedTopicName: string | null;
   currentBatch: Question[];
@@ -78,7 +78,7 @@ interface AppState {
   recapTarget: RecapTarget | null;
 
   // Actions
-  setView: (view: 'topics' | 'study' | 'quiz') => void;
+  setView: (view: 'topics' | 'questions' | 'study' | 'quiz') => void;
   setSelectedTopic: (topicId: string, name: string) => void;
   setBatch: (questions: Question[]) => void;
   setQuestionIndex: (idx: number) => void;
@@ -86,6 +86,11 @@ interface AppState {
   setBatchSize: (topicId: string, size: number) => void;
   updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean) => void;
   resetTopicProgress: (topicId: string) => void;
+
+  // Granular Navigation Actions
+  openTopicQuestions: (topicId: string, topicName: string) => void;
+  startStudyWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
+  startQuizWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
 
   // System Health Action
   checkHealth: () => Promise<void>;
@@ -128,6 +133,28 @@ export const useAppStore = create<AppState>()(
       setSelectedTopic: (topicId, name) => set({ selectedTopicId: topicId, selectedTopicName: name }),
       setBatch: (questions) => set({ currentBatch: questions, currentQuestionIndex: 0 }),
       setQuestionIndex: (idx) => set({ currentQuestionIndex: idx }),
+
+      openTopicQuestions: (topicId, topicName) => set({
+        selectedTopicId: topicId,
+        selectedTopicName: topicName,
+        currentView: 'questions'
+      }),
+
+      startStudyWithQuestions: (topicId, topicName, questions) => set({
+        selectedTopicId: topicId,
+        selectedTopicName: topicName,
+        currentBatch: questions,
+        currentQuestionIndex: 0,
+        currentView: 'study'
+      }),
+
+      startQuizWithQuestions: (topicId, topicName, questions) => set({
+        selectedTopicId: topicId,
+        selectedTopicName: topicName,
+        currentBatch: questions,
+        currentQuestionIndex: 0,
+        currentView: 'quiz'
+      }),
 
       toggleShuffle: (topicId) => set((state) => ({
         shuffleMap: { ...state.shuffleMap, [topicId]: !state.shuffleMap[topicId] }

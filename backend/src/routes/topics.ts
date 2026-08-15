@@ -120,6 +120,71 @@ router.post('/:topicId/progress', (req, res) => {
   res.json({ success: true, topic: dbTopicName });
 });
 
+// GET /api/topics/:topicId/questions - Get all questions for a specific topic with user status
+router.get('/:topicId/questions', (req, res) => {
+  const topicId = req.params.topicId.toLowerCase();
+  const dbTopicName = TOPIC_MAP[topicId];
+
+  if (!dbTopicName) {
+    return res.status(404).json({ error: 'Topic not found' });
+  }
+
+  // Get user progress
+  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
+  const progressRow = progressStmt.get(dbTopicName) as any;
+
+  const completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
+  const masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+  const completedSet = new Set(completedIds);
+  const masteredSet = new Set(masteredIds);
+
+  const qStmt = db.prepare('SELECT * FROM questions WHERE topic = ? ORDER BY num ASC');
+  const questions = qStmt.all(dbTopicName) as any[];
+
+  const formatted = questions.map(q => ({
+    ...q,
+    source_pages: JSON.parse(q.source_pages || '[]'),
+    isCompleted: completedSet.has(q.id),
+    isMastered: masteredSet.has(q.id)
+  }));
+
+  const meta = TOPIC_DEFINITIONS.find(t => t.id === topicId);
+
+  res.json({
+    topicId,
+    topicName: dbTopicName,
+    meta,
+    total: formatted.length,
+    completedCount: completedIds.length,
+    masteredCount: masteredIds.length,
+    questions: formatted
+  });
+});
+
+// POST /api/topics/questions/by-ids - Fetch questions by specific IDs
+router.post('/questions/by-ids', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids array is required and must not be empty' });
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`);
+  const rows = stmt.all(...ids) as any[];
+
+  // Map to retain requested order
+  const rowMap = new Map(rows.map(r => [r.id, r]));
+  const ordered = ids
+    .map(id => rowMap.get(id))
+    .filter(Boolean)
+    .map(q => ({
+      ...q,
+      source_pages: JSON.parse(q.source_pages || '[]')
+    }));
+
+  res.json({ questions: ordered });
+});
+
 // POST /api/topics/:topicId/reset - Reset progress ("Сначала")
 router.post('/:topicId/reset', (req, res) => {
   const topicId = req.params.topicId.toLowerCase();

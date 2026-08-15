@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from './store/useAppStore';
 import { TopicSelector } from './components/TopicSelector';
+import { QuestionExplorer } from './components/QuestionExplorer';
 import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
 import { AudioRecapModal } from './components/AudioRecapModal';
@@ -94,6 +95,7 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1">
         {currentView === 'topics' && <TopicSelector />}
+        {currentView === 'questions' && <QuestionExplorer />}
         {currentView === 'study' && <StudyDeck />}
         {currentView === 'quiz' && <ExamQuiz />}
       </main>

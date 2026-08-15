@@ -30,7 +30,9 @@ import {
   Shuffle,
   Headphones,
   Search,
-  Check
+  Check,
+  ListChecks,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -79,7 +81,8 @@ export const TopicSelector: React.FC = () => {
     toggleShuffle,
     topicsProgress,
     resetTopicProgress,
-    openRecapModal
+    openRecapModal,
+    openTopicQuestions
   } = useAppStore();
 
   const [topics, setTopics] = useState<any[]>([]);
@@ -276,18 +279,24 @@ export const TopicSelector: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Icon & Title */}
-                  <div className="flex items-center gap-3 mb-2">
+                  {/* Icon & Title - Clickable to open QuestionExplorer */}
+                  <div
+                    onClick={() => openTopicQuestions(t.id, t.name)}
+                    className="flex items-center gap-3 mb-2 cursor-pointer group/title"
+                  >
                     <div
-                      className="p-2.5 rounded-xl flex items-center justify-center shrink-0"
+                      className="p-2.5 rounded-xl flex items-center justify-center shrink-0 group-hover/title:scale-105 transition-transform"
                       style={{ backgroundColor: `${t.color}15`, color: t.color }}
                     >
                       <IconComponent className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h3 className="font-bold text-base text-pastel-text group-hover:text-pastel-accentRose transition-colors">
-                        {t.name}
-                      </h3>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h3 className="font-bold text-base text-pastel-text group-hover/title:text-pastel-accentRose transition-colors truncate">
+                          {t.name}
+                        </h3>
+                        <ChevronRight className="w-4 h-4 text-pastel-muted opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
+                      </div>
                       <p className="text-xs text-pastel-muted">{t.total} вопросов</p>
                     </div>
                   </div>
@@ -320,33 +329,46 @@ export const TopicSelector: React.FC = () => {
                     </label>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleStartTopic(t.id, t.name, false)}
-                      className="flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white py-2 px-3 rounded-xl font-semibold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      {percentage > 0 ? 'Продолжить' : 'Начать'}
-                    </button>
-
-                    <button
-                      onClick={() => handleTopicRecap(t.id, t.name)}
-                      title="AI-аудиопересказ всей темы"
-                      className="p-2 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center"
-                    >
-                      <Headphones className="w-3.5 h-3.5" />
-                    </button>
-
-                    {percentage > 0 && (
+                  {/* Actions Grid */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleStartTopic(t.id, t.name, true)}
-                        title="Сбросить прогресс"
-                        className="p-2 rounded-xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center"
+                        onClick={() => handleStartTopic(t.id, t.name, false)}
+                        className="flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white py-2 px-3 rounded-xl font-semibold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                        title="Быстрый старт: начать со следующей неизученной порции"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        {percentage > 0 ? 'Продолжить' : 'Быстрый старт'}
                       </button>
-                    )}
+
+                      <button
+                        onClick={() => handleTopicRecap(t.id, t.name)}
+                        title="AI-аудиопересказ всей темы"
+                        className="p-2 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center cursor-pointer"
+                      >
+                        <Headphones className="w-3.5 h-3.5" />
+                      </button>
+
+                      {percentage > 0 && (
+                        <button
+                          onClick={() => handleStartTopic(t.id, t.name, true)}
+                          title="Сбросить прогресс"
+                          className="p-2 rounded-xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Secondary button: Выбрать конкретные вопросы */}
+                    <button
+                      onClick={() => openTopicQuestions(t.id, t.name)}
+                      className="w-full py-1.5 px-3 rounded-xl bg-pastel-bg hover:bg-pastel-lavender/60 text-pastel-text border border-pastel-border/80 font-medium text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      title="Открыть полный список вопросов с возможностью выбора"
+                    >
+                      <ListChecks className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                      <span>Выбрать вопросы ({t.total})</span>
+                    </button>
                   </div>
                 </div>
               </motion.div>

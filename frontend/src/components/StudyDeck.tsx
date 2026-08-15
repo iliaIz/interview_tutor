@@ -6,7 +6,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export const StudyDeck: React.FC = () => {
-  const { currentBatch, currentQuestionIndex, setQuestionIndex, setView, selectedTopicName, openRecapModal } = useAppStore();
+  const {
+    currentBatch,
+    currentQuestionIndex,
+    setQuestionIndex,
+    setView,
+    selectedTopicId,
+    selectedTopicName,
+    openRecapModal,
+    openTopicQuestions
+  } = useAppStore();
   const [copied, setCopied] = React.useState(false);
 
   if (!currentBatch || currentBatch.length === 0) {
@@ -15,7 +24,7 @@ export const StudyDeck: React.FC = () => {
         <p className="text-pastel-muted">Нет вопросов в выбранной порции.</p>
         <button
           onClick={() => setView('topics')}
-          className="mt-4 px-4 py-2 bg-pastel-card border border-pastel-border rounded-xl text-sm font-semibold"
+          className="mt-4 px-4 py-2 bg-pastel-card border border-pastel-border rounded-xl text-sm font-semibold cursor-pointer"
         >
           Вернуться к выбору тем
         </button>
@@ -48,33 +57,56 @@ export const StudyDeck: React.FC = () => {
     });
   };
 
+  const handleGoToQuestionsList = () => {
+    if (selectedTopicId) {
+      openTopicQuestions(selectedTopicId, selectedTopicName || 'Тема');
+    } else {
+      setView('topics');
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Navigation Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <button
-          onClick={() => setView('topics')}
-          className="flex items-center gap-2 text-xs font-semibold text-pastel-muted hover:text-pastel-text transition"
-        >
-          <ArrowLeft className="w-4 h-4" /> Выбор тем
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGoToQuestionsList}
+            className="flex items-center gap-1.5 text-xs font-semibold text-pastel-muted hover:text-pastel-text transition bg-white px-3 py-1.5 rounded-xl border border-pastel-border shadow-xs cursor-pointer"
+            title="Вернуться к списку вопросов темы"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Список вопросов
+          </button>
+
+          <button
+            onClick={() => setView('topics')}
+            className="text-xs font-medium text-pastel-muted hover:text-pastel-text transition px-2 py-1 cursor-pointer"
+            title="К разделам тем"
+          >
+            Все темы
+          </button>
+        </div>
 
         <span className="text-xs font-bold px-3.5 py-1 bg-pastel-lavender text-pastel-accentViolet rounded-full border border-pastel-accentViolet/20">
           {selectedTopicName} — Изучение карточек
         </span>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleRecapBatch}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-full text-xs font-bold shadow-sm hover:opacity-95 transition transform hover:scale-105"
-            title="Сгенерировать аудиопересказ для всех карточек в этой порции"
+            onClick={() => setView('quiz')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-pastel-text text-white rounded-xl text-xs font-bold shadow-xs hover:bg-black transition cursor-pointer"
+            title="Запустить ИИ-проверку знаний по этой выборке"
           >
-            <Headphones className="w-3.5 h-3.5" /> Аудиопересказ порции
+            <Brain className="w-3.5 h-3.5 text-pastel-accentViolet" /> Квиз ({currentBatch.length})
           </button>
 
-          <span className="text-xs font-semibold text-pastel-muted">
-            Карточка <strong className="text-pastel-text">{currentQuestionIndex + 1}</strong> из {currentBatch.length}
-          </span>
+          <button
+            onClick={handleRecapBatch}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 rounded-xl text-xs font-bold shadow-xs hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
+            title="Сгенерировать аудиопересказ для всех карточек в этой порции"
+          >
+            <Headphones className="w-3.5 h-3.5" /> Аудио
+          </button>
         </div>
       </div>
 

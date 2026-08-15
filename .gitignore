@@ -48,3 +48,6 @@ scratch/
 _temp_enhorse/
 .playwright-mcp/
 *_raw.txt
+
+
+audio/
