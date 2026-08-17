@@ -260,9 +260,9 @@ ${referenceAnswer || 'Полный и точный ответ с ключевы�
         // Non-JSON or binary pass-through
       }
 
-      // Forward everything upstream -> client
+      // Forward everything upstream -> client as Text JSON
       if (clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(data, { binary: isBinary });
+        clientSocket.send(str);
       }
     });
 

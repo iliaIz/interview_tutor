@@ -165,8 +165,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     ws.onmessage = async (event) => {
       try {
+        let textPayload = '';
         if (typeof event.data === 'string') {
-          const data = JSON.parse(event.data);
+          textPayload = event.data;
+        } else if (event.data instanceof Blob) {
+          textPayload = await event.data.text();
+        } else if (event.data instanceof ArrayBuffer) {
+          textPayload = new TextDecoder().decode(event.data);
+        }
+
+        if (!textPayload) return;
+        const data = JSON.parse(textPayload);
 
           if (data.type === 'setupComplete') {
             setDialogueTurns((prev) => [
@@ -204,8 +213,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     return [...prev, { role: 'ai', text: part.text }];
                   });
                 }
-                if (part.inlineData?.data) {
-                  playoutManagerRef.current?.enqueuePcmChunk(part.inlineData.data);
+                const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
+                if (pcmBase64) {
+                  playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
                 }
               }
             }
@@ -222,7 +232,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               ]);
             }
           }
-        }
       } catch (e) {
         console.error('Error handling Live WS message:', e);
       }
@@ -310,13 +319,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             const base64Audio = btoa(binary);
 
             const realtimeInput = {
-              realtimeInput: {
-                mediaChunks: [
-                  {
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: base64Audio
-                  }
-                ]
+              realtime_input: {
+                audio: {
+                  mimeType: 'audio/pcm;rate=16000',
+                  data: base64Audio
+                }
               }
             };
             wsRef.current.send(JSON.stringify(realtimeInput));

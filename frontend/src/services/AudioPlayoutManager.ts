@@ -1,19 +1,19 @@
 /**
  * AudioPlayoutManager
  * Seamless 24kHz Int16 mono PCM playback scheduling with:
- * - Studio-grade DynamicsCompressor + Gain boost (1.35x)
- * - Safe Int16 TypedArray buffer unpacking (endianness-safe)
+ * - Direct Little-Endian DataView float conversion (100% cross-platform safe)
+ * - Safe gain boost (1.5x) direct to destination
  * - 80ms jitter queue to prevent underruns
- * - Autoplay policy suspended queueing and auto-flush
+ * - Autoplay policy suspended queueing with concurrent resume protection
  * - 5ms linear gain de-click ramp on Barge-in interruption
  */
 export class AudioPlayoutManager {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private compressor: DynamicsCompressorNode | null = null;
   private playheadCursor = 0;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
   private pendingSamples: Float32Array[] = [];
+  private isResuming = false;
   private readonly JITTER_LEAD_SECONDS = 0.080; // 80ms jitter buffer for smooth playback
   private readonly TARGET_SAMPLE_RATE = 24000;
 
@@ -26,19 +26,9 @@ export class AudioPlayoutManager {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.context = new AudioCtx({ latencyHint: 'interactive' });
 
-      // Studio Compressor for loud & clear dialogue
-      this.compressor = this.context.createDynamicsCompressor();
-      this.compressor.threshold.setValueAtTime(-24, this.context.currentTime);
-      this.compressor.knee.setValueAtTime(30, this.context.currentTime);
-      this.compressor.ratio.setValueAtTime(12, this.context.currentTime);
-      this.compressor.attack.setValueAtTime(0.003, this.context.currentTime);
-      this.compressor.release.setValueAtTime(0.25, this.context.currentTime);
-
       this.masterGain = this.context.createGain();
-      this.masterGain.gain.value = 1.35; // Gentle boost for soft speech
-
-      this.masterGain.connect(this.compressor);
-      this.compressor.connect(this.context.destination);
+      this.masterGain.gain.value = 1.5; // Clear, loud, comfortable volume
+      this.masterGain.connect(this.context.destination);
     }
     return { context: this.context, masterGain: this.masterGain! };
   }
@@ -50,16 +40,21 @@ export class AudioPlayoutManager {
   public async resume(): Promise<void> {
     const { context } = this.ensureContext();
     if (context.state === 'suspended') {
-      try {
-        await context.resume();
-        console.log('🔊 AudioContext resumed, current state:', context.state);
-      } catch (err) {
-        console.warn('AudioContext resume warning:', err);
+      if (!this.isResuming) {
+        this.isResuming = true;
+        try {
+          await context.resume();
+          console.log('🔊 AudioContext resumed, state:', context.state);
+        } catch (err) {
+          console.warn('AudioContext resume warning:', err);
+        } finally {
+          this.isResuming = false;
+        }
       }
     }
 
     if (context.state === 'running' && this.pendingSamples.length > 0) {
-      console.log(`🔊 Flushing ${this.pendingSamples.length} pending audio frames to speakers...`);
+      console.log(`🔊 Flushing ${this.pendingSamples.length} queued audio chunks to speakers...`);
       const queued = [...this.pendingSamples];
       this.pendingSamples = [];
       this.playheadCursor = context.currentTime + this.JITTER_LEAD_SECONDS;
@@ -86,12 +81,13 @@ export class AudioPlayoutManager {
       uint8[i] = binaryString.charCodeAt(i);
     }
 
-    // Direct TypedArray view (Little Endian signed 16-bit PCM)
-    const int16 = new Int16Array(uint8.buffer, uint8.byteOffset, sampleCount);
+    // Direct DataView for guaranteed Little-Endian 16-bit signed decoding
+    const dataView = new DataView(uint8.buffer, uint8.byteOffset, len);
     const float32Samples = new Float32Array(sampleCount);
 
     for (let i = 0; i < sampleCount; i++) {
-      float32Samples[i] = int16[i] / 32768.0;
+      const int16 = dataView.getInt16(i * 2, true);
+      float32Samples[i] = int16 < 0 ? int16 / 32768.0 : int16 / 32767.0;
     }
 
     if (context.state === 'suspended') {
@@ -166,10 +162,10 @@ export class AudioPlayoutManager {
         this.activeSources.clear();
         this.playheadCursor = 0;
 
-        // 3. Reset gain back to unity (1.35) for future speech
+        // 3. Reset gain back to unity (1.5) for future speech
         if (this.context && this.masterGain && this.context.state !== 'closed') {
           this.masterGain.gain.cancelScheduledValues(this.context.currentTime);
-          this.masterGain.gain.setValueAtTime(1.35, this.context.currentTime);
+          this.masterGain.gain.setValueAtTime(1.5, this.context.currentTime);
         }
       }, fadeDurationSec * 1000 + 2);
     } catch (err) {
@@ -187,7 +183,6 @@ export class AudioPlayoutManager {
     }
     this.context = null;
     this.masterGain = null;
-    this.compressor = null;
     this.activeSources.clear();
     this.playheadCursor = 0;
   }
