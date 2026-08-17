@@ -417,11 +417,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           </button>
         </div>
 
+        {/* Soft Ambient Glows */}
+        <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-pastel-accentViolet/20 blur-2xl pointer-events-none" />
+
         {/* Question Context Banner */}
         {currentQuestionText && (
-          <div className="mt-4 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs">
-            <span className="font-semibold text-pastel-accentViolet block mb-1">Вопрос интервьюера:</span>
-            <p className="text-pastel-text leading-relaxed font-medium">{currentQuestionText}</p>
+          <div className="mt-4 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs">
+            <span className="font-bold text-pastel-accentViolet block mb-1 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
+              Вопрос темы:
+            </span>
+            <p className="text-pastel-text leading-relaxed font-bold">{currentQuestionText}</p>
+          </div>
+        )}
+
+        {/* Supportive Ergonomic Note */}
+        {!evaluation && (
+          <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/80 flex items-center gap-2">
+            <span className="text-pastel-accentRose text-sm">✨</span>
+            <p className="leading-tight">
+              Говори спокойно своими словами. Если нужно собраться с мыслями — делай паузы, ИИ внимательно дослушает тебя.
+            </p>
           </div>
         )}
 
@@ -553,21 +570,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
               {/* Status and Audio Level Indicators */}
               <div className="mt-4 flex flex-col items-center gap-1.5 text-center">
-                <p className="text-xs font-semibold text-pastel-muted flex items-center gap-1.5">
+                <div className="text-xs font-semibold text-pastel-muted flex items-center gap-1.5">
                   {isAiSpeaking ? (
-                    <>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                       <Volume2 className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                      <span className="text-emerald-700">ИИ говорит... (вы можете перебить его голосом)</span>
-                    </>
+                      <span>ИИ говорит... (вы можете перебить голосом в любой момент)</span>
+                    </div>
                   ) : isRecording ? (
-                    <>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
                       <Activity className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
-                      <span className="text-rose-600 font-bold">Идет запись ответа • {rmsDb} dB</span>
-                    </>
+                      <span className="font-bold">
+                        {rmsDb > -34 
+                          ? '✨ Отличная громкость и четкость' 
+                          : rmsDb > -46 
+                          ? '🎙️ Хорошая слышимость, продолжай' 
+                          : '💬 Говори чуть ближе к микрофону'}
+                      </span>
+                      <span className="text-[10px] opacity-75 font-mono">({rmsDb} dB)</span>
+                    </div>
                   ) : (
-                    'Нажмите на микрофон для ответа голосом'
+                    <span className="text-pastel-muted">Нажмите на микрофон для ответа голосом</span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
           )}

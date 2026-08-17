@@ -112,6 +112,32 @@ export const StudyDeck: React.FC = () => {
         </div>
       </div>
 
+      {/* Session Progress Tracker & Motivating Ribbon */}
+      <div className="mb-4 flex items-center justify-between px-2 text-xs text-pastel-muted">
+        <div className="flex items-center gap-1.5 font-medium">
+          <span className="font-bold text-pastel-text">Вопрос {currentQuestionIndex + 1} из {currentBatch.length}</span>
+          <span className="text-pastel-accentRose">✨</span>
+          <span className="hidden sm:inline text-[11px] text-pastel-muted/90">Каждая карточка приближает тебя к офферу</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {currentBatch.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setQuestionIndex(idx)}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                idx === currentQuestionIndex 
+                  ? 'w-6 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet shadow-2xs' 
+                  : idx < currentQuestionIndex 
+                  ? 'w-2 bg-emerald-400' 
+                  : 'w-2 bg-gray-200 hover:bg-gray-300'
+              }`}
+              title={`Перейти к вопросу #${idx + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Main Card View */}
       <AnimatePresence mode="wait">
         <motion.div

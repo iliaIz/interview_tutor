@@ -8,7 +8,7 @@ import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { Toast } from './components/Toast';
-import { Sparkles, Headphones, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Headphones, Loader2, AlertCircle, Heart } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { currentView, systemHealth, checkHealth, activeReportModal, closeReportModal } = useAppStore();
@@ -37,10 +37,10 @@ export const App: React.FC = () => {
       return (
         <div
           title="AI Шлюз активен. Gemini Live и Gemini TTS готовы к работе."
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs cursor-default"
+          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-emerald-50/90 text-emerald-700 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-default"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <Headphones className="w-3.5 h-3.5" />
+          <Headphones className="w-3.5 h-3.5 text-emerald-600" />
           <span>AI Шлюз готов</span>
           {systemHealth.latencyMs && (
             <span className="text-[10px] opacity-70">({systemHealth.latencyMs}мс)</span>
@@ -53,7 +53,7 @@ export const App: React.FC = () => {
       return (
         <div
           title="AI Шлюз запускается. Голосовые функции станут активны автоматически через несколько секунд..."
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs animate-pulse cursor-help"
+          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs animate-pulse cursor-help"
         >
           <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
           <span>Инициализация AI Шлюза...</span>
@@ -64,7 +64,7 @@ export const App: React.FC = () => {
     return (
       <div
         title={systemHealth.error || 'Проверьте запуск docker-compose в D:\\projects\\LiteLLM_Proxy'}
-        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-xs cursor-help"
+        className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs cursor-help"
       >
         <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
         <span>AI Шлюз офлайн</span>
@@ -73,17 +73,25 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24">
+    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose">
+      {/* Floating Ambient Mesh Auras for High-End Luxury Feel */}
+      <div className="fixed -top-28 -left-28 w-96 h-96 rounded-full bg-gradient-to-br from-pastel-accentRose/15 to-transparent blur-3xl pointer-events-none animate-aura-slow z-0" />
+      <div className="fixed top-1/3 -right-28 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-pastel-accentViolet/15 via-pastel-lavender/30 to-transparent blur-3xl pointer-events-none animate-aura-reverse z-0" />
+      <div className="fixed -bottom-20 left-1/3 w-[360px] h-[360px] rounded-full bg-gradient-to-tr from-pastel-peach/30 to-transparent blur-3xl pointer-events-none z-0" />
+
       {/* Header Bar */}
-      <header className="border-b border-pastel-border/60 bg-white/80 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-pastel-border/70 bg-white/75 backdrop-blur-xl sticky top-0 z-40 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-sm shadow-pastel-accentRose/20">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-tight text-pastel-text">InterviewPrep AI</h1>
-              <p className="text-[10px] text-pastel-muted font-medium">Java • Spring • Hibernate • Docker</p>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-bold text-base tracking-tight text-pastel-text">InterviewPrep AI</h1>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">Studio</span>
+              </div>
+              <p className="text-[10px] text-pastel-muted font-medium">Твой личный ИИ-ментор по Java & Spring</p>
             </div>
           </div>
 
@@ -94,7 +102,7 @@ export const App: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         {currentView === 'topics' && <TopicSelector />}
         {currentView === 'questions' && <QuestionExplorer />}
         {currentView === 'study' && <StudyDeck />}
@@ -112,8 +120,10 @@ export const App: React.FC = () => {
       <Toast />
 
       {/* Footer */}
-      <footer className="border-t border-pastel-border/60 bg-white py-4 text-center text-xs text-pastel-muted">
-        <p>© 2026 InterviewPrep AI Platform. Gemini Live & Gemini TTS (Opus/SSE).</p>
+      <footer className="border-t border-pastel-border/60 bg-white/60 backdrop-blur-md py-4 text-center text-xs text-pastel-muted relative z-10">
+        <p className="flex items-center justify-center gap-1">
+          Создано с заботой <Heart className="w-3.5 h-3.5 text-pastel-accentRose fill-pastel-accentRose inline" /> для комфортной и уверенной подготовки к собеседованиям.
+        </p>
       </footer>
     </div>
   );

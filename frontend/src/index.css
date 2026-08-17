@@ -2,32 +2,53 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background-color: #FAF8F5;
-  color: #2C303E;
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #FAF8F5;
+    color: #2C303E;
+    overflow-x: hidden;
+  }
 }
 
-/* Custom scrollbar */
+/* Custom Luxury Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #FAF8F5;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #E5E0D8;
-  border-radius: 4px;
+  background: #E8E2D9;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D8D1C5;
+  background: #D8D0C3;
 }
 
 /* Glassmorphism utility */
 .pastel-glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(239, 236, 230, 0.8);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 244, 242, 0.9);
+}
+
+/* Ambient glow animations */
+@keyframes floatAura {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.05);
+  }
+}
+
+.animate-aura-slow {
+  animation: floatAura 9s ease-in-out infinite;
+}
+
+.animate-aura-reverse {
+  animation: floatAura 12s ease-in-out infinite reverse;
 }

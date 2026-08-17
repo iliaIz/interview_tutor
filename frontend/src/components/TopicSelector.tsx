@@ -164,14 +164,14 @@ export const TopicSelector: React.FC = () => {
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header Banner */}
       <div className="text-center mb-8">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-semibold uppercase tracking-wider mb-3 border border-pastel-accentRose/20 shadow-sm">
-          <Sparkles className="w-4 h-4" /> Актуальная база знаний (694+ вопросов)
+        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-bold uppercase tracking-wider mb-3 border border-pastel-accentRose/30 shadow-2xs">
+          <Sparkles className="w-4 h-4 text-pastel-accentRose" /> База знаний • 746+ актуальных вопросов
         </span>
-        <h1 className="text-3xl md:text-4xl font-bold text-pastel-text tracking-tight mb-3">
-          Подготовка к собеседованиям Java Developer
+        <h1 className="text-3xl md:text-4xl font-extrabold text-pastel-text tracking-tight mb-2.5">
+          Твой путь к офферу Java Developer
         </h1>
-        <p className="text-pastel-muted max-w-2xl mx-auto text-sm md:text-base">
-          22 тематических раздела, от Java Core и Многопоточности до SQL, Kafka и Reactive. Изучай карточки, слушай ИИ-подкасты и проходи экзаменационные квизы.
+        <p className="text-pastel-muted max-w-2xl mx-auto text-sm md:text-base leading-relaxed">
+          Спокойная и структурированная подготовка без стресса: интерактивные карточки, живые устные собеседования с Gemini Live и аудиоподкасты в дорогу.
         </p>
       </div>
 
