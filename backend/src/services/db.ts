@@ -45,7 +45,44 @@ db.exec(`
     error TEXT,
     audio_path TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS question_evaluations (
+    id TEXT PRIMARY KEY,
+    question_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    is_passed BOOLEAN NOT NULL,
+    positive_points TEXT,
+    missing_points TEXT,
+    feedback TEXT,
+    user_answer TEXT,
+    transcript TEXT,
+    audio_metrics TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (question_id) REFERENCES questions(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
+  CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
 `);
+
+export function recoverOrphanedJobs() {
+  try {
+    const info = db.prepare(`
+      UPDATE podcast_jobs
+      SET status = 'FAILED',
+          error = 'Процесс генерации прерван перезапуском сервера'
+      WHERE status IN ('PROCESSING', 'QUEUED')
+    `).run();
+    if (info.changes > 0) {
+      console.log(`🧹 Recovered ${info.changes} orphaned podcast jobs marked as FAILED`);
+    }
+  } catch (err) {
+    console.error('Error recovering orphaned jobs:', err);
+  }
+}
 
 export function seedQuestionsFromJSON() {
   const possiblePaths = [

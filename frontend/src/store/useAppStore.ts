@@ -56,6 +56,24 @@ export interface RecapTarget {
   title: string;
 }
 
+export interface QuestionEvaluationSummary {
+  id: string;
+  questionId: string;
+  topic: string;
+  mode: 'voice' | 'text';
+  score: number;
+  isPassed: boolean;
+  positivePoints: string[];
+  missingPoints: string[];
+  feedback: string;
+  userAnswer?: string;
+  transcript?: string;
+  audioMetrics?: any;
+  createdAt?: string;
+  questionText?: string;
+  referenceAnswer?: string;
+}
+
 interface AppState {
   currentView: 'topics' | 'questions' | 'study' | 'quiz';
   selectedTopicId: string | null;
@@ -65,6 +83,10 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
+
+  // Question Evaluations Cache & Report Modal
+  evaluationsMap: Record<string, QuestionEvaluationSummary>;
+  activeReportModal: QuestionEvaluationSummary | null;
 
   // System Readiness State
   systemHealth: SystemHealth;
@@ -92,6 +114,12 @@ interface AppState {
   startStudyWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
   startQuizWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
 
+  // Evaluation & Report Modal Actions
+  openReportModal: (report: QuestionEvaluationSummary) => void;
+  closeReportModal: () => void;
+  setQuestionEvaluation: (questionId: string, evaluation: QuestionEvaluationSummary) => void;
+  fetchTopicEvaluations: (topicId: string) => Promise<void>;
+
   // System Health Action
   checkHealth: () => Promise<void>;
 
@@ -117,6 +145,8 @@ export const useAppStore = create<AppState>()(
       shuffleMap: { java: false, spring: false, hibernate: false, docker: false },
       batchSizeMap: { java: 5, spring: 5, hibernate: 5, docker: 5 },
       topicsProgress: {},
+      evaluationsMap: {},
+      activeReportModal: null,
 
       systemHealth: {
         status: 'checking',
@@ -163,6 +193,39 @@ export const useAppStore = create<AppState>()(
       setBatchSize: (topicId, size) => set((state) => ({
         batchSizeMap: { ...state.batchSizeMap, [topicId]: size }
       })),
+
+      openReportModal: (report) => set({ activeReportModal: report }),
+      closeReportModal: () => set({ activeReportModal: null }),
+
+      setQuestionEvaluation: (questionId, evaluation) => set((state) => ({
+        evaluationsMap: {
+          ...state.evaluationsMap,
+          [questionId]: evaluation
+        }
+      })),
+
+      fetchTopicEvaluations: async (topicId: string) => {
+        try {
+          const res = await fetch(`/api/eval/topic/${encodeURIComponent(topicId)}`);
+          if (res.ok) {
+            const data: QuestionEvaluationSummary[] = await res.json();
+            const mapUpdate: Record<string, QuestionEvaluationSummary> = {};
+            data.forEach((item) => {
+              if (item.questionId) {
+                mapUpdate[item.questionId] = item;
+              }
+            });
+            set((state) => ({
+              evaluationsMap: {
+                ...state.evaluationsMap,
+                ...mapUpdate
+              }
+            }));
+          }
+        } catch (err) {
+          console.error('Error fetching topic evaluations:', err);
+        }
+      },
 
       checkHealth: async () => {
         try {
@@ -268,6 +331,7 @@ export const useAppStore = create<AppState>()(
         shuffleMap: state.shuffleMap,
         batchSizeMap: state.batchSizeMap,
         topicsProgress: state.topicsProgress,
+        evaluationsMap: state.evaluationsMap,
       })
     }
   )

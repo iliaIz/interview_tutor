@@ -17,7 +17,7 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache sqlite
+RUN apk add --no-cache sqlite ffmpeg
 
 
 COPY package*.json ./

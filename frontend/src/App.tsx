@@ -6,11 +6,12 @@ import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { InterviewReportModal } from './components/InterviewReportModal';
 import { Toast } from './components/Toast';
-import { Sparkles, Heart, Headphones, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Headphones, Loader2, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { currentView, systemHealth, checkHealth } = useAppStore();
+  const { currentView, systemHealth, checkHealth, activeReportModal, closeReportModal } = useAppStore();
 
   React.useEffect(() => {
     // Initial check
@@ -35,7 +36,7 @@ export const App: React.FC = () => {
     if (systemHealth.isAiReady) {
       return (
         <div
-          title="AI Шлюз активен. Синтез речи Gemini 3.1 Flash TTS и оценка ответов готовы к работе."
+          title="AI Шлюз активен. Gemini Live и Gemini TTS готовы к работе."
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs cursor-default"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -51,7 +52,7 @@ export const App: React.FC = () => {
     if (systemHealth.status === 'warming_up' || systemHealth.status === 'checking') {
       return (
         <div
-          title="LiteLLM Gateway и контейнеры запускаются. Голосовые функции станут активны автоматически через несколько секунд..."
+          title="AI Шлюз запускается. Голосовые функции станут активны автоматически через несколько секунд..."
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs animate-pulse cursor-help"
         >
           <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
@@ -100,14 +101,19 @@ export const App: React.FC = () => {
         {currentView === 'quiz' && <ExamQuiz />}
       </main>
 
-      {/* Audio Modal, Floating Player & Toast Notification */}
+      {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
       <AudioRecapModal />
       <AudioPlayerBar />
+      <InterviewReportModal
+        isOpen={Boolean(activeReportModal)}
+        onClose={closeReportModal}
+        report={activeReportModal}
+      />
       <Toast />
 
       {/* Footer */}
       <footer className="border-t border-pastel-border/60 bg-white py-4 text-center text-xs text-pastel-muted">
-        <p>© 2026 InterviewPrep AI Platform. Gemini 3 TTS Engine & LiteLLM Proxy.</p>
+        <p>© 2026 InterviewPrep AI Platform. Gemini Live & Gemini TTS (Opus/SSE).</p>
       </footer>
     </div>
   );

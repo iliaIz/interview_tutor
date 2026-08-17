@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check, Headphones } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check, Headphones, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +14,9 @@ export const StudyDeck: React.FC = () => {
     selectedTopicId,
     selectedTopicName,
     openRecapModal,
-    openTopicQuestions
+    openTopicQuestions,
+    evaluationsMap,
+    openReportModal
   } = useAppStore();
   const [copied, setCopied] = React.useState(false);
 
@@ -128,13 +130,35 @@ export const StudyDeck: React.FC = () => {
               </span>
             </div>
 
-            <button
-              onClick={handleRecapCurrentQuestion}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition"
-              title="Сгенерировать аудиопересказ для этого вопроса"
-            >
-              <Headphones className="w-3.5 h-3.5" /> Озвучить вопрос
-            </button>
+            <div className="flex items-center gap-2">
+              {evaluationsMap[currentQ.id] && (
+                <button
+                  type="button"
+                  onClick={() => openReportModal({
+                    ...evaluationsMap[currentQ.id],
+                    questionText: currentQ.question,
+                    referenceAnswer: currentQ.answer
+                  })}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition shadow-2xs cursor-pointer ${
+                    evaluationsMap[currentQ.id].isPassed
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                  }`}
+                  title="Посмотреть отчет по последней попытке ответа"
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Отчёт: {evaluationsMap[currentQ.id].score}/100</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleRecapCurrentQuestion}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
+                title="Сгенерировать аудиопересказ для этого вопроса"
+              >
+                <Headphones className="w-3.5 h-3.5" /> Озвучить вопрос
+              </button>
+            </div>
           </div>
 
           <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-6 leading-snug">

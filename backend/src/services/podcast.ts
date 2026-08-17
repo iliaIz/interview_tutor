@@ -2,6 +2,9 @@ import { db } from './db';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { EventEmitter } from 'events';
+import { spawn } from 'child_process';
+import { Readable, PassThrough } from 'stream';
 
 export interface GeneratePodcastOptions {
   questionIds?: string[];
@@ -84,9 +87,75 @@ export interface PodcastJobState {
   audioPath?: string;
 }
 
+export interface WavInfo {
+  audioFormat: number;
+  numChannels: number;
+  sampleRate: number;
+  byteRate: number;
+  blockAlign: number;
+  bitsPerSample: number;
+  dataOffset: number;
+  dataLength: number;
+}
+
+export interface StitchSegment {
+  wavBuffer: Buffer;
+  pauseAfterMs: number;
+}
+
 const STORAGE_DIR = path.join(process.cwd(), 'storage');
 if (!fs.existsSync(STORAGE_DIR)) {
   fs.mkdirSync(STORAGE_DIR, { recursive: true });
+}
+
+// Global SSE Event Emitter
+export class JobEventEmitter extends EventEmitter {}
+export const globalJobEmitter = new JobEventEmitter();
+
+// Concurrency Limiter (Max 2 concurrent jobs)
+let activeRunningJobs = 0;
+const MAX_CONCURRENT_JOBS = 2;
+const pendingJobQueue: Array<() => void> = [];
+
+function acquireJobSlot(): Promise<void> {
+  return new Promise((resolve) => {
+    if (activeRunningJobs < MAX_CONCURRENT_JOBS) {
+      activeRunningJobs++;
+      resolve();
+    } else {
+      pendingJobQueue.push(() => {
+        activeRunningJobs++;
+        resolve();
+      });
+    }
+  });
+}
+
+function releaseJobSlot(): void {
+  activeRunningJobs = Math.max(0, activeRunningJobs - 1);
+  if (pendingJobQueue.length > 0) {
+    const next = pendingJobQueue.shift();
+    if (next) next();
+  }
+}
+
+// Storage auto-cleanup (delete files older than 7 days)
+export function cleanupOldStorageFiles(): void {
+  try {
+    const now = Date.now();
+    const maxAgeMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const files = fs.readdirSync(STORAGE_DIR);
+    for (const file of files) {
+      const filePath = path.join(STORAGE_DIR, file);
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs > maxAgeMs) {
+        fs.unlinkSync(filePath);
+        console.log(`🧹 Cleaned up old podcast file: ${file}`);
+      }
+    }
+  } catch (err) {
+    console.error('Storage cleanup error:', err);
+  }
 }
 
 export const DEFAULT_STRICT_SYSTEM_PROMPT = `Ты — ведущий технический архитектор и автор обучающих IT-подкастов по подготовке к техническим собеседованиям.
@@ -119,6 +188,7 @@ function saveJob(job: PodcastJobState) {
       error = excluded.error,
       audio_path = excluded.audio_path
   `);
+
   stmt.run({
     job_id: job.job_id,
     status: job.status,
@@ -128,6 +198,23 @@ function saveJob(job: PodcastJobState) {
     metadata: JSON.stringify(mergedMetadata),
     error: job.error || null,
     audio_path: job.audioPath || null,
+  });
+
+  // Emit SSE event
+  globalJobEmitter.emit('progress', {
+    jobId: job.job_id,
+    stage: job.progress?.stage || 'processing',
+    progress: job.progress?.percentage || 0,
+    data: {
+      stageLabel: job.progress?.stageLabel,
+      currentStep: job.progress?.currentStep,
+      totalSteps: job.progress?.totalSteps,
+      currentSpeaker: job.progress?.currentSpeaker,
+      currentTextSnippet: job.progress?.currentTextSnippet,
+      telemetry: job.progress?.telemetry,
+      audio_url: job.audio_url
+    },
+    error: job.error
   });
 }
 
@@ -174,7 +261,7 @@ export function buildPodcastText(questionIds?: string[], topicName?: string): { 
 
   let text = `Тема пересказа: ${topic}\n`;
   text += `Всего вопросов: ${questions.length}\n\n`;
-  text += `Ниже представлены вопросы для собеседования и ЭТАЛОННЫЕ ответы из базы данных, которые ОБЯЗАТЕЛЬНО должны быть последовательно и полностью раскрыты в диалоге:\n\n`;
+  text += `Ниже представлены вопросы для собеседования и ЭТАЛОННЫЕ ответы из базы знаний, которые ОБЯЗАТЕЛЬНО должны быть последовательно и полностью раскрыты в диалоге:\n\n`;
 
   questions.forEach((q, idx) => {
     text += `────────────────────────────────────────────────────────────────\n`;
@@ -223,63 +310,198 @@ ${userPrompt}
 Исходный материал для разбора:
 ${text}`;
 
-  try {
-    const res = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: 'user', content: scriptPrompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.3
-      })
-    });
+  const res = await fetch(endpointUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${proxyApiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [{ role: 'user', content: scriptPrompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.3
+    })
+  });
 
-    if (res.ok) {
-      const data = await res.json();
-      const rawJson = data.choices?.[0]?.message?.content || '{}';
-      const parsed = JSON.parse(rawJson);
-      if (parsed.dialogue && Array.isArray(parsed.dialogue) && parsed.dialogue.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('LiteLLM script generation failed, fallback to default script:', err);
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Ошибка генерации сценария через LiteLLM (${res.status}): ${errBody}`);
   }
 
-  // Fallback simple script
-  return {
-    name_of_guest: isDuo ? 'Эксперт' : 'Ведущий',
-    dialogue: [
-      { speaker: 'Host', text: `Приветствуем всех слушателей! Сегодня мы подробно разбираем ключевые вопросы темы: ${text.slice(0, 100)}...` },
-      { speaker: isDuo ? 'Guest' : 'Host', text: 'Давайте последовательно пройдемся по каждому вопросу, архитектуре и важным деталям для собеседования.' }
-    ]
-  };
+  const data = await res.json();
+  const rawJson = data.choices?.[0]?.message?.content || '{}';
+  const parsed = JSON.parse(rawJson);
+
+  if (!parsed.dialogue || !Array.isArray(parsed.dialogue) || parsed.dialogue.length === 0) {
+    throw new Error('ИИ вернул пустой или некорректный список реплик в сценарии.');
+  }
+
+  return parsed;
 }
 
 /**
- * Convert 16-bit 24kHz mono PCM buffer into a valid WAV file by prepending RIFF header.
+ * Dynamic RIFF/WAV Header Parser with Word-Alignment
  */
-export function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitDepth = 16): Buffer {
-  const header = Buffer.alloc(44);
-  header.write('RIFF', 0);
-  header.writeUInt32LE(36 + pcmBuffer.length, 4);
-  header.write('WAVE', 8);
-  header.write('fmt ', 12);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(numChannels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(sampleRate * numChannels * (bitDepth / 8), 28);
-  header.writeUInt16LE(numChannels * (bitDepth / 8), 32);
-  header.writeUInt16LE(bitDepth, 34);
-  header.write('data', 36);
-  header.writeUInt32LE(pcmBuffer.length, 40);
+export class WavStitcherService {
+  public static parseWav(buffer: Buffer): WavInfo {
+    if (buffer.length < 12) {
+      throw new Error('WAV parse error: Buffer size is below 12 bytes');
+    }
 
-  return Buffer.concat([header, pcmBuffer]);
+    const riffHeader = buffer.toString('ascii', 0, 4);
+    const waveFormat = buffer.toString('ascii', 8, 12);
+
+    if (riffHeader !== 'RIFF' || waveFormat !== 'WAVE') {
+      throw new Error('WAV parse error: Missing RIFF/WAVE header signatures');
+    }
+
+    let offset = 12;
+    const wavInfo: Partial<WavInfo> = {};
+
+    while (offset < buffer.length - 8) {
+      const chunkId = buffer.toString('ascii', offset, offset + 4);
+      const chunkSize = buffer.readUInt32LE(offset + 4);
+      const chunkDataOffset = offset + 8;
+
+      if (chunkId === 'fmt ') {
+        wavInfo.audioFormat = buffer.readUInt16LE(chunkDataOffset);
+        wavInfo.numChannels = buffer.readUInt16LE(chunkDataOffset + 2);
+        wavInfo.sampleRate = buffer.readUInt32LE(chunkDataOffset + 4);
+        wavInfo.byteRate = buffer.readUInt32LE(chunkDataOffset + 8);
+        wavInfo.blockAlign = buffer.readUInt16LE(chunkDataOffset + 12);
+        wavInfo.bitsPerSample = buffer.readUInt16LE(chunkDataOffset + 14);
+      } else if (chunkId === 'data') {
+        wavInfo.dataOffset = chunkDataOffset;
+        wavInfo.dataLength = chunkSize;
+        break;
+      }
+
+      // Word alignment (chunks padded to 2-byte boundary)
+      const paddedSize = chunkSize + (chunkSize % 2);
+      offset += 8 + paddedSize;
+    }
+
+    if (!wavInfo.dataOffset || !wavInfo.sampleRate || !wavInfo.numChannels || !wavInfo.bitsPerSample) {
+      throw new Error('WAV parse error: Mandatory chunks (fmt or data) not found');
+    }
+
+    return wavInfo as WavInfo;
+  }
+
+  public static stitch(segments: StitchSegment[]): Buffer {
+    if (segments.length === 0) {
+      throw new Error('Stitch error: Segments array is empty');
+    }
+
+    const firstMeta = this.parseWav(segments[0].wavBuffer);
+    const pcmChunks: Buffer[] = [];
+    let totalPcmBytes = 0;
+
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const meta = this.parseWav(segment.wavBuffer);
+
+      if (
+        meta.sampleRate !== firstMeta.sampleRate ||
+        meta.numChannels !== firstMeta.numChannels ||
+        meta.bitsPerSample !== firstMeta.bitsPerSample
+      ) {
+        console.warn(`Format mismatch in segment ${i}, attempting direct concat`);
+      }
+
+      const rawData = segment.wavBuffer.subarray(
+        meta.dataOffset,
+        meta.dataOffset + meta.dataLength
+      );
+      pcmChunks.push(rawData);
+      totalPcmBytes += rawData.length;
+
+      // Add Silence Padding between replicas
+      if (segment.pauseAfterMs > 0 && i < segments.length - 1) {
+        const bytesPerMs = (firstMeta.sampleRate * firstMeta.numChannels * (firstMeta.bitsPerSample / 8)) / 1000;
+        const rawSilenceBytes = Math.floor(segment.pauseAfterMs * bytesPerMs);
+        const alignedSilenceBytes = rawSilenceBytes - (rawSilenceBytes % (firstMeta.blockAlign || 2));
+
+        if (alignedSilenceBytes > 0) {
+          pcmChunks.push(Buffer.alloc(alignedSilenceBytes, 0));
+          totalPcmBytes += alignedSilenceBytes;
+        }
+      }
+    }
+
+    // Canonical 44-byte RIFF header
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + totalPcmBytes, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(firstMeta.audioFormat || 1, 20);
+    header.writeUInt16LE(firstMeta.numChannels || 1, 22);
+    header.writeUInt32LE(firstMeta.sampleRate || 24000, 24);
+    header.writeUInt32LE(firstMeta.byteRate || (24000 * 2), 28);
+    header.writeUInt16LE(firstMeta.blockAlign || 2, 32);
+    header.writeUInt16LE(firstMeta.bitsPerSample || 16, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(totalPcmBytes, 40);
+
+    return Buffer.concat([header, ...pcmChunks], 44 + totalPcmBytes);
+  }
+}
+
+/**
+ * FFmpeg Opus Transcoding Service (VoIP profile, 48kbps, Ogg Opus)
+ */
+export class OpusEncoderService {
+  public static async encodeWavToOpus(wavBuffer: Buffer, outputFilePath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ffmpegArgs = [
+        '-loglevel', 'error',
+        '-f', 'wav',
+        '-i', 'pipe:0',
+        '-c:a', 'libopus',
+        '-b:a', '48k',
+        '-vbr', 'on',
+        '-compression_level', '10',
+        '-application', 'voip',
+        '-frame_duration', '20',
+        '-ar', '48000',
+        '-y',
+        outputFilePath
+      ];
+
+      const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
+        stdio: ['pipe', 'ignore', 'pipe'],
+      });
+
+      let stderrOutput = '';
+      ffmpegProcess.stderr?.on('data', (chunk: Buffer) => {
+        stderrOutput += chunk.toString('utf8');
+      });
+
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg exited with code ${code}: ${stderrOutput}`));
+        }
+      });
+
+      ffmpegProcess.on('error', (err) => {
+        reject(err);
+      });
+
+      const inputStream = new Readable({
+        read() {
+          this.push(wavBuffer);
+          this.push(null);
+        },
+      });
+
+      inputStream.pipe(ffmpegProcess.stdin);
+    });
+  }
 }
 
 /**
@@ -337,7 +559,6 @@ export async function synthesizeTTSWithRetry(
       const isGateway502 = err?.message?.includes('502') || err?.message?.includes('503') || err?.message?.includes('ECONNREFUSED');
 
       if ((isRateLimit || isGateway502) && attempt < maxRetries) {
-        // Backoff: 4s, 8s, 16s...
         const delayMs = Math.min(attempt * 4000, 20000);
         const reason = isRateLimit ? 'Превышен лимит запросов к Gemini TTS (429)' : 'Временный сбой шлюза LiteLLM (502/503)';
         console.warn(`[TTS Retry ${attempt}/${maxRetries}] ${reason}. Ожидание ${delayMs / 1000}s перед повтором...`);
@@ -370,7 +591,7 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
     progress: {
       percentage: 0,
       stage: 'script',
-      stageLabel: 'Инициализация и постановка в очередь...',
+      stageLabel: 'Инициализация и постановка в очередь генерации...',
       currentStep: 0,
       totalSteps: 1,
       telemetry: {
@@ -388,8 +609,15 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
 
   saveJob(jobState);
 
-  // Execute processing asynchronously in background
-  processPodcastJobAsync(jobId, options).catch((err) => {
+  // Execute processing asynchronously with concurrency limiter
+  (async () => {
+    await acquireJobSlot();
+    try {
+      await processPodcastJobAsync(jobId, options);
+    } finally {
+      releaseJobSlot();
+    }
+  })().catch((err) => {
     console.error(`Background job ${jobId} unhandled error:`, err);
   });
 
@@ -415,6 +643,8 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
   };
 
   try {
+    cleanupOldStorageFiles();
+
     job.status = 'PROCESSING';
     job.progress = {
       percentage: 5,
@@ -428,7 +658,7 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
 
     const { text, topic, questionsCount } = buildPodcastText(options.questionIds, options.topicName);
 
-    // 1. Generate Script with strict coverage
+    // 1. Generate Script
     const scriptStartTime = Date.now();
     const script = await generateDialogueScript(text, options, questionsCount);
     const scriptDurationSec = Math.round((Date.now() - scriptStartTime) / 100) / 10;
@@ -448,7 +678,7 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
 
     // 2. Synthesize audio lines with pacing & retry
     const ttsStartTime = Date.now();
-    const rawPcmBuffers: (Buffer | null)[] = new Array(totalLines).fill(null);
+    const stitchedSegments: StitchSegment[] = [];
     let transcriptText = `Topic: ${topic}\n\n`;
 
     for (let i = 0; i < totalLines; i++) {
@@ -460,27 +690,24 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
       let stepStatus: 'completed' | 'failed' = 'completed';
       let retriesCount = 0;
 
-      try {
-        const { buffer: wavBuffer, retries } = await synthesizeTTSWithRetry(
-          line.text, 
-          selectedVoice, 
-          4, 
-          (attempt, delayMs, reason) => {
-            if (job.progress) {
-              job.progress.stageLabel = `Лимит Gemini TTS (429), повтор через ${Math.round(delayMs / 1000)}с (реплика ${i + 1}/${totalLines})...`;
-              saveJob(job);
-            }
+      const { buffer: wavBuffer, retries } = await synthesizeTTSWithRetry(
+        line.text, 
+        selectedVoice, 
+        4, 
+        (attempt, delayMs) => {
+          if (job.progress) {
+            job.progress.stageLabel = `Лимит Gemini TTS (429), повтор через ${Math.round(delayMs / 1000)}с (реплика ${i + 1}/${totalLines})...`;
+            saveJob(job);
           }
-        );
-        retriesCount = retries;
+        }
+      );
+      retriesCount = retries;
 
-        // Strip 44-byte WAV header so we concatenate pure 24kHz PCM data
-        const pcmChunk = wavBuffer.length > 44 ? wavBuffer.subarray(44) : wavBuffer;
-        rawPcmBuffers[i] = pcmChunk;
-      } catch (ttsErr: any) {
-        console.error(`TTS Fatal Error on line ${i + 1}:`, ttsErr);
-        stepStatus = 'failed';
-      }
+      // 300ms pause between speaker turns
+      stitchedSegments.push({
+        wavBuffer,
+        pauseAfterMs: 300
+      });
 
       const stepDurationMs = Date.now() - stepStart;
       telemetry.steps.push({
@@ -509,58 +736,61 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
       };
       saveJob(job);
 
-      // Polite delay between lines to be gentle on Gemini TTS quotas
       if (i < totalLines - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
 
     const ttsDurationSec = Math.round((Date.now() - ttsStartTime) / 100) / 10;
     telemetry.ttsDurationSec = ttsDurationSec;
 
-    // 3. Merging pure PCM into master RIFF WAV
+    // 3. Merging and Transcoding to Opus
     job.progress = {
       percentage: 92,
       stage: 'merging',
-      stageLabel: 'Сборка и нормализация мастер-аудиодорожки...',
+      stageLabel: 'Склейка дорожек и транскодирование в Opus (48 kbps VoIP)...',
       currentStep: totalLines,
       totalSteps: totalLines,
       telemetry
     };
     saveJob(job);
 
-    // Build transcript
     script.dialogue.forEach((line) => {
       const speakerName = line.speaker === 'Host' ? `Host (${voice1})` : `${script.name_of_guest || 'Guest'} (${voice2})`;
       transcriptText += `**${speakerName}**: ${line.text}\n\n`;
     });
 
-    const validPcmChunks = rawPcmBuffers.filter((b): b is Buffer => b !== null);
-    if (validPcmChunks.length === 0) {
-      throw new Error('Не удалось синтезировать ни одной реплики аудиопересказа.');
+    const masterWavBuffer = WavStitcherService.stitch(stitchedSegments);
+
+    const opusFileName = `podcast_${jobId}.opus`;
+    const opusFilePath = path.join(STORAGE_DIR, opusFileName);
+
+    try {
+      await OpusEncoderService.encodeWavToOpus(masterWavBuffer, opusFilePath);
+      job.audioPath = opusFilePath;
+      job.audio_url = `/api/podcast/audio/${jobId}`;
+    } catch (ffmpegErr) {
+      console.warn('FFmpeg Opus encoding failed, fallback to WAV:', ffmpegErr);
+      const wavFileName = `podcast_${jobId}.wav`;
+      const wavFilePath = path.join(STORAGE_DIR, wavFileName);
+      await fs.promises.writeFile(wavFilePath, masterWavBuffer);
+      job.audioPath = wavFilePath;
+      job.audio_url = `/api/podcast/audio/${jobId}`;
     }
 
-    const combinedPcm = Buffer.concat(validPcmChunks);
-    const finalWavBuffer = pcmToWav(combinedPcm, 24000, 1, 16);
-
-    const fileName = `podcast_${jobId}.wav`;
-    const filePath = path.join(STORAGE_DIR, fileName);
-    await fs.promises.writeFile(filePath, finalWavBuffer);
-
+    const finalStat = fs.statSync(job.audioPath);
     const totalDurationSec = Math.round((Date.now() - startTime) / 100) / 10;
     telemetry.endTime = Date.now();
     telemetry.totalDurationSec = totalDurationSec;
-    telemetry.totalBytes = finalWavBuffer.length;
-    telemetry.audioDurationEstimateSec = Math.round(combinedPcm.length / 48000); // 24000 samples * 2 bytes = 48000 bytes/sec
+    telemetry.totalBytes = finalStat.size;
+    telemetry.audioDurationEstimateSec = Math.round(masterWavBuffer.length / 48000);
 
     job.status = 'COMPLETED';
-    job.audioPath = filePath;
-    job.audio_url = `/api/podcast/audio/${jobId}`;
     job.transcript = transcriptText;
     job.progress = {
       percentage: 100,
       stage: 'completed',
-      stageLabel: `Аудиопересказ успешно создан (${validPcmChunks.length}/${totalLines} реплик)!`,
+      stageLabel: `Аудиопересказ успешно создан (${stitchedSegments.length}/${totalLines} реплик)!`,
       currentStep: totalLines,
       totalSteps: totalLines,
       telemetry
@@ -593,7 +823,7 @@ export async function fetchJobStatus(jobId: string): Promise<PodcastJobState> {
   return job;
 }
 
-export async function streamAudioFile(jobId: string): Promise<{ filePath: string }> {
+export async function streamAudioFile(jobId: string): Promise<{ filePath: string; mimeType: string }> {
   const job = getJob(jobId);
   if (!job || job.status !== 'COMPLETED' || !job.audioPath) {
     throw new Error('Audio file not ready or job failed');
@@ -603,5 +833,6 @@ export async function streamAudioFile(jobId: string): Promise<{ filePath: string
     throw new Error('Audio file does not exist on server');
   }
 
-  return { filePath: job.audioPath };
+  const mimeType = job.audioPath.endsWith('.opus') ? 'audio/ogg; codecs=opus' : 'audio/wav';
+  return { filePath: job.audioPath, mimeType };
 }

@@ -47,7 +47,8 @@ export const ExamQuiz: React.FC = () => {
     systemHealth,
     openTopicQuestions,
     startStudyWithQuestions,
-    startQuizWithQuestions
+    startQuizWithQuestions,
+    setQuestionEvaluation
   } = useAppStore();
 
   const [userAnswer, setUserAnswer] = useState('');
@@ -95,6 +96,8 @@ export const ExamQuiz: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          questionId: currentQ.id,
+          topic: selectedTopicName || currentQ.topic,
           question: currentQ.question,
           referenceAnswer: currentQ.answer,
           userAnswer
@@ -104,6 +107,23 @@ export const ExamQuiz: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setEvalResult(data);
+
+        const evalRecord = {
+          id: currentQ.id,
+          questionId: currentQ.id,
+          topic: selectedTopicName || currentQ.topic,
+          mode: 'text' as const,
+          score: data.score ?? 0,
+          isPassed: !!data.isPassed,
+          positivePoints: data.positivePoints || [],
+          missingPoints: data.missingPoints || [],
+          feedback: data.feedback || '',
+          userAnswer,
+          questionText: currentQ.question,
+          referenceAnswer: currentQ.answer
+        };
+
+        setQuestionEvaluation(currentQ.id, evalRecord);
 
         // Save into results history
         setResultsHistory((prev) => ({
@@ -596,7 +616,58 @@ export const ExamQuiz: React.FC = () => {
       <VoiceModal
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
+        questionId={currentQ.id}
+        topic={selectedTopicName || currentQ.topic}
         currentQuestionText={currentQ.question}
+        referenceAnswer={currentQ.answer}
+        onEvaluationComplete={async (evalData) => {
+          setEvalResult(evalData);
+
+          const evalRecord = {
+            id: currentQ.id,
+            questionId: currentQ.id,
+            topic: selectedTopicName || currentQ.topic,
+            mode: 'voice' as const,
+            score: evalData.score ?? 0,
+            isPassed: !!evalData.isPassed,
+            positivePoints: evalData.positivePoints || [],
+            missingPoints: evalData.missingPoints || [],
+            feedback: evalData.feedback || '',
+            userAnswer: 'Устный ответ через Gemini Live',
+            audioMetrics: evalData.audioMetrics,
+            questionText: currentQ.question,
+            referenceAnswer: currentQ.answer
+          };
+
+          setQuestionEvaluation(currentQ.id, evalRecord);
+
+          setResultsHistory((prev) => ({
+            ...prev,
+            [currentQ.id]: {
+              question: currentQ,
+              userAnswer: '🎙️ Устный ответ в Gemini Live',
+              score: evalData.score ?? 0,
+              isPassed: !!evalData.isPassed,
+              feedback: evalData.feedback || '',
+              positivePoints: evalData.positivePoints || [],
+              missingPoints: evalData.missingPoints || []
+            }
+          }));
+
+          if (selectedTopicId) {
+            updateTopicProgress(selectedTopicId, currentQ.id, evalData.isPassed);
+
+            await fetch(`/api/topics/${selectedTopicId}/progress`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                completedIds: [currentQ.id],
+                masteredIds: evalData.isPassed ? [currentQ.id] : [],
+                lastQuestionId: currentQ.id
+              })
+            });
+          }
+        }}
       />
     </div>
   );

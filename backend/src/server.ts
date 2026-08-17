@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import topicsRouter from './routes/topics';
 import evalRouter from './routes/eval';
 import podcastRouter from './routes/podcast';
-import { seedQuestionsFromJSON } from './services/db';
+import { seedQuestionsFromJSON, recoverOrphanedJobs } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
 dotenv.config();
@@ -35,8 +35,9 @@ const server = http.createServer(app);
 // Setup Gemini Live WebSocket Proxy
 setupLiveWebSocketProxy(server);
 
-// Seed DB and start server
+// Seed DB, recover orphaned jobs and start server
 seedQuestionsFromJSON();
+recoverOrphanedJobs();
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend Server running on http://localhost:${PORT}`);

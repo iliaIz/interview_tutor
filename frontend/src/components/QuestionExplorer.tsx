@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Info
+  Info,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -36,7 +37,10 @@ export const QuestionExplorer: React.FC = () => {
     startStudyWithQuestions,
     startQuizWithQuestions,
     openRecapModal,
-    showToast
+    showToast,
+    evaluationsMap,
+    openReportModal,
+    fetchTopicEvaluations
   } = useAppStore();
 
   const [questions, setQuestions] = useState<QuestionWithStatus[]>([]);
@@ -84,6 +88,9 @@ export const QuestionExplorer: React.FC = () => {
 
   useEffect(() => {
     fetchQuestions();
+    if (selectedTopicId) {
+      fetchTopicEvaluations(selectedTopicId);
+    }
     setSelectedIds(new Set());
     lastSelectedIndexRef.current = null;
   }, [selectedTopicId]);
@@ -555,6 +562,32 @@ export const QuestionExplorer: React.FC = () => {
                       <span className="text-[10px] text-pastel-muted font-mono">
                         {q.id}
                       </span>
+
+                      {/* Evaluation Score Badge */}
+                      {evaluationsMap[q.id] && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReportModal({
+                              ...evaluationsMap[q.id],
+                              questionText: q.question,
+                              referenceAnswer: q.answer
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition shadow-2xs cursor-pointer ${
+                            evaluationsMap[q.id].isPassed
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                          }`}
+                          title="Посмотреть подробный отчет интервьюера"
+                        >
+                          <Award className="w-3 h-3 text-emerald-600" />
+                          <span>{evaluationsMap[q.id].score}/100</span>
+                          <span>{evaluationsMap[q.id].mode === 'voice' ? '🎙️' : '⌨️'}</span>
+                          <span className="text-[9px] underline ml-0.5">Отчёт</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Question Text */}

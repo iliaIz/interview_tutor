@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { 
   X, Headphones, Sparkles, Loader2, Music, CheckCircle2, AlertCircle, 
@@ -48,6 +48,9 @@ export const AudioRecapModal: React.FC = () => {
   
   const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
   const activeBlobUrlRef = useRef<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const sseRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sseRetryCountRef = useRef(0);
 
   const [tone, setTone] = useState<string>('Fun');
   const [length, setLength] = useState<string>('Medium (10-15 min)');
@@ -168,6 +171,14 @@ export const AudioRecapModal: React.FC = () => {
   useEffect(() => {
     if (!isRecapModalOpen) {
       stopPreview();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (sseRetryTimeoutRef.current) {
+        clearTimeout(sseRetryTimeoutRef.current);
+        sseRetryTimeoutRef.current = null;
+      }
       setStatus('idle');
       setJobId(null);
       setErrorMessage(null);
@@ -177,50 +188,106 @@ export const AudioRecapModal: React.FC = () => {
     }
   }, [isRecapModalOpen]);
 
-  // Poll status with high precision when jobId is set
-  useEffect(() => {
-    if (!jobId || status === 'completed' || status === 'failed') return;
+  // Server-Sent Events (SSE) progress listener with reconnection
+  const connectSSE = useCallback((activeJobId: string) => {
+    if (!activeJobId) return;
 
-    const interval = setInterval(async () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const es = new EventSource(`/api/podcast/progress/${activeJobId}`);
+    eventSourceRef.current = es;
+
+    es.onopen = () => {
+      sseRetryCountRef.current = 0;
+    };
+
+    es.addEventListener('connected', () => {
+      setStatus((prev) => (prev === 'idle' ? 'queued' : prev));
+    });
+
+    es.addEventListener('job_progress', (e: MessageEvent) => {
       try {
-        const res = await fetch(`/api/podcast/status/${jobId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.progress) {
-            setProgressData(data.progress);
-            if (data.progress.stageLabel) {
-              setProgressMsg(data.progress.stageLabel);
-            }
-          }
-
-          if (data.status === 'QUEUED') {
-            setStatus('queued');
-          } else if (data.status === 'PROCESSING') {
-            setStatus('processing');
-          } else if (data.status === 'COMPLETED') {
-            setStatus('completed');
-            setCompletedJobData(data);
-            setProgressMsg('Аудиопересказ успешно готов!');
-            setActiveAudioJob({
-              jobId: data.job_id,
-              audioUrl: `/api/podcast/audio/${data.job_id}`,
-              title: recapTarget?.title || 'Аудиопересказ вопросов',
-              topic: recapTarget?.topicName,
-              transcript: data.transcript,
-              metadata: data.metadata,
-            });
-          } else if (data.status === 'FAILED') {
-            setStatus('failed');
-            setErrorMessage(data.error || 'Ошибка во время генерации аудиопересказа');
+        const payload = JSON.parse(e.data);
+        setStatus('processing');
+        if (payload.data) {
+          setProgressData(payload.data);
+          if (payload.data.stageLabel) {
+            setProgressMsg(payload.data.stageLabel);
           }
         }
-      } catch (err: any) {
-        console.error('Error polling status:', err);
+      } catch (err) {
+        console.error('SSE parse error job_progress:', err);
       }
-    }, 1200);
+    });
 
-    return () => clearInterval(interval);
-  }, [jobId, status, recapTarget, setActiveAudioJob]);
+    es.addEventListener('job_completed', async (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data);
+        setStatus('completed');
+        setProgressMsg('Аудиопересказ успешно готов!');
+        setCompletedJobData(payload);
+
+        // Fetch final status to get full transcript & metadata
+        const res = await fetch(`/api/podcast/status/${activeJobId}`);
+        if (res.ok) {
+          const finalJob = await res.json();
+          setCompletedJobData(finalJob);
+          setActiveAudioJob({
+            jobId: finalJob.job_id,
+            audioUrl: `/api/podcast/audio/${finalJob.job_id}`,
+            title: recapTarget?.title || 'Аудиопересказ вопросов',
+            topic: recapTarget?.topicName,
+            transcript: finalJob.transcript,
+            metadata: finalJob.metadata,
+          });
+        }
+      } catch (err) {
+        console.error('SSE parse error job_completed:', err);
+      }
+      es.close();
+    });
+
+    es.addEventListener('job_error', (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data);
+        setStatus('failed');
+        setErrorMessage(payload.error || 'Ошибка во время генерации аудиопересказа');
+      } catch {
+        setStatus('failed');
+        setErrorMessage('Ошибка обработки задачи');
+      }
+      es.close();
+    });
+
+    es.onerror = () => {
+      es.close();
+      if (status !== 'completed' && status !== 'failed') {
+        const baseDelay = 1000;
+        const delay = Math.min(10000, baseDelay * 2 ** sseRetryCountRef.current) + Math.random() * 500;
+        sseRetryCountRef.current += 1;
+
+        sseRetryTimeoutRef.current = setTimeout(() => {
+          connectSSE(activeJobId);
+        }, delay);
+      }
+    };
+  }, [recapTarget, setActiveAudioJob, status]);
+
+  useEffect(() => {
+    if (jobId && status !== 'completed' && status !== 'failed') {
+      connectSSE(jobId);
+    }
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (sseRetryTimeoutRef.current) {
+        clearTimeout(sseRetryTimeoutRef.current);
+      }
+    };
+  }, [jobId, connectSSE, status]);
 
   if (!isRecapModalOpen || !recapTarget) return null;
 
@@ -280,7 +347,7 @@ export const AudioRecapModal: React.FC = () => {
     md += `**Дата:** ${new Date().toLocaleString('ru-RU')}  \n`;
     md += `**Идентификатор задачи (Job ID):** \`${jobId || 'N/A'}\`  \n\n`;
     
-    md += `## 📊 Сводные метрики пайплайна\n\n`;
+    md += `## 📊 Сводные метрики пайплайна (Opus 48kbps / SSE)\n\n`;
     md += `| Параметр | Значение |\n`;
     md += `| :--- | :--- |\n`;
     md += `| **Общее время генерации** | \`${telemetry.totalDurationSec || '—'} сек\` |\n`;
@@ -292,7 +359,7 @@ export const AudioRecapModal: React.FC = () => {
     md += `| **Голоса дикторов** | \`${voice1}${mode === 'duo' ? ` + ${voice2}` : ''}\` |\n`;
     md += `| **Количество реплик** | \`${telemetry.steps?.length || progressData?.totalSteps || '—'}\` |\n`;
     md += `| **Оценка длительности аудио** | \`~${telemetry.audioDurationEstimateSec || '—'} сек\` |\n`;
-    md += `| **Размер WAV-файла** | \`${telemetry.totalBytes ? `${Math.round(telemetry.totalBytes / 1024)} KB` : '—'}\` |\n\n`;
+    md += `| **Размер сжатого аудио (Opus)** | \`${telemetry.totalBytes ? `${Math.round(telemetry.totalBytes / 1024)} KB` : '—'}\` |\n\n`;
 
     if (telemetry.steps && telemetry.steps.length > 0) {
       md += `## ⏱️ Тайминг синтеза по репликам\n\n`;
@@ -309,7 +376,7 @@ export const AudioRecapModal: React.FC = () => {
       md += `${job.transcript}\n\n`;
     }
 
-    md += `---\n*Сгенерировано платформой InterviewPrep AI с Gemini 3.1 Flash TTS Engine & LiteLLM Proxy.*`;
+    md += `---\n*Сгенерировано платформой InterviewPrep AI с Gemini Live/TTS & Opus Streaming.*`;
     return md;
   };
 
@@ -362,7 +429,7 @@ export const AudioRecapModal: React.FC = () => {
                   {status === 'idle' ? 'Настройки аудиопересказа' : 'Генерация аудиопересказа'}
                 </h3>
                 <p className="text-[11px] text-pastel-muted">
-                  Gemini 3.1 Flash TTS Studio • 24 kHz Нативный звук
+                  Gemini TTS Studio • Opus VoIP 48 kbps • SSE Поток
                 </p>
               </div>
             </div>
@@ -384,9 +451,9 @@ export const AudioRecapModal: React.FC = () => {
             <div className="mb-4 p-3 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 shadow-xs">
               <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
               <div>
-                <span className="font-semibold block">Инициализация AI Шлюза LiteLLM...</span>
+                <span className="font-semibold block">Инициализация AI Шлюза...</span>
                 <p className="text-[11px] text-amber-800/80 mt-0.5">
-                  Сервер подключается к Google Gemini API. Кнопки прослушивания и генерации станут активны автоматически через несколько секунд.
+                  Сервер подключается к Google Gemini API. Кнопки станут активны через несколько секунд.
                 </p>
               </div>
             </div>
@@ -469,7 +536,7 @@ export const AudioRecapModal: React.FC = () => {
                             ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
                             : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
                         }`}
-                        title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать пример голоса"}
+                        title="Прослушать пример голоса"
                       >
                         {!systemHealth.isAiReady ? (
                           <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
@@ -478,7 +545,7 @@ export const AudioRecapModal: React.FC = () => {
                         ) : (
                           <Volume2 className="w-4 h-4" />
                         )}
-                        <span className="hidden sm:inline">{!systemHealth.isAiReady ? 'Запуск...' : 'Тест'}</span>
+                        <span className="hidden sm:inline">Тест</span>
                       </button>
                     </div>
                   </div>
@@ -511,11 +578,8 @@ export const AudioRecapModal: React.FC = () => {
                               ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
                               : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
                           }`}
-                          title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать голос 1"}
                         >
-                          {!systemHealth.isAiReady ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                          ) : previewingVoice === voice1 ? (
+                          {previewingVoice === voice1 ? (
                             <VolumeX className="w-4 h-4 animate-pulse" />
                           ) : (
                             <Volume2 className="w-4 h-4" />
@@ -551,11 +615,8 @@ export const AudioRecapModal: React.FC = () => {
                               ? 'bg-pastel-accentViolet text-white border-pastel-accentViolet'
                               : 'bg-white text-pastel-accentViolet border-pastel-accentViolet/30 hover:bg-pastel-lavender cursor-pointer'
                           }`}
-                          title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Голос станет доступен через несколько секунд" : "Прослушать голос 2"}
                         >
-                          {!systemHealth.isAiReady ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                          ) : previewingVoice === voice2 ? (
+                          {previewingVoice === voice2 ? (
                             <VolumeX className="w-4 h-4 animate-pulse" />
                           ) : (
                             <Volume2 className="w-4 h-4" />
@@ -682,7 +743,6 @@ export const AudioRecapModal: React.FC = () => {
                     ? 'opacity-60 cursor-not-allowed bg-gray-400 text-white'
                     : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-95 text-white shadow-pastel-accentRose/25 active:scale-[0.98] cursor-pointer'
                 }`}
-                title={!systemHealth.isAiReady ? "Инициализация AI Шлюза... Генерация станет доступна через несколько секунд" : "Запустить генерацию аудио"}
               >
                 {!systemHealth.isAiReady ? (
                   <>
@@ -692,7 +752,7 @@ export const AudioRecapModal: React.FC = () => {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Запустить генерацию аудио</span>
+                    <span>Запустить генерацию аудио (Opus)</span>
                   </>
                 )}
               </button>
@@ -709,12 +769,12 @@ export const AudioRecapModal: React.FC = () => {
                     {status === 'completed' ? (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Генерация успешно завершена</span>
+                        <span>Генерация успешно завершена (Opus 48k)</span>
                       </>
                     ) : (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentViolet" />
-                        <span>Выполняется генерация подкаста</span>
+                        <span>Потоковая генерация через SSE</span>
                       </>
                     )}
                   </div>
@@ -779,12 +839,12 @@ export const AudioRecapModal: React.FC = () => {
                       ) : (
                         <div className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
                       )}
-                      <span className="truncate">3. Сборка трека</span>
+                      <span className="truncate">3. Склейка & Opus</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Live Speaker & Script Ticker (When generating) */}
+                {/* Live Speaker & Script Ticker */}
                 {progressData?.currentTextSnippet && status === 'processing' && (
                   <motion.div
                     initial={{ opacity: 0, y: 5 }}
@@ -834,7 +894,7 @@ export const AudioRecapModal: React.FC = () => {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <div className="p-2.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/60">
                           <span className="text-[10px] text-pastel-muted flex items-center gap-1 mb-0.5">
-                            <Clock className="w-3 h-3" /> Общее время
+                            <Clock className="w-3 colonial" /> Общее время
                           </span>
                           <span className="font-bold text-pastel-text">
                             {telemetryObj.totalDurationSec ? `${telemetryObj.totalDurationSec} с` : 'В процессе...'}
@@ -916,7 +976,7 @@ export const AudioRecapModal: React.FC = () => {
                     onClick={closeRecapModal}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold shadow-md hover:opacity-95 transition cursor-pointer"
                   >
-                    Готово / Слушать
+                    Готово / Слушать в плеере
                   </button>
                 </div>
               )}
