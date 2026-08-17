@@ -6,6 +6,7 @@ import topicsRouter from './routes/topics';
 import evalRouter from './routes/eval';
 import podcastRouter from './routes/podcast';
 import profilesRouter from './routes/profiles';
+import sttRouter from './routes/stt';
 import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
@@ -15,7 +16,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }));
 
 import { checkSystemHealth } from './services/health';
 
@@ -24,6 +26,7 @@ app.use('/api/topics', topicsRouter);
 app.use('/api/eval', evalRouter);
 app.use('/api/podcast', podcastRouter);
 app.use('/api/profiles', profilesRouter);
+app.use('/api/stt', sttRouter);
 
 app.get('/api/health', async (req, res) => {
   const health = await checkSystemHealth();

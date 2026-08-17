@@ -18,7 +18,10 @@ import {
   Play,
   Loader2,
   Settings2,
-  GraduationCap
+  GraduationCap,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
@@ -86,6 +89,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [systemHealth, setSystemHealth] = useState<{ isAiReady: boolean }>({ isAiReady: true });
+  const [deepgramTranscript, setDeepgramTranscript] = useState<string>('');
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Refs for synchronous audio worklet synchronization
   const isRecordingRef = useRef(false);
@@ -94,6 +100,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isEvaluationFinalizedRef = useRef(false);
+  const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -110,6 +117,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setStage('lobby');
     setEvaluation(null);
     setDialogueTurns([]);
+    dialogueTurnsRef.current = [];
+    setDeepgramTranscript('');
+    setIsTranscriptOpen(false);
+    setIsTranscribing(false);
     userPcmChunksRef.current = [];
     transcriptRef.current = '';
     isEvaluationFinalizedRef.current = false;
@@ -119,6 +130,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       teardownSession();
     };
   }, [isOpen, questionId, currentQuestionText]);
+
+  // Keep dialogueTurnsRef in sync with state (needed in async finalizeEvaluation)
+  useEffect(() => {
+    dialogueTurnsRef.current = dialogueTurns;
+  }, [dialogueTurns]);
 
   const teardownSession = () => {
     isEvaluationFinalizedRef.current = false;
@@ -418,7 +434,30 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   };
 
-  const computeLocalAcoustics = (): AcousticMetrics => {
+  /**
+   * Encode Float32 PCM chunks to Int16 PCM Buffer for Deepgram upload
+   */
+  const encodePcmToInt16Base64 = (): string => {
+    const totalSamples = userPcmChunksRef.current.reduce((acc, c) => acc + c.length, 0);
+    const combined = new Float32Array(totalSamples);
+    let offset = 0;
+    for (const chunk of userPcmChunksRef.current) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const int16 = new Int16Array(combined.length);
+    for (let i = 0; i < combined.length; i++) {
+      const clamped = Math.max(-1, Math.min(1, combined[i]));
+      int16[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
+    }
+    // Convert Int16Array to base64
+    const bytes = new Uint8Array(int16.buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  };
+
+  const computeLocalAcoustics = (realWordCount?: number): AcousticMetrics => {
     const totalSamples = userPcmChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
     const combinedPcm = new Float32Array(totalSamples);
     let offset = 0;
@@ -426,12 +465,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       combinedPcm.set(chunk, offset);
       offset += chunk.length;
     }
+    // Build a synthetic transcript of the right word-count length for WPM calculation
+    const syntheticTranscript = realWordCount && realWordCount > 0
+      ? Array(realWordCount).fill('слово').join(' ')
+      : (transcriptRef.current || 'Ответ кандидата в голосовом режиме');
 
-    return AcousticTelemetryService.analyzeAcoustics(
-      combinedPcm,
-      16000,
-      transcriptRef.current || 'Ответ кандидата в голосовом режиме'
-    );
+    return AcousticTelemetryService.analyzeAcoustics(combinedPcm, 16000, syntheticTranscript);
   };
 
   const finalizeEvaluation = async (evalData: EvaluationResult) => {
@@ -446,48 +485,103 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     stopMicrophone();
     playoutManagerRef.current?.clearQueue();
 
-    const acoustics = computeLocalAcoustics();
-    const finalResult = {
-      ...evalData,
-      audioMetrics: acoustics
-    };
-
+    // Show verdict card immediately with local acoustics
+    const acousticsLocal = computeLocalAcoustics();
+    const finalResult = { ...evalData, audioMetrics: acousticsLocal };
     setEvaluation(finalResult);
     setStage('verdict');
     setIsSubmitting(false);
+    if ((finalResult.score ?? 0) >= 80) triggerSuccessConfetti();
 
-    if ((finalResult.score ?? 0) >= 80) {
-      triggerSuccessConfetti();
-    }
+    // ---- Deepgram STT in background ----
+    // Only attempt if there's recorded audio
+    if (userPcmChunksRef.current.length > 0) {
+      setIsTranscribing(true);
+      let deepgramText = '';
+      let realWordCount = 0;
+      try {
+        const pcmBase64 = encodePcmToInt16Base64();
+        const sttRes = await fetch('/api/stt/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pcmBase64 })
+        });
+        if (sttRes.ok) {
+          const sttData = await sttRes.json();
+          deepgramText = sttData.transcript || '';
+          realWordCount = sttData.wordsCount || 0;
+          if (deepgramText) setDeepgramTranscript(deepgramText);
+        }
+      } catch (err) {
+        console.warn('Deepgram STT failed (non-critical):', err);
+      } finally {
+        setIsTranscribing(false);
+      }
 
-    // Persist to backend /api/eval/save if questionId is provided
-    if (questionId) {
+      // Recompute acoustics with real word count if we got one
+      const acousticsFinal = realWordCount > 0
+        ? computeLocalAcoustics(realWordCount)
+        : acousticsLocal;
+
+      if (realWordCount > 0) {
+        setEvaluation(prev => prev ? { ...prev, audioMetrics: acousticsFinal } : prev);
+      }
+
+      // Build full dialogue transcript JSON for DB storage
+      const currentTurns = dialogueTurnsRef.current;
+      const fullDialogue = [
+        ...currentTurns,
+        ...(deepgramText ? [{ role: 'user' as const, text: `[Deepgram] ${deepgramText}` }] : [])
+      ];
+      const dialogueJson = JSON.stringify(fullDialogue);
+
+      // Persist to backend /api/eval/save
+      if (questionId) {
+        try {
+          await fetch('/api/eval/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questionId,
+              topic,
+              mode: 'voice',
+              score: finalResult.score,
+              isPassed: finalResult.isPassed,
+              positivePoints: finalResult.positivePoints,
+              missingPoints: finalResult.missingPoints,
+              feedback: finalResult.feedback,
+              userAnswer: deepgramText || 'Устный ответ через Gemini Live',
+              transcript: dialogueJson,
+              audioMetrics: acousticsFinal
+            })
+          });
+        } catch (err) {
+          console.error('Error saving evaluation to DB:', err);
+        }
+      }
+    } else if (questionId) {
+      // No audio recorded — still save with local data
       try {
         await fetch('/api/eval/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            questionId,
-            topic,
-            mode: 'voice',
-            score: finalResult.score,
-            isPassed: finalResult.isPassed,
+            questionId, topic, mode: 'voice',
+            score: finalResult.score, isPassed: finalResult.isPassed,
             positivePoints: finalResult.positivePoints,
             missingPoints: finalResult.missingPoints,
             feedback: finalResult.feedback,
             userAnswer: 'Устный ответ через Gemini Live',
             transcript: transcriptRef.current,
-            audioMetrics: acoustics
+            audioMetrics: acousticsLocal
           })
         });
       } catch (err) {
-        console.error('Error saving Live evaluation to DB:', err);
+        console.error('Error saving evaluation to DB:', err);
       }
     }
 
-    if (onEvaluationComplete) {
-      onEvaluationComplete(finalResult);
-    }
+    if (onEvaluationComplete) onEvaluationComplete(finalResult);
   };
 
   const handleRequestVerdict = () => {
@@ -843,35 +937,126 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               </div>
             </div>
 
-            {/* Acoustic Telemetry Card */}
-            {evaluation.audioMetrics && (
-              <div className="p-3.5 rounded-2xl bg-pastel-card/80 border border-pastel-border/70 text-xs">
-                <div className="flex items-center gap-2 font-bold text-pastel-text mb-2">
-                  <Activity className="w-4 h-4 text-pastel-accentViolet" />
-                  <span>Акустический профиль устной речи</span>
+            {/* Executive Vocal Coaching & Acoustic Profile Studio */}
+            {evaluation.audioMetrics && (() => {
+              const humanProfile = AcousticTelemetryService.getHumanizedProfile(evaluation.audioMetrics);
+              return (
+                <div className="p-4 rounded-3xl bg-gradient-to-br from-pastel-rose/40 via-white to-pastel-lavender/40 border border-pastel-border/80 shadow-xs space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-2xs">
+                        <Activity className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs text-pastel-text">
+                          Голосовой коучинг и манера речи
+                        </h4>
+                        <p className="text-[10px] text-pastel-muted">
+                          Анализ интонаций, темпа и уверенности ответа
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/90 border border-pastel-border text-pastel-accentViolet shadow-2xs">
+                      ✨ AI Voice Studio
+                    </span>
+                  </div>
+
+                  {/* 30-Point Sparkline Waveform (Equalizer) */}
+                  {evaluation.audioMetrics.energyVector30 && evaluation.audioMetrics.energyVector30.length > 0 && (
+                    <div className="p-2.5 bg-white/85 rounded-2xl border border-pastel-border/60 flex items-end justify-between h-11 gap-1 shadow-2xs">
+                      {evaluation.audioMetrics.energyVector30.map((val, idx) => (
+                        <div
+                          key={idx}
+                          style={{ height: `${Math.max(12, val * 100)}%` }}
+                          className={`w-full rounded-full transition-all duration-300 ${
+                            val > 0.65
+                              ? 'bg-gradient-to-t from-pastel-accentRose to-pink-400'
+                              : val > 0.35
+                              ? 'bg-gradient-to-t from-pastel-accentViolet to-indigo-300'
+                              : 'bg-pastel-border/80'
+                          }`}
+                          title={`Энергия голоса: ${(val * 100).toFixed(0)}%`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 3 Coaching Insight Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {/* Volume & Delivery */}
+                    <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs">{humanProfile.volume.iconEmoji}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.volume.badgeStyle}`}>
+                            {humanProfile.volume.badge}
+                          </span>
+                        </div>
+                        <span className="font-bold text-xs text-pastel-text block">
+                          {humanProfile.volume.title}
+                        </span>
+                        <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                          {humanProfile.volume.description}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                        Уровень: {humanProfile.volume.techValue}
+                      </span>
+                    </div>
+
+                    {/* Pace & Rhythm */}
+                    <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs">{humanProfile.pace.iconEmoji}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.pace.badgeStyle}`}>
+                            {humanProfile.pace.badge}
+                          </span>
+                        </div>
+                        <span className="font-bold text-xs text-pastel-text block">
+                          {humanProfile.pace.title}
+                        </span>
+                        <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                          {humanProfile.pace.description}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                        Скорость: {humanProfile.pace.techValue}
+                      </span>
+                    </div>
+
+                    {/* Structure & Pauses */}
+                    <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs">{humanProfile.structure.iconEmoji}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.structure.badgeStyle}`}>
+                            {humanProfile.structure.badge}
+                          </span>
+                        </div>
+                        <span className="font-bold text-xs text-pastel-text block">
+                          {humanProfile.structure.title}
+                        </span>
+                        <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                          {humanProfile.structure.description}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                        Структура: {humanProfile.structure.techValue}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mentor Coaching Praise Banner */}
+                  <div className="p-2.5 rounded-2xl bg-white/95 border border-pastel-rose/80 text-[11px] text-pastel-text leading-relaxed flex items-center gap-2 shadow-2xs">
+                    <span className="text-sm shrink-0">🌸</span>
+                    <p className="font-medium text-pastel-text/90">
+                      {humanProfile.mentorPraise}
+                    </p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                  <div className="p-2 bg-white rounded-xl border border-pastel-border/60">
-                    <span className="text-pastel-sub block">Громкость (RMS)</span>
-                    <span className="font-bold text-pastel-text">
-                      {Math.round(evaluation.audioMetrics.rmsDb)} dB
-                    </span>
-                  </div>
-                  <div className="p-2 bg-white rounded-xl border border-pastel-border/60">
-                    <span className="text-pastel-sub block">Темп речи</span>
-                    <span className="font-bold text-pastel-text">
-                      {Math.round(evaluation.audioMetrics.netWpm)} WPM
-                    </span>
-                  </div>
-                  <div className="p-2 bg-white rounded-xl border border-pastel-border/60">
-                    <span className="text-pastel-sub block">Паузы / Уверенность</span>
-                    <span className="font-bold text-pastel-text">
-                      {Math.round(evaluation.audioMetrics.pauseRatioPercent)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Positive Points */}
             {evaluation.positivePoints && evaluation.positivePoints.length > 0 && (
@@ -911,7 +1096,68 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               </div>
             )}
 
-            {/* Action Buttons for Verdict Stage (1-click Retry & Close) */}
+            {/* Dialogue Transcript Accordion */}
+            {(deepgramTranscript || dialogueTurns.some(t => t.role === 'ai' && t.text.length > 5)) && (
+              <div className="rounded-2xl border border-pastel-border/70 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsTranscriptOpen(o => !o)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-pastel-card/80 hover:bg-pastel-rose/30 transition-colors text-xs font-bold text-pastel-text cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <MessageSquare className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                    📜 Стенограмма интервью
+                    {isTranscribing && (
+                      <span className="flex items-center gap-1 text-[10px] text-pastel-accentViolet font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Deepgram распознаёт...
+                      </span>
+                    )}
+                  </span>
+                  {isTranscriptOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {isTranscriptOpen && (
+                  <div className="p-3 bg-white/70 space-y-2.5 max-h-60 overflow-y-auto">
+                    {/* AI dialogue turns */}
+                    {dialogueTurns
+                      .filter(t => t.role === 'ai' || t.role === 'system')
+                      .map((turn, i) => (
+                        <div key={i} className={`flex gap-2 text-[11px] ${
+                          turn.role === 'system' ? 'opacity-50' : ''
+                        }`}>
+                          <span className="text-sm shrink-0">{turn.role === 'ai' ? '🤖' : '⚙️'}</span>
+                          <div>
+                            <span className="font-bold text-pastel-accentViolet block text-[9px] mb-0.5">
+                              {turn.role === 'ai' ? 'ИИ-Интервьюер' : 'Система'}
+                            </span>
+                            <p className="text-pastel-text/80 leading-relaxed">{turn.text}</p>
+                          </div>
+                        </div>
+                      ))
+                    }
+                    {/* Deepgram-transcribed candidate answer */}
+                    {deepgramTranscript && (
+                      <div className="flex gap-2 text-[11px]">
+                        <span className="text-sm shrink-0">👤</span>
+                        <div>
+                          <span className="font-bold text-emerald-700 block text-[9px] mb-0.5">
+                            Ваш ответ (Deepgram Nova-3 · Русский)
+                          </span>
+                          <p className="text-pastel-text/90 leading-relaxed">{deepgramTranscript}</p>
+                        </div>
+                      </div>
+                    )}
+                    {isTranscribing && !deepgramTranscript && (
+                      <div className="flex gap-2 text-[11px] text-pastel-muted">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mt-0.5 shrink-0" />
+                        <p>Deepgram Nova-3 распознаёт ваш ответ на русском языке...</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="pt-3 border-t border-pastel-border/60 flex items-center gap-3">
               <button
                 type="button"

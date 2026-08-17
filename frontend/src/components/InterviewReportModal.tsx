@@ -3,8 +3,8 @@ import {
   X, Award, Activity, CheckCircle2, AlertTriangle, 
   MessageSquare, ChevronDown, ChevronUp, BookOpen, Mic, Keyboard, Sparkles, Heart 
 } from 'lucide-react';
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { AcousticMetrics } from '../services/AcousticTelemetryService';
+import { motion, AnimatePresence, animate } from 'framer-motion';
+import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
 
 export interface InterviewReportData {
@@ -207,70 +207,127 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
           </div>
 
           {/* Acoustic Voice Telemetry Profile (If Voice Mode) */}
-          {report.audioMetrics && (
-            <div className="p-4 md:p-5 rounded-2xl bg-white border border-pastel-border/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-pastel-text uppercase tracking-wider flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-pastel-accentViolet" />
-                  Акустический профиль речи и уверенности
-                </h4>
-                <span className="text-[10px] font-semibold text-pastel-muted">Gemini Live Telemetry</span>
-              </div>
-
-              {/* 30-Point Sparkline Waveform */}
-              {report.audioMetrics.energyVector30 && report.audioMetrics.energyVector30.length > 0 && (
-                <div className="p-3 bg-pastel-bg/60 rounded-xl border border-pastel-border/60 flex items-end justify-between h-14 gap-1">
-                  {report.audioMetrics.energyVector30.map((val, idx) => (
-                    <motion.div
-                      key={idx}
-                      initial={{ height: 0 }}
-                      animate={{ height: `${Math.max(10, val * 100)}%` }}
-                      transition={{ duration: 0.35, delay: idx * 0.012 }}
-                      className={`w-full rounded-full transition-all ${
-                        val > 0.65 
-                          ? 'bg-gradient-to-t from-pastel-accentRose to-pink-400' 
-                          : val > 0.35 
-                          ? 'bg-gradient-to-t from-pastel-accentViolet to-indigo-300' 
-                          : 'bg-gray-200'
-                      }`}
-                      title={`Сегмент ${idx + 1}: ${(val * 100).toFixed(0)}% энергии`}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Acoustic Metric Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-                <div className="p-2.5 rounded-xl bg-pastel-bg/50 border border-pastel-border/50">
-                  <span className="text-[10px] text-pastel-muted font-bold block mb-0.5">ГРОМКОСТЬ</span>
-                  <span className="text-xs md:text-sm font-black text-pastel-text">{report.audioMetrics.rmsDb} dB</span>
-                  <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">✨ Четко</span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-pastel-bg/50 border border-pastel-border/50">
-                  <span className="text-[10px] text-pastel-muted font-bold block mb-0.5">ЧИСТОТА / SNR</span>
-                  <span className="text-xs md:text-sm font-black text-pastel-text">+{report.audioMetrics.snrDb} dB</span>
-                  <span className="text-[10px] text-pastel-muted font-semibold block mt-0.5">Шум: {report.audioMetrics.noiseFloorDb} dB</span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-pastel-bg/50 border border-pastel-border/50">
-                  <span className="text-[10px] text-pastel-muted font-bold block mb-0.5">ТЕМП РЕЧИ</span>
-                  <span className="text-xs md:text-sm font-black text-pastel-text">{report.audioMetrics.grossWpm} WPM</span>
-                  <span className={`text-[9px] font-semibold block mt-0.5 px-1 rounded-md border ${paceInfo?.color}`}>
-                    {paceInfo?.label}
+          {report.audioMetrics && (() => {
+            const humanProfile = AcousticTelemetryService.getHumanizedProfile(report.audioMetrics);
+            return (
+              <div className="p-4 md:p-5 rounded-3xl bg-gradient-to-br from-pastel-rose/40 via-white to-pastel-lavender/40 border border-pastel-border/80 shadow-xs space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-2xs">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs md:text-sm text-pastel-text">
+                        Голосовой коучинг и манера речи
+                      </h4>
+                      <p className="text-[10px] text-pastel-muted">
+                        Анализ интонаций, темпа и уверенности ответа
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/90 border border-pastel-border text-pastel-accentViolet shadow-2xs">
+                    ✨ AI Voice Studio
                   </span>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-pastel-bg/50 border border-pastel-border/50">
-                  <span className="text-[10px] text-pastel-muted font-bold block mb-0.5">ПАУЗЫ</span>
-                  <span className="text-xs md:text-sm font-black text-pastel-text">{report.audioMetrics.pauseRatioPercent}%</span>
-                  <span className={`text-[9px] font-semibold block mt-0.5 px-1 rounded-md border ${pauseInfo?.color}`}>
-                    {pauseInfo?.label}
-                  </span>
+                {/* 30-Point Sparkline Waveform */}
+                {report.audioMetrics.energyVector30 && report.audioMetrics.energyVector30.length > 0 && (
+                  <div className="p-3 bg-white/85 rounded-2xl border border-pastel-border/60 flex items-end justify-between h-12 gap-1 shadow-2xs">
+                    {report.audioMetrics.energyVector30.map((val, idx) => (
+                      <motion.div
+                        key={idx}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(12, val * 100)}%` }}
+                        transition={{ duration: 0.35, delay: idx * 0.012 }}
+                        className={`w-full rounded-full transition-all ${
+                          val > 0.65 
+                            ? 'bg-gradient-to-t from-pastel-accentRose to-pink-400' 
+                            : val > 0.35 
+                            ? 'bg-gradient-to-t from-pastel-accentViolet to-indigo-300' 
+                            : 'bg-pastel-border/80'
+                        }`}
+                        title={`Сегмент ${idx + 1}: ${(val * 100).toFixed(0)}% энергии`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* 3 Coaching Metric Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+                  {/* Volume & Delivery */}
+                  <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs">{humanProfile.volume.iconEmoji}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.volume.badgeStyle}`}>
+                          {humanProfile.volume.badge}
+                        </span>
+                      </div>
+                      <span className="font-bold text-xs text-pastel-text block">
+                        {humanProfile.volume.title}
+                      </span>
+                      <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                        {humanProfile.volume.description}
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                      Уровень: {humanProfile.volume.techValue}
+                    </span>
+                  </div>
+
+                  {/* Pace & Rhythm */}
+                  <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs">{humanProfile.pace.iconEmoji}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.pace.badgeStyle}`}>
+                          {humanProfile.pace.badge}
+                        </span>
+                      </div>
+                      <span className="font-bold text-xs text-pastel-text block">
+                        {humanProfile.pace.title}
+                      </span>
+                      <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                        {humanProfile.pace.description}
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                      Скорость: {humanProfile.pace.techValue}
+                    </span>
+                  </div>
+
+                  {/* Structure & Pauses */}
+                  <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs">{humanProfile.structure.iconEmoji}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.structure.badgeStyle}`}>
+                          {humanProfile.structure.badge}
+                        </span>
+                      </div>
+                      <span className="font-bold text-xs text-pastel-text block">
+                        {humanProfile.structure.title}
+                      </span>
+                      <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                        {humanProfile.structure.description}
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                      Структура: {humanProfile.structure.techValue}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Mentor Coaching Praise Banner */}
+                <div className="p-3 rounded-2xl bg-white/95 border border-pastel-rose/80 text-xs text-pastel-text leading-relaxed flex items-center gap-2.5 shadow-2xs">
+                  <span className="text-base shrink-0">🌸</span>
+                  <p className="font-medium text-pastel-text/90">
+                    {humanProfile.mentorPraise}
+                  </p>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Supportive Feedback Section */}
           <div className="p-4 rounded-2xl bg-pastel-lavender/60 border border-pastel-accentViolet/20 space-y-1.5">
@@ -327,37 +384,103 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
           </div>
 
           {/* Collapsible Transcript Dialogue */}
-          {(report.transcript || report.userAnswer) && (
-            <div className="border border-pastel-border rounded-2xl overflow-hidden shadow-2xs">
-              <button
-                onClick={() => setShowFullTranscript(!showFullTranscript)}
-                className="w-full p-3.5 bg-pastel-bg/50 hover:bg-pastel-bg/90 flex items-center justify-between text-xs font-bold text-pastel-text transition cursor-pointer"
-              >
-                <span className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-pastel-accentViolet" />
-                  Стенограмма диалога с интервьюером
-                </span>
-                {showFullTranscript ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
+          {(report.transcript || report.userAnswer) && (() => {
+            // Try to parse transcript as JSON dialogue array
+            let dialogueTurns: Array<{ role: string; text: string }> = [];
+            let deepgramAnswer = '';
+            let isStructured = false;
 
-              <AnimatePresence>
-                {showFullTranscript && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="p-4 bg-white text-xs text-pastel-text leading-relaxed space-y-2 border-t border-pastel-border/60"
-                  >
-                    {report.transcript ? (
-                      <pre className="whitespace-pre-wrap font-sans text-xs">{report.transcript}</pre>
-                    ) : (
-                      <p>{report.userAnswer}</p>
+            if (report.transcript) {
+              try {
+                const parsed = JSON.parse(report.transcript);
+                if (Array.isArray(parsed)) {
+                  isStructured = true;
+                  // Separate Deepgram answer from system/ai turns
+                  dialogueTurns = parsed.filter(t => !t.text?.startsWith('[Deepgram]'));
+                  const deepgramTurn = parsed.find(t => t.text?.startsWith('[Deepgram]'));
+                  if (deepgramTurn) deepgramAnswer = deepgramTurn.text.replace('[Deepgram] ', '');
+                }
+              } catch { /* raw text fallback */ }
+            }
+
+            return (
+              <div className="border border-pastel-border rounded-2xl overflow-hidden shadow-2xs">
+                <button
+                  onClick={() => setShowFullTranscript(!showFullTranscript)}
+                  className="w-full p-3.5 bg-pastel-bg/50 hover:bg-pastel-bg/90 flex items-center justify-between text-xs font-bold text-pastel-text transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-pastel-accentViolet" />
+                    📜 Стенограмма диалога с интервьюером
+                    {deepgramAnswer && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        ✨ Deepgram Nova-3
+                      </span>
                     )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+                  </span>
+                  {showFullTranscript ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                <AnimatePresence>
+                  {showFullTranscript && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="bg-white border-t border-pastel-border/60 overflow-hidden"
+                    >
+                      <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                        {isStructured ? (
+                          <>
+                            {dialogueTurns
+                              .filter(t => t.role === 'ai' || t.role === 'system')
+                              .map((turn, i) => (
+                                <div key={i} className={`flex gap-2.5 text-xs ${turn.role === 'system' ? 'opacity-40' : ''}`}>
+                                  <span className="text-base shrink-0">{turn.role === 'ai' ? '🤖' : '⚙️'}</span>
+                                  <div>
+                                    <span className="font-bold text-pastel-accentViolet block text-[10px] mb-0.5">
+                                      {turn.role === 'ai' ? 'ИИ-Интервьюер' : 'Система'}
+                                    </span>
+                                    <p className="text-pastel-text/80 leading-relaxed">{turn.text}</p>
+                                  </div>
+                                </div>
+                              ))
+                            }
+                            {deepgramAnswer && (
+                              <div className="flex gap-2.5 text-xs border-t border-pastel-border/50 pt-3 mt-3">
+                                <span className="text-base shrink-0">👤</span>
+                                <div>
+                                  <span className="font-bold text-emerald-700 block text-[10px] mb-0.5">
+                                    Ваш ответ — Deepgram Nova-3 · Русский
+                                  </span>
+                                  <p className="text-pastel-text/90 leading-relaxed">{deepgramAnswer}</p>
+                                </div>
+                              </div>
+                            )}
+                            {!deepgramAnswer && report.userAnswer && report.userAnswer !== 'Устный ответ через Gemini Live' && (
+                              <div className="flex gap-2.5 text-xs border-t border-pastel-border/50 pt-3 mt-3">
+                                <span className="text-base shrink-0">👤</span>
+                                <div>
+                                  <span className="font-bold text-pastel-sub block text-[10px] mb-0.5">Ответ кандидата</span>
+                                  <p className="text-pastel-text/90 leading-relaxed">{report.userAnswer}</p>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          // Fallback: plain text
+                          <p className="text-xs text-pastel-text leading-relaxed whitespace-pre-wrap font-sans">
+                            {report.transcript || report.userAnswer}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })()}
+
 
           {/* Collapsible Reference Model Answer */}
           {report.referenceAnswer && (
