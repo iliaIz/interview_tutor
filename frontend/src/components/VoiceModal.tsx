@@ -463,7 +463,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     return btoa(binary);
   };
 
-  const computeLocalAcoustics = (realWordCount?: number): AcousticMetrics => {
+  const computeLocalAcoustics = (
+    realWordCount?: number,
+    wordTimestamps?: Array<{ word: string; start: number; end: number }>
+  ): AcousticMetrics => {
     const totalSamples = userPcmChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
     const combinedPcm = new Float32Array(totalSamples);
     let offset = 0;
@@ -476,7 +479,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       ? Array(realWordCount).fill('слово').join(' ')
       : (transcriptRef.current || 'Ответ кандидата в голосовом режиме');
 
-    return AcousticTelemetryService.analyzeAcoustics(combinedPcm, 16000, syntheticTranscript);
+    return AcousticTelemetryService.analyzeAcoustics(
+      combinedPcm,
+      16000,
+      syntheticTranscript,
+      wordTimestamps
+    );
   };
 
   const finalizeEvaluation = async (evalData: EvaluationResult) => {
@@ -505,6 +513,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setIsTranscribing(true);
       let deepgramText = '';
       let realWordCount = 0;
+      let wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
       try {
         const pcmBase64 = encodePcmToInt16Base64();
         const sttRes = await fetch('/api/stt/transcribe', {
@@ -516,6 +525,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           const sttData = await sttRes.json();
           deepgramText = sttData.transcript || '';
           realWordCount = sttData.wordsCount || 0;
+          wordTimestamps = sttData.words || [];
           if (deepgramText) setDeepgramTranscript(deepgramText);
         }
       } catch (err) {
@@ -524,12 +534,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         setIsTranscribing(false);
       }
 
-      // Recompute acoustics with real word count if we got one
-      const acousticsFinal = realWordCount > 0
-        ? computeLocalAcoustics(realWordCount)
+      // Recompute acoustics with exact Deepgram word timestamps if we got them
+      const acousticsFinal = (wordTimestamps.length > 0 || realWordCount > 0)
+        ? computeLocalAcoustics(realWordCount, wordTimestamps)
         : acousticsLocal;
 
-      if (realWordCount > 0) {
+      if (wordTimestamps.length > 0 || realWordCount > 0) {
         setEvaluation(prev => prev ? { ...prev, audioMetrics: acousticsFinal } : prev);
       }
 

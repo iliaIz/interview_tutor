@@ -157,20 +157,17 @@ export class AcousticTelemetryService {
   }
 
   /**
-   * Analyze recorded PCM samples Float32 [-1.0, 1.0] and transcript text
+   * Analyze recorded PCM samples Float32 [-1.0, 1.0], transcript text, and optional Deepgram word timestamps.
+   * When word timestamps are available, trims pre/post silence and calculates true articulation rate and pause ratio.
    */
   public static analyzeAcoustics(
     pcmData: Float32Array,
     sampleRate: number,
-    transcriptText: string
+    transcriptText: string,
+    wordTimestamps?: Array<{ word: string; start: number; end: number }>
   ): AcousticMetrics {
     const totalSamples = pcmData.length;
     const totalDurationSec = totalSamples / sampleRate;
-
-    const words = transcriptText
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0);
 
     if (totalSamples === 0 || totalDurationSec === 0) {
       return {
@@ -184,63 +181,143 @@ export class AcousticTelemetryService {
       };
     }
 
-    // 1. Frame-based RMS and Noise Floor calibration
-    const frameSize = Math.max(128, Math.floor(sampleRate * 0.02)); // 20ms frame
-    const frameRmsValues: number[] = [];
-    let sumSquares = 0;
+    const words = transcriptText
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 0);
 
-    for (let i = 0; i < totalSamples; i += frameSize) {
-      const end = Math.min(i + frameSize, totalSamples);
-      let frameSum = 0;
-      for (let j = i; j < end; j++) {
-        const val = pcmData[j];
-        frameSum += val * val;
-        sumSquares += val * val;
+    const validTimestamps = (wordTimestamps && wordTimestamps.length > 0)
+      ? wordTimestamps.filter((w) => typeof w.start === 'number' && typeof w.end === 'number' && w.end >= w.start)
+      : null;
+
+    let grossWpm = 0;
+    let netWpm = 0;
+    let pauseRatioPercent = 0;
+    let activeStartSample = 0;
+    let activeEndSample = totalSamples;
+
+    if (validTimestamps && validTimestamps.length >= 2) {
+      // =========================================================================
+      // 1. Deepgram Word Timestamps-Based Exact Metrics (Standard 2026)
+      // =========================================================================
+      const firstWordStart = validTimestamps[0].start;
+      const lastWordEnd = validTimestamps[validTimestamps.length - 1].end;
+      const speechSpanDurationSec = Math.max(0.5, lastWordEnd - firstWordStart);
+
+      // Clamp active PCM slice for true speech RMS calibration (excludes dead pre/post click silence)
+      activeStartSample = Math.max(0, Math.floor(firstWordStart * sampleRate));
+      activeEndSample = Math.min(totalSamples, Math.ceil(lastWordEnd * sampleRate));
+
+      let totalPhonationSec = 0;
+      let totalRhetoricalPausesSec = 0; // Gaps 0.35s .. 0.9s (natural phrasing rhythm)
+      let totalCognitivePausesSec = 0;   // Gaps > 0.9s (actual thinking / hesitation)
+
+      for (let i = 0; i < validTimestamps.length; i++) {
+        const w = validTimestamps[i];
+        totalPhonationSec += Math.max(0.05, w.end - w.start);
+
+        if (i < validTimestamps.length - 1) {
+          const nextW = validTimestamps[i + 1];
+          const gap = Math.max(0, nextW.start - w.end);
+          if (gap > 0.9) {
+            totalCognitivePausesSec += gap;
+          } else if (gap >= 0.35) {
+            totalRhetoricalPausesSec += gap;
+          }
+        }
       }
-      const frameRms = Math.sqrt(frameSum / (end - i));
-      frameRmsValues.push(20 * Math.log10(frameRms + this.EPSILON));
+
+      // Active speech duration = Phonation + natural phrasing micro-gaps
+      const activeConversationalDurationSec = Math.max(0.5, totalPhonationSec + totalRhetoricalPausesSec);
+
+      // Pause ratio: percentage of active speech window spent in true cognitive hesitation (> 0.9s)
+      // Professional natural speech usually exhibits 12% - 28% pauses.
+      const calculatedPauseRatio = (totalCognitivePausesSec / speechSpanDurationSec) * 100;
+      pauseRatioPercent = Math.min(65, Math.max(5, calculatedPauseRatio));
+
+      // Real WPM calculation over speech span (excluding dead edge silence)
+      grossWpm = Math.round(validTimestamps.length / (speechSpanDurationSec / 60));
+      netWpm = Math.round(validTimestamps.length / (activeConversationalDurationSec / 60));
+    } else {
+      // =========================================================================
+      // 2. DSP Fallback (Frame-based VAD when word timestamps are pending/unavailable)
+      // =========================================================================
+      const frameSize = Math.max(128, Math.floor(sampleRate * 0.02)); // 20ms frame
+      const frameRmsValues: number[] = [];
+
+      for (let i = 0; i < totalSamples; i += frameSize) {
+        const end = Math.min(i + frameSize, totalSamples);
+        let frameSum = 0;
+        for (let j = i; j < end; j++) {
+          const val = pcmData[j];
+          frameSum += val * val;
+        }
+        const frameRms = Math.sqrt(frameSum / (end - i));
+        frameRmsValues.push(20 * Math.log10(frameRms + this.EPSILON));
+      }
+
+      // Noise Floor estimation from 10th percentile
+      const sortedFrameRms = [...frameRmsValues].sort((a, b) => a - b);
+      const noiseFloorIndex = Math.floor(sortedFrameRms.length * 0.1);
+      const noiseFloorDb = sortedFrameRms[noiseFloorIndex] ?? -60;
+
+      // Adaptive VAD threshold with margin for unvoiced consonants
+      const vadThresholdDb = Math.max(noiseFloorDb + 6, -48);
+      let activeFramesCount = 0;
+      for (const val of frameRmsValues) {
+        if (val > vadThresholdDb) {
+          activeFramesCount++;
+        }
+      }
+
+      const frameDurationSec = frameSize / sampleRate;
+      const activeSpeechDurationSec = Math.min(
+        totalDurationSec,
+        activeFramesCount * frameDurationSec
+      );
+
+      let effectiveWordCount = words.length;
+      if (effectiveWordCount < 8 && activeSpeechDurationSec > 3) {
+        effectiveWordCount = Math.round(activeSpeechDurationSec * 2.15);
+      }
+
+      grossWpm = totalDurationSec > 0 ? (effectiveWordCount / (totalDurationSec / 60)) : 0;
+      netWpm = activeSpeechDurationSec > 0 ? (effectiveWordCount / (activeSpeechDurationSec / 60)) : 0;
+
+      const pauseDurationSec = Math.max(0, totalDurationSec - activeSpeechDurationSec);
+      pauseRatioPercent = totalDurationSec > 0 ? (pauseDurationSec / totalDurationSec) * 100 : 0;
     }
 
-    const overallRms = Math.sqrt(sumSquares / totalSamples);
+    // Compute RMS and Noise Floor over the calibrated active speech slice
+    const sliceStart = activeStartSample;
+    const sliceEnd = Math.max(sliceStart + 128, activeEndSample);
+    const sliceLen = sliceEnd - sliceStart;
+
+    let sumSquares = 0;
+    for (let i = sliceStart; i < sliceEnd; i++) {
+      const val = pcmData[i];
+      sumSquares += val * val;
+    }
+    const overallRms = Math.sqrt(sumSquares / sliceLen);
     const rmsDb = Math.max(-90, 20 * Math.log10(overallRms + this.EPSILON));
 
-    // Noise Floor estimation from 10th percentile
-    const sortedFrameRms = [...frameRmsValues].sort((a, b) => a - b);
-    const noiseFloorIndex = Math.floor(sortedFrameRms.length * 0.1);
-    const noiseFloorDb = sortedFrameRms[noiseFloorIndex] ?? -60;
+    // Calculate Noise Floor over full buffer
+    const frameSize = Math.max(128, Math.floor(sampleRate * 0.02));
+    const allFrameRms: number[] = [];
+    for (let i = 0; i < totalSamples; i += frameSize) {
+      const end = Math.min(i + frameSize, totalSamples);
+      let fSum = 0;
+      for (let j = i; j < end; j++) {
+        const val = pcmData[j];
+        fSum += val * val;
+      }
+      allFrameRms.push(20 * Math.log10(Math.sqrt(fSum / (end - i)) + this.EPSILON));
+    }
+    allFrameRms.sort((a, b) => a - b);
+    const noiseFloorDb = allFrameRms[Math.floor(allFrameRms.length * 0.1)] ?? -60;
     const snrDb = Math.max(0, rmsDb - noiseFloorDb);
 
-    // 2. VAD and Active Speech detection
-    const vadThresholdDb = Math.max(noiseFloorDb + 10, -45);
-    let activeFramesCount = 0;
-    for (const val of frameRmsValues) {
-      if (val > vadThresholdDb) {
-        activeFramesCount++;
-      }
-    }
-
-    const frameDurationSec = frameSize / sampleRate;
-    const activeSpeechDurationSec = Math.min(
-      totalDurationSec,
-      activeFramesCount * frameDurationSec
-    );
-
-    // 3. Speech Pacing (WPM)
-    // If exact transcript is provided from Deepgram, use real wordCount;
-    // otherwise estimate based on active acoustic speech duration (2.15 words/sec Russian conversational average)
-    let effectiveWordCount = words.length;
-    if (effectiveWordCount < 8 && activeSpeechDurationSec > 3) {
-      effectiveWordCount = Math.round(activeSpeechDurationSec * 2.15);
-    }
-
-    const grossWpm = totalDurationSec > 0 ? (effectiveWordCount / (totalDurationSec / 60)) : 0;
-    const netWpm = activeSpeechDurationSec > 0 ? (effectiveWordCount / (activeSpeechDurationSec / 60)) : 0;
-
-    // 4. Pause Ratio %
-    const pauseDurationSec = Math.max(0, totalDurationSec - activeSpeechDurationSec);
-    const pauseRatioPercent = totalDurationSec > 0 ? (pauseDurationSec / totalDurationSec) * 100 : 0;
-
-    // 5. 30-Point Sparkline Energy Vector
+    // 30-Point Sparkline Energy Vector
     const energyVector30 = this.compute30PointEnergyVector(pcmData);
 
     return {
