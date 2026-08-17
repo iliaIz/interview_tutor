@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Settings2, Sparkles, GraduationCap, ShieldCheck, 
-  Volume2, Bookmark, Plus, Trash2, Code2, ChevronDown, ChevronUp
+  Volume2, Bookmark, Plus, Trash2, Code2, ChevronDown, ChevronUp,
+  Microscope
 } from 'lucide-react';
 import { 
   InterviewConfig, InterviewProfile, AVAILABLE_VOICES 
@@ -67,9 +68,14 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   const genderLabel = isFemale ? 'Женский род («готова», «слушала», «рада»)' : 'Мужской род («готов», «слушал», «рад»)';
 
   // Construct preview of prompt for inspector
-  const generatedPromptPreview = config.strategy === 'socratic_tutoring'
-    ? `[РОЛЬ]: Поддерживающий ментор по теме (${isFemale ? 'женщина' : 'мужчина'})\n[ГРАММАТИЧЕСКИЙ РОД]: ${genderLabel}\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Сократический диалог (помощь аналогиями, похвала, до ${config.maxProbes} раундов уточнений)\n[ГОЛОС]: ${config.voice}\n[ДИНАМИЧЕСКИЕ ЯКОРЯ]: До 10 ключевых критериев извлекаются автоматически из эталонного ответа`
-    : `[РОЛЬ]: Senior/Lead технический интервьюер (${isFemale ? 'женщина' : 'мужчина'})\n[ГРАММАТИЧЕСКИЙ РОД]: ${genderLabel}\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Адаптивное зондирование (FAANG Standard, без подсказок, проверка глубины, до ${config.maxProbes} раундов)\n[ГОЛОС]: ${config.voice}\n[ДИНАМИЧЕСКИЕ ЯКОРЯ]: До 10 ключевых критериев извлекаются автоматически из эталонного ответа`;
+  const generatedPromptPreview = `[РОЛЬ]: ${config.strategy === 'socratic_tutoring' ? 'Поддерживающий ментор' : 'Senior/Lead технический интервьюер'} (${isFemale ? 'женщина' : 'мужчина'})
+[ГРАММАТИЧЕСКИЙ РОД]: ${genderLabel}
+[ВОПРОС]: "${questionText}"
+[ГОЛОС]: ${config.voice}
+[ЛИМИТ РАУНДОВ]: ${config.maxProbes}
+[ГЛУБОКОЕ ЗОНДИРОВАНИЕ]: ${config.deepDive ? 'ВКЛЮЧЕНО (Подкапотка, Edge Cases, Radius-1)' : 'ВЫКЛЮЧЕНО (Строго по эталону)'}
+[РАЗБОР И ОБУЧЕНИЕ НА ЛЕТУ]: ${config.liveCoaching ? 'ВКЛЮЧЕНО (Micro-Lecture до 40 сек + Active Recall)' : 'ВЫКЛЮЧЕНО (Экзаменация без подсказок)'}
+[ДИНАМИЧЕСКИЕ ЯКОРЯ]: До 10 ключевых критериев извлекаются автоматически из эталонного ответа`;
 
   if (typeof document === 'undefined') return null;
 
@@ -306,6 +312,86 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                       {count}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Модификаторы поведения и режимы коучинга */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2.5">
+                  Модификаторы поведения и режимы коучинга
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 1. Глубокое зондирование (Deep-Dive) */}
+                  <div
+                    onClick={() => onChangeConfig({ ...config, deepDive: !config.deepDive })}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      config.deepDive
+                        ? 'bg-gradient-to-br from-pastel-rose/80 to-white border-pastel-accentViolet shadow-sm ring-1 ring-pastel-accentViolet/30'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 opacity-80'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Microscope className="w-4 h-4 text-pastel-accentViolet" />
+                          Глубокое зондирование
+                        </span>
+                        <div
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                            config.deepDive ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet' : 'bg-slate-200'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform ${
+                              config.deepDive ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-snug">
+                        Интервьюер задаёт вопросы под капотом (Proxy, Concurrency, JVM), ищет границы знаний и проверяет смежные темы.
+                      </p>
+                    </div>
+                    <span className={`text-[10px] font-semibold mt-2.5 inline-block ${config.deepDive ? 'text-pastel-accentViolet' : 'text-slate-400'}`}>
+                      {config.deepDive ? '✨ Режим Deep-Dive активен' : 'Стандартный скоуп (по эталону)'}
+                    </span>
+                  </div>
+
+                  {/* 2. Разбор ошибок и обучение на лету (Live Coaching) */}
+                  <div
+                    onClick={() => onChangeConfig({ ...config, liveCoaching: !config.liveCoaching })}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      config.liveCoaching
+                        ? 'bg-gradient-to-br from-emerald-50/80 to-white border-emerald-400 shadow-sm ring-1 ring-emerald-400/30'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 opacity-80'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <GraduationCap className="w-4 h-4 text-emerald-600" />
+                          Разбор и обучение на лету
+                        </span>
+                        <div
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                            config.liveCoaching ? 'bg-emerald-500' : 'bg-slate-200'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform ${
+                              config.liveCoaching ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-snug">
+                        При ошибке или просьбе «Подскажи» ИИ за 30 секунд объяснит суть, даст идеальную формулировку и мини-вопрос на закрепление.
+                      </p>
+                    </div>
+                    <span className={`text-[10px] font-semibold mt-2.5 inline-block ${config.liveCoaching ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      {config.liveCoaching ? '🎓 Режим наставника активен' : 'Экзаменация без подсказок'}
+                    </span>
+                  </div>
                 </div>
               </div>
 

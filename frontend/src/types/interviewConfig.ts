@@ -51,6 +51,8 @@ export interface InterviewConfig {
   strategy: InterviewStrategy;
   voice: GeminiVoiceName;
   maxProbes: number; // 1..5
+  deepDive?: boolean; // 🔬 Глубокое зондирование (под капот, смежные темы, стресс-тест)
+  liveCoaching?: boolean; // 🎓 Разбор ошибок и объяснение правильного ответа на лету
   customPromptOverride?: string;
   customAnchors?: string[];
 }

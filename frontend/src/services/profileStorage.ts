@@ -11,7 +11,9 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     config: {
       strategy: 'adaptive_probing',
       voice: 'Aoede',
-      maxProbes: 3
+      maxProbes: 3,
+      deepDive: true,
+      liveCoaching: false
     }
   },
   // 2. Адаптивное зондирование — Экспресс
@@ -24,7 +26,9 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     config: {
       strategy: 'adaptive_probing',
       voice: 'Puck',
-      maxProbes: 1
+      maxProbes: 1,
+      deepDive: false,
+      liveCoaching: false
     }
   },
   // 3. Адаптивное зондирование — Стресс-тест
@@ -37,7 +41,9 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     config: {
       strategy: 'adaptive_probing',
       voice: 'Fenrir',
-      maxProbes: 5
+      maxProbes: 5,
+      deepDive: true,
+      liveCoaching: false
     }
   },
   // 4. Сократический тьюторинг — Поддерживающий
@@ -50,7 +56,9 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     config: {
       strategy: 'socratic_tutoring',
       voice: 'Kore',
-      maxProbes: 3
+      maxProbes: 3,
+      deepDive: false,
+      liveCoaching: true
     }
   },
   // 5. Сократический тьюторинг — Академический
@@ -63,7 +71,9 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     config: {
       strategy: 'socratic_tutoring',
       voice: 'Charon',
-      maxProbes: 4
+      maxProbes: 4,
+      deepDive: true,
+      liveCoaching: true
     }
   }
 ];

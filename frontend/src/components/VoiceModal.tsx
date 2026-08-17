@@ -21,7 +21,8 @@ import {
   GraduationCap,
   MessageSquare,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Microscope
 } from 'lucide-react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
@@ -196,6 +197,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       voice: interviewConfig.voice,
       strategy: interviewConfig.strategy,
       maxProbes: String(interviewConfig.maxProbes),
+      deepDive: String(!!interviewConfig.deepDive),
+      liveCoaching: String(!!interviewConfig.liveCoaching),
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: interviewConfig.customPromptOverride || ''
     });
@@ -730,8 +733,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 Интервьюер поздоровается голосом и зачитает вопрос. Вы можете отвечать, просить повторить вопрос или уточнить детали.
               </p>
 
-              {/* Active Config Pill */}
-              <div className="pt-1 flex items-center justify-center gap-2">
+              {/* Active Config Pill & Interactive Quick Toggles */}
+              <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
                   {interviewConfig.strategy === 'socratic_tutoring' ? (
                     <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
@@ -739,9 +742,41 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
                   )}
                   <span>
-                    {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • Голос {interviewConfig.voice} • До {interviewConfig.maxProbes} раундов
+                    {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice} • До {interviewConfig.maxProbes} раундов
                   </span>
                 </span>
+
+                {/* Quick Toggle 1: Deep-Dive */}
+                <button
+                  type="button"
+                  onClick={() => handleConfigChange({ ...interviewConfig, deepDive: !interviewConfig.deepDive })}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                    interviewConfig.deepDive
+                      ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-2xs'
+                      : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                  }`}
+                  title="Кликните для включения/выключения глубокого зондирования"
+                >
+                  <Microscope className="w-3.5 h-3.5" />
+                  <span>🔬 Deep-Dive</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${interviewConfig.deepDive ? 'bg-pastel-accentViolet' : 'bg-slate-300'}`} />
+                </button>
+
+                {/* Quick Toggle 2: Live Coaching */}
+                <button
+                  type="button"
+                  onClick={() => handleConfigChange({ ...interviewConfig, liveCoaching: !interviewConfig.liveCoaching })}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                    interviewConfig.liveCoaching
+                      ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-2xs'
+                      : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                  }`}
+                  title="Кликните для включения/выключения обучения на лету"
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>🎓 Обучение на лету</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${interviewConfig.liveCoaching ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                </button>
               </div>
             </div>
 
@@ -784,20 +819,32 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         {stage === 'active' && (
           <>
             {/* Strategy & Interaction Banner */}
-            <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex items-center justify-between gap-2 shrink-0">
+            <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-pastel-accentRose text-sm">
                   {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '🎯'}
                 </span>
                 <p className="leading-tight">
                   {interviewConfig.strategy === 'socratic_tutoring'
-                    ? 'Сократический ментор: смело задавайте вопросы, просите подсказки или повторить формулировку.'
+                    ? 'Сократический ментор: задавайте вопросы, просите подсказки или повторить формулировку.'
                     : 'Адаптивное зондирование: отвечайте своими словами, ИИ может задать до 3 точечных уточнений.'}
                 </p>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 border border-pastel-border shrink-0 text-pastel-accentViolet">
-                Голос: {interviewConfig.voice}
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {interviewConfig.deepDive && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border border-pastel-accentViolet/40 text-pastel-accentViolet shadow-2xs">
+                    🔬 Deep-Dive
+                  </span>
+                )}
+                {interviewConfig.liveCoaching && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 shadow-2xs">
+                    🎓 Обучение
+                  </span>
+                )}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 border border-pastel-border text-pastel-muted">
+                  {interviewConfig.voice}
+                </span>
+              </div>
             </div>
 
             {/* Live Audio Interaction Stage */}
