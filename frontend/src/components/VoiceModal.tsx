@@ -921,16 +921,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           </div>
         )}
 
-        {/* Settings Drawer Modal */}
-        <VoiceSettingsDrawer
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          config={interviewConfig}
-          onChangeConfig={handleConfigChange}
-          questionText={currentQuestionText}
-          referenceAnswer={referenceAnswer}
-        />
       </motion.div>
+
+      {/* Settings Drawer Modal - Rendered outside motion.div at root modal level to prevent transform trapping */}
+      <VoiceSettingsDrawer
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        config={interviewConfig}
+        onChangeConfig={handleConfigChange}
+        questionText={currentQuestionText}
+        referenceAnswer={referenceAnswer}
+      />
     </div>
   );
 };

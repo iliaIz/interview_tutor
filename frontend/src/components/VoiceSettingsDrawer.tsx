@@ -73,12 +73,12 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            className="w-full max-w-2xl max-h-[88vh] flex flex-col bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pastel-border overflow-hidden"
+            className="w-full max-w-2xl max-h-[86vh] flex flex-col bg-white/98 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pastel-border overflow-hidden my-auto relative z-10"
           >
             {/* Header */}
             <div className="p-6 border-b border-pastel-border/60 flex items-center justify-between bg-gradient-to-r from-pastel-card to-white">
