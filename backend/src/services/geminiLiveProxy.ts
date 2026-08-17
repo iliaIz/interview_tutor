@@ -418,6 +418,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                   }
                 }));
               }
+
+              // Close upstream Gemini WS to prevent any further AI speech/repetition after verdict
+              console.log('🔒 Evaluation delivered. Closing upstream Gemini WS to stop further AI speech.');
+              try {
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  geminiSocket.close(1000, 'Evaluation finalized');
+                }
+              } catch {}
             }
           }
         }

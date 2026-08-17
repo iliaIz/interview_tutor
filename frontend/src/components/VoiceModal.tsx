@@ -342,13 +342,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setRmsDb(metrics.rmsDb);
           }
 
-          // Accumulate for local acoustic metrics calculation
-          const int16 = new Int16Array(pcmBuffer);
-          const float32 = new Float32Array(int16.length);
-          for (let i = 0; i < int16.length; i++) {
-            float32[i] = int16[i] < 0 ? int16[i] / 32768 : int16[i] / 32767;
+          // Accumulate for local acoustic metrics ONLY when candidate is actively speaking
+          // (exclude AI speech segments from PCM buffer for accurate WPM/pause metrics)
+          if (isRecordingRef.current) {
+            const int16 = new Int16Array(pcmBuffer);
+            const float32 = new Float32Array(int16.length);
+            for (let i = 0; i < int16.length; i++) {
+              float32[i] = int16[i] < 0 ? int16[i] / 32768 : int16[i] / 32767;
+            }
+            userPcmChunksRef.current.push(float32);
           }
-          userPcmChunksRef.current.push(float32);
 
           // Transmit full-duplex to Gemini Live whenever candidate recording is active
           const shouldTransmit =
@@ -591,6 +594,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isRecordingRef.current = false;
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Do NOT ask for verbal feedback — AI already gave it during conversation.
+      // Only request the structured function call silently.
       const finishMsg = {
         clientContent: {
           turns: [
@@ -598,7 +603,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               role: 'user',
               parts: [
                 {
-                  text: 'Я закончила свой ответ. Пожалуйста, оцени мой ответ, дай краткий устный фидбек и вызови функцию submit_interview_evaluation.'
+                  text: 'Я закончила ответ. Не нужно ничего озвучивать, просто тихо вызови функцию submit_interview_evaluation с итоговой оценкой.'
                 }
               ]
             }
