@@ -64,9 +64,111 @@ db.exec(`
     FOREIGN KEY (question_id) REFERENCES questions(id)
   );
 
+  CREATE TABLE IF NOT EXISTS interview_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    badge TEXT NOT NULL,
+    description TEXT,
+    is_preset BOOLEAN DEFAULT 0,
+    strategy TEXT NOT NULL,
+    voice TEXT NOT NULL,
+    max_probes INTEGER DEFAULT 3,
+    custom_prompt_override TEXT,
+    custom_anchors TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
   CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
 `);
+
+export function seedDefaultProfiles() {
+  try {
+    const countRow = db.prepare('SELECT COUNT(*) as count FROM interview_profiles').get() as { count: number };
+    if (countRow && countRow.count > 0) return;
+
+    const defaultPresets = [
+      {
+        id: 'preset_faang_senior',
+        name: 'FAANG Senior Interviewer',
+        badge: '🛡️ Адаптивное',
+        description: 'Строгая и объективная оценка без подсказок, глубокая проверка понимания «под капотом» и краевых случаев.',
+        is_preset: 1,
+        strategy: 'adaptive_probing',
+        voice: 'Aoede',
+        max_probes: 3,
+        custom_prompt_override: null,
+        custom_anchors: null
+      },
+      {
+        id: 'preset_express_screening',
+        name: 'Быстрый скрининг (Recruiter Tech)',
+        badge: '⚡ Экспресс',
+        description: 'Быстрая проверка базовых определений и ключевых концепций в динамичном темпе (1 уточнение).',
+        is_preset: 1,
+        strategy: 'adaptive_probing',
+        voice: 'Puck',
+        max_probes: 1,
+        custom_prompt_override: null,
+        custom_anchors: null
+      },
+      {
+        id: 'preset_deep_dive_lead',
+        name: 'Глубокий стресс-тест (Tech Lead)',
+        badge: '🔬 Hardcore',
+        description: 'Максимальная глубина (до 5 раундов): проверка всех 10 якорей темы, отказоустойчивости и многопоточности.',
+        is_preset: 1,
+        strategy: 'adaptive_probing',
+        voice: 'Fenrir',
+        max_probes: 5,
+        custom_prompt_override: null,
+        custom_anchors: null
+      },
+      {
+        id: 'preset_soft_mentor',
+        name: 'Мягкий наставник (Поддерживающий)',
+        badge: '🌸 Сократ',
+        description: 'Теплая атмосфера: похвала за верные мысли, мягкие подсказки и живые аналогии при застревании.',
+        is_preset: 1,
+        strategy: 'socratic_tutoring',
+        voice: 'Kore',
+        max_probes: 3,
+        custom_prompt_override: null,
+        custom_anchors: null
+      },
+      {
+        id: 'preset_academic_tutor',
+        name: 'Академический тьютор (Разбор темы)',
+        badge: '🎓 Обучение',
+        description: 'Пошаговый разбор фундаментальных принципов: наводящие логические цепочки от простого к сложному.',
+        is_preset: 1,
+        strategy: 'socratic_tutoring',
+        voice: 'Charon',
+        max_probes: 4,
+        custom_prompt_override: null,
+        custom_anchors: null
+      }
+    ];
+
+    const insert = db.prepare(`
+      INSERT INTO interview_profiles (
+        id, name, badge, description, is_preset, strategy, voice, max_probes,
+        custom_prompt_override, custom_anchors, created_at, updated_at
+      ) VALUES (
+        @id, @name, @badge, @description, @is_preset, @strategy, @voice, @max_probes,
+        @custom_prompt_override, @custom_anchors, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `);
+
+    for (const preset of defaultPresets) {
+      insert.run(preset);
+    }
+    console.log('✅ Seeded default interview profiles into SQLite DB');
+  } catch (err) {
+    console.error('Error seeding default profiles:', err);
+  }
+}
 
 export function recoverOrphanedJobs() {
   try {

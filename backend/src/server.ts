@@ -5,7 +5,8 @@ import dotenv from 'dotenv';
 import topicsRouter from './routes/topics';
 import evalRouter from './routes/eval';
 import podcastRouter from './routes/podcast';
-import { seedQuestionsFromJSON, recoverOrphanedJobs } from './services/db';
+import profilesRouter from './routes/profiles';
+import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
 dotenv.config();
@@ -22,6 +23,7 @@ import { checkSystemHealth } from './services/health';
 app.use('/api/topics', topicsRouter);
 app.use('/api/eval', evalRouter);
 app.use('/api/podcast', podcastRouter);
+app.use('/api/profiles', profilesRouter);
 
 app.get('/api/health', async (req, res) => {
   const health = await checkSystemHealth();
@@ -35,9 +37,10 @@ const server = http.createServer(app);
 // Setup Gemini Live WebSocket Proxy
 setupLiveWebSocketProxy(server);
 
-// Seed DB, recover orphaned jobs and start server
+// Seed DB, recover orphaned jobs, seed profiles and start server
 seedQuestionsFromJSON();
 recoverOrphanedJobs();
+seedDefaultProfiles();
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend Server running on http://localhost:${PORT}`);

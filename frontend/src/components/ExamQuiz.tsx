@@ -664,7 +664,7 @@ export const ExamQuiz: React.FC = () => {
           }));
 
           if (selectedTopicId) {
-            updateTopicProgress(selectedTopicId, currentQ.id, evalData.isPassed);
+            updateTopicProgress(selectedTopicId, currentQ.id, !!evalData.isPassed);
 
             await fetch(`/api/topics/${selectedTopicId}/progress`, {
               method: 'POST',
