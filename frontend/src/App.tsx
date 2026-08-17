@@ -102,7 +102,7 @@ export const App: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 relative z-10">
+      <main className="flex-1">
         {currentView === 'topics' && <TopicSelector />}
         {currentView === 'questions' && <QuestionExplorer />}
         {currentView === 'study' && <StudyDeck />}
@@ -120,7 +120,7 @@ export const App: React.FC = () => {
       <Toast />
 
       {/* Footer */}
-      <footer className="border-t border-pastel-border/60 bg-white/60 backdrop-blur-md py-4 text-center text-xs text-pastel-muted relative z-10">
+      <footer className="border-t border-pastel-border/60 bg-white/60 backdrop-blur-md py-4 text-center text-xs text-pastel-muted">
         <p className="flex items-center justify-center gap-1">
           Создано с заботой <Heart className="w-3.5 h-3.5 text-pastel-accentRose fill-pastel-accentRose inline" /> для комфортной и уверенной подготовки к собеседованиям.
         </p>

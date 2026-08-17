@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic,
@@ -538,16 +539,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     await startLiveInterview();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-3 md:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className="bg-white/95 rounded-3xl p-5 md:p-7 max-w-xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
+        className="bg-white rounded-3xl p-5 md:p-7 max-w-xl w-full border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
       >
         {/* Soft Ambient Glows */}
         <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
@@ -932,6 +933,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         questionText={currentQuestionText}
         referenceAnswer={referenceAnswer}
       />
-    </div>
+    </div>,
+    document.body
   );
 };
