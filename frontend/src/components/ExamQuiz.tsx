@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { triggerSuccessConfetti } from '../utils/confetti';
 
 interface EvalRecord {
   question: Question;
@@ -124,6 +125,10 @@ export const ExamQuiz: React.FC = () => {
         };
 
         setQuestionEvaluation(currentQ.id, evalRecord);
+
+        if ((data.score ?? 0) >= 80) {
+          triggerSuccessConfetti();
+        }
 
         // Save into results history
         setResultsHistory((prev) => ({
@@ -640,6 +645,10 @@ export const ExamQuiz: React.FC = () => {
           };
 
           setQuestionEvaluation(currentQ.id, evalRecord);
+
+          if ((evalData.score ?? 0) >= 80) {
+            triggerSuccessConfetti();
+          }
 
           setResultsHistory((prev) => ({
             ...prev,

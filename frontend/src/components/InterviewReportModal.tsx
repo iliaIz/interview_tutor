@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { AcousticMetrics } from '../services/AcousticTelemetryService';
+import { triggerSuccessConfetti } from '../utils/confetti';
 
 export interface InterviewReportData {
   id?: string;
@@ -49,6 +50,17 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
         ease: 'easeOut',
         onUpdate: (latest) => setDisplayScore(Math.round(latest)),
       });
+
+      if (report.score >= 80) {
+        const timer = setTimeout(() => {
+          triggerSuccessConfetti();
+        }, 500);
+        return () => {
+          controls.stop();
+          clearTimeout(timer);
+        };
+      }
+
       return () => controls.stop();
     }
   }, [isOpen, report?.score]);

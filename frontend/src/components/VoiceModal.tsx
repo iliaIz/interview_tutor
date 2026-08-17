@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/useAppStore';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
+import { triggerSuccessConfetti } from '../utils/confetti';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -328,6 +329,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     setEvaluation(finalResult);
     setIsSubmitting(false);
+
+    if ((finalResult.score ?? 0) >= 80) {
+      triggerSuccessConfetti();
+    }
 
     // Persist to backend /api/eval/save if questionId is provided
     if (questionId) {
