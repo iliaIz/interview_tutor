@@ -93,6 +93,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const userPcmChunksRef = useRef<Float32Array[]>([]);
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isEvaluationFinalizedRef = useRef(false);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -111,6 +112,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setDialogueTurns([]);
     userPcmChunksRef.current = [];
     transcriptRef.current = '';
+    isEvaluationFinalizedRef.current = false;
     setIsSubmitting(false);
 
     return () => {
@@ -119,6 +121,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   }, [isOpen, questionId, currentQuestionText]);
 
   const teardownSession = () => {
+    isEvaluationFinalizedRef.current = false;
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;
@@ -131,6 +134,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       wsRef.current = null;
     }
     if (playoutManagerRef.current) {
+      playoutManagerRef.current.clearQueue();
       playoutManagerRef.current.teardown();
       playoutManagerRef.current = null;
     }
@@ -301,7 +305,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       mediaStreamRef.current = stream;
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioCtx({ latencyHint: 'interactive' });
+      const audioCtx = new AudioCtx({ sampleRate: 16000, latencyHint: 'interactive' });
       inputAudioCtxRef.current = audioCtx;
 
       if (audioCtx.state === 'suspended') {
@@ -330,12 +334,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           }
           userPcmChunksRef.current.push(float32);
 
-          // Transmit to Gemini Live ONLY when candidate recording is enabled AND AI is not currently speaking
+          // Transmit full-duplex to Gemini Live whenever candidate recording is active
           const shouldTransmit =
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
-            isRecordingRef.current &&
-            !isAiSpeakingRef.current;
+            isRecordingRef.current;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);
@@ -432,10 +435,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const finalizeEvaluation = async (evalData: EvaluationResult) => {
+    if (isEvaluationFinalizedRef.current) return;
+    isEvaluationFinalizedRef.current = true;
+
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;
     }
+
+    stopMicrophone();
+    playoutManagerRef.current?.clearQueue();
 
     const acoustics = computeLocalAcoustics();
     const finalResult = {
@@ -482,6 +491,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const handleRequestVerdict = () => {
+    if (isEvaluationFinalizedRef.current) return;
     setIsSubmitting(true);
     setIsRecording(false);
     isRecordingRef.current = false;
@@ -505,10 +515,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       wsRef.current.send(JSON.stringify(finishMsg));
     }
 
-    // Safety fallback (6.5s) if model is delayed or doesn't invoke toolCall
+    // Safety fallback watchdog (25s) for extensive 3-minute multimodal answers
     if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
     fallbackTimeoutRef.current = setTimeout(async () => {
-      console.warn('Live toolCall timeout. Executing instant fallback evaluation...');
+      if (isEvaluationFinalizedRef.current) return;
+      console.warn('Live toolCall timeout (25s). Executing instant fallback evaluation...');
       try {
         const res = await fetch('/api/eval', {
           method: 'POST',
@@ -531,7 +542,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         console.error('Fallback eval error:', err);
         setIsSubmitting(false);
       }
-    }, 6500);
+    }, 25000);
   };
 
   const handleRetry = async () => {

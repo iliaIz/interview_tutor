@@ -137,6 +137,25 @@ export class AudioPlayoutManager {
   }
 
   /**
+   * Clears scheduled queue and stops all active audio playback immediately
+   */
+  public clearQueue(): void {
+    this.pendingSamples = [];
+    for (const source of this.activeSources) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch {}
+    }
+    this.activeSources.clear();
+    if (this.context && this.context.state !== 'closed') {
+      this.playheadCursor = this.context.currentTime;
+    } else {
+      this.playheadCursor = 0;
+    }
+  }
+
+  /**
    * Instantly stops playback with a 5ms de-click ramp on serverContent.interrupted (Barge-in)
    */
   public handleInterruption(): void {

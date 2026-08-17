@@ -1,28 +1,22 @@
 /**
  * AudioWorkletProcessor for high-performance audio capture
- * - Hardware native sample rate -> 16kHz linear downsampling
- * - Signed 16-bit PCM quantization
+ * - Operates on native 16kHz AudioContext stream
+ * - Signed 16-bit Int16 PCM quantization
  * - Schmitt-trigger VAD & RMS dB computation
- * - Zero-copy buffer transfer
+ * - Zero-copy 1024-sample buffer transfer (64ms chunks)
  */
 class AudioCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.targetSampleRate = 16000;
-    // sampleRate is provided globally in the AudioWorklet scope by the browser
-    this.resampleRatio = sampleRate / this.targetSampleRate;
-    this.phase = 0;
-    this.previousSample = 0;
-
-    // 100ms chunks at 16kHz (1600 samples)
-    this.outputChunkCapacity = 1600;
+    // 1024 samples @ 16kHz = 64ms chunk (optimal real-time latency matching PyAudio)
+    this.outputChunkCapacity = 1024;
     this.outputBuffer = new Int16Array(this.outputChunkCapacity);
     this.outputBufferIndex = 0;
 
     // VAD Schmitt-trigger hysteresis state
     this.isSpeechActive = false;
     this.hangoverCounter = 0;
-    this.HANGOVER_LIMIT_FRAMES = 2; // ~200ms
+    this.HANGOVER_LIMIT_FRAMES = 3;
     this.VAD_ASSERT_DB = -42;
     this.VAD_DEASSERT_DB = -50;
   }
@@ -34,55 +28,24 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     }
 
     const inputLength = inputChannel.length;
-    let inputCursor = 0;
+    for (let i = 0; i < inputLength; i++) {
+      const sample = inputChannel[i];
+      // Clamped signed 16-bit PCM quantization
+      const clamped = Math.max(-1.0, Math.min(1.0, sample));
+      this.outputBuffer[this.outputBufferIndex++] =
+        clamped < 0 ? clamped * 32768 : clamped * 32767;
 
-    while (inputCursor < inputLength) {
-      if (this.phase < 1.0) {
-        const s0 = this.previousSample;
-        const s1 = inputChannel[inputCursor];
-        const interpolated = s0 + this.phase * (s1 - s0);
-
-        // Clamped signed 16-bit PCM quantization
-        const clamped = Math.max(-1.0, Math.min(1.0, interpolated));
-        this.outputBuffer[this.outputBufferIndex++] =
-          clamped < 0 ? clamped * 32768 : clamped * 32767;
-
-        if (this.outputBufferIndex >= this.outputChunkCapacity) {
-          this.emitBufferChunk();
-        }
-
-        this.phase += this.resampleRatio;
-      } else {
-        const index0 = Math.floor(this.phase) - 1;
-        const index1 = index0 + 1;
-        this.phase -= Math.floor(this.phase);
-
-        const s0 = index0 < 0 ? this.previousSample : inputChannel[index0];
-        const s1 = index1 < inputLength ? inputChannel[index1] : inputChannel[inputLength - 1];
-        const interpolated = s0 + this.phase * (s1 - s0);
-
-        const clamped = Math.max(-1.0, Math.min(1.0, interpolated));
-        this.outputBuffer[this.outputBufferIndex++] =
-          clamped < 0 ? clamped * 32768 : clamped * 32767;
-
-        if (this.outputBufferIndex >= this.outputChunkCapacity) {
-          this.emitBufferChunk();
-        }
-
-        this.phase += this.resampleRatio;
+      if (this.outputBufferIndex >= this.outputChunkCapacity) {
+        this.emitBufferChunk();
       }
-
-      inputCursor = Math.min(
-        inputLength,
-        inputCursor + Math.max(1, Math.floor(this.phase))
-      );
     }
 
-    this.previousSample = inputChannel[inputLength - 1];
     return true;
   }
 
   emitBufferChunk() {
+    if (this.outputBufferIndex === 0) return;
+
     let powerSum = 0;
     for (let i = 0; i < this.outputBufferIndex; i++) {
       const normalized = this.outputBuffer[i] / 32768;
@@ -123,3 +86,4 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('audio-capture-processor', AudioCaptureProcessor);
+

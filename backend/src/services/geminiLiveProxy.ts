@@ -287,6 +287,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     geminiSocket.on('message', (data: RawData, isBinary: boolean) => {
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
       const str = buffer.toString();
+      let isToolCallProcessed = false;
 
       try {
         const parsed = JSON.parse(str);
@@ -337,6 +338,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
           for (const call of parsed.toolCall.functionCalls) {
             if (call.name === 'submit_interview_evaluation') {
+              isToolCallProcessed = true;
               const args = call.args || {};
               const score = typeof args.score === 'number' ? args.score : 75;
               const isPassed = args.isPassed ?? (score >= 70);
@@ -390,7 +392,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                       response: {
                         status: 'COMMITTED',
                         evaluationId: savedEvalId,
-                        message: 'Оценка успешно сохранена в базе знаний.'
+                        message: 'Оценка сохранена.'
                       }
                     }
                   ]
@@ -411,7 +413,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     isPassed,
                     positivePoints,
                     missingPoints,
-                    feedback
+                    feedback,
+                    spokenFeedback: feedback
                   }
                 }));
               }
@@ -422,8 +425,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         // Non-JSON or binary pass-through
       }
 
-      // Forward everything upstream -> client as Text JSON
-      if (clientSocket.readyState === WebSocket.OPEN) {
+      // Forward everything upstream -> client as Text JSON (avoid double forwarding raw toolCall)
+      if (!isToolCallProcessed && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(str);
       }
     });
