@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Mic, MicOff, X, Volume2, Sparkles, Loader2, Award, CheckCircle2, AlertTriangle, Activity } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Sparkles, Loader2, Award, CheckCircle2, AlertTriangle, Activity, RotateCcw, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/useAppStore';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -26,21 +26,30 @@ interface EvaluationResult {
   audioMetrics?: AcousticMetrics;
 }
 
+interface TurnMessage {
+  role: 'user' | 'ai' | 'system';
+  text: string;
+}
+
+type ModalStage = 'lobby' | 'active' | 'verdict';
+
 export const VoiceModal: React.FC<VoiceModalProps> = ({
   isOpen,
   onClose,
   questionId,
-  topic = 'Java & Spring',
+  topic = 'Java & Spring Framework',
   currentQuestionText,
   referenceAnswer,
   onEvaluationComplete
 }) => {
-  const { showToast, systemHealth } = useAppStore();
+  const { systemHealth, showToast } = useAppStore();
+
+  const [stage, setStage] = useState<ModalStage>('lobby');
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
-  const [rmsDb, setRmsDb] = useState(-60);
-  const [dialogueTurns, setDialogueTurns] = useState<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
+  const [rmsDb, setRmsDb] = useState<number>(-60);
+  const [dialogueTurns, setDialogueTurns] = useState<TurnMessage[]>([]);
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,6 +62,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const userPcmChunksRef = useRef<Float32Array[]>([]);
   const transcriptRef = useRef<string>('');
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Synchronous State Tracking Refs (Prevents closure staleness in AudioWorklet onmessage)
+  const isRecordingRef = useRef(false);
+  const isAiSpeakingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    isAiSpeakingRef.current = isAiSpeaking;
+  }, [isAiSpeaking]);
 
   // Auto scroll transcript box
   useEffect(() => {
@@ -61,30 +83,84 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   }, [dialogueTurns]);
 
+  // Reset state when modal opens or closes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      teardownSession();
+      setStage('lobby');
+      return;
+    }
 
+    setStage('lobby');
     setEvaluation(null);
     setDialogueTurns([]);
     userPcmChunksRef.current = [];
     transcriptRef.current = '';
+    setIsSubmitting(false);
 
-    // Initialize Playout Manager
+    return () => {
+      teardownSession();
+    };
+  }, [isOpen, questionId, currentQuestionText]);
+
+  const teardownSession = () => {
+    if (fallbackTimeoutRef.current) {
+      clearTimeout(fallbackTimeoutRef.current);
+      fallbackTimeoutRef.current = null;
+    }
+    stopMicrophone();
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {}
+      wsRef.current = null;
+    }
+    if (playoutManagerRef.current) {
+      playoutManagerRef.current.teardown();
+      playoutManagerRef.current = null;
+    }
+    setIsConnected(false);
+    setIsAiSpeaking(false);
+    isAiSpeakingRef.current = false;
+    isRecordingRef.current = false;
+  };
+
+  /**
+   * Start Live Interview Session
+   * Called on direct user click on "Начать собеседование" button
+   */
+  const startLiveInterview = async () => {
+    setStage('active');
+    setEvaluation(null);
+    setIsAiSpeaking(true);
+    isAiSpeakingRef.current = true;
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    setDialogueTurns([
+      { role: 'system', text: '🎙️ Подключение к голосовому каналу... ИИ-интервьюер сейчас поздоровается и задаст вопрос.' }
+    ]);
+    userPcmChunksRef.current = [];
+    transcriptRef.current = '';
+    setIsSubmitting(false);
+
+    // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
     const playoutManager = new AudioPlayoutManager();
     playoutManagerRef.current = playoutManager;
+    await playoutManager.resume();
 
-    // Connect to Backend Live WebSocket Proxy
+    // 2. Connect to Backend Live WebSocket Proxy
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || 'localhost';
-    const wsUrl = `ws://${host}:8091/ws/live?questionId=${encodeURIComponent(questionId || '')}&topic=${encodeURIComponent(topic)}&questionText=${encodeURIComponent(currentQuestionText || '')}&referenceAnswer=${encodeURIComponent(referenceAnswer || '')}`;
+    const port = window.location.port === '8090' ? '8091' : window.location.port || '8091';
+    const wsUrl = `${protocol}//${host}:${port}/ws/live?questionId=${encodeURIComponent(questionId || '')}&topic=${encodeURIComponent(topic)}&questionText=${encodeURIComponent(currentQuestionText || '')}&referenceAnswer=${encodeURIComponent(referenceAnswer || '')}`;
     
+    console.log('Connecting to Live WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setIsConnected(true);
-      setDialogueTurns([
-        { role: 'system', text: '🎙️ Голосовой канал Gemini Live подключен. Ожидание готовности...' }
-      ]);
+      console.log('✅ Live WebSocket connected to backend proxy');
     };
 
     ws.onmessage = async (event) => {
@@ -95,40 +171,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (data.type === 'setupComplete') {
             setDialogueTurns((prev) => [
               ...prev,
-              { role: 'system', text: '⚡ Интервьюер готов! Нажмите микрофон и отвечайте на вопрос.' }
+              { role: 'system', text: '✨ Интервьюер готов! Слушайте вопрос темы.' }
             ]);
-
-            if (currentQuestionText) {
-              const initMsg = {
-                clientContent: {
-                  turns: [
-                    {
-                      role: 'user',
-                      parts: [{ text: `Привет! Зачитай мне, пожалуйста, вопрос: "${currentQuestionText}" и выслушай мой ответ.` }]
-                    }
-                  ],
-                  turnComplete: true
-                }
-              };
-              ws.send(JSON.stringify(initMsg));
-            }
+            // Warm up microphone hardware without transmitting yet
+            void initMicrophoneHardware();
           } else if (data.type === 'evaluation_completed') {
-            // Function Calling completed
             const evalData: EvaluationResult = data.evaluation;
             finalizeEvaluation(evalData);
           } else if (data.error) {
             setDialogueTurns((prev) => [...prev, { role: 'system', text: `❌ Ошибка: ${data.error}` }]);
           } else if (data.serverContent) {
-            // Check for Barge-in interruption
+            // Barge-in interruption
             if (data.serverContent.interrupted) {
-              playoutManager.handleInterruption();
+              playoutManagerRef.current?.handleInterruption();
               setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
               setDialogueTurns((prev) => [...prev, { role: 'system', text: '⚡ Речь прервана кандидатом (Barge-in).' }]);
             }
 
             // AI Speech turn
             if (data.serverContent.modelTurn?.parts) {
               setIsAiSpeaking(true);
+              isAiSpeakingRef.current = true;
               for (const part of data.serverContent.modelTurn.parts) {
                 if (part.text) {
                   transcriptRef.current += ` AI: ${part.text}`;
@@ -141,13 +205,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   });
                 }
                 if (part.inlineData?.data) {
-                  playoutManager.enqueuePcmChunk(part.inlineData.data);
+                  playoutManagerRef.current?.enqueuePcmChunk(part.inlineData.data);
                 }
               }
             }
 
             if (data.serverContent.turnComplete) {
+              console.log('AI Greeting turn completed. Activating candidate microphone...');
               setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setIsRecording(true);
+              isRecordingRef.current = true;
+              setDialogueTurns((prev) => [
+                ...prev,
+                { role: 'system', text: '🎙️ Теперь ваша очередь: микрофон включен, отвечайте своими словами.' }
+              ]);
             }
           }
         }
@@ -156,34 +228,29 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      console.log('Live WS closed:', ev.code, ev.reason);
       setIsConnected(false);
       setIsRecording(false);
       setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+      isRecordingRef.current = false;
     };
 
     ws.onerror = (err) => {
       console.error('Live WS error:', err);
       setIsConnected(false);
     };
+  };
 
-    return () => {
-      stopMicrophone();
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (playoutManagerRef.current) {
-        playoutManagerRef.current.teardown();
-        playoutManagerRef.current = null;
-      }
-    };
-  }, [isOpen, questionId, currentQuestionText, referenceAnswer, topic]);
-
-  const startMicrophone = async () => {
+  const initMicrophoneHardware = async () => {
     try {
       if (playoutManagerRef.current) {
         await playoutManagerRef.current.resume();
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return;
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -219,20 +286,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setRmsDb(metrics.rmsDb);
           }
 
-          // Accumulate Float32 samples for post-answer acoustic telemetry
+          // Accumulate for local acoustic metrics calculation
           const int16 = new Int16Array(pcmBuffer);
-          const f32 = new Float32Array(int16.length);
+          const float32 = new Float32Array(int16.length);
           for (let i = 0; i < int16.length; i++) {
-            const s = int16[i];
-            f32[i] = s < 0 ? s / 32768 : s / 32767;
+            float32[i] = int16[i] < 0 ? int16[i] / 32768 : int16[i] / 32767;
           }
-          userPcmChunksRef.current.push(f32);
+          userPcmChunksRef.current.push(float32);
 
-          // Stream base64 to WebSocket
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          // Transmit to Gemini Live ONLY when candidate recording is enabled AND AI is not currently speaking
+          const shouldTransmit =
+            wsRef.current &&
+            wsRef.current.readyState === WebSocket.OPEN &&
+            isRecordingRef.current &&
+            !isAiSpeakingRef.current;
+
+          if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);
             let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
+            for (let i = 0; i < bytes.byteLength; i++) {
               binary += String.fromCharCode(bytes[i]);
             }
             const base64Audio = btoa(binary);
@@ -260,47 +332,52 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       sourceNode.connect(workletNode);
       workletNode.connect(gainAnchor);
       gainAnchor.connect(audioCtx.destination);
-
-      setIsRecording(true);
     } catch (err: any) {
-      console.error('Error starting microphone:', err);
-      showToast({
-        type: 'error',
-        title: 'Доступ к микрофону заблокирован',
-        message: 'Браузер не смог получить доступ к микрофону. Проверьте разрешения в настройках.',
-        technicalDetails: err?.message || String(err)
-      });
+      console.warn('Microphone hardware init note:', err?.message || err);
     }
   };
 
   const stopMicrophone = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
     if (workletNodeRef.current) {
-      workletNodeRef.current.disconnect();
+      try {
+        workletNodeRef.current.disconnect();
+      } catch {}
       workletNodeRef.current = null;
     }
     if (gainAnchorRef.current) {
-      gainAnchorRef.current.disconnect();
+      try {
+        gainAnchorRef.current.disconnect();
+      } catch {}
       gainAnchorRef.current = null;
     }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (inputAudioCtxRef.current && inputAudioCtxRef.current.state !== 'closed') {
+    if (inputAudioCtxRef.current) {
       try {
         inputAudioCtxRef.current.close();
       } catch {}
       inputAudioCtxRef.current = null;
     }
     setIsRecording(false);
+    isRecordingRef.current = false;
     setRmsDb(-60);
   };
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
+    if (playoutManagerRef.current) {
+      await playoutManagerRef.current.resume();
+    }
     if (isRecording) {
-      stopMicrophone();
+      setIsRecording(false);
+      isRecordingRef.current = false;
     } else {
-      startMicrophone();
+      if (!mediaStreamRef.current) {
+        await initMicrophoneHardware();
+      }
+      setIsRecording(true);
+      isRecordingRef.current = true;
     }
   };
 
@@ -321,6 +398,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const finalizeEvaluation = async (evalData: EvaluationResult) => {
+    if (fallbackTimeoutRef.current) {
+      clearTimeout(fallbackTimeoutRef.current);
+      fallbackTimeoutRef.current = null;
+    }
+
     const acoustics = computeLocalAcoustics();
     const finalResult = {
       ...evalData,
@@ -328,6 +410,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
 
     setEvaluation(finalResult);
+    setStage('verdict');
     setIsSubmitting(false);
 
     if ((finalResult.score ?? 0) >= 80) {
@@ -350,12 +433,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             missingPoints: finalResult.missingPoints,
             feedback: finalResult.feedback,
             userAnswer: 'Устный ответ через Gemini Live',
-            transcript: dialogueTurns.map((d) => `${d.role.toUpperCase()}: ${d.text}`).join('\n\n'),
+            transcript: transcriptRef.current,
             audioMetrics: acoustics
           })
         });
       } catch (err) {
-        console.error('Error auto-persisting evaluation:', err);
+        console.error('Error saving Live evaluation to DB:', err);
       }
     }
 
@@ -365,10 +448,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const handleRequestVerdict = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      setIsSubmitting(true);
-      stopMicrophone();
+    setIsSubmitting(true);
+    setIsRecording(false);
+    isRecordingRef.current = false;
 
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const finishMsg = {
         clientContent: {
           turns: [
@@ -386,49 +470,87 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       };
       wsRef.current.send(JSON.stringify(finishMsg));
     }
+
+    // Safety fallback (6.5s) if model is delayed or doesn't invoke toolCall
+    if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+    fallbackTimeoutRef.current = setTimeout(async () => {
+      console.warn('Live toolCall timeout. Executing instant fallback evaluation...');
+      try {
+        const res = await fetch('/api/eval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionId,
+            topic,
+            question: currentQuestionText,
+            referenceAnswer,
+            userAnswer: transcriptRef.current || 'Устный ответ кандидата в Gemini Live'
+          })
+        });
+        if (res.ok) {
+          const fallbackData = await res.json();
+          finalizeEvaluation(fallbackData);
+        } else {
+          setIsSubmitting(false);
+        }
+      } catch (err) {
+        console.error('Fallback eval error:', err);
+        setIsSubmitting(false);
+      }
+    }, 6500);
+  };
+
+  const handleRetry = async () => {
+    teardownSession();
+    await startLiveInterview();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
       <motion.div
-        initial={{ scale: 0.92, opacity: 0, y: 10 }}
+        initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.92, opacity: 0, y: 10 }}
-        className="bg-white rounded-3xl p-6 md:p-8 max-w-xl w-full border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+        exit={{ scale: 0.94, opacity: 0, y: 15 }}
+        transition={{ duration: 0.25 }}
+        className="bg-white/95 rounded-3xl p-5 md:p-7 max-w-xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-pastel-border/60">
-          <div className="flex items-center gap-3">
-            <span className="p-2.5 bg-pastel-rose text-pastel-accentRose rounded-2xl shadow-xs">
-              <Sparkles className="w-5 h-5" />
-            </span>
-            <div>
-              <h3 className="font-bold text-pastel-text text-base flex items-center gap-2">
-                Gemini Live Interviewer
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Full-Duplex Bidi
-                </span>
-              </h3>
-              <p className="text-xs text-pastel-muted truncate max-w-sm">{topic}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-pastel-muted hover:text-pastel-text rounded-full hover:bg-pastel-bg transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
         {/* Soft Ambient Glows */}
         <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-pastel-accentViolet/20 blur-2xl pointer-events-none" />
 
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-pastel-border/60 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-pastel-text text-base">Gemini Live Interviewer</h3>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              </div>
+              <p className="text-[11px] text-pastel-muted">
+                {stage === 'lobby'
+                  ? 'Персональное голосовое собеседование с ИИ-ментором'
+                  : stage === 'active'
+                  ? 'Полнодуплексный голосовой диалог в реальном времени'
+                  : 'Результаты и анализ устного ответа'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-pastel-bg text-pastel-muted hover:text-pastel-text flex items-center justify-center hover:bg-pastel-rose/40 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Question Context Banner */}
         {currentQuestionText && (
-          <div className="mt-4 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs">
+          <div className="mt-3.5 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs shrink-0">
             <span className="font-bold text-pastel-accentViolet block mb-1 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
               Вопрос темы:
@@ -437,105 +559,67 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           </div>
         )}
 
-        {/* Supportive Ergonomic Note */}
-        {!evaluation && (
-          <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/80 flex items-center gap-2">
-            <span className="text-pastel-accentRose text-sm">✨</span>
-            <p className="leading-tight">
-              Говори спокойно своими словами. Если нужно собраться с мыслями — делай паузы, ИИ внимательно дослушает тебя.
-            </p>
+        {/* ========================================================================= */}
+        {/* STAGE 1: LOBBY (Prominent Start Screen)                                   */}
+        {/* ========================================================================= */}
+        {stage === 'lobby' && (
+          <div className="my-6 flex flex-col items-center justify-center text-center space-y-5">
+            {/* Friendly Mentor Avatar with Glow */}
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
+                <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
+                  👩‍💻
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white shadow-xs">
+                <Mic className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="max-w-md space-y-1.5 px-2">
+              <h4 className="font-bold text-pastel-text text-base">ИИ-интервьюер готов к диалогу</h4>
+              <p className="text-xs text-pastel-muted leading-relaxed">
+                Нажмите кнопку ниже, чтобы начать. Интервьюер поприветствует вас голосом и зачитает вопрос вслух. Отвечайте спокойно своими словами.
+              </p>
+            </div>
+
+            {/* ONE BIG PROMINENT CTA BUTTON */}
+            <button
+              type="button"
+              onClick={startLiveInterview}
+              disabled={!systemHealth.isAiReady}
+              className="w-full max-w-sm py-4 px-6 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-pink-200 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
+            >
+              {!systemHealth.isAiReady ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Инициализация AI Шлюза...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Начать собеседование</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 
-        {/* Evaluation Card View if Completed */}
-        <AnimatePresence>
-          {evaluation ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="my-4 p-5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/70 border border-indigo-100 shadow-sm space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-2xl ${evaluation.isPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    <Award className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-black text-slate-800">{evaluation.score}</span>
-                      <span className="text-xs font-bold text-slate-400">/ 100</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${evaluation.isPassed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                        {evaluation.isPassed ? 'Сдано успешно' : 'Требует повторения'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Оценка сформирована ИИ-интервьюером в диалоге</p>
-                  </div>
-                </div>
-              </div>
+        {/* ========================================================================= */}
+        {/* STAGE 2: ACTIVE LIVE SESSION                                              */}
+        {/* ========================================================================= */}
+        {stage === 'active' && (
+          <>
+            {/* Supportive Ergonomic Note */}
+            <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex items-center gap-2 shrink-0">
+              <span className="text-pastel-accentRose text-sm">✨</span>
+              <p className="leading-tight">
+                Говори спокойно своими словами. Если нужно подумать — делай паузы, ИИ внимательно дослушает тебя.
+              </p>
+            </div>
 
-              {/* Acoustic Telemetry Pill */}
-              {evaluation.audioMetrics && (
-                <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 text-center">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">ГРОМКОСТЬ</span>
-                    <span className="text-xs font-bold text-slate-700">{evaluation.audioMetrics.rmsDb} dB</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">ТЕМП РЕЧИ</span>
-                    <span className="text-xs font-bold text-slate-700">{evaluation.audioMetrics.grossWpm} WPM</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block">ПАУЗЫ</span>
-                    <span className="text-xs font-bold text-slate-700">{evaluation.audioMetrics.pauseRatioPercent}%</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Feedback */}
-              <div className="text-xs text-slate-700 leading-relaxed bg-white/60 p-3 rounded-xl border border-slate-100">
-                <span className="font-semibold text-slate-900 block mb-1">Резюме ответа:</span>
-                {evaluation.feedback}
-              </div>
-
-              {/* Positive / Missing Points */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                {evaluation.positivePoints.length > 0 && (
-                  <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-100">
-                    <span className="font-bold text-emerald-800 flex items-center gap-1.5 mb-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Отвечено верно:
-                    </span>
-                    <ul className="space-y-1 text-[11px] text-emerald-900">
-                      {evaluation.positivePoints.map((pt, i) => (
-                        <li key={i} className="flex items-start gap-1">
-                          <span>•</span>
-                          <span>{pt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {evaluation.missingPoints.length > 0 && (
-                  <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-100">
-                    <span className="font-bold text-amber-800 flex items-center gap-1.5 mb-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                      Упущенные детали:
-                    </span>
-                    <ul className="space-y-1 text-[11px] text-amber-900">
-                      {evaluation.missingPoints.map((pt, i) => (
-                        <li key={i} className="flex items-start gap-1">
-                          <span>•</span>
-                          <span>{pt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            /* Live Audio Interaction Stage */
-            <div className="my-6 flex flex-col items-center justify-center">
+            {/* Live Audio Interaction Stage */}
+            <div className="my-3.5 flex flex-col items-center justify-center shrink-0">
               <div className="relative flex items-center justify-center w-28 h-28">
                 {/* Visualizer Pulsing Glow */}
                 <motion.div
@@ -552,20 +636,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 />
 
                 <button
+                  type="button"
                   onClick={toggleMic}
-                  disabled={!systemHealth.isAiReady || isSubmitting}
+                  disabled={isSubmitting}
                   className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white shadow-xl transition transform ${
-                    !systemHealth.isAiReady
-                      ? 'bg-gray-300 opacity-60 cursor-not-allowed'
-                      : isRecording
+                    isRecording
                       ? 'bg-rose-500 hover:bg-rose-600 hover:scale-105 cursor-pointer shadow-rose-200'
                       : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:scale-105 cursor-pointer shadow-purple-200'
                   }`}
                   title={isRecording ? 'Остановить микрофон' : 'Включить микрофон'}
                 >
-                  {!systemHealth.isAiReady ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-                  ) : isRecording ? (
+                  {isRecording ? (
                     <Mic className="w-8 h-8 animate-pulse" />
                   ) : (
                     <MicOff className="w-8 h-8" />
@@ -574,12 +655,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               </div>
 
               {/* Status and Audio Level Indicators */}
-              <div className="mt-4 flex flex-col items-center gap-1.5 text-center">
+              <div className="mt-2.5 flex flex-col items-center gap-1 text-center">
                 <div className="text-xs font-semibold text-pastel-muted flex items-center gap-1.5">
                   {isAiSpeaking ? (
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                       <Volume2 className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                      <span>ИИ говорит... (вы можете перебить голосом в любой момент)</span>
+                      <span>ИИ говорит вопрос...</span>
                     </div>
                   ) : isRecording ? (
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
@@ -589,7 +670,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                           ? '✨ Отличная громкость и четкость' 
                           : rmsDb > -46 
                           ? '🎙️ Хорошая слышимость, продолжай' 
-                          : '💬 Говори чуть ближе к микрофону'}
+                          : '💬 Говорите в микрофон'}
                       </span>
                       <span className="text-[10px] opacity-75 font-mono">({rmsDb} dB)</span>
                     </div>
@@ -599,67 +680,170 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 </div>
               </div>
             </div>
-          )}
-        </AnimatePresence>
 
-        {/* Live Dialogue Transcript Box */}
-        <div
-          ref={chatScrollRef}
-          className="bg-pastel-bg/90 rounded-2xl p-4 flex-1 min-h-[120px] max-h-48 overflow-y-auto border border-pastel-border/60 text-xs space-y-2.5 mb-4"
-        >
-          {dialogueTurns.length === 0 ? (
-            <p className="text-pastel-muted italic text-center py-6">Подключение к голосовому каналу...</p>
-          ) : (
-            dialogueTurns.map((turn, i) => (
-              <div
-                key={i}
-                className={`p-2.5 rounded-xl text-xs leading-relaxed ${
-                  turn.role === 'ai'
-                    ? 'bg-white text-pastel-text border border-pastel-border/60 shadow-2xs'
-                    : turn.role === 'user'
-                    ? 'bg-pastel-lavender/60 text-pastel-accentViolet font-medium ml-4'
-                    : 'text-[11px] text-pastel-muted italic text-center'
-                }`}
-              >
-                {turn.role === 'ai' && <span className="font-bold text-pastel-accentRose mr-1.5">Интервьюер:</span>}
-                {turn.role === 'user' && <span className="font-bold text-pastel-accentViolet mr-1.5">Вы:</span>}
-                {turn.text}
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex gap-3 pt-2">
-          {!evaluation && (
-            <button
-              onClick={handleRequestVerdict}
-              disabled={isSubmitting || !isConnected}
-              className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            {/* Live Dialogue Transcript Box */}
+            <div
+              ref={chatScrollRef}
+              className="bg-pastel-bg/90 rounded-2xl p-3.5 flex-1 min-h-[90px] max-h-36 overflow-y-auto border border-pastel-border/60 text-xs space-y-2 mb-3"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Формирование вердикта...
-                </>
+              {dialogueTurns.length === 0 ? (
+                <p className="text-pastel-muted italic text-center py-4">Подключение к голосовому каналу...</p>
               ) : (
-                <>
-                  <Award className="w-4 h-4" />
-                  Завершить ответ и получить оценку
-                </>
+                dialogueTurns.map((turn, i) => (
+                  <div
+                    key={i}
+                    className={`p-2.5 rounded-xl text-xs leading-relaxed ${
+                      turn.role === 'ai'
+                        ? 'bg-white text-pastel-text border border-pastel-border/60 shadow-2xs'
+                        : turn.role === 'user'
+                        ? 'bg-pastel-lavender/70 text-pastel-accentViolet font-medium ml-4'
+                        : 'text-[11px] text-pastel-muted italic text-center'
+                    }`}
+                  >
+                    {turn.role === 'ai' && <span className="font-bold text-pastel-accentRose mr-1.5">Интервьюер:</span>}
+                    {turn.role === 'user' && <span className="font-bold text-pastel-accentViolet mr-1.5">Вы:</span>}
+                    {turn.text}
+                  </div>
+                ))
               )}
-            </button>
-          )}
+            </div>
 
-          <button
-            onClick={onClose}
-            className={`py-3 px-5 rounded-2xl border border-pastel-border text-pastel-text text-xs font-semibold hover:bg-pastel-rose transition ${
-              evaluation ? 'w-full' : ''
-            }`}
-          >
-            {evaluation ? 'Закрыть окно' : 'Отмена'}
-          </button>
-        </div>
+            {/* Action Controls */}
+            <div className="flex gap-2.5 pt-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleRequestVerdict}
+                disabled={isSubmitting || !isConnected}
+                className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Формирование вердикта...</span>
+                  </>
+                ) : (
+                  <>
+                    <Award className="w-4 h-4" />
+                    <span>Завершить ответ и получить оценку</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-3 px-5 rounded-2xl border border-pastel-border text-pastel-text text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
+              >
+                Отмена
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STAGE 3: VERDICT & RETRY                                                  */}
+        {/* ========================================================================= */}
+        {stage === 'verdict' && evaluation && (
+          <div className="my-3.5 space-y-4 overflow-y-auto max-h-[65vh] pr-1">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-4 md:p-5 rounded-2xl bg-gradient-to-br from-pastel-rose/70 via-white to-pastel-lavender/70 border border-pastel-accentRose/40 shadow-sm space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-2xl ${evaluation.isPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black text-pastel-text">{evaluation.score}</span>
+                      <span className="text-xs font-bold text-pastel-muted">/ 100</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${evaluation.isPassed ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
+                        {evaluation.isPassed ? '✓ Сдано успешно' : '⚠️ Требует повторения'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-pastel-muted font-medium mt-0.5">Оценка сформирована ИИ-интервьюером в диалоге</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Acoustic Telemetry Pill */}
+              {evaluation.audioMetrics && (
+                <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-white/90 border border-pastel-border text-center text-xs">
+                  <div>
+                    <span className="text-[9px] text-pastel-muted font-semibold block">ГРОМКОСТЬ</span>
+                    <span className="text-xs font-bold text-pastel-text">{evaluation.audioMetrics.rmsDb} dB</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-pastel-muted font-semibold block">ТЕМП РЕЧИ</span>
+                    <span className="text-xs font-bold text-pastel-text">{evaluation.audioMetrics.grossWpm} WPM</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-pastel-muted font-semibold block">ПАУЗЫ</span>
+                    <span className="text-xs font-bold text-pastel-text">{evaluation.audioMetrics.pauseRatioPercent}%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Positive Points */}
+              {evaluation.positivePoints && evaluation.positivePoints.length > 0 && (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200/60 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-emerald-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Что вы ответили отлично:
+                  </span>
+                  <ul className="list-disc list-inside text-emerald-900/90 space-y-0.5 pl-1">
+                    {evaluation.positivePoints.map((pt, idx) => (
+                      <li key={idx}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Missing Points */}
+              {evaluation.missingPoints && evaluation.missingPoints.length > 0 && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-amber-800 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Что стоит дополнить при ответе:
+                  </span>
+                  <ul className="list-disc list-inside text-amber-900/90 space-y-0.5 pl-1">
+                    {evaluation.missingPoints.map((pt, idx) => (
+                      <li key={idx}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Feedback */}
+              <div className="text-xs text-pastel-text leading-relaxed bg-white/80 p-3 rounded-xl border border-pastel-border/60">
+                <span className="font-bold text-pastel-accentViolet block mb-1">Резюме ответа:</span>
+                {evaluation.feedback}
+              </div>
+            </motion.div>
+
+            {/* Verdict Action Buttons: 1-Click Retry and Close */}
+            <div className="flex gap-2.5 pt-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Ответить заново</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-3 px-6 rounded-2xl border border-pastel-border text-pastel-text text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
+              >
+                Закрыть окно
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

@@ -36,7 +36,7 @@ export const App: React.FC = () => {
     if (systemHealth.isAiReady) {
       return (
         <div
-          title="AI Шлюз активен. Gemini Live и Gemini TTS готовы к работе."
+          title={systemHealth.message || "AI Шлюз активен. Все модели (TEXT, LIVE, TTS) проверены в LiteLLM."}
           className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-emerald-50/90 text-emerald-700 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-default"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -52,11 +52,11 @@ export const App: React.FC = () => {
     if (systemHealth.status === 'warming_up' || systemHealth.status === 'checking') {
       return (
         <div
-          title="AI Шлюз запускается. Голосовые функции станут активны автоматически через несколько секунд..."
+          title={systemHealth.error || "Проверка моделей в LiteLLM-Proxy (TEXT, LIVE, TTS)..."}
           className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs animate-pulse cursor-help"
         >
           <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-          <span>Инициализация AI Шлюза...</span>
+          <span>{systemHealth.error ? 'Синхронизация моделей...' : 'Инициализация AI Шлюза...'}</span>
         </div>
       );
     }
