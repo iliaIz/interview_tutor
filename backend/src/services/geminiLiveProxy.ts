@@ -56,14 +56,22 @@ export function buildSystemPrompt(params: {
   questionText: string;
   referenceAnswer: string;
   strategy: 'adaptive_probing' | 'socratic_tutoring';
+  voiceName: string;
   maxProbes: number;
   anchors: string[];
   customPromptOverride?: string;
 }): string {
-  const { topic, questionText, referenceAnswer, strategy, maxProbes, anchors, customPromptOverride } = params;
+  const { topic, questionText, referenceAnswer, strategy, voiceName, maxProbes, anchors, customPromptOverride } = params;
+
+  const isFemale = ['Kore', 'Aoede'].includes(voiceName);
+  const genderRule = isFemale
+    ? 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО ЖЕНСКИЙ): У тебя женский голос. Обязательно используй ЖЕНСКИЕ окончания в глаголах и формах от первого лица: «Я готова», «Я внимательно выслушала», «Я рада», «Я хотела бы уточнить». Категорически запрещено использовать мужские окончания («готов», «слушал», «рад»).'
+    : 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО МУЖСКОЙ): У тебя мужской голос. Обязательно используй МУЖСКИЕ окончания в глаголах и формах от первого лица: «Я готов», «Я внимательно выслушал», «Я рад», «Я хотел бы уточнить». Категорически запрещено использовать женские окончания («готова», «слушала», «рада»).';
 
   if (customPromptOverride && customPromptOverride.trim().length > 20) {
     return `${customPromptOverride.trim()}
+
+${genderRule}
 
 ВОПРОС ТЕМЫ: "${questionText}"
 ЭТАЛОННЫЙ ОТВЕТ:
@@ -78,7 +86,9 @@ ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
   const anchorsFormatted = anchors.map((a, i) => `  [Якорь ${i + 1}] ${a}`).join('\n');
 
   if (strategy === 'socratic_tutoring') {
-    return `Ты поддерживающий, доброжелательный и опытный ментор по ${topic}.
+    return `Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по ${topic}.
+${genderRule}
+
 ТВОЯ ЦЕЛЬ: Помочь кандидату глубоко и осознанно раскрыть техническую тему через поддерживающий Сократический диалог.
 
 ВОПРОС ТЕМЫ: "${questionText || 'Расскажите о вашем опыте в разработке'}"
@@ -102,7 +112,9 @@ ${anchorsFormatted}
   }
 
   // Default: adaptive_probing (FAANG Standard Technical Assessment)
-  return `Ты профессиональный, объективный и доброжелательный Senior/Lead технический интервьюер по ${topic}.
+  return `Ты профессиональный, объективный и доброжелательный Senior/Lead технический ${isFemale ? 'интервьюер (женщина)' : 'интервьюер (мужчина)'} по ${topic}.
+${genderRule}
+
 ТВОЯ ЦЕЛЬ: Точно и непредвзято оценить реальную глубину знаний кандидата через метод адаптивного технического зондирования (Adaptive Competency Probing).
 
 ВОПРОС ТЕМЫ: "${questionText || 'Расскажите о вашем опыте в backend-разработке'}"
@@ -185,6 +197,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       questionText,
       referenceAnswer,
       strategy,
+      voiceName,
       maxProbes,
       anchors,
       customPromptOverride

@@ -32,7 +32,6 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   const [newProfileName, setNewProfileName] = useState('');
   const [showNewProfileInput, setShowNewProfileInput] = useState(false);
   const [showPromptInspector, setShowPromptInspector] = useState(false);
-  const [newAnchorText, setNewAnchorText] = useState('');
 
   React.useEffect(() => {
     if (isOpen) {
@@ -40,18 +39,9 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
     }
   }, [isOpen]);
 
-  const currentAnchors = config.customAnchors && config.customAnchors.length > 0 
-    ? config.customAnchors 
-    : [
-        'Понимание базового определения и ключевой терминологии',
-        'Архитектурное назначение и внутреннее устройство',
-        'Практическое применение и отличия от аналогов'
-      ];
-
   const handleSelectProfile = (profile: InterviewProfile) => {
     onChangeConfig({
       ...profile.config,
-      customAnchors: config.customAnchors,
       customPromptOverride: profile.config.customPromptOverride
     });
   };
@@ -72,23 +62,13 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
     setProfiles(updated);
   };
 
-  const handleAddAnchor = () => {
-    if (!newAnchorText.trim()) return;
-    if (currentAnchors.length >= 10) return;
-    const updated = [...currentAnchors, newAnchorText.trim()];
-    onChangeConfig({ ...config, customAnchors: updated });
-    setNewAnchorText('');
-  };
-
-  const handleRemoveAnchor = (index: number) => {
-    const updated = currentAnchors.filter((_, i) => i !== index);
-    onChangeConfig({ ...config, customAnchors: updated });
-  };
+  const isFemale = ['Kore', 'Aoede'].includes(config.voice);
+  const genderLabel = isFemale ? 'Женский род («готова», «слушала», «рада»)' : 'Мужской род («готов», «слушал», «рад»)';
 
   // Construct preview of prompt for inspector
   const generatedPromptPreview = config.strategy === 'socratic_tutoring'
-    ? `[РОЛЬ]: Поддерживающий ментор по теме\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Сократический диалог (помощь аналогиями, похвала, до ${config.maxProbes} раундов уточнений)\n[ГОЛОС]: ${config.voice}\n[ЧЕК-ЛИСТ ЯКОРЕЙ (${currentAnchors.length} шт.)]:\n${currentAnchors.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}`
-    : `[РОЛЬ]: Senior/Lead технический интервьюер\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Адаптивное зондирование (FAANG Standard, без подсказок, проверка глубины, до ${config.maxProbes} раундов)\n[ГОЛОС]: ${config.voice}\n[ЧЕК-ЛИСТ ЯКОРЕЙ (${currentAnchors.length} шт.)]:\n${currentAnchors.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}`;
+    ? `[РОЛЬ]: Поддерживающий ментор по теме (${isFemale ? 'женщина' : 'мужчина'})\n[ГРАММАТИЧЕСКИЙ РОД]: ${genderLabel}\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Сократический диалог (помощь аналогиями, похвала, до ${config.maxProbes} раундов уточнений)\n[ГОЛОС]: ${config.voice}\n[ДИНАМИЧЕСКИЕ ЯКОРЯ]: До 10 ключевых критериев извлекаются автоматически из эталонного ответа`
+    : `[РОЛЬ]: Senior/Lead технический интервьюер (${isFemale ? 'женщина' : 'мужчина'})\n[ГРАММАТИЧЕСКИЙ РОД]: ${genderLabel}\n[ВОПРОС]: "${questionText}"\n[СТРАТЕГИЯ]: Адаптивное зондирование (FAANG Standard, без подсказок, проверка глубины, до ${config.maxProbes} раундов)\n[ГОЛОС]: ${config.voice}\n[ДИНАМИЧЕСКИЕ ЯКОРЯ]: До 10 ключевых критериев извлекаются автоматически из эталонного ответа`;
 
   return (
     <AnimatePresence>
@@ -108,7 +88,7 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-pastel-text">Настройки Live-интервьюера</h3>
-                  <p className="text-xs text-pastel-sub">Стратегия, пресеты голоса, чек-лист якорей и профили</p>
+                  <p className="text-xs text-pastel-sub">Стратегия, пресеты голоса, согласование рода речи и профили</p>
                 </div>
               </div>
               <button
@@ -257,11 +237,16 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                 </div>
               </div>
 
-              {/* 3. Выбор голоса */}
+              {/* 3. Выбор голоса и авто-согласование пола */}
               <div>
-                <label className="text-xs font-bold text-pastel-text uppercase tracking-wider block mb-2">
-                  Голос ИИ-интервьюера (Google Gemini Live)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-pastel-text uppercase tracking-wider block">
+                    Голос и пол интервьюера (Google Gemini Live)
+                  </label>
+                  <span className="text-[11px] font-semibold text-pastel-accentViolet bg-pastel-card px-2.5 py-0.5 rounded-full border border-pastel-border">
+                    {isFemale ? '♀️ Женский род речи' : '♂️ Мужской род речи'}
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {AVAILABLE_VOICES.map((v) => {
                     const isSelected = config.voice === v.id;
@@ -321,60 +306,7 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                 </div>
               </div>
 
-              {/* 5. Чек-лист якорей темы (до 10 якорей) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-pastel-text uppercase tracking-wider">
-                    Ключевые критерии и якоря темы ({currentAnchors.length}/10)
-                  </label>
-                </div>
-                <div className="space-y-1.5 mb-2.5">
-                  {currentAnchors.map((anchor, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 bg-pastel-card/60 rounded-xl border border-pastel-border/70 flex items-center justify-between gap-2 text-xs text-pastel-text"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-pastel-accentViolet/10 text-pastel-accentViolet font-bold text-[10px] flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <span className="leading-snug">{anchor}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAnchor(idx)}
-                        className="text-pastel-sub hover:text-red-500 transition p-1 cursor-pointer shrink-0"
-                        title="Удалить якорь"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {currentAnchors.length < 10 && (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Добавить свой критерий (например, 'Знание JIT-компиляции')"
-                      value={newAnchorText}
-                      onChange={(e) => setNewAnchorText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddAnchor()}
-                      className="flex-1 text-xs px-3 py-2 bg-white rounded-xl border border-pastel-border outline-none focus:border-pastel-accentViolet"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddAnchor}
-                      className="px-3 py-2 bg-pastel-card hover:bg-pastel-rose text-pastel-text border border-pastel-border rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Добавить</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 6. Инспектор системного промпта */}
+              {/* 5. Инспектор системного промпта */}
               <div className="border border-pastel-border rounded-2xl overflow-hidden bg-pastel-card/30">
                 <button
                   type="button"
