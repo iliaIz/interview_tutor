@@ -16,11 +16,13 @@ import {
   ChevronUp,
   X,
   Info,
-  Award
+  Award,
+  Mic
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { VoiceModal } from './VoiceModal';
 
 interface QuestionWithStatus extends Question {
   isCompleted?: boolean;
@@ -54,6 +56,11 @@ export const QuestionExplorer: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const lastSelectedIndexRef = useRef<number | null>(null);
+
+  // Voice Batch State
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [voiceBatch, setVoiceBatch] = useState<Question[]>([]);
+  const [voiceBatchIndex, setVoiceBatchIndex] = useState(0);
 
   // Expanded answers (for quick preview accordion)
   const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
@@ -246,6 +253,23 @@ export const QuestionExplorer: React.FC = () => {
     }
 
     startQuizWithQuestions(selectedTopicId!, selectedTopicName || 'Тема', targetQuestions);
+  };
+
+  // Launch Voice Interview with Selected Questions
+  const handleStartVoice = (customQuestions?: QuestionWithStatus[], startIndex = 0) => {
+    const targetQuestions = customQuestions || questions.filter((q) => selectedIds.has(q.id));
+    if (targetQuestions.length === 0) {
+      showToast({
+        type: 'warning',
+        title: 'Выберите вопросы',
+        message: 'Пожалуйста, выберите хотя бы один вопрос для голосового собеседования.'
+      });
+      return;
+    }
+
+    setVoiceBatch(targetQuestions);
+    setVoiceBatchIndex(startIndex);
+    setIsVoiceOpen(true);
   };
 
   // Launch Audio Recap with Selected Questions
@@ -642,6 +666,13 @@ export const QuestionExplorer: React.FC = () => {
                   {/* Individual Row Action Buttons */}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      onClick={() => handleStartVoice([q])}
+                      title="Пройти голосовое собеседование по этому вопросу"
+                      className="p-2 rounded-xl bg-pastel-rose/40 text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
+                    >
+                      <Mic className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => handleStartStudy([q])}
                       title="Изучить только этот вопрос"
                       className="p-2 rounded-xl bg-pastel-bg text-pastel-muted hover:text-pastel-accentRose hover:bg-pastel-rose transition cursor-pointer"
@@ -701,13 +732,23 @@ export const QuestionExplorer: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Voice Interview Selected */}
+                <button
+                  onClick={() => handleStartVoice()}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-95 transition transform hover:scale-105 cursor-pointer"
+                  title="Запустить непрерывное голосовое собеседование по выбранным вопросам"
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Собеседование ({selectedIds.size})</span>
+                </button>
+
                 {/* Study Selected */}
                 <button
                   onClick={() => handleStartStudy()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-95 transition transform hover:scale-105 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-pastel-border text-pastel-text rounded-xl text-xs font-bold shadow-xs hover:bg-pastel-card transition transform hover:scale-105 cursor-pointer"
                   title="Начать изучение выбранных карточек"
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
+                  <BookOpen className="w-3.5 h-3.5 text-pastel-accentRose" />
                   <span>Изучать ({selectedIds.size})</span>
                 </button>
 
@@ -718,7 +759,7 @@ export const QuestionExplorer: React.FC = () => {
                   title="Запустить проверку знаний с ИИ по выбранным вопросам"
                 >
                   <Brain className="w-3.5 h-3.5 text-pastel-accentViolet" />
-                  <span>Проверка ИИ ({selectedIds.size})</span>
+                  <span>Квиз ({selectedIds.size})</span>
                 </button>
 
                 {/* Audio Podcast Selected */}
@@ -744,6 +785,23 @@ export const QuestionExplorer: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Voice Modal for Explorer */}
+      {voiceBatch.length > 0 && (
+        <VoiceModal
+          isOpen={isVoiceOpen}
+          onClose={() => setIsVoiceOpen(false)}
+          questionsBatch={voiceBatch}
+          initialQuestionIndex={voiceBatchIndex}
+          topic={selectedTopicName || 'Java & Spring Framework'}
+          onIndexChange={(newIdx) => setVoiceBatchIndex(newIdx)}
+          onEvaluationComplete={(evalData) => {
+            if (selectedTopicId) {
+              fetchTopicEvaluations(selectedTopicId);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

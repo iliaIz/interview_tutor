@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check, Headphones, Award } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles, Copy, Check, Headphones, Award, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { VoiceModal } from './VoiceModal';
 
 export const StudyDeck: React.FC = () => {
   const {
@@ -16,9 +17,12 @@ export const StudyDeck: React.FC = () => {
     openRecapModal,
     openTopicQuestions,
     evaluationsMap,
-    openReportModal
+    openReportModal,
+    setQuestionEvaluation,
+    updateTopicProgress
   } = useAppStore();
   const [copied, setCopied] = React.useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
 
   if (!currentBatch || currentBatch.length === 0) {
     return (
@@ -94,6 +98,14 @@ export const StudyDeck: React.FC = () => {
         </span>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsVoiceOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-xl text-xs font-bold shadow-xs hover:opacity-95 transition cursor-pointer"
+            title="Запустить непрерывное голосовое собеседование по всей выборке"
+          >
+            <Mic className="w-3.5 h-3.5" /> Собеседование ({currentBatch.length})
+          </button>
+
           <button
             onClick={() => setView('quiz')}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-pastel-text text-white rounded-xl text-xs font-bold shadow-xs hover:bg-black transition cursor-pointer"
@@ -279,19 +291,68 @@ export const StudyDeck: React.FC = () => {
         {!isLast ? (
           <button
             onClick={() => setQuestionIndex(currentQuestionIndex + 1)}
-            className="px-5 py-2.5 rounded-xl bg-pastel-accentRose text-white text-sm font-semibold hover:opacity-95 transition flex items-center gap-2 shadow-sm"
+            className="px-5 py-2.5 rounded-xl bg-pastel-accentRose text-white text-sm font-semibold hover:opacity-95 transition flex items-center gap-2 shadow-sm cursor-pointer"
           >
             Следующая карточка <ArrowRight className="w-4 h-4" />
           </button>
         ) : (
           <button
             onClick={() => setView('quiz')}
-            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold hover:opacity-95 transition flex items-center gap-2 shadow-md transform hover:scale-105"
+            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold hover:opacity-95 transition flex items-center gap-2 shadow-md transform hover:scale-105 cursor-pointer"
           >
-            <Brain className="w-5 h-5" /> Перейти к проверке знания ({currentBatch.length} вопросов)
+            <Brain className="w-5 h-5" /> Проверка знаний ({currentBatch.length} вопр.)
           </button>
         )}
       </div>
+
+      {/* Voice Modal with Continuous Batch Mode */}
+      <VoiceModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        questionId={currentQ.id}
+        topic={selectedTopicName || currentQ.topic}
+        currentQuestionText={currentQ.question}
+        referenceAnswer={currentQ.answer}
+        questionsBatch={currentBatch}
+        initialQuestionIndex={currentQuestionIndex}
+        onIndexChange={(newIdx) => setQuestionIndex(newIdx)}
+        onEvaluationComplete={async (evalData) => {
+          const evalQId = evalData.questionId || currentQ.id;
+          const targetQuestion = currentBatch.find((q) => q.id === evalQId) || currentQ;
+
+          const evalRecord = {
+            id: evalQId,
+            questionId: evalQId,
+            topic: selectedTopicName || targetQuestion.topic,
+            mode: 'voice' as const,
+            score: evalData.score ?? 0,
+            isPassed: !!evalData.isPassed,
+            positivePoints: evalData.positivePoints || [],
+            missingPoints: evalData.missingPoints || [],
+            feedback: evalData.feedback || '',
+            userAnswer: evalData.userAnswer || 'Устный ответ через Gemini Live',
+            audioMetrics: evalData.audioMetrics,
+            questionText: targetQuestion.question,
+            referenceAnswer: targetQuestion.answer
+          };
+
+          setQuestionEvaluation(evalQId, evalRecord);
+
+          if (selectedTopicId) {
+            updateTopicProgress(selectedTopicId, evalQId, !!evalData.isPassed);
+
+            await fetch(`/api/topics/${selectedTopicId}/progress`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                completedIds: [evalQId],
+                masteredIds: evalData.isPassed ? [evalQId] : [],
+                lastQuestionId: evalQId
+              })
+            });
+          }
+        }}
+      />
     </div>
   );
 };

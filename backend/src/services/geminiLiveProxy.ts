@@ -62,13 +62,24 @@ export function buildSystemPrompt(params: {
   deepDive?: boolean;
   liveCoaching?: boolean;
   customPromptOverride?: string;
+  questionIndex?: number;
+  totalQuestions?: number;
 }): string {
-  const { topic, questionText, referenceAnswer, strategy, voiceName, maxProbes, anchors, deepDive, liveCoaching, customPromptOverride } = params;
+  const { topic, questionText, referenceAnswer, strategy, voiceName, maxProbes, anchors, deepDive, liveCoaching, customPromptOverride, questionIndex, totalQuestions } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
   const genderRule = isFemale
     ? 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО ЖЕНСКИЙ): У тебя женский голос. Обязательно используй ЖЕНСКИЕ окончания в глаголах и формах от первого лица: «Я готова», «Я внимательно выслушала», «Я рада», «Я хотела бы уточнить». Категорически запрещено использовать мужские окончания («готов», «слушал», «рад»).'
     : 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО МУЖСКОЙ): У тебя мужской голос. Обязательно используй МУЖСКИЕ окончания в глаголах и формах от первого лица: «Я готов», «Я внимательно выслушал», «Я рад», «Я хотел бы уточнить». Категорически запрещено использовать женские окончания («готова», «слушала», «рада»).';
+
+  const batchContext = (totalQuestions && totalQuestions > 1)
+    ? `=== КОНТЕКСТ СЕРИИ ВОПРОСОВ (HANDS-FREE MOCK INTERVIEW) ===
+Ты проводишь серию вопросов (вопрос ${(questionIndex ?? 0) + 1} из ${totalQuestions}).
+${((questionIndex ?? 0) + 1 < totalQuestions)
+  ? 'В финале текущего ответа кратко подведи итог и вызови submit_interview_evaluation. НЕ прощайся окончательно, так как сразу последует следующий вопрос темы.'
+  : 'Это заключительный вопрос серии. После вызова submit_interview_evaluation поблагодари за всё пройденное собеседование.'}
+`
+    : '';
 
   // Deep-dive & Scope modifier instructions
   const deepDiveInstruction = deepDive
@@ -123,6 +134,8 @@ ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
 Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по теме «${topic}».
 ${genderRule}
 
+${batchContext}
+
 ${deepDiveInstruction}
 
 ${liveCoachingInstruction}
@@ -157,6 +170,8 @@ ${anchorsFormatted}
   return `=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты профессиональный, объективный и доброжелательный Senior/Lead технический ${isFemale ? 'интервьюер (женщина)' : 'интервьюер (мужчина)'} по теме «${topic}».
 ${genderRule}
+
+${batchContext}
 
 ${deepDiveInstruction}
 
@@ -204,6 +219,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const deepDive = query.deepDive === 'true';
     const liveCoaching = query.liveCoaching === 'true';
     const customPromptOverride = (query.customPrompt as string) || '';
+    const questionIndex = Math.max(0, parseInt((query.questionIndex as string) || '0', 10) || 0);
+    const totalQuestions = Math.max(1, parseInt((query.totalQuestions as string) || '1', 10) || 1);
 
     let customAnchors: string[] = [];
     if (query.customAnchors) {
@@ -224,7 +241,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Strategy: ${strategy}, Voice: ${voiceName}, Anchors: ${anchors.length}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Strategy: ${strategy}, Voice: ${voiceName}, Q: ${questionIndex + 1}/${totalQuestions}, Anchors: ${anchors.length}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
 
@@ -248,7 +265,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       anchors,
       deepDive,
       liveCoaching,
-      customPromptOverride
+      customPromptOverride,
+      questionIndex,
+      totalQuestions
     });
 
     const setupMessage = {
@@ -319,9 +338,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         // Handle setupComplete from Google Gemini
         if (parsed.setupComplete) {
           session.isSetupComplete = true;
-          console.log('🎉 Upstream setupComplete received! Sending greeting trigger and draining buffered frames...');
+          console.log(`🎉 Upstream setupComplete received (Q ${questionIndex + 1}/${totalQuestions})! Sending greeting trigger and draining buffered frames...`);
 
-          // Initial greeting turn
+          // Initial greeting turn with context bridge for subsequent questions
+          const isSubsequent = questionIndex > 0;
+          const greetingText = isSubsequent
+            ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
+            : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+
           const initialGreetingTurn = {
             clientContent: {
               turns: [
@@ -329,7 +353,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                   role: 'user',
                   parts: [
                     {
-                      text: `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`
+                      text: greetingText
                     }
                   ]
                 }

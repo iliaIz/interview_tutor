@@ -55,6 +55,8 @@ export interface InterviewConfig {
   liveCoaching?: boolean; // 🎓 Разбор ошибок и объяснение правильного ответа на лету
   customPromptOverride?: string;
   customAnchors?: string[];
+  autoAdvance?: boolean; // ⚡ Автоматический переход к следующему вопросу
+  transitionDelay?: number; // ⏱️ Задержка автоперехода в секундах (3, 5, 10, 15, 0 = только вручную)
 }
 
 export interface InterviewProfile {

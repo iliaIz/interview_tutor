@@ -617,7 +617,7 @@ export const ExamQuiz: React.FC = () => {
         )}
       </motion.div>
 
-      {/* Voice Modal */}
+      {/* Voice Modal with Continuous Batch Mode */}
       <VoiceModal
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
@@ -625,36 +625,42 @@ export const ExamQuiz: React.FC = () => {
         topic={selectedTopicName || currentQ.topic}
         currentQuestionText={currentQ.question}
         referenceAnswer={currentQ.answer}
+        questionsBatch={currentBatch}
+        initialQuestionIndex={currentQuestionIndex}
+        onIndexChange={(newIdx) => {
+          setQuestionIndex(newIdx);
+          setEvalResult(null);
+          setUserAnswer('');
+        }}
         onEvaluationComplete={async (evalData) => {
+          const evalQId = evalData.questionId || currentQ.id;
+          const targetQuestion = currentBatch.find((q) => q.id === evalQId) || currentQ;
+
           setEvalResult(evalData);
 
           const evalRecord = {
-            id: currentQ.id,
-            questionId: currentQ.id,
-            topic: selectedTopicName || currentQ.topic,
+            id: evalQId,
+            questionId: evalQId,
+            topic: selectedTopicName || targetQuestion.topic,
             mode: 'voice' as const,
             score: evalData.score ?? 0,
             isPassed: !!evalData.isPassed,
             positivePoints: evalData.positivePoints || [],
             missingPoints: evalData.missingPoints || [],
             feedback: evalData.feedback || '',
-            userAnswer: 'Устный ответ через Gemini Live',
+            userAnswer: evalData.userAnswer || 'Устный ответ через Gemini Live',
             audioMetrics: evalData.audioMetrics,
-            questionText: currentQ.question,
-            referenceAnswer: currentQ.answer
+            questionText: targetQuestion.question,
+            referenceAnswer: targetQuestion.answer
           };
 
-          setQuestionEvaluation(currentQ.id, evalRecord);
-
-          if ((evalData.score ?? 0) >= 80) {
-            triggerSuccessConfetti();
-          }
+          setQuestionEvaluation(evalQId, evalRecord);
 
           setResultsHistory((prev) => ({
             ...prev,
-            [currentQ.id]: {
-              question: currentQ,
-              userAnswer: '🎙️ Устный ответ в Gemini Live',
+            [evalQId]: {
+              question: targetQuestion,
+              userAnswer: evalData.userAnswer || '🎙️ Устный ответ в Gemini Live',
               score: evalData.score ?? 0,
               isPassed: !!evalData.isPassed,
               feedback: evalData.feedback || '',
@@ -664,18 +670,21 @@ export const ExamQuiz: React.FC = () => {
           }));
 
           if (selectedTopicId) {
-            updateTopicProgress(selectedTopicId, currentQ.id, !!evalData.isPassed);
+            updateTopicProgress(selectedTopicId, evalQId, !!evalData.isPassed);
 
             await fetch(`/api/topics/${selectedTopicId}/progress`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                completedIds: [currentQ.id],
-                masteredIds: evalData.isPassed ? [currentQ.id] : [],
-                lastQuestionId: currentQ.id
+                completedIds: [evalQId],
+                masteredIds: evalData.isPassed ? [evalQId] : [],
+                lastQuestionId: evalQId
               })
             });
           }
+        }}
+        onBatchComplete={(batchRes) => {
+          setIsQuizCompleted(true);
         }}
       />
     </div>
