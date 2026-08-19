@@ -1,9 +1,24 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
-import { TOPIC_MAP, TOPIC_DEFINITIONS } from './topics';
+import { TOPIC_MAP } from './topics';
 
 dotenv.config();
+
+export interface TechStackInfo {
+  language: string;
+  javaVersion: string;
+  framework: string;
+  keyLibraries: string[];
+}
+
+export interface ProductionContext {
+  systemName: string;
+  architectureType: string;
+  incidentSymptoms: string;
+  businessImpact: string;
+  prReviewContext: string;
+}
 
 export interface BugChallenge {
   id: string;
@@ -26,6 +41,8 @@ export interface BugChallenge {
   lastScore?: number;
   lastFeedback?: string;
   keyTakeaways?: string[];
+  techStack?: TechStackInfo;
+  productionContext?: ProductionContext;
   createdAt?: string;
 }
 
@@ -39,12 +56,42 @@ export interface GenerateBugChallengeParams {
   defectFocus?: string;
   difficulty?: 'middle' | 'senior';
   excludeIds?: string[];
+  techStackProfile?: 'modern_cloud' | 'fintech_transactional' | 'enterprise_migration' | 'reactive_streaming' | 'custom';
+  customTechStack?: string;
+  customInstructions?: string;
 }
 
+export const TECH_STACK_ARCHETYPES: Record<string, { name: string; badge: string; description: string; stackPrompt: string }> = {
+  modern_cloud: {
+    name: 'Modern Cloud-Native',
+    badge: '🚀 Loom & Spring 3.4+',
+    description: 'Java 21 LTS, Spring Boot 3.4.x, Project Loom (Virtual Threads), PostgreSQL 16, Hibernate 6.6+, Kafka 3.8',
+    stackPrompt: `Язык: Java 21 LTS. Фреймворк: Spring Boot 3.4.x / Spring Framework 6.2. Модель: Project Loom (Virtual Threads per Task). Персистентность: Spring Data JPA + Hibernate 6.6+, HikariCP, PostgreSQL 16. Брокер: Kafka 3.8 (KRaft). Метрики: Micrometer 1.14.`
+  },
+  fintech_transactional: {
+    name: 'FinTech / Mission-Critical',
+    badge: '💳 Outbox & ACID',
+    description: 'Java 21 LTS, Spring Boot 3.4.x, Transactional Outbox, Debezium CDC, Redisson 3.35 Fenced Locks, PostgreSQL 16',
+    stackPrompt: `Язык: Java 21 LTS. Фреймворк: Spring Boot 3.4.x. Персистентность: Spring Data JPA, PostgreSQL 16 (Repeatable Read / Serializable), Transactional Outbox. Распределенная синхронизация: Redisson 3.35 Fenced Locks. Брокер: Kafka EOS (Exactly-Once).`
+  },
+  enterprise_migration: {
+    name: 'Enterprise Migration',
+    badge: '🏛️ Boot 2.7 ➔ 3.x / Jakarta',
+    description: 'Java 17 ➔ 21, Spring Boot 2.7.18 ➔ 3.4+, Jakarta EE 10/11 (jakarta.*), Hibernate 5.6 ➔ 6.6 (SQM), Flyway 10',
+    stackPrompt: `Язык: Java 17/21. Фреймворк: Spring Boot 3.4.x (миграция с 2.7). Пространство имен: строго jakarta.* (Servlet, JPA, Validation). Персистентность: Hibernate 6.6 (Semantic Query Model SQM), Flyway 10. HTTP: RestClient / HttpComponentsClientHttpRequestFactory.`
+  },
+  reactive_streaming: {
+    name: 'Highload Reactive',
+    badge: '⚡ WebFlux & Netty',
+    description: 'Java 21, Spring WebFlux, Project Reactor 3.6, Netty EventLoop, Spring Data R2DBC, Redis Reactive',
+    stackPrompt: `Язык: Java 21. Фреймворк: Spring Boot 3.4.x WebFlux. Движок: Project Reactor 3.6 + Netty EventLoop. Персистентность: Spring Data R2DBC (PostgreSQL Driver), ReactiveRedisTemplate. Трассировка: Micrometer Reactor Context Propagation.`
+  }
+};
+
 const DEFECT_FOCUS_MAP: Record<string, string> = {
-  concurrency: 'ФОКУС: Многопоточность, гонки состояний (Race Condition), видимость (Visibility/Volatile), блокировки (Deadlock/ReentrantLock), атомики и пулы потоков.',
-  memory: 'ФОКУС: Утечки памяти (Memory Leaks), удержание ссылок (ThreadLocal, static collections), неэффективная сложность O(N^2) и перегрузка GC.',
-  spring_aop: 'ФОКУС: Spring AOP прокси (Self-invocation bypass), жизненный цикл бинов (@PostConstruct/Prototype injection), распространение транзакций (@Transactional propagation/rollback on checked exceptions).',
+  concurrency: 'ФОКУС: Многопоточность, гонки состояний (Race Condition), видимость (Visibility/Volatile), блокировки (Carrier Pinning / Deadlock / ReentrantLock), атомики и пулы потоков.',
+  memory: 'ФОКУС: Утечки памяти (Memory Leaks / Metaspace), удержание ссылок (ThreadLocal, static collections), декартово произведение в Hibernate 6 и перегрузка GC.',
+  spring_aop: 'ФОКУС: Spring AOP прокси (Self-invocation bypass), жизненный цикл бинов (@PostConstruct / Prototype injection), распространение транзакций (@Transactional propagation / rollback on checked exceptions).',
   contracts: 'ФОКУС: Нарушение контрактов equals/hashCode, мутации неизменяемых коллекций, некорректные Comparator (compare == 0 vs equals), serialization traps.',
   all: 'ФОКУС: Любые фундаментальные архитектурные, логические, concurrency или транзакционные ловушки.'
 };
@@ -58,13 +105,16 @@ function saveBugChallengeToDb(challenge: BugChallenge, topicId: string, topicNam
       INSERT INTO bug_challenges (
         id, topic_id, topic_name, preset, difficulty, category_badge,
         title, subtopic, language, code_snippet, bug_explanation, fixed_code,
-        hints_json, is_solved, last_score, last_feedback, key_takeaways_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        hints_json, is_solved, last_score, last_feedback, key_takeaways_json,
+        tech_stack_json, production_context_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         is_solved = COALESCE(excluded.is_solved, bug_challenges.is_solved),
         last_score = COALESCE(excluded.last_score, bug_challenges.last_score),
         last_feedback = COALESCE(excluded.last_feedback, bug_challenges.last_feedback),
         key_takeaways_json = COALESCE(excluded.key_takeaways_json, bug_challenges.key_takeaways_json),
+        tech_stack_json = COALESCE(excluded.tech_stack_json, bug_challenges.tech_stack_json),
+        production_context_json = COALESCE(excluded.production_context_json, bug_challenges.production_context_json),
         updated_at = CURRENT_TIMESTAMP
     `);
 
@@ -85,7 +135,9 @@ function saveBugChallengeToDb(challenge: BugChallenge, topicId: string, topicNam
       challenge.isSolved ? 1 : 0,
       challenge.lastScore || null,
       challenge.lastFeedback || null,
-      challenge.keyTakeaways ? JSON.stringify(challenge.keyTakeaways) : null
+      challenge.keyTakeaways ? JSON.stringify(challenge.keyTakeaways) : null,
+      challenge.techStack ? JSON.stringify(challenge.techStack) : null,
+      challenge.productionContext ? JSON.stringify(challenge.productionContext) : null
     );
   } catch (err) {
     console.error('Error saving bug challenge to SQLite:', err);
@@ -136,6 +188,8 @@ export function getSavedBugChallenges(topicId?: string, filter: 'all' | 'unsolve
       lastScore: r.last_score || undefined,
       lastFeedback: r.last_feedback || undefined,
       keyTakeaways: r.key_takeaways_json ? JSON.parse(r.key_takeaways_json) : undefined,
+      techStack: r.tech_stack_json ? JSON.parse(r.tech_stack_json) : undefined,
+      productionContext: r.production_context_json ? JSON.parse(r.production_context_json) : undefined,
       createdAt: r.created_at
     }));
   } catch (err) {
@@ -196,6 +250,18 @@ export async function generateBugChallenge(params: GenerateBugChallengeParams): 
   const difficulty = params.difficulty || (preset === 'senior_multi' ? 'senior' : 'middle');
   const defectFocusKey = params.defectFocus || 'all';
   const defectFocusInstruction = DEFECT_FOCUS_MAP[defectFocusKey] || DEFECT_FOCUS_MAP.all;
+
+  // Resolve target tech stack
+  const stackProfileKey = params.techStackProfile || 'modern_cloud';
+  let targetTechStackPrompt = TECH_STACK_ARCHETYPES[stackProfileKey]?.stackPrompt || TECH_STACK_ARCHETYPES.modern_cloud.stackPrompt;
+
+  if (stackProfileKey === 'custom' && params.customTechStack) {
+    targetTechStackPrompt = `Пользовательский стек: ${params.customTechStack}`;
+  }
+
+  const customInstructionsPrompt = params.customInstructions
+    ? `\nДОПОЛНИТЕЛЬНЫЕ ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ:\n${params.customInstructions}`
+    : '';
 
   // Case 1: Topic-level bug hunt (from TopicSelector / Bug Hunt Arena)
   if (params.topicId && !params.questionId && !params.questionText) {
@@ -271,49 +337,84 @@ export async function generateBugChallenge(params: GenerateBugChallengeParams): 
 
   const isSeniorMulti = preset === 'senior_multi' || difficulty === 'senior';
   const bugCountInstruction = isSeniorMulti
-    ? `Сгенерируй код уровня Senior/Lead с РОВНО 2 взаимосвязанными или скрытыми дефектами (например, concurrency race condition + пропуск отката транзакции при checked exception).`
+    ? `Сгенерируй код уровня Senior/Lead/Staff с РОВНО 2 взаимосвязанными или скрытыми дефектами (например, concurrency race condition + пропуск отката транзакции при checked exception или carrier thread pinning).`
     : `Сгенерируй код с РОВНО 1 фундаментальной архитектурной, логической или concurrency ошибкой.`;
 
-  const systemPrompt = `Ты Senior/Principal Java & Spring архитектор и автор технического код-ревью на собеседованиях.
-Твоя задача — сгенерировать компактный (14-25 строк), реалистичный кусок кода (Java или Spring/SQL) с ошибкой для проведения устного Code Review.
+  const systemPrompt = `You are a Principal Systems Architect, Technical Interviewer, and Reliability Engineering Lead.
+Your objective is to generate production-grade code debugging interview challenges based on real-world enterprise failures and post-mortems (2025-2026).
+
+================================================================================
+CORE OPERATIONAL MANDATES:
+1. STRICT PROHIBITION OF TRIVIAL DEFECTS:
+   - Prohibit all trivial syntax errors, typos, missing semicolons, obvious type mismatches, and rudimentary off-by-one loop boundaries.
+   - Prohibit basic NullPointerException flaws caused by uninstantiated objects that standard IDE linters flag immediately.
+   - MANDATORY: Bugs must stem from architectural subtleties, framework lifecycle mismatches, thread concurrency races, transaction boundary bypasses, or distributed state inconsistencies.
+   - The code snippet MUST be syntactically valid and compile cleanly.
+2. FRAMEWORK IDIOMS & MODERN SPECIFICATIONS:
+   - Target Tech Stack: ${targetTechStackPrompt}
+   - For Java 17/21 and Spring Boot 3.x, use exclusively the 'jakarta.*' namespace (NEVER 'javax.*' for persistence, validation, or servlet APIs).
+   - Leverage modern idioms: Records, Pattern Matching, Sealed Interfaces, Virtual Thread considerations, and idiomatic annotations (@RequiredArgsConstructor, @Transactional, @Retryable, @Version).
+3. PRODUCTION LORE GENERATION (Rich Enterprise Context):
+   - systemName: Realistic enterprise microservice name (e.g., 'clearing-settlement-engine', 'order-routing-orchestrator', 'catalog-pricing-engine').
+   - architectureType: Enterprise pattern (e.g., 'Transactional Outbox & Event-Driven', 'CQRS Read-Side Processor', 'Highload Ingress API').
+   - incidentSymptoms: Precise telemetry and observability anomalies (e.g., 'p99 latency spike to 4500ms under 50k RPS, HikariCP connection starvation, Kafka lag accumulation, HTTP 504 at Ingress').
+   - businessImpact: Measurable financial or organizational blast radius (e.g., 'Duplicate financial transactions, SLA breach fines, inventory ghost holds').
+   - prReviewContext: Plausible developer explanation and rationale submitted in the pull request.
+4. PROGRESSIVE HINTS:
+   - Hint 1 (Direction): High-level architectural pointer directing attention to the affected subsystem.
+   - Hint 2 (Localization): Pinpoints the precise component interaction, proxy boundary, or concurrency hazard.
+   - Hint 3 (Solution mechanism): Concrete refactoring strategy or synchronization primitive required to resolve the issue.
+
+${customInstructionsPrompt}
 
 РЕЖИМ И СЛОЖНОСТЬ:
 ${bugCountInstruction}
 ${defectFocusInstruction}
 
-АНТИ-КЛИШЕ И ТРЕБОВАНИЯ К КАЧЕСТВУ (CRITICAL INVARIANTS):
-1. Категорически ЗАПРЕЩЕНО использовать избитые учебные примеры:
-   - Банальный ConcurrentModificationException в цикле for-each без глубоких нюансов.
-   - Опечатку в сигнатуре equals (Object vs Type) без глубокого контекста хэш-таблиц.
-   - Базовый non-thread-safe HashMap без реалистичного бизнес-сценария.
-2. Код должен выглядеть как настоящий продакшен-сервис или компонент с чистым форматированием, реальными типами и правдоподобной логикой.
-3. Обязательно дай 2 короткие подсказки (hints): Hint 1 направляет внимание на область, Hint 2 указывает на конкретные строки/механизм.
-4. Приведи исправленный вариант кода (fixedCode).
-5. Определи категорию бага (categoryBadge: "⚡ Concurrency" | "💾 Memory & GC" | "🍃 Spring AOP" | "📐 Contract Trap" | "🔒 Transactions").
-
-Формат ответа — СТРОГО валидный JSON без markdown кавычек:
+================================================================================
+OUTPUT ENFORCEMENT:
+Emit a single, strictly conforming JSON object adhering to this schema:
 {
-  "title": "Название кейса (например: 'Потокобезопасное обновление кэша заказов')",
+  "title": "Краткое название кейса (например: 'Гонка состояний в обработчике платежей')",
   "subtopic": "Конкретная подтема (например: 'Concurrent Collections & Atomicity')",
   "categoryBadge": "⚡ Concurrency",
   "difficultyBadge": "${isSeniorMulti ? 'Senior' : 'Middle'}",
   "language": "java",
-  "codeSnippet": "исходный код с дефектом (14-25 строк) со стандартными переносами строк \\n",
-  "bugExplanation": "Четкое объяснение дефекта (или 2 дефектов), к чему это приведет в проде под нагрузкой и почему",
-  "fixedCode": "исправленная версия кода (14-25 строк)",
+  "techStack": {
+    "language": "Java 21",
+    "javaVersion": "Java 21 LTS",
+    "framework": "Spring Boot 3.4.2",
+    "keyLibraries": ["Spring WebMVC", "Spring Data JPA / Hibernate 6.6", "PostgreSQL 16", "Project Loom (Virtual Threads)"]
+  },
+  "productionContext": {
+    "systemName": "payment-routing-orchestrator",
+    "architectureType": "Highload Transactional Outbox (40k RPS)",
+    "incidentSymptoms": "Всплеск p99 latency с 15мс до 4200мс в Grafana, алерты Sentry на дублирование списаний баланса.",
+    "businessImpact": "Дублирование финансовых транзакций у 2% клиентов в период пиковой распродажи.",
+    "prReviewContext": "Коллега добавил локальное кэширование через ConcurrentHashMap, пытаясь снизить нагрузку на БД."
+  },
+  "codeSnippet": "исходный код с дефектом (16-28 строк) со стандартными переносами строк \\n",
+  "bugExplanation": "Глубокое объяснение механизма сбоя на уровне JVM/Spring/транзакций и почему это ломается под нагрузкой",
+  "fixedCode": "исправленная эталонная версия кода (16-28 строк)",
   "hints": [
-    "Подсказка 1: общее направление",
-    "Подсказка 2: локализация строк и нюанс поведения"
+    "Подсказка 1 (Направление): общее архитектурное указание",
+    "Подсказка 2 (Локализация): конкретные строки и механизм сбоя",
+    "Подсказка 3 (Решение): точный примитив или контракт для исправления"
+  ],
+  "keyTakeaways": [
+    "Ключевой вывод 1 для собеседования",
+    "Ключевой вывод 2 для собеседования",
+    "Ключевой вывод 3 для собеседования"
   ]
 }`;
 
   const prompt = `Тема: ${topicName}
 ${contextInfo}
 
-Сгенерируй интересную задачу на поиск бага (Code Review Challenge).`;
+Сгенерируй реалистичную задачу на поиск бага (Production Incident Code Review Challenge) в строгом JSON-формате.`;
 
   try {
-    console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Model: ${modelName}, Topic: ${topicName}, Preset: ${preset}, Diff: ${difficulty}]...`);
+    console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Model: ${modelName}, Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
     
     let proxyRes: Response;
     try {
@@ -384,6 +485,14 @@ ${contextInfo}
         : ['Обратите внимание на взаимодействие потоков и синхронизацию.', 'Посмотрите на метод обновления состояния.'],
       categoryBadge: parsed.categoryBadge || '⚡ Concurrency',
       difficultyBadge: parsed.difficultyBadge || (isSeniorMulti ? 'Senior' : 'Middle'),
+      keyTakeaways: Array.isArray(parsed.keyTakeaways) && parsed.keyTakeaways.length > 0 ? parsed.keyTakeaways : undefined,
+      techStack: parsed.techStack || {
+        language: 'Java 21',
+        javaVersion: 'Java 21 LTS',
+        framework: 'Spring Boot 3.4.x',
+        keyLibraries: ['Spring WebMVC', 'PostgreSQL 16', 'Hibernate 6.6']
+      },
+      productionContext: parsed.productionContext || undefined,
       sampledQuestionId,
       isTopicExhausted: false,
       remainingCount,
@@ -396,7 +505,7 @@ ${contextInfo}
     return generatedChallenge;
   } catch (err: any) {
     console.error('Error generating bug challenge:', err);
-    // Safe graceful fallback if LLM has temporary hiccup
+    // Safe graceful fallback
     const fallbackChallenge: BugChallenge = {
       id: `fallback_${Date.now()}`,
       topicId,
@@ -409,8 +518,27 @@ ${contextInfo}
       fixedCode: `@Service\npublic class PaymentService {\n    private final ConcurrentMap<String, Integer> balances = new ConcurrentHashMap<>();\n\n    public void addBalance(String userId, int amount) {\n        balances.merge(userId, amount, Integer::sum);\n    }\n}`,
       hints: [
         'Подумайте, как поведет себя коллекция balances при одновременных запросах от разных потоков.',
-        'Обратите внимание на строки с containsKey и put — операция не атомарна.'
+        'Обратите внимание на строки с containsKey и put — операция не атомарна.',
+        'Используйте ConcurrentHashMap с атомарным методом merge() или compute().'
       ],
+      keyTakeaways: [
+        'Коллекция HashMap не является потокобезопасной и приводит к гонкам данных (Race Conditions).',
+        'Проверка с последующей записью (Check-Then-Act) должна выполняться атомарно через compute() или merge().',
+        'Аннотация @Transactional управляет JDBC-транзакциями в БД, но не защищает поля бина в памяти JVM.'
+      ],
+      techStack: {
+        language: 'Java 21',
+        javaVersion: 'Java 21 LTS',
+        framework: 'Spring Boot 3.4.2',
+        keyLibraries: ['Spring WebMVC', 'Spring Data JPA', 'PostgreSQL 16', 'Project Loom']
+      },
+      productionContext: {
+        systemName: 'payment-routing-orchestrator',
+        architectureType: 'Highload Transactional Ingress (35k RPS)',
+        incidentSymptoms: 'Grafana фиксирует расхождение балансов пользователей и алерты Sentry на потерю начислений.',
+        businessImpact: 'Потеря средств и жалобы клиентов на недошедшие пополнения.',
+        prReviewContext: 'Разработчик реализовал in-memory кэш балансов для ускорения ответа API.'
+      },
       categoryBadge: '⚡ Concurrency',
       difficultyBadge: isSeniorMulti ? 'Senior' : 'Middle',
       sampledQuestionId,

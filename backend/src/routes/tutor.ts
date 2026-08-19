@@ -19,7 +19,10 @@ router.post('/bug-challenge', async (req, res) => {
       workoutPreset,
       defectFocus,
       difficulty,
-      excludeIds
+      excludeIds,
+      techStackProfile,
+      customTechStack,
+      customInstructions
     } = req.body;
 
     const challenge = await generateBugChallenge({
@@ -31,7 +34,10 @@ router.post('/bug-challenge', async (req, res) => {
       workoutPreset,
       defectFocus,
       difficulty,
-      excludeIds
+      excludeIds,
+      techStackProfile,
+      customTechStack,
+      customInstructions
     });
 
     res.json(challenge);

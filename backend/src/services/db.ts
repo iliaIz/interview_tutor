@@ -97,13 +97,24 @@ db.exec(`
     last_score INTEGER,
     last_feedback TEXT,
     key_takeaways_json TEXT,
+    tech_stack_json TEXT,
+    production_context_json TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
   CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
+  CREATE INDEX IF NOT EXISTS idx_bug_topic ON bug_challenges(topic_id);
 `);
+
+// Safe column migrations for existing SQLite databases
+try {
+  db.exec("ALTER TABLE bug_challenges ADD COLUMN tech_stack_json TEXT;");
+} catch {}
+try {
+  db.exec("ALTER TABLE bug_challenges ADD COLUMN production_context_json TEXT;");
+} catch {}
 
 export function seedDefaultProfiles() {
   try {

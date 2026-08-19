@@ -9,20 +9,20 @@ import {
   MicOff,
   Flame,
   ArrowRight,
-  ArrowLeft,
   RotateCcw,
   Loader2,
-  CheckCircle2,
   SlidersHorizontal,
   Target,
   Trophy,
   BookOpen,
   Volume2,
   Play,
-  Award,
   ChevronRight,
   ChevronLeft,
-  MessageSquare
+  MessageSquare,
+  Layers,
+  Cpu,
+  Settings
 } from 'lucide-react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
@@ -31,6 +31,7 @@ import { triggerSuccessConfetti } from '../utils/confetti';
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
 export type DefectFocus = 'all' | 'concurrency' | 'memory' | 'spring_aop' | 'contracts';
 export type TutorRole = 'bug_hunt' | 'free_chat';
+export type TechStackProfile = 'modern_cloud' | 'fintech_transactional' | 'enterprise_migration' | 'reactive_streaming' | 'custom';
 
 interface TopicBugHuntModalProps {
   isOpen: boolean;
@@ -63,6 +64,44 @@ const PRESETS: { id: WorkoutPreset; name: string; icon: React.ComponentType<any>
   }
 ];
 
+const TECH_STACK_PROFILES: { id: TechStackProfile; name: string; badge: string; desc: string; iconStr: string }[] = [
+  {
+    id: 'modern_cloud',
+    name: 'Modern Cloud-Native',
+    badge: '🚀 Loom & Boot 3.4+',
+    desc: 'Java 21 LTS, Spring Boot 3.4.x, Virtual Threads (Project Loom), PostgreSQL 16, Hibernate 6.6+, Kafka 3.8',
+    iconStr: '🚀'
+  },
+  {
+    id: 'fintech_transactional',
+    name: 'FinTech / Mission-Critical',
+    badge: '💳 Outbox & ACID',
+    desc: 'Java 21 LTS, Spring Boot 3.4.x, Transactional Outbox, Debezium CDC, Redisson 3.35 Fenced Locks, PostgreSQL 16',
+    iconStr: '💳'
+  },
+  {
+    id: 'enterprise_migration',
+    name: 'Enterprise Migration',
+    badge: '🏛️ Boot 2.7 ➔ 3.x / Jakarta',
+    desc: 'Java 17 ➔ 21, Spring Boot 2.7.18 ➔ 3.4+, Jakarta EE (jakarta.*), Hibernate 5.6 ➔ 6.6 (SQM), Flyway 10',
+    iconStr: '🏛️'
+  },
+  {
+    id: 'reactive_streaming',
+    name: 'Highload Reactive',
+    badge: '⚡ WebFlux & Netty',
+    desc: 'Java 21, Spring WebFlux, Project Reactor 3.6, Netty EventLoop, Spring Data R2DBC, Redis Reactive',
+    iconStr: '⚡'
+  },
+  {
+    id: 'custom',
+    name: 'Свой стек & Промпт',
+    badge: '🛠️ Кастомный',
+    desc: 'Задайте точные версии технологий и дополнительные промпт-инструкции для генерации',
+    iconStr: '🛠️'
+  }
+];
+
 const DEFECT_FOCUSES: { id: DefectFocus; name: string; iconStr: string }[] = [
   { id: 'all', name: 'Все категории', iconStr: '🌐' },
   { id: 'concurrency', name: 'Многопоточность & Race Conditions', iconStr: '⚡' },
@@ -91,6 +130,9 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [defectFocus, setDefectFocus] = useState<DefectFocus>('all');
   const [difficulty, setDifficulty] = useState<'middle' | 'senior'>('middle');
   const [tutorRole, setTutorRole] = useState<TutorRole>('bug_hunt');
+  const [techStackProfile, setTechStackProfile] = useState<TechStackProfile>('modern_cloud');
+  const [customTechStack, setCustomTechStack] = useState<string>('Java 21, Spring Boot 3.4, Kotlin, Kafka, Redis');
+  const [customInstructions, setCustomInstructions] = useState<string>('');
 
   // Session Linear History Stack & State
   const [history, setHistory] = useState<BugChallenge[]>([]);
@@ -194,7 +236,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           workoutPreset: activePreset,
           defectFocus,
           difficulty: activePreset === 'senior_multi' ? 'senior' : difficulty,
-          excludeIds: activePreset === 'exhaustive' ? currentSeen : []
+          excludeIds: activePreset === 'exhaustive' ? currentSeen : [],
+          techStackProfile,
+          customTechStack: techStackProfile === 'custom' ? customTechStack : undefined,
+          customInstructions: techStackProfile === 'custom' && customInstructions ? customInstructions : undefined
         })
       });
 
@@ -237,7 +282,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           questionText: challenge.subtopic,
           workoutPreset: activePreset,
           defectFocus,
-          difficulty: activePreset === 'senior_multi' ? 'senior' : difficulty
+          difficulty: activePreset === 'senior_multi' ? 'senior' : difficulty,
+          techStackProfile,
+          customTechStack: techStackProfile === 'custom' ? customTechStack : undefined,
+          customInstructions: techStackProfile === 'custom' && customInstructions ? customInstructions : undefined
         })
       });
 
@@ -544,7 +592,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           {/* STAGE 1: LOBBY (Workout Setup & Problem Bank) */}
           {/* ========================================================= */}
           {stage === 'lobby' && (
-            <div className="max-w-2xl mx-auto space-y-6 py-2">
+            <div className="max-w-3xl mx-auto space-y-6 py-2">
               {/* Source Mode Toggle: Fresh AI vs Saved Bank */}
               <div className="flex p-1.5 rounded-2xl bg-pink-100/70 border border-pink-200/60">
                 <button
@@ -579,7 +627,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5">
                       <Target className="w-3.5 h-3.5 text-pink-600" />
-                      <span>Выберите режим тренировки:</span>
+                      <span>1. Режим тренировки:</span>
                     </label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {PRESETS.map((p) => {
@@ -612,11 +660,88 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Tech Stack Archetype Selection */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5 text-purple-600" />
+                      <span>2. Технологический стек (Версии и инфраструктура):</span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {TECH_STACK_PROFILES.map((st) => {
+                        const isSelected = techStackProfile === st.id;
+                        return (
+                          <button
+                            key={st.id}
+                            onClick={() => setTechStackProfile(st.id)}
+                            className={`p-3.5 rounded-2xl text-left border transition-all relative cursor-pointer ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-purple-50 via-rose-50 to-white border-pink-300 ring-2 ring-pink-300 shadow-sm'
+                                : 'bg-white/80 border-pink-200/60 hover:bg-pink-50/50 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm">{st.iconStr}</span>
+                                <span className="text-xs font-bold text-[#2D1B4E]">{st.name}</span>
+                              </div>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-pink-100/80 text-[#4A1E6D] border border-pink-200/60 font-bold">
+                                {st.badge}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#7E699B] leading-tight font-normal">
+                              {st.desc}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Tech Stack & Prompt Fields (Animated Expand) */}
+                    <AnimatePresence>
+                      {techStackProfile === 'custom' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-4 rounded-2xl bg-white/90 border border-pink-200/80 shadow-2xs space-y-3 pt-3"
+                        >
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-[#4A1E6D] flex items-center gap-1">
+                              <Settings className="w-3 h-3 text-pink-600" />
+                              <span>Свой технологический стек (версии библиотек, БД, брокеры):</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={customTechStack}
+                              onChange={(e) => setCustomTechStack(e.target.value)}
+                              placeholder="Например: Kotlin 2.0, Spring Boot 3.3, Coroutines, MongoDB, Kafka"
+                              className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#FFF9FB] border border-pink-200 text-[#2D1B4E] placeholder:text-[#9D88B5] focus:outline-none focus:ring-2 focus:ring-pink-300"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-[#4A1E6D] flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-amber-500" />
+                              <span>Дополнительные инструкции промпта (фокус тем или специфика собеседования):</span>
+                            </label>
+                            <textarea
+                              value={customInstructions}
+                              onChange={(e) => setCustomInstructions(e.target.value)}
+                              rows={2}
+                              placeholder="Например: Сделай упор на распределенные транзакции, идемпотентность в Kafka и дедлоки."
+                              className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#FFF9FB] border border-pink-200 text-[#2D1B4E] placeholder:text-[#9D88B5] focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   {/* Defect Focus Filter */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5">
                       <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Категория дефектов (Фокус):</span>
+                      <span>3. Категория дефектов (Фокус):</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {DEFECT_FOCUSES.map((f) => (
@@ -717,7 +842,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   <span>
                     {sourceMode === 'bank'
                       ? `🚀 Начать повторение банка (${filteredBank.length} задач)`
-                      : '🚀 Начать тренировку поиска багов'}
+                      : `🚀 Начать симуляцию инцидента (${TECH_STACK_PROFILES.find(s => s.id === techStackProfile)?.name || 'Modern Cloud'})`}
                   </span>
                 </button>
               </div>
@@ -752,7 +877,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
               ) : isLoadingChallenge ? (
                 <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#7E699B]">
                   <Loader2 className="w-8 h-8 text-pink-600 animate-spin" />
-                  <p className="text-xs font-mono font-semibold">Генерация продакшен-кейса с ошибкой через LiteLLM...</p>
+                  <p className="text-xs font-mono font-semibold">Генерация производственного инцидента через LiteLLM...</p>
                 </div>
               ) : challenge ? (
                 <div className="space-y-6">
@@ -782,7 +907,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Challenge Code & Details */}
+                  {/* Challenge Code & Details with Tech Stack & Incident Lore */}
                   <BugChallengeCard
                     challenge={challenge}
                     isSolved={isSolved}

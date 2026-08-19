@@ -12,11 +12,30 @@ import {
   BookmarkCheck,
   SplitSquareVertical,
   Code2,
-  Award
+  Award,
+  Activity,
+  AlertTriangle,
+  Server,
+  GitPullRequest
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CodeViewer } from './CodeViewer';
 import { useAppStore } from '../store/useAppStore';
+
+export interface TechStackInfo {
+  language: string;
+  javaVersion: string;
+  framework: string;
+  keyLibraries: string[];
+}
+
+export interface ProductionContext {
+  systemName: string;
+  architectureType: string;
+  incidentSymptoms: string;
+  businessImpact: string;
+  prReviewContext: string;
+}
 
 export interface BugChallenge {
   id: string;
@@ -39,6 +58,8 @@ export interface BugChallenge {
   lastScore?: number;
   lastFeedback?: string;
   keyTakeaways?: string[];
+  techStack?: TechStackInfo;
+  productionContext?: ProductionContext;
   createdAt?: string;
 }
 
@@ -108,6 +129,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
 }) => {
   const [showSolution, setShowSolution] = useState(false);
   const [openHintIndex, setOpenHintIndex] = useState<number | null>(null);
+  const [isIncidentOpen, setIsIncidentOpen] = useState(false);
   const [solutionViewMode, setSolutionViewMode] = useState<'fixed' | 'diff'>('diff');
 
   const { addCheatSheetBookmark, removeCheatSheetBookmark, isBookmarked } = useAppStore();
@@ -237,6 +259,99 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
         </div>
       </div>
 
+      {/* Tech Stack Version Badges */}
+      {challenge.techStack && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] font-bold text-[#7E699B] mr-1">Стек:</span>
+          <span className="px-2.5 py-0.5 rounded-lg bg-pink-100/80 text-[#4A1E6D] font-mono text-[11px] font-bold border border-pink-200/70 shadow-2xs">
+            ☕ {challenge.techStack.javaVersion || challenge.techStack.language}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-lg bg-purple-100/80 text-[#4A1E6D] font-mono text-[11px] font-bold border border-purple-200/70 shadow-2xs">
+            🍃 {challenge.techStack.framework}
+          </span>
+          {challenge.techStack.keyLibraries?.slice(0, 3).map((lib, lIdx) => (
+            <span
+              key={lIdx}
+              className="px-2 py-0.5 rounded-lg bg-white text-[#4A326D] font-mono text-[11px] font-medium border border-pink-200/60 shadow-2xs"
+            >
+              {lib}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Collapsible Production Incident Lore Accordion */}
+      {challenge.productionContext && (
+        <div className="rounded-2xl border border-pink-200/80 bg-gradient-to-r from-[#FFF5F8] via-[#FAF5FF] to-white overflow-hidden shadow-2xs transition-all">
+          <button
+            onClick={() => setIsIncidentOpen(!isIncidentOpen)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left text-xs font-bold text-[#4A1E6D] hover:bg-pink-50/50 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-pink-600 animate-pulse" />
+              <span>🏢 Производственный контекст & Телеметрия инцидента</span>
+              <span className="text-[10px] font-mono font-normal text-[#7E699B] bg-white px-2 py-0.5 rounded-md border border-pink-200 shadow-2xs">
+                {challenge.productionContext.systemName}
+              </span>
+            </div>
+            {isIncidentOpen ? <ChevronUp className="w-4 h-4 text-pink-600" /> : <ChevronDown className="w-4 h-4 text-[#7E699B]" />}
+          </button>
+
+          <AnimatePresence>
+            {isIncidentOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 pb-4 pt-1 border-t border-pink-100 space-y-3 text-xs bg-white/70 font-sans"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-100 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[#4A1E6D]">
+                      <Server className="w-3.5 h-3.5 text-purple-700" />
+                      <span>Архитектура системы:</span>
+                    </div>
+                    <p className="text-[#3B2556] leading-relaxed">
+                      {challenge.productionContext.architectureType}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-100 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-950">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-700" />
+                      <span>Бизнес-радиус поражения:</span>
+                    </div>
+                    <p className="text-rose-900 leading-relaxed">
+                      {challenge.productionContext.businessImpact}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                    <Activity className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Симптомы в телеметрии (Grafana / Sentry / Prometheus):</span>
+                  </div>
+                  <p className="text-amber-900 leading-relaxed">
+                    {challenge.productionContext.incidentSymptoms}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-pink-50/50 border border-pink-100 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-[#4A1E6D]">
+                    <GitPullRequest className="w-3.5 h-3.5 text-pink-600" />
+                    <span>Контекст Pull Request (почему код был написан именно так):</span>
+                  </div>
+                  <p className="text-[#3B2556] leading-relaxed">
+                    {challenge.productionContext.prReviewContext}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
       {/* Code Snippet with SOTA CodeViewer (Velvet Obsidian Gemstone) */}
       <CodeViewer
         code={challenge.codeSnippet}
@@ -268,7 +383,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                       <span className="w-5 h-5 rounded-full bg-pink-100 text-[#4A1E6D] flex items-center justify-center text-[10px] font-bold">
                         {idx + 1}
                       </span>
-                      <span>Подсказка {idx + 1} {idx === 0 ? '(Направление)' : '(Локализация)'}</span>
+                      <span>Подсказка {idx + 1} {idx === 0 ? '(Направление)' : idx === 1 ? '(Локализация)' : '(Решение)'}</span>
                     </span>
                     {isOpen ? (
                       <ChevronUp className="w-4 h-4 text-pink-600" />
