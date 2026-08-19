@@ -99,6 +99,11 @@ interface AppState {
   isRecapModalOpen: boolean;
   recapTarget: RecapTarget | null;
 
+  // Topic Bug Hunt Arena State
+  activeTopicBugHunt: { topicId: string; topicName: string } | null;
+  openTopicBugHunt: (topicId: string, topicName: string) => void;
+  closeTopicBugHunt: () => void;
+
   // Actions
   setView: (view: 'topics' | 'questions' | 'study' | 'quiz') => void;
   setSelectedTopic: (topicId: string, name: string) => void;
@@ -158,6 +163,10 @@ export const useAppStore = create<AppState>()(
       activeAudioJob: null,
       isRecapModalOpen: false,
       recapTarget: null,
+      activeTopicBugHunt: null,
+
+      openTopicBugHunt: (topicId, topicName) => set({ activeTopicBugHunt: { topicId, topicName } }),
+      closeTopicBugHunt: () => set({ activeTopicBugHunt: null }),
 
       setView: (view) => set({ currentView: view }),
       setSelectedTopic: (topicId, name) => set({ selectedTopicId: topicId, selectedTopicName: name }),

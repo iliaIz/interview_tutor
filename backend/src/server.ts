@@ -7,6 +7,7 @@ import evalRouter from './routes/eval';
 import podcastRouter from './routes/podcast';
 import profilesRouter from './routes/profiles';
 import sttRouter from './routes/stt';
+import tutorRouter from './routes/tutor';
 import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
@@ -27,6 +28,7 @@ app.use('/api/eval', evalRouter);
 app.use('/api/podcast', podcastRouter);
 app.use('/api/profiles', profilesRouter);
 app.use('/api/stt', sttRouter);
+app.use('/api/tutor', tutorRouter);
 
 app.get('/api/health', async (req, res) => {
   const health = await checkSystemHealth();

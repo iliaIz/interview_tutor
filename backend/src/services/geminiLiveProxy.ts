@@ -64,14 +64,144 @@ export function buildSystemPrompt(params: {
   customPromptOverride?: string;
   questionIndex?: number;
   totalQuestions?: number;
+  sessionType?: 'interview' | 'tutor';
+  tutorMode?: 'deep_dive' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt';
+  bugTitle?: string;
+  bugExplanation?: string;
+  codeSnippet?: string;
+  hints?: string[];
 }): string {
-  const { topic, questionText, referenceAnswer, strategy, voiceName, maxProbes, anchors, deepDive, liveCoaching, customPromptOverride, questionIndex, totalQuestions } = params;
+  const {
+    topic,
+    questionText,
+    referenceAnswer,
+    strategy,
+    voiceName,
+    maxProbes,
+    anchors,
+    deepDive,
+    liveCoaching,
+    customPromptOverride,
+    questionIndex,
+    totalQuestions,
+    sessionType,
+    tutorMode,
+    bugTitle,
+    bugExplanation,
+    codeSnippet,
+    hints
+  } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
   const genderRule = isFemale
     ? 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО ЖЕНСКИЙ): У тебя женский голос. Обязательно используй ЖЕНСКИЕ окончания в глаголах и формах от первого лица: «Я готова», «Я внимательно выслушала», «Я рада», «Я хотела бы уточнить». Категорически запрещено использовать мужские окончания («готов», «слушал», «рад»).'
     : 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО МУЖСКОЙ): У тебя мужской голос. Обязательно используй МУЖСКИЕ окончания в глаголах и формах от первого лица: «Я готов», «Я внимательно выслушал», «Я рад», «Я хотел бы уточнить». Категорически запрещено использовать женские окончания («готова», «слушала», «рада»).';
 
+  // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
+  if (sessionType === 'tutor') {
+    if (tutorMode === 'bug_hunt') {
+      return `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
+Ты опытный, доброжелательный ${isFemale ? 'техлид (женщина)' : 'техлид (мужчина)'}. Ты проводишь с кандидатом интерактивное устное код-ревью.
+${genderRule}
+
+=== 2. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
+ТЕМА: ${topic}
+НАЗВАНИЕ КЕЙСА: "${bugTitle || 'Поиск ошибки в коде'}"
+СУТЬ БАГА (ДЛЯ ТВОЕГО ЗНАНИЯ, НЕ СПОЙЛЕРИ СРАЗУ):
+"""
+${bugExplanation || 'Неочевидный баг в многопоточности, транзакциях или структурах данных.'}
+"""
+
+КОД НА ЭКРАНЕ:
+\`\`\`
+${codeSnippet || '// Код задачи'}
+\`\`\`
+
+ПОДСКАЗКИ:
+${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
+
+=== 3. ПРАВИЛА ГОЛОСОВОГО ОБЩЕНИЯ (CRITICAL AUDIO INVARIANTS) ===
+1. КРАТКОСТЬ: Твои устные реплики должны быть краткими — СТРОГО 2-3 предложения (до 25-30 слов). Никаких длинных монологов!
+2. НЕ ЗАЧИТЫВАЙ КОД ГОЛОСОМ: Кандидат видит код на экране. Ссылайся на строки («Посмотри на 12-ю строку...», «Обрати внимание на метод save...»).
+3. ПРИВЕТСТВИЕ: В начале диалога поприветствуй кандидата и задай вопрос: «Привет! Посмотри на код задачи «${bugTitle || 'на экране'}». Здесь есть неочевидная проблема. Что пойдет не так под нагрузкой?»
+4. НАСТАВНИЧЕСТВО:
+   - Если кандидат нашел второстепенную проблему: мягко подтверди и направь на корневой баг (подсказка 1).
+   - Если кандидат застрял или просит подсказку: дай компактную подсказку (подсказка 1 или 2).
+   - Если кандидат точно нашел ошибку и объяснил причину: похвали, в 1-2 предложениях резюмируй правильный фикс и вызови функцию \`mark_bug_solved(isSolved=true, feedback="...", keyInsight="...")\`.`;
+    }
+
+    if (tutorMode === 'deep_dive') {
+      return `=== 1. РОЛЬ: DEEP-DIVE AI-ТЬЮТОР (ПОД КАПОТ JVM / SPRING) ===
+Ты глубокий технический эксперт ${isFemale ? '(женщина)' : '(мужчина)'} по Java, JVM internals, Spring Framework, многопоточности и базам данных.
+${genderRule}
+
+[КОНТЕКСТ КАРТОЧКИ]
+ВОПРОС: "${questionText}"
+ЭТАЛОННЫЙ ОТВЕТ:
+"""
+${referenceAnswer}
+"""
+
+=== ПРАВИЛА ДИАЛОГА ===
+1. Твоя цель — отвечать на вопросы кандидата и раскрывать «что происходит под капотом» (байткод, прокси, AOP, сборка мусора, JMM, структуры данных, системные вызовы).
+2. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай 2-3 емкими предложениями за раз. Заканчивай мини-вопросом или предложением углубиться («Хочешь разобрать, как это устроено в памяти?»).
+3. НЕ ЗАЧИТЫВАЙ длинные простыни текста. Веди живую, интерактивную беседу.`;
+    }
+
+    if (tutorMode === 'socratic') {
+      return `=== 1. РОЛЬ: СОКРАТИЧЕСКИЙ МЕНТОР ===
+Ты доброжелательный наставник ${isFemale ? '(женщина)' : '(мужчина)'}. Твоя цель — не давать готовых ответов, а короткими наводящими вопросами помогать кандидату самостоятельно дойти до истины.
+${genderRule}
+
+[КОНТЕКСТ ВОПРОСА]
+ВОПРОС: "${questionText}"
+ЭТАЛОН:
+"""
+${referenceAnswer}
+"""
+
+=== ПРАВИЛА ===
+1. Никогда не выпаливай готовое решение сразу.
+2. Задавай 1 короткий наводящий вопрос в ответ на реплику кандидата.
+3. Длина ответа: строго 1-2 предложения.`;
+    }
+
+    if (tutorMode === 'eli5') {
+      return `=== 1. РОЛЬ: ELI5 ТЬЮТОР (ПРОСТЫМИ СЛОВАМИ И АНАЛОГИЯМИ) ===
+Ты умеешь объяснять сложнейшие концепции архитектуры, многопоточности и баз данных на простых жизненных аналогиях (как библиотекарь, кассир в банке, почтальон).
+${genderRule}
+
+[КОНТЕКСТ]
+ВОПРОС: "${questionText}"
+ЭТАЛОН:
+"""
+${referenceAnswer}
+"""
+
+=== ПРАВИЛА ===
+1. Используй яркую и понятную бытовую аналогию.
+2. Без заумного академизма и перегруженного синтаксиса.
+3. Длина: 2-3 коротких предложения.`;
+    }
+
+    // Default tutor mode: quick_qa
+    return `=== 1. РОЛЬ: ЭКСПРЕСС-КОНСУЛЬТАНТ (QUICK Q&A) ===
+Ты лаконичный и точный технический консультант ${isFemale ? '(женщина)' : '(мужчина)'}.
+${genderRule}
+
+[КОНТЕКСТ]
+ВОПРОС: "${questionText}"
+ЭТАЛОН:
+"""
+${referenceAnswer}
+"""
+
+=== ПРАВИЛА ===
+1. Отвечай прямо, точно и без лишней «воды».
+2. Длина ответа: строго 2 предложения.`;
+  }
+
+  // === INTERVIEW SESSION LOGIC (FAANG Mock Assessment) ===
   const batchContext = (totalQuestions && totalQuestions > 1)
     ? `=== КОНТЕКСТ СЕРИИ ВОПРОСОВ (HANDS-FREE MOCK INTERVIEW) ===
 Ты проводишь серию вопросов (вопрос ${(questionIndex ?? 0) + 1} из ${totalQuestions}).
@@ -209,6 +339,19 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const parsedUrl = url.parse(req.url || '', true);
     const query = parsedUrl.query;
 
+    const sessionType = ((query.sessionType as string) === 'tutor' ? 'tutor' : 'interview') as 'interview' | 'tutor';
+    const tutorMode = (query.tutorMode as any) || 'deep_dive';
+    const bugTitle = (query.bugTitle as string) || '';
+    const bugExplanation = (query.bugExplanation as string) || '';
+    const codeSnippet = (query.codeSnippet as string) || '';
+    let parsedHints: string[] = [];
+    if (query.hints) {
+      try {
+        const h = JSON.parse(query.hints as string);
+        if (Array.isArray(h)) parsedHints = h.map(String);
+      } catch {}
+    }
+
     const questionId = (query.questionId as string) || '';
     const topic = (query.topic as string) || 'Java & Spring Framework';
     const questionText = (query.questionText as string) || '';
@@ -241,7 +384,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Strategy: ${strategy}, Voice: ${voiceName}, Q: ${questionIndex + 1}/${totalQuestions}, Anchors: ${anchors.length}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
     let greetingWatchdog: NodeJS.Timeout | null = null;
@@ -268,8 +411,59 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       liveCoaching,
       customPromptOverride,
       questionIndex,
-      totalQuestions
+      totalQuestions,
+      sessionType,
+      tutorMode,
+      bugTitle,
+      bugExplanation,
+      codeSnippet,
+      hints: parsedHints
     });
+
+    const toolDeclarations: any[] = [
+      {
+        name: 'submit_interview_evaluation',
+        description: 'Сохранить итоговую оценку, баллы и рекомендации по устному ответу кандидата',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            score: { type: 'NUMBER', description: 'Балл от 0 до 100' },
+            isPassed: { type: 'BOOLEAN', description: 'true если score >= 70, иначе false' },
+            positivePoints: {
+              type: 'ARRAY',
+              items: { type: 'STRING' },
+              description: 'Список того, что кандидат ответил точно и правильно'
+            },
+            missingPoints: {
+              type: 'ARRAY',
+              items: { type: 'STRING' },
+              description: 'Список важных терминов или концепций, которые кандидат упустил'
+            },
+            spokenFeedback: {
+              type: 'STRING',
+              description: 'Краткое текстовое резюме для озвучивания и карточки отчета'
+            }
+          },
+          required: ['score', 'isPassed', 'positivePoints', 'missingPoints', 'spokenFeedback']
+        }
+      }
+    ];
+
+    if (sessionType === 'tutor') {
+      toolDeclarations.push({
+        name: 'mark_bug_solved',
+        description: 'Зафиксировать успешное нахождение и объяснение бага кандидатом',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            isSolved: { type: 'BOOLEAN', description: 'true если баг найден и объяснен' },
+            feedback: { type: 'STRING', description: 'Краткая похвала и подтверждение' },
+            keyInsight: { type: 'STRING', description: 'Ключевая мысль фикса' }
+          },
+          required: ['isSolved', 'feedback', 'keyInsight']
+        }
+      });
+    }
 
     const setupMessage = {
       setup: {
@@ -283,41 +477,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               }
             }
           },
-          temperature: strategy === 'socratic_tutoring' ? 0.4 : 0.2
+          temperature: sessionType === 'tutor' ? 0.3 : (strategy === 'socratic_tutoring' ? 0.4 : 0.2)
         },
         systemInstruction: {
           parts: [{ text: systemPromptText }]
         },
         tools: [
           {
-            functionDeclarations: [
-              {
-                name: 'submit_interview_evaluation',
-                description: 'Сохранить итоговую оценку, баллы и рекомендации по устному ответу кандидата',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    score: { type: 'NUMBER', description: 'Балл от 0 до 100' },
-                    isPassed: { type: 'BOOLEAN', description: 'true если score >= 70, иначе false' },
-                    positivePoints: {
-                      type: 'ARRAY',
-                      items: { type: 'STRING' },
-                      description: 'Список того, что кандидат ответил точно и правильно'
-                    },
-                    missingPoints: {
-                      type: 'ARRAY',
-                      items: { type: 'STRING' },
-                      description: 'Список важных терминов или концепций, которые кандидат упустил'
-                    },
-                    spokenFeedback: {
-                      type: 'STRING',
-                      description: 'Краткое текстовое резюме для озвучивания и карточки отчета'
-                    }
-                  },
-                  required: ['score', 'isPassed', 'positivePoints', 'missingPoints', 'spokenFeedback']
-                }
-              }
-            ]
+            functionDeclarations: toolDeclarations
           }
         ]
       }
@@ -339,13 +506,27 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         // Handle setupComplete from Google Gemini
         if (parsed.setupComplete) {
           session.isSetupComplete = true;
-          console.log(`🎉 Upstream setupComplete received (Q ${questionIndex + 1}/${totalQuestions})! Sending greeting trigger and draining buffered frames...`);
+          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType})! Sending greeting trigger...`);
 
-          // Initial greeting turn with context bridge for subsequent questions
-          const isSubsequent = questionIndex > 0;
-          const greetingText = isSubsequent
-            ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
-            : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+          let greetingText = '';
+          if (sessionType === 'tutor') {
+            if (tutorMode === 'bug_hunt') {
+              greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
+            } else if (tutorMode === 'deep_dive') {
+              greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
+            } else if (tutorMode === 'socratic') {
+              greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
+            } else if (tutorMode === 'eli5') {
+              greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
+            } else {
+              greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
+            }
+          } else {
+            const isSubsequent = questionIndex > 0;
+            greetingText = isSubsequent
+              ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
+              : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+          }
 
           const initialGreetingTurn = {
             clientContent: {
@@ -367,11 +548,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             geminiSocket.send(JSON.stringify(initialGreetingTurn));
           }
 
-          // Watchdog: If Gemini Live doesn't emit any modelTurn audio within 3.5s, send a nudge turn
+          // Watchdog
           if (greetingWatchdog) clearTimeout(greetingWatchdog);
           greetingWatchdog = setTimeout(() => {
             if (geminiSocket.readyState === WebSocket.OPEN) {
-              console.log(`⏱️ Watchdog triggered for Q ${questionIndex + 1}: sending greeting nudge...`);
+              console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
               const nudgeTurn = {
                 clientContent: {
                   turns: [
@@ -379,7 +560,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                       role: 'user',
                       parts: [
                         {
-                          text: `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
+                          text: sessionType === 'tutor'
+                            ? (tutorMode === 'bug_hunt' ? 'Начни устное код-ревью в 1 короткой фразе.' : 'Начни диалог тьютора в 1 короткой фразе.')
+                            : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
                         }
                       ]
                     }
@@ -422,7 +605,45 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
 
           for (const call of parsed.toolCall.functionCalls) {
-            if (call.name === 'submit_interview_evaluation') {
+            if (call.name === 'mark_bug_solved') {
+              isToolCallProcessed = true;
+              const args = call.args || {};
+              const isSolved = args.isSolved ?? true;
+              const feedback = args.feedback || 'Отлично! Ошибка найдена верно.';
+              const keyInsight = args.keyInsight || '';
+
+              console.log(`🎯 Bug challenge marked as solved: ${feedback}`);
+
+              const toolResponse = {
+                toolResponse: {
+                  functionResponses: [
+                    {
+                      id: call.id,
+                      name: call.name,
+                      response: {
+                        status: 'SUCCESS',
+                        message: 'Баг подтвержден как решенный.'
+                      }
+                    }
+                  ]
+                }
+              };
+
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(toolResponse));
+              }
+
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                clientSocket.send(JSON.stringify({
+                  type: 'bug_solved',
+                  payload: {
+                    isSolved,
+                    feedback,
+                    keyInsight
+                  }
+                }));
+              }
+            } else if (call.name === 'submit_interview_evaluation') {
               isToolCallProcessed = true;
               const args = call.args || {};
               const score = typeof args.score === 'number' ? args.score : 75;
@@ -504,13 +725,16 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 }));
               }
 
-              // Close upstream Gemini WS to prevent any further AI speech/repetition after verdict
-              console.log('🔒 Evaluation delivered. Closing upstream Gemini WS to stop further AI speech.');
-              try {
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.close(1000, 'Evaluation finalized');
+              if (sessionType !== 'tutor') {
+                console.log('🔒 Evaluation delivered. Closing upstream Gemini WS to stop further AI speech.');
+                try {
+                  if (geminiSocket.readyState === WebSocket.OPEN) {
+                    geminiSocket.close();
+                  }
+                } catch (closeErr) {
+                  console.warn('Error closing upstream WS post-evaluation:', closeErr);
                 }
-              } catch {}
+              }
             }
           }
         }

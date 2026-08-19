@@ -7,11 +7,20 @@ import { ExamQuiz } from './components/ExamQuiz';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { InterviewReportModal } from './components/InterviewReportModal';
+import { TopicBugHuntModal } from './components/TopicBugHuntModal';
 import { Toast } from './components/Toast';
 import { Sparkles, Headphones, Loader2, AlertCircle, Heart } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { currentView, systemHealth, checkHealth, activeReportModal, closeReportModal } = useAppStore();
+  const {
+    currentView,
+    systemHealth,
+    checkHealth,
+    activeReportModal,
+    closeReportModal,
+    activeTopicBugHunt,
+    closeTopicBugHunt
+  } = useAppStore();
 
   React.useEffect(() => {
     // Initial check
@@ -116,6 +125,12 @@ export const App: React.FC = () => {
         isOpen={Boolean(activeReportModal)}
         onClose={closeReportModal}
         report={activeReportModal}
+      />
+      <TopicBugHuntModal
+        isOpen={Boolean(activeTopicBugHunt)}
+        onClose={closeTopicBugHunt}
+        topicId={activeTopicBugHunt?.topicId || ''}
+        topicName={activeTopicBugHunt?.topicName || ''}
       />
       <Toast />
 

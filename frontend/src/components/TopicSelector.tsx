@@ -32,7 +32,8 @@ import {
   Search,
   Check,
   ListChecks,
-  ChevronRight
+  ChevronRight,
+  Bug
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -82,7 +83,8 @@ export const TopicSelector: React.FC = () => {
     topicsProgress,
     resetTopicProgress,
     openRecapModal,
-    openTopicQuestions
+    openTopicQuestions,
+    openTopicBugHunt
   } = useAppStore();
 
   const [topics, setTopics] = useState<any[]>([]);
@@ -342,11 +344,11 @@ export const TopicSelector: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => handleTopicRecap(t.id, t.name)}
-                        title="AI-аудиопересказ всей темы"
-                        className="p-2 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center cursor-pointer"
+                        onClick={() => openTopicBugHunt(t.id, t.name)}
+                        title="🐛 Тренажер багов & Code Review по теме"
+                        className="p-2 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center cursor-pointer group/bug"
                       >
-                        <Headphones className="w-3.5 h-3.5" />
+                        <Bug className="w-3.5 h-3.5 group-hover/bug:scale-110 transition-transform" />
                       </button>
 
                       {percentage > 0 && (

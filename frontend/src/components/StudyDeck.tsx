@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
+import { CardVoiceTutor } from './CardVoiceTutor';
 
 export const StudyDeck: React.FC = () => {
   const {
@@ -274,6 +275,12 @@ export const StudyDeck: React.FC = () => {
                 {currentQ.answer}
               </ReactMarkdown>
             </div>
+
+            {/* Embedded AI Voice Tutor & Bug Review Widget */}
+            <CardVoiceTutor
+              question={currentQ}
+              topicName={selectedTopicName || currentQ.topic}
+            />
           </div>
         </motion.div>
       </AnimatePresence>
