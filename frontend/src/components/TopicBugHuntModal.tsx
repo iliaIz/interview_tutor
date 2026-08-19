@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -9,6 +9,7 @@ import {
   MicOff,
   Flame,
   ArrowRight,
+  ArrowLeft,
   RotateCcw,
   Loader2,
   CheckCircle2,
@@ -22,6 +23,7 @@ import {
   Award,
   Layers,
   ChevronRight,
+  ChevronLeft,
   MessageSquare
 } from 'lucide-react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -92,13 +94,27 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [difficulty, setDifficulty] = useState<'middle' | 'senior'>('middle');
   const [tutorRole, setTutorRole] = useState<TutorRole>('bug_hunt');
 
-  // State & History
-  const [challenge, setChallenge] = useState<BugChallenge | null>(null);
+  // Session Linear History Stack & State
+  const [history, setHistory] = useState<BugChallenge[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
+  const [isLoadingVariation, setIsLoadingVariation] = useState(false);
   const [isSolved, setIsSolved] = useState(false);
   const [sessionSolvedCount, setSessionSolvedCount] = useState(0);
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
   const [isExhausted, setIsExhausted] = useState(false);
+
+  // Active Challenge is derived from history[currentIndex]
+  const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
+
+  // Compute variant number for current challenge (e.g. 1st, 2nd variation of this subtopic)
+  const currentVariantNumber = useMemo(() => {
+    if (!challenge || currentIndex < 0) return 1;
+    const sameSubtopicCount = history
+      .slice(0, currentIndex + 1)
+      .filter(c => c.subtopic === challenge.subtopic).length;
+    return Math.max(1, sameSubtopicCount);
+  }, [challenge, currentIndex, history]);
 
   // Audio / WebSocket State
   const [isConnected, setIsConnected] = useState(false);
@@ -121,6 +137,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       setIsExhausted(false);
       setSessionSolvedCount(0);
       setSeenQuestionIds([]);
+      setHistory([]);
+      setCurrentIndex(-1);
       fetchSavedBank();
     } else {
       cleanupAudioSession();
@@ -145,8 +163,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     return true;
   });
 
-  // Fetch or generate challenge
-  const fetchChallenge = async (currentSeen: string[] = seenQuestionIds) => {
+  // Fetch or generate a brand new topic challenge
+  const fetchNewChallenge = async (currentSeen: string[] = seenQuestionIds) => {
     setIsLoadingChallenge(true);
     setIsSolved(false);
     setAiTranscript('');
@@ -160,7 +178,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       }
       const targetIndex = bankIndex % filteredBank.length;
       const targetChallenge = filteredBank[targetIndex];
-      setChallenge(targetChallenge);
+      setHistory(prev => [...prev, targetChallenge]);
+      setCurrentIndex(prev => prev + 1);
       setBankIndex(prev => prev + 1);
       setIsLoadingChallenge(false);
       return;
@@ -188,7 +207,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         setIsExhausted(true);
         triggerSuccessConfetti();
       } else {
-        setChallenge(data);
+        setHistory(prev => [...prev, data]);
+        setCurrentIndex(prev => prev + 1);
         if (data.sampledQuestionId && !currentSeen.includes(data.sampledQuestionId)) {
           setSeenQuestionIds(prev => [...prev, data.sampledQuestionId!]);
         }
@@ -201,16 +221,77 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     }
   };
 
+  // Generate another variation of the SAME subtopic
+  const handleGenerateVariation = async () => {
+    if (!challenge) return;
+    cleanupAudioSession();
+    setIsLoadingVariation(true);
+    setAiTranscript('');
+
+    try {
+      const res = await fetch('/api/tutor/bug-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicId,
+          topic: topicName,
+          questionId: challenge.sampledQuestionId,
+          questionText: challenge.subtopic,
+          workoutPreset: activePreset,
+          defectFocus,
+          difficulty: activePreset === 'senior_multi' ? 'senior' : difficulty
+        })
+      });
+
+      if (!res.ok) throw new Error('Ошибка генерации варианта задачи');
+      const data: BugChallenge = await res.json();
+
+      // Insert right after current challenge in linear history
+      const updatedHistory = [
+        ...history.slice(0, currentIndex + 1),
+        data,
+        ...history.slice(currentIndex + 1)
+      ];
+      setHistory(updatedHistory);
+      setCurrentIndex(currentIndex + 1);
+      setIsSolved(false);
+    } catch (error) {
+      console.error('Error generating variation:', error);
+      setStatusMessage('Ошибка генерации варианта. Попробуйте еще раз.');
+    } finally {
+      setIsLoadingVariation(false);
+    }
+  };
+
+  // Navigation Handlers (Back / Forward in Session Stack)
+  const handlePreviousChallenge = () => {
+    if (currentIndex > 0) {
+      cleanupAudioSession();
+      const prevIdx = currentIndex - 1;
+      setCurrentIndex(prevIdx);
+      setIsSolved(Boolean(history[prevIdx]?.isSolved));
+      setAiTranscript('');
+    }
+  };
+
+  const handleNextChallenge = () => {
+    cleanupAudioSession();
+    setAiTranscript('');
+    if (currentIndex < history.length - 1) {
+      const nextIdx = currentIndex + 1;
+      setCurrentIndex(nextIdx);
+      setIsSolved(Boolean(history[nextIdx]?.isSolved));
+    } else {
+      void fetchNewChallenge();
+    }
+  };
+
   // Start workout from Lobby
   const handleStartWorkout = () => {
     setStage('workout');
-    fetchChallenge([]);
-  };
-
-  // Next Challenge handler
-  const handleNextChallenge = () => {
-    cleanupAudioSession();
-    fetchChallenge();
+    setHistory([]);
+    setCurrentIndex(-1);
+    fetchNewChallenge([]);
   };
 
   // Start Audio / WebSocket Session
@@ -398,12 +479,15 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         handleNextChallenge();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePreviousChallenge();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, stage, isConnected, challenge]);
+  }, [isOpen, stage, isConnected, currentIndex, history]);
 
   if (!isOpen) return null;
 
@@ -660,7 +744,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     Вы проработали все подразделы темы <span className="font-semibold">{topicName}</span> без единого повтора.
                   </p>
                   <button
-                    onClick={() => { setSeenQuestionIds([]); setIsExhausted(false); fetchChallenge([]); }}
+                    onClick={() => { setSeenQuestionIds([]); setIsExhausted(false); fetchNewChallenge([]); }}
                     className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-pastel-accentRose text-white shadow-md hover:bg-pastel-accentRose/90 transition-all flex items-center justify-center gap-2 mx-auto"
                   >
                     <RotateCcw className="w-4 h-4" />
@@ -674,12 +758,41 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                 </div>
               ) : challenge ? (
                 <div className="space-y-6">
+                  {/* Session Navigation Bar (Back, Counter, Next) */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-white/70 dark:bg-slate-800/70 rounded-2xl border border-pastel-border shadow-2xs backdrop-blur-md">
+                    <button
+                      onClick={handlePreviousChallenge}
+                      disabled={currentIndex <= 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-pastel-lavender/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Предыдущий</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold font-mono text-pastel-darkPurple dark:text-pastel-lavender bg-pastel-lavender/50 dark:bg-slate-900 px-3 py-1 rounded-xl border border-pastel-border">
+                        Задача {currentIndex + 1} из {history.length}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleNextChallenge}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-pastel-lavender/40 transition-all"
+                    >
+                      <span>{currentIndex < history.length - 1 ? 'Следующий' : 'Новая подтема'}</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
                   {/* Challenge Code & Details */}
                   <BugChallengeCard
                     challenge={challenge}
                     isSolved={isSolved}
                     onRefresh={handleNextChallenge}
                     isLoading={isLoadingChallenge}
+                    onGenerateVariation={handleGenerateVariation}
+                    isGeneratingVariation={isLoadingVariation}
+                    variantNumber={currentVariantNumber}
                   />
 
                   {/* AI Live Tutor Voice Station */}
@@ -765,7 +878,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                         onClick={handleNextChallenge}
                         className="px-4 py-2.5 rounded-xl font-bold text-xs bg-white dark:bg-slate-800 border border-pastel-border hover:bg-pastel-lavender/40 transition-all flex items-center justify-center gap-1.5 text-slate-800 dark:text-slate-100 shadow-xs"
                       >
-                        <span>Следующая задача</span>
+                        <span>{currentIndex < history.length - 1 ? 'Вперед по истории' : 'Следующая подтема'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -783,7 +896,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
                   {/* Hotkeys helper bar */}
                   <div className="text-center text-[11px] font-mono text-slate-400 dark:text-slate-500 select-none">
-                    [Пробел] Микрофон • [→] След. задача
+                    [← / →] Навигация по задачам • [Пробел] Микрофон
                   </div>
                 </div>
               ) : null}

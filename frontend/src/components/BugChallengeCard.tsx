@@ -47,6 +47,9 @@ interface BugChallengeCardProps {
   isSolved?: boolean;
   onRefresh?: () => void;
   isLoading?: boolean;
+  onGenerateVariation?: () => void;
+  isGeneratingVariation?: boolean;
+  variantNumber?: number;
 }
 
 /**
@@ -99,6 +102,9 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   isSolved = false,
   onRefresh,
   isLoading = false,
+  onGenerateVariation,
+  isGeneratingVariation = false,
+  variantNumber,
 }) => {
   const [showSolution, setShowSolution] = useState(false);
   const [openHintIndex, setOpenHintIndex] = useState<number | null>(null);
@@ -177,6 +183,12 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               </span>
             )}
 
+            {variantNumber !== undefined && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-pastel-lavender text-pastel-darkPurple border border-pastel-border">
+                Вариант {variantNumber}
+              </span>
+            )}
+
             <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
               {challenge.subtopic}
             </span>
@@ -187,8 +199,20 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
           </h2>
         </div>
 
-        {/* Action Header: Bookmark & Refresh */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        {/* Action Header: Generate Variation & Bookmark */}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          {onGenerateVariation && (
+            <button
+              onClick={onGenerateVariation}
+              disabled={isGeneratingVariation}
+              title="Сгенерировать другой пример кода по этой же подтеме"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-pastel-accentRose/40 bg-white/90 dark:bg-slate-800 text-pastel-darkPurple dark:text-pastel-lavender hover:bg-pastel-lavender/40 transition-all shadow-2xs disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 text-pastel-accentRose ${isGeneratingVariation ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingVariation ? 'Генерация варианта...' : '🎲 Другой пример этого бага'}</span>
+            </button>
+          )}
+
           <button
             onClick={handleToggleBookmark}
             title={bookmarked ? 'Удалить из шпаргалки' : 'Сохранить инсайт в шпаргалку'}
