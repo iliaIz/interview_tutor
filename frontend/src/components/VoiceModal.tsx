@@ -140,6 +140,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Refs for synchronous audio worklet synchronization
   const isRecordingRef = useRef(false);
   const isAiSpeakingRef = useRef(false);
+  const lastAiSpeechEndedAtRef = useRef<number>(0);
   const userPcmChunksRef = useRef<Float32Array[]>([]);
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -335,6 +336,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             playoutManagerRef.current?.handleInterruption();
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
+            lastAiSpeechEndedAtRef.current = Date.now();
             setDialogueTurns((prev) => [...prev, { role: 'system', text: '⚡ Речь прервана кандидатом (Barge-in).' }]);
           }
 
@@ -342,6 +344,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (data.serverContent.modelTurn?.parts) {
             setIsAiSpeaking(true);
             isAiSpeakingRef.current = true;
+            setIsRecording(false);
+            isRecordingRef.current = false;
+
             for (const part of data.serverContent.modelTurn.parts) {
               if (part.text) {
                 transcriptRef.current += ` AI: ${part.text}`;
@@ -361,15 +366,22 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           }
 
           if (data.serverContent.turnComplete) {
-            console.log('AI Greeting turn completed. Activating candidate microphone...');
+            console.log('AI turn completed. Scheduling candidate microphone activation...');
+            lastAiSpeechEndedAtRef.current = Date.now();
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
-            setIsRecording(true);
-            isRecordingRef.current = true;
-            setDialogueTurns((prev) => [
-              ...prev,
-              { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
-            ]);
+
+            // Allow 250ms for audio jitter buffer and room reverberation to settle before opening mic gate
+            setTimeout(() => {
+              if (!isEvaluationFinalizedRef.current) {
+                setIsRecording(true);
+                isRecordingRef.current = true;
+                setDialogueTurns((prev) => [
+                  ...prev,
+                  { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
+                ]);
+              }
+            }, 250);
           }
         }
       } catch (e) {
@@ -521,7 +533,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setRmsDb(metrics.rmsDb);
           }
 
-          if (isRecordingRef.current) {
+          const isAiCurrentlySpeaking =
+            isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+          const isReverbCooldownActive =
+            Date.now() - lastAiSpeechEndedAtRef.current < 250;
+
+          if (isRecordingRef.current && !isAiCurrentlySpeaking && !isReverbCooldownActive) {
             const int16 = new Int16Array(pcmBuffer);
             const float32 = new Float32Array(int16.length);
             for (let i = 0; i < int16.length; i++) {
@@ -530,10 +547,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             userPcmChunksRef.current.push(float32);
           }
 
+          // Soft-Gating: NEVER transmit mic audio while AI is speaking (prevents speaker echo from triggering false Barge-In)
           const shouldTransmit =
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
-            isRecordingRef.current;
+            isRecordingRef.current &&
+            !isAiCurrentlySpeaking &&
+            !isReverbCooldownActive;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);
@@ -600,6 +620,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (playoutManagerRef.current) {
       await playoutManagerRef.current.resume();
     }
+
+    // If AI is currently speaking, clicking the mic allows the candidate to barge-in immediately
+    if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+      playoutManagerRef.current?.handleInterruption();
+      setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+      lastAiSpeechEndedAtRef.current = 0;
+    }
+
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;

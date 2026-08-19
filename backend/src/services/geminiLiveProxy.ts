@@ -162,8 +162,8 @@ ${anchorsFormatted}
    - Если кандидат своими словами раскрыл суть — поблагодари за отличный ответ и переходи к финалу.
 5. ФИНАЛИЗАЦИЯ И ОЦЕНКА:
    - Когда аспекты разобраны или кандидат завершил ответ:
-     а) Произнеси теплое устное резюме (2-3 предложения) с похвалой и выделением зон роста.
-     б) ОБЯЗАТЕЛЬНО вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
+     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух теплое устное резюме (2-3 предложения): похвали за верные мысли, отметь зоны роста и скажи «Сейчас зафиксирую результаты и сформирую оценку».
+     б) И только затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
   }
 
   // Default: adaptive_probing (FAANG Standard Technical Assessment)
@@ -196,8 +196,8 @@ ${anchorsFormatted}
    - Если кандидат говорит «Не знаю / не помню» — при включенном Live Coaching помоги и объясни, иначе зафиксируй пробел и переходи дальше.
 3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ:
    - Когда ключевые вопросы обсуждены, исчерпан лимит ${maxProbes} раундов или кандидат завершил ответ:
-     а) Произнеси четкое, тактичное устное резюме (2-3 предложения) с объективной оценкой.
-     б) ОБЯЗАТЕЛЬНО вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
+     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и выставлю оценку».
+     б) И только затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -244,6 +244,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Strategy: ${strategy}, Voice: ${voiceName}, Q: ${questionIndex + 1}/${totalQuestions}, Anchors: ${anchors.length}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
+    let greetingWatchdog: NodeJS.Timeout | null = null;
 
     const session: ProxySession = {
       clientSocket,
@@ -366,6 +367,34 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             geminiSocket.send(JSON.stringify(initialGreetingTurn));
           }
 
+          // Watchdog: If Gemini Live doesn't emit any modelTurn audio within 3.5s, send a nudge turn
+          if (greetingWatchdog) clearTimeout(greetingWatchdog);
+          greetingWatchdog = setTimeout(() => {
+            if (geminiSocket.readyState === WebSocket.OPEN) {
+              console.log(`⏱️ Watchdog triggered for Q ${questionIndex + 1}: sending greeting nudge...`);
+              const nudgeTurn = {
+                clientContent: {
+                  turns: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {
+                          text: `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
+                        }
+                      ]
+                    }
+                  ],
+                  turnComplete: true
+                }
+              };
+              try {
+                geminiSocket.send(JSON.stringify(nudgeTurn));
+              } catch (nudgeErr) {
+                console.warn('Watchdog nudge send warning:', nudgeErr);
+              }
+            }
+          }, 3500);
+
           // Drain queued frames
           while (session.frameQueue.length > 0) {
             const frame = session.frameQueue.shift();
@@ -377,6 +406,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           // Notify client
           if (clientSocket.readyState === WebSocket.OPEN) {
             clientSocket.send(JSON.stringify({ type: 'setupComplete' }));
+          }
+        }
+
+        // Clear watchdog as soon as model starts responding
+        if (parsed.serverContent?.modelTurn) {
+          if (greetingWatchdog) {
+            clearTimeout(greetingWatchdog);
+            greetingWatchdog = null;
           }
         }
 
@@ -513,6 +550,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     });
 
     const terminate = () => {
+      if (greetingWatchdog) {
+        clearTimeout(greetingWatchdog);
+        greetingWatchdog = null;
+      }
       session.frameQueue = [];
       if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {
         geminiSocket.close();

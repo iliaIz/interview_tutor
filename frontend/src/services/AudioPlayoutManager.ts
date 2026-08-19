@@ -118,7 +118,7 @@ export class AudioPlayoutManager {
     const now = context.currentTime;
 
     // Reset cursor if playback fell behind due to network stall
-    if (this.playheadCursor < now) {
+    if (this.playheadCursor < now + this.JITTER_LEAD_SECONDS) {
       this.playheadCursor = now + this.JITTER_LEAD_SECONDS;
     }
 
@@ -137,6 +137,13 @@ export class AudioPlayoutManager {
   }
 
   /**
+   * Returns true if audio is currently actively scheduled or playing
+   */
+  public isPlaying(): boolean {
+    return this.activeSources.size > 0 || this.pendingSamples.length > 0;
+  }
+
+  /**
    * Clears scheduled queue and stops all active audio playback immediately
    */
   public clearQueue(): void {
@@ -149,7 +156,7 @@ export class AudioPlayoutManager {
     }
     this.activeSources.clear();
     if (this.context && this.context.state !== 'closed') {
-      this.playheadCursor = this.context.currentTime;
+      this.playheadCursor = this.context.currentTime + this.JITTER_LEAD_SECONDS;
     } else {
       this.playheadCursor = 0;
     }
