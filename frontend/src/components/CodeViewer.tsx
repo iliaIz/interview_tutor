@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Highlight, Prism, type PrismTheme } from 'prism-react-renderer';
+import Prism from '../utils/prismSetup';
+import { Highlight, type PrismTheme } from 'prism-react-renderer';
 import { Copy, Check } from 'lucide-react';
 
 // Import Prism language definitions for Java, Kotlin, SQL
