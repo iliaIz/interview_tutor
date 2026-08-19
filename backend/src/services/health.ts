@@ -15,6 +15,7 @@ export interface SystemHealthStatus {
       textModel: { name: string; ready: boolean };
       liveModel: { name: string; ready: boolean };
       ttsModel: { name: string; ready: boolean };
+      embeddingModel: { name: string; ready: boolean };
       allReady: boolean;
       availableInProxy: string[];
     };
@@ -54,6 +55,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-smart';
   const liveModelName = process.env.GEMINI_LIVE_MODEL || 'gemini-live';
   const ttsModelName = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const embeddingModelName = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding';
 
   let aiStatus: 'ready' | 'connecting' | 'unreachable' = 'connecting';
   let latencyMs: number | undefined = undefined;
@@ -63,6 +65,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   let textModelReady = false;
   let liveModelReady = false;
   let ttsModelReady = false;
+  let embeddingModelReady = false;
 
   try {
     const start = Date.now();
@@ -99,8 +102,12 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
                          availableInProxy.includes('gemini-live');
         ttsModelReady = availableInProxy.includes(ttsModelName) ||
                         availableInProxy.includes('gemini-tts-v3');
+        embeddingModelReady = availableInProxy.includes(embeddingModelName) ||
+                              availableInProxy.includes('gemini-embedding') ||
+                              availableInProxy.includes('text-embedding-3-small') ||
+                              availableInProxy.includes('text-embedding-004');
 
-        if (textModelReady && liveModelReady && ttsModelReady) {
+        if (textModelReady && liveModelReady && ttsModelReady && embeddingModelReady) {
           aiStatus = 'ready';
         } else {
           aiStatus = 'connecting';
@@ -108,6 +115,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
           if (!textModelReady) missing.push(`TEXT (${textModelName})`);
           if (!liveModelReady) missing.push(`LIVE (${liveModelName})`);
           if (!ttsModelReady) missing.push(`TTS (${ttsModelName})`);
+          if (!embeddingModelReady) missing.push(`EMBEDDING (${embeddingModelName})`);
           aiError = `Не найдены модели в LiteLLM-Proxy: ${missing.join(', ')}`;
         }
       } else {
@@ -126,9 +134,9 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
       : (err?.message || 'Не удалось связаться с LiteLLM Proxy');
   }
 
-  const allModelsReady = textModelReady && liveModelReady && ttsModelReady;
+  const allModelsReady = textModelReady && liveModelReady && ttsModelReady && embeddingModelReady;
   const isAiReady = aiStatus === 'ready' && allModelsReady;
-  const overallStatus = (dbReady && isAiReady) ? 'ready' : (dbReady && aiStatus === 'connecting') ? 'warming_up' : 'unreachable';
+  const overallStatus = isAiReady ? 'ready' : (aiStatus === 'unreachable' ? 'unreachable' : 'warming_up');
 
   cachedHealth = {
     status: overallStatus,
@@ -143,6 +151,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
         textModel: { name: textModelName, ready: textModelReady },
         liveModel: { name: liveModelName, ready: liveModelReady },
         ttsModel: { name: ttsModelName, ready: ttsModelReady },
+        embeddingModel: { name: embeddingModelName, ready: embeddingModelReady },
         allReady: allModelsReady,
         availableInProxy
       }

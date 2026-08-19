@@ -79,6 +79,40 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS candidate_error_vectors (
+    id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'default_user',
+    question_id TEXT,
+    topic TEXT NOT NULL,
+    subtopic TEXT,
+    error_concept TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    deficit_weight REAL DEFAULT 1.0,
+    status TEXT DEFAULT 'ACTIVE_DEFICIT',
+    solo_streak INTEGER DEFAULT 0,
+    assisted_count INTEGER DEFAULT 0,
+    last_tested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS question_embeddings (
+    question_id TEXT PRIMARY KEY,
+    topic TEXT,
+    embedding BLOB NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS user_profile_settings (
+    id TEXT PRIMARY KEY,
+    candidate_name TEXT DEFAULT 'Кандидат',
+    target_seniority TEXT DEFAULT 'senior',
+    primary_stack TEXT DEFAULT 'Java 21, Spring Boot 3.3, PostgreSQL, Kafka',
+    preferred_tone TEXT DEFAULT 'rigorous',
+    focus_areas_json TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS bug_challenges (
     id TEXT PRIMARY KEY,
     topic_id TEXT NOT NULL,
@@ -106,6 +140,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
   CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
   CREATE INDEX IF NOT EXISTS idx_bug_topic ON bug_challenges(topic_id);
+  CREATE INDEX IF NOT EXISTS idx_err_vec_status ON candidate_error_vectors(status);
+  CREATE INDEX IF NOT EXISTS idx_err_vec_topic ON candidate_error_vectors(topic);
+  CREATE INDEX IF NOT EXISTS idx_err_vec_user ON candidate_error_vectors(user_id);
 `);
 
 // Safe column migrations for existing SQLite databases
@@ -114,6 +151,15 @@ try {
 } catch {}
 try {
   db.exec("ALTER TABLE bug_challenges ADD COLUMN production_context_json TEXT;");
+} catch {}
+try {
+  db.exec(`
+    INSERT OR IGNORE INTO user_profile_settings (
+      id, candidate_name, target_seniority, primary_stack, preferred_tone, focus_areas_json
+    ) VALUES (
+      'default_user', 'Кандидат', 'senior', 'Java 21, Spring Boot 3.3, PostgreSQL, Kafka', 'rigorous', '["Spring Transactional", "JMM & Concurrency", "Kafka Partitions"]'
+    );
+  `);
 } catch {}
 
 export function seedDefaultProfiles() {

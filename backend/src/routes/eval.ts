@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../services/db';
 import { evaluateAnswerWithGemini } from '../services/geminiText';
+import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.post('/', async (req, res) => {
     const evaluation = await evaluateAnswerWithGemini(question, referenceAnswer, userAnswer);
 
     // If questionId and topic are provided, persist evaluation
+    let decayResult = null;
     if (questionId && topic) {
       const evalId = crypto.randomBytes(16).toString('hex');
       const stmt = db.prepare(`
@@ -59,9 +61,33 @@ router.post('/', async (req, res) => {
         transcript: null,
         audio_metrics: null
       });
+
+      // Apply Knowledge Decay
+      try {
+        decayResult = await applyKnowledgeDecay({
+          questionId,
+          topic,
+          assistanceLevel: evaluation.isPassed ? (evaluation.score >= 85 ? 'solo' : 'guided') : 'relapse'
+        });
+      } catch (e) {}
+
+      // Record new gap if failed
+      if (!evaluation.isPassed && evaluation.missingPoints && evaluation.missingPoints.length > 0) {
+        try {
+          void recordNewErrorGap({
+            questionId,
+            topic,
+            errorConcept: evaluation.missingPoints[0],
+            initialDeficit: 1.0
+          });
+        } catch (e) {}
+      }
     }
 
-    res.json(evaluation);
+    res.json({
+      ...evaluation,
+      knowledgeUpdate: decayResult
+    });
   } catch (error: any) {
     console.error('Error in /api/eval route:', error);
     res.status(500).json({ error: error.message || 'Failed to evaluate answer' });

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Award, Activity, CheckCircle2, AlertTriangle, 
-  MessageSquare, ChevronDown, ChevronUp, BookOpen, Mic, Keyboard, Sparkles, Heart 
+  MessageSquare, ChevronDown, ChevronUp, BookOpen, Mic, Keyboard, Sparkles, Heart, Brain 
 } from 'lucide-react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
+import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 
 export interface InterviewReportData {
   id?: string;
@@ -38,6 +39,7 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
 }) => {
   const [showFullTranscript, setShowFullTranscript] = useState(false);
   const [showReferenceAnswer, setShowReferenceAnswer] = useState(false);
+  const [isRadarOpen, setIsRadarOpen] = useState(false);
 
   // Animated Count-Up Score
   const [displayScore, setDisplayScore] = useState(0);
@@ -383,6 +385,26 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
             </div>
           </div>
 
+          {/* Semantic Knowledge Memory Status */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pastel-rose via-white to-pastel-lavender border border-pastel-border flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-2xs">
+                <Brain className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-800 block">Семантическая память & Радар уязвимостей</span>
+                <span className="text-[11px] text-slate-500">Автоматический трекинг дефицита знаний (-1.0 при solo ответе)</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsRadarOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-white border border-pastel-border text-xs font-bold text-pastel-accentViolet hover:bg-pastel-lavender/40 transition shadow-2xs cursor-pointer"
+            >
+              Радар знаний →
+            </button>
+          </div>
+
           {/* Collapsible Transcript Dialogue */}
           {(report.transcript || report.userAnswer) && (() => {
             // Try to parse transcript as JSON dialogue array
@@ -528,6 +550,12 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
           </button>
         </div>
       </motion.div>
+
+      {/* Memory Radar Drawer */}
+      <MemoryRadarDrawer
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
+      />
     </div>
   );
 };

@@ -5,6 +5,14 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
 import { updateBugChallengeStatus } from './tutorService';
+import {
+  findRelevantCandidateGaps,
+  applyKnowledgeDecay,
+  recordNewErrorGap,
+  getUserProfile,
+  CandidateGap
+} from './vectorMemoryService';
+
 dotenv.config();
 
 interface ProxySession {
@@ -15,6 +23,8 @@ interface ProxySession {
   questionId?: string;
   topic?: string;
   referenceAnswer?: string;
+  relevantGapIds?: string[];
+  probesCount?: number;
 }
 
 /**
@@ -71,6 +81,9 @@ export function buildSystemPrompt(params: {
   bugExplanation?: string;
   codeSnippet?: string;
   hints?: string[];
+  targetSeniority?: string;
+  primaryStack?: string;
+  candidateGaps?: CandidateGap[];
 }): string {
   const {
     topic,
@@ -90,7 +103,10 @@ export function buildSystemPrompt(params: {
     bugTitle,
     bugExplanation,
     codeSnippet,
-    hints
+    hints,
+    targetSeniority = 'senior',
+    primaryStack = 'Java 21, Spring Boot 3.3',
+    candidateGaps = []
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -279,8 +295,19 @@ ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
 
   const anchorsFormatted = anchors.map((a, i) => `  [Критерий ${i + 1}] ${a}`).join('\n');
 
+  const candidateContextSection = candidateGaps && candidateGaps.length > 0
+    ? `=== 0. ПРОФИЛЬ И СМЕЖНЫЕ ЗОНЫ ВНИМАНИЯ (EPISODIC VECTOR MEMORY) ===
+ЦЕЛЕВОЙ ГРЕЙД: ${targetSeniority.toUpperCase()} | СТЕК: ${primaryStack}
+ИЗВЕСТНЫЕ ПРОБЕЛЫ КАНДИДАТА ИЗ СМЕЖНЫХ ТЕМ:
+${candidateGaps.map((g, i) => `  [Пробел ${i + 1}] "${g.errorConcept}" (Степень дефицита: ${g.deficitWeight.toFixed(1)}, Сходство: ${Math.round((g.similarity ?? 0.8) * 100)}%)`).join('\n')}
+ДИРЕКТИВА: Если кандидат в ответе касается этой темы, обрати особое внимание. Если раскрыл сам и без ошибок — зафиксируй самостоятельное освоение. Если затрудняется — мягко направь наводящим вопросом.`
+    : `=== 0. ПРОФИЛЬ КАНДИДАТА ===
+ЦЕЛЕВОЙ ГРЕЙД: ${targetSeniority.toUpperCase()} | СТЕК: ${primaryStack}`;
+
   if (strategy === 'socratic_tutoring') {
-    return `=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
+    return `${candidateContextSection}
+
+=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по теме «${topic}».
 ${genderRule}
 
@@ -317,7 +344,9 @@ ${anchorsFormatted}
   }
 
   // Default: adaptive_probing (FAANG Standard Technical Assessment)
-  return `=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
+  return `${candidateContextSection}
+
+=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты профессиональный, объективный и доброжелательный Senior/Lead технический ${isFemale ? 'интервьюер (женщина)' : 'интервьюер (мужчина)'} по теме «${topic}».
 ${genderRule}
 
@@ -353,7 +382,7 @@ ${anchorsFormatted}
 export function setupLiveWebSocketProxy(server: http.Server) {
   const wss = new WebSocketServer({ server, path: '/ws/live' });
 
-  wss.on('connection', (clientSocket: WebSocket, req: http.IncomingMessage) => {
+  wss.on('connection', async (clientSocket: WebSocket, req: http.IncomingMessage) => {
     console.log('🎙️ Client connected to Live Audio WS Proxy');
 
     const parsedUrl = url.parse(req.url || '', true);
@@ -397,6 +426,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const anchors = customAnchors.length > 0 ? customAnchors : extractDefaultAnchors(referenceAnswer, questionText);
 
+    // Pre-warmed retrieval of candidate gaps & profile (< 5ms)
+    let candidateGaps: CandidateGap[] = [];
+    try {
+      candidateGaps = await findRelevantCandidateGaps(questionText || bugTitle || topic, topic, questionId);
+      if (candidateGaps.length > 0) {
+        console.log(`🧠 Injected ${candidateGaps.length} relevant vector gaps into Live prompt for "${topic}"`);
+      }
+    } catch (gapErr) {
+      console.warn('Could not pre-warm candidate gaps:', gapErr);
+    }
+
+    const userProfile = getUserProfile();
+    const relevantGapIds = candidateGaps.map((g) => g.id);
+
     const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
     const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
     
@@ -416,7 +459,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       frameQueue: [],
       questionId,
       topic,
-      referenceAnswer
+      referenceAnswer,
+      relevantGapIds,
+      probesCount: 0
     };
 
     const systemPromptText = buildSystemPrompt({
@@ -437,7 +482,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       bugTitle,
       bugExplanation,
       codeSnippet,
-      hints: parsedHints
+      hints: parsedHints,
+      targetSeniority: userProfile.targetSeniority,
+      primaryStack: userProfile.primaryStack,
+      candidateGaps
     });
 
     const toolDeclarations: any[] = [
@@ -612,8 +660,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           }
         }
 
-        // Clear watchdog as soon as model starts responding
+        // Clear watchdog and increment probesCount as soon as model starts responding
         if (parsed.serverContent?.modelTurn) {
+          session.probesCount = (session.probesCount || 0) + 1;
           if (greetingWatchdog) {
             clearTimeout(greetingWatchdog);
             greetingWatchdog = null;
@@ -653,6 +702,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 geminiSocket.send(JSON.stringify(toolResponse));
               }
 
+              let decayResult: any = null;
               if (session.questionId) {
                 try {
                   updateBugChallengeStatus({
@@ -665,6 +715,21 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 } catch (e) {
                   console.warn('Could not update bug challenge status in db:', e);
                 }
+
+                // Apply knowledge decay
+                try {
+                  void applyKnowledgeDecay({
+                    questionId: session.questionId,
+                    topic: session.topic || 'General',
+                    assistanceLevel: isSolved ? (parsedHints.length > 0 ? 'assisted' : 'solo') : 'relapse',
+                    resolvedGapIds: session.relevantGapIds
+                  }).then((res) => {
+                    decayResult = res;
+                    console.log(`🧠 Bug challenge decay applied:`, res);
+                  });
+                } catch (decayErr) {
+                  console.warn('Bug challenge decay error:', decayErr);
+                }
               }
 
               if (clientSocket.readyState === WebSocket.OPEN) {
@@ -673,7 +738,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                   payload: {
                     isSolved,
                     feedback,
-                    keyInsight
+                    keyInsight,
+                    knowledgeUpdate: decayResult
                   }
                 }));
               }
@@ -722,6 +788,48 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 }
               }
 
+              // Determine assistance level for knowledge tracing
+              const probes = session.probesCount || 0;
+              let assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse' = 'solo';
+              if (score >= 80 && probes <= 2 && !liveCoaching) {
+                assistanceLevel = 'solo';
+              } else if (score >= 70) {
+                assistanceLevel = 'guided';
+              } else if (liveCoaching || (score >= 60 && score < 70)) {
+                assistanceLevel = isPassed ? 'assisted' : 'relapse';
+              } else {
+                assistanceLevel = 'relapse';
+              }
+
+              // Apply knowledge decay & record new gap if failed
+              let decayResult: any = null;
+              try {
+                void applyKnowledgeDecay({
+                  questionId: session.questionId,
+                  topic: session.topic || 'General',
+                  assistanceLevel,
+                  resolvedGapIds: session.relevantGapIds
+                }).then((res) => {
+                  decayResult = res;
+                  console.log(`🧠 Knowledge decay applied (${assistanceLevel}):`, JSON.stringify(res));
+                });
+              } catch (decayErr) {
+                console.error('Error applying knowledge decay:', decayErr);
+              }
+
+              if (!isPassed && missingPoints.length > 0) {
+                try {
+                  void recordNewErrorGap({
+                    questionId: session.questionId,
+                    topic: session.topic || 'General',
+                    errorConcept: missingPoints[0],
+                    initialDeficit: 1.0
+                  });
+                } catch (recErr) {
+                  console.warn('Could not record new gap:', recErr);
+                }
+              }
+
               // Send toolResponse back to Gemini Live
               const toolResponse = {
                 toolResponse: {
@@ -754,7 +862,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     positivePoints,
                     missingPoints,
                     feedback,
-                    spokenFeedback: feedback
+                    spokenFeedback: feedback,
+                    assistanceLevel,
+                    knowledgeUpdate: decayResult
                   }
                 }));
               }

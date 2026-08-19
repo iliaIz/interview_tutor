@@ -31,6 +31,8 @@ import {
   Check
 } from 'lucide-react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
+import { CandidatePersonaHUD } from './CandidatePersonaHUD';
+import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import {
   AcousticMetrics,
   AcousticTelemetryService,
@@ -110,6 +112,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Interviewer Configuration & Settings Drawer
   const [interviewConfig, setInterviewConfig] = useState<InterviewConfig>(getActiveConfig());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRadarOpen, setIsRadarOpen] = useState(false);
 
   // Live WebSocket & Audio Nodes
   const wsRef = useRef<WebSocket | null>(null);
@@ -925,12 +928,20 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-pastel-bg text-pastel-muted hover:text-pastel-text flex items-center justify-center hover:bg-pastel-rose/40 transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <CandidatePersonaHUD
+              questionText={activeQuestionText}
+              topic={activeTopic}
+              questionId={activeQuestionId}
+              onOpenRadar={() => setIsRadarOpen(true)}
+            />
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-pastel-bg text-pastel-muted hover:text-pastel-text flex items-center justify-center hover:bg-pastel-rose/40 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Batch Progress Stepper Bar */}
@@ -1754,6 +1765,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         onChangeConfig={handleConfigChange}
         questionText={activeQuestionText}
         referenceAnswer={activeReferenceAnswer}
+      />
+
+      {/* Memory Radar Drawer */}
+      <MemoryRadarDrawer
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
       />
     </div>,
     document.body

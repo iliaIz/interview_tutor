@@ -27,6 +27,8 @@ import {
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
 import { triggerSuccessConfetti } from '../utils/confetti';
+import { CandidatePersonaHUD } from './CandidatePersonaHUD';
+import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
 export type DefectFocus = 'all' | 'concurrency' | 'memory' | 'spring_aop' | 'contracts';
@@ -118,6 +120,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 }) => {
   // Modal Stage: 'lobby' (Zero Waste Setup) vs 'workout' (Active Arena)
   const [stage, setStage] = useState<'lobby' | 'workout'>('lobby');
+  const [isRadarOpen, setIsRadarOpen] = useState(false);
 
   // Workout Source: 'ai_fresh' (Generate new) vs 'bank' (Replay saved from SQLite)
   const [sourceMode, setSourceMode] = useState<'ai_fresh' | 'bank'>('ai_fresh');
@@ -567,6 +570,13 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <CandidatePersonaHUD
+              questionText={challenge?.title || ''}
+              topic={topicName}
+              questionId={challenge?.id || ''}
+              onOpenRadar={() => setIsRadarOpen(true)}
+            />
+
             {stage === 'workout' && (
               <button
                 onClick={() => { cleanupAudioSession(); setStage('lobby'); }}
@@ -1027,6 +1037,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           )}
         </div>
       </motion.div>
+
+      {/* Memory Radar Drawer */}
+      <MemoryRadarDrawer
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
+      />
     </div>,
     document.body
   );
