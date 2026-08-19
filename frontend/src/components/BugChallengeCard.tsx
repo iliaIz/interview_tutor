@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, ChevronDown, ChevronUp, Lightbulb, Eye, EyeOff, Bug, CheckCircle2, Sparkles, Terminal } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronUp, Lightbulb, Eye, EyeOff, Bug, CheckCircle2, Sparkles, Terminal, Flame, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface BugChallenge {
@@ -11,6 +11,12 @@ export interface BugChallenge {
   bugExplanation: string;
   fixedCode: string;
   hints: string[];
+  categoryBadge?: string;
+  difficultyBadge?: string;
+  sampledQuestionId?: string;
+  isTopicExhausted?: boolean;
+  remainingCount?: number;
+  totalTopicQuestions?: number;
 }
 
 interface BugChallengeCardProps {
@@ -77,19 +83,35 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
     <div className="bg-white rounded-2xl p-5 md:p-6 border border-pastel-border shadow-xs space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-pastel-border/60 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-pastel-rose text-pastel-accentRose flex items-center justify-center font-bold">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-pastel-rose text-pastel-accentRose flex items-center justify-center font-bold shadow-2xs">
             <Bug className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="font-bold text-sm md:text-base text-pastel-text flex items-center gap-2">
-              {challenge.title}
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="font-bold text-sm md:text-base text-pastel-text">
+                {challenge.title}
+              </h4>
+              {challenge.categoryBadge && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-lavender/70 text-pastel-accentViolet border border-pastel-accentViolet/20">
+                  {challenge.categoryBadge}
+                </span>
+              )}
+              {challenge.difficultyBadge && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  challenge.difficultyBadge === 'Senior'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                  {challenge.difficultyBadge}
+                </span>
+              )}
               {isSolved && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Решено
                 </span>
               )}
-            </h4>
+            </div>
             <span className="text-[11px] text-pastel-muted font-medium">
               Подтема: <strong className="text-pastel-text">{challenge.subtopic}</strong>
             </span>
@@ -175,7 +197,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   Суть ошибки и почему код ломается:
                 </h5>
-                <p className="text-emerald-950/90 leading-relaxed">
+                <p className="text-emerald-950/90 leading-relaxed whitespace-pre-line">
                   {challenge.bugExplanation}
                 </p>
               </div>

@@ -6,14 +6,28 @@ const router = Router();
 // POST /api/tutor/bug-challenge
 router.post('/bug-challenge', async (req, res) => {
   try {
-    const { questionId, topicId, topic, questionText, referenceAnswer } = req.body;
+    const {
+      questionId,
+      topicId,
+      topic,
+      questionText,
+      referenceAnswer,
+      workoutPreset,
+      defectFocus,
+      difficulty,
+      excludeIds
+    } = req.body;
 
     const challenge = await generateBugChallenge({
       questionId,
       topicId,
       topic,
       questionText,
-      referenceAnswer
+      referenceAnswer,
+      workoutPreset,
+      defectFocus,
+      difficulty,
+      excludeIds
     });
 
     res.json(challenge);
