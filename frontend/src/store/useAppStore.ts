@@ -56,6 +56,19 @@ export interface RecapTarget {
   title: string;
 }
 
+export interface CheatSheetBookmark {
+  id: string;
+  topicId?: string;
+  topicName?: string;
+  title: string;
+  subtopic: string;
+  takeaways: string[];
+  codeSnippet?: string;
+  fixedCode?: string;
+  categoryBadge?: string;
+  createdAt: string;
+}
+
 export interface QuestionEvaluationSummary {
   id: string;
   questionId: string;
@@ -83,6 +96,12 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
+
+  // Cheat Sheet Bookmarks
+  cheatSheetBookmarks: CheatSheetBookmark[];
+  addCheatSheetBookmark: (bookmark: Omit<CheatSheetBookmark, 'id' | 'createdAt'> & { id?: string }) => void;
+  removeCheatSheetBookmark: (id: string) => void;
+  isBookmarked: (id: string) => boolean;
 
   // Question Evaluations Cache & Report Modal
   evaluationsMap: Record<string, QuestionEvaluationSummary>;
@@ -152,6 +171,35 @@ export const useAppStore = create<AppState>()(
       topicsProgress: {},
       evaluationsMap: {},
       activeReportModal: null,
+
+      // Cheat Sheet Bookmarks
+      cheatSheetBookmarks: [],
+      addCheatSheetBookmark: (b) => set((state) => {
+        const id = b.id || `bm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const exists = state.cheatSheetBookmarks.some((item) => item.id === id || (item.title === b.title && item.subtopic === b.subtopic));
+        if (exists) return state;
+        return {
+          cheatSheetBookmarks: [
+            {
+              id,
+              topicId: b.topicId,
+              topicName: b.topicName,
+              title: b.title,
+              subtopic: b.subtopic,
+              takeaways: b.takeaways,
+              codeSnippet: b.codeSnippet,
+              fixedCode: b.fixedCode,
+              categoryBadge: b.categoryBadge,
+              createdAt: new Date().toISOString()
+            },
+            ...state.cheatSheetBookmarks
+          ]
+        };
+      }),
+      removeCheatSheetBookmark: (id) => set((state) => ({
+        cheatSheetBookmarks: state.cheatSheetBookmarks.filter((item) => item.id !== id)
+      })),
+      isBookmarked: (id) => get().cheatSheetBookmarks.some((item) => item.id === id),
 
       systemHealth: {
         status: 'checking',
@@ -341,6 +389,7 @@ export const useAppStore = create<AppState>()(
         batchSizeMap: state.batchSizeMap,
         topicsProgress: state.topicsProgress,
         evaluationsMap: state.evaluationsMap,
+        cheatSheetBookmarks: state.cheatSheetBookmarks,
       })
     }
   )

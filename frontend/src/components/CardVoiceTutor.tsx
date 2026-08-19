@@ -12,8 +12,8 @@ import {
   RotateCcw,
   Loader2,
   CheckCircle2,
-  Terminal,
-  MessageSquare
+  MessageSquare,
+  Sparkle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -21,7 +21,7 @@ import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { Question } from '../store/useAppStore';
 
-export type TutorMode = 'deep_dive' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt';
+export type TutorMode = 'deep_dive' | 'free_chat' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt';
 
 interface CardVoiceTutorProps {
   question: Question;
@@ -35,6 +35,13 @@ const MODES: { id: TutorMode; name: string; icon: React.ComponentType<any>; badg
     icon: Microscope,
     badge: '🔬 JVM',
     desc: 'Разбор нюансов JVM, многопоточности, байткода и структур памяти'
+  },
+  {
+    id: 'free_chat',
+    name: 'Свободный диалог',
+    icon: MessageSquare,
+    badge: '💬 Без рамок',
+    desc: 'Прямые, подробные ответы на любые вопросы без экзаменационных загадок'
   },
   {
     id: 'socratic',
@@ -202,151 +209,127 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
       sourceNode.connect(workletNode);
       workletNode.connect(gainAnchor);
       gainAnchor.connect(audioCtx.destination);
-    } catch (e) {
-      console.error('Error initializing microphone hardware in CardVoiceTutor:', e);
+    } catch (err: any) {
+      console.error('Failed to init microphone worklet:', err);
+      throw err;
+    }
+  };
+
+  const startVoiceSession = async () => {
+    try {
+      setStatusMessage('Подключение к AI шлюзу...');
+      await initMicrophone();
+
+      // Playout Setup (24kHz Web Audio)
+      playoutManagerRef.current = new AudioPlayoutManager();
+      void playoutManagerRef.current.resume();
+
+      // WebSocket Connection
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/live`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        setIsRecording(true);
+        setStatusMessage('AI готов к диалогу. Говорите...');
+
+        const setupPayload = {
+          setup: {
+            model: 'gemini-tts-live-v3',
+            voiceName: 'Aoede',
+            topic: topicName,
+            sessionType: 'tutor',
+            tutorMode: activeMode,
+            questionText: question.question,
+            referenceAnswer: question.answer,
+            bugTitle: bugChallenge?.title,
+            bugExplanation: bugChallenge?.bugExplanation,
+            codeSnippet: bugChallenge?.codeSnippet,
+            hints: bugChallenge?.hints,
+            questionId: bugChallenge?.id || question.id
+          }
+        };
+
+        ws.send(JSON.stringify(setupPayload));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+
+          if (msg.type === 'bug_solved') {
+            setIsBugSolved(true);
+            setStatusMessage(`🎉 ${msg.payload.feedback || 'Отлично! Баг найден!'}`);
+            triggerSuccessConfetti();
+          }
+
+          if (msg.audio) {
+            setIsAiSpeaking(true);
+            playoutManagerRef.current?.enqueuePcmChunk(msg.audio);
+          }
+
+          if (msg.transcript) {
+            setAiTranscript(prev => prev ? `${prev} ${msg.transcript}` : msg.transcript);
+          }
+
+          if (msg.type === 'ai_playback_finished') {
+            setIsAiSpeaking(false);
+          }
+        } catch (e) {
+          console.error('Error handling WebSocket message:', e);
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        setStatusMessage('Ошибка подключения к шлюзу');
+      };
+
+      ws.onclose = () => {
+        disconnectSession();
+      };
+    } catch (err: any) {
+      console.error('Failed to start voice tutor session:', err);
+      setStatusMessage('Ошибка запуска аудиосессии');
+      disconnectSession();
     }
   };
 
   const disconnectSession = () => {
     if (wsRef.current) {
-      try {
-        wsRef.current.close();
-      } catch {}
+      wsRef.current.close();
       wsRef.current = null;
+    }
+    if (playoutManagerRef.current) {
+      void playoutManagerRef.current.teardown();
+      playoutManagerRef.current = null;
+    }
+    if (workletNodeRef.current) {
+      workletNodeRef.current.disconnect();
+      workletNodeRef.current = null;
+    }
+    if (inputAudioCtxRef.current) {
+      inputAudioCtxRef.current.close().catch(() => {});
+      inputAudioCtxRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
-    if (workletNodeRef.current) {
-      try {
-        workletNodeRef.current.disconnect();
-      } catch {}
-      workletNodeRef.current = null;
-    }
-    if (inputAudioCtxRef.current) {
-      try {
-        inputAudioCtxRef.current.close();
-      } catch {}
-      inputAudioCtxRef.current = null;
-    }
-    playoutManagerRef.current?.clearQueue();
     setIsConnected(false);
     setIsRecording(false);
     setIsAiSpeaking(false);
+    setStatusMessage('Сессия завершена');
   };
 
-  const toggleVoiceSession = async () => {
+  const toggleVoiceSession = () => {
     if (isConnected) {
       disconnectSession();
-      setStatusMessage('Сессия завершена. Нажми микрофон для нового вопроса.');
-      return;
+    } else {
+      void startVoiceSession();
     }
-
-    // Start Session
-    setStatusMessage('Подключение к AI-тьютору...');
-    setAiTranscript('');
-
-    const playout = new AudioPlayoutManager();
-    playoutManagerRef.current = playout;
-    await playout.resume();
-    await initMicrophone();
-
-    const host = window.location.host;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const params = new URLSearchParams({
-      sessionType: 'tutor',
-      tutorMode: activeMode,
-      questionId: question.id,
-      topic: topicName,
-      questionText: question.question,
-      referenceAnswer: question.answer,
-      voice: 'Kore'
-    });
-
-    if (activeMode === 'bug_hunt' && bugChallenge) {
-      params.append('bugTitle', bugChallenge.title);
-      params.append('bugExplanation', bugChallenge.bugExplanation);
-      params.append('codeSnippet', bugChallenge.codeSnippet);
-      params.append('hints', JSON.stringify(bugChallenge.hints));
-    }
-
-    const wsUrl = `${protocol}//${host}/ws/live?${params.toString()}`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('CardVoiceTutor WebSocket opened');
-      setIsConnected(true);
-      setStatusMessage('Тьютор подключается...');
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        let textPayload = '';
-        if (typeof event.data === 'string') {
-          textPayload = event.data;
-        } else if (event.data instanceof Blob) {
-          textPayload = await event.data.text();
-        } else if (event.data instanceof ArrayBuffer) {
-          textPayload = new TextDecoder().decode(event.data);
-        }
-
-        if (!textPayload) return;
-        const data = JSON.parse(textPayload);
-
-        if (data.type === 'setupComplete') {
-          setStatusMessage('Тьютор готов! Слушайте ответ или задавайте вопрос.');
-        } else if (data.type === 'bug_solved') {
-          setIsBugSolved(true);
-          triggerSuccessConfetti();
-          setStatusMessage(`🎉 ${data.payload?.feedback || 'Баг найден верно!'}`);
-        } else if (data.serverContent) {
-          // Barge-in
-          if (data.serverContent.interrupted) {
-            playoutManagerRef.current?.handleInterruption();
-            setIsAiSpeaking(false);
-          }
-
-          // Audio
-          if (data.serverContent.modelTurn?.parts) {
-            setIsAiSpeaking(true);
-            setIsRecording(false);
-            for (const part of data.serverContent.modelTurn.parts) {
-              if (part.text) {
-                setAiTranscript((prev) => prev + part.text);
-              }
-              const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
-              if (pcmBase64) {
-                playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
-              }
-            }
-          }
-
-          if (data.serverContent.turnComplete) {
-            setIsAiSpeaking(false);
-            setTimeout(() => {
-              setIsRecording(true);
-              setStatusMessage('🎙️ Твоя очередь: говори в микрофон');
-            }, 250);
-          }
-        }
-      } catch (e) {
-        console.error('Error handling tutor WS message:', e);
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      setIsRecording(false);
-      setIsAiSpeaking(false);
-    };
-
-    ws.onerror = (e) => {
-      console.error('Tutor WS error:', e);
-      setStatusMessage('Ошибка подключения к голосовому шлюзу');
-      setIsConnected(false);
-    };
   };
 
   return (
@@ -370,15 +353,18 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
           </div>
         </div>
 
-        {/* Action Toggle Button */}
+        {/* Action Toggle Button with Dynamic Pastel Audio Aura */}
         <button
           onClick={toggleVoiceSession}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 ${
+          className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 ${
             isConnected
               ? 'bg-rose-500 text-white hover:bg-rose-600 animate-pulse'
               : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95'
           }`}
         >
+          {isConnected && (
+            <span className="absolute inset-0 rounded-xl bg-rose-400/40 animate-ping opacity-75 pointer-events-none" />
+          )}
           {isConnected ? (
             <>
               <MicOff className="w-3.5 h-3.5" /> Завершить диалог
@@ -479,3 +465,4 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
     </div>
   );
 };
+export default CardVoiceTutor;

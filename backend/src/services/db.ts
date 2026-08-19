@@ -79,6 +79,28 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS bug_challenges (
+    id TEXT PRIMARY KEY,
+    topic_id TEXT NOT NULL,
+    topic_name TEXT NOT NULL,
+    preset TEXT,
+    difficulty TEXT,
+    category_badge TEXT,
+    title TEXT NOT NULL,
+    subtopic TEXT NOT NULL,
+    language TEXT DEFAULT 'java',
+    code_snippet TEXT NOT NULL,
+    bug_explanation TEXT NOT NULL,
+    fixed_code TEXT NOT NULL,
+    hints_json TEXT,
+    is_solved INTEGER DEFAULT 0,
+    last_score INTEGER,
+    last_feedback TEXT,
+    key_takeaways_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
   CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
 `);

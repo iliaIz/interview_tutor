@@ -4,6 +4,7 @@ import url from 'url';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
+import { updateBugChallengeStatus } from './tutorService';
 dotenv.config();
 
 interface ProxySession {
@@ -65,7 +66,7 @@ export function buildSystemPrompt(params: {
   questionIndex?: number;
   totalQuestions?: number;
   sessionType?: 'interview' | 'tutor';
-  tutorMode?: 'deep_dive' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt';
+  tutorMode?: 'deep_dive' | 'free_chat' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt';
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
@@ -128,6 +129,25 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
    - Если кандидат нашел второстепенную проблему: мягко подтверди и направь на корневой баг (подсказка 1).
    - Если кандидат застрял или просит подсказку: дай компактную подсказку (подсказка 1 или 2).
    - Если кандидат точно нашел ошибку и объяснил причину: похвали, в 1-2 предложениях резюмируй правильный фикс и вызови функцию \`mark_bug_solved(isSolved=true, feedback="...", keyInsight="...")\`.`;
+    }
+
+    if (tutorMode === 'free_chat') {
+      return `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
+Ты доброжелательный, высококвалифицированный Senior Java/Spring архитектор ${isFemale ? '(женщина)' : '(мужчина)'} и напарник по парному программированию.
+${genderRule}
+
+[КОНТЕКСТ ОБСУЖДЕНИЯ]
+ТЕМА: ${topic || 'Java & Spring'}
+${questionText ? `ВОПРОС: "${questionText}"` : ''}
+${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer.slice(0, 800)}\n"""` : ''}
+${bugTitle ? `КЕЙС КОДА: "${bugTitle}"` : ''}
+${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}
+
+=== ПРАВИЛА СВОБОДНОГО ДИАЛОГА (CRITICAL INVARIANTS) ===
+1. БЕЗ ЭКЗАМЕНАЦИОННЫХ РАМОК И ЗАГАДОК: Кандидат пришел просто посоветоваться или спросить о непонятной детали.
+2. ПРЯМЫЕ И ЧЕТКИЕ ОТВЕТЫ: Если кандидат спрашивает «как это работает?», «почему тут ошибка?» или «объясни 10-ю строку» — отвечай прямо, дружелюбно, профессионально и по существу, приводя лучшие инженерные практики.
+3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай емко (2-4 предложения за раз), без бесконечных академических лекций.
+4. ПОДДЕРЖКА: Всегда поддерживай, подбадривай и помогай досконально понять концепцию.`;
     }
 
     if (tutorMode === 'deep_dive') {
@@ -631,6 +651,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
               if (geminiSocket.readyState === WebSocket.OPEN) {
                 geminiSocket.send(JSON.stringify(toolResponse));
+              }
+
+              if (session.questionId) {
+                try {
+                  updateBugChallengeStatus({
+                    challengeId: session.questionId,
+                    isSolved: Boolean(isSolved),
+                    score: isSolved ? 10 : 5,
+                    feedback: feedback,
+                    keyTakeaways: keyInsight ? [keyInsight] : undefined
+                  });
+                } catch (e) {
+                  console.warn('Could not update bug challenge status in db:', e);
+                }
               }
 
               if (clientSocket.readyState === WebSocket.OPEN) {

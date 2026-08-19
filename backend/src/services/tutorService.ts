@@ -7,6 +7,8 @@ dotenv.config();
 
 export interface BugChallenge {
   id: string;
+  topicId?: string;
+  topicName?: string;
   title: string;
   subtopic: string;
   language: 'java' | 'sql' | 'kotlin';
@@ -20,6 +22,11 @@ export interface BugChallenge {
   isTopicExhausted?: boolean;
   remainingCount?: number;
   totalTopicQuestions?: number;
+  isSolved?: boolean;
+  lastScore?: number;
+  lastFeedback?: string;
+  keyTakeaways?: string[];
+  createdAt?: string;
 }
 
 export interface GenerateBugChallengeParams {
@@ -42,6 +49,135 @@ const DEFECT_FOCUS_MAP: Record<string, string> = {
   all: 'ФОКУС: Любые фундаментальные архитектурные, логические, concurrency или транзакционные ловушки.'
 };
 
+/**
+ * Saves or updates a bug challenge record in SQLite database
+ */
+function saveBugChallengeToDb(challenge: BugChallenge, topicId: string, topicName: string, preset: string, difficulty: string) {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO bug_challenges (
+        id, topic_id, topic_name, preset, difficulty, category_badge,
+        title, subtopic, language, code_snippet, bug_explanation, fixed_code,
+        hints_json, is_solved, last_score, last_feedback, key_takeaways_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        is_solved = COALESCE(excluded.is_solved, bug_challenges.is_solved),
+        last_score = COALESCE(excluded.last_score, bug_challenges.last_score),
+        last_feedback = COALESCE(excluded.last_feedback, bug_challenges.last_feedback),
+        key_takeaways_json = COALESCE(excluded.key_takeaways_json, bug_challenges.key_takeaways_json),
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+    stmt.run(
+      challenge.id,
+      topicId,
+      topicName,
+      preset,
+      difficulty,
+      challenge.categoryBadge || '⚡ Concurrency',
+      challenge.title,
+      challenge.subtopic,
+      challenge.language || 'java',
+      challenge.codeSnippet,
+      challenge.bugExplanation,
+      challenge.fixedCode,
+      JSON.stringify(challenge.hints || []),
+      challenge.isSolved ? 1 : 0,
+      challenge.lastScore || null,
+      challenge.lastFeedback || null,
+      challenge.keyTakeaways ? JSON.stringify(challenge.keyTakeaways) : null
+    );
+  } catch (err) {
+    console.error('Error saving bug challenge to SQLite:', err);
+  }
+}
+
+/**
+ * Fetches saved challenges from SQLite for zero-latency, zero-cost problem bank replay
+ */
+export function getSavedBugChallenges(topicId?: string, filter: 'all' | 'unsolved' | 'solved' = 'all'): BugChallenge[] {
+  try {
+    let query = 'SELECT * FROM bug_challenges';
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (topicId) {
+      conditions.push('(topic_id = ? OR topic_name = ?)');
+      params.push(topicId, topicId);
+    }
+
+    if (filter === 'unsolved') {
+      conditions.push('(is_solved = 0 OR is_solved IS NULL)');
+    } else if (filter === 'solved') {
+      conditions.push('is_solved = 1');
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT 100';
+
+    const rows = db.prepare(query).all(...params) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      topicId: r.topic_id,
+      topicName: r.topic_name,
+      title: r.title,
+      subtopic: r.subtopic,
+      language: r.language || 'java',
+      codeSnippet: r.code_snippet,
+      bugExplanation: r.bug_explanation,
+      fixedCode: r.fixed_code,
+      hints: r.hints_json ? JSON.parse(r.hints_json) : [],
+      categoryBadge: r.category_badge,
+      difficultyBadge: r.difficulty || 'Middle',
+      isSolved: Boolean(r.is_solved),
+      lastScore: r.last_score || undefined,
+      lastFeedback: r.last_feedback || undefined,
+      keyTakeaways: r.key_takeaways_json ? JSON.parse(r.key_takeaways_json) : undefined,
+      createdAt: r.created_at
+    }));
+  } catch (err) {
+    console.error('Error fetching saved bug challenges:', err);
+    return [];
+  }
+}
+
+/**
+ * Updates evaluation result and status for a bug challenge
+ */
+export function updateBugChallengeStatus(params: {
+  challengeId: string;
+  isSolved: boolean;
+  score?: number;
+  feedback?: string;
+  keyTakeaways?: string[];
+}): boolean {
+  try {
+    const stmt = db.prepare(`
+      UPDATE bug_challenges
+      SET is_solved = ?,
+          last_score = COALESCE(?, last_score),
+          last_feedback = COALESCE(?, last_feedback),
+          key_takeaways_json = COALESCE(?, key_takeaways_json),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const res = stmt.run(
+      params.isSolved ? 1 : 0,
+      params.score ?? null,
+      params.feedback ?? null,
+      params.keyTakeaways ? JSON.stringify(params.keyTakeaways) : null,
+      params.challengeId
+    );
+    return res.changes > 0;
+  } catch (err) {
+    console.error('Error updating bug challenge status:', err);
+    return false;
+  }
+}
+
 export async function generateBugChallenge(params: GenerateBugChallengeParams): Promise<BugChallenge> {
   const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
   const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -50,6 +186,7 @@ export async function generateBugChallenge(params: GenerateBugChallengeParams): 
   const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-smart';
 
   let topicName = params.topic || 'Java & Spring Framework';
+  const topicId = params.topicId || (params.topic ? params.topic.toLowerCase().replace(/\s+/g, '-') : 'general');
   let contextInfo = '';
   let sampledQuestionId: string | undefined = undefined;
   let totalTopicQuestions = 0;
@@ -60,7 +197,7 @@ export async function generateBugChallenge(params: GenerateBugChallengeParams): 
   const defectFocusKey = params.defectFocus || 'all';
   const defectFocusInstruction = DEFECT_FOCUS_MAP[defectFocusKey] || DEFECT_FOCUS_MAP.all;
 
-  // Case 1: Topic-level bug hunt (from TopicSelector)
+  // Case 1: Topic-level bug hunt (from TopicSelector / Bug Hunt Arena)
   if (params.topicId && !params.questionId && !params.questionText) {
     const dbTopicName = TOPIC_MAP[params.topicId.toLowerCase()] || params.topicId;
     topicName = dbTopicName;
@@ -134,7 +271,7 @@ export async function generateBugChallenge(params: GenerateBugChallengeParams): 
 
   const isSeniorMulti = preset === 'senior_multi' || difficulty === 'senior';
   const bugCountInstruction = isSeniorMulti
-    ? `Сгенерируй код уровня Senior/Lead с РОВНО 2 взаимосвязанными или тонко скрытыми дефектами (например, concurrency race condition + пропуск отката транзакции при checked exception).`
+    ? `Сгенерируй код уровня Senior/Lead с РОВНО 2 взаимосвязанными или скрытыми дефектами (например, concurrency race condition + пропуск отката транзакции при checked exception).`
     : `Сгенерируй код с РОВНО 1 фундаментальной архитектурной, логической или concurrency ошибкой.`;
 
   const systemPrompt = `Ты Senior/Principal Java & Spring архитектор и автор технического код-ревью на собеседованиях.
@@ -232,8 +369,10 @@ ${contextInfo}
 
     const challengeId = `bug_${crypto.randomBytes(8).toString('hex')}`;
 
-    return {
+    const generatedChallenge: BugChallenge = {
       id: challengeId,
+      topicId,
+      topicName,
       title: parsed.title || 'Поиск ошибки в коде',
       subtopic: parsed.subtopic || topicName,
       language: parsed.language || 'java',
@@ -250,11 +389,18 @@ ${contextInfo}
       remainingCount,
       totalTopicQuestions
     };
+
+    // Save to SQLite Persistent Problem Bank
+    saveBugChallengeToDb(generatedChallenge, topicId, topicName, preset, difficulty);
+
+    return generatedChallenge;
   } catch (err: any) {
     console.error('Error generating bug challenge:', err);
     // Safe graceful fallback if LLM has temporary hiccup
-    return {
+    const fallbackChallenge: BugChallenge = {
       id: `fallback_${Date.now()}`,
+      topicId,
+      topicName,
       title: isSeniorMulti ? 'Гонка состояний и утечка транзакции' : 'Гонка состояний в обработчике платежей',
       subtopic: topicName,
       language: 'java',
@@ -272,5 +418,8 @@ ${contextInfo}
       remainingCount,
       totalTopicQuestions
     };
+
+    saveBugChallengeToDb(fallbackChallenge, topicId, topicName, preset, difficulty);
+    return fallbackChallenge;
   }
 }

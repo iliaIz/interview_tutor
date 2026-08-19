@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Copy,
-  Check,
   ChevronDown,
   ChevronUp,
   Lightbulb,
@@ -10,13 +8,20 @@ import {
   Bug,
   CheckCircle2,
   Sparkles,
-  Terminal,
-  Code2
+  Bookmark,
+  BookmarkCheck,
+  SplitSquareVertical,
+  Code2,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CodeViewer } from './CodeViewer';
+import { useAppStore } from '../store/useAppStore';
 
 export interface BugChallenge {
   id: string;
+  topicId?: string;
+  topicName?: string;
   title: string;
   subtopic: string;
   language: 'java' | 'sql' | 'kotlin';
@@ -30,6 +35,11 @@ export interface BugChallenge {
   isTopicExhausted?: boolean;
   remainingCount?: number;
   totalTopicQuestions?: number;
+  isSolved?: boolean;
+  lastScore?: number;
+  lastFeedback?: string;
+  keyTakeaways?: string[];
+  createdAt?: string;
 }
 
 interface BugChallengeCardProps {
@@ -39,214 +49,344 @@ interface BugChallengeCardProps {
   isLoading?: boolean;
 }
 
+/**
+ * Clean Unified Diff generator for side-by-side / inline inspection
+ */
+function generateUnifiedDiff(original: string, fixed: string): string {
+  const origLines = (original || '').trim().split('\n');
+  const fixedLines = (fixed || '').trim().split('\n');
+  const diff: string[] = [];
+
+  let i = 0;
+  let j = 0;
+
+  while (i < origLines.length || j < fixedLines.length) {
+    const oLine = origLines[i];
+    const fLine = fixedLines[j];
+
+    if (oLine === fLine) {
+      if (oLine !== undefined) diff.push(' ' + oLine);
+      i++;
+      j++;
+    } else {
+      const nextMatchInFixed = fLine ? origLines.indexOf(fLine, i) : -1;
+      const nextMatchInOrig = oLine ? fixedLines.indexOf(oLine, j) : -1;
+
+      if (oLine !== undefined && (nextMatchInFixed !== -1 || j >= fixedLines.length)) {
+        diff.push('-' + oLine);
+        i++;
+      } else if (fLine !== undefined && (nextMatchInOrig !== -1 || i >= origLines.length)) {
+        diff.push('+' + fLine);
+        j++;
+      } else {
+        if (oLine !== undefined) {
+          diff.push('-' + oLine);
+          i++;
+        }
+        if (fLine !== undefined) {
+          diff.push('+' + fLine);
+          j++;
+        }
+      }
+    }
+  }
+
+  return diff.join('\n');
+}
+
 export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   challenge,
   isSolved = false,
   onRefresh,
   isLoading = false,
 }) => {
-  const [copied, setCopied] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [openHintIndex, setOpenHintIndex] = useState<number | null>(null);
+  const [solutionViewMode, setSolutionViewMode] = useState<'fixed' | 'diff'>('diff');
 
-  const handleCopy = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const { addCheatSheetBookmark, removeCheatSheetBookmark, isBookmarked } = useAppStore();
+  const bookmarked = isBookmarked(challenge.id);
 
-  const renderCodeWithLineNumbers = (code: string, isFix = false) => {
-    const lines = code.trim().split('\n');
-    return (
-      <div className={`relative group rounded-2xl overflow-hidden border shadow-md transition-all ${
-        isFix
-          ? 'bg-[#151a24] border-emerald-900/60 shadow-emerald-950/20'
-          : 'bg-[#161322] border-[#2A243E] shadow-purple-950/20'
-      }`}>
-        {/* macOS-style Header */}
-        <div className={`px-4 py-2.5 flex items-center justify-between text-xs font-mono border-b ${
-          isFix ? 'bg-[#1a212d] border-emerald-900/40 text-emerald-300' : 'bg-[#1d192e] border-[#2A243E] text-[#B3A9D4]'
-        }`}>
-          <div className="flex items-center gap-3">
-            {/* Window Dots */}
-            <div className="flex items-center gap-1.5 opacity-80">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-400/80 inline-block"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block"></span>
-            </div>
-            <div className="flex items-center gap-1.5 pl-1 font-semibold text-xs text-slate-200">
-              {isFix ? (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Исправленная версия (Fixed Code)</span>
-                </>
-              ) : (
-                <>
-                  <Code2 className="w-3.5 h-3.5 text-pastel-accentRose" />
-                  <span>{challenge.language.toUpperCase()} • Code Snippet</span>
-                </>
-              )}
-            </div>
-          </div>
+  // Compute unified diff string for solution inspection
+  const unifiedDiffCode = useMemo(() => {
+    return generateUnifiedDiff(challenge.codeSnippet, challenge.fixedCode);
+  }, [challenge.codeSnippet, challenge.fixedCode]);
 
-          <button
-            onClick={() => handleCopy(code)}
-            className="flex items-center gap-1 text-[#9D93C4] hover:text-white transition cursor-pointer text-[11px] px-2 py-0.5 rounded-md hover:bg-white/10"
-            title="Скопировать код"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Скопировано' : 'Копировать'}</span>
-          </button>
-        </div>
+  // Extract or generate 3 key takeaways for cheat sheet synthesis
+  const takeaways = useMemo(() => {
+    if (challenge.keyTakeaways && challenge.keyTakeaways.length > 0) {
+      return challenge.keyTakeaways;
+    }
+    const explanationLines = challenge.bugExplanation
+      .split('\n')
+      .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())
+      .filter(l => l.length > 10);
 
-        {/* Code Content */}
-        <pre className="p-4 font-mono text-xs md:text-sm overflow-x-auto m-0 leading-relaxed text-[#EAE6F8] selection:bg-rose-500/30">
-          <code>
-            {lines.map((line, idx) => (
-              <div key={idx} className="table-row hover:bg-white/[0.04] transition-colors">
-                <span className="table-cell text-right pr-4 select-none text-[#7E7796] text-[11px] font-mono w-8">
-                  {idx + 1}
-                </span>
-                <span className="table-cell">{line || ' '}</span>
-              </div>
-            ))}
-          </code>
-        </pre>
-      </div>
-    );
+    if (explanationLines.length >= 2) {
+      return explanationLines.slice(0, 3);
+    }
+
+    return [
+      `Суть дефекта: ${challenge.title} в подразделе ${challenge.subtopic}.`,
+      `Риск: нарушение потокобезопасности или корректности данных под нагрузкой.`,
+      `Архитектурное решение: применение thread-safe примитивов или правильных контрактов Spring.`
+    ];
+  }, [challenge]);
+
+  const handleToggleBookmark = () => {
+    if (bookmarked) {
+      removeCheatSheetBookmark(challenge.id);
+    } else {
+      addCheatSheetBookmark({
+        id: challenge.id,
+        topicId: challenge.topicId,
+        topicName: challenge.topicName,
+        title: challenge.title,
+        subtopic: challenge.subtopic,
+        takeaways,
+        codeSnippet: challenge.codeSnippet,
+        fixedCode: challenge.fixedCode,
+        categoryBadge: challenge.categoryBadge
+      });
+    }
   };
 
   return (
-    <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-pastel-border shadow-sm space-y-4 transition-all">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-pastel-border/60 pb-3.5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-rose via-rose-100 to-pastel-lavender text-pastel-accentRose flex items-center justify-center font-bold shadow-2xs border border-pastel-rose">
-            <Bug className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h4 className="font-bold text-sm md:text-base text-pastel-text">
-                {challenge.title}
-              </h4>
-              {challenge.categoryBadge && (
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/20 shadow-2xs">
-                  {challenge.categoryBadge}
-                </span>
-              )}
-              {challenge.difficultyBadge && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
-                  challenge.difficultyBadge === 'Senior'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                }`}>
-                  {challenge.difficultyBadge}
-                </span>
-              )}
-              {isSolved && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 animate-fadeIn">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Решено
-                </span>
-              )}
-            </div>
-            <span className="text-xs text-pastel-muted font-medium block mt-0.5">
-              Подтема: <strong className="text-pastel-text">{challenge.subtopic}</strong>
+    <div className="w-full space-y-4">
+      {/* Top Banner with Title, Category, Difficulty, and Past Score Badge */}
+      <div className="bg-gradient-to-r from-pastel-card/90 via-pastel-lavender/30 to-pastel-card/90 rounded-2xl p-4 md:p-5 border border-pastel-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 backdrop-blur-md">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pastel-rose/70 text-pastel-darkPurple border border-pastel-accentRose/30">
+              <Bug className="w-3.5 h-3.5" />
+              {challenge.categoryBadge || '⚡ Concurrency'}
+            </span>
+
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+              challenge.difficultyBadge === 'Senior'
+                ? 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60'
+                : 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60'
+            }`}>
+              {challenge.difficultyBadge || 'Middle'}
+            </span>
+
+            {challenge.lastScore !== undefined && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                <Award className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                Прошлый результат: {challenge.lastScore}/10
+              </span>
+            )}
+
+            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+              {challenge.subtopic}
             </span>
           </div>
+
+          <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            {challenge.title}
+          </h2>
         </div>
 
-        {onRefresh && (
+        {/* Action Header: Bookmark & Refresh */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
           <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="text-xs font-semibold text-pastel-accentViolet hover:text-pastel-accentRose transition flex items-center gap-1 px-3 py-1.5 rounded-xl bg-pastel-lavender/50 border border-pastel-accentViolet/20 cursor-pointer disabled:opacity-50 hover:shadow-2xs active:scale-95"
-            title="Сгенерировать другой пример бага"
+            onClick={handleToggleBookmark}
+            title={bookmarked ? 'Удалить из шпаргалки' : 'Сохранить инсайт в шпаргалку'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+              bookmarked
+                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-700 shadow-sm'
+                : 'bg-white/80 text-slate-700 hover:bg-pastel-lavender/50 border-pastel-border dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700'
+            }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{isLoading ? 'Генерация...' : 'Другой баг'}</span>
+            {bookmarked ? (
+              <>
+                <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>В шпаргалке</span>
+              </>
+            ) : (
+              <>
+                <Bookmark className="w-3.5 h-3.5 text-slate-400" />
+                <span>⭐ В шпаргалку</span>
+              </>
+            )}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Code Snippet with Line Numbers in Velvet Obsidian */}
-      {renderCodeWithLineNumbers(challenge.codeSnippet, false)}
+      {/* Code Snippet with SOTA CodeViewer */}
+      <CodeViewer
+        code={challenge.codeSnippet}
+        language={challenge.language}
+        title={`${challenge.language.toUpperCase()} • Проблемный код`}
+      />
 
       {/* Hints Accordion */}
       {challenge.hints && challenge.hints.length > 0 && (
-        <div className="space-y-1.5 pt-1">
-          <div className="text-xs font-semibold text-pastel-muted flex items-center gap-1.5 mb-1.5">
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5 px-1">
             <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-            <span>Подсказки (если застряли на ревью):</span>
+            <span>Подсказки (раскрывайте по необходимости):</span>
           </div>
-          {challenge.hints.map((hint, idx) => {
-            const isOpen = openHintIndex === idx;
-            return (
-              <div key={idx} className="border border-pastel-border/70 rounded-2xl overflow-hidden bg-pastel-bg/40 transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenHintIndex(isOpen ? null : idx)}
-                  className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-semibold text-pastel-text hover:bg-pastel-rose/30 transition cursor-pointer"
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {challenge.hints.map((hint, idx) => {
+              const isOpen = openHintIndex === idx;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-pastel-border/80 bg-pastel-card/60 backdrop-blur-sm overflow-hidden transition-all"
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="text-amber-500 font-bold">Уровень {idx + 1}:</span>
-                    {idx === 0 ? 'Направление внимания' : 'Локализация строк и механика'}
-                  </span>
-                  {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-pastel-muted" /> : <ChevronDown className="w-3.5 h-3.5 text-pastel-muted" />}
-                </button>
-                <AnimatePresence>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="px-4 pb-3 pt-1 text-xs text-pastel-text/90 leading-relaxed bg-white border-t border-pastel-border/40"
-                    >
-                      {hint}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
+                  <button
+                    onClick={() => setOpenHintIndex(isOpen ? null : idx)}
+                    className="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-pastel-lavender/30 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-pastel-lavender text-pastel-darkPurple flex items-center justify-center text-[10px] font-bold">
+                        {idx + 1}
+                      </span>
+                      <span>Подсказка {idx + 1} {idx === 0 ? '(Направление)' : '(Локализация)'}</span>
+                    </span>
+                    {isOpen ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="px-3.5 pb-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-pastel-border/40 pt-2 bg-white/40 dark:bg-slate-900/30 font-sans"
+                      >
+                        {hint}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Solution Toggle & Explanation */}
-      <div className="pt-2 border-t border-pastel-border/60">
+      {/* Solution Reveal Button */}
+      <div className="pt-1">
         <button
           onClick={() => setShowSolution(!showSolution)}
-          className="w-full py-2.5 px-4 rounded-2xl border border-pastel-border text-xs font-bold text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-[0.99]"
+          className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${
+            showSolution
+              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+              : 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 shadow-sm'
+          }`}
         >
-          {showSolution ? <EyeOff className="w-3.5 h-3.5 text-pastel-accentRose" /> : <Eye className="w-3.5 h-3.5 text-pastel-accentViolet" />}
-          <span>{showSolution ? 'Скрыть правильное решение' : 'Показать правильное решение и объяснение'}</span>
+          {showSolution ? (
+            <>
+              <EyeOff className="w-4 h-4" />
+              <span>Скрыть правильное решение и объяснение</span>
+            </>
+          ) : (
+            <>
+              <Eye className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Показать правильное решение и Diff изменений</span>
+            </>
+          )}
         </button>
 
+        {/* Revealed Solution Box */}
         <AnimatePresence>
           {showSolution && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mt-3 p-4 md:p-5 rounded-3xl bg-emerald-50/70 border border-emerald-200 text-xs md:text-sm space-y-3 shadow-2xs"
+              exit={{ opacity: 0, y: -10 }}
+              className="mt-3 p-4 md:p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-4 text-slate-800 dark:text-slate-200"
             >
-              <div>
-                <h5 className="font-bold text-emerald-900 mb-1.5 flex items-center gap-1.5 text-xs md:text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Суть ошибки и почему код ломается:
-                </h5>
-                <p className="text-emerald-950/90 leading-relaxed whitespace-pre-line text-xs md:text-sm">
+              {/* Explanation of the Bug */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Суть ошибки и почему код ломается:</span>
+                </div>
+                <p className="text-xs md:text-sm text-slate-700 dark:text-slate-300 leading-relaxed pl-5 whitespace-pre-line font-sans">
                   {challenge.bugExplanation}
                 </p>
               </div>
 
-              {challenge.fixedCode && (
-                <div className="mt-3">
-                  <span className="font-bold text-emerald-900 block mb-1.5 text-xs">
+              {/* Solution View Switcher (Fixed Code vs Unified Diff) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Исправленная реализация:
                   </span>
-                  {renderCodeWithLineNumbers(challenge.fixedCode, true)}
+
+                  <div className="flex items-center gap-1 bg-white/80 dark:bg-slate-800 p-1 rounded-xl border border-pastel-border shadow-xs">
+                    <button
+                      onClick={() => setSolutionViewMode('diff')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        solutionViewMode === 'diff'
+                          ? 'bg-pastel-accentRose text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <SplitSquareVertical className="w-3.5 h-3.5" />
+                      <span>Diff изменений</span>
+                    </button>
+                    <button
+                      onClick={() => setSolutionViewMode('fixed')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        solutionViewMode === 'fixed'
+                          ? 'bg-pastel-accentRose text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Код решения</span>
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                {/* SOTA CodeViewer with Unified Diff or Clean Fixed Code */}
+                {solutionViewMode === 'diff' ? (
+                  <CodeViewer
+                    code={unifiedDiffCode}
+                    language={challenge.language}
+                    isDiff={true}
+                    title={`${challenge.language.toUpperCase()} • Unified Diff Решения`}
+                  />
+                ) : (
+                  <CodeViewer
+                    code={challenge.fixedCode}
+                    language={challenge.language}
+                    title={`${challenge.language.toUpperCase()} • Fixed Code`}
+                  />
+                )}
+              </div>
+
+              {/* Key Takeaways Card for Interview Prep */}
+              <div className="p-3.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-pastel-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-pastel-darkPurple dark:text-pastel-lavender">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>💡 Ключевые выводы для собеседования:</span>
+                  </div>
+                  <button
+                    onClick={handleToggleBookmark}
+                    className="text-[11px] font-medium text-pastel-accentRose hover:underline flex items-center gap-1"
+                  >
+                    {bookmarked ? <BookmarkCheck className="w-3 h-3 text-amber-600" /> : <Bookmark className="w-3 h-3" />}
+                    <span>{bookmarked ? 'В шпаргалке' : 'Сохранить эти выводы'}</span>
+                  </button>
+                </div>
+
+                <ul className="space-y-1 pl-4 list-disc text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+                  {takeaways.map((point, pIdx) => (
+                    <li key={pIdx}>{point}</li>
+                  ))}
+                </ul>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -254,3 +394,4 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
     </div>
   );
 };
+export default BugChallengeCard;

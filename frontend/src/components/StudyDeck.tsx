@@ -20,6 +20,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
 import { CardVoiceTutor } from './CardVoiceTutor';
+import { CodeViewer } from './CodeViewer';
 
 export const StudyDeck: React.FC = () => {
   const {
@@ -236,29 +237,17 @@ export const StudyDeck: React.FC = () => {
                         ),
                         code: ({ node, inline, className, children, ...props }: any) => {
                           const codeStr = String(children).replace(/\n$/, '');
+                          const match = /language-(\w+)/.exec(className || '');
+                          const lang = match ? match[1] : 'java';
+
                           if (!inline && (className || codeStr.includes('\n'))) {
                             return (
-                              <div className="relative group my-4 rounded-2xl overflow-hidden border border-[#2A243E] bg-[#161322] shadow-md">
-                                <div className="bg-[#1d192e] px-4 py-2 flex items-center justify-between text-xs text-[#B3A9D4] font-mono border-b border-[#2A243E]">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1.5 opacity-80">
-                                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400/80 inline-block"></span>
-                                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block"></span>
-                                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block"></span>
-                                    </div>
-                                    <span className="font-semibold text-slate-200 ml-1">Code Snippet</span>
-                                  </div>
-                                  <button
-                                    onClick={() => handleCopyCode(codeStr)}
-                                    className="flex items-center gap-1 text-[#9D93C4] hover:text-white transition cursor-pointer text-[11px] px-2 py-0.5 rounded-md hover:bg-white/10"
-                                  >
-                                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                                    <span>{copied ? 'Скопировано' : 'Копировать'}</span>
-                                  </button>
-                                </div>
-                                <pre className="p-4 font-mono text-xs md:text-sm overflow-x-auto m-0 leading-relaxed text-[#EAE6F8]">
-                                  <code>{codeStr}</code>
-                                </pre>
+                              <div className="my-4">
+                                <CodeViewer
+                                  code={codeStr}
+                                  language={lang}
+                                  title={`${lang.toUpperCase()} • Code Snippet`}
+                                />
                               </div>
                             );
                           }
