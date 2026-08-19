@@ -18,10 +18,8 @@ import {
   Trophy,
   BookOpen,
   Volume2,
-  FileText,
   Play,
   Award,
-  Layers,
   ChevronRight,
   ChevronLeft,
   MessageSquare
@@ -107,7 +105,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   // Active Challenge is derived from history[currentIndex]
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
 
-  // Compute variant number for current challenge (e.g. 1st, 2nd variation of this subtopic)
+  // Compute variant number for current challenge
   const currentVariantNumber = useMemo(() => {
     if (!challenge || currentIndex < 0) return 1;
     const sameSubtopicCount = history
@@ -492,30 +490,30 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-950/60 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-[#1A0B2E]/40 backdrop-blur-md animate-fade-in">
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
-        className="bg-pastel-bg dark:bg-slate-900 border border-pastel-border w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+        className="bg-[#FFF9FB] border border-pink-200/90 w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#2D1B4E]"
       >
-        {/* Modal Top Bar */}
-        <div className="px-5 py-4 bg-white/70 dark:bg-slate-800/70 border-b border-pastel-border flex items-center justify-between backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-rose via-pastel-lavender to-pastel-accentRose/40 flex items-center justify-center shadow-sm">
-              <Bug className="w-5 h-5 text-pastel-darkPurple" />
+        {/* Modal Top Bar in Pure Soft Luxury Glass */}
+        <div className="px-6 py-4 bg-white/90 border-b border-pink-100/90 flex items-center justify-between backdrop-blur-md">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-200 via-purple-200 to-rose-300 flex items-center justify-center shadow-xs text-[#4A1E6D]">
+              <Bug className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100">
+                <h1 className="text-base md:text-lg font-bold text-[#2D1B4E]">
                   Bug Hunt Arena
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pastel-lavender text-pastel-darkPurple border border-pastel-border">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-[#4A1E6D] border border-pink-200/80 shadow-2xs">
                   2026 SOTA
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">
-                Тема: <span className="font-semibold text-slate-700 dark:text-slate-200">{topicName}</span>
+              <p className="text-xs text-[#7E699B] font-sans">
+                Тема: <span className="font-semibold text-[#4A1E6D]">{topicName}</span>
               </p>
             </div>
           </div>
@@ -524,16 +522,16 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
             {stage === 'workout' && (
               <button
                 onClick={() => { cleanupAudioSession(); setStage('lobby'); }}
-                className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 py-1.5 rounded-xl border border-pastel-border bg-white/50 dark:bg-slate-800/50 hover:bg-pastel-lavender/30 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-[#4A326D] hover:text-[#2D1B4E] px-3.5 py-1.5 rounded-xl border border-pink-200 bg-white/80 hover:bg-pink-50/80 transition-colors shadow-2xs cursor-pointer font-semibold"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <SlidersHorizontal className="w-3.5 h-3.5 text-pink-600" />
                 <span>Настройки лобби</span>
               </button>
             )}
 
             <button
               onClick={() => { cleanupAudioSession(); onClose(); }}
-              className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              className="w-9 h-9 rounded-xl hover:bg-pink-100/60 flex items-center justify-center text-[#7E699B] hover:text-[#2D1B4E] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -548,28 +546,28 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           {stage === 'lobby' && (
             <div className="max-w-2xl mx-auto space-y-6 py-2">
               {/* Source Mode Toggle: Fresh AI vs Saved Bank */}
-              <div className="flex p-1 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 border border-pastel-border/60">
+              <div className="flex p-1.5 rounded-2xl bg-pink-100/70 border border-pink-200/60">
                 <button
                   onClick={() => setSourceMode('ai_fresh')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     sourceMode === 'ai_fresh'
-                      ? 'bg-white dark:bg-slate-900 text-pastel-darkPurple dark:text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      ? 'bg-white text-[#2D1B4E] shadow-sm'
+                      : 'text-[#7E699B] hover:text-[#2D1B4E]'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4 text-pastel-accentRose" />
+                  <Sparkles className="w-4 h-4 text-pink-600" />
                   <span>✨ Свежая AI-генерация</span>
                 </button>
 
                 <button
                   onClick={() => setSourceMode('bank')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     sourceMode === 'bank'
-                      ? 'bg-white dark:bg-slate-900 text-pastel-darkPurple dark:text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      ? 'bg-white text-[#2D1B4E] shadow-sm'
+                      : 'text-[#7E699B] hover:text-[#2D1B4E]'
                   }`}
                 >
-                  <BookOpen className="w-4 h-4 text-emerald-500" />
+                  <BookOpen className="w-4 h-4 text-emerald-600" />
                   <span>📚 Мой банк задач ({savedChallenges.length})</span>
                 </button>
               </div>
@@ -579,11 +577,11 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                 <div className="space-y-5 animate-fade-in">
                   {/* Preset Selection */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-pastel-accentRose" />
+                    <label className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-pink-600" />
                       <span>Выберите режим тренировки:</span>
                     </label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {PRESETS.map((p) => {
                         const Icon = p.icon;
                         const isSelected = activePreset === p.id;
@@ -591,21 +589,21 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                           <button
                             key={p.id}
                             onClick={() => setActivePreset(p.id)}
-                            className={`p-4 rounded-2xl text-left border transition-all relative ${
+                            className={`p-4 rounded-2xl text-left border transition-all relative cursor-pointer ${
                               isSelected
-                                ? 'bg-gradient-to-b from-pastel-lavender/50 to-pastel-card border-pastel-accentRose/60 shadow-md ring-1 ring-pastel-accentRose/40'
-                                : 'bg-white/60 dark:bg-slate-800/40 border-pastel-border hover:bg-pastel-lavender/20'
+                                ? 'bg-gradient-to-b from-purple-50 to-rose-50 border-pink-300 ring-2 ring-pink-300 shadow-sm'
+                                : 'bg-white/80 border-pink-200/60 hover:bg-pink-50/50 shadow-2xs'
                             }`}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                              <span className="text-xs font-bold text-[#2D1B4E]">
                                 {p.name}
                               </span>
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/80 dark:bg-slate-800 border border-pastel-border font-bold">
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-pink-200 font-bold text-[#4A1E6D]">
                                 {p.badge}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                            <p className="text-[11px] text-[#7E699B] leading-snug font-normal">
                               {p.desc}
                             </p>
                           </button>
@@ -616,7 +614,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
                   {/* Defect Focus Filter */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5">
                       <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
                       <span>Категория дефектов (Фокус):</span>
                     </label>
@@ -625,10 +623,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                         <button
                           key={f.id}
                           onClick={() => setDefectFocus(f.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                             defectFocus === f.id
-                              ? 'bg-pastel-darkPurple text-white border-pastel-darkPurple shadow-xs'
-                              : 'bg-white/70 dark:bg-slate-800/70 border-pastel-border text-slate-700 dark:text-slate-300 hover:bg-pastel-lavender/30'
+                              ? 'bg-[#4A1E6D] text-white border-[#4A1E6D] shadow-xs'
+                              : 'bg-white/80 border-pink-200/60 text-[#4A326D] hover:bg-pink-100/50 shadow-2xs'
                           }`}
                         >
                           <span className="mr-1.5">{f.iconStr}</span>
@@ -643,12 +641,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
               {/* View 2: Saved Problem Bank (Replay) */}
               {sourceMode === 'bank' && (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between">
+                  <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                     <div>
-                      <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                      <h3 className="text-sm font-bold text-emerald-950">
                         Персональный банк: {savedChallenges.length} кейсов
                       </h3>
-                      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                      <p className="text-xs text-emerald-800">
                         Мгновенный запуск за 0 мс без ожидания генерации и без расхода токенов.
                       </p>
                     </div>
@@ -658,10 +656,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                         <button
                           key={f}
                           onClick={() => setBankFilter(f)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             bankFilter === f
                               ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'bg-white/80 dark:bg-slate-800 text-emerald-900 dark:text-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-emerald-950 hover:bg-emerald-100/80 border border-emerald-200'
                           }`}
                         >
                           {f === 'all' && `Все (${savedChallenges.length})`}
@@ -673,8 +671,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </div>
 
                   {filteredBank.length === 0 ? (
-                    <div className="p-8 text-center rounded-2xl border border-dashed border-pastel-border text-slate-500 dark:text-slate-400">
-                      <p className="text-sm">В этой выборке пока нет сохраненных задач.</p>
+                    <div className="p-8 text-center rounded-2xl border border-dashed border-pink-200 bg-white/60 text-[#7E699B]">
+                      <p className="text-sm font-semibold text-[#2D1B4E]">В этой выборке пока нет сохраненных задач.</p>
                       <p className="text-xs mt-1">Переключитесь на «Свежую генерацию», чтобы создать новые кейсы.</p>
                     </div>
                   ) : (
@@ -682,22 +680,22 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       {filteredBank.slice(0, 10).map((b, i) => (
                         <div
                           key={b.id}
-                          className="p-3 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-pastel-border flex items-center justify-between text-xs"
+                          className="p-3.5 rounded-xl bg-white border border-pink-200/70 flex items-center justify-between text-xs shadow-2xs"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-pastel-lavender text-pastel-darkPurple flex items-center justify-center font-bold text-[10px]">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-5 h-5 rounded-full bg-pink-100 text-[#4A1E6D] flex items-center justify-center font-bold text-[10px]">
                               {i + 1}
                             </span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            <span className="font-bold text-[#2D1B4E]">
                               {b.title}
                             </span>
-                            <span className="text-[10px] text-slate-500 font-mono">
+                            <span className="text-[10px] text-[#7E699B] font-mono">
                               ({b.categoryBadge || '⚡ Concurrency'})
                             </span>
                           </div>
 
                           {b.lastScore !== undefined && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-950 border border-amber-300">
                               Оценка: {b.lastScore}/10
                             </span>
                           )}
@@ -709,11 +707,11 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
               )}
 
               {/* Glowing Start Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   onClick={handleStartWorkout}
                   disabled={sourceMode === 'bank' && filteredBank.length === 0}
-                  className="w-full py-3.5 px-6 rounded-2xl font-bold text-sm bg-gradient-to-r from-pastel-darkPurple via-purple-900 to-pastel-accentRose text-white shadow-lg shadow-purple-950/20 hover:shadow-purple-950/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-4 px-6 rounded-2xl font-bold text-sm bg-gradient-to-r from-[#4A1E6D] via-[#7B2869] to-[#D94680] text-white shadow-lg shadow-pink-500/20 hover:shadow-pink-500/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Play className="w-4 h-4 fill-white" />
                   <span>
@@ -734,50 +732,50 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
               {/* 100% Exhaustion Victory State */}
               {isExhausted ? (
                 <div className="text-center py-10 space-y-4 max-w-md mx-auto">
-                  <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-lg border border-amber-300">
+                  <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 mx-auto flex items-center justify-center shadow-lg border border-amber-300">
                     <Trophy className="w-8 h-8" />
                   </div>
-                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  <h2 className="text-xl font-bold text-[#2D1B4E]">
                     Тема полностью закрыта на 100%!
                   </h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
-                    Вы проработали все подразделы темы <span className="font-semibold">{topicName}</span> без единого повтора.
+                  <p className="text-xs text-[#7E699B] leading-relaxed font-sans">
+                    Вы проработали все подразделы темы <span className="font-semibold text-[#4A1E6D]">{topicName}</span> без единого повтора.
                   </p>
                   <button
                     onClick={() => { setSeenQuestionIds([]); setIsExhausted(false); fetchNewChallenge([]); }}
-                    className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-pastel-accentRose text-white shadow-md hover:bg-pastel-accentRose/90 transition-all flex items-center justify-center gap-2 mx-auto"
+                    className="px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Пройти тему заново</span>
                   </button>
                 </div>
               ) : isLoadingChallenge ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-                  <Loader2 className="w-8 h-8 text-pastel-accentRose animate-spin" />
-                  <p className="text-xs font-mono">Генерация продакшен-кейса с ошибкой через LiteLLM...</p>
+                <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#7E699B]">
+                  <Loader2 className="w-8 h-8 text-pink-600 animate-spin" />
+                  <p className="text-xs font-mono font-semibold">Генерация продакшен-кейса с ошибкой через LiteLLM...</p>
                 </div>
               ) : challenge ? (
                 <div className="space-y-6">
                   {/* Session Navigation Bar (Back, Counter, Next) */}
-                  <div className="flex items-center justify-between px-3 py-2 bg-white/70 dark:bg-slate-800/70 rounded-2xl border border-pastel-border shadow-2xs backdrop-blur-md">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-white/90 rounded-2xl border border-pink-200/70 shadow-xs backdrop-blur-md text-[#4A326D]">
                     <button
                       onClick={handlePreviousChallenge}
                       disabled={currentIndex <= 0}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-pastel-lavender/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl text-xs font-bold text-[#4A326D] hover:bg-pink-100/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       <span>Предыдущий</span>
                     </button>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold font-mono text-pastel-darkPurple dark:text-pastel-lavender bg-pastel-lavender/50 dark:bg-slate-900 px-3 py-1 rounded-xl border border-pastel-border">
+                      <span className="text-xs font-bold font-mono text-[#4A1E6D] bg-pink-100/80 px-3.5 py-1 rounded-xl border border-pink-200/80 shadow-2xs">
                         Задача {currentIndex + 1} из {history.length}
                       </span>
                     </div>
 
                     <button
                       onClick={handleNextChallenge}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-pastel-lavender/40 transition-all"
+                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl text-xs font-bold text-[#4A326D] hover:bg-pink-100/60 transition-all cursor-pointer"
                     >
                       <span>{currentIndex < history.length - 1 ? 'Следующий' : 'Новая подтема'}</span>
                       <ChevronRight className="w-4 h-4" />
@@ -796,24 +794,24 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   />
 
                   {/* AI Live Tutor Voice Station */}
-                  <div className="p-4 md:p-5 rounded-2xl bg-gradient-to-r from-pastel-lavender/40 via-pastel-card to-pastel-rose/30 border border-pastel-border shadow-sm space-y-4 backdrop-blur-md">
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50/90 via-white to-pink-50/80 border border-pink-200/80 shadow-xs space-y-4 backdrop-blur-md">
                     {/* Voice Bar Header with Tutor Role Switcher */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-pastel-border/60 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-pink-100 pb-3">
                       <div className="flex items-center gap-2">
-                        <Volume2 className="w-4 h-4 text-pastel-accentRose" />
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        <Volume2 className="w-4 h-4 text-pink-600" />
+                        <span className="text-xs font-bold text-[#2D1B4E]">
                           AI-Тьютор в реальном времени:
                         </span>
                       </div>
 
                       {/* AI Role Switcher (Code Review vs Freeform Chat) */}
-                      <div className="flex items-center gap-1 bg-white/80 dark:bg-slate-800 p-1 rounded-xl border border-pastel-border shadow-2xs self-start sm:self-auto">
+                      <div className="flex items-center gap-1 bg-pink-100/70 p-1 rounded-xl border border-pink-200/50 self-start sm:self-auto shadow-2xs">
                         <button
                           onClick={() => { setTutorRole('bug_hunt'); cleanupAudioSession(); }}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             tutorRole === 'bug_hunt'
-                              ? 'bg-pastel-accentRose text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                              ? 'bg-white text-[#4A1E6D] shadow-xs'
+                              : 'text-[#7E699B] hover:text-[#2D1B4E]'
                           }`}
                         >
                           <Bug className="w-3.5 h-3.5" />
@@ -822,10 +820,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
                         <button
                           onClick={() => { setTutorRole('free_chat'); cleanupAudioSession(); }}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             tutorRole === 'free_chat'
-                              ? 'bg-pastel-accentRose text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                              ? 'bg-white text-[#4A1E6D] shadow-xs'
+                              : 'text-[#7E699B] hover:text-[#2D1B4E]'
                           }`}
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
@@ -836,26 +834,26 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
                     {/* Microphone & Status Line with Dynamic Pastel Audio Aura */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3.5">
                         <button
                           onClick={isConnected ? cleanupAudioSession : startAudioSession}
                           className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer shadow-md ${
                             isConnected
                               ? 'bg-rose-500 text-white ring-4 ring-rose-500/20 animate-pulse'
-                              : 'bg-pastel-accentRose text-white hover:bg-pastel-accentRose/90 hover:scale-105'
+                              : 'bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white hover:scale-105'
                           }`}
                           title={isConnected ? 'Остановить разговор' : 'Включить микрофон и обсудить голосом'}
                         >
                           {/* Pastel Breathing Aura during active speech */}
                           {isConnected && (
-                            <span className="absolute inset-0 rounded-2xl bg-pastel-accentRose/40 animate-ping opacity-75 pointer-events-none" />
+                            <span className="absolute inset-0 rounded-2xl bg-pink-400/40 animate-ping opacity-75 pointer-events-none" />
                           )}
                           {isConnected ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                         </button>
 
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+                            <span className="text-xs font-bold text-[#2D1B4E]">
                               {isConnected
                                 ? (isAiSpeaking ? 'AI говорит...' : 'Слушаю вас...')
                                 : (tutorRole === 'bug_hunt' ? 'Обсудить с техлидом' : 'Свободный вопрос по коду')}
@@ -867,7 +865,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-sans">
+                          <p className="text-[11px] text-[#7E699B] font-sans">
                             {statusMessage}
                           </p>
                         </div>
@@ -876,7 +874,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       {/* Next Challenge Action */}
                       <button
                         onClick={handleNextChallenge}
-                        className="px-4 py-2.5 rounded-xl font-bold text-xs bg-white dark:bg-slate-800 border border-pastel-border hover:bg-pastel-lavender/40 transition-all flex items-center justify-center gap-1.5 text-slate-800 dark:text-slate-100 shadow-xs"
+                        className="px-4 py-2.5 rounded-xl font-bold text-xs bg-white border border-pink-200/80 hover:bg-pink-50/80 transition-all flex items-center justify-center gap-1.5 text-[#4A1E6D] shadow-xs cursor-pointer"
                       >
                         <span>{currentIndex < history.length - 1 ? 'Вперед по истории' : 'Следующая подтема'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -885,8 +883,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
                     {/* Live Transcript Bubble */}
                     {aiTranscript && (
-                      <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-pastel-border/80 text-xs text-slate-700 dark:text-slate-300 font-sans leading-relaxed">
-                        <span className="font-semibold text-pastel-darkPurple dark:text-pastel-lavender mr-1">
+                      <div className="p-3.5 rounded-xl bg-white border border-pink-200/80 text-xs text-[#3B2556] font-sans leading-relaxed shadow-2xs">
+                        <span className="font-bold text-[#4A1E6D] mr-1">
                           AI:
                         </span>
                         {aiTranscript}
@@ -895,7 +893,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </div>
 
                   {/* Hotkeys helper bar */}
-                  <div className="text-center text-[11px] font-mono text-slate-400 dark:text-slate-500 select-none">
+                  <div className="text-center text-[11px] font-mono text-[#9D88B5] select-none">
                     [← / →] Навигация по задачам • [Пробел] Микрофон
                   </div>
                 </div>

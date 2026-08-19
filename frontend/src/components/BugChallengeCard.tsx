@@ -159,77 +159,77 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
 
   return (
     <div className="w-full space-y-4">
-      {/* Top Banner with Title, Category, Difficulty, and Past Score Badge */}
-      <div className="bg-gradient-to-r from-pastel-card/90 via-pastel-lavender/30 to-pastel-card/90 rounded-2xl p-4 md:p-5 border border-pastel-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 backdrop-blur-md">
-        <div className="space-y-1">
+      {/* Top Banner in Pure Soft Luxury Pastel Style */}
+      <div className="bg-gradient-to-br from-[#FFF5F8] via-[#FAF5FF] to-white rounded-2xl p-4 md:p-5 border border-pink-200/70 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3.5 backdrop-blur-md">
+        <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pastel-rose/70 text-pastel-darkPurple border border-pastel-accentRose/30">
-              <Bug className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100/90 text-rose-900 border border-rose-200/80 shadow-2xs">
+              <Bug className="w-3.5 h-3.5 text-rose-700" />
               {challenge.categoryBadge || '⚡ Concurrency'}
             </span>
 
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${
               challenge.difficultyBadge === 'Senior'
-                ? 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60'
-                : 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60'
+                ? 'bg-purple-100/90 text-[#4A1E6D] border-purple-200/80'
+                : 'bg-emerald-100/90 text-emerald-950 border-emerald-200/80'
             }`}>
               {challenge.difficultyBadge || 'Middle'}
             </span>
 
-            {challenge.lastScore !== undefined && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                <Award className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                Прошлый результат: {challenge.lastScore}/10
-              </span>
-            )}
-
             {variantNumber !== undefined && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-pastel-lavender text-pastel-darkPurple border border-pastel-border">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-pink-100/80 text-[#4A1E6D] border border-pink-200/70 shadow-2xs">
                 Вариант {variantNumber}
               </span>
             )}
 
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+            {challenge.lastScore !== undefined && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
+                <Award className="w-3.5 h-3.5 text-amber-700" />
+                Прошлый результат: {challenge.lastScore}/10
+              </span>
+            )}
+
+            <span className="text-xs font-mono text-[#7E699B] font-semibold">
               {challenge.subtopic}
             </span>
           </div>
 
-          <h2 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-base md:text-lg font-bold text-[#2D1B4E] leading-snug flex items-center gap-2">
             {challenge.title}
           </h2>
         </div>
 
-        {/* Action Header: Generate Variation & Bookmark */}
+        {/* Action Header: Generate Variation & Bookmark in Luxury White-Glass Style */}
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {onGenerateVariation && (
             <button
               onClick={onGenerateVariation}
               disabled={isGeneratingVariation}
               title="Сгенерировать другой пример кода по этой же подтеме"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-pastel-accentRose/40 bg-white/90 dark:bg-slate-800 text-pastel-darkPurple dark:text-pastel-lavender hover:bg-pastel-lavender/40 transition-all shadow-2xs disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border border-pink-200/80 bg-white hover:bg-pink-50/80 text-[#4A1E6D] transition-all shadow-2xs disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
-              <Sparkles className={`w-3.5 h-3.5 text-pastel-accentRose ${isGeneratingVariation ? 'animate-spin' : ''}`} />
-              <span>{isGeneratingVariation ? 'Генерация варианта...' : '🎲 Другой пример этого бага'}</span>
+              <Sparkles className={`w-3.5 h-3.5 text-pink-600 ${isGeneratingVariation ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingVariation ? 'Генерация...' : '🎲 Другой пример этого бага'}</span>
             </button>
           )}
 
           <button
             onClick={handleToggleBookmark}
             title={bookmarked ? 'Удалить из шпаргалки' : 'Сохранить инсайт в шпаргалку'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-2xs hover:scale-[1.02] active:scale-[0.98] ${
               bookmarked
-                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-700 shadow-sm'
-                : 'bg-white/80 text-slate-700 hover:bg-pastel-lavender/50 border-pastel-border dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700'
+                ? 'bg-amber-100 text-amber-950 border-amber-300 shadow-xs'
+                : 'bg-white hover:bg-pink-50/80 text-[#4A1E6D] border-pink-200/80'
             }`}
           >
             {bookmarked ? (
               <>
-                <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <BookmarkCheck className="w-3.5 h-3.5 text-amber-700" />
                 <span>В шпаргалке</span>
               </>
             ) : (
               <>
-                <Bookmark className="w-3.5 h-3.5 text-slate-400" />
+                <Bookmark className="w-3.5 h-3.5 text-pink-500" />
                 <span>⭐ В шпаргалку</span>
               </>
             )}
@@ -237,17 +237,17 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
         </div>
       </div>
 
-      {/* Code Snippet with SOTA CodeViewer */}
+      {/* Code Snippet with SOTA CodeViewer (Velvet Obsidian Gemstone) */}
       <CodeViewer
         code={challenge.codeSnippet}
         language={challenge.language}
         title={`${challenge.language.toUpperCase()} • Проблемный код`}
       />
 
-      {/* Hints Accordion */}
+      {/* Hints Accordion in Soft Pastel Style */}
       {challenge.hints && challenge.hints.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5 px-1">
+          <div className="text-xs font-bold text-[#4A1E6D] flex items-center gap-1.5 px-1">
             <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
             <span>Подсказки (раскрывайте по необходимости):</span>
           </div>
@@ -258,22 +258,22 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               return (
                 <div
                   key={idx}
-                  className="rounded-xl border border-pastel-border/80 bg-pastel-card/60 backdrop-blur-sm overflow-hidden transition-all"
+                  className="rounded-2xl border border-pink-200/70 bg-white/90 backdrop-blur-sm overflow-hidden shadow-2xs transition-all"
                 >
                   <button
                     onClick={() => setOpenHintIndex(isOpen ? null : idx)}
-                    className="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-pastel-lavender/30 transition-colors"
+                    className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-semibold text-[#2D1B4E] hover:bg-pink-50/50 transition-colors cursor-pointer"
                   >
                     <span className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-pastel-lavender text-pastel-darkPurple flex items-center justify-center text-[10px] font-bold">
+                      <span className="w-5 h-5 rounded-full bg-pink-100 text-[#4A1E6D] flex items-center justify-center text-[10px] font-bold">
                         {idx + 1}
                       </span>
                       <span>Подсказка {idx + 1} {idx === 0 ? '(Направление)' : '(Локализация)'}</span>
                     </span>
                     {isOpen ? (
-                      <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                      <ChevronUp className="w-4 h-4 text-pink-600" />
                     ) : (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-[#7E699B]" />
                     )}
                   </button>
 
@@ -283,7 +283,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="px-3.5 pb-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-pastel-border/40 pt-2 bg-white/40 dark:bg-slate-900/30 font-sans"
+                        className="px-4 pb-3 text-xs text-[#4A326D] leading-relaxed border-t border-pink-100 pt-2.5 bg-[#FFF9FB] font-sans"
                       >
                         {hint}
                       </motion.div>
@@ -300,41 +300,41 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
       <div className="pt-1">
         <button
           onClick={() => setShowSolution(!showSolution)}
-          className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${
+          className={`w-full py-3 px-4 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer shadow-xs ${
             showSolution
-              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-              : 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 shadow-sm'
+              ? 'bg-white text-[#2D1B4E] border-pink-200 hover:bg-pink-50/50'
+              : 'bg-gradient-to-r from-emerald-100/90 to-teal-100/90 text-emerald-950 border-emerald-300 hover:opacity-95 hover:scale-[1.005]'
           }`}
         >
           {showSolution ? (
             <>
-              <EyeOff className="w-4 h-4" />
+              <EyeOff className="w-4 h-4 text-pink-600" />
               <span>Скрыть правильное решение и объяснение</span>
             </>
           ) : (
             <>
-              <Eye className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <Eye className="w-4 h-4 text-emerald-700" />
               <span>Показать правильное решение и Diff изменений</span>
             </>
           )}
         </button>
 
-        {/* Revealed Solution Box */}
+        {/* Revealed Solution Box in Clean Soft Style */}
         <AnimatePresence>
           {showSolution && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mt-3 p-4 md:p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-4 text-slate-800 dark:text-slate-200"
+              className="mt-3 p-5 rounded-2xl bg-gradient-to-b from-emerald-50/90 via-[#F7FCF9] to-white border border-emerald-200/90 space-y-4 text-slate-800 shadow-xs"
             >
               {/* Explanation of the Bug */}
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Суть ошибки и почему код ломается:</span>
                 </div>
-                <p className="text-xs md:text-sm text-slate-700 dark:text-slate-300 leading-relaxed pl-5 whitespace-pre-line font-sans">
+                <p className="text-xs md:text-sm text-[#2D1B4E] leading-relaxed pl-5 whitespace-pre-line font-sans font-normal">
                   {challenge.bugExplanation}
                 </p>
               </div>
@@ -342,17 +342,17 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               {/* Solution View Switcher (Fixed Code vs Unified Diff) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <span className="text-xs font-bold text-[#2D1B4E]">
                     Исправленная реализация:
                   </span>
 
-                  <div className="flex items-center gap-1 bg-white/80 dark:bg-slate-800 p-1 rounded-xl border border-pastel-border shadow-xs">
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-emerald-200/80 shadow-2xs">
                     <button
                       onClick={() => setSolutionViewMode('diff')}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         solutionViewMode === 'diff'
-                          ? 'bg-pastel-accentRose text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          ? 'bg-[#4A1E6D] text-white shadow-xs'
+                          : 'text-[#4A326D] hover:text-[#2D1B4E] hover:bg-pink-50'
                       }`}
                     >
                       <SplitSquareVertical className="w-3.5 h-3.5" />
@@ -360,10 +360,10 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                     </button>
                     <button
                       onClick={() => setSolutionViewMode('fixed')}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         solutionViewMode === 'fixed'
-                          ? 'bg-pastel-accentRose text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          ? 'bg-[#4A1E6D] text-white shadow-xs'
+                          : 'text-[#4A326D] hover:text-[#2D1B4E] hover:bg-pink-50'
                       }`}
                     >
                       <Code2 className="w-3.5 h-3.5" />
@@ -390,22 +390,22 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               </div>
 
               {/* Key Takeaways Card for Interview Prep */}
-              <div className="p-3.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-pastel-border space-y-2">
+              <div className="p-4 rounded-xl bg-white border border-pink-200/70 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-pastel-darkPurple dark:text-pastel-lavender">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#4A1E6D]">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     <span>💡 Ключевые выводы для собеседования:</span>
                   </div>
                   <button
                     onClick={handleToggleBookmark}
-                    className="text-[11px] font-medium text-pastel-accentRose hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-pink-600 hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    {bookmarked ? <BookmarkCheck className="w-3 h-3 text-amber-600" /> : <Bookmark className="w-3 h-3" />}
+                    {bookmarked ? <BookmarkCheck className="w-3.5 h-3.5 text-amber-600" /> : <Bookmark className="w-3.5 h-3.5 text-pink-500" />}
                     <span>{bookmarked ? 'В шпаргалке' : 'Сохранить эти выводы'}</span>
                   </button>
                 </div>
 
-                <ul className="space-y-1 pl-4 list-disc text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+                <ul className="space-y-1.5 pl-4 list-disc text-xs text-[#4A326D] leading-relaxed font-sans">
                   {takeaways.map((point, pIdx) => (
                     <li key={pIdx}>{point}</li>
                   ))}
