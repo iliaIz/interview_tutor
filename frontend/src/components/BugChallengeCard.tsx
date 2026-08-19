@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
-import { Copy, Check, ChevronDown, ChevronUp, Lightbulb, Eye, EyeOff, Bug, CheckCircle2, Sparkles, Terminal, Flame, ShieldAlert } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  Eye,
+  EyeOff,
+  Bug,
+  CheckCircle2,
+  Sparkles,
+  Terminal,
+  Code2
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface BugChallenge {
@@ -45,17 +58,40 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   const renderCodeWithLineNumbers = (code: string, isFix = false) => {
     const lines = code.trim().split('\n');
     return (
-      <div className="relative group rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-md">
-        <div className="bg-slate-800/90 px-4 py-2 flex items-center justify-between text-xs text-slate-400 font-mono border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-3.5 h-3.5 text-pastel-accentRose" />
-            <span className="font-semibold text-slate-300">
-              {isFix ? 'Исправленный код (Solution)' : `${challenge.language.toUpperCase()} • Code Snippet`}
-            </span>
+      <div className={`relative group rounded-2xl overflow-hidden border shadow-md transition-all ${
+        isFix
+          ? 'bg-[#151a24] border-emerald-900/60 shadow-emerald-950/20'
+          : 'bg-[#161322] border-[#2A243E] shadow-purple-950/20'
+      }`}>
+        {/* macOS-style Header */}
+        <div className={`px-4 py-2.5 flex items-center justify-between text-xs font-mono border-b ${
+          isFix ? 'bg-[#1a212d] border-emerald-900/40 text-emerald-300' : 'bg-[#1d192e] border-[#2A243E] text-[#B3A9D4]'
+        }`}>
+          <div className="flex items-center gap-3">
+            {/* Window Dots */}
+            <div className="flex items-center gap-1.5 opacity-80">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-400/80 inline-block"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block"></span>
+            </div>
+            <div className="flex items-center gap-1.5 pl-1 font-semibold text-xs text-slate-200">
+              {isFix ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Исправленная версия (Fixed Code)</span>
+                </>
+              ) : (
+                <>
+                  <Code2 className="w-3.5 h-3.5 text-pastel-accentRose" />
+                  <span>{challenge.language.toUpperCase()} • Code Snippet</span>
+                </>
+              )}
+            </div>
           </div>
+
           <button
             onClick={() => handleCopy(code)}
-            className="flex items-center gap-1 text-slate-400 hover:text-white transition cursor-pointer text-[11px]"
+            className="flex items-center gap-1 text-[#9D93C4] hover:text-white transition cursor-pointer text-[11px] px-2 py-0.5 rounded-md hover:bg-white/10"
             title="Скопировать код"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -63,11 +99,12 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
           </button>
         </div>
 
-        <pre className="p-4 font-mono text-xs md:text-sm overflow-x-auto m-0 leading-relaxed text-slate-100 selection:bg-rose-500/30">
+        {/* Code Content */}
+        <pre className="p-4 font-mono text-xs md:text-sm overflow-x-auto m-0 leading-relaxed text-[#EAE6F8] selection:bg-rose-500/30">
           <code>
             {lines.map((line, idx) => (
-              <div key={idx} className="table-row hover:bg-slate-800/40 transition-colors">
-                <span className="table-cell text-right pr-4 select-none text-slate-500 text-[11px] font-mono w-8">
+              <div key={idx} className="table-row hover:bg-white/[0.04] transition-colors">
+                <span className="table-cell text-right pr-4 select-none text-[#7E7796] text-[11px] font-mono w-8">
                   {idx + 1}
                 </span>
                 <span className="table-cell">{line || ' '}</span>
@@ -80,12 +117,12 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 md:p-6 border border-pastel-border shadow-xs space-y-4">
+    <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-pastel-border shadow-sm space-y-4 transition-all">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-pastel-border/60 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-pastel-rose text-pastel-accentRose flex items-center justify-center font-bold shadow-2xs">
-            <Bug className="w-4 h-4" />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-pastel-border/60 pb-3.5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-rose via-rose-100 to-pastel-lavender text-pastel-accentRose flex items-center justify-center font-bold shadow-2xs border border-pastel-rose">
+            <Bug className="w-5 h-5" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -93,26 +130,26 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                 {challenge.title}
               </h4>
               {challenge.categoryBadge && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-lavender/70 text-pastel-accentViolet border border-pastel-accentViolet/20">
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/20 shadow-2xs">
                   {challenge.categoryBadge}
                 </span>
               )}
               {challenge.difficultyBadge && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
                   challenge.difficultyBadge === 'Senior'
                     ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 }`}>
                   {challenge.difficultyBadge}
                 </span>
               )}
               {isSolved && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Решено
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 animate-fadeIn">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Решено
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-pastel-muted font-medium">
+            <span className="text-xs text-pastel-muted font-medium block mt-0.5">
               Подтема: <strong className="text-pastel-text">{challenge.subtopic}</strong>
             </span>
           </div>
@@ -122,35 +159,35 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="text-xs font-semibold text-pastel-accentViolet hover:text-pastel-accentRose transition flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pastel-lavender/40 border border-pastel-accentViolet/20 cursor-pointer disabled:opacity-50"
+            className="text-xs font-semibold text-pastel-accentViolet hover:text-pastel-accentRose transition flex items-center gap-1 px-3 py-1.5 rounded-xl bg-pastel-lavender/50 border border-pastel-accentViolet/20 cursor-pointer disabled:opacity-50 hover:shadow-2xs active:scale-95"
             title="Сгенерировать другой пример бага"
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-3.5 h-3.5" />
             <span>{isLoading ? 'Генерация...' : 'Другой баг'}</span>
           </button>
         )}
       </div>
 
-      {/* Code Snippet with Line Numbers */}
+      {/* Code Snippet with Line Numbers in Velvet Obsidian */}
       {renderCodeWithLineNumbers(challenge.codeSnippet, false)}
 
       {/* Hints Accordion */}
       {challenge.hints && challenge.hints.length > 0 && (
         <div className="space-y-1.5 pt-1">
-          <div className="text-xs font-semibold text-pastel-muted flex items-center gap-1 mb-1">
+          <div className="text-xs font-semibold text-pastel-muted flex items-center gap-1.5 mb-1.5">
             <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-            <span>Подсказки (если застрял):</span>
+            <span>Подсказки (если застряли на ревью):</span>
           </div>
           {challenge.hints.map((hint, idx) => {
             const isOpen = openHintIndex === idx;
             return (
-              <div key={idx} className="border border-pastel-border/70 rounded-xl overflow-hidden bg-pastel-bg/50">
+              <div key={idx} className="border border-pastel-border/70 rounded-2xl overflow-hidden bg-pastel-bg/40 transition-all">
                 <button
                   type="button"
                   onClick={() => setOpenHintIndex(isOpen ? null : idx)}
-                  className="w-full px-3.5 py-2 flex items-center justify-between text-left text-xs font-semibold text-pastel-text hover:bg-pastel-rose/30 transition cursor-pointer"
+                  className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-semibold text-pastel-text hover:bg-pastel-rose/30 transition cursor-pointer"
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-2">
                     <span className="text-amber-500 font-bold">Уровень {idx + 1}:</span>
                     {idx === 0 ? 'Направление внимания' : 'Локализация строк и механика'}
                   </span>
@@ -162,7 +199,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-3.5 pb-2.5 pt-1 text-xs text-pastel-text/90 leading-relaxed bg-white border-t border-pastel-border/40"
+                      className="px-4 pb-3 pt-1 text-xs text-pastel-text/90 leading-relaxed bg-white border-t border-pastel-border/40"
                     >
                       {hint}
                     </motion.div>
@@ -178,7 +215,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
       <div className="pt-2 border-t border-pastel-border/60">
         <button
           onClick={() => setShowSolution(!showSolution)}
-          className="w-full py-2 px-4 rounded-xl border border-pastel-border text-xs font-bold text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+          className="w-full py-2.5 px-4 rounded-2xl border border-pastel-border text-xs font-bold text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-[0.99]"
         >
           {showSolution ? <EyeOff className="w-3.5 h-3.5 text-pastel-accentRose" /> : <Eye className="w-3.5 h-3.5 text-pastel-accentViolet" />}
           <span>{showSolution ? 'Скрыть правильное решение' : 'Показать правильное решение и объяснение'}</span>
@@ -190,20 +227,20 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="mt-3 p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs md:text-sm space-y-3"
+              className="mt-3 p-4 md:p-5 rounded-3xl bg-emerald-50/70 border border-emerald-200 text-xs md:text-sm space-y-3 shadow-2xs"
             >
               <div>
-                <h5 className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
+                <h5 className="font-bold text-emerald-900 mb-1.5 flex items-center gap-1.5 text-xs md:text-sm">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   Суть ошибки и почему код ломается:
                 </h5>
-                <p className="text-emerald-950/90 leading-relaxed whitespace-pre-line">
+                <p className="text-emerald-950/90 leading-relaxed whitespace-pre-line text-xs md:text-sm">
                   {challenge.bugExplanation}
                 </p>
               </div>
 
               {challenge.fixedCode && (
-                <div className="mt-2">
+                <div className="mt-3">
                   <span className="font-bold text-emerald-900 block mb-1.5 text-xs">
                     Исправленная реализация:
                   </span>

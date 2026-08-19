@@ -33,36 +33,36 @@ const MODES: { id: TutorMode; name: string; icon: React.ComponentType<any>; badg
     id: 'deep_dive',
     name: 'Под капот',
     icon: Microscope,
-    badge: '🔬 Low-level',
-    desc: 'Разбор JVM, многопоточности, памяти и нюансов реализации'
+    badge: '🔬 JVM',
+    desc: 'Разбор нюансов JVM, многопоточности, байткода и структур памяти'
   },
   {
     id: 'socratic',
     name: 'Сократ',
     icon: Brain,
-    badge: '🏛 Наставник',
-    desc: 'Наводящие вопросы без готовых ответов'
+    badge: '🏛 Вопросы',
+    desc: 'Наводящие вопросы без готовых ответов для самостоятельного мышления'
   },
   {
     id: 'eli5',
     name: 'Простыми словами',
     icon: HelpCircle,
-    badge: '💡 Аналогии',
-    desc: 'Понятные ментальные модели и бытовые примеры'
+    badge: '💡 Быт',
+    desc: 'Понятные ментальные модели и жизненные аналогии без занудства'
   },
   {
     id: 'quick_qa',
     name: 'Коротко',
     icon: Zap,
     badge: '⚡ Экспресс',
-    desc: 'Ответ в 2 предложениях без лишней воды'
+    desc: 'Четкий ответ за 15 секунд в двух предложениях'
   },
   {
     id: 'bug_hunt',
     name: 'Найти баг',
     icon: Bug,
-    badge: '🐛 Code Review',
-    desc: 'Генерация кода с ошибкой и устное ревью'
+    badge: '🐛 Ревью',
+    desc: 'Генерация кода с ошибкой по теме вопроса и устное код-ревью'
   }
 ];
 
@@ -350,28 +350,30 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
   };
 
   return (
-    <div className="mt-8 rounded-3xl bg-gradient-to-br from-pastel-bg via-white to-pastel-rose/20 border border-pastel-border p-5 md:p-6 shadow-sm">
+    <div className="mt-6 rounded-3xl bg-gradient-to-br from-pastel-bg/80 via-white to-pastel-rose/20 border border-pastel-border/80 p-4 md:p-5 shadow-xs transition-all">
       {/* Header & Mode Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet text-white flex items-center justify-center shadow-xs">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-pastel-text flex items-center gap-1.5">
-              Интерактивный AI-Тьютор
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-lavender text-pastel-accentViolet border border-pastel-accentViolet/20">
-                Voice & Code
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-bold text-xs md:text-sm text-pastel-text">
+                Интерактивный AI-Тьютор
+              </h3>
+              <span className="text-[9px] font-bold px-2 py-0.2 rounded-full bg-pastel-lavender text-pastel-accentViolet border border-pastel-accentViolet/20">
+                Live Voice
               </span>
-            </h3>
-            <p className="text-[11px] text-pastel-muted">Задай вопрос голосом или потренируйся в ревью кода</p>
+            </div>
+            <p className="text-[11px] text-pastel-muted">Обсуди карточку голосом в комфортном темпе</p>
           </div>
         </div>
 
         {/* Action Toggle Button */}
         <button
           onClick={toggleVoiceSession}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 ${
             isConnected
               ? 'bg-rose-500 text-white hover:bg-rose-600 animate-pulse'
               : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95'
@@ -379,18 +381,18 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
         >
           {isConnected ? (
             <>
-              <MicOff className="w-4 h-4" /> Завершить диалог
+              <MicOff className="w-3.5 h-3.5" /> Завершить диалог
             </>
           ) : (
             <>
-              <Mic className="w-4 h-4" /> Начать обсуждение
+              <Mic className="w-3.5 h-3.5" /> Начать диалог
             </>
           )}
         </button>
       </div>
 
-      {/* Mode Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-5 p-1.5 bg-pastel-card/70 rounded-2xl border border-pastel-border/60">
+      {/* Horizontal Pill Chips for Modes */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1.5 mb-3 no-scrollbar">
         {MODES.map((m) => {
           const Icon = m.icon;
           const isActive = activeMode === m.id;
@@ -403,28 +405,30 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
                   setActiveMode(m.id);
                 }
               }}
-              className={`flex flex-col items-center justify-center p-2 rounded-xl text-center transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-white text-pastel-text shadow-xs font-bold border border-pastel-border'
-                  : 'text-pastel-muted hover:text-pastel-text hover:bg-white/50 font-medium'
+                  ? 'bg-pastel-text text-white shadow-xs font-bold'
+                  : 'bg-white/80 text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
               }`}
               title={m.desc}
             >
-              <div className="flex items-center gap-1 mb-0.5">
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-pastel-accentRose' : 'text-pastel-muted'}`} />
-                <span className="text-xs">{m.name}</span>
-              </div>
-              <span className="text-[10px] text-pastel-muted opacity-80">{m.badge}</span>
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-pastel-accentRose' : 'text-pastel-muted'}`} />
+              <span>{m.name}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                isActive ? 'bg-white/20 text-white' : 'bg-pastel-bg text-pastel-muted'
+              }`}>
+                {m.badge}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Mode Description Banner */}
-      <div className="text-xs text-pastel-muted bg-white/70 rounded-xl px-3.5 py-2 border border-pastel-border/50 mb-4 flex items-center justify-between">
-        <span>{MODES.find((m) => m.id === activeMode)?.desc}</span>
+      {/* Mode Description & Connection Status */}
+      <div className="text-[11px] text-pastel-muted bg-white/70 rounded-xl px-3 py-1.5 border border-pastel-border/50 mb-3 flex items-center justify-between">
+        <span className="truncate mr-2">{MODES.find((m) => m.id === activeMode)?.desc}</span>
         {isConnected && (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             {isAiSpeaking ? 'AI говорит...' : isRecording ? 'Слушаю вас...' : 'Канал активен'}
           </span>
@@ -435,9 +439,9 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
       {activeMode === 'bug_hunt' ? (
         <div className="space-y-3">
           {isLoadingBug ? (
-            <div className="p-8 text-center bg-white rounded-2xl border border-pastel-border">
-              <Loader2 className="w-6 h-6 animate-spin text-pastel-accentRose mx-auto mb-2" />
-              <p className="text-xs font-semibold text-pastel-muted">Генерируем кейс с багом по этому вопросу...</p>
+            <div className="p-6 text-center bg-white rounded-2xl border border-pastel-border">
+              <Loader2 className="w-5 h-5 animate-spin text-pastel-accentRose mx-auto mb-2" />
+              <p className="text-xs font-semibold text-pastel-muted">Генерируем кейс с ошибкой по этому вопросу...</p>
             </div>
           ) : bugChallenge ? (
             <BugChallengeCard
@@ -453,21 +457,21 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
           )}
         </div>
       ) : (
-        /* Regular Tutor Voice Card Status */
-        <div className="bg-white rounded-2xl p-4 border border-pastel-border shadow-2xs space-y-3">
+        /* Regular Tutor Voice Status Box */
+        <div className="bg-white/90 rounded-2xl p-3.5 border border-pastel-border/70 shadow-2xs space-y-2.5">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-pastel-text flex items-center gap-1.5">
               <MessageSquare className="w-3.5 h-3.5 text-pastel-accentViolet" />
               Статус диалога:
             </span>
-            <span className="text-pastel-muted">{statusMessage}</span>
+            <span className="text-pastel-muted text-[11px]">{statusMessage}</span>
           </div>
 
           {/* AI Live Transcript Balloon */}
           {aiTranscript && (
             <div className="p-3 bg-pastel-lavender/30 rounded-xl border border-pastel-accentViolet/20 text-xs text-pastel-text leading-relaxed">
-              <span className="font-bold text-pastel-accentViolet block mb-1">Реплика AI-Тьютора:</span>
-              <p className="m-0">{aiTranscript}</p>
+              <span className="font-bold text-pastel-accentViolet block mb-1 text-[11px]">Реплика AI-Тьютора:</span>
+              <p className="m-0 text-xs">{aiTranscript}</p>
             </div>
           )}
         </div>

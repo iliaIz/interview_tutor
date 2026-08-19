@@ -33,7 +33,9 @@ import {
   Check,
   ListChecks,
   ChevronRight,
-  Bug
+  Bug,
+  Crown,
+  Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -95,10 +97,8 @@ export const TopicSelector: React.FC = () => {
   const fetchTopics = async () => {
     try {
       const res = await fetch('/api/topics');
-      if (res.ok) {
-        const data = await res.json();
-        setTopics(data);
-      }
+      const data = await res.json();
+      setTopics(data);
     } catch (e) {
       console.error('Error fetching topics:', e);
     } finally {
@@ -111,37 +111,48 @@ export const TopicSelector: React.FC = () => {
   }, []);
 
   const filteredTopics = useMemo(() => {
-    return topics.filter(t => {
+    return topics.filter((t) => {
       const matchesCategory =
         selectedCategory === 'Все разделы' || t.category === selectedCategory;
       const matchesSearch =
-        !searchQuery.trim() ||
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+        t.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [topics, selectedCategory, searchQuery]);
 
-  const totalQuestions = useMemo(() => {
-    return topics.reduce((acc, t) => acc + (t.total || 0), 0);
-  }, [topics]);
-
-  const handleStartTopic = async (topicId: string, topicName: string, isReset = false) => {
-    if (isReset) {
-      if (!confirm(`Вы уверены, что хотите сбросить прогресс по теме "${topicName}" и начать сначала?`)) {
-        return;
-      }
-      await fetch(`/api/topics/${topicId}/reset`, { method: 'POST' });
+  const handleStartTopic = async (topicId: string, topicName: string, reset: boolean = false) => {
+    if (reset) {
       resetTopicProgress(topicId);
     }
 
-    const isShuffle = shuffleMap[topicId] || false;
-    const res = await fetch(`/api/topics/${topicId}/batch?size=5&shuffle=${isShuffle}`);
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const isShuffle = shuffleMap[topicId] || false;
+      const res = await fetch(`/api/questions/${topicId}?limit=1000`);
+      const allQuestions = await res.json();
+
+      if (!allQuestions || allQuestions.length === 0) return;
+
+      const progress = topicsProgress[topicId];
+      const completedSet = new Set(progress?.completedIds || []);
+
+      let remainingQuestions = reset ? allQuestions : allQuestions.filter((q: any) => !completedSet.has(q.id));
+
+      if (remainingQuestions.length === 0) {
+        remainingQuestions = allQuestions;
+      }
+
+      if (isShuffle) {
+        remainingQuestions = [...remainingQuestions].sort(() => Math.random() - 0.5);
+      }
+
+      const batchPortion = remainingQuestions.slice(0, 10);
+
       setSelectedTopic(topicId, topicName);
-      setBatch(data.questions);
+      setBatch(batchPortion);
       setView('study');
+    } catch (e) {
+      console.error('Error starting topic batch:', e);
     }
   };
 
@@ -149,92 +160,76 @@ export const TopicSelector: React.FC = () => {
     openRecapModal({
       topicId,
       topicName,
-      title: `Обзор ключевых вопросов: ${topicName}`,
+      title: `Полный пересказ темы: ${topicName}`,
     });
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-4 border-pastel-accentRose/30 border-t-pastel-accentRose rounded-full animate-spin"></div>
-        <p className="mt-4 text-pastel-muted font-medium">Загрузка базы вопросов...</p>
+      <div className="max-w-5xl mx-auto px-4 py-16 text-center">
+        <div className="w-12 h-12 border-4 border-pastel-accentRose border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm font-semibold text-pastel-muted">Загрузка каталога тем...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Header Banner */}
-      <div className="text-center mb-8">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-bold uppercase tracking-wider mb-3 border border-pastel-accentRose/30 shadow-2xs">
-          <Sparkles className="w-4 h-4 text-pastel-accentRose" /> База знаний • 746+ актуальных вопросов
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      {/* Hero Welcome Banner */}
+      <div className="text-center max-w-2xl mx-auto space-y-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20 shadow-2xs">
+          <Sparkles className="w-3.5 h-3.5" /> Премиальная база знаний Java & Spring
         </span>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-pastel-text tracking-tight mb-2.5">
-          Твой путь к офферу Java Developer
-        </h1>
-        <p className="text-pastel-muted max-w-2xl mx-auto text-sm md:text-base leading-relaxed">
-          Спокойная и структурированная подготовка без стресса: интерактивные карточки, живые устные собеседования с Gemini Live и аудиоподкасты в дорогу.
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-pastel-text">
+          Выбери тему для подготовки
+        </h2>
+        <p className="text-sm text-pastel-muted leading-relaxed">
+          Изучай эталонные ответы, тренируйся в устном AI-интервью и ищи скрытые баги в реальном коде.
         </p>
       </div>
 
-      {/* Controls: Search and Category Tabs */}
-      <div className="mb-8 space-y-4">
-        {/* Search Bar */}
-        <div className="relative max-w-md mx-auto">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-pastel-muted" />
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-3.5 rounded-3xl border border-pastel-border shadow-xs">
+        {/* Category Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3.5 py-1.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                selectedCategory === cat
+                  ? 'bg-pastel-text text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Search Input */}
+        <div className="relative w-full md:w-64">
+          <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            placeholder="Поиск по темам..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по теме или описанию..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-pastel-border text-sm text-pastel-text placeholder-pastel-muted focus:outline-none focus:ring-2 focus:ring-pastel-accentRose/30 focus:border-pastel-accentRose transition shadow-sm"
+            className="w-full pl-9 pr-4 py-2 bg-pastel-bg border border-pastel-border rounded-2xl text-xs text-pastel-text placeholder-pastel-muted focus:outline-none focus:ring-2 focus:ring-pastel-accentRose/40 transition"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-pastel-muted hover:text-pastel-text bg-pastel-bg px-2 py-0.5 rounded-md"
-            >
-              Сброс
-            </button>
-          )}
-        </div>
-
-        {/* Categories Bar */}
-        <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
-          {CATEGORIES.map((cat) => {
-            const isActive = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 border ${
-                  isActive
-                    ? 'bg-pastel-accentViolet text-white border-pastel-accentViolet shadow-sm'
-                    : 'bg-white text-pastel-muted border-pastel-border hover:text-pastel-text hover:bg-pastel-bg'
-                }`}
-              >
-                {cat}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="flex items-center justify-between mb-6 px-1 text-xs text-pastel-muted font-medium">
-        <span>Показано разделов: <strong className="text-pastel-text">{filteredTopics.length}</strong> из {topics.length}</span>
-        <span>Всего вопросов в базе: <strong className="text-pastel-text">{totalQuestions}</strong></span>
-      </div>
-
-      {/* Grid of Topics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Topics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <AnimatePresence>
           {filteredTopics.map((t, idx) => {
-            const IconComponent = ICON_MAP[t.icon] || BookOpen;
+            const IconComponent = ICON_MAP[t.icon] || Coffee;
+            const progress = topicsProgress[t.id];
+            const completedCount = progress?.completedCount || 0;
+            const percentage = progress?.percentage || 0;
             const isShuffle = shuffleMap[t.id] || false;
-            const storedProgress = topicsProgress[t.id];
-            const percentage = storedProgress?.percentage ?? t.percentage ?? 0;
-            const completedCount = storedProgress?.completedCount ?? t.completedCount ?? 0;
+            const isFullyMastered = percentage === 100;
 
             return (
               <motion.div
@@ -244,41 +239,52 @@ export const TopicSelector: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.3) }}
-                className="bg-white rounded-2xl p-5 border border-pastel-border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden group"
+                className={`rounded-3xl p-5 border transition-all duration-300 flex flex-col justify-between relative overflow-hidden group ${
+                  isFullyMastered
+                    ? 'bg-gradient-to-br from-white via-amber-50/20 to-pastel-rose/25 ring-2 ring-amber-300/60 shadow-md shadow-amber-200/20 border-amber-200/80'
+                    : 'bg-white/95 backdrop-blur-sm border-pastel-border shadow-xs hover:shadow-md'
+                }`}
               >
                 <div>
                   {/* Top Row: Category tag + Progress badge */}
                   <div className="flex items-start justify-between mb-3">
-                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border/60">
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border/60">
                       {t.category}
                     </span>
 
-                    {/* Mini circular progress */}
-                    <div className="relative w-11 h-11 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90">
-                        <circle
-                          cx="22"
-                          cy="22"
-                          r="17"
-                          className="text-pastel-border"
-                          strokeWidth="4"
-                          fill="transparent"
-                        />
-                        <circle
-                          cx="22"
-                          cy="22"
-                          r="17"
-                          stroke={t.color || '#6C5CE7'}
-                          strokeWidth="4"
-                          fill="transparent"
-                          strokeDasharray={107}
-                          strokeDashoffset={107 - (107 * percentage) / 100}
-                          strokeLinecap="round"
-                          className="transition-all duration-500"
-                        />
-                      </svg>
-                      <span className="absolute text-[10px] font-bold text-pastel-text">{percentage}%</span>
-                    </div>
+                    {/* Mini circular progress or Mastered Trophy */}
+                    {isFullyMastered ? (
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100/80 text-amber-900 border border-amber-300 text-[10px] font-bold shadow-2xs animate-pulse">
+                        <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                        <span>Mastered</span>
+                      </div>
+                    ) : (
+                      <div className="relative w-10 h-10 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle
+                            cx="20"
+                            cy="20"
+                            r="15"
+                            className="text-pastel-border"
+                            strokeWidth="3.5"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="20"
+                            cy="20"
+                            r="15"
+                            stroke={t.color || '#6C5CE7'}
+                            strokeWidth="3.5"
+                            fill="transparent"
+                            strokeDasharray={94}
+                            strokeDashoffset={94 - (94 * percentage) / 100}
+                            strokeLinecap="round"
+                            className="transition-all duration-500"
+                          />
+                        </svg>
+                        <span className="absolute text-[10px] font-bold text-pastel-text">{percentage}%</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Icon & Title - Clickable to open QuestionExplorer */}
@@ -287,8 +293,8 @@ export const TopicSelector: React.FC = () => {
                     className="flex items-center gap-3 mb-2 cursor-pointer group/title"
                   >
                     <div
-                      className="p-2.5 rounded-xl flex items-center justify-center shrink-0 group-hover/title:scale-105 transition-transform"
-                      style={{ backgroundColor: `${t.color}15`, color: t.color }}
+                      className="p-2.5 rounded-2xl flex items-center justify-center shrink-0 group-hover/title:scale-105 transition-transform shadow-2xs"
+                      style={{ backgroundColor: `${t.color}18`, color: t.color }}
                     >
                       <IconComponent className="w-5 h-5" />
                     </div>
@@ -311,21 +317,23 @@ export const TopicSelector: React.FC = () => {
 
                 <div>
                   {/* Progress Detail Bar */}
-                  <div className="mb-4 bg-pastel-bg/70 rounded-xl p-2.5 flex items-center justify-between text-xs text-pastel-muted">
+                  <div className={`mb-3.5 rounded-2xl p-2.5 flex items-center justify-between text-xs ${
+                    isFullyMastered ? 'bg-amber-50/70 text-amber-900 border border-amber-200/60' : 'bg-pastel-bg/70 text-pastel-muted'
+                  }`}>
                     <span>Пройдено: <strong className="text-pastel-text">{completedCount}</strong>/{t.total}</span>
-                    <span className="font-semibold text-pastel-accentViolet text-[11px]">
-                      {percentage === 100 ? '🎉 Завершено' : percentage > 0 ? 'В процессе' : 'Не начато'}
+                    <span className="font-bold text-pastel-accentViolet text-[11px]">
+                      {isFullyMastered ? '✨ 100% Освоено' : percentage > 0 ? 'В процессе' : 'Не начато'}
                     </span>
                   </div>
 
                   {/* Shuffle Toggle */}
-                  <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="flex items-center justify-between mb-3 px-1">
                     <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-pastel-muted select-none hover:text-pastel-text transition-colors">
                       <input
                         type="checkbox"
                         checked={isShuffle}
                         onChange={() => toggleShuffle(t.id)}
-                        className="w-3.5 h-3.5 rounded text-pastel-accentRose focus:ring-pastel-accentRose border-gray-300 transition"
+                        className="w-3.5 h-3.5 rounded text-pastel-accentRose focus:ring-pastel-accentRose border-gray-300 transition cursor-pointer"
                       />
                       <Shuffle className="w-3 h-3" /> Случайный порядок
                     </label>
@@ -336,26 +344,38 @@ export const TopicSelector: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleStartTopic(t.id, t.name, false)}
-                        className="flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white py-2 px-3 rounded-xl font-semibold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                        className={`flex-1 text-white py-2 px-3 rounded-2xl font-bold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 ${
+                          isFullyMastered
+                            ? 'bg-gradient-to-r from-amber-500 via-rose-400 to-pastel-accentViolet shadow-amber-300/30'
+                            : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet'
+                        }`}
                         title="Быстрый старт: начать со следующей неизученной порции"
                       >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        {percentage > 0 ? 'Продолжить' : 'Быстрый старт'}
+                        {isFullyMastered ? (
+                          <>
+                            <Crown className="w-3.5 h-3.5" /> Закрепить тему
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            {percentage > 0 ? 'Продолжить' : 'Быстрый старт'}
+                          </>
+                        )}
                       </button>
 
                       <button
                         onClick={() => openTopicBugHunt(t.id, t.name)}
                         title="🐛 Тренажер багов & Code Review по теме"
-                        className="p-2 rounded-xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center cursor-pointer group/bug"
+                        className="p-2 rounded-2xl bg-pastel-rose text-pastel-accentRose hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/20 transition flex items-center justify-center cursor-pointer group/bug shadow-2xs active:scale-95"
                       >
-                        <Bug className="w-3.5 h-3.5 group-hover/bug:scale-110 transition-transform" />
+                        <Bug className="w-4 h-4 group-hover/bug:scale-110 transition-transform" />
                       </button>
 
                       {percentage > 0 && (
                         <button
                           onClick={() => handleStartTopic(t.id, t.name, true)}
                           title="Сбросить прогресс"
-                          className="p-2 rounded-xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center cursor-pointer"
+                          className="p-2 rounded-2xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center cursor-pointer shadow-2xs active:scale-95"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                         </button>
@@ -365,7 +385,7 @@ export const TopicSelector: React.FC = () => {
                     {/* Secondary button: Выбрать конкретные вопросы */}
                     <button
                       onClick={() => openTopicQuestions(t.id, t.name)}
-                      className="w-full py-1.5 px-3 rounded-xl bg-pastel-bg hover:bg-pastel-lavender/60 text-pastel-text border border-pastel-border/80 font-medium text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-1.5 px-3 rounded-2xl bg-pastel-bg hover:bg-pastel-lavender/60 text-pastel-text border border-pastel-border/80 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99]"
                       title="Открыть полный список вопросов с возможностью выбора"
                     >
                       <ListChecks className="w-3.5 h-3.5 text-pastel-accentViolet" />
@@ -378,14 +398,6 @@ export const TopicSelector: React.FC = () => {
           })}
         </AnimatePresence>
       </div>
-
-      {filteredTopics.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl border border-pastel-border mt-4">
-          <BookOpen className="w-10 h-10 text-pastel-muted mx-auto mb-3 opacity-50" />
-          <h3 className="text-base font-semibold text-pastel-text mb-1">Разделы не найдены</h3>
-          <p className="text-xs text-pastel-muted">Попробуйте изменить поисковый запрос или выбрать другую категорию</p>
-        </div>
-      )}
     </div>
   );
 };
