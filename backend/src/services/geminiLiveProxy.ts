@@ -506,8 +506,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       candidateGaps
     });
 
-    const toolDeclarations: any[] = [
-      {
+    const toolDeclarations: any[] = [];
+
+    if (sessionType === 'interview') {
+      toolDeclarations.push({
         name: 'submit_interview_evaluation',
         description: 'Сохранить итоговую оценку, баллы и рекомендации по устному ответу кандидата',
         parameters: {
@@ -532,10 +534,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           },
           required: ['score', 'isPassed', 'positivePoints', 'missingPoints', 'spokenFeedback']
         }
-      }
-    ];
-
-    if (sessionType === 'tutor') {
+      });
+    } else if (sessionType === 'tutor' && tutorMode === 'bug_hunt') {
       toolDeclarations.push({
         name: 'mark_bug_solved',
         description: 'Зафиксировать успешное нахождение и объяснение бага кандидатом',
@@ -551,7 +551,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       });
     }
 
-    const setupMessage = {
+    const setupMessage: any = {
       setup: {
         model: `models/${liveModel}`,
         generationConfig: {
@@ -567,14 +567,17 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         },
         systemInstruction: {
           parts: [{ text: systemPromptText }]
-        },
-        tools: [
-          {
-            functionDeclarations: toolDeclarations
-          }
-        ]
+        }
       }
     };
+
+    if (toolDeclarations.length > 0) {
+      setupMessage.setup.tools = [
+        {
+          functionDeclarations: toolDeclarations
+        }
+      ];
+    }
 
     geminiSocket.on('open', () => {
       console.log(`✅ Connected to Upstream Gemini Live WS (${liveModel}), sending setup frame...`);

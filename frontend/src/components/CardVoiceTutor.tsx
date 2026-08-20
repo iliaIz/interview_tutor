@@ -1,22 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mic,
   MicOff,
   Sparkles,
-  Volume2,
   Brain,
   Microscope,
   HelpCircle,
   Zap,
   Bug,
-  RotateCcw,
   Loader2,
-  CheckCircle2,
-  MessageSquare,
-  Sparkle
+  MessageSquare
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
+import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { Question } from '../store/useAppStore';
@@ -75,43 +70,36 @@ const MODES: { id: TutorMode; name: string; icon: React.ComponentType<any>; badg
 
 export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicName }) => {
   const [activeMode, setActiveMode] = useState<TutorMode>('deep_dive');
-  const [isConnected, setIsConnected] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string>('Нажми микрофон, чтобы обсудить голосом');
-  const [aiTranscript, setAiTranscript] = useState<string>('');
   
   // Bug Challenge State
   const [bugChallenge, setBugChallenge] = useState<BugChallenge | null>(null);
   const [isLoadingBug, setIsLoadingBug] = useState(false);
   const [isBugSolved, setIsBugSolved] = useState(false);
 
-  // Audio & WS Refs
-  const wsRef = useRef<WebSocket | null>(null);
-  const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const inputAudioCtxRef = useRef<AudioContext | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const isRecordingRef = useRef(false);
-  const isAiSpeakingRef = useRef(false);
+  // Unified Live Audio Hook
+  const {
+    isConnected,
+    isAiSpeaking,
+    isRecording,
+    statusMessage,
+    aiTranscript,
+    startSession,
+    disconnectSession,
+    setAiTranscript
+  } = useLiveAudioSession({
+    onBugSolved: (payload) => {
+      setIsBugSolved(true);
+      triggerSuccessConfetti();
+    }
+  });
 
-  // Sync ref
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
-
-  useEffect(() => {
-    isAiSpeakingRef.current = isAiSpeaking;
-  }, [isAiSpeaking]);
-
-  // Clean up on unmount or question switch
+  // Clean up on question switch
   useEffect(() => {
     disconnectSession();
     setBugChallenge(null);
     setIsBugSolved(false);
     setAiTranscript('');
-    setStatusMessage('Нажми микрофон, чтобы обсудить голосом');
-  }, [question.id]);
+  }, [question.id, disconnectSession, setAiTranscript]);
 
   // Fetch Bug Challenge if mode switched to bug_hunt and not loaded yet
   const fetchBugChallenge = async () => {
@@ -145,98 +133,11 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
     }
   }, [activeMode, question.id]);
 
-  const initMicrophone = async () => {
-    try {
-      if (mediaStreamRef.current && inputAudioCtxRef.current) return;
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-      mediaStreamRef.current = stream;
-
-      const audioCtx =
-        playoutManagerRef.current?.getContext() ||
-        new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
-      inputAudioCtxRef.current = audioCtx;
-
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
-      await audioCtx.audioWorklet.addModule('/worklets/audio-capture-processor.js');
-
-      const sourceNode = audioCtx.createMediaStreamSource(stream);
-      const workletNode = new AudioWorkletNode(audioCtx, 'audio-capture-processor');
-      workletNodeRef.current = workletNode;
-
-      workletNode.port.onmessage = (event: MessageEvent) => {
-        const { type, pcmBuffer } = event.data;
-        if (type === 'AUDIO_FRAME') {
-          const isAiCurrentlySpeaking = isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
-          const shouldTransmit =
-            wsRef.current &&
-            wsRef.current.readyState === WebSocket.OPEN &&
-            isRecordingRef.current &&
-            !isAiCurrentlySpeaking;
-
-          if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            const bytes = new Uint8Array(pcmBuffer);
-            let binary = '';
-            for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const base64Audio = btoa(binary);
-
-            const realtimeInput = {
-              realtimeInput: {
-                mediaChunks: [
-                  {
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: base64Audio
-                  }
-                ]
-              }
-            };
-            wsRef.current.send(JSON.stringify(realtimeInput));
-          }
-        }
-      };
-
-      const gainAnchor = audioCtx.createGain();
-      gainAnchor.gain.value = 0.0;
-      sourceNode.connect(workletNode);
-      workletNode.connect(gainAnchor);
-      gainAnchor.connect(audioCtx.destination);
-    } catch (err: any) {
-      console.error('Failed to init microphone worklet:', err);
-      throw err;
-    }
-  };
-
-  const startVoiceSession = async () => {
-    try {
-      setStatusMessage('Подключение к AI шлюзу...');
-
-      // Playout Setup with gesture unlock (24kHz Web Audio + Speakerphone bridge)
-      playoutManagerRef.current = new AudioPlayoutManager();
-      await playoutManagerRef.current.resume();
-
-      // Init microphone on the unified AudioContext
-      await initMicrophone();
-
-      // Resolve host and port (handles container/dev port forwarding)
-      let hostWithPort = window.location.host;
-      if (window.location.port === '8090') {
-        hostWithPort = `${window.location.hostname}:8091`;
-      }
-
-      // Build Handshake URL Query Parameters
-      const params = new URLSearchParams({
+  const toggleVoiceSession = () => {
+    if (isConnected) {
+      disconnectSession();
+    } else {
+      void startSession({
         sessionType: 'tutor',
         tutorMode: activeMode,
         topic: topicName || 'Java & Spring Framework',
@@ -247,151 +148,8 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
         bugTitle: bugChallenge?.title || '',
         bugExplanation: bugChallenge?.bugExplanation || '',
         codeSnippet: bugChallenge?.codeSnippet || '',
-        hints: JSON.stringify(bugChallenge?.hints || [])
+        hints: bugChallenge?.hints || []
       });
-
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        setStatusMessage('AI подключается к диалогу...');
-      };
-
-      ws.onmessage = async (event) => {
-        try {
-          let textPayload = '';
-          if (typeof event.data === 'string') {
-            textPayload = event.data;
-          } else if (event.data instanceof Blob) {
-            textPayload = await event.data.text();
-          } else if (event.data instanceof ArrayBuffer) {
-            textPayload = new TextDecoder().decode(event.data);
-          }
-          if (!textPayload) return;
-
-          const data = JSON.parse(textPayload);
-
-          if (data.type === 'setupComplete') {
-            setStatusMessage('🎙️ Слушаю вас... Задайте любой вопрос или поделитесь мыслями.');
-            setIsRecording(true);
-            isRecordingRef.current = true;
-            return;
-          }
-
-          if (data.type === 'bug_solved') {
-            setIsBugSolved(true);
-            setStatusMessage(`🎉 ${data.payload?.feedback || 'Отлично! Баг найден!'}`);
-            triggerSuccessConfetti();
-            return;
-          }
-
-          if (data.error) {
-            setStatusMessage(`❌ ${data.error}`);
-            return;
-          }
-
-          if (data.serverContent) {
-            // Barge-in Interruption handling
-            if (data.serverContent.interrupted) {
-              playoutManagerRef.current?.handleInterruption();
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-              setStatusMessage('⚡ Речь прервана. Говорите...');
-            }
-
-            // Model Speech turn
-            if (data.serverContent.modelTurn?.parts) {
-              setIsAiSpeaking(true);
-              isAiSpeakingRef.current = true;
-              setIsRecording(false);
-              isRecordingRef.current = false;
-              setStatusMessage('🔊 AI тьютор отвечает...');
-
-              for (const part of data.serverContent.modelTurn.parts) {
-                if (part.text) {
-                  setAiTranscript((prev) => (prev ? `${prev} ${part.text}` : part.text));
-                }
-                const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
-                if (pcmBase64) {
-                  playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
-                }
-              }
-            }
-
-            // Turn Completed -> Model finished speaking, pass turn to user
-            if (data.serverContent.turnComplete) {
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-
-              // Allow 200ms for audio reverberation / room echo to settle before opening mic gate
-              setTimeout(() => {
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  setIsRecording(true);
-                  isRecordingRef.current = true;
-                  setStatusMessage('🎙️ Ваша очередь: говорите в микрофон...');
-                }
-              }, 200);
-            }
-          }
-        } catch (e) {
-          console.error('Error handling WebSocket message in CardVoiceTutor:', e);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        setStatusMessage('Ошибка подключения к шлюзу');
-      };
-
-      ws.onclose = () => {
-        disconnectSession();
-      };
-    } catch (err: any) {
-      console.error('Failed to start voice tutor session:', err);
-      setStatusMessage('Ошибка запуска аудиосессии');
-      disconnectSession();
-    }
-  };
-
-  const disconnectSession = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    if (workletNodeRef.current) {
-      try {
-        workletNodeRef.current.disconnect();
-      } catch {}
-      workletNodeRef.current = null;
-    }
-    if (inputAudioCtxRef.current && inputAudioCtxRef.current !== playoutManagerRef.current?.getContext()) {
-      try {
-        inputAudioCtxRef.current.close();
-      } catch {}
-    }
-    inputAudioCtxRef.current = null;
-    if (playoutManagerRef.current) {
-      void playoutManagerRef.current.teardown();
-      playoutManagerRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
-    setIsConnected(false);
-    setIsRecording(false);
-    setIsAiSpeaking(false);
-    setStatusMessage('Сессия завершена');
-  };
-
-  const toggleVoiceSession = () => {
-    if (isConnected) {
-      disconnectSession();
-    } else {
-      void startVoiceSession();
     }
   };
 
@@ -528,4 +286,5 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
     </div>
   );
 };
+
 export default CardVoiceTutor;
