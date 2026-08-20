@@ -1,0 +1,41 @@
+# Caddyfile for InterviewPrep AI (Production 2026)
+# Supports djelu.site, www.djelu.site, and fallback 192-124-182-59.sslip.io
+
+{
+    email admin@djelu.site
+    auto_https disable_redirects
+}
+
+(common_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "microphone=(self), camera=(), geolocation=()"
+    }
+}
+
+djelu.site, www.djelu.site, 192-124-182-59.sslip.io {
+    import common_headers
+    encode zstd gzip
+
+    # 1. Real-Time Gemini Live Audio WebSocket Proxy (Zero Buffering)
+    handle /ws/* {
+        reverse_proxy backend:5000 {
+            flush_interval -1
+        }
+    }
+
+    # 2. REST API endpoints
+    handle /api/* {
+        reverse_proxy backend:5000
+    }
+
+    # 3. Frontend Static SPA with HTML5 History Routing
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
+}

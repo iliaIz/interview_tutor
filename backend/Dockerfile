@@ -1,34 +1,49 @@
-FROM node:20-alpine AS builder
+# Multi-Stage Production Dockerfile for InterviewPrep Backend
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3 native addon
-RUN apk add --no-cache make g++ gcc python3
+# Install build tools for native SQLite bindings
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
-RUN npm install
+COPY package*.json tsconfig.json ./
+RUN npm ci
 
-COPY tsconfig.json ./
-COPY src ./src
-
+COPY src/ ./src/
 RUN npm run build
 
-FROM node:20-alpine AS runner
+# Stage 2: Production Runtime
+FROM node:22-bookworm-slim AS runner
 
 WORKDIR /app
+ENV NODE_ENV=production
 
-RUN apk add --no-cache sqlite ffmpeg
-
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm install --only=production
+# Install production dependencies only with native build tools
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && npm ci --omit=dev \
+    && apt-get purge -y --auto-remove python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy compiled JavaScript
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src ./src
 
+# Expose internal port
 EXPOSE 5000
 
-ENV PORT=5000
-ENV NODE_ENV=production
+# Create data and storage volume directories for SQLite & Podcast Audio
+RUN mkdir -p /app/data /app/storage
+
+# Run as non-root node user
+USER node
 
 CMD ["node", "dist/server.js"]

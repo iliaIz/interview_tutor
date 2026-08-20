@@ -272,8 +272,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
    */
   const connectLiveWebSocket = (qIndex: number, targetQ: { id: string; topic: string; question: string; answer: string }) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
-    const port = window.location.port === '8090' ? '8091' : window.location.port || '8091';
+    let hostWithPort = window.location.host;
+    if (window.location.port === '8090') {
+      hostWithPort = `${window.location.hostname}:8091`;
+    }
 
     const params = new URLSearchParams({
       questionId: targetQ.id,
@@ -291,7 +293,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       totalQuestions: String(totalQuestions)
     });
 
-    const wsUrl = `${protocol}//${host}:${port}/ws/live?${params.toString()}`;
+    const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
     console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}):`, wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

@@ -1,0 +1,57 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: interview-caddy-ssl
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv/frontend:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app_internal_net
+    mem_limit: 128m
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: interview-backend-api
+    restart: unless-stopped
+    expose:
+      - "5000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - LITELLM_BASE_URL=http://litellm-gateway:4000/v1
+      - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-smart}
+      - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-live}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-2.5-flash-tts}
+      - GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL:-text-embedding-004}
+      - LITELLM_API_KEY=${LITELLM_API_KEY:-sk-litellm-local-proxy-master-key-12345}
+    volumes:
+      - ./data:/app/data
+      - ./storage:/app/storage
+      - ./json:/app/json:ro
+    networks:
+      - app_internal_net
+      - litellm_net
+    mem_limit: 256m
+
+networks:
+  app_internal_net:
+    driver: bridge
+  litellm_net:
+    name: litellm_shared_network
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:
