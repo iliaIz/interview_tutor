@@ -349,12 +349,11 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       cleanupAudioSession();
 
       playoutManagerRef.current = new AudioPlayoutManager();
-      void playoutManagerRef.current.resume();
+      await playoutManagerRef.current.resume();
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
@@ -362,11 +361,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       });
       mediaStreamRef.current = stream;
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const inputCtx = new AudioCtx({ sampleRate: 16000 });
-      if (inputCtx.state === 'suspended') {
-        await inputCtx.resume();
-      }
+      const inputCtx = playoutManagerRef.current.getContext();
       inputAudioCtxRef.current = inputCtx;
 
       const host = window.location.host;
@@ -401,7 +396,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         };
         ws.send(JSON.stringify(setupMessage));
 
-        // Start Recording Mic
+        // Start Recording Mic with adaptive downsampling to 16kHz
         const source = inputCtx.createMediaStreamSource(stream);
         const processor = inputCtx.createScriptProcessor(2048, 1, 1);
         audioProcessorRef.current = processor;
@@ -409,9 +404,13 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         processor.onaudioprocess = (e: any) => {
           if (ws.readyState !== WebSocket.OPEN) return;
           const inputData = e.inputBuffer.getChannelData(0);
-          const pcm16 = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            const s = Math.max(-1, Math.min(1, inputData[i]));
+          const ratio = (inputCtx.sampleRate || 48000) / 16000;
+          const outLength = Math.floor(inputData.length / ratio);
+          const pcm16 = new Int16Array(outLength);
+
+          for (let i = 0; i < outLength; i++) {
+            const srcIdx = Math.floor(i * ratio);
+            const s = Math.max(-1, Math.min(1, inputData[srcIdx]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
           }
 
@@ -497,10 +496,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       audioProcessorRef.current.disconnect();
       audioProcessorRef.current = null;
     }
-    if (inputAudioCtxRef.current) {
+    if (inputAudioCtxRef.current && inputAudioCtxRef.current !== playoutManagerRef.current?.getContext()) {
       inputAudioCtxRef.current.close().catch(() => {});
-      inputAudioCtxRef.current = null;
     }
+    inputAudioCtxRef.current = null;
     if (playoutManagerRef.current) {
       void playoutManagerRef.current.teardown();
       playoutManagerRef.current = null;

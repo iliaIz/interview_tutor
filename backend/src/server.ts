@@ -32,6 +32,12 @@ app.use('/api/stt', sttRouter);
 app.use('/api/tutor', tutorRouter);
 app.use('/api/memory', memoryRouter);
 
+// Safety alias route for direct question queries
+app.get('/api/questions/:topicId', (req, res) => {
+  const { topicId } = req.params;
+  res.redirect(307, `/api/topics/${topicId}/questions`);
+});
+
 app.get('/api/health', async (req, res) => {
   const health = await checkSystemHealth();
   const statusCode = health.status === 'unreachable' ? 503 : 200;

@@ -159,8 +159,9 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
       });
       mediaStreamRef.current = stream;
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioCtx({ sampleRate: 16000, latencyHint: 'interactive' });
+      const audioCtx =
+        playoutManagerRef.current?.getContext() ||
+        new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
       inputAudioCtxRef.current = audioCtx;
 
       if (audioCtx.state === 'suspended') {
@@ -218,11 +219,13 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
   const startVoiceSession = async () => {
     try {
       setStatusMessage('Подключение к AI шлюзу...');
-      await initMicrophone();
 
-      // Playout Setup (24kHz Web Audio)
+      // Playout Setup with gesture unlock (24kHz Web Audio + Speakerphone bridge)
       playoutManagerRef.current = new AudioPlayoutManager();
-      void playoutManagerRef.current.resume();
+      await playoutManagerRef.current.resume();
+
+      // Init microphone on the same unified AudioContext
+      await initMicrophone();
 
       // WebSocket Connection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -302,17 +305,21 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
       wsRef.current.close();
       wsRef.current = null;
     }
+    if (workletNodeRef.current) {
+      try {
+        workletNodeRef.current.disconnect();
+      } catch {}
+      workletNodeRef.current = null;
+    }
+    if (inputAudioCtxRef.current && inputAudioCtxRef.current !== playoutManagerRef.current?.getContext()) {
+      try {
+        inputAudioCtxRef.current.close();
+      } catch {}
+    }
+    inputAudioCtxRef.current = null;
     if (playoutManagerRef.current) {
       void playoutManagerRef.current.teardown();
       playoutManagerRef.current = null;
-    }
-    if (workletNodeRef.current) {
-      workletNodeRef.current.disconnect();
-      workletNodeRef.current = null;
-    }
-    if (inputAudioCtxRef.current) {
-      inputAudioCtxRef.current.close().catch(() => {});
-      inputAudioCtxRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());

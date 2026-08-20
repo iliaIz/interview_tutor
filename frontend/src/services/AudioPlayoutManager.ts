@@ -2,14 +2,17 @@
  * AudioPlayoutManager
  * Seamless 24kHz Int16 mono PCM playback scheduling with:
  * - Direct Little-Endian DataView float conversion (100% cross-platform safe)
- * - Safe gain boost (1.5x) direct to destination
+ * - Safe gain boost (1.5x) direct to destination & speakerphone bridge
  * - 80ms jitter queue to prevent underruns
- * - Autoplay policy suspended queueing with concurrent resume protection
+ * - Mobile Autoplay policy 1-sample silent gesture unlock (iOS & Android Chrome)
+ * - Loudspeaker / Speakerphone bridge for Android & iOS to prevent earpiece muting
  * - 5ms linear gain de-click ramp on Barge-in interruption
  */
 export class AudioPlayoutManager {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private speakerphoneElement: HTMLAudioElement | null = null;
+  private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private playheadCursor = 0;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
   private pendingSamples: Float32Array[] = [];
@@ -17,12 +20,23 @@ export class AudioPlayoutManager {
   private readonly JITTER_LEAD_SECONDS = 0.080; // 80ms jitter buffer for smooth playback
   private readonly TARGET_SAMPLE_RATE = 24000;
 
-  constructor() {
-    this.ensureContext();
+  constructor(existingContext?: AudioContext) {
+    this.ensureContext(existingContext);
   }
 
-  public ensureContext(): { context: AudioContext; masterGain: GainNode } {
-    if (!this.context || this.context.state === 'closed') {
+  public getContext(): AudioContext {
+    return this.ensureContext().context;
+  }
+
+  public ensureContext(existingContext?: AudioContext): { context: AudioContext; masterGain: GainNode } {
+    if (existingContext && existingContext.state !== 'closed') {
+      if (this.context !== existingContext) {
+        this.context = existingContext;
+        this.masterGain = this.context.createGain();
+        this.masterGain.gain.value = 1.5;
+        this.masterGain.connect(this.context.destination);
+      }
+    } else if (!this.context || this.context.state === 'closed') {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.context = new AudioCtx({ latencyHint: 'interactive' });
 
@@ -30,7 +44,37 @@ export class AudioPlayoutManager {
       this.masterGain.gain.value = 1.5; // Clear, loud, comfortable volume
       this.masterGain.connect(this.context.destination);
     }
-    return { context: this.context, masterGain: this.masterGain! };
+
+    this.ensureSpeakerphoneBridge();
+    return { context: this.context!, masterGain: this.masterGain! };
+  }
+
+  /**
+   * Android Chrome & iOS Safari Speakerphone routing bridge
+   * Binds AudioContext to an active MediaStream HTML5 Audio element to ensure audio plays
+   * through the main Loudspeaker (STREAM_MUSIC / Speakerphone) rather than the call earpiece.
+   */
+  private ensureSpeakerphoneBridge(): void {
+    if (this.speakerphoneElement) return;
+    try {
+      if (!this.context || this.context.state === 'closed' || !this.masterGain) return;
+      if (typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+        this.mediaStreamDest = this.context.createMediaStreamDestination();
+        this.masterGain.connect(this.mediaStreamDest);
+
+        const audio = document.createElement('audio');
+        audio.setAttribute('playsinline', 'true');
+        audio.setAttribute('webkit-playsinline', 'true');
+        audio.autoplay = true;
+        audio.muted = false;
+        audio.volume = 1.0;
+        audio.srcObject = this.mediaStreamDest.stream;
+        audio.play().catch(() => {});
+        this.speakerphoneElement = audio;
+      }
+    } catch (e) {
+      console.warn('Speakerphone bridge setup notice:', e);
+    }
   }
 
   public isSuspended(): boolean {
@@ -39,6 +83,17 @@ export class AudioPlayoutManager {
 
   public async resume(): Promise<void> {
     const { context } = this.ensureContext();
+
+    // 1. One-sample silent buffer trigger to unlock mobile hardware audio HAL during user gesture
+    try {
+      const silent = context.createBuffer(1, 1, 22050);
+      const src = context.createBufferSource();
+      src.buffer = silent;
+      src.connect(context.destination);
+      src.start(0);
+    } catch {}
+
+    // 2. Resume AudioContext
     if (context.state === 'suspended') {
       if (!this.isResuming) {
         this.isResuming = true;
@@ -51,6 +106,11 @@ export class AudioPlayoutManager {
           this.isResuming = false;
         }
       }
+    }
+
+    // 3. Ensure speakerphone bridge is active
+    if (this.speakerphoneElement) {
+      this.speakerphoneElement.play().catch(() => {});
     }
 
     if (context.state === 'running' && this.pendingSamples.length > 0) {
@@ -202,6 +262,19 @@ export class AudioPlayoutManager {
   public async teardown(): Promise<void> {
     this.handleInterruption();
     this.pendingSamples = [];
+    if (this.speakerphoneElement) {
+      try {
+        this.speakerphoneElement.pause();
+        this.speakerphoneElement.srcObject = null;
+      } catch {}
+      this.speakerphoneElement = null;
+    }
+    if (this.mediaStreamDest) {
+      try {
+        this.mediaStreamDest.disconnect();
+      } catch {}
+      this.mediaStreamDest = null;
+    }
     if (this.context && this.context.state !== 'closed') {
       try {
         await this.context.close();
@@ -213,3 +286,4 @@ export class AudioPlayoutManager {
     this.playheadCursor = 0;
   }
 }
+

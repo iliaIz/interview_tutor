@@ -35,7 +35,8 @@ import {
   ChevronRight,
   Bug,
   Crown,
-  Trophy
+  Trophy,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -80,25 +81,30 @@ export const TopicSelector: React.FC = () => {
     setView,
     setSelectedTopic,
     setBatch,
+    startStudyWithQuestions,
     shuffleMap,
     toggleShuffle,
     topicsProgress,
     resetTopicProgress,
     openRecapModal,
     openTopicQuestions,
-    openTopicBugHunt
+    openTopicBugHunt,
+    showToast
   } = useAppStore();
 
   const [topics, setTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Все разделы');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const fetchTopics = async () => {
     try {
       const res = await fetch('/api/topics');
-      const data = await res.json();
-      setTopics(data);
+      if (res.ok) {
+        const data = await res.json();
+        setTopics(data);
+      }
     } catch (e) {
       console.error('Error fetching topics:', e);
     } finally {
@@ -122,21 +128,41 @@ export const TopicSelector: React.FC = () => {
   }, [topics, selectedCategory, searchQuery]);
 
   const handleStartTopic = async (topicId: string, topicName: string, reset: boolean = false) => {
+    setStartingTopicId(topicId);
+
     if (reset) {
       resetTopicProgress(topicId);
+      try {
+        await fetch(`/api/topics/${topicId}/reset`, { method: 'POST' });
+      } catch (e) {
+        console.warn('Error resetting topic progress on backend:', e);
+      }
     }
 
     try {
       const isShuffle = shuffleMap[topicId] || false;
-      const res = await fetch(`/api/questions/${topicId}?limit=1000`);
-      const allQuestions = await res.json();
+      const res = await fetch(`/api/topics/${topicId}/questions`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      const data = await res.json();
+      const allQuestions = data.questions || [];
 
-      if (!allQuestions || allQuestions.length === 0) return;
+      if (!allQuestions || allQuestions.length === 0) {
+        showToast({
+          type: 'warning',
+          title: 'Вопросы не найдены',
+          message: `Для темы "${topicName}" пока нет доступных вопросов.`
+        });
+        return;
+      }
 
       const progress = topicsProgress[topicId];
-      const completedSet = new Set(progress?.completedIds || []);
+      const localCompletedSet = new Set(progress?.completedIds || []);
 
-      let remainingQuestions = reset ? allQuestions : allQuestions.filter((q: any) => !completedSet.has(q.id));
+      let remainingQuestions = reset
+        ? allQuestions
+        : allQuestions.filter((q: any) => !q.isCompleted && !localCompletedSet.has(q.id));
 
       if (remainingQuestions.length === 0) {
         remainingQuestions = allQuestions;
@@ -148,11 +174,16 @@ export const TopicSelector: React.FC = () => {
 
       const batchPortion = remainingQuestions.slice(0, 10);
 
-      setSelectedTopic(topicId, topicName);
-      setBatch(batchPortion);
-      setView('study');
-    } catch (e) {
+      startStudyWithQuestions(topicId, topicName, batchPortion);
+    } catch (e: any) {
       console.error('Error starting topic batch:', e);
+      showToast({
+        type: 'error',
+        title: 'Ошибка загрузки вопросов',
+        message: e?.message || 'Не удалось загрузить вопросы по выбранной теме.'
+      });
+    } finally {
+      setStartingTopicId(null);
     }
   };
 
@@ -226,10 +257,11 @@ export const TopicSelector: React.FC = () => {
           {filteredTopics.map((t, idx) => {
             const IconComponent = ICON_MAP[t.icon] || Coffee;
             const progress = topicsProgress[t.id];
-            const completedCount = progress?.completedCount || 0;
-            const percentage = progress?.percentage || 0;
+            const completedCount = progress?.completedCount !== undefined ? progress.completedCount : (t.completedCount || 0);
+            const percentage = progress?.percentage !== undefined ? progress.percentage : (t.percentage || 0);
             const isShuffle = shuffleMap[t.id] || false;
             const isFullyMastered = percentage === 100;
+            const isStarting = startingTopicId === t.id;
 
             return (
               <motion.div
@@ -344,14 +376,20 @@ export const TopicSelector: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleStartTopic(t.id, t.name, false)}
-                        className={`flex-1 text-white py-2 px-3 rounded-2xl font-bold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 ${
+                        disabled={isStarting}
+                        className={`flex-1 text-white py-2 px-3 rounded-2xl font-bold text-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-75 ${
                           isFullyMastered
                             ? 'bg-gradient-to-r from-amber-500 via-rose-400 to-pastel-accentViolet shadow-amber-300/30'
                             : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet'
                         }`}
                         title="Быстрый старт: начать со следующей неизученной порции"
                       >
-                        {isFullyMastered ? (
+                        {isStarting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Загрузка...</span>
+                          </>
+                        ) : isFullyMastered ? (
                           <>
                             <Crown className="w-3.5 h-3.5" /> Закрепить тему
                           </>
@@ -374,8 +412,9 @@ export const TopicSelector: React.FC = () => {
                       {percentage > 0 && (
                         <button
                           onClick={() => handleStartTopic(t.id, t.name, true)}
-                          title="Сбросить прогресс"
-                          className="p-2 rounded-2xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center cursor-pointer shadow-2xs active:scale-95"
+                          disabled={isStarting}
+                          title="Сбросить прогресс и начать сначала"
+                          className="p-2 rounded-2xl border border-pastel-border text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose transition flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                         </button>

@@ -1,14 +1,22 @@
 /**
  * AudioWorkletProcessor for high-performance audio capture
- * - Operates on native 16kHz AudioContext stream
+ * - Operates seamlessly on native AudioContext sample rates (48kHz, 44.1kHz, 16kHz)
+ * - Built-in high-fidelity linear downsampler to 16kHz PCM
  * - Signed 16-bit Int16 PCM quantization
  * - Schmitt-trigger VAD & RMS dB computation
- * - Zero-copy 1024-sample buffer transfer (64ms chunks)
+ * - Zero-copy 1024-sample buffer transfer (64ms chunks @ 16kHz)
  */
 class AudioCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    // 1024 samples @ 16kHz = 64ms chunk (optimal real-time latency matching PyAudio)
+    this.targetSampleRate = 16000;
+    // sampleRate is a global in AudioWorkletGlobalScope provided by the parent AudioContext
+    this.sourceSampleRate = typeof sampleRate !== 'undefined' ? sampleRate : 48000;
+    this.resampleRatio = this.sourceSampleRate / this.targetSampleRate;
+    this.resamplePos = 0;
+    this.prevSample = 0;
+
+    // 1024 samples @ 16kHz = 64ms chunk (optimal real-time latency matching Gemini Live)
     this.outputChunkCapacity = 1024;
     this.outputBuffer = new Int16Array(this.outputChunkCapacity);
     this.outputBufferIndex = 0;
@@ -28,16 +36,40 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     }
 
     const inputLength = inputChannel.length;
-    for (let i = 0; i < inputLength; i++) {
-      const sample = inputChannel[i];
-      // Clamped signed 16-bit PCM quantization
-      const clamped = Math.max(-1.0, Math.min(1.0, sample));
-      this.outputBuffer[this.outputBufferIndex++] =
-        clamped < 0 ? clamped * 32768 : clamped * 32767;
 
-      if (this.outputBufferIndex >= this.outputChunkCapacity) {
-        this.emitBufferChunk();
+    if (Math.abs(this.resampleRatio - 1.0) < 0.001) {
+      // 1:1 direct 16kHz pass-through
+      for (let i = 0; i < inputLength; i++) {
+        const sample = inputChannel[i];
+        const clamped = Math.max(-1.0, Math.min(1.0, sample));
+        this.outputBuffer[this.outputBufferIndex++] =
+          clamped < 0 ? clamped * 32768 : clamped * 32767;
+
+        if (this.outputBufferIndex >= this.outputChunkCapacity) {
+          this.emitBufferChunk();
+        }
       }
+    } else {
+      // High-precision linear interpolation resampling (e.g. 48kHz / 44.1kHz -> 16kHz)
+      while (this.resamplePos < inputLength) {
+        const i0 = Math.floor(this.resamplePos);
+        const frac = this.resamplePos - i0;
+        const s0 = i0 >= 0 ? inputChannel[i0] : this.prevSample;
+        const s1 = i0 + 1 < inputLength ? inputChannel[i0 + 1] : inputChannel[inputLength - 1];
+
+        const sample = s0 + frac * (s1 - s0);
+        const clamped = Math.max(-1.0, Math.min(1.0, sample));
+        this.outputBuffer[this.outputBufferIndex++] =
+          clamped < 0 ? clamped * 32768 : clamped * 32767;
+
+        if (this.outputBufferIndex >= this.outputChunkCapacity) {
+          this.emitBufferChunk();
+        }
+
+        this.resamplePos += this.resampleRatio;
+      }
+      this.resamplePos -= inputLength;
+      this.prevSample = inputChannel[inputLength - 1];
     }
 
     return true;
@@ -86,4 +118,5 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('audio-capture-processor', AudioCaptureProcessor);
+
 

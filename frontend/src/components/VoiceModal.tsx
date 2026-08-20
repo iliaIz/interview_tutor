@@ -517,8 +517,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       });
       mediaStreamRef.current = stream;
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioCtx({ sampleRate: 16000, latencyHint: 'interactive' });
+      const audioCtx =
+        playoutManagerRef.current?.getContext() ||
+        new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
       inputAudioCtxRef.current = audioCtx;
 
       if (audioCtx.state === 'suspended') {
@@ -610,12 +611,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       } catch {}
       gainAnchorRef.current = null;
     }
-    if (inputAudioCtxRef.current) {
+    if (inputAudioCtxRef.current && inputAudioCtxRef.current !== playoutManagerRef.current?.getContext()) {
       try {
         inputAudioCtxRef.current.close();
       } catch {}
-      inputAudioCtxRef.current = null;
     }
+    inputAudioCtxRef.current = null;
     setIsRecording(false);
     isRecordingRef.current = false;
     setRmsDb(-60);
