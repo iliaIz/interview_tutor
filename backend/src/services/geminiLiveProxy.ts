@@ -25,6 +25,7 @@ interface ProxySession {
   referenceAnswer?: string;
   relevantGapIds?: string[];
   probesCount?: number;
+  isRetry?: boolean;
 }
 
 /**
@@ -258,19 +259,28 @@ ${((questionIndex ?? 0) + 1 < totalQuestions)
     : `=== РЕЖИМ ЗОНДИРОВАНИЯ: СТАНДАРТНЫЙ СКОУП (ПО ЭТАЛОНУ) ===
 Твои ожидания и вопросы СТРОГО ограничены фактурой из ЭТАЛОННОГО ОТВЕТА. Не уходи в оффтоп и далекие смежные технологии, которых нет в эталоне.`;
 
+  // Interactive Breakpoint & Micro-Coaching Protocol (Active for all interview strategies)
+  const breakpointCoachingInstruction = `=== 4. ПРОТОКОЛ БРЕЙКПОИНТА И КАПИТУЛЯЦИИ (INTERACTIVE BREAKPOINT & SANDBOX) ===
+Если кандидат говорит «Не знаю», «Не помню», «Подскажи», «Расскажи как правильно», «Сдаюсь», «Зафиксируй пробел» или поступает системный запрос на объяснение:
+1. НЕ спорь, НЕ молчи и НЕ продолжай настаивать на ответе.
+2. Мгновенно переключись в поддерживающего Senior-наставника (Sandbox Breakpoint).
+3. Дай емкое, живое 30-40 секундное объяснение под капотом (Micro-Lecture):
+   - [Суть в 1 предложение простыми словами]
+   - [Как физически устроено под капотом: JVM, Spring, многопоточность, память, структуры данных]
+   - [«Золотая фраза для собеседования»]: точная формулировка, которую ценят Senior-интервьюеры.
+4. В конце своего объяснения ОБЯЗАТЕЛЬНО задай кандидату вопрос для выбора пути:
+   «Понятна ли эта концепция? Хотите уточнить какую-то деталь, попробовать ответить на вопрос заново с чистого листа или пойдем дальше?»
+5. Если кандидат задает встречный вопрос («А почему именно так?», «Объясни еще про...») — подробно и дружелюбно ответь в режиме наставника.
+6. Если кандидат говорит «Давай заново / хочу попробовать сама / начни сначала» — скажи «Отлично, давай с чистого листа!» и четко переспроси вопрос.
+7. Если кандидат говорит «Пойдем дальше / всё понятно» — произнеси краткое устное резюме и вызови submit_interview_evaluation со справедливой оценкой первой попытки (зафиксировав упущенный критерий в missingPoints).`;
+
   // Live Coaching modifier instructions
   const liveCoachingInstruction = liveCoaching
     ? `=== РЕЖИМ ОБУЧЕНИЯ: РАЗБОР ОШИБОК И ОБУЧЕНИЕ НА ЛЕТУ (LIVE COACHING) [ВКЛЮЧЕН] ===
-Если кандидат допускает неточность, ошибку, говорит «Не знаю / не помню / подскажи / как правильно» или застрял:
-1. Мягко поддержи и переключись в режим наставника.
-2. Дай емкое, живое 30-секундное объяснение по правилу Micro-Lecture:
-   - [Суть в 1 предложение]: ключевое определение простыми словами.
-   - [Механизм под капотом]: как это физически устроено в рантайме.
-   - [«Золотая фраза для собеседования»]: точная формулировка, которую ценят Senior-интервьюеры.
-3. Запусти Active Recall (закрепление): сразу задай один мини-вопрос на понимание («Уловила суть? Попробуй теперь сформулировать, почему...?»).
-4. В итоговой оценке (submit_interview_evaluation) обязательно отметь, что материал был успешно усвоен в процессе диалога.`
-    : `=== РЕЖИМ ОЦЕНКИ: ВАЛИДАЦИЯ БЕЗ ПОДСКАЗОК ===
-Не раскрывай готовых решений и эталонных ответов до момента завершения диалога.`;
+Если кандидат допускает неточность или ошибку — сразу примени протокол брейкпоинта и Micro-Lecture выше.
+В итоговой оценке (submit_interview_evaluation) обязательно отметь, что материал был успешно усвоен в процессе диалога.`
+    : `=== РЕЖИМ ОЦЕНКИ С ПОДДЕРЖКОЙ БРЕЙКПОИНТА ===
+Пока кандидат сам отвечает — оценивай без подсказок. Но если кандидат явно просит объяснить или сдается — строго следуй протоколу брейкпоинта выше.`;
 
   if (customPromptOverride && customPromptOverride.trim().length > 20) {
     return `${customPromptOverride.trim()}
@@ -278,6 +288,8 @@ ${((questionIndex ?? 0) + 1 < totalQuestions)
 ${genderRule}
 
 ${deepDiveInstruction}
+
+${breakpointCoachingInstruction}
 
 ${liveCoachingInstruction}
 
@@ -315,6 +327,8 @@ ${batchContext}
 
 ${deepDiveInstruction}
 
+${breakpointCoachingInstruction}
+
 ${liveCoachingInstruction}
 
 === 2. КОНТЕКСТНАЯ ФАКТУРА ТЕМЫ (CONTEXT PAYLOAD) ===
@@ -331,9 +345,9 @@ ${anchorsFormatted}
 === 3. ОПЕРАЦИОННЫЙ СЦЕНАРИЙ ДИАЛОГА (EXECUTION RULES) ===
 1. ПРИВЕТСТВИЕ: В самом начале сессии тепло поздоровайся одной фразой и четко зачитай вопрос темы.
 2. ВНИМАТЕЛЬНОЕ СЛУШАНИЕ: Дай кандидату спокойно высказаться.
-3. РЕАКЦИЯ НА МЕТА-РЕПЛИКИ:
+3. РЕАКЦИЯ НА МЕТА-РЕПЛИКИ И КАПИТУЛЯЦИЮ:
    - Если кандидат говорит «Повтори вопрос», «Не расслышала» — вежливо и четко повтори вопрос.
-   - Если кандидат просит помощи — следуй правилам режима Live Coaching выше.
+   - Если кандидат говорит «Не знаю», «Сдаюсь», «Объясни» — строго следуй протоколу брейкпоинта (Micro-Lecture) выше.
 4. СОКРАТИЧЕСКОЕ ЗОНДИРОВАНИЕ:
    - Если кандидат раскрыл только часть критериев — задай наводящий вопрос (лимит: не более ${maxProbes} раундов).
    - Если кандидат своими словами раскрыл суть — поблагодари за отличный ответ и переходи к финалу.
@@ -354,6 +368,8 @@ ${batchContext}
 
 ${deepDiveInstruction}
 
+${breakpointCoachingInstruction}
+
 ${liveCoachingInstruction}
 
 === 2. КОНТЕКСТНАЯ ФАКТУРА ТЕМЫ (CONTEXT PAYLOAD) ===
@@ -372,7 +388,7 @@ ${anchorsFormatted}
 2. ЗОНДИРОВАНИЕ И FOLLOW-UP:
    - Внимательно сопоставляй ответ кандидата с критериями темы.
    - Задавай точечные вопросы по недостающим пунктам или углубляйся под капот (лимит раундов: до ${maxProbes}).
-   - Если кандидат говорит «Не знаю / не помню» — при включенном Live Coaching помоги и объясни, иначе зафиксируй пробел и переходи дальше.
+   - Если кандидат говорит «Не знаю / не помню / объясни / сдаюсь» — СТРОГО активируй протокол брейкпоинта и Micro-Lecture.
 3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ:
    - Когда ключевые вопросы обсуждены, исчерпан лимит ${maxProbes} раундов или кандидат завершил ответ:
      а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и выставлю оценку».
@@ -413,6 +429,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const customPromptOverride = (query.customPrompt as string) || '';
     const questionIndex = Math.max(0, parseInt((query.questionIndex as string) || '0', 10) || 0);
     const totalQuestions = Math.max(1, parseInt((query.totalQuestions as string) || '1', 10) || 1);
+    const isRetry = query.isRetry === 'true';
 
     let customAnchors: string[] = [];
     if (query.customAnchors) {
@@ -443,11 +460,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
     const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
     
-    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-live';
+    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3';
 
     const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, isRetry: ${isRetry}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
     let greetingWatchdog: NodeJS.Timeout | null = null;
@@ -461,7 +478,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       topic,
       referenceAnswer,
       relevantGapIds,
-      probesCount: 0
+      probesCount: 0,
+      isRetry
     };
 
     const systemPromptText = buildSystemPrompt({
@@ -593,9 +611,13 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             }
           } else {
             const isSubsequent = questionIndex > 0;
-            greetingText = isSubsequent
-              ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
-              : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+            if (session.isRetry) {
+              greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри одной фразой и четко задай этот вопрос.`;
+            } else {
+              greetingText = isSubsequent
+                ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
+                : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+            }
           }
 
           const initialGreetingTurn = {
@@ -797,7 +819,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               // Determine assistance level for knowledge tracing
               const probes = session.probesCount || 0;
               let assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse' = 'solo';
-              if (score >= 80 && probes <= 2 && !liveCoaching) {
+              if (session.isRetry) {
+                assistanceLevel = isPassed ? 'assisted' : 'relapse';
+              } else if (score >= 80 && probes <= 2 && !liveCoaching) {
                 assistanceLevel = 'solo';
               } else if (score >= 70) {
                 assistanceLevel = 'guided';

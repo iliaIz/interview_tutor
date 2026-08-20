@@ -270,7 +270,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   /**
    * Connects to Live WebSocket Proxy with question-specific parameters
    */
-  const connectLiveWebSocket = (qIndex: number, targetQ: { id: string; topic: string; question: string; answer: string }) => {
+  const connectLiveWebSocket = (
+    qIndex: number,
+    targetQ: { id: string; topic: string; question: string; answer: string },
+    isRetry?: boolean
+  ) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     let hostWithPort = window.location.host;
     if (window.location.port === '8090') {
@@ -290,11 +294,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: interviewConfig.customPromptOverride || '',
       questionIndex: String(qIndex),
-      totalQuestions: String(totalQuestions)
+      totalQuestions: String(totalQuestions),
+      isRetry: String(!!isRetry)
     });
 
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
-    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}):`, wsUrl);
+    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}):`, wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -323,7 +328,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             ...prev,
             {
               role: 'system',
-              text: isSubsequent
+              text: isRetry
+                ? `🔄 Повторный ответ с чистого листа: слушайте вопрос.`
+                : isSubsequent
                 ? `⚡ Вопрос ${qIndex + 1} из ${totalQuestions}: слушайте формулировку.`
                 : `✨ Интервьюер готов (${interviewConfig.voice})! Слушайте вопрос.`
             }
@@ -398,15 +405,61 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       console.log('Live WS closed:', ev.code, ev.reason);
       setIsConnected(false);
       setIsRecording(false);
+      isRecordingRef.current = false;
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
-      isRecordingRef.current = false;
     };
 
     ws.onerror = (err) => {
       console.error('Live WS error:', err);
       setIsConnected(false);
     };
+  };
+
+  /**
+   * White Flag Action: Explicitly surrender and ask the AI interviewer for an under-the-hood explanation
+   */
+  const handleSurrenderAndExplain = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const explainFrame = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: 'Я пока не знаю ответа на этот вопрос. Пожалуйста, зафиксируй это и объясни мне подробно, как это устроено под капотом и как правильно отвечать на собеседовании.'
+              }
+            ]
+          }
+        ],
+        turnComplete: true
+      }
+    };
+    wsRef.current.send(JSON.stringify(explainFrame));
+    setDialogueTurns((prev) => [
+      ...prev,
+      { role: 'user', text: '💡 [Запрос разбора]: Я пока не знаю этого. Объясни, пожалуйста, как это устроено под капотом и как правильно отвечать.' }
+    ]);
+  };
+
+  /**
+   * Active Recall Retry: Cleanly reset current question turns and reconnect with isRetry: true
+   */
+  const retryCurrentQuestionCleanly = () => {
+    const targetQ = questionsBatch?.[activeBatchIndex];
+    if (!targetQ) return;
+    teardownWsAndBuffersOnly();
+    setDialogueTurns([]);
+    dialogueTurnsRef.current = [];
+    setDeepgramTranscript('');
+    userPcmChunksRef.current = [];
+    transcriptRef.current = '';
+    isEvaluationFinalizedRef.current = false;
+    setEvaluation(null);
+    setStage('active');
+
+    connectLiveWebSocket(activeBatchIndex, targetQ, true);
   };
 
   /**
@@ -1198,7 +1251,32 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-pastel-border/60 flex items-center gap-3 shrink-0">
+            {/* Interactive Sandbox & Breakpoint Action Bar */}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <button
+                type="button"
+                onClick={handleSurrenderAndExplain}
+                disabled={isSubmitting || isAiSpeaking}
+                className="px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                title="Попросить ИИ зафиксировать пробел и дать емкое Senior-объяснение под капотом"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>💡 Сдаюсь / Объяснить под капотом</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={retryCurrentQuestionCleanly}
+                disabled={isSubmitting}
+                className="px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-lavender border border-pastel-accentViolet/30 text-pastel-accentViolet text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>🔄 Ответить заново с нуля</span>
+              </button>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-3 shrink-0">
               <button
                 type="button"
                 onClick={handleRequestVerdict}
@@ -1330,6 +1408,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   >
                     <FastForward className="w-3.5 h-3.5" />
                     <span>Перейти к вопросу #{nextQuestionNum} ➔</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={retryCurrentQuestionCleanly}
+                    className="py-2.5 px-4 rounded-xl bg-white border border-pastel-border text-pastel-accentViolet font-bold text-xs hover:bg-pastel-lavender/30 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Пересдать этот же вопрос заново с чистого листа"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>🔄 Ответить заново</span>
                   </button>
 
                   {isAutoAdvance && (
@@ -1600,7 +1688,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <div className="pt-3 border-t border-pastel-border/60 flex items-center gap-3">
               <button
                 type="button"
-                onClick={handleRetry}
+                onClick={retryCurrentQuestionCleanly}
                 className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
