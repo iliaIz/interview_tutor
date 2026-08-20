@@ -29,51 +29,62 @@ export class AudioPlayoutManager {
   }
 
   public ensureContext(existingContext?: AudioContext): { context: AudioContext; masterGain: GainNode } {
+    const isMobile =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+
     if (existingContext && existingContext.state !== 'closed') {
       if (this.context !== existingContext) {
         this.context = existingContext;
-        this.masterGain = this.context.createGain();
-        this.masterGain.gain.value = 1.5;
-        this.masterGain.connect(this.context.destination);
+        this.setupMasterRouting(isMobile);
       }
     } else if (!this.context || this.context.state === 'closed') {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.context = new AudioCtx({ latencyHint: 'interactive' });
-
-      this.masterGain = this.context.createGain();
-      this.masterGain.gain.value = 1.5; // Clear, loud, comfortable volume
-      this.masterGain.connect(this.context.destination);
+      this.setupMasterRouting(isMobile);
     }
 
-    this.ensureSpeakerphoneBridge();
     return { context: this.context!, masterGain: this.masterGain! };
   }
 
   /**
-   * Android Chrome & iOS Safari Speakerphone routing bridge
-   * Binds AudioContext to an active MediaStream HTML5 Audio element to ensure audio plays
-   * through the main Loudspeaker (STREAM_MUSIC / Speakerphone) rather than the call earpiece.
+   * Exclusive Single-Sink Audio Routing
+   * - Mobile (Android/iOS): Routes EXCLUSIVELY to MediaStreamAudioDestinationNode + HTML5 Audio element.
+   *   This forces the mobile Audio HAL to route output to the Loudspeaker (STREAM_MUSIC / Speakerphone)
+   *   and DOES NOT connect to context.destination, eliminating dual-output stadium echo.
+   * - Desktop: Routes EXCLUSIVELY to direct Web Audio destination with ultra-low ~10ms latency.
    */
-  private ensureSpeakerphoneBridge(): void {
-    if (this.speakerphoneElement) return;
-    try {
-      if (!this.context || this.context.state === 'closed' || !this.masterGain) return;
-      if (typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
-        this.mediaStreamDest = this.context.createMediaStreamDestination();
-        this.masterGain.connect(this.mediaStreamDest);
+  private setupMasterRouting(isMobile: boolean): void {
+    if (!this.context || this.context.state === 'closed') return;
 
-        const audio = document.createElement('audio');
-        audio.setAttribute('playsinline', 'true');
-        audio.setAttribute('webkit-playsinline', 'true');
-        audio.autoplay = true;
-        audio.muted = false;
-        audio.volume = 1.0;
-        audio.srcObject = this.mediaStreamDest.stream;
-        audio.play().catch(() => {});
-        this.speakerphoneElement = audio;
+    if (!this.masterGain) {
+      this.masterGain = this.context.createGain();
+      this.masterGain.gain.value = 1.5; // Clear, loud, comfortable volume
+    }
+
+    if (isMobile) {
+      if (!this.speakerphoneElement) {
+        try {
+          this.mediaStreamDest = this.context.createMediaStreamDestination();
+          this.masterGain.connect(this.mediaStreamDest);
+
+          const audio = document.createElement('audio');
+          audio.setAttribute('playsinline', 'true');
+          audio.setAttribute('webkit-playsinline', 'true');
+          audio.autoplay = true;
+          audio.muted = false;
+          audio.volume = 1.0;
+          audio.srcObject = this.mediaStreamDest.stream;
+          audio.play().catch(() => {});
+          this.speakerphoneElement = audio;
+        } catch (e) {
+          console.warn('Mobile speakerphone routing fallback:', e);
+          this.masterGain.connect(this.context.destination);
+        }
       }
-    } catch (e) {
-      console.warn('Speakerphone bridge setup notice:', e);
+    } else {
+      // Desktop: Connect directly to physical DAC
+      this.masterGain.connect(this.context.destination);
     }
   }
 
@@ -89,7 +100,11 @@ export class AudioPlayoutManager {
       const silent = context.createBuffer(1, 1, 22050);
       const src = context.createBufferSource();
       src.buffer = silent;
-      src.connect(context.destination);
+      if (this.mediaStreamDest) {
+        src.connect(this.mediaStreamDest);
+      } else {
+        src.connect(context.destination);
+      }
       src.start(0);
     } catch {}
 
@@ -108,8 +123,8 @@ export class AudioPlayoutManager {
       }
     }
 
-    // 3. Ensure speakerphone bridge is active
-    if (this.speakerphoneElement) {
+    // 3. Ensure speakerphone bridge is playing on mobile
+    if (this.speakerphoneElement && this.speakerphoneElement.paused) {
       this.speakerphoneElement.play().catch(() => {});
     }
 
