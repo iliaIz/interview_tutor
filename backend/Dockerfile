@@ -43,7 +43,4 @@ EXPOSE 5000
 # Create data and storage volume directories for SQLite & Podcast Audio
 RUN mkdir -p /app/data /app/storage
 
-# Run as non-root node user
-USER node
-
 CMD ["node", "dist/server.js"]

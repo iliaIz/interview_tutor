@@ -171,7 +171,18 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputAudioCtxRef = useRef<AudioContext | null>(null);
-  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const isAiSpeakingRef = useRef(false);
+  const isRecordingRef = useRef(false);
+
+  // Sync refs
+  useEffect(() => {
+    isAiSpeakingRef.current = isAiSpeaking;
+  }, [isAiSpeaking]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   // Fetch saved bank on modal open
   useEffect(() => {
@@ -361,12 +372,80 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       });
       mediaStreamRef.current = stream;
 
-      const inputCtx = playoutManagerRef.current.getContext();
-      inputAudioCtxRef.current = inputCtx;
+      const audioCtx =
+        playoutManagerRef.current.getContext() ||
+        new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+      inputAudioCtxRef.current = audioCtx;
 
-      const host = window.location.host;
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
+      await audioCtx.audioWorklet.addModule('/worklets/audio-capture-processor.js');
+
+      const sourceNode = audioCtx.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(audioCtx, 'audio-capture-processor');
+      workletNodeRef.current = workletNode;
+
+      workletNode.port.onmessage = (event: MessageEvent) => {
+        const { type, pcmBuffer } = event.data;
+        if (type === 'AUDIO_FRAME') {
+          const isAiCurrentlySpeaking = isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+          const shouldTransmit =
+            wsRef.current &&
+            wsRef.current.readyState === WebSocket.OPEN &&
+            isRecordingRef.current &&
+            !isAiCurrentlySpeaking;
+
+          if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            const bytes = new Uint8Array(pcmBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            const base64Audio = btoa(binary);
+
+            const realtimeInput = {
+              realtimeInput: {
+                mediaChunks: [
+                  {
+                    mimeType: 'audio/pcm;rate=16000',
+                    data: base64Audio,
+                  },
+                ],
+              },
+            };
+            wsRef.current.send(JSON.stringify(realtimeInput));
+          }
+        }
+      };
+
+      const gainAnchor = audioCtx.createGain();
+      gainAnchor.gain.value = 0.0;
+      sourceNode.connect(workletNode);
+      workletNode.connect(gainAnchor);
+      gainAnchor.connect(audioCtx.destination);
+
+      // Resolve host and port
+      let hostWithPort = window.location.host;
+      if (window.location.port === '8090') {
+        hostWithPort = `${window.location.hostname}:8091`;
+      }
+
+      const params = new URLSearchParams({
+        sessionType: 'tutor',
+        tutorMode: tutorRole,
+        topic: topicName || 'Java & Spring Framework',
+        bugTitle: challenge?.title || '',
+        bugExplanation: challenge?.bugExplanation || '',
+        codeSnippet: challenge?.codeSnippet || '',
+        hints: JSON.stringify(challenge?.hints || []),
+        questionId: challenge?.id || '',
+        voice: 'Aoede'
+      });
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${host}/ws/live`;
+      const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
 
       setStatusMessage('Подключение к AI...');
       const ws = new WebSocket(wsUrl);
@@ -379,89 +458,89 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
             ? 'Слушаю вас... Объясните, где ошибка в коде.'
             : 'Слушаю вас... Задайте любой вопрос по этому коду.'
         );
-
-        const setupMessage = {
-          setup: {
-            model: 'gemini-tts-live-v3',
-            voiceName: 'Aoede',
-            topic: topicName,
-            sessionType: 'tutor',
-            tutorMode: tutorRole,
-            bugTitle: challenge?.title,
-            bugExplanation: challenge?.bugExplanation,
-            codeSnippet: challenge?.codeSnippet,
-            hints: challenge?.hints,
-            questionId: challenge?.id
-          },
-        };
-        ws.send(JSON.stringify(setupMessage));
-
-        // Start Recording Mic with adaptive downsampling to 16kHz
-        const source = inputCtx.createMediaStreamSource(stream);
-        const processor = inputCtx.createScriptProcessor(2048, 1, 1);
-        audioProcessorRef.current = processor;
-
-        processor.onaudioprocess = (e: any) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const inputData = e.inputBuffer.getChannelData(0);
-          const ratio = (inputCtx.sampleRate || 48000) / 16000;
-          const outLength = Math.floor(inputData.length / ratio);
-          const pcm16 = new Int16Array(outLength);
-
-          for (let i = 0; i < outLength; i++) {
-            const srcIdx = Math.floor(i * ratio);
-            const s = Math.max(-1, Math.min(1, inputData[srcIdx]));
-            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-          }
-
-          const base64Data = btoa(
-            String.fromCharCode.apply(null, Array.from(new Uint8Array(pcm16.buffer)))
-          );
-
-          ws.send(
-            JSON.stringify({
-              realtimeInput: {
-                mediaChunks: [
-                  {
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: base64Data,
-                  },
-                ],
-              },
-            })
-          );
-        };
-
-        source.connect(processor);
-        processor.connect(inputCtx.destination);
-        setIsRecording(true);
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
-          const msg = JSON.parse(event.data);
+          let textPayload = '';
+          if (typeof event.data === 'string') {
+            textPayload = event.data;
+          } else if (event.data instanceof Blob) {
+            textPayload = await event.data.text();
+          } else if (event.data instanceof ArrayBuffer) {
+            textPayload = new TextDecoder().decode(event.data);
+          }
+          if (!textPayload) return;
 
-          if (msg.type === 'bug_solved') {
+          const data = JSON.parse(textPayload);
+
+          if (data.type === 'setupComplete') {
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            return;
+          }
+
+          if (data.type === 'bug_solved') {
             setIsSolved(true);
             setSessionSolvedCount(prev => prev + 1);
-            setStatusMessage(`🎉 ${msg.payload.feedback || 'Отлично! Баг найден!'}`);
+            setStatusMessage(`🎉 ${data.payload?.feedback || 'Отлично! Баг найден!'}`);
             triggerSuccessConfetti();
+            return;
           }
 
-          if (msg.audio) {
-            setIsAiSpeaking(true);
-            playoutManagerRef.current?.enqueuePcmChunk(msg.audio);
+          if (data.error) {
+            setStatusMessage(`❌ ${data.error}`);
+            return;
           }
 
-          if (msg.transcript) {
-            setAiTranscript(prev => prev ? `${prev} ${msg.transcript}` : msg.transcript);
-          }
+          if (data.serverContent) {
+            // Barge-in Interruption
+            if (data.serverContent.interrupted) {
+              playoutManagerRef.current?.handleInterruption();
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setStatusMessage('⚡ Речь прервана. Говорите...');
+            }
 
-          if (msg.type === 'ai_playback_finished') {
-            setIsAiSpeaking(false);
+            // Model Speech turn
+            if (data.serverContent.modelTurn?.parts) {
+              setIsAiSpeaking(true);
+              isAiSpeakingRef.current = true;
+              setIsRecording(false);
+              isRecordingRef.current = false;
+              setStatusMessage('🔊 AI наставник отвечает...');
+
+              for (const part of data.serverContent.modelTurn.parts) {
+                if (part.text) {
+                  setAiTranscript(prev => (prev ? `${prev} ${part.text}` : part.text));
+                }
+                const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
+                if (pcmBase64) {
+                  playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
+                }
+              }
+            }
+
+            // Turn Completed
+            if (data.serverContent.turnComplete) {
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+
+              setTimeout(() => {
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  setIsRecording(true);
+                  isRecordingRef.current = true;
+                  setStatusMessage(
+                    tutorRole === 'bug_hunt'
+                      ? '🎙️ Слушаю вас... Где именно в коде проблема?'
+                      : '🎙️ Слушаю ваш вопрос...'
+                  );
+                }
+              }, 200);
+            }
           }
         } catch (e) {
-          console.error('Error processing WS message:', e);
+          console.error('Error processing WS message in TopicBugHuntModal:', e);
         }
       };
 
@@ -492,9 +571,11 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
-    if (audioProcessorRef.current) {
-      audioProcessorRef.current.disconnect();
-      audioProcessorRef.current = null;
+    if (workletNodeRef.current) {
+      try {
+        workletNodeRef.current.disconnect();
+      } catch {}
+      workletNodeRef.current = null;
     }
     if (inputAudioCtxRef.current && inputAudioCtxRef.current !== playoutManagerRef.current?.getContext()) {
       inputAudioCtxRef.current.close().catch(() => {});

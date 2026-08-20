@@ -582,6 +582,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
             } else if (tutorMode === 'deep_dive') {
               greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
+            } else if (tutorMode === 'free_chat') {
+              greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
             } else if (tutorMode === 'socratic') {
               greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
             } else if (tutorMode === 'eli5') {
@@ -629,7 +631,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                       parts: [
                         {
                           text: sessionType === 'tutor'
-                            ? (tutorMode === 'bug_hunt' ? 'Начни устное код-ревью в 1 короткой фразе.' : 'Начни диалог тьютора в 1 короткой фразе.')
+                            ? (tutorMode === 'bug_hunt'
+                              ? 'Начни устное код-ревью в 1 короткой фразе.'
+                              : tutorMode === 'free_chat'
+                              ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
+                              : 'Начни диалог тьютора в 1 короткой фразе.')
                             : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
                         }
                       ]
@@ -894,25 +900,40 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     clientSocket.on('message', (data: RawData, isBinary: boolean) => {
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      let payloadBuffer = buffer;
+
+      try {
+        const text = buffer.toString();
+        const parsed = JSON.parse(text);
+
+        // Ignore duplicate setup frames from client since setup is already initiated via URL query params
+        if (parsed.setup) {
+          console.log('ℹ️ Client sent setup frame (session already configured via URL params, skipping duplicate setup)');
+          return;
+        }
+
+        // Normalize legacy snake_case realtime_input.audio to canonical Gemini Live realtimeInput.mediaChunks
+        if (parsed.realtime_input?.audio) {
+          const normalized = {
+            realtimeInput: {
+              mediaChunks: [
+                {
+                  mimeType: parsed.realtime_input.audio.mimeType || 'audio/pcm;rate=16000',
+                  data: parsed.realtime_input.audio.data
+                }
+              ]
+            }
+          };
+          payloadBuffer = Buffer.from(JSON.stringify(normalized));
+        }
+      } catch {}
 
       if (!session.isSetupComplete) {
-        try {
-          const text = buffer.toString();
-          const parsed = JSON.parse(text);
-          if (parsed.setup) {
-            // Client sent setup, forward
-            if (geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(buffer);
-            }
-            return;
-          }
-        } catch {}
-
         // Buffer audio or turns while waiting for setupComplete
-        session.frameQueue.push(buffer);
+        session.frameQueue.push(payloadBuffer);
       } else {
         if (geminiSocket.readyState === WebSocket.OPEN) {
-          geminiSocket.send(buffer);
+          geminiSocket.send(payloadBuffer);
         }
       }
     });

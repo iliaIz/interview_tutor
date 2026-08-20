@@ -193,11 +193,13 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
             const base64Audio = btoa(binary);
 
             const realtimeInput = {
-              realtime_input: {
-                audio: {
-                  mimeType: 'audio/pcm;rate=16000',
-                  data: base64Audio
-                }
+              realtimeInput: {
+                mediaChunks: [
+                  {
+                    mimeType: 'audio/pcm;rate=16000',
+                    data: base64Audio
+                  }
+                ]
               }
             };
             wsRef.current.send(JSON.stringify(realtimeInput));
@@ -224,64 +226,118 @@ export const CardVoiceTutor: React.FC<CardVoiceTutorProps> = ({ question, topicN
       playoutManagerRef.current = new AudioPlayoutManager();
       await playoutManagerRef.current.resume();
 
-      // Init microphone on the same unified AudioContext
+      // Init microphone on the unified AudioContext
       await initMicrophone();
 
-      // WebSocket Connection
+      // Resolve host and port (handles container/dev port forwarding)
+      let hostWithPort = window.location.host;
+      if (window.location.port === '8090') {
+        hostWithPort = `${window.location.hostname}:8091`;
+      }
+
+      // Build Handshake URL Query Parameters
+      const params = new URLSearchParams({
+        sessionType: 'tutor',
+        tutorMode: activeMode,
+        topic: topicName || 'Java & Spring Framework',
+        questionId: bugChallenge?.id || question.id,
+        questionText: question.question || '',
+        referenceAnswer: question.answer || '',
+        voice: 'Aoede',
+        bugTitle: bugChallenge?.title || '',
+        bugExplanation: bugChallenge?.bugExplanation || '',
+        codeSnippet: bugChallenge?.codeSnippet || '',
+        hints: JSON.stringify(bugChallenge?.hints || [])
+      });
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/live`;
+      const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setIsConnected(true);
-        setIsRecording(true);
-        setStatusMessage('AI готов к диалогу. Говорите...');
-
-        const setupPayload = {
-          setup: {
-            model: 'gemini-tts-live-v3',
-            voiceName: 'Aoede',
-            topic: topicName,
-            sessionType: 'tutor',
-            tutorMode: activeMode,
-            questionText: question.question,
-            referenceAnswer: question.answer,
-            bugTitle: bugChallenge?.title,
-            bugExplanation: bugChallenge?.bugExplanation,
-            codeSnippet: bugChallenge?.codeSnippet,
-            hints: bugChallenge?.hints,
-            questionId: bugChallenge?.id || question.id
-          }
-        };
-
-        ws.send(JSON.stringify(setupPayload));
+        setStatusMessage('AI подключается к диалогу...');
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
-          const msg = JSON.parse(event.data);
+          let textPayload = '';
+          if (typeof event.data === 'string') {
+            textPayload = event.data;
+          } else if (event.data instanceof Blob) {
+            textPayload = await event.data.text();
+          } else if (event.data instanceof ArrayBuffer) {
+            textPayload = new TextDecoder().decode(event.data);
+          }
+          if (!textPayload) return;
 
-          if (msg.type === 'bug_solved') {
+          const data = JSON.parse(textPayload);
+
+          if (data.type === 'setupComplete') {
+            setStatusMessage('🎙️ Слушаю вас... Задайте любой вопрос или поделитесь мыслями.');
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            return;
+          }
+
+          if (data.type === 'bug_solved') {
             setIsBugSolved(true);
-            setStatusMessage(`🎉 ${msg.payload.feedback || 'Отлично! Баг найден!'}`);
+            setStatusMessage(`🎉 ${data.payload?.feedback || 'Отлично! Баг найден!'}`);
             triggerSuccessConfetti();
+            return;
           }
 
-          if (msg.audio) {
-            setIsAiSpeaking(true);
-            playoutManagerRef.current?.enqueuePcmChunk(msg.audio);
+          if (data.error) {
+            setStatusMessage(`❌ ${data.error}`);
+            return;
           }
 
-          if (msg.transcript) {
-            setAiTranscript(prev => prev ? `${prev} ${msg.transcript}` : msg.transcript);
-          }
+          if (data.serverContent) {
+            // Barge-in Interruption handling
+            if (data.serverContent.interrupted) {
+              playoutManagerRef.current?.handleInterruption();
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setStatusMessage('⚡ Речь прервана. Говорите...');
+            }
 
-          if (msg.type === 'ai_playback_finished') {
-            setIsAiSpeaking(false);
+            // Model Speech turn
+            if (data.serverContent.modelTurn?.parts) {
+              setIsAiSpeaking(true);
+              isAiSpeakingRef.current = true;
+              setIsRecording(false);
+              isRecordingRef.current = false;
+              setStatusMessage('🔊 AI тьютор отвечает...');
+
+              for (const part of data.serverContent.modelTurn.parts) {
+                if (part.text) {
+                  setAiTranscript((prev) => (prev ? `${prev} ${part.text}` : part.text));
+                }
+                const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
+                if (pcmBase64) {
+                  playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
+                }
+              }
+            }
+
+            // Turn Completed -> Model finished speaking, pass turn to user
+            if (data.serverContent.turnComplete) {
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+
+              // Allow 200ms for audio reverberation / room echo to settle before opening mic gate
+              setTimeout(() => {
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  setIsRecording(true);
+                  isRecordingRef.current = true;
+                  setStatusMessage('🎙️ Ваша очередь: говорите в микрофон...');
+                }
+              }, 200);
+            }
           }
         } catch (e) {
-          console.error('Error handling WebSocket message:', e);
+          console.error('Error handling WebSocket message in CardVoiceTutor:', e);
         }
       };
 
