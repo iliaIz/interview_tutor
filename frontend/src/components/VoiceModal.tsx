@@ -28,11 +28,15 @@ import {
   Award,
   Layers,
   FastForward,
-  Check
+  Check,
+  BookOpen
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { CandidatePersonaHUD } from './CandidatePersonaHUD';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
+import { CodeViewer } from './CodeViewer';
 import {
   AcousticMetrics,
   AcousticTelemetryService,
@@ -996,21 +1000,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className="bg-white rounded-3xl p-5 md:p-7 max-w-xl w-full border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
+        className={`bg-white rounded-3xl p-4 md:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 ${
+          sessionType === 'tutor'
+            ? 'max-w-5xl w-full max-h-[92vh]'
+            : 'max-w-xl w-full max-h-[92vh]'
+        }`}
       >
         {/* Soft Ambient Glows */}
         <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-pastel-accentViolet/20 blur-2xl pointer-events-none" />
 
         {/* Header with Batch Progress Tracker */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-pastel-border/60 shrink-0">
+        <div className="flex items-center justify-between pb-3 border-b border-pastel-border/60 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-pastel-text text-base">
+                <h3 className="font-bold text-pastel-text text-sm md:text-base">
                   {sessionType === 'tutor' ? 'AI-Тьютор • Deep Dive' : 'Gemini Live Interviewer'}
                 </h3>
                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
@@ -1025,7 +1033,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 <span>
                   {stage === 'lobby'
                     ? sessionType === 'tutor'
-                      ? 'Голосовой разбор вопросов под капотом'
+                      ? 'Совместный разбор вопроса и эталонного ответа'
                       : isBatchMode ? 'Непрерывное собеседование по порции' : 'Персональное собеседование'
                     : stage === 'active'
                     ? sessionType === 'tutor'
@@ -1058,7 +1066,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         {/* Batch Progress Stepper Bar */}
         {isBatchMode && stage !== 'grand_finale' && (
-          <div className="mt-3 flex items-center gap-1.5 shrink-0 px-1">
+          <div className="mt-2.5 flex items-center gap-1.5 shrink-0 px-1">
             {questionsBatch?.map((q, idx) => {
               const res = batchResults[q.id];
               const isCurrent = idx === activeBatchIndex;
@@ -1081,366 +1089,570 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           </div>
         )}
 
-        {/* Question Context Banner */}
-        {stage !== 'grand_finale' && activeQuestionText && (
-          <div className="mt-3.5 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs shrink-0">
-            <span className="font-bold text-pastel-accentViolet block mb-1 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
-              {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос темы:'}
-            </span>
-            <p className="text-pastel-text leading-relaxed font-bold">{activeQuestionText}</p>
-          </div>
-        )}
-
         {/* ========================================================================= */}
-        {/* STAGE 1: LOBBY                                                            */}
+        {/* TUTOR MODE: TWO-COLUMN SPLIT-SCREEN WORKSPACE                             */}
         {/* ========================================================================= */}
-        {stage === 'lobby' && (
-          <div className="my-6 flex flex-col items-center justify-center text-center space-y-5">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
-                <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
-                  {sessionType === 'tutor' ? '🧠' : interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻'}
+        {sessionType === 'tutor' && (stage === 'lobby' || stage === 'active') ? (
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden my-3">
+            {/* Left Panel: Study Material & Reference Theory */}
+            <div className="lg:col-span-7 flex flex-col min-h-0 bg-slate-50/70 rounded-2xl border border-pastel-border/80 p-3.5 overflow-hidden">
+              <div className="flex items-center justify-between pb-2 border-b border-pastel-border/60 shrink-0">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-pastel-accentViolet" />
+                  <span className="text-xs font-bold text-pastel-text">Изучаемый материал карточки</span>
                 </div>
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white shadow-xs">
-                <Mic className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="max-w-md space-y-1.5 px-2">
-              <h4 className="font-bold text-pastel-text text-base">
-                {sessionType === 'tutor'
-                  ? 'Голосовой AI-Тьютор готов к разбору'
-                  : isBatchMode
-                  ? `Готовы пройти серию из ${totalQuestions} вопросов?`
-                  : interviewConfig.strategy === 'socratic_tutoring' 
-                  ? 'Сократический ИИ-ментор готов' 
-                  : 'ИИ-интервьюер готов к диалогу'}
-              </h4>
-              <p className="text-xs text-pastel-muted leading-relaxed">
-                {sessionType === 'tutor'
-                  ? 'Задавайте любые вопросы по JVM, Spring Framework, многопоточности и структурам данных. ИИ детально объяснит физику процессов под капотом.'
-                  : isBatchMode
-                  ? 'Режим "Без рук" (Hands-Free): ИИ последовательно задаст каждый вопрос темы, оценит ваши ответы и сам переведет к следующему.'
-                  : 'Интервьюер поздоровается голосом и зачитает вопрос. Вы можете отвечать своими словами и уточнять детали.'}
-              </p>
-
-              {/* Mode Selectors / Config Pills */}
-              {sessionType === 'tutor' ? (
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                  {[
-                    { id: 'deep_dive', label: '🔬 Под капот (Deep Dive)' },
-                    { id: 'socratic', label: '🤔 Сократический' },
-                    { id: 'eli5', label: '💡 ELI5 (Аналогии)' },
-                    { id: 'free_chat', label: '💬 Свободный чат' }
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setTutorMode(m.id as any)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                        tutorMode === m.id
-                          ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white border-transparent shadow-xs'
-                          : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
-                    {interviewConfig.strategy === 'socratic_tutoring' ? (
-                      <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
-                    ) : (
-                      <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
-                    )}
-                    <span>
-                      {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice}
-                    </span>
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleConfigChange({ ...interviewConfig, deepDive: !interviewConfig.deepDive })}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                      interviewConfig.deepDive
-                        ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-2xs'
-                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
-                    }`}
-                    title="Кликните для переключения глубокого зондирования"
-                  >
-                    <Microscope className="w-3.5 h-3.5" />
-                    <span>🔬 Deep-Dive</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleConfigChange({ ...interviewConfig, liveCoaching: !interviewConfig.liveCoaching })}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                      interviewConfig.liveCoaching
-                        ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-2xs'
-                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
-                    }`}
-                    title="Кликните для переключения обучения на лету"
-                  >
-                    <GraduationCap className="w-3.5 h-3.5" />
-                    <span>🎓 Обучение</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons: START + SETTINGS */}
-            <div className="w-full max-w-sm space-y-2.5">
-              <button
-                type="button"
-                onClick={startLiveInterview}
-                disabled={!systemHealth.isAiReady}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-pink-200 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
-              >
-                {!systemHealth.isAiReady ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Инициализация AI Шлюза...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 fill-current" />
-                    <span>
-                      {sessionType === 'tutor'
-                        ? 'Начать голосовой разбор'
-                        : isBatchMode
-                        ? `Начать собеседование (${totalQuestions} вопр.)`
-                        : 'Начать собеседование'}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(true)}
-                className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-              >
-                <Settings2 className="w-4 h-4 text-pastel-accentViolet" />
-                <span>Настроить стратегию, голос и профили</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* STAGE 2: ACTIVE LIVE SESSION                                              */}
-        {/* ========================================================================= */}
-        {stage === 'active' && (
-          <>
-            <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex flex-wrap items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-pastel-accentRose text-sm">
-                  {sessionType === 'tutor' ? '🧠' : interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '🎯'}
+                <span className="text-[10px] font-semibold text-pastel-muted bg-white px-2 py-0.5 rounded-full border border-pastel-border">
+                  {activeTopic}
                 </span>
-                <p className="leading-tight">
-                  {sessionType === 'tutor'
-                    ? `AI-Тьютор (${tutorMode === 'deep_dive' ? 'Разбор под капотом' : tutorMode === 'socratic' ? 'Сократический наставник' : tutorMode === 'eli5' ? 'Простыми словами' : 'Свободный диалог'}): задавайте вопросы голосом.`
-                    : interviewConfig.strategy === 'socratic_tutoring'
-                    ? 'Сократический ментор: задавайте вопросы или просите подсказки.'
-                    : 'Адаптивное зондирование: отвечайте своими словами, ИИ уточнит детали.'}
-                </p>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isBatchMode && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-accentViolet text-white shadow-2xs">
-                    {activeBatchIndex + 1}/{totalQuestions}
+
+              <div className="flex-1 overflow-y-auto pr-1.5 pt-2.5 space-y-3">
+                {/* Question Header Card */}
+                <div className="p-3 rounded-xl bg-white border border-pastel-border/70 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-accentRose block mb-1">
+                    {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос:'}
                   </span>
-                )}
-                {interviewConfig.deepDive && sessionType !== 'tutor' && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border border-pastel-accentViolet/40 text-pastel-accentViolet shadow-2xs">
-                    🔬 Deep-Dive
+                  <h4 className="font-bold text-pastel-text text-sm leading-snug">
+                    {activeQuestionText}
+                  </h4>
+                </div>
+
+                {/* Markdown Theory & Code */}
+                <div className="p-3.5 rounded-xl bg-white border border-pastel-border/70 shadow-2xs leading-relaxed text-pastel-text/90">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted flex items-center gap-1 mb-2">
+                    <Sparkles className="w-3 h-3 text-pastel-accentRose" />
+                    Подробный эталонный ответ:
                   </span>
-                )}
-                {interviewConfig.liveCoaching && sessionType !== 'tutor' && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 shadow-2xs">
-                    🎓 Обучение
-                  </span>
-                )}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h3: ({ node, ...props }) => <h3 className="text-xs font-bold text-pastel-accentViolet mt-3 mb-1" {...props} />,
+                      p: ({ node, ...props }) => <p className="mb-2 text-xs text-pastel-text/90 leading-relaxed" {...props} />,
+                      ul: ({ node, ...props }) => <ul className="list-disc list-inside my-2 space-y-1 text-xs text-pastel-text/90 pl-1" {...props} />,
+                      ol: ({ node, ...props }) => <ol className="list-decimal list-inside my-2 space-y-1 text-xs text-pastel-text/90 pl-1" {...props} />,
+                      code: ({ node, inline, className, children, ...props }: any) => {
+                        const codeStr = String(children).replace(/\n$/, '');
+                        const match = /language-(\w+)/.exec(className || '');
+                        const lang = match ? match[1] : 'java';
+                        if (!inline && (className || codeStr.includes('\n'))) {
+                          return (
+                            <div className="my-2">
+                              <CodeViewer
+                                code={codeStr}
+                                language={lang}
+                                title={`${lang.toUpperCase()} • Эталонный листинг`}
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <code className="px-1.5 py-0.5 rounded-md bg-pastel-lavender/60 text-pastel-accentViolet font-mono text-[11px] font-semibold" {...props}>
+                            {children}
+                          </code>
+                        );
+                      }
+                    }}
+                  >
+                    {activeReferenceAnswer || 'Эталонный ответ загружается...'}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
 
-            <div className="my-3.5 flex flex-col items-center justify-center shrink-0">
-              <div className="relative">
-                <div
-                  className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isAiSpeaking
-                      ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
-                      : isRecording
-                      ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
-                      : 'bg-slate-100 border border-slate-300'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={toggleMic}
-                    className="w-24 h-24 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    {isAiSpeaking ? (
-                      <>
-                        <Volume2 className="w-8 h-8 text-pastel-accentRose animate-bounce" />
-                        <span className="text-[10px] font-bold text-pastel-accentRose mt-1">ИИ говорит...</span>
-                      </>
-                    ) : isRecording ? (
-                      <>
-                        <Mic className="w-8 h-8 text-emerald-600 animate-pulse" />
-                        <span className="text-[10px] font-bold text-emerald-600 mt-1">Слушаю...</span>
-                      </>
-                    ) : (
-                      <>
-                        <MicOff className="w-8 h-8 text-slate-400" />
-                        <span className="text-[10px] font-bold text-slate-400 mt-1">Пауза</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 text-center">
-                {isAiSpeaking ? (
-                  <span className="px-3 py-1 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-bold border border-pastel-accentRose/30 animate-pulse">
-                    🔊 ИИ озвучивает ответ...
-                  </span>
-                ) : isRecording ? (
-                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-300 animate-pulse">
-                    🎙️ Ваша очередь: говорите в микрофон...
-                  </span>
-                ) : (
-                  <span className="px-3 py-1 rounded-full bg-pastel-card text-pastel-muted text-xs border border-pastel-border">
-                    Микрофон на паузе (нажмите на кружок)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-[130px] max-h-[170px] overflow-y-auto p-3.5 rounded-2xl bg-pastel-card/50 border border-pastel-border/60 space-y-2.5 text-xs">
-              {dialogueTurns.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-pastel-sub italic text-center">
-                  Диалог появится здесь в реальном времени...
-                </div>
-              ) : (
-                dialogueTurns.map((turn, index) => (
-                  <div
-                    key={index}
-                    className={`flex gap-2 leading-relaxed ${
-                      turn.role === 'ai'
-                        ? 'text-pastel-accentViolet font-medium'
-                        : turn.role === 'user'
-                        ? 'text-pastel-text font-semibold'
-                        : 'text-pastel-sub italic text-[11px]'
-                    }`}
-                  >
-                    <span className="shrink-0">
-                      {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
-                    </span>
-                    <span>{turn.text}</span>
+            {/* Right Panel: Voice Tutor HUD */}
+            <div className="lg:col-span-5 flex flex-col min-h-0 justify-between">
+              {stage === 'lobby' && (
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 p-2">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
+                      <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
+                        🧠
+                      </div>
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full border-2 border-white shadow-xs">
+                      <Mic className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                ))
+
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-pastel-text text-sm">
+                      Голосовой AI-Тьютор готов к разбору
+                    </h4>
+                    <p className="text-xs text-pastel-muted leading-relaxed max-w-xs">
+                      Задавайте любые вопросы по коду и теории слева. ИИ детально объяснит физику процессов под капотом.
+                    </p>
+                  </div>
+
+                  {/* Mode Selector Pills */}
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                    {[
+                      { id: 'deep_dive', label: '🔬 Под капот' },
+                      { id: 'socratic', label: '🤔 Сократ' },
+                      { id: 'eli5', label: '💡 ELI5' },
+                      { id: 'free_chat', label: '💬 Свободный' }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setTutorMode(m.id as any)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer border ${
+                          tutorMode === m.id
+                            ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white border-transparent shadow-xs'
+                            : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="w-full max-w-xs space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={startLiveInterview}
+                      disabled={!systemHealth.isAiReady}
+                      className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:scale-[1.02] active:scale-[0.98] transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {!systemHealth.isAiReady ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Инициализация AI Шлюза...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Начать голосовой разбор</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsSettingsOpen(true)}
+                      className="w-full py-2 px-3 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Settings2 className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                      <span>Настройки голоса ({interviewConfig.voice})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {stage === 'active' && (
+                <div className="flex-1 flex flex-col min-h-0 justify-between">
+                  <div>
+                    <div className="px-3 py-1.5 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[10px] text-pastel-text/85 flex items-center justify-between shrink-0 mb-2">
+                      <span className="flex items-center gap-1 font-semibold">
+                        🧠 {tutorMode === 'deep_dive' ? 'Разбор под капотом' : tutorMode === 'socratic' ? 'Сократический наставник' : tutorMode === 'eli5' ? 'Простыми словами' : 'Свободный диалог'}
+                      </span>
+                      <span className="text-[10px] text-pastel-accentViolet font-bold">
+                        {interviewConfig.voice}
+                      </span>
+                    </div>
+
+                    {/* Mic Pulse Sphere */}
+                    <div className="my-2 flex flex-col items-center justify-center shrink-0">
+                      <div className="relative">
+                        <div
+                          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                            isAiSpeaking
+                              ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
+                              : isRecording
+                              ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
+                              : 'bg-slate-100 border border-slate-300'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={toggleMic}
+                            className="w-16 h-16 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
+                          >
+                            {isAiSpeaking ? (
+                              <Volume2 className="w-6 h-6 text-pastel-accentRose animate-bounce" />
+                            ) : isRecording ? (
+                              <Mic className="w-6 h-6 text-emerald-600 animate-pulse" />
+                            ) : (
+                              <MicOff className="w-6 h-6 text-slate-400" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 text-center">
+                        {isAiSpeaking ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose text-[10px] font-bold border border-pastel-accentRose/30 animate-pulse">
+                            🔊 ИИ отвечает вслух...
+                          </span>
+                        ) : isRecording ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-300 animate-pulse">
+                            🎙️ Говорите в микрофон...
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-pastel-card text-pastel-muted text-[10px] border border-pastel-border">
+                            Микрофон на паузе
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Live Turns Box */}
+                    <div className="h-32 overflow-y-auto p-2.5 rounded-xl bg-pastel-card/50 border border-pastel-border/60 space-y-1.5 text-xs">
+                      {dialogueTurns.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-pastel-sub italic text-center text-[11px]">
+                          Диалог появится здесь...
+                        </div>
+                      ) : (
+                        dialogueTurns.map((turn, index) => (
+                          <div
+                            key={index}
+                            className={`flex gap-1.5 leading-relaxed text-[11px] ${
+                              turn.role === 'ai'
+                                ? 'text-pastel-accentViolet font-medium'
+                                : turn.role === 'user'
+                                ? 'text-pastel-text font-semibold'
+                                : 'text-pastel-sub italic text-[10px]'
+                            }`}
+                          >
+                            <span className="shrink-0">
+                              {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
+                            </span>
+                            <span>{turn.text}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Quick Question Chips */}
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => sendTextMessage('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.', '💡 Как это в памяти JVM?')}
+                        disabled={isAiSpeaking}
+                        className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <span>💡 В памяти JVM</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => sendTextMessage('Объясни, как это работает под капотом в Spring Framework.', '⚙️ Как это в Spring?')}
+                        disabled={isAiSpeaking}
+                        className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <span>⚙️ В Spring</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => sendTextMessage('Какие главные ошибки и подводные камни допускают на практике по этой теме?', '⚠️ Какие частые ошибки?')}
+                        disabled={isAiSpeaking}
+                        className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <span>⚠️ Ошибки</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={retryCurrentQuestionCleanly}
+                        className="px-2 py-1 rounded-lg bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                        title="Сбросить историю и начать сначала"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>🔄</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bottom Buttons */}
+                  <div className="mt-2.5 pt-2 border-t border-pastel-border/60 flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Завершить разбор темы</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        teardownWsAndBuffersOnly();
+                        setSessionType('interview');
+                        void startLiveInterview();
+                      }}
+                      className="py-2.5 px-3 rounded-xl border border-pastel-accentViolet/40 text-pastel-accentViolet text-[11px] font-semibold hover:bg-pastel-lavender/40 transition cursor-pointer"
+                    >
+                      🎙️ Собеседование
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-
-            {/* Action Bar (Context-aware for Tutor vs Interview) */}
-            {sessionType === 'tutor' ? (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => sendTextMessage('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.', '💡 Как это в памяти JVM?')}
-                  disabled={isAiSpeaking}
-                  className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
-                >
-                  <span>💡 В памяти JVM</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => sendTextMessage('Объясни, как это работает под капотом в Spring Framework.', '⚙️ Как это в Spring?')}
-                  disabled={isAiSpeaking}
-                  className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
-                >
-                  <span>⚙️ Под капотом Spring</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => sendTextMessage('Какие главные ошибки и подводные камни допускают на практике по этой теме?', '⚠️ Какие частые ошибки?')}
-                  disabled={isAiSpeaking}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
-                >
-                  <span>⚠️ Частые ошибки</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={retryCurrentQuestionCleanly}
-                  className="px-2.5 py-1.5 rounded-xl bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                  title="Сбросить историю и начать сначала"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>🔄 Заново</span>
-                </button>
-              </div>
-            ) : (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={handleSurrenderAndExplain}
-                  disabled={isSubmitting || isAiSpeaking}
-                  className="px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
-                  title="Попросить ИИ зафиксировать пробел и дать емкое Senior-объяснение под капотом"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>💡 Сдаюсь / Объяснить под капотом</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={retryCurrentQuestionCleanly}
-                  disabled={isSubmitting}
-                  className="px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-lavender border border-pastel-accentViolet/30 text-pastel-accentViolet text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>🔄 Ответить заново с нуля</span>
-                </button>
+          </div>
+        ) : (
+          /* ========================================================================= */
+          /* INTERVIEW MODE: FOCUSED SINGLE-COLUMN MODAL                               */
+          /* ========================================================================= */
+          <>
+            {/* Question Context Banner */}
+            {stage !== 'grand_finale' && activeQuestionText && (
+              <div className="mt-3.5 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs shrink-0">
+                <span className="font-bold text-pastel-accentViolet block mb-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
+                  {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос темы:'}
+                </span>
+                <p className="text-pastel-text leading-relaxed font-bold">{activeQuestionText}</p>
               </div>
             )}
 
-            {/* Bottom Controls */}
-            <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-3 shrink-0">
-              {sessionType === 'tutor' ? (
-                <>
+            {/* STAGE 1: LOBBY */}
+            {stage === 'lobby' && (
+              <div className="my-6 flex flex-col items-center justify-center text-center space-y-5">
+                <div className="relative">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
+                    <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
+                      {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻'}
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white shadow-xs">
+                    <Mic className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="max-w-md space-y-1.5 px-2">
+                  <h4 className="font-bold text-pastel-text text-base">
+                    {isBatchMode
+                      ? `Готовы пройти серию из ${totalQuestions} вопросов?`
+                      : interviewConfig.strategy === 'socratic_tutoring' 
+                      ? 'Сократический ИИ-ментор готов' 
+                      : 'ИИ-интервьюер готов к диалогу'}
+                  </h4>
+                  <p className="text-xs text-pastel-muted leading-relaxed">
+                    {isBatchMode
+                      ? 'Режим "Без рук" (Hands-Free): ИИ последовательно задаст каждый вопрос темы, оценит ваши ответы и сам переведет к следующему.'
+                      : 'Интервьюер поздоровается голосом и зачитает вопрос. Вы можете отвечать своими словами и уточнять детали.'}
+                  </p>
+
+                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
+                      {interviewConfig.strategy === 'socratic_tutoring' ? (
+                        <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                      )}
+                      <span>
+                        {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice}
+                      </span>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleConfigChange({ ...interviewConfig, deepDive: !interviewConfig.deepDive })}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                        interviewConfig.deepDive
+                          ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-2xs'
+                          : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                      }`}
+                      title="Кликните для переключения глубокого зондирования"
+                    >
+                      <Microscope className="w-3.5 h-3.5" />
+                      <span>🔬 Deep-Dive</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleConfigChange({ ...interviewConfig, liveCoaching: !interviewConfig.liveCoaching })}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                        interviewConfig.liveCoaching
+                          ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-2xs'
+                          : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                      }`}
+                      title="Кликните для переключения обучения на лету"
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>🎓 Обучение</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons: START + SETTINGS */}
+                <div className="w-full max-w-sm space-y-2.5">
                   <button
                     type="button"
-                    onClick={onClose}
-                    className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={startLiveInterview}
+                    disabled={!systemHealth.isAiReady}
+                    className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-pink-200 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Завершить разбор темы</span>
+                    {!systemHealth.isAiReady ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Инициализация AI Шлюза...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5 fill-current" />
+                        <span>
+                          {isBatchMode
+                            ? `Начать собеседование (${totalQuestions} вопр.)`
+                            : 'Начать собеседование'}
+                        </span>
+                      </>
+                    )}
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      teardownWsAndBuffersOnly();
-                      setSessionType('interview');
-                      void startLiveInterview();
-                    }}
-                    className="py-3 px-4 rounded-2xl border border-pastel-accentViolet/40 text-pastel-accentViolet text-xs font-semibold hover:bg-pastel-lavender/40 transition cursor-pointer"
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                   >
-                    🎙️ Пройти собеседование
+                    <Settings2 className="w-4 h-4 text-pastel-accentViolet" />
+                    <span>Настроить стратегию, голос и профили</span>
                   </button>
-                </>
-              ) : (
-                <>
+                </div>
+              </div>
+            )}
+
+            {/* STAGE 2: ACTIVE LIVE SESSION */}
+            {stage === 'active' && (
+              <>
+                <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-pastel-accentRose text-sm">
+                      {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '🎯'}
+                    </span>
+                    <p className="leading-tight">
+                      {interviewConfig.strategy === 'socratic_tutoring'
+                        ? 'Сократический ментор: задавайте вопросы или просите подсказки.'
+                        : 'Адаптивное зондирование: отвечайте своими словами, ИИ уточнит детали.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isBatchMode && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-accentViolet text-white shadow-2xs">
+                        {activeBatchIndex + 1}/{totalQuestions}
+                      </span>
+                    )}
+                    {interviewConfig.deepDive && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border border-pastel-accentViolet/40 text-pastel-accentViolet shadow-2xs">
+                        🔬 Deep-Dive
+                      </span>
+                    )}
+                    {interviewConfig.liveCoaching && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 shadow-2xs">
+                        🎓 Обучение
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="my-3.5 flex flex-col items-center justify-center shrink-0">
+                  <div className="relative">
+                    <div
+                      className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isAiSpeaking
+                          ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
+                          : isRecording
+                          ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
+                          : 'bg-slate-100 border border-slate-300'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={toggleMic}
+                        className="w-24 h-24 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
+                      >
+                        {isAiSpeaking ? (
+                          <>
+                            <Volume2 className="w-8 h-8 text-pastel-accentRose animate-bounce" />
+                            <span className="text-[10px] font-bold text-pastel-accentRose mt-1">ИИ говорит...</span>
+                          </>
+                        ) : isRecording ? (
+                          <>
+                            <Mic className="w-8 h-8 text-emerald-600 animate-pulse" />
+                            <span className="text-[10px] font-bold text-emerald-600 mt-1">Слушаю...</span>
+                          </>
+                        ) : (
+                          <>
+                            <MicOff className="w-8 h-8 text-slate-400" />
+                            <span className="text-[10px] font-bold text-slate-400 mt-1">Пауза</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-center">
+                    {isAiSpeaking ? (
+                      <span className="px-3 py-1 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-bold border border-pastel-accentRose/30 animate-pulse">
+                        🔊 ИИ озвучивает ответ...
+                      </span>
+                    ) : isRecording ? (
+                      <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-300 animate-pulse">
+                        🎙️ Ваша очередь: говорите в микрофон...
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full bg-pastel-card text-pastel-muted text-xs border border-pastel-border">
+                        Микрофон на паузе (нажмите на кружок)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-[130px] max-h-[170px] overflow-y-auto p-3.5 rounded-2xl bg-pastel-card/50 border border-pastel-border/60 space-y-2.5 text-xs">
+                  {dialogueTurns.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-pastel-sub italic text-center">
+                      Диалог появится здесь в реальном времени...
+                    </div>
+                  ) : (
+                    dialogueTurns.map((turn, index) => (
+                      <div
+                        key={index}
+                        className={`flex gap-2 leading-relaxed ${
+                          turn.role === 'ai'
+                            ? 'text-pastel-accentViolet font-medium'
+                            : turn.role === 'user'
+                            ? 'text-pastel-text font-semibold'
+                            : 'text-pastel-sub italic text-[11px]'
+                        }`}
+                      >
+                        <span className="shrink-0">
+                          {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
+                        </span>
+                        <span>{turn.text}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Action Bar */}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleSurrenderAndExplain}
+                    disabled={isSubmitting || isAiSpeaking}
+                    className="px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                    title="Попросить ИИ зафиксировать пробел и дать емкое Senior-объяснение под капотом"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>💡 Сдаюсь / Объяснить под капотом</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={retryCurrentQuestionCleanly}
+                    disabled={isSubmitting}
+                    className="px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-lavender border border-pastel-accentViolet/30 text-pastel-accentViolet text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>🔄 Ответить заново с нуля</span>
+                  </button>
+                </div>
+
+                {/* Bottom Controls */}
+                <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={handleRequestVerdict}
@@ -1467,9 +1679,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   >
                     Отмена
                   </button>
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </>
         )}
 
