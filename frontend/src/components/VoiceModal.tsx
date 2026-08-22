@@ -54,6 +54,8 @@ interface VoiceModalProps {
   // Multi-question batch mode
   questionsBatch?: Question[];
   initialQuestionIndex?: number;
+  initialSessionType?: 'interview' | 'tutor';
+  initialTutorMode?: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat';
   onIndexChange?: (newIndex: number) => void;
   onBatchComplete?: (results: Record<string, EvaluationResult>) => void;
   onEvaluationComplete?: (result: EvaluationResult) => void;
@@ -82,12 +84,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   referenceAnswer = '',
   questionsBatch,
   initialQuestionIndex = 0,
+  initialSessionType = 'interview',
+  initialTutorMode = 'deep_dive',
   onIndexChange,
   onBatchComplete,
   onEvaluationComplete,
 }) => {
   const isBatchMode = Boolean(questionsBatch && questionsBatch.length > 0);
   const totalQuestions = isBatchMode && questionsBatch ? questionsBatch.length : 1;
+
+  // Session Type State ('interview' | 'tutor')
+  const [sessionType, setSessionType] = useState<'interview' | 'tutor'>(initialSessionType);
+  const [tutorMode, setTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>(initialTutorMode);
 
   // Active Batch Index state
   const [activeBatchIndex, setActiveBatchIndex] = useState<number>(initialQuestionIndex);
@@ -164,6 +172,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
 
     setActiveBatchIndex(initialQuestionIndex);
+    setSessionType(initialSessionType || 'interview');
+    setTutorMode(initialTutorMode || 'deep_dive');
     setBatchResults({});
     setStage('lobby');
     setEvaluation(null);
@@ -180,7 +190,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     return () => {
       teardownFullAudio();
     };
-  }, [isOpen]);
+  }, [isOpen, initialSessionType, initialTutorMode]);
 
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {
@@ -286,11 +296,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       topic: targetQ.topic,
       questionText: targetQ.question,
       referenceAnswer: targetQ.answer,
+      sessionType,
+      tutorMode: sessionType === 'tutor' ? tutorMode : '',
       voice: interviewConfig.voice,
-      strategy: interviewConfig.strategy,
+      strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
       maxProbes: String(interviewConfig.maxProbes),
-      deepDive: String(!!interviewConfig.deepDive),
-      liveCoaching: String(!!interviewConfig.liveCoaching),
+      deepDive: String(!!interviewConfig.deepDive || (sessionType === 'tutor' && tutorMode === 'deep_dive')),
+      liveCoaching: String(!!interviewConfig.liveCoaching || sessionType === 'tutor'),
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: interviewConfig.customPromptOverride || '',
       questionIndex: String(qIndex),
@@ -299,7 +311,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     });
 
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
-    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}):`, wsUrl);
+    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}, type=${sessionType}):`, wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -324,17 +336,33 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         if (data.type === 'setupComplete') {
           const isSubsequent = qIndex > 0;
-          setDialogueTurns((prev) => [
-            ...prev,
-            {
-              role: 'system',
-              text: isRetry
-                ? `🔄 Повторный ответ с чистого листа: слушайте вопрос.`
-                : isSubsequent
-                ? `⚡ Вопрос ${qIndex + 1} из ${totalQuestions}: слушайте формулировку.`
-                : `✨ Интервьюер готов (${interviewConfig.voice})! Слушайте вопрос.`
-            }
-          ]);
+          if (sessionType === 'tutor') {
+            setDialogueTurns((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                text: tutorMode === 'deep_dive'
+                  ? `🧠 AI-Тьютор (${interviewConfig.voice}) готов разобрать устройство под капотом!`
+                  : tutorMode === 'socratic'
+                  ? `🤔 Сократический ментор (${interviewConfig.voice}) готов задавать наводящие вопросы!`
+                  : tutorMode === 'eli5'
+                  ? `💡 ELI5-Тьютор (${interviewConfig.voice}) готов объяснить суть на жизненной аналогии!`
+                  : `✨ AI-Ментор (${interviewConfig.voice}) готов ответить на любые ваши вопросы!`
+              }
+            ]);
+          } else {
+            setDialogueTurns((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                text: isRetry
+                  ? `🔄 Повторный ответ с чистого листа: слушайте вопрос.`
+                  : isSubsequent
+                  ? `⚡ Вопрос ${qIndex + 1} из ${totalQuestions}: слушайте формулировку.`
+                  : `✨ Интервьюер готов (${interviewConfig.voice})! Слушайте вопрос.`
+              }
+            ]);
+          }
           // Warm up microphone hardware without transmitting yet
           void initMicrophoneHardware();
         } else if (data.type === 'evaluation_completed') {
@@ -441,6 +469,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       ...prev,
       { role: 'user', text: '💡 [Запрос разбора]: Я пока не знаю этого. Объясни, пожалуйста, как это устроено под капотом и как правильно отвечать.' }
     ]);
+  };
+
+  /**
+   * Sends explicit text prompt turn to Live WebSocket (for prompt chips / quick questions)
+   */
+  const sendTextMessage = (text: string, displayText?: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const turnFrame = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text }]
+          }
+        ],
+        turnComplete: true
+      }
+    };
+    wsRef.current.send(JSON.stringify(turnFrame));
+    if (displayText) {
+      setDialogueTurns((prev) => [...prev, { role: 'user', text: displayText }]);
+    }
   };
 
   /**
@@ -960,7 +1010,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-pastel-text text-base">Gemini Live Interviewer</h3>
+                <h3 className="font-bold text-pastel-text text-base">
+                  {sessionType === 'tutor' ? 'AI-Тьютор • Deep Dive' : 'Gemini Live Interviewer'}
+                </h3>
                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
               </div>
               <div className="flex items-center gap-2 text-[11px] text-pastel-muted">
@@ -972,9 +1024,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 )}
                 <span>
                   {stage === 'lobby'
-                    ? isBatchMode ? 'Непрерывное собеседование по порции' : 'Персональное собеседование'
+                    ? sessionType === 'tutor'
+                      ? 'Голосовой разбор вопросов под капотом'
+                      : isBatchMode ? 'Непрерывное собеседование по порции' : 'Персональное собеседование'
                     : stage === 'active'
-                    ? 'Голосовой диалог в реальном времени'
+                    ? sessionType === 'tutor'
+                      ? 'Голосовой диалог с наставником'
+                      : 'Голосовой диалог в реальном времени'
                     : stage === 'transition'
                     ? 'Автопереход к следующему вопросу'
                     : stage === 'grand_finale'
@@ -1044,7 +1100,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
                 <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
-                  {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻'}
+                  {sessionType === 'tutor' ? '🧠' : interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻'}
                 </div>
               </div>
               <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white shadow-xs">
@@ -1054,59 +1110,87 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             <div className="max-w-md space-y-1.5 px-2">
               <h4 className="font-bold text-pastel-text text-base">
-                {isBatchMode
+                {sessionType === 'tutor'
+                  ? 'Голосовой AI-Тьютор готов к разбору'
+                  : isBatchMode
                   ? `Готовы пройти серию из ${totalQuestions} вопросов?`
                   : interviewConfig.strategy === 'socratic_tutoring' 
                   ? 'Сократический ИИ-ментор готов' 
                   : 'ИИ-интервьюер готов к диалогу'}
               </h4>
               <p className="text-xs text-pastel-muted leading-relaxed">
-                {isBatchMode
+                {sessionType === 'tutor'
+                  ? 'Задавайте любые вопросы по JVM, Spring Framework, многопоточности и структурам данных. ИИ детально объяснит физику процессов под капотом.'
+                  : isBatchMode
                   ? 'Режим "Без рук" (Hands-Free): ИИ последовательно задаст каждый вопрос темы, оценит ваши ответы и сам переведет к следующему.'
                   : 'Интервьюер поздоровается голосом и зачитает вопрос. Вы можете отвечать своими словами и уточнять детали.'}
               </p>
 
-              {/* Active Config Pill & Quick Toggles */}
-              <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
-                  {interviewConfig.strategy === 'socratic_tutoring' ? (
-                    <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
-                  ) : (
-                    <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
-                  )}
-                  <span>
-                    {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice}
+              {/* Mode Selectors / Config Pills */}
+              {sessionType === 'tutor' ? (
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                  {[
+                    { id: 'deep_dive', label: '🔬 Под капот (Deep Dive)' },
+                    { id: 'socratic', label: '🤔 Сократический' },
+                    { id: 'eli5', label: '💡 ELI5 (Аналогии)' },
+                    { id: 'free_chat', label: '💬 Свободный чат' }
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setTutorMode(m.id as any)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                        tutorMode === m.id
+                          ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white border-transparent shadow-xs'
+                          : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
+                    {interviewConfig.strategy === 'socratic_tutoring' ? (
+                      <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                    )}
+                    <span>
+                      {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice}
+                    </span>
                   </span>
-                </span>
 
-                <button
-                  type="button"
-                  onClick={() => handleConfigChange({ ...interviewConfig, deepDive: !interviewConfig.deepDive })}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                    interviewConfig.deepDive
-                      ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-2xs'
-                      : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
-                  }`}
-                  title="Кликните для переключения глубокого зондирования"
-                >
-                  <Microscope className="w-3.5 h-3.5" />
-                  <span>🔬 Deep-Dive</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConfigChange({ ...interviewConfig, deepDive: !interviewConfig.deepDive })}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                      interviewConfig.deepDive
+                        ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-2xs'
+                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                    }`}
+                    title="Кликните для переключения глубокого зондирования"
+                  >
+                    <Microscope className="w-3.5 h-3.5" />
+                    <span>🔬 Deep-Dive</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleConfigChange({ ...interviewConfig, liveCoaching: !interviewConfig.liveCoaching })}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                    interviewConfig.liveCoaching
-                      ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-2xs'
-                      : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
-                  }`}
-                  title="Кликните для переключения обучения на лету"
-                >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>🎓 Обучение</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleConfigChange({ ...interviewConfig, liveCoaching: !interviewConfig.liveCoaching })}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                      interviewConfig.liveCoaching
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-2xs'
+                        : 'bg-white/80 hover:bg-slate-100 border-slate-200 text-slate-400'
+                    }`}
+                    title="Кликните для переключения обучения на лету"
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>🎓 Обучение</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons: START + SETTINGS */}
@@ -1125,7 +1209,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 ) : (
                   <>
                     <Play className="w-5 h-5 fill-current" />
-                    <span>{isBatchMode ? `Начать собеседование (${totalQuestions} вопр.)` : 'Начать собеседование'}</span>
+                    <span>
+                      {sessionType === 'tutor'
+                        ? 'Начать голосовой разбор'
+                        : isBatchMode
+                        ? `Начать собеседование (${totalQuestions} вопр.)`
+                        : 'Начать собеседование'}
+                    </span>
                   </>
                 )}
               </button>
@@ -1150,10 +1240,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-pastel-accentRose text-sm">
-                  {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '🎯'}
+                  {sessionType === 'tutor' ? '🧠' : interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '🎯'}
                 </span>
                 <p className="leading-tight">
-                  {interviewConfig.strategy === 'socratic_tutoring'
+                  {sessionType === 'tutor'
+                    ? `AI-Тьютор (${tutorMode === 'deep_dive' ? 'Разбор под капотом' : tutorMode === 'socratic' ? 'Сократический наставник' : tutorMode === 'eli5' ? 'Простыми словами' : 'Свободный диалог'}): задавайте вопросы голосом.`
+                    : interviewConfig.strategy === 'socratic_tutoring'
                     ? 'Сократический ментор: задавайте вопросы или просите подсказки.'
                     : 'Адаптивное зондирование: отвечайте своими словами, ИИ уточнит детали.'}
                 </p>
@@ -1164,12 +1256,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     {activeBatchIndex + 1}/{totalQuestions}
                   </span>
                 )}
-                {interviewConfig.deepDive && (
+                {interviewConfig.deepDive && sessionType !== 'tutor' && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border border-pastel-accentViolet/40 text-pastel-accentViolet shadow-2xs">
                     🔬 Deep-Dive
                   </span>
                 )}
-                {interviewConfig.liveCoaching && (
+                {interviewConfig.liveCoaching && sessionType !== 'tutor' && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 shadow-2xs">
                     🎓 Обучение
                   </span>
@@ -1178,44 +1270,49 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             </div>
 
             <div className="my-3.5 flex flex-col items-center justify-center shrink-0">
-              <div className="relative flex items-center justify-center w-28 h-28">
-                <motion.div
-                  animate={{
-                    scale: isRecording ? [1, 1.25, 1] : isAiSpeaking ? [1, 1.15, 1] : 1,
-                    opacity: isRecording ? [0.3, 0.8, 0.3] : isAiSpeaking ? [0.4, 0.7, 0.4] : 0.15,
-                  }}
-                  transition={{ repeat: Infinity, duration: isRecording ? 1.2 : 1.8 }}
-                  className={`absolute inset-0 rounded-full ${
+              <div className="relative">
+                <div
+                  className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isAiSpeaking
-                      ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
-                      : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet'
-                  }`}
-                />
-
-                <button
-                  type="button"
-                  onClick={toggleMic}
-                  disabled={isSubmitting}
-                  className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white shadow-xl transition transform ${
-                    isRecording
-                      ? 'bg-gradient-to-tr from-rose-500 to-pink-600 scale-105 shadow-rose-200'
-                      : 'bg-gradient-to-tr from-slate-400 to-slate-500 hover:scale-105'
+                      ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
+                      : isRecording
+                      ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
+                      : 'bg-slate-100 border border-slate-300'
                   }`}
                 >
-                  {isRecording ? <Mic className="w-8 h-8" /> : <MicOff className="w-8 h-8" />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={toggleMic}
+                    className="w-24 h-24 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    {isAiSpeaking ? (
+                      <>
+                        <Volume2 className="w-8 h-8 text-pastel-accentRose animate-bounce" />
+                        <span className="text-[10px] font-bold text-pastel-accentRose mt-1">ИИ говорит...</span>
+                      </>
+                    ) : isRecording ? (
+                      <>
+                        <Mic className="w-8 h-8 text-emerald-600 animate-pulse" />
+                        <span className="text-[10px] font-bold text-emerald-600 mt-1">Слушаю...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MicOff className="w-8 h-8 text-slate-400" />
+                        <span className="text-[10px] font-bold text-slate-400 mt-1">Пауза</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 text-center">
                 {isAiSpeaking ? (
-                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200 animate-pulse">
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>ИИ говорит вслух...</span>
+                  <span className="px-3 py-1 rounded-full bg-pastel-rose text-pastel-accentRose text-xs font-bold border border-pastel-accentRose/30 animate-pulse">
+                    🔊 ИИ озвучивает ответ...
                   </span>
                 ) : isRecording ? (
-                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-xs font-semibold border border-rose-200">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                    <span>Микрофон слушает вас ({Math.round(rmsDb)} dB)</span>
+                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-300 animate-pulse">
+                    🎙️ Ваша очередь: говорите в микрофон...
                   </span>
                 ) : (
                   <span className="px-3 py-1 rounded-full bg-pastel-card text-pastel-muted text-xs border border-pastel-border">
@@ -1251,58 +1348,127 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               )}
             </div>
 
-            {/* Interactive Sandbox & Breakpoint Action Bar */}
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <button
-                type="button"
-                onClick={handleSurrenderAndExplain}
-                disabled={isSubmitting || isAiSpeaking}
-                className="px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
-                title="Попросить ИИ зафиксировать пробел и дать емкое Senior-объяснение под капотом"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>💡 Сдаюсь / Объяснить под капотом</span>
-              </button>
+            {/* Action Bar (Context-aware for Tutor vs Interview) */}
+            {sessionType === 'tutor' ? (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => sendTextMessage('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.', '💡 Как это в памяти JVM?')}
+                  disabled={isAiSpeaking}
+                  className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <span>💡 В памяти JVM</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={retryCurrentQuestionCleanly}
-                disabled={isSubmitting}
-                className="px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-lavender border border-pastel-accentViolet/30 text-pastel-accentViolet text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>🔄 Ответить заново с нуля</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => sendTextMessage('Объясни, как это работает под капотом в Spring Framework.', '⚙️ Как это в Spring?')}
+                  disabled={isAiSpeaking}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <span>⚙️ Под капотом Spring</span>
+                </button>
 
+                <button
+                  type="button"
+                  onClick={() => sendTextMessage('Какие главные ошибки и подводные камни допускают на практике по этой теме?', '⚠️ Какие частые ошибки?')}
+                  disabled={isAiSpeaking}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <span>⚠️ Частые ошибки</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={retryCurrentQuestionCleanly}
+                  className="px-2.5 py-1.5 rounded-xl bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                  title="Сбросить историю и начать сначала"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>🔄 Заново</span>
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={handleSurrenderAndExplain}
+                  disabled={isSubmitting || isAiSpeaking}
+                  className="px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                  title="Попросить ИИ зафиксировать пробел и дать емкое Senior-объяснение под капотом"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>💡 Сдаюсь / Объяснить под капотом</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={retryCurrentQuestionCleanly}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-lavender border border-pastel-accentViolet/30 text-pastel-accentViolet text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>🔄 Ответить заново с нуля</span>
+                </button>
+              </div>
+            )}
+
+            {/* Bottom Controls */}
             <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={handleRequestVerdict}
-                disabled={isSubmitting}
-                className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Формирование вердикта...</span>
-                  </>
-                ) : (
-                  <>
+              {sessionType === 'tutor' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Завершить ответ и получить оценку</span>
-                  </>
-                )}
-              </button>
+                    <span>Завершить разбор темы</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-3 px-5 rounded-2xl border border-pastel-border text-pastel-sub text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
-              >
-                Отмена
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      teardownWsAndBuffersOnly();
+                      setSessionType('interview');
+                      void startLiveInterview();
+                    }}
+                    className="py-3 px-4 rounded-2xl border border-pastel-accentViolet/40 text-pastel-accentViolet text-xs font-semibold hover:bg-pastel-lavender/40 transition cursor-pointer"
+                  >
+                    🎙️ Пройти собеседование
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRequestVerdict}
+                    disabled={isSubmitting}
+                    className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Формирование вердикта...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Завершить ответ и получить оценку</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="py-3 px-5 rounded-2xl border border-pastel-border text-pastel-sub text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                </>
+              )}
             </div>
           </>
         )}

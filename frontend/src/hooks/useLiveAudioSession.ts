@@ -38,7 +38,10 @@ export interface UseLiveAudioSessionOptions {
 }
 
 export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
-  const { onSetupComplete, onEvaluationCompleted, onBugSolved, onError, onDisconnect } = options;
+  const optionsRef = useRef(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   // Session State
   const [isConnected, setIsConnected] = useState(false);
@@ -234,23 +237,23 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             setStatusMessage('🔊 AI говорит...');
             // Lazy warm-up mic in background without interrupting playback
             void initMicrophoneHardware();
-            onSetupComplete?.();
+            optionsRef.current.onSetupComplete?.();
             return;
           }
 
           if (data.type === 'evaluation_completed') {
-            onEvaluationCompleted?.(data.evaluation);
+            optionsRef.current.onEvaluationCompleted?.(data.evaluation);
             return;
           }
 
           if (data.type === 'bug_solved') {
-            onBugSolved?.(data.payload);
+            optionsRef.current.onBugSolved?.(data.payload);
             return;
           }
 
           if (data.error) {
             setStatusMessage(`❌ ${data.error}`);
-            onError?.(data.error);
+            optionsRef.current.onError?.(data.error);
             return;
           }
 
@@ -333,20 +336,20 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           setStatusMessage('Сессия завершена');
         }
 
-        onDisconnect?.();
+        optionsRef.current.onDisconnect?.();
       };
 
       ws.onerror = (err) => {
         console.error('Live Audio WS error:', err);
         setStatusMessage('Ошибка подключения к шлюзу');
-        onError?.('Ошибка подключения к шлюзу');
+        optionsRef.current.onError?.('Ошибка подключения к шлюзу');
       };
     } catch (err: any) {
       console.error('Failed to start Live Audio session:', err);
       setStatusMessage('Ошибка запуска аудиосессии');
-      onError?.(err?.message || 'Ошибка запуска');
+      optionsRef.current.onError?.(err?.message || 'Ошибка запуска');
     }
-  }, [onSetupComplete, onEvaluationCompleted, onBugSolved, onError, onDisconnect]);
+  }, []);
 
   /**
    * Send text message or breakpoint directive into the live turn stream

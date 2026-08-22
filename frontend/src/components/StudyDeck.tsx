@@ -19,7 +19,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
-import { CardVoiceTutor } from './CardVoiceTutor';
 import { CodeViewer } from './CodeViewer';
 
 export const StudyDeck: React.FC = () => {
@@ -39,6 +38,8 @@ export const StudyDeck: React.FC = () => {
   } = useAppStore();
   const [copied, setCopied] = React.useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [voiceModalSessionType, setVoiceModalSessionType] = useState<'interview' | 'tutor'>('interview');
+  const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>('deep_dive');
   const [showAnswer, setShowAnswer] = useState(true);
 
   if (!currentBatch || currentBatch.length === 0) {
@@ -137,14 +138,29 @@ export const StudyDeck: React.FC = () => {
                 Вопрос #{currentQ.num}
               </span>
 
-              {/* Action Buttons: Voice Interview & Audio Recap */}
+              {/* Action Buttons: Voice Interview, AI Tutor & Audio Recap */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsVoiceOpen(true)}
+                  onClick={() => {
+                    setVoiceModalSessionType('interview');
+                    setIsVoiceOpen(true);
+                  }}
                   className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition cursor-pointer shadow-2xs active:scale-95"
-                  title="Пройти устное собеседование по этому вопросу"
+                  title="Пройти устное собеседование по этому вопросу с оценкой"
                 >
-                  <Mic className="w-3.5 h-3.5" /> Устный ответ AI
+                  <Mic className="w-3.5 h-3.5" /> Собеседование
+                </button>
+
+                <button
+                  onClick={() => {
+                    setVoiceModalSessionType('tutor');
+                    setVoiceModalTutorMode('deep_dive');
+                    setIsVoiceOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95"
+                  title="Обсудить устройство под капотом голосом с AI-тьютором"
+                >
+                  <Brain className="w-3.5 h-3.5" /> Тьютор (Deep Dive)
                 </button>
 
                 {activeEvaluation && (
@@ -265,12 +281,6 @@ export const StudyDeck: React.FC = () => {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Embedded AI Voice Tutor & Bug Review Widget */}
-            <CardVoiceTutor
-              question={currentQ}
-              topicName={selectedTopicName || currentQ.topic}
-            />
           </div>
         </motion.div>
       </AnimatePresence>
@@ -312,6 +322,8 @@ export const StudyDeck: React.FC = () => {
         referenceAnswer={currentQ.answer}
         questionsBatch={currentBatch}
         initialQuestionIndex={currentQuestionIndex}
+        initialSessionType={voiceModalSessionType}
+        initialTutorMode={voiceModalTutorMode}
         onBatchComplete={(evaluations: Record<string, any>) => {
           Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
             const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;

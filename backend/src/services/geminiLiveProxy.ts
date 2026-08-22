@@ -164,7 +164,7 @@ ${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''
 1. БЕЗ ЭКЗАМЕНАЦИОННЫХ РАМОК И ЗАГАДОК: Кандидат пришел просто посоветоваться или спросить о непонятной детали.
 2. ПРЯМЫЕ И ЧЕТКИЕ ОТВЕТЫ: Если кандидат спрашивает «как это работает?», «почему тут ошибка?» или «объясни 10-ю строку» — отвечай прямо, дружелюбно, профессионально и по существу, приводя лучшие инженерные практики.
 3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай емко (2-4 предложения за раз), без бесконечных академических лекций.
-4. ПОДДЕРЖКА: Всегда поддерживай, подбадривай и помогай досконально понять концепцию.`;
+4. ПОДДЕРЖКА И НЕПРЕРЫВНЫЙ ДИАЛОГ: Всегда поддерживай, отвечай на вопросы и после каждого ответа переходи в режим прослушивания кандидата. НЕ пытайся завершить диалог самостоятельно.`;
     }
 
     if (tutorMode === 'deep_dive') {
@@ -182,7 +182,8 @@ ${referenceAnswer}
 === ПРАВИЛА ДИАЛОГА ===
 1. Твоя цель — отвечать на вопросы кандидата и раскрывать «что происходит под капотом» (байткод, прокси, AOP, сборка мусора, JMM, структуры данных, системные вызовы).
 2. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай 2-3 емкими предложениями за раз. Заканчивай мини-вопросом или предложением углубиться («Хочешь разобрать, как это устроено в памяти?»).
-3. НЕ ЗАЧИТЫВАЙ длинные простыни текста. Веди живую, интерактивную беседу.`;
+3. НЕ ЗАЧИТЫВАЙ длинные простыни текста. Веди живую, интерактивную беседу.
+4. НЕПРЕРЫВНОЕ СЛУШАНИЕ: После каждого ответа обязательно делай паузу и слушай микрофон кандидата. Диалог завершается только по явной команде пользователя.`;
     }
 
     if (tutorMode === 'socratic') {
@@ -200,7 +201,8 @@ ${referenceAnswer}
 === ПРАВИЛА ===
 1. Никогда не выпаливай готовое решение сразу.
 2. Задавай 1 короткий наводящий вопрос в ответ на реплику кандидата.
-3. Длина ответа: строго 1-2 предложения.`;
+3. Длина ответа: строго 1-2 предложения.
+4. Слушай ответ кандидата после каждого вопроса.`;
     }
 
     if (tutorMode === 'eli5') {
@@ -218,7 +220,8 @@ ${referenceAnswer}
 === ПРАВИЛА ===
 1. Используй яркую и понятную бытовую аналогию.
 2. Без заумного академизма и перегруженного синтаксиса.
-3. Длина: 2-3 коротких предложения.`;
+3. Длина: 2-3 коротких предложения.
+4. После аналогии спроси: «Понятна ли аналогия или разобрать на другом примере?» и слушай ответ.`;
     }
 
     // Default tutor mode: quick_qa
@@ -235,7 +238,8 @@ ${referenceAnswer}
 
 === ПРАВИЛА ===
 1. Отвечай прямо, точно и без лишней «воды».
-2. Длина ответа: строго 2 предложения.`;
+2. Длина ответа: строго 2 предложения.
+3. Слушай дальнейшие вопросы кандидата.`;
   }
 
   // === INTERVIEW SESSION LOGIC (FAANG Mock Assessment) ===
@@ -965,7 +969,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       }
     });
 
-    const terminate = () => {
+    const terminate = (source: string, code?: number, reason?: Buffer) => {
+      console.log(`🔌 Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
       if (greetingWatchdog) {
         clearTimeout(greetingWatchdog);
         greetingWatchdog = null;
@@ -979,23 +984,19 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       }
     };
 
-    clientSocket.on('close', terminate);
+    clientSocket.on('close', (code, reason) => terminate('ClientSocket', code, reason));
     clientSocket.on('error', (err) => {
       console.error('Client WS error:', err.message);
-      terminate();
+      terminate('ClientSocketError');
     });
 
-    geminiSocket.on('close', () => {
-      console.log('Gemini Live upstream connection closed');
-      terminate();
-    });
-
+    geminiSocket.on('close', (code, reason) => terminate('GeminiUpstream', code, reason));
     geminiSocket.on('error', (err) => {
       console.error('Gemini Live upstream WS error:', err.message);
       if (clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ error: `Ошибка голосового шлюза: ${err.message}` }));
       }
-      terminate();
+      terminate('GeminiUpstreamError');
     });
   });
 }
