@@ -29,7 +29,10 @@ import {
   Layers,
   FastForward,
   Check,
-  BookOpen
+  BookOpen,
+  Send,
+  VolumeX,
+  Keyboard
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -60,6 +63,7 @@ interface VoiceModalProps {
   initialQuestionIndex?: number;
   initialSessionType?: 'interview' | 'tutor';
   initialTutorMode?: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat';
+  customPromptOverride?: string;
   onIndexChange?: (newIndex: number) => void;
   onBatchComplete?: (results: Record<string, EvaluationResult>) => void;
   onEvaluationComplete?: (result: EvaluationResult) => void;
@@ -90,6 +94,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   initialQuestionIndex = 0,
   initialSessionType = 'interview',
   initialTutorMode = 'deep_dive',
+  customPromptOverride,
   onIndexChange,
   onBatchComplete,
   onEvaluationComplete,
@@ -153,6 +158,31 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   // Accordion expansion in Grand Finale
   const [expandedSummaryIds, setExpandedSummaryIds] = useState<Set<string>>(new Set());
+
+  // Multimodal Text Input & Earphone/Silent Mute Mode
+  const [inputText, setInputText] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    playoutManagerRef.current?.setMuted(nextMuted);
+  };
+
+  const handleSendCustomText = (textToSend?: string) => {
+    const text = (textToSend !== undefined ? textToSend : inputText).trim();
+    if (!text) return;
+    sendTextMessage(text, text);
+    setInputText('');
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendCustomText();
+    }
+  };
 
   // Refs for synchronous audio worklet synchronization
   const isRecordingRef = useRef(false);
@@ -327,7 +357,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       deepDive: String(!!interviewConfig.deepDive || (sessionType === 'tutor' && tutorMode === 'deep_dive')),
       liveCoaching: String(!!interviewConfig.liveCoaching || sessionType === 'tutor'),
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
-      customPrompt: interviewConfig.customPromptOverride || '',
+      customPrompt: customPromptOverride || interviewConfig.customPromptOverride || '',
       questionIndex: String(qIndex),
       totalQuestions: String(totalQuestions),
       isRetry: String(!!isRetry)
@@ -544,10 +574,23 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   /**
-   * Sends explicit text prompt turn to Live WebSocket (for prompt chips / quick questions)
+   * Sends explicit text prompt turn to Live WebSocket (for prompt chips, typed questions, or earphone commute chat)
    */
   const sendTextMessage = (text: string, displayText?: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    // Reset VAD timer and speech flags on manual text turn
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    hasSpokenInTurnRef.current = false;
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    setIsThinking(true);
+    isThinkingRef.current = true;
+    isServerTurnCompleteRef.current = false;
+
     const turnFrame = {
       clientContent: {
         turns: [
@@ -1487,44 +1530,95 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       )}
                     </div>
 
-                    {/* Quick Question Chips */}
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => sendTextMessage('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.', '💡 Как это в памяти JVM?')}
-                        disabled={isAiSpeaking}
-                        className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      >
-                        <span>💡 В памяти JVM</span>
-                      </button>
+                    {/* Unified Multimodal Input Dock (Text & Earphones/Silent Mode) */}
+                    <div className="mt-2.5 space-y-2">
+                      {/* Text Input Row with Glassmorphism */}
+                      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/95 border border-pastel-border/90 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/40 focus-within:border-pastel-accentViolet/70 transition-all">
+                        <input
+                          ref={textInputRef}
+                          type="text"
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          onKeyDown={handleInputKeyDown}
+                          disabled={isAiSpeaking && !isMuted}
+                          placeholder={isAiSpeaking ? 'ИИ говорит в наушники...' : '💬 Напишите вопрос или мысль (Enter)...'}
+                          className="flex-1 px-3 py-1.5 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none disabled:opacity-50"
+                        />
 
-                      <button
-                        type="button"
-                        onClick={() => sendTextMessage('Объясни, как это работает под капотом в Spring Framework.', '⚙️ Как это в Spring?')}
-                        disabled={isAiSpeaking}
-                        className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      >
-                        <span>⚙️ В Spring</span>
-                      </button>
+                        {/* Send Text Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleSendCustomText()}
+                          disabled={!inputText.trim() || (isAiSpeaking && !isMuted)}
+                          className="p-2 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 active:scale-95 transition-all shadow-xs disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                          title="Отправить вопрос в диалог (Enter)"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => sendTextMessage('Какие главные ошибки и подводные камни допускают на практике по этой теме?', '⚠️ Какие частые ошибки?')}
-                        disabled={isAiSpeaking}
-                        className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                      >
-                        <span>⚠️ Ошибки</span>
-                      </button>
+                        {/* Earphones / Silent Mode (Mute) Toggle */}
+                        <button
+                          type="button"
+                          onClick={toggleMute}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                            isMuted
+                              ? 'bg-amber-100/90 border-amber-300 text-amber-800'
+                              : 'bg-pastel-bg/60 hover:bg-slate-100 border-pastel-border text-pastel-sub hover:text-pastel-accentViolet'
+                          }`}
+                          title={isMuted ? '🔇 Режим тишины: озвучка выключена (только текст в чат). Нажмите, чтобы включить голос в наушники.' : '🔊 Озвучка в наушники включена. Нажмите для включения Режима тишины.'}
+                        >
+                          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={retryCurrentQuestionCleanly}
-                        className="px-2 py-1 rounded-lg bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                        title="Сбросить историю и начать сначала"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>🔄</span>
-                      </button>
+                      {/* Dynamic Contextual Chips */}
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => handleSendCustomText('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>💡 В памяти JVM</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendCustomText('Объясни, как это работает под капотом в Spring Framework.')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>⚙️ В Spring</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendCustomText('Какие главные ошибки и подводные камни допускают на практике по этой теме?')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>⚠️ Ошибки</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendCustomText('Объясни эту концепцию максимально просто, как для начинающего (ELI5).')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>👶 ELI5</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={retryCurrentQuestionCleanly}
+                          className="px-2 py-1 rounded-lg bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="Сбросить историю и начать сначала"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>🔄</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1832,6 +1926,46 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       </div>
                     ))
                   )}
+                </div>
+
+                {/* Unified Multimodal Input Dock for Interview Mode (Text & Earphones/Silent Mode) */}
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/95 border border-pastel-border/90 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/40 focus-within:border-pastel-accentViolet/70 transition-all">
+                    <input
+                      type="text"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      disabled={isAiSpeaking && !isMuted}
+                      placeholder={isAiSpeaking ? 'ИИ говорит в наушники...' : '💬 Напишите ответ текстом (Enter для отправки)...'}
+                      className="flex-1 px-3 py-1.5 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none disabled:opacity-50"
+                    />
+
+                    {/* Send Text Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleSendCustomText()}
+                      disabled={!inputText.trim() || (isAiSpeaking && !isMuted)}
+                      className="p-2 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 active:scale-95 transition-all shadow-xs disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                      title="Отправить ответ в диалог (Enter)"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Earphones / Silent Mode (Mute) Toggle */}
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                        isMuted
+                          ? 'bg-amber-100/90 border-amber-300 text-amber-800'
+                          : 'bg-pastel-bg/60 hover:bg-slate-100 border-pastel-border text-pastel-sub hover:text-pastel-accentViolet'
+                      }`}
+                      title={isMuted ? '🔇 Режим тишины: озвучка выключена (только текст в чат). Нажмите, чтобы включить голос в наушники.' : '🔊 Озвучка в наушники включена. Нажмите для включения Режима тишины.'}
+                    >
+                      {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Action Bar */}

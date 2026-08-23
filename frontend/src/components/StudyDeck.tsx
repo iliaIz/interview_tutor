@@ -41,6 +41,17 @@ export const StudyDeck: React.FC = () => {
   const [voiceModalSessionType, setVoiceModalSessionType] = useState<'interview' | 'tutor'>('interview');
   const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>('deep_dive');
   const [showAnswer, setShowAnswer] = useState(true);
+  const [quickQuestionText, setQuickQuestionText] = useState('');
+  const [customPromptForTutor, setCustomPromptForTutor] = useState('');
+
+  const handleLaunchTutorWithPrompt = (prompt?: string) => {
+    const text = (prompt !== undefined ? prompt : quickQuestionText).trim();
+    setCustomPromptForTutor(text);
+    setVoiceModalSessionType('tutor');
+    setVoiceModalTutorMode('deep_dive');
+    setIsVoiceOpen(true);
+    setQuickQuestionText('');
+  };
 
   if (!currentBatch || currentBatch.length === 0) {
     return (
@@ -280,6 +291,41 @@ export const StudyDeck: React.FC = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Quick Ask AI Tutor Bar */}
+              <div className="mt-5 pt-4 border-t border-pastel-border/60">
+                <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-pastel-lavender/30 border border-pastel-accentViolet/20 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/30 focus-within:border-pastel-accentViolet/50 transition-all">
+                  <Brain className="w-4 h-4 text-pastel-accentViolet ml-2 shrink-0" />
+                  <input
+                    type="text"
+                    value={quickQuestionText}
+                    onChange={(e) => setQuickQuestionText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && quickQuestionText.trim()) {
+                        handleLaunchTutorWithPrompt(quickQuestionText.trim());
+                      }
+                    }}
+                    placeholder="💬 Спросить Тьютора по этой карточке (текстом или в наушники)..."
+                    className="flex-1 px-2 py-1 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (quickQuestionText.trim()) {
+                        handleLaunchTutorWithPrompt(quickQuestionText.trim());
+                      } else {
+                        setVoiceModalSessionType('tutor');
+                        setVoiceModalTutorMode('deep_dive');
+                        setIsVoiceOpen(true);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Спросить</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -324,6 +370,7 @@ export const StudyDeck: React.FC = () => {
         initialQuestionIndex={currentQuestionIndex}
         initialSessionType={voiceModalSessionType}
         initialTutorMode={voiceModalTutorMode}
+        customPromptOverride={customPromptForTutor}
         onBatchComplete={(evaluations: Record<string, any>) => {
           Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
             const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;

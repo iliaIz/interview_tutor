@@ -22,7 +22,11 @@ import {
   MessageSquare,
   Layers,
   Cpu,
-  Settings
+  Settings,
+  Send,
+  VolumeX,
+  Keyboard,
+  Zap
 } from 'lucide-react';
 import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
@@ -159,15 +163,24 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     return Math.max(1, sameSubtopicCount);
   }, [challenge, currentIndex, history]);
 
+  // Multimodal Text Input & Earphone/Silent Mute State
+  const [inputText, setInputText] = useState('');
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+
   // Unified Live Audio Hook
   const {
     isConnected,
     isAiSpeaking,
     isRecording,
+    isMuted,
     statusMessage,
+    dialogueTurns,
     aiTranscript,
     startSession,
     disconnectSession,
+    sendTextMessage,
+    toggleMic,
+    toggleMute,
     setStatusMessage,
     setAiTranscript
   } = useLiveAudioSession({
@@ -193,6 +206,39 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         questionId: challenge?.id || '',
         voice: 'Aoede'
       });
+    }
+  };
+
+  const handleSendBugText = (textToSend?: string) => {
+    const text = (textToSend !== undefined ? textToSend : inputText).trim();
+    if (!text) return;
+
+    if (!isConnected) {
+      void startSession({
+        sessionType: 'tutor',
+        tutorMode: tutorRole,
+        topic: topicName || 'Java & Spring Framework',
+        bugTitle: challenge?.title || '',
+        bugExplanation: challenge?.bugExplanation || '',
+        codeSnippet: challenge?.codeSnippet || '',
+        hints: challenge?.hints || [],
+        questionId: challenge?.id || '',
+        voice: 'Aoede'
+      }).then(() => {
+        setTimeout(() => {
+          sendTextMessage(text, text);
+        }, 500);
+      });
+    } else {
+      sendTextMessage(text, text);
+    }
+    setInputText('');
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendBugText();
     }
   };
 
@@ -784,20 +830,30 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     variantNumber={currentVariantNumber}
                   />
 
-                  {/* AI Live Tutor Voice Station */}
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50/90 via-white to-pink-50/80 border border-pink-200/80 shadow-xs space-y-4 backdrop-blur-md">
-                    {/* Voice Bar Header with Tutor Role Switcher */}
+                  {/* AI Live Tutor & Code Review Multimodal Station */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50/90 via-white to-pink-50/80 border border-pink-200/80 shadow-xs space-y-3.5 backdrop-blur-md">
+                    {/* Header with Tutor Role Switcher & Audio Controls */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-pink-100 pb-3">
                       <div className="flex items-center gap-2">
                         <Volume2 className="w-4 h-4 text-pink-600" />
                         <span className="text-xs font-bold text-[#2D1B4E]">
-                          AI-Тьютор в реальном времени:
+                          AI-Техлид в реальном времени (Aoede):
                         </span>
+                        {isMuted ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                            🔇 Режим тишины
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            🎧 Озвучка в наушники
+                          </span>
+                        )}
                       </div>
 
                       {/* AI Role Switcher (Code Review vs Freeform Chat) */}
                       <div className="flex items-center gap-1 bg-pink-100/70 p-1 rounded-xl border border-pink-200/50 self-start sm:self-auto shadow-2xs">
                         <button
+                          type="button"
                           onClick={() => { setTutorRole('bug_hunt'); disconnectSession(); }}
                           className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             tutorRole === 'bug_hunt'
@@ -810,6 +866,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => { setTutorRole('free_chat'); disconnectSession(); }}
                           className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             tutorRole === 'free_chat'
@@ -823,64 +880,130 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Microphone & Status Line with Dynamic Pastel Audio Aura */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3.5">
-                        <button
-                          onClick={toggleAudioSession}
-                          className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer shadow-md ${
-                            isConnected
-                              ? 'bg-rose-500 text-white ring-4 ring-rose-500/20 animate-pulse'
-                              : 'bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white hover:scale-105'
-                          }`}
-                          title={isConnected ? 'Остановить разговор' : 'Включить микрофон и обсудить голосом'}
-                        >
-                          {/* Pastel Breathing Aura during active speech */}
-                          {isConnected && (
-                            <span className="absolute inset-0 rounded-2xl bg-pink-400/40 animate-ping opacity-75 pointer-events-none" />
-                          )}
-                          {isConnected ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                        </button>
-
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-[#2D1B4E]">
-                              {isConnected
-                                ? (isAiSpeaking ? 'AI говорит...' : 'Слушаю вас...')
-                                : (tutorRole === 'bug_hunt' ? 'Обсудить с техлидом' : 'Свободный вопрос по коду')}
-                            </span>
-                            {isConnected && (
-                              <span className="flex h-2 w-2 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-[#7E699B] font-sans">
-                            {statusMessage}
-                          </p>
+                    {/* Live Conversational Turns Box */}
+                    <div className="h-32 overflow-y-auto p-3 rounded-xl bg-white/90 border border-pink-200/70 space-y-2 text-xs">
+                      {dialogueTurns.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-[#9D88B5] italic text-center text-[11px] gap-1">
+                          <span>Напишите гипотезу бага в поле ниже или включите микрофон...</span>
+                          <span className="text-[10px] opacity-75">Техлид проверит логику и даст обратную связь в наушники</span>
                         </div>
-                      </div>
-
-                      {/* Next Challenge Action */}
-                      <button
-                        onClick={handleNextChallenge}
-                        className="px-4 py-2.5 rounded-xl font-bold text-xs bg-white border border-pink-200/80 hover:bg-pink-50/80 transition-all flex items-center justify-center gap-1.5 text-[#4A1E6D] shadow-xs cursor-pointer"
-                      >
-                        <span>{currentIndex < history.length - 1 ? 'Вперед по истории' : 'Следующая подтема'}</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                      ) : (
+                        dialogueTurns.map((turn, index) => (
+                          <div
+                            key={index}
+                            className={`flex gap-1.5 leading-relaxed text-[11px] ${
+                              turn.role === 'ai'
+                                ? 'text-[#4A1E6D] font-medium'
+                                : turn.role === 'user'
+                                ? 'text-[#2D1B4E] font-semibold'
+                                : 'text-[#7E699B] italic text-[10px]'
+                            }`}
+                          >
+                            <span className="shrink-0">
+                              {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
+                            </span>
+                            <span>{turn.text}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
 
-                    {/* Live Transcript Bubble */}
-                    {aiTranscript && (
-                      <div className="p-3.5 rounded-xl bg-white border border-pink-200/80 text-xs text-[#3B2556] font-sans leading-relaxed shadow-2xs">
-                        <span className="font-bold text-[#4A1E6D] mr-1">
-                          AI:
-                        </span>
-                        {aiTranscript}
+                    {/* Unified Multimodal Input Dock for Bug Hunt */}
+                    <div className="space-y-2">
+                      {/* Text Input Row with Glassmorphism */}
+                      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/95 border border-pink-200/90 shadow-2xs focus-within:ring-2 focus-within:ring-pink-400/40 focus-within:border-pink-400/80 transition-all">
+                        <input
+                          ref={textInputRef}
+                          type="text"
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          onKeyDown={handleInputKeyDown}
+                          disabled={isAiSpeaking && !isMuted}
+                          placeholder={isAiSpeaking ? 'Техлид говорит в наушники...' : '💬 Опишите найденный баг или задайте вопрос техлиду (Enter)...'}
+                          className="flex-1 px-3 py-1.5 text-xs text-[#2D1B4E] bg-transparent placeholder:text-[#9D88B5] focus:outline-none disabled:opacity-50"
+                        />
+
+                        {/* Send Text Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleSendBugText()}
+                          disabled={!inputText.trim() || (isAiSpeaking && !isMuted)}
+                          className="p-2 rounded-xl bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white hover:opacity-95 active:scale-95 transition-all shadow-xs disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                          title="Отправить решение или вопрос техлиду (Enter)"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Earphones / Silent Mode (Mute) Toggle */}
+                        <button
+                          type="button"
+                          onClick={toggleMute}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                            isMuted
+                              ? 'bg-amber-100/90 border-amber-300 text-amber-800'
+                              : 'bg-pink-50/60 hover:bg-pink-100/80 border-pink-200 text-[#4A1E6D]'
+                          }`}
+                          title={isMuted ? '🔇 Режим тишины: озвучка выключена (только текст в чат). Нажмите, чтобы включить голос в наушники.' : '🔊 Озвучка в наушники включена. Нажмите для включения Режима тишины.'}
+                        >
+                          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                        </button>
+
+                        {/* Microphone Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={toggleAudioSession}
+                          className={`p-2 rounded-xl transition-all cursor-pointer ${
+                            isConnected
+                              ? 'bg-rose-500 text-white shadow-xs animate-pulse'
+                              : 'bg-pink-100 text-[#4A1E6D] hover:bg-pink-200 border border-pink-200'
+                          }`}
+                          title={isConnected ? 'Выключить микрофон' : 'Включить микрофон для устного ответа'}
+                        >
+                          {isConnected ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                        </button>
                       </div>
-                    )}
+
+                      {/* Quick Bug Hunt Chips */}
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => handleSendBugText('Дай, пожалуйста, первую небольшую подсказку: в каком направлении искать дефект?')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>💡 Подсказка 1</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendBugText('Подскажи, в каком методе или блоке кода кроется проблема?')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <span>🔍 Где дефект?</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendBugText('Я нашел баг в этом коде. Давай я объясню, в чем суть дефекта и как его починить.')}
+                          disabled={isAiSpeaking && !isMuted}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <Zap className="w-2.5 h-2.5 fill-current" />
+                          <span>⚡ Проверить решение</span>
+                        </button>
+
+                        {/* Navigation button */}
+                        <button
+                          type="button"
+                          onClick={handleNextChallenge}
+                          className="px-3 py-1 rounded-lg font-bold text-[10px] bg-white border border-pink-200/80 hover:bg-pink-50 transition-all flex items-center gap-1 text-[#4A1E6D] shadow-2xs cursor-pointer ml-auto"
+                        >
+                          <span>{currentIndex < history.length - 1 ? 'Вперед' : 'Следующая'}</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Hotkeys helper bar */}

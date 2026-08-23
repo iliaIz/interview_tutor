@@ -20,6 +20,16 @@ export class AudioPlayoutManager {
   private readonly JITTER_LEAD_SECONDS = 0.080; // 80ms jitter buffer for smooth playback
   private readonly TARGET_SAMPLE_RATE = 24000;
   public onPlaybackFinished?: () => void;
+  public isMuted: boolean = false;
+
+  public setMuted(muted: boolean): void {
+    this.isMuted = muted;
+    if (this.masterGain && this.context && this.context.state !== 'closed') {
+      const now = this.context.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(muted ? 0.0 : 1.5, now);
+    }
+  }
 
   constructor(existingContext?: AudioContext) {
     this.ensureContext(existingContext);

@@ -47,6 +47,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>('Готов к началу диалога');
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurn[]>([]);
   const [aiTranscript, setAiTranscript] = useState<string>('');
@@ -59,6 +60,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const isAiSpeakingRef = useRef(false);
   const isRecordingRef = useRef(false);
+  const isMutedRef = useRef(false);
   const lastAiSpeechEndedAtRef = useRef<number>(0);
   const isCleaningUpRef = useRef(false);
 
@@ -201,6 +203,16 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         playoutManager = new AudioPlayoutManager();
         playoutManagerRef.current = playoutManager;
       }
+      playoutManager.setMuted(isMutedRef.current);
+      playoutManager.onPlaybackFinished = () => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isCleaningUpRef.current) {
+          setIsAiSpeaking(false);
+          isAiSpeakingRef.current = false;
+          setIsRecording(true);
+          isRecordingRef.current = true;
+          setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+        }
+      };
       await playoutManager.resume();
 
       setIsAiSpeaking(true);
@@ -441,6 +453,24 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     });
   }, []);
 
+  /**
+   * Earphones / Silent Mute Output Toggle
+   */
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      isMutedRef.current = next;
+      playoutManagerRef.current?.setMuted(next);
+      return next;
+    });
+  }, []);
+
+  const setMuted = useCallback((muted: boolean) => {
+    setIsMuted(muted);
+    isMutedRef.current = muted;
+    playoutManagerRef.current?.setMuted(muted);
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -452,6 +482,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     isConnected,
     isAiSpeaking,
     isRecording,
+    isMuted,
     statusMessage,
     dialogueTurns,
     aiTranscript,
@@ -460,6 +491,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     resetSessionStateOnly,
     sendTextMessage,
     toggleMic,
+    toggleMute,
+    setMuted,
     setStatusMessage,
     setDialogueTurns,
     setAiTranscript,
