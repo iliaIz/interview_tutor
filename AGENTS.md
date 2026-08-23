@@ -10,7 +10,7 @@
   - `GEMINI_LIVE_MODEL` (e.g. `gemini-live` / `gemini-tts-live-v3`)
   - `GEMINI_TTS_MODEL` (e.g. `gemini-tts-v3`)
   - `LITELLM_API_KEY` (virtual key for proxy authorization)
-- Dynamic model mapping, API key pool failover, and protocol adaptations are handled centrally by `LiteLLM_Proxy` (`D:\projects\LiteLLM_Proxy\gateway\main.py`).
+- Dynamic model mapping, API key pool failover, and two-tier Circuit Breaker (Key 429 vs Model 503 Fast-Failover) are handled centrally by `LiteLLM_Proxy` (`D:\projects\LiteLLM_Proxy\gateway\main.py`).
 
 ## 2. Gemini Live Realtime Audio Architecture
 - Protocol: Bi-directional WebSocket (`/ws/live`).
@@ -24,3 +24,13 @@
 - Target Audience: Soft luxury pastel aesthetics (`#FFF0F5`, lavender, rose, gentle mesh glow auras).
 - Audio Session: 3-Stage flow (Lobby -> Active Session -> Verdict with 1-click retry).
 - Health Monitoring: `/api/health` validates liveness AND checks the presence of all 3 required models (`GEMINI_TEXT_MODEL`, `GEMINI_LIVE_MODEL`, `GEMINI_TTS_MODEL`) in the LiteLLM registry.
+
+## 4. Turbo-Prefetching & Token Economy Invariant
+- **User-Controlled Turbo Switch:** Speculative background prefetching is controlled by an explicit toggle in the Lobby (default: off).
+- When enabled: the system pre-generates Challenge $N+1$ in a background buffer while the user solves Challenge $N$, delivering **0ms latency** on "Следующий вопрос".
+- When disabled: strictly on-demand generation with zero wasted background tokens.
+
+## 5. Cancellation Propagation & Zero Blank Screen Invariant
+- **AbortSignal:** Closing the modal or clicking "Прервать" fires `AbortController.abort()`, which propagates to LiteLLM Proxy and cancels upstream Google generation to save quota tokens.
+- **Recovery State Card:** In case of persistent network timeouts or provider cluster outages, the UI displays a structured Recovery Card with 3 actionable paths (Retry, Open Bank, Lobby), completely eliminating white blank screens.
+- **Multi-Stack Curated Fallbacks:** The backend maintains battle-tested offline incident templates across all stack archetypes (`fintech_transactional`, `reactive_streaming`, `modern_cloud`, `enterprise_migration`).

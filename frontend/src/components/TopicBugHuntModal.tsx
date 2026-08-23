@@ -27,7 +27,8 @@ import {
   VolumeX,
   Keyboard,
   Zap,
-  AlertTriangle
+  AlertTriangle,
+  StopCircle
 } from 'lucide-react';
 import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
@@ -142,6 +143,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [customTechStack, setCustomTechStack] = useState<string>('Java 21, Spring Boot 3.4, Kotlin, Kafka, Redis');
   const [customInstructions, setCustomInstructions] = useState<string>('');
 
+  // User-Controlled Turbo-Prefetch Feature (0s Wait)
+  const [isTurboPrefetchEnabled, setIsTurboPrefetchEnabled] = useState<boolean>(false);
+  const prefetchedChallengeRef = useRef<BugChallenge | null>(null);
+  const [isPrefetching, setIsPrefetching] = useState<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Session Linear History Stack & State
   const [history, setHistory] = useState<BugChallenge[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -152,6 +159,9 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
   const [isExhausted, setIsExhausted] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  
+  // Honest Monotonic Elapsed Timer
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [loaderStepIndex, setLoaderStepIndex] = useState(0);
 
   const LOADER_STEPS = [
@@ -161,16 +171,35 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     'Финальная валидация решения и компиляция кейса...'
   ];
 
+  // Monotonic timer for generation HUD
   useEffect(() => {
     if (!isLoadingChallenge && !isLoadingVariation) {
+      setElapsedSeconds(0);
       setLoaderStepIndex(0);
       return;
     }
-    const interval = setInterval(() => {
+    const secTimer = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+
+    const stepTimer = setInterval(() => {
       setLoaderStepIndex((prev) => (prev + 1) % LOADER_STEPS.length);
     }, 3500);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(secTimer);
+      clearInterval(stepTimer);
+    };
   }, [isLoadingChallenge, isLoadingVariation]);
+
+  // Clean up abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Active Challenge is derived from history[currentIndex]
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
@@ -272,9 +301,13 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       setSeenQuestionIds([]);
       setHistory([]);
       setCurrentIndex(-1);
+      prefetchedChallengeRef.current = null;
       fetchSavedBank();
     } else {
       disconnectSession();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     }
   }, [isOpen, topicId]);
 
@@ -296,8 +329,50 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     return true;
   });
 
+  // Background Speculative Prefetch Trigger (Only when enabled by User)
+  const triggerBackgroundPrefetch = async (currentSeen: string[]) => {
+    if (!isTurboPrefetchEnabled || sourceMode === 'bank' || isPrefetching) return;
+    setIsPrefetching(true);
+
+    try {
+      const res = await fetch('/api/tutor/bug-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicId,
+          topic: topicName,
+          workoutPreset: activePreset,
+          defectFocus,
+          difficulty: activePreset === 'senior_multi' ? 'senior' : difficulty,
+          excludeIds: activePreset === 'exhaustive' ? currentSeen : [],
+          techStackProfile,
+          customTechStack: techStackProfile === 'custom' ? customTechStack : undefined,
+          customInstructions: techStackProfile === 'custom' && customInstructions ? customInstructions : undefined
+        })
+      });
+
+      if (res.ok) {
+        const nextData: BugChallenge = await res.json();
+        if (!nextData.isTopicExhausted) {
+          prefetchedChallengeRef.current = nextData;
+          console.log('⚡ [Turbo Prefetch] Challenge buffered for instant 0ms transition');
+        }
+      }
+    } catch (e) {
+      console.debug('Background prefetch deferred:', e);
+    } finally {
+      setIsPrefetching(false);
+    }
+  };
+
   // Fetch or generate a brand new topic challenge
   const fetchNewChallenge = async (currentSeen: string[] = seenQuestionIds) => {
+    // Abort previous in-flight call if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setGenerationError(null);
     setIsLoadingChallenge(true);
     setIsSolved(false);
@@ -325,6 +400,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       const res = await fetch('/api/tutor/bug-challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           topicId,
           topic: topicName,
@@ -350,11 +426,24 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       } else {
         setHistory(prev => [...prev, data]);
         setCurrentIndex(prev => prev + 1);
+        const nextSeen = data.sampledQuestionId && !currentSeen.includes(data.sampledQuestionId)
+          ? [...currentSeen, data.sampledQuestionId]
+          : currentSeen;
+        
         if (data.sampledQuestionId && !currentSeen.includes(data.sampledQuestionId)) {
-          setSeenQuestionIds(prev => [...prev, data.sampledQuestionId!]);
+          setSeenQuestionIds(nextSeen);
+        }
+
+        // Trigger speculative background prefetch for next task if user enabled Turbo
+        if (isTurboPrefetchEnabled) {
+          setTimeout(() => triggerBackgroundPrefetch(nextSeen), 1000);
         }
       }
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Challenge generation aborted by user');
+        return;
+      }
       console.error('Error fetching challenge:', error);
       const msg = error?.message || 'Шлюз нейросети испытывает повышенную нагрузку. Попробуйте еще раз.';
       setGenerationError(msg);
@@ -392,7 +481,6 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       if (!res.ok) throw new Error('Ошибка генерации варианта задачи');
       const data: BugChallenge = await res.json();
 
-      // Insert right after current challenge in linear history
       const updatedHistory = [
         ...history.slice(0, currentIndex + 1),
         data,
@@ -423,13 +511,37 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const handleNextChallenge = () => {
     disconnectSession();
     setAiTranscript('');
+
     if (currentIndex < history.length - 1) {
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
       setIsSolved(Boolean(history[nextIdx]?.isSolved));
-    } else {
-      void fetchNewChallenge();
+      return;
     }
+
+    // Check Turbo Prefetch Buffer (0ms Latency)
+    if (prefetchedChallengeRef.current) {
+      const buffered = prefetchedChallengeRef.current;
+      prefetchedChallengeRef.current = null;
+      setHistory(prev => [...prev, buffered]);
+      setCurrentIndex(prev => prev + 1);
+      setIsSolved(false);
+      
+      const nextSeen = buffered.sampledQuestionId && !seenQuestionIds.includes(buffered.sampledQuestionId)
+        ? [...seenQuestionIds, buffered.sampledQuestionId]
+        : seenQuestionIds;
+      if (buffered.sampledQuestionId && !seenQuestionIds.includes(buffered.sampledQuestionId)) {
+        setSeenQuestionIds(nextSeen);
+      }
+
+      if (isTurboPrefetchEnabled) {
+        setTimeout(() => triggerBackgroundPrefetch(nextSeen), 1000);
+      }
+      return;
+    }
+
+    // Regular Fetch
+    void fetchNewChallenge();
   };
 
   // Start workout from Lobby
@@ -438,7 +550,23 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     setStage('workout');
     setHistory([]);
     setCurrentIndex(-1);
+    prefetchedChallengeRef.current = null;
     fetchNewChallenge([]);
+  };
+
+  const handleCancelGenerationAndOpenBank = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsLoadingChallenge(false);
+    setSourceMode('bank');
+    fetchNewChallenge();
+  };
+
+  const formatElapsed = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   // Keyboard Shortcuts Listener in Workout Mode
@@ -446,7 +574,6 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     if (!isOpen || stage !== 'workout') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input/textarea
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
       if (e.code === 'Space') {
@@ -701,6 +828,40 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       ))}
                     </div>
                   </div>
+
+                  {/* 4. User-Controlled Turbo Prefetching Switch */}
+                  <div className="p-4 rounded-2xl bg-white/90 border border-pink-200/80 shadow-2xs flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100/80 text-amber-700 flex items-center justify-center shrink-0">
+                        <Zap className="w-5 h-5 fill-current" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#2D1B4E]">⚡ Турбо-переход: Фоновая предзагрузка</span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                            0с ожидания
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#7E699B] leading-tight mt-0.5">
+                          Генерирует следующую задачу в фоне во время решения текущей для мгновенного перехода. Расходует дополнительную квоту токенов.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsTurboPrefetchEnabled(!isTurboPrefetchEnabled)}
+                      className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                        isTurboPrefetchEnabled ? 'bg-[#D94680]' : 'bg-slate-300'
+                      }`}
+                      title={isTurboPrefetchEnabled ? 'Турбо-предзагрузка включена' : 'Турбо-предзагрузка выключена (экономия токенов)'}
+                    >
+                      <span
+                        className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform absolute top-0.5 left-0.5 ${
+                          isTurboPrefetchEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -816,12 +977,17 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </button>
                 </div>
               ) : isLoadingChallenge ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-4 text-[#7E699B] max-w-md mx-auto text-center">
+                <div className="py-16 flex flex-col items-center justify-center gap-4 text-[#7E699B] max-w-md mx-auto text-center">
                   <div className="relative">
                     <Loader2 className="w-10 h-10 text-pink-600 animate-spin" />
                     <span className="absolute inset-0 rounded-full bg-pink-400/20 animate-ping" />
                   </div>
                   <div className="space-y-1.5">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-pink-100 text-[#4A1E6D] border border-pink-200">
+                        ⏳ {formatElapsed(elapsedSeconds)}
+                      </span>
+                    </div>
                     <p className="text-xs font-mono font-bold text-[#4A1E6D] transition-all duration-300">
                       {LOADER_STEPS[loaderStepIndex]}
                     </p>
@@ -842,6 +1008,18 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       />
                     ))}
                   </div>
+
+                  {/* Cancel and fallback to bank button */}
+                  <div className="pt-3">
+                    <button
+                      type="button"
+                      onClick={handleCancelGenerationAndOpenBank}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-white/90 hover:bg-pink-50 border border-pink-200 text-[#4A1E6D] transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <StopCircle className="w-3.5 h-3.5 text-rose-500" />
+                      <span>✕ Прервать и открыть готовую задачу из базы</span>
+                    </button>
+                  </div>
                 </div>
               ) : challenge ? (
                 <div className="space-y-6">
@@ -860,6 +1038,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                       <span className="text-xs font-bold font-mono text-[#4A1E6D] bg-pink-100/80 px-3.5 py-1 rounded-xl border border-pink-200/80 shadow-2xs">
                         Задача {currentIndex + 1} из {history.length}
                       </span>
+                      {isTurboPrefetchEnabled && (
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                          <Zap className="w-2.5 h-2.5 fill-current" />
+                          <span>Турбо 0с</span>
+                        </span>
+                      )}
                     </div>
 
                     <button
