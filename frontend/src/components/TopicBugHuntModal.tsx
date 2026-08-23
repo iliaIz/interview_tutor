@@ -26,7 +26,8 @@ import {
   Send,
   VolumeX,
   Keyboard,
-  Zap
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
@@ -150,6 +151,26 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [sessionSolvedCount, setSessionSolvedCount] = useState(0);
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
   const [isExhausted, setIsExhausted] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [loaderStepIndex, setLoaderStepIndex] = useState(0);
+
+  const LOADER_STEPS = [
+    'Анализ архитектурных паттернов и спецификаций...',
+    'Инъекция скрытого производственного дефекта в стек...',
+    'Сборка контекста инцидента и телеметрии Grafana/Sentry...',
+    'Финальная валидация решения и компиляция кейса...'
+  ];
+
+  useEffect(() => {
+    if (!isLoadingChallenge && !isLoadingVariation) {
+      setLoaderStepIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setLoaderStepIndex((prev) => (prev + 1) % LOADER_STEPS.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isLoadingChallenge, isLoadingVariation]);
 
   // Active Challenge is derived from history[currentIndex]
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
@@ -277,6 +298,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
   // Fetch or generate a brand new topic challenge
   const fetchNewChallenge = async (currentSeen: string[] = seenQuestionIds) => {
+    setGenerationError(null);
     setIsLoadingChallenge(true);
     setIsSolved(false);
     setAiTranscript('');
@@ -284,6 +306,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
     // If source is saved bank
     if (sourceMode === 'bank') {
       if (filteredBank.length === 0) {
+        setGenerationError('В базе пока нет сохраненных задач по этой теме. Попробуйте сгенерировать новую.');
         setStatusMessage('В банке нет задач по выбранному фильтру.');
         setIsLoadingChallenge(false);
         return;
@@ -315,7 +338,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         })
       });
 
-      if (!res.ok) throw new Error('Ошибка генерации задачи');
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        throw new Error(`Ошибка сервера (${res.status}): ${errorText || 'Не удалось получить инцидент'}`);
+      }
       const data: BugChallenge = await res.json();
 
       if (data.isTopicExhausted) {
@@ -328,8 +354,10 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
           setSeenQuestionIds(prev => [...prev, data.sampledQuestionId!]);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching challenge:', error);
+      const msg = error?.message || 'Шлюз нейросети испытывает повышенную нагрузку. Попробуйте еще раз.';
+      setGenerationError(msg);
       setStatusMessage('Ошибка загрузки задачи. Попробуйте еще раз.');
     } finally {
       setIsLoadingChallenge(false);
@@ -406,6 +434,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
   // Start workout from Lobby
   const handleStartWorkout = () => {
+    setGenerationError(null);
     setStage('workout');
     setHistory([]);
     setCurrentIndex(-1);
@@ -787,9 +816,32 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </button>
                 </div>
               ) : isLoadingChallenge ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#7E699B]">
-                  <Loader2 className="w-8 h-8 text-pink-600 animate-spin" />
-                  <p className="text-xs font-mono font-semibold">Генерация производственного инцидента через LiteLLM...</p>
+                <div className="py-20 flex flex-col items-center justify-center gap-4 text-[#7E699B] max-w-md mx-auto text-center">
+                  <div className="relative">
+                    <Loader2 className="w-10 h-10 text-pink-600 animate-spin" />
+                    <span className="absolute inset-0 rounded-full bg-pink-400/20 animate-ping" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-mono font-bold text-[#4A1E6D] transition-all duration-300">
+                      {LOADER_STEPS[loaderStepIndex]}
+                    </p>
+                    <p className="text-[10px] text-[#9D88B5]">
+                      Глубокий синтез инцидента через LiteLLM • Шаг {loaderStepIndex + 1} из {LOADER_STEPS.length}
+                    </p>
+                  </div>
+                  {/* Step indicators */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    {LOADER_STEPS.map((_, idx) => (
+                      <span
+                        key={idx}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          idx === loaderStepIndex
+                            ? 'w-6 bg-gradient-to-r from-pink-500 to-purple-600'
+                            : 'w-1.5 bg-pink-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
               ) : challenge ? (
                 <div className="space-y-6">
@@ -1011,7 +1063,55 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     [← / →] Навигация по задачам • [Пробел] Микрофон
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                /* Explicit Recovery State Card - Zero Blank Screen Invariant */
+                <div className="py-12 px-6 max-w-lg mx-auto text-center space-y-5 bg-white/95 rounded-3xl border border-rose-200/80 shadow-md backdrop-blur-md">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-rose-100 to-amber-100 text-rose-600 mx-auto flex items-center justify-center shadow-xs border border-rose-200">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h3 className="text-lg font-bold text-[#2D1B4E]">
+                      Не удалось загрузить инцидент
+                    </h3>
+                    <p className="text-xs text-[#7E699B] leading-relaxed font-sans">
+                      {generationError || 'Нейросеть испытывает повышенную нагрузку при генерации комплексного кейса для выбранного стека.'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchNewChallenge()}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white shadow-xs hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Повторить генерацию</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSourceMode('bank');
+                        fetchNewChallenge();
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs bg-pink-50 hover:bg-pink-100/80 border border-pink-200 text-[#4A1E6D] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span>Взять задачу из базы</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStage('lobby')}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-200 text-[#4A1E6D] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>В лобби</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -466,7 +466,25 @@ ${contextInfo}
 
     const data = await proxyRes.json();
     const rawContent = data.choices?.[0]?.message?.content || '{}';
-    const parsed = JSON.parse(rawContent);
+    let cleanedJson = rawContent.trim();
+    if (cleanedJson.startsWith('```json')) {
+      cleanedJson = cleanedJson.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanedJson.startsWith('```')) {
+      cleanedJson = cleanedJson.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanedJson);
+    } catch (parseErr) {
+      console.warn('JSON.parse failed on LLM output, extracting JSON block:', parseErr);
+      const jsonMatch = cleanedJson.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw parseErr;
+      }
+    }
 
     const challengeId = `bug_${crypto.randomBytes(8).toString('hex')}`;
 
@@ -504,48 +522,219 @@ ${contextInfo}
 
     return generatedChallenge;
   } catch (err: any) {
-    console.error('Error generating bug challenge:', err);
-    // Safe graceful fallback
-    const fallbackChallenge: BugChallenge = {
-      id: `fallback_${Date.now()}`,
-      topicId,
-      topicName,
-      title: isSeniorMulti ? 'Гонка состояний и утечка транзакции' : 'Гонка состояний в обработчике платежей',
-      subtopic: topicName,
-      language: 'java',
-      codeSnippet: `@Service\npublic class PaymentService {\n    private final Map<String, Integer> balances = new HashMap<>();\n\n    @Transactional\n    public void addBalance(String userId, int amount) {\n        if (balances.containsKey(userId)) {\n            balances.put(userId, balances.get(userId) + amount);\n        } else {\n            balances.put(userId, amount);\n        }\n    }\n}`,
-      bugExplanation: '1. Использование непотокобезопасного HashMap и составной неатомарной операции check-then-act приводит к потере данных при параллельных запросах.\n2. Аннотация @Transactional без thread-safe хранилища не защищает in-memory состояние.',
-      fixedCode: `@Service\npublic class PaymentService {\n    private final ConcurrentMap<String, Integer> balances = new ConcurrentHashMap<>();\n\n    public void addBalance(String userId, int amount) {\n        balances.merge(userId, amount, Integer::sum);\n    }\n}`,
-      hints: [
-        'Подумайте, как поведет себя коллекция balances при одновременных запросах от разных потоков.',
-        'Обратите внимание на строки с containsKey и put — операция не атомарна.',
-        'Используйте ConcurrentHashMap с атомарным методом merge() или compute().'
-      ],
-      keyTakeaways: [
-        'Коллекция HashMap не является потокобезопасной и приводит к гонкам данных (Race Conditions).',
-        'Проверка с последующей записью (Check-Then-Act) должна выполняться атомарно через compute() или merge().',
-        'Аннотация @Transactional управляет JDBC-транзакциями в БД, но не защищает поля бина в памяти JVM.'
-      ],
-      techStack: {
-        language: 'Java 21',
-        javaVersion: 'Java 21 LTS',
-        framework: 'Spring Boot 3.4.2',
-        keyLibraries: ['Spring WebMVC', 'Spring Data JPA', 'PostgreSQL 16', 'Project Loom']
-      },
-      productionContext: {
-        systemName: 'payment-routing-orchestrator',
-        architectureType: 'Highload Transactional Ingress (35k RPS)',
-        incidentSymptoms: 'Grafana фиксирует расхождение балансов пользователей и алерты Sentry на потерю начислений.',
-        businessImpact: 'Потеря средств и жалобы клиентов на недошедшие пополнения.',
-        prReviewContext: 'Разработчик реализовал in-memory кэш балансов для ускорения ответа API.'
-      },
-      categoryBadge: '⚡ Concurrency',
-      difficultyBadge: isSeniorMulti ? 'Senior' : 'Middle',
-      sampledQuestionId,
-      isTopicExhausted: false,
-      remainingCount,
-      totalTopicQuestions
-    };
+    console.error('Error generating bug challenge (falling back to curated stack-specific incident):', err);
+    
+    // Multi-stack Curated Battle-Tested Fallbacks
+    let fallbackChallenge: BugChallenge;
+
+    if (stackProfileKey === 'fintech_transactional') {
+      fallbackChallenge = {
+        id: `fallback_fintech_${Date.now()}`,
+        topicId,
+        topicName,
+        title: 'Утечка фантомных сообщений из Transactional Outbox при откате БД',
+        subtopic: 'Transactional Outbox & Dual-Write Hazard',
+        language: 'java',
+        codeSnippet: `@Service
+@RequiredArgsConstructor
+public class PaymentOrderService {
+    private final OrderRepository orderRepository;
+    private final KafkaTemplate<String, OrderEvent> kafkaTemplate;
+
+    @Transactional
+    public void processPayment(OrderCommand command) {
+        Order order = orderRepository.save(new Order(command.id(), "PAID"));
+        
+        // Прямая публикация события до фиксации транзакции БД
+        kafkaTemplate.send("order-events", new OrderEvent(order.getId(), "ORDER_PAID"));
+
+        if (command.amount() > 100_000) {
+            throw new PaymentRiskCheckException("Требуется ручная верификация финмониторинга");
+        }
+    }
+}`,
+        bugExplanation: '1. Dual-Write антипаттерн: отправка события в Kafka происходит ДО завершения транзакции базы данных.\n2. При выбросе PaymentRiskCheckException транзакция БД откатывается (Rollback), но сообщение уже отправлено в Kafka и обрабатывается другими сервисами, приводя к созданию фантомных заказов.',
+        fixedCode: `@Service
+@RequiredArgsConstructor
+public class PaymentOrderService {
+    private final OrderRepository orderRepository;
+    private final OutboxEventRepository outboxRepository;
+
+    @Transactional
+    public void processPayment(OrderCommand command) {
+        Order order = orderRepository.save(new Order(command.id(), "PAID"));
+        
+        // Атомарное сохранение события в таблицу outbox в рамках той же транзакции БД
+        outboxRepository.save(new OutboxEvent("order-events", order.getId(), "ORDER_PAID"));
+
+        if (command.amount() > 100_000) {
+            throw new PaymentRiskCheckException("Требуется ручная верификация финмониторинга");
+        }
+    }
+}`,
+        hints: [
+          'Обратите внимание на последовательность операций: запись в БД и отправка сообщения во внешнюю систему (Kafka).',
+          'Что произойдет, если на строке с проверкой риск-контроля выбросится исключение?',
+          'Используйте паттерн Transactional Outbox: событие должно сохраняться в ту же транзакцию БД, а не отправляться напрямую в сеть.'
+        ],
+        keyTakeaways: [
+          'Никогда не отправляйте события в Kafka напрямую из метода @Transactional без Transactional Outbox или TransactionSynchronizationManager.',
+          'Откат транзакции базы данных не отменяет уже отправленные по сети сетевые пакеты в брокер сообщений.',
+          'Паттерн Transactional Outbox обеспечивает гарантию Exactly-Once / At-Least-Once доставки между БД и брокером.'
+        ],
+        techStack: {
+          language: 'Java 21',
+          javaVersion: 'Java 21 LTS',
+          framework: 'Spring Boot 3.4.2',
+          keyLibraries: ['Spring Data JPA', 'PostgreSQL 16', 'Spring Kafka', 'Transactional Outbox']
+        },
+        productionContext: {
+          systemName: 'clearing-settlement-engine',
+          architectureType: 'Mission-Critical Transactional Ingress (45k RPS)',
+          incidentSymptoms: 'Kafka Consumer сервиса доставки получает события оплаченных заказов, которых нет в БД заказов (phantom payments).',
+          businessImpact: 'Отгрузка неоплаченных товаров клиентам на сумму свыше 1.2M руб.',
+          prReviewContext: 'Разработчик ускорил отправку уведомлений, вызвав KafkaTemplate прямо в сервисном методе.'
+        },
+        categoryBadge: '💳 FinTech / ACID',
+        difficultyBadge: isSeniorMulti ? 'Senior' : 'Middle',
+        sampledQuestionId,
+        isTopicExhausted: false,
+        remainingCount,
+        totalTopicQuestions
+      };
+    } else if (stackProfileKey === 'reactive_streaming') {
+      fallbackChallenge = {
+        id: `fallback_reactive_${Date.now()}`,
+        topicId,
+        topicName,
+        title: 'Блокировка EventLoop пула в реактивном пайплайне WebFlux',
+        subtopic: 'Project Reactor & Netty EventLoop Starvation',
+        language: 'java',
+        codeSnippet: `@RestController
+@RequiredArgsConstructor
+public class AccountReactiveController {
+    private final AccountReactiveRepository repository;
+    private final LegacyAuditService legacyAuditService;
+
+    @GetMapping("/api/accounts/{id}")
+    public Mono<AccountDto> getAccount(@PathVariable String id) {
+        return repository.findById(id)
+            .map(account -> {
+                // Блокирующий синхронный сетевой вызов в потоке EventLoop
+                legacyAuditService.logAccess(account.getId());
+                return new AccountDto(account.getId(), account.getBalance());
+            });
+    }
+}`,
+        bugExplanation: '1. Оператор .map() выполняется в системном неблокирующем потоке Netty reactor-http-epoll.\n2. Вызов блокирующего метода legacyAuditService.logAccess() замораживает поток EventLoop. При 10-20 одновременных запросах все доступные потоки ядра CPU блокируются, и всё приложение перестает отвечать на любые HTTP-запросы.',
+        fixedCode: `@RestController
+@RequiredArgsConstructor
+public class AccountReactiveController {
+    private final AccountReactiveRepository repository;
+    private final LegacyAuditService legacyAuditService;
+
+    @GetMapping("/api/accounts/{id}")
+    public Mono<AccountDto> getAccount(@PathVariable String id) {
+        return repository.findById(id)
+            .flatMap(account -> 
+                Mono.fromRunnable(() -> legacyAuditService.logAccess(account.getId()))
+                    .subscribeOn(Schedulers.boundedElastic()) // Вынос блокирующего I/O в отдельный пул
+                    .thenReturn(new AccountDto(account.getId(), account.getBalance()))
+            );
+    }
+}`,
+        hints: [
+          'В каком потоке выполняется функция внутри оператора .map()?',
+          'Что произойдет с остальными запросами приложения, если этот поток уснет или будет ждать ответ по сети?',
+          'Используйте flatMap и выносите блокирующий I/O на Schedulers.boundedElastic().'
+        ],
+        keyTakeaways: [
+          'Потоки Netty EventLoop никогда не должны блокироваться синхронным вводом-выводом или тяжелыми вычислениями.',
+          'Для интеграции с легаси блокирующими библиотеками используйте subscribeOn(Schedulers.boundedElastic()).',
+          'Инструмент BlockHound помогает автоматически отлавливать блокировки на стадии юнит-тестов.'
+        ],
+        techStack: {
+          language: 'Java 21',
+          javaVersion: 'Java 21 LTS',
+          framework: 'Spring WebFlux 3.4.2',
+          keyLibraries: ['Project Reactor 3.6', 'Netty EventLoop', 'Spring Data R2DBC']
+        },
+        productionContext: {
+          systemName: 'reactive-edge-gateway',
+          architectureType: 'Reactive Ingress API (60k RPS)',
+          incidentSymptoms: 'HTTP 503 и Gateway Timeout на всех эндпоинтах шлюза при 20 RPS на эндпоинт аудита.',
+          businessImpact: 'Полный отказ входящего трафика мобильного приложения на 14 минут.',
+          prReviewContext: 'Добавлен аудит доступа к счетам через существующую корпоративную библиотеку.'
+        },
+        categoryBadge: '⚡ Reactive / Netty',
+        difficultyBadge: isSeniorMulti ? 'Senior' : 'Middle',
+        sampledQuestionId,
+        isTopicExhausted: false,
+        remainingCount,
+        totalTopicQuestions
+      };
+    } else {
+      // Default Modern Cloud fallback (Concurrency / Loom / Collections)
+      fallbackChallenge = {
+        id: `fallback_default_${Date.now()}`,
+        topicId,
+        topicName,
+        title: isSeniorMulti ? 'Гонка состояний и утечка транзакции' : 'Гонка состояний в обработчике платежей',
+        subtopic: topicName,
+        language: 'java',
+        codeSnippet: `@Service
+public class PaymentService {
+    private final Map<String, Integer> balances = new HashMap<>();
+
+    @Transactional
+    public void addBalance(String userId, int amount) {
+        if (balances.containsKey(userId)) {
+            balances.put(userId, balances.get(userId) + amount);
+        } else {
+            balances.put(userId, amount);
+        }
+    }
+}`,
+        bugExplanation: '1. Использование непотокобезопасного HashMap и составной неатомарной операции check-then-act приводит к потере данных при параллельных запросах.\n2. Аннотация @Transactional без thread-safe хранилища не защищает in-memory состояние.',
+        fixedCode: `@Service
+public class PaymentService {
+    private final ConcurrentMap<String, Integer> balances = new ConcurrentHashMap<>();
+
+    public void addBalance(String userId, int amount) {
+        balances.merge(userId, amount, Integer::sum);
+    }
+}`,
+        hints: [
+          'Подумайте, как поведет себя коллекция balances при одновременных запросах от разных потоков.',
+          'Обратите внимание на строки с containsKey и put — операция не атомарна.',
+          'Используйте ConcurrentHashMap с атомарным методом merge() или compute().'
+        ],
+        keyTakeaways: [
+          'Коллекция HashMap не является потокобезопасной и приводит к гонкам данных (Race Conditions).',
+          'Проверка с последующей записью (Check-Then-Act) должна выполняться атомарно через compute() или merge().',
+          'Аннотация @Transactional управляет JDBC-транзакциями в БД, но не защищает поля бина в памяти JVM.'
+        ],
+        techStack: {
+          language: 'Java 21',
+          javaVersion: 'Java 21 LTS',
+          framework: 'Spring Boot 3.4.2',
+          keyLibraries: ['Spring WebMVC', 'Spring Data JPA', 'PostgreSQL 16', 'Project Loom']
+        },
+        productionContext: {
+          systemName: 'payment-routing-orchestrator',
+          architectureType: 'Highload Transactional Ingress (35k RPS)',
+          incidentSymptoms: 'Grafana фиксирует расхождение балансов пользователей и алерты Sentry на потерю начислений.',
+          businessImpact: 'Потеря средств и жалобы клиентов на недошедшие пополнения.',
+          prReviewContext: 'Разработчик реализовал in-memory кэш балансов для ускорения ответа API.'
+        },
+        categoryBadge: '⚡ Concurrency',
+        difficultyBadge: isSeniorMulti ? 'Senior' : 'Middle',
+        sampledQuestionId,
+        isTopicExhausted: false,
+        remainingCount,
+        totalTopicQuestions
+      };
+    }
 
     saveBugChallengeToDb(fallbackChallenge, topicId, topicName, preset, difficulty);
     return fallbackChallenge;
