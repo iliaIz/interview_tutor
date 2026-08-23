@@ -943,19 +943,29 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           return;
         }
 
-        // Normalize legacy snake_case realtime_input.audio to canonical Gemini Live realtimeInput.mediaChunks
-        if (parsed.realtime_input?.audio) {
-          const normalized = {
-            realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType: parsed.realtime_input.audio.mimeType || 'audio/pcm;rate=16000',
-                  data: parsed.realtime_input.audio.data
+        // Normalize realtime audio chunks to canonical Gemini Live realtimeInput.audio
+        if (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {
+          const audioData =
+            parsed.realtime_input?.audio?.data ||
+            parsed.realtimeInput?.audio?.data ||
+            parsed.realtimeInput?.mediaChunks?.[0]?.data;
+          const mimeType =
+            parsed.realtime_input?.audio?.mimeType ||
+            parsed.realtimeInput?.audio?.mimeType ||
+            parsed.realtimeInput?.mediaChunks?.[0]?.mimeType ||
+            'audio/pcm;rate=16000';
+
+          if (audioData) {
+            const normalized = {
+              realtimeInput: {
+                audio: {
+                  mimeType,
+                  data: audioData
                 }
-              ]
-            }
-          };
-          payloadBuffer = Buffer.from(JSON.stringify(normalized));
+              }
+            };
+            payloadBuffer = Buffer.from(JSON.stringify(normalized));
+          }
         }
       } catch {}
 

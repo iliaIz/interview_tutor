@@ -19,6 +19,7 @@ export class AudioPlayoutManager {
   private isResuming = false;
   private readonly JITTER_LEAD_SECONDS = 0.080; // 80ms jitter buffer for smooth playback
   private readonly TARGET_SAMPLE_RATE = 24000;
+  public onPlaybackFinished?: () => void;
 
   constructor(existingContext?: AudioContext) {
     this.ensureContext(existingContext);
@@ -208,6 +209,9 @@ export class AudioPlayoutManager {
         source.disconnect();
       } catch {}
       this.activeSources.delete(source);
+      if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+        this.onPlaybackFinished?.();
+      }
     };
   }
 
