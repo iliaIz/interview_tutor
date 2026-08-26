@@ -47,7 +47,13 @@ ai.djelu.site, ai.192-124-182-59.sslip.io {
     import common_headers
     encode zstd gzip
 
-    basic_auth {
+    @ui_auth {
+        not path /proxy-api/*
+        not path /control/*
+        not path /api/*
+        not header Authorization Bearer*
+    }
+    basic_auth @ui_auth {
         djelu $2a$14$oxkQ/tCtGKSoIb8sB3asWeGAeWLzj/E2XtVYzMVdyDosTUls0cjla
     }
 
