@@ -9,6 +9,8 @@ export interface LiveAudioSessionParams {
   questionText?: string;
   referenceAnswer?: string;
   voice?: string;
+  userGender?: 'female' | 'male' | 'neutral';
+  turnMode?: 'manual' | 'auto';
   strategy?: 'adaptive_probing' | 'socratic_tutoring';
   maxProbes?: number;
   deepDive?: boolean;
@@ -127,6 +129,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.questionText) query.set('questionText', params.questionText);
     if (params.referenceAnswer) query.set('referenceAnswer', params.referenceAnswer);
     if (params.voice) query.set('voice', params.voice);
+    if (params.userGender) query.set('userGender', params.userGender);
+    if (params.turnMode) query.set('turnMode', params.turnMode);
     if (params.strategy) query.set('strategy', params.strategy);
     if (params.maxProbes !== undefined) query.set('maxProbes', String(params.maxProbes));
     if (params.deepDive !== undefined) query.set('deepDive', String(params.deepDive));
@@ -531,6 +535,47 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     playoutManagerRef.current?.setMuted(muted);
   }, []);
 
+  /**
+   * Finish Candidate Turn in Manual Mode (Trigger AI evaluation with haptic feedback)
+   */
+  const finishManualTurn = useCallback((gender: 'female' | 'male' | 'neutral' = 'female') => {
+    // 1. Android Haptic Feedback
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(25);
+      } catch (e) {}
+    }
+
+    // 2. Transition local UI state
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    setIsAiSpeaking(true);
+    isAiSpeakingRef.current = true;
+    setStatusMessage('⏳ ИИ осмысливает ответ и формирует оценку...');
+
+    // 3. Send Turn Completion Signal over WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const completionText = gender === 'male'
+        ? 'Я закончил свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
+        : gender === 'female'
+        ? 'Я закончила свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
+        : 'Ответ завершен. Пожалуйста, оцените ответ и подведите итог.';
+
+      const endTurnSignal = {
+        clientContent: {
+          turns: [
+            {
+              role: 'user',
+              parts: [{ text: completionText }]
+            }
+          ],
+          turnComplete: true
+        }
+      };
+      wsRef.current.send(JSON.stringify(endTurnSignal));
+    }
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -554,6 +599,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     toggleMic,
     toggleMute,
     setMuted,
+    finishManualTurn,
     setStatusMessage,
     setDialogueTurns,
     setAiTranscript,

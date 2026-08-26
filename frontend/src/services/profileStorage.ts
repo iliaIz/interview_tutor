@@ -166,17 +166,35 @@ export async function deleteUserProfile(profileId: string): Promise<void> {
 }
 
 export function getActiveConfig(): InterviewConfig {
+  const userGender = (localStorage.getItem('interview_user_gender') as any) || 'female';
+  const turnMode = (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+
   try {
     const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return {
+        ...parsed,
+        userGender: parsed.userGender || userGender,
+        turnMode: parsed.turnMode || turnMode
+      };
     }
   } catch {}
-  return BUILT_IN_PROFILES[0].config;
+  return {
+    ...BUILT_IN_PROFILES[0].config,
+    userGender,
+    turnMode
+  };
 }
 
 export function saveActiveConfig(config: InterviewConfig): void {
   try {
+    if (config.userGender) {
+      localStorage.setItem('interview_user_gender', config.userGender);
+    }
+    if (config.turnMode) {
+      localStorage.setItem('interview_turn_mode', config.turnMode);
+    }
     localStorage.setItem(ACTIVE_CONFIG_KEY, JSON.stringify(config));
   } catch (err) {
     console.error('Error saving active config:', err);

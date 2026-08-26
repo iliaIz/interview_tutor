@@ -42,12 +42,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Temporary files
+# Temporary files & Local credentials
 .tmp/
 scratch/
 _temp_enhorse/
 .playwright-mcp/
 *_raw.txt
-
+vps_info.md
+*.key
+*.pem
 
 audio/

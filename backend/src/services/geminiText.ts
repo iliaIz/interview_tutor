@@ -12,7 +12,8 @@ export interface EvalResult {
 export async function evaluateAnswerWithGemini(
   question: string,
   referenceAnswer: string,
-  userAnswer: string
+  userAnswer: string,
+  userGender: 'female' | 'male' | 'neutral' = 'female'
 ): Promise<EvalResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
@@ -21,8 +22,15 @@ export async function evaluateAnswerWithGemini(
   const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
   const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
 
+  const genderDirective = userGender === 'female'
+    ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В поле feedback обязательно используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично справилась», «Ты верно отметила», «Ты упустила»). Запрещено использовать мужской род.'
+    : userGender === 'male'
+    ? 'Кандидат — МУЖЧИНА. В поле feedback используй мужские окончания («Ты отлично справился», «Ты верно отметил»).'
+    : 'Обращайся к кандидату уважительно на «Вы» («Вы отлично справились», «Вы верно отметили»).';
+
   const systemPrompt = `Ты профессиональный технический интервьюер по Java, Spring, Hibernate и Docker. 
 Твоя задача — объективно оценить ответ кандидата на технический вопрос, сравнив его с эталонным ответом.
+${genderDirective}
 
 Оценивай по 100-балльной шкале (score).
 Верни ответ СТРОГО в формате JSON без кавычек markdown:

@@ -73,6 +73,8 @@ export function buildSystemPrompt(params: {
   referenceAnswer: string;
   strategy: 'adaptive_probing' | 'socratic_tutoring';
   voiceName: string;
+  userGender?: 'female' | 'male' | 'neutral';
+  turnMode?: 'manual' | 'auto';
   maxProbes: number;
   anchors: string[];
   deepDive?: boolean;
@@ -96,6 +98,8 @@ export function buildSystemPrompt(params: {
     referenceAnswer,
     strategy,
     voiceName,
+    userGender = 'female',
+    turnMode = 'manual',
     maxProbes,
     anchors,
     deepDive,
@@ -115,9 +119,35 @@ export function buildSystemPrompt(params: {
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
-  const genderRule = isFemale
-    ? 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО ЖЕНСКИЙ): У тебя женский голос. Обязательно используй ЖЕНСКИЕ окончания в глаголах и формах от первого лица: «Я готова», «Я внимательно выслушала», «Я рада», «Я хотела бы уточнить». Категорически запрещено использовать мужские окончания («готов», «слушал», «рад»).'
-    : 'ГРАММАТИЧЕСКИЙ РОД (СТРОГО МУЖСКОЙ): У тебя мужской голос. Обязательно используй МУЖСКИЕ окончания в глаголах и формах от первого лица: «Я готов», «Я внимательно выслушал», «Я рад», «Я хотел бы уточнить». Категорически запрещено использовать женские окончания («готова», «слушала», «рада»).';
+  const aiGenderRule = isFemale
+    ? 'ГРАММАТИЧЕСКИЙ РОД ИИ (СТРОГО ЖЕНСКИЙ): У тебя женский голос. Обязательно используй ЖЕНСКИЕ окончания в глаголах и формах от первого лица: «Я готова», «Я внимательно выслушала», «Я рада», «Я хотела бы уточнить». Категорически запрещено использовать мужские окончания («готов», «слушал», «рад»).'
+    : 'ГРАММАТИЧЕСКИЙ РОД ИИ (СТРОГО МУЖСКОЙ): У тебя мужской голос. Обязательно используй МУЖСКИЕ окончания в глаголах и формах от первого лица: «Я готов», «Я внимательно выслушал», «Я рад», «Я хотел бы уточнить». Категорически запрещено использовать женские окончания («готова», «слушала», «рада»).';
+
+  const candidateGenderRule = userGender === 'female'
+    ? `=== ГРАММАТИЧЕСКИЙ РОД ОБРАЩЕНИЯ К КАНДИДАТУ (СТРОГО ЖЕНСКИЙ РОД) ===
+Кандидат — ДЕВУШКА/ЖЕНЩИНА.
+Ты ОБЯЗАН обращаться к кандидату СТРОГО в ЖЕНСКОМ РОДЕ прошедшего времени и грамматических форм:
+✓ «Ты отлично справилась!», «Как ты думаешь?», «Ты правильно заметила...», «Ты готова продолжить?», «Ты упомянула важную деталь».
+✗ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать мужской род по отношению к кандидату («ты ответил», «ты сказал», «ты готов», «ты упомянул»).`
+    : userGender === 'male'
+    ? `=== ГРАММАТИЧЕСКИЙ РОД ОБРАЩЕНИЯ К КАНДИДАТУ (СТРОГО МУЖСКОЙ РОД) ===
+Кандидат — МУЖЧИНА/ПАРЕНЬ.
+Обращайся к кандидату СТРОГО в МУЖСКОМ РОДЕ прошедшего времени:
+✓ «Ты отлично справился!», «Как ты думаешь?», «Ты правильно заметил...», «Ты готов продолжить?», «Ты упомянул важную деталь».
+✗ ЗАПРЕЩЕНО использовать женский род по отношению к кандидату («ты ответила», «ты сказала», «ты готова»).`
+    : `=== ГРАММАТИЧЕСКИЙ РОД ОБРАЩЕНИЯ К КАНДИДАТУ (НЕЙТРАЛЬНО / НА «ВЫ») ===
+Обращайся к кандидату уважительно на «Вы»:
+✓ «Вы отлично справились!», «Как Вы считаете?», «Вы правильно отметили...», «Вы готовы продолжить?».`;
+
+  const turnModeInstruction = turnMode === 'manual'
+    ? `=== РЕЖИМ ВЕДЕНИЯ ДИАЛОГА: ПОШАГОВЫЙ С КОНТРОЛЕМ КАНДИДАТА (MANUAL TURN-TAKING) [ВКЛЮЧЕН] ===
+1. После того как ты озвучишь вопрос темы или наводящий вопрос, кандидат берет паузу на размышление.
+2. Пауза может длиться до нескольких минут (тишина). НЕ перебивай, НЕ делай поспешных выводов и НЕ пытайся отвечать за кандидата во время паузы.
+3. Кандидат сам нажмет кнопку «Закончить ответ», когда завершит свою мысль. Только после этого проанализируй ответ и дай развернутый фидбек.`
+    : `=== РЕЖИМ ВЕДЕНИЯ ДИАЛОГА: СВОБОДНЫЙ ДИАЛОГ (FULL DUPLEX AUTO-VAD) ===
+Слушай речь кандидата и реагируй после естественных пауз в ответе.`;
+
+  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}`;
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor') {
@@ -430,6 +460,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const questionText = (query.questionText as string) || '';
     const referenceAnswer = (query.referenceAnswer as string) || '';
     const voiceName = (query.voice as string) || 'Kore';
+    const userGender = ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral';
+    const turnMode = ((query.turnMode as string) === 'auto' ? 'auto' : 'manual') as 'manual' | 'auto';
     const strategy = ((query.strategy as string) === 'socratic_tutoring' ? 'socratic_tutoring' : 'adaptive_probing') as 'adaptive_probing' | 'socratic_tutoring';
     const maxProbes = Math.max(1, Math.min(5, parseInt((query.maxProbes as string) || '3', 10) || 3));
     const deepDive = query.deepDive === 'true';
@@ -472,7 +504,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, isRetry: ${isRetry}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
     let greetingWatchdog: NodeJS.Timeout | null = null;
@@ -512,6 +544,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       referenceAnswer,
       strategy,
       voiceName,
+      userGender,
+      turnMode,
       maxProbes,
       anchors,
       deepDive,

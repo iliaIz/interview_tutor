@@ -489,6 +489,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       sessionType,
       tutorMode: sessionType === 'tutor' ? tutorMode : '',
       voice: interviewConfig.voice,
+      userGender: interviewConfig.userGender || (localStorage.getItem('interview_user_gender') as any) || 'female',
+      turnMode: interviewConfig.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual',
       strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
       maxProbes: String(interviewConfig.maxProbes),
       deepDive: String(!!interviewConfig.deepDive || (sessionType === 'tutor' && tutorMode === 'deep_dive')),
@@ -985,14 +987,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 }
               } else if (hasSpokenInTurnRef.current) {
                 setIsUserSpeaking(false);
-                setIsPauseHolding(true);
-                if (!silenceTimerRef.current) {
-                  const vadPauseMs = interviewConfig.vadPauseMs ?? 1800;
-                  silenceTimerRef.current = setTimeout(() => {
-                    console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
-                    setIsPauseHolding(false);
-                    triggerEndTurn();
-                  }, vadPauseMs);
+                const turnMode = interviewConfig.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+                if (turnMode === 'auto') {
+                  setIsPauseHolding(true);
+                  if (!silenceTimerRef.current) {
+                    const vadPauseMs = interviewConfig.vadPauseMs ?? 1800;
+                    silenceTimerRef.current = setTimeout(() => {
+                      console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
+                      setIsPauseHolding(false);
+                      triggerEndTurn();
+                    }, vadPauseMs);
+                  }
                 }
               }
             }
@@ -1293,6 +1298,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isRecordingRef.current = false;
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const userGender = interviewConfig.userGender || (localStorage.getItem('interview_user_gender') as any) || 'female';
+      const verdictPrompt = userGender === 'male'
+        ? 'Я закончил ответ. Не нужно ничего озвучивать, просто тихо вызови функцию submit_interview_evaluation с итоговой оценкой.'
+        : userGender === 'female'
+        ? 'Я закончила ответ. Не нужно ничего озвучивать, просто тихо вызови функцию submit_interview_evaluation с итоговой оценкой.'
+        : 'Ответ завершен. Не нужно ничего озвучивать, просто тихо вызовите функцию submit_interview_evaluation с итоговой оценкой.';
+
       const finishMsg = {
         clientContent: {
           turns: [
@@ -1300,7 +1312,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               role: 'user',
               parts: [
                 {
-                  text: 'Я закончила ответ. Не нужно ничего озвучивать, просто тихо вызови функцию submit_interview_evaluation с итоговой оценкой.'
+                  text: verdictPrompt
                 }
               ]
             }
@@ -2150,30 +2162,31 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                           </div>
                         )}
                       </div>
-                    ) : isRecording && isUserSpeaking ? (
-                      <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-bold border border-emerald-600 shadow-xs flex items-center gap-1.5 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                        <span>Слышу ваш голос: говорите...</span>
-                      </span>
-                    ) : isRecording && isPauseHolding ? (
+                    ) : isRecording && isPauseHolding && interviewConfig.turnMode === 'auto' ? (
                       <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5 animate-pulse">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
                         <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
                       </span>
                     ) : isRecording ? (
-                      <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
-                          <Mic className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                          <span>Ваша очередь: говорите в микрофон...</span>
-                        </span>
+                      <div className="w-full flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                            isUserSpeaking
+                              ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs animate-pulse'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          }`}>
+                            <Mic className="w-3.5 h-3.5 animate-pulse" />
+                            <span>{isUserSpeaking ? 'Слышу ваш голос: говорите...' : 'Ваша очередь: говорите в микрофон...'}</span>
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={triggerEndTurn}
-                          className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
-                          title="Отправить реплику сразу, не дожидаясь автопаузы"
+                          className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
+                          title="Нажмите, когда закончите говорить, чтобы ИИ подвел итог и выставил оценку"
                         >
-                          <Zap className="w-3 h-3 fill-current" />
-                          <span>Готово</span>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Закончить ответ и получить оценку ➔</span>
                         </button>
                       </div>
                     ) : (

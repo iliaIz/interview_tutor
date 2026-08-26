@@ -23,13 +23,13 @@ export interface SaveEvaluationPayload {
 // POST /api/eval - Evaluate user text answer using Gemini and persist to SQLite
 router.post('/', async (req, res) => {
   try {
-    const { questionId, topic, question, referenceAnswer, userAnswer } = req.body;
+    const { questionId, topic, question, referenceAnswer, userAnswer, userGender } = req.body;
 
     if (!question || !referenceAnswer || !userAnswer) {
       return res.status(400).json({ error: 'Missing required parameters: question, referenceAnswer, userAnswer' });
     }
 
-    const evaluation = await evaluateAnswerWithGemini(question, referenceAnswer, userAnswer);
+    const evaluation = await evaluateAnswerWithGemini(question, referenceAnswer, userAnswer, userGender || 'female');
 
     // If questionId and topic are provided, persist evaluation
     let decayResult = null;

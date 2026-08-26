@@ -246,7 +246,107 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Выбор голоса и авто-согласование пола */}
+              {/* Персонализация пола кандидата (Обращение к вам) */}
+              <div className="p-4 rounded-2xl border border-pastel-accentViolet/30 bg-gradient-to-r from-pastel-rose/30 to-pastel-lavender/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
+                    <span>Обращение к вам (Пол кандидата)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-pastel-accentViolet bg-white/80 px-2.5 py-0.5 rounded-full border border-pastel-border shadow-2xs">
+                    {config.userGender === 'male' ? '👨 Мужской род' : config.userGender === 'neutral' ? '⚪ На «Вы»' : '👩 Женский род'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  ИИ будет строго согласовывать окончания глаголов и прилагательных при обращении к вам.
+                </p>
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {[
+                    { id: 'female', label: '👩 Женский', hint: '«Ты сказала», «готова»' },
+                    { id: 'male', label: '👨 Мужской', hint: '«Ты сказал», «готов»' },
+                    { id: 'neutral', label: '⚪ На «Вы»', hint: '«Вы сказали», «готовы»' }
+                  ].map((g) => {
+                    const isSelected = (config.userGender || 'female') === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => {
+                          const newGender = g.id as 'female' | 'male' | 'neutral';
+                          localStorage.setItem('interview_user_gender', newGender);
+                          onChangeConfig({ ...config, userGender: newGender });
+                        }}
+                        className={`p-2 rounded-xl text-center border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white border-transparent shadow-xs ring-1 ring-pastel-accentViolet/30'
+                            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{g.label}</div>
+                        <div className={`text-[9px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>{g.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Режим ведения диалога (Turn Mode) */}
+              <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Режим ответа (Защита от перебивания)</span>
+                  </label>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    (config.turnMode || 'manual') === 'manual'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {(config.turnMode || 'manual') === 'manual' ? '🛑 По кнопке (Manual)' : '🎙️ Свободный (Auto-VAD)'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('interview_turn_mode', 'manual');
+                      onChangeConfig({ ...config, turnMode: 'manual' });
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      (config.turnMode || 'manual') === 'manual'
+                        ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-emerald-900">🛑 По кнопке «Закончить ответ»</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-snug">
+                      ✨ <strong>Рекомендуется</strong>: ИИ ждет сколько угодно, пока вы думаете. Никаких случайных перебиваний при паузах.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('interview_turn_mode', 'auto');
+                      onChangeConfig({ ...config, turnMode: 'auto' });
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      config.turnMode === 'auto'
+                        ? 'bg-gradient-to-r from-pastel-accentRose/10 to-pastel-accentViolet/10 border-pastel-accentViolet ring-1 ring-pastel-accentViolet/40 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-slate-800">🎙️ Свободный диалог (Auto-VAD)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      ИИ сам фиксирует ответ после 1.5–2.5с тишины. Удобно в наушниках при беглой речи.
+                    </p>
+                  </button>
+                </div>
+              </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
