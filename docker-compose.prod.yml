@@ -14,6 +14,12 @@ services:
     networks:
       - app_internal_net
       - mail-network
+      - litellm_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     mem_limit: 128m
     depends_on:
       - backend
@@ -44,6 +50,11 @@ services:
     networks:
       - app_internal_net
       - litellm_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     mem_limit: 256m
 
 networks:
