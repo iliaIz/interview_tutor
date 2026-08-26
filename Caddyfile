@@ -1,9 +1,8 @@
 # Caddyfile for InterviewPrep AI (Production 2026)
-# Supports djelu.site, www.djelu.site, and fallback 192-124-182-59.sslip.io
+# Supports djelu.site, www.djelu.site, 192-124-182-59.sslip.io, and port 80 fallback
 
 {
     email admin@djelu.site
-    auto_https disable_redirects
 }
 
 (common_headers) {
@@ -16,7 +15,7 @@
     }
 }
 
-djelu.site, www.djelu.site, 192-124-182-59.sslip.io {
+djelu.site, www.djelu.site, 192-124-182-59.sslip.io, :80 {
     import common_headers
     encode zstd gzip
 
@@ -43,3 +42,4 @@ djelu.site, www.djelu.site, 192-124-182-59.sslip.io {
 mail.djelu.site {
     reverse_proxy snappymail:8888
 }
+
