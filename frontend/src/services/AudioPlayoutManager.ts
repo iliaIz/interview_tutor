@@ -17,7 +17,8 @@ export class AudioPlayoutManager {
   private activeSources: Set<AudioBufferSourceNode> = new Set();
   private pendingSamples: Float32Array[] = [];
   private isResuming = false;
-  private readonly JITTER_LEAD_SECONDS = 0.080; // 80ms jitter buffer for smooth playback
+  private readonly isMobileDevice: boolean;
+  private readonly JITTER_LEAD_SECONDS: number; // 130ms on mobile for 4G/5G resilience, 80ms on desktop
   private readonly TARGET_SAMPLE_RATE = 24000;
   public onPlaybackFinished?: () => void;
   public isMuted: boolean = false;
@@ -32,7 +33,53 @@ export class AudioPlayoutManager {
   }
 
   constructor(existingContext?: AudioContext) {
+    this.isMobileDevice =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+    this.JITTER_LEAD_SECONDS = this.isMobileDevice ? 0.130 : 0.080;
     this.ensureContext(existingContext);
+  }
+
+  /**
+   * Procedural Latency Masking Chime (Soft 432Hz sine tone with exponential decay)
+   * Eliminates dead silence during TTFB wait without external mp3 dependencies
+   */
+  public playThinkingAuraTone(): void {
+    if (this.isMuted) return;
+    try {
+      const { context, masterGain } = this.ensureContext();
+      if (context.state !== 'running') {
+        void this.resume();
+        return;
+      }
+
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+
+      const now = context.currentTime;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(432, now); // 432Hz harmonic warm tone
+      osc.frequency.exponentialRampToValueAtTime(540, now + 0.12);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.06, now + 0.03); // Soft, non-intrusive volume
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.20);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.22);
+
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch {}
+      };
+    } catch (e) {
+      // Audio context might not be fully unlocked yet; safely ignore
+    }
   }
 
   public getContext(): AudioContext {

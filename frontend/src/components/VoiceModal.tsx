@@ -32,7 +32,8 @@ import {
   BookOpen,
   Send,
   VolumeX,
-  Keyboard
+  Keyboard,
+  Clock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -113,7 +114,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Resolve current active question
   const currentQ: Question | null = isBatchMode && questionsBatch ? questionsBatch[activeBatchIndex] || questionsBatch[0] : null;
   const activeQuestionId = currentQ?.id || questionId || '';
-  const activeTopic = currentQ?.topic || topic || 'Java & Spring Framework';
+  const activeTopic = currentQ?.topic || topic || 'Java Core & Spring';
   const activeQuestionText = currentQ?.question || currentQuestionText || 'Расскажите о вашем опыте в backend-разработке.';
   const activeReferenceAnswer = currentQ?.answer || referenceAnswer || '';
   const activeQuestionNum = currentQ?.num ?? (activeBatchIndex + 1);
@@ -121,12 +122,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Modal Lifecycle Stages: 'lobby' -> 'active' -> 'transition' -> 'verdict' | 'grand_finale'
   const [stage, setStage] = useState<'lobby' | 'active' | 'transition' | 'verdict' | 'grand_finale'>('lobby');
 
-  // Transition Countdown State
   const [countdown, setCountdown] = useState<number>(5);
-  const [isTransitionPaused, setIsTransitionPaused] = useState<boolean>(false);
+  const [isTransitionPaused, setIsTransitionPaused] = useState(false);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Interviewer Configuration & Settings Drawer
   const [interviewConfig, setInterviewConfig] = useState<InterviewConfig>(getActiveConfig());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRadarOpen, setIsRadarOpen] = useState(false);
@@ -144,6 +143,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [thinkingStage, setThinkingStage] = useState<'idle' | 'processing' | 'delayed' | 'critical'>('idle');
+  const [rttMs, setRttMs] = useState<number | null>(null);
+  const [isPauseHolding, setIsPauseHolding] = useState<boolean>(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [rmsDb, setRmsDb] = useState<number>(-60);
   const [dialogueTurns, setDialogueTurns] = useState<
@@ -184,7 +186,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   };
 
-  // Refs for synchronous audio worklet synchronization
+  // Refs for synchronous audio worklet synchronization & Watchdogs
   const isRecordingRef = useRef(false);
   const isAiSpeakingRef = useRef(false);
   const isThinkingRef = useRef(false);
@@ -195,12 +197,143 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const userPcmChunksRef = useRef<Float32Array[]>([]);
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const turnWatchdogRef = useRef<NodeJS.Timeout[]>([]);
+  const wakeLockRef = useRef<any>(null);
   const isEvaluationFinalizedRef = useRef(false);
   const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
     saveActiveConfig(newConfig);
+  };
+
+  // Screen Wake Lock API for Mobile (Android/iOS)
+  const acquireWakeLock = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && (navigator as any).wakeLock) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.log('📱 Screen WakeLock acquired (preventing Android sleep)');
+      }
+    } catch (e) {
+      console.warn('WakeLock acquisition skipped:', e);
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    try {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('📱 Screen WakeLock released');
+      }
+    } catch (e) {}
+  };
+
+  // VisibilityChange listener (auto-resume AudioContext on returning from background/notification)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        if (playoutManagerRef.current) {
+          await playoutManagerRef.current.resume();
+        }
+        if (stage === 'active' && !wakeLockRef.current) {
+          void acquireWakeLock();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', releaseWakeLock);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', releaseWakeLock);
+      void releaseWakeLock();
+    };
+  }, [isOpen, stage]);
+
+  // Turn Watchdog Management
+  const clearAllTurnWatchdogs = () => {
+    turnWatchdogRef.current.forEach((t) => clearTimeout(t));
+    turnWatchdogRef.current = [];
+    setThinkingStage('idle');
+  };
+
+  const startTurnWatchdog = () => {
+    clearAllTurnWatchdogs();
+    setThinkingStage('processing');
+    playoutManagerRef.current?.playThinkingAuraTone();
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(15); } catch {}
+    }
+
+    // Tier 1: 3.5s - status update to 'delayed'
+    const t1 = setTimeout(() => {
+      if (isThinkingRef.current) {
+        setThinkingStage('delayed');
+      }
+    }, 3500);
+
+    // Tier 2: 6.5s - status update to 'critical' (shows recovery bar)
+    const t2 = setTimeout(() => {
+      if (isThinkingRef.current) {
+        setThinkingStage('critical');
+      }
+    }, 6500);
+
+    // Tier 3: 10.0s - auto-fallback to REST /api/eval
+    const t3 = setTimeout(() => {
+      if (isThinkingRef.current && !isEvaluationFinalizedRef.current) {
+        console.warn('⏱️ 10s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
+        void executeInstantRestEvalFallback();
+      }
+    }, 10000);
+
+    turnWatchdogRef.current = [t1, t2, t3];
+  };
+
+  const executeInstantRestEvalFallback = async () => {
+    clearAllTurnWatchdogs();
+    setIsThinking(false);
+    isThinkingRef.current = false;
+    setIsSubmitting(true);
+    setDialogueTurns((prev) => [
+      ...prev,
+      { role: 'system', text: '⚡ Сеть голосового шлюза перегружена. Запущена мгновенная REST-оценка...' }
+    ]);
+
+    try {
+      const targetQ = questionsBatch?.[activeBatchIndex] || {
+        id: activeQuestionId,
+        topic: activeTopic,
+        question: activeQuestionText,
+        answer: activeReferenceAnswer
+      };
+
+      const res = await fetch('/api/eval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: targetQ.id || activeQuestionId,
+          topic: targetQ.topic,
+          question: targetQ.question,
+          referenceAnswer: targetQ.answer,
+          userAnswer: transcriptRef.current || 'Устный ответ кандидата в голосовом режиме'
+        })
+      });
+      if (res.ok) {
+        const fallbackData = await res.json();
+        finalizeEvaluation(fallbackData, targetQ.id || activeQuestionId, activeBatchIndex);
+      } else {
+        setIsSubmitting(false);
+      }
+    } catch (e) {
+      console.error('Fallback eval error:', e);
+      setIsSubmitting(false);
+    }
   };
 
   // Synchronize initialQuestionIndex when opened
@@ -285,6 +418,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
    */
   const teardownWsAndBuffersOnly = () => {
     isEvaluationFinalizedRef.current = false;
+    clearAllTurnWatchdogs();
+    setIsPauseHolding(false);
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;
@@ -310,6 +445,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isAiSpeakingRef.current = false;
     setIsThinking(false);
     isThinkingRef.current = false;
+    setThinkingStage('idle');
     setIsUserSpeaking(false);
     setIsRecording(false);
     isRecordingRef.current = false;
@@ -323,6 +459,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
    */
   const teardownFullAudio = () => {
     teardownWsAndBuffersOnly();
+    void releaseWakeLock();
     stopMicrophone();
     if (playoutManagerRef.current) {
       playoutManagerRef.current.teardown();
@@ -377,6 +514,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           isAiSpeakingRef.current = false;
           setIsThinking(false);
           isThinkingRef.current = false;
+          clearAllTurnWatchdogs();
           lastAiSpeechEndedAtRef.current = Date.now();
           setIsRecording(true);
           isRecordingRef.current = true;
@@ -412,6 +550,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         if (!textPayload) return;
         const data = JSON.parse(textPayload);
 
+        // Keepalive Heartbeat response
+        if (data.type === 'ping') {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+          }
+          return;
+        }
+
+        // Live RTT Telemetry update from backend
+        if (data.type === 'pong_ack') {
+          if (typeof data.rtt === 'number') {
+            setRttMs(data.rtt);
+          }
+          return;
+        }
+
+        // Upstream response delayed nudge (>5.5s)
+        if (data.type === 'thinking_delay') {
+          setThinkingStage('delayed');
+          return;
+        }
+
         if (data.type === 'setupComplete') {
           const isSubsequent = qIndex > 0;
           if (sessionType === 'tutor') {
@@ -444,9 +604,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           // Warm up microphone hardware if not yet ready
           void initMicrophoneHardware();
         } else if (data.type === 'evaluation_completed') {
+          clearAllTurnWatchdogs();
           const evalData: EvaluationResult = data.evaluation;
           finalizeEvaluation(evalData, targetQ.id, qIndex);
         } else if (data.error) {
+          clearAllTurnWatchdogs();
           setDialogueTurns((prev) => [...prev, { role: 'system', text: `❌ Ошибка: ${data.error}` }]);
         } else if (data.serverContent) {
           // Barge-in interruption
@@ -456,6 +618,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             isAiSpeakingRef.current = false;
             setIsThinking(false);
             isThinkingRef.current = false;
+            clearAllTurnWatchdogs();
             lastAiSpeechEndedAtRef.current = Date.now();
             setIsRecording(true);
             isRecordingRef.current = true;
@@ -465,6 +628,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           // AI Speech turn
           if (data.serverContent.modelTurn?.parts) {
+            clearAllTurnWatchdogs();
             isServerTurnCompleteRef.current = false;
             setIsAiSpeaking(true);
             isAiSpeakingRef.current = true;
@@ -502,6 +666,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             // If audio queue is already empty, open mic immediately
             if (!playoutManagerRef.current?.isPlaying()) {
+              clearAllTurnWatchdogs();
               lastAiSpeechEndedAtRef.current = Date.now();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;
@@ -530,6 +695,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     ws.onclose = (ev) => {
       console.log('Live WS closed:', ev.code, ev.reason);
+      clearAllTurnWatchdogs();
+      setIsPauseHolding(false);
       setIsConnected(false);
       setIsRecording(false);
       isRecordingRef.current = false;
@@ -537,11 +704,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isAiSpeakingRef.current = false;
       setIsThinking(false);
       isThinkingRef.current = false;
+      setThinkingStage('idle');
       setIsUserSpeaking(false);
     };
 
     ws.onerror = (err) => {
       console.error('Live WS error:', err);
+      clearAllTurnWatchdogs();
       setIsConnected(false);
     };
   };
@@ -584,12 +753,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    setIsPauseHolding(false);
     hasSpokenInTurnRef.current = false;
     setIsRecording(false);
     isRecordingRef.current = false;
     setIsThinking(true);
     isThinkingRef.current = true;
     isServerTurnCompleteRef.current = false;
+    startTurnWatchdog();
 
     const turnFrame = {
       clientContent: {
@@ -635,6 +806,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    setIsPauseHolding(false);
     if (!isRecordingRef.current || isAiSpeakingRef.current || isThinkingRef.current) return;
 
     hasSpokenInTurnRef.current = false;
@@ -643,6 +815,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isRecordingRef.current = false;
     setIsThinking(true);
     isThinkingRef.current = true;
+    startTurnWatchdog();
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const turnCompleteMsg = {
@@ -679,6 +852,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     userPcmChunksRef.current = [];
     transcriptRef.current = '';
     setIsSubmitting(false);
+
+    // 0. Acquire Screen Wake Lock for mobile devices
+    void acquireWakeLock();
 
     // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
     const playoutManager = new AudioPlayoutManager();
@@ -733,6 +909,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setDialogueTurns([
       { role: 'system', text: `🎙️ Переход к вопросу ${nextIndex + 1} из ${totalQuestions}...` }
     ]);
+
+    // Keep screen awake during batch progression
+    void acquireWakeLock();
 
     // Connect fresh socket with question-specific anchors & context bridge
     connectLiveWebSocket(nextIndex, {
@@ -792,23 +971,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (metrics) {
             setRmsDb(metrics.rmsDb);
 
-            const isSpeech = metrics.speechDetected || metrics.rmsDb > -42;
+            // Dynamic VAD: respects adaptive noise floor from worklet or fallback -42dB
+            const isSpeech = metrics.speechDetected || metrics.rmsDb > (metrics.noiseFloorDb ? metrics.noiseFloorDb + 7.5 : -42);
 
             if (isRecordingRef.current && !isAiSpeakingRef.current && !isThinkingRef.current) {
               if (isSpeech) {
                 hasSpokenInTurnRef.current = true;
                 setIsUserSpeaking(true);
+                setIsPauseHolding(false);
                 if (silenceTimerRef.current) {
                   clearTimeout(silenceTimerRef.current);
                   silenceTimerRef.current = null;
                 }
               } else if (hasSpokenInTurnRef.current) {
                 setIsUserSpeaking(false);
+                setIsPauseHolding(true);
                 if (!silenceTimerRef.current) {
+                  const vadPauseMs = interviewConfig.vadPauseMs ?? 1800;
                   silenceTimerRef.current = setTimeout(() => {
-                    console.log('🔇 Silence detected after candidate speech (1.0s). Auto-triggering turnComplete...');
+                    console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
+                    setIsPauseHolding(false);
                     triggerEndTurn();
-                  }, 1000);
+                  }, vadPauseMs);
                 }
               }
             }
@@ -902,7 +1086,27 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       await playoutManagerRef.current.resume();
     }
 
-    // If AI is currently speaking, clicking the mic allows the candidate to barge-in immediately
+    // 1. Unstuck Mic Action: If AI is currently thinking/stalled, clicking mic resets thinking and opens mic immediately
+    if (isThinkingRef.current) {
+      console.log('🎙️ User clicked mic during thinking. Unstucking thinking state and opening mic...');
+      clearAllTurnWatchdogs();
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      setDialogueTurns((prev) => [
+        ...prev,
+        { role: 'system', text: '🎙️ Ожидание ответа сброшено. Продолжайте говорить.' }
+      ]);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate(15); } catch {}
+      }
+      return;
+    }
+
+    // 2. If AI is currently speaking, clicking the mic allows the candidate to barge-in immediately
     if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
       playoutManagerRef.current?.handleInterruption();
       setIsAiSpeaking(false);
@@ -1107,11 +1311,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       wsRef.current.send(JSON.stringify(finishMsg));
     }
 
-    // Safety fallback watchdog (25s)
+    // Safety fallback watchdog (6.5s as mandated by AGENTS.md)
     if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
     fallbackTimeoutRef.current = setTimeout(async () => {
       if (isEvaluationFinalizedRef.current) return;
-      console.warn('Live toolCall timeout (25s). Executing instant fallback evaluation...');
+      console.warn('Live toolCall timeout (6.5s). Executing instant fallback evaluation...');
       try {
         const res = await fetch('/api/eval', {
           method: 'POST',
@@ -1134,7 +1338,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         console.error('Fallback eval error:', err);
         setIsSubmitting(false);
       }
-    }, 25000);
+    }, 6500);
   };
 
   const handleRetry = async () => {
@@ -1217,6 +1421,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {rttMs !== null && (
+              <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-sub shadow-2xs" title="Задержка сети (RTT)">
+                <span className={`w-1.5 h-1.5 rounded-full ${rttMs < 120 ? 'bg-emerald-500' : rttMs < 350 ? 'bg-amber-500' : 'bg-red-500'}`} />
+                <span>{rttMs} ms</span>
+              </div>
+            )}
             <CandidatePersonaHUD
               questionText={activeQuestionText}
               topic={activeTopic}
@@ -1470,14 +1680,44 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                             <span>ИИ отвечает вслух...</span>
                           </span>
                         ) : isThinking ? (
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-300 animate-pulse flex items-center gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>ИИ осмысливает ваш ответ...</span>
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 animate-pulse ${
+                              thinkingStage === 'critical'
+                                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                : thinkingStage === 'delayed'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-amber-50 text-amber-700 border-amber-300'
+                            }`}>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>
+                                {thinkingStage === 'critical'
+                                  ? 'Задержка ответа шлюза...'
+                                  : thinkingStage === 'delayed'
+                                  ? 'Связь со шлюзом: генерация...'
+                                  : 'ИИ осмысливает ваш ответ...'}
+                              </span>
+                            </span>
+                            {thinkingStage === 'critical' && (
+                              <button
+                                type="button"
+                                onClick={toggleMic}
+                                className="px-2 py-0.5 rounded-full bg-white hover:bg-slate-100 border border-slate-300 text-[9px] font-bold text-slate-700 shadow-2xs cursor-pointer flex items-center gap-1"
+                                title="Сбросить ожидание и продолжить говорить"
+                              >
+                                <Mic className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Продолжить говорить</span>
+                              </button>
+                            )}
+                          </div>
                         ) : isRecording && isUserSpeaking ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold border border-emerald-600 shadow-xs flex items-center gap-1 animate-pulse">
                             <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                             <span>Слышу вас: говорите...</span>
+                          </span>
+                        ) : isRecording && isPauseHolding ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1 animate-pulse">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
                           </span>
                         ) : isRecording ? (
                           <div className="flex items-center gap-1.5">
@@ -1869,14 +2109,56 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         <span>ИИ озвучивает ответ...</span>
                       </span>
                     ) : isThinking ? (
-                      <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-300 animate-pulse flex items-center gap-1.5">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>ИИ осмысливает ваш ответ...</span>
-                      </span>
+                      <div className="flex flex-col items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 animate-pulse ${
+                          thinkingStage === 'critical'
+                            ? 'bg-rose-50 text-rose-700 border-rose-300'
+                            : thinkingStage === 'delayed'
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-amber-50 text-amber-700 border-amber-300'
+                        }`}>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>
+                            {thinkingStage === 'critical'
+                              ? 'Задержка ответа шлюза (высокая нагрузка)...'
+                              : thinkingStage === 'delayed'
+                              ? 'Связь со шлюзом: генерация ответа...'
+                              : 'ИИ осмысливает ваш ответ...'}
+                          </span>
+                        </span>
+
+                        {thinkingStage === 'critical' && (
+                          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-amber-50/90 border border-amber-200 animate-fadeIn">
+                            <button
+                              type="button"
+                              onClick={toggleMic}
+                              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-bold shadow-2xs cursor-pointer flex items-center gap-1"
+                              title="Сбросить ожидание и продолжить говорить"
+                            >
+                              <Mic className="w-3 h-3 text-emerald-600" />
+                              <span>Продолжить говорить</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={executeInstantRestEvalFallback}
+                              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shadow-2xs cursor-pointer flex items-center gap-1"
+                              title="Мгновенно запросить оценку через быстрый REST"
+                            >
+                              <Zap className="w-3 h-3 fill-current" />
+                              <span>Экспресс-оценка</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ) : isRecording && isUserSpeaking ? (
                       <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-bold border border-emerald-600 shadow-xs flex items-center gap-1.5 animate-pulse">
                         <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                         <span>Слышу ваш голос: говорите...</span>
+                      </span>
+                    ) : isRecording && isPauseHolding ? (
+                      <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5 animate-pulse">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
                       </span>
                     ) : isRecording ? (
                       <div className="flex items-center gap-2">

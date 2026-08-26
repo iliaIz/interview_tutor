@@ -57,6 +57,7 @@ export interface InterviewConfig {
   customAnchors?: string[];
   autoAdvance?: boolean; // ⚡ Автоматический переход к следующему вопросу
   transitionDelay?: number; // ⏱️ Задержка автоперехода в секундах (3, 5, 10, 15, 0 = только вручную)
+  vadPauseMs?: number; // ⏱️ Длительность паузы тишины VAD в мс (1200..2500, по умолчанию 1800)
 }
 
 export interface InterviewProfile {

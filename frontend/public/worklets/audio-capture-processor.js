@@ -21,10 +21,11 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     this.outputBuffer = new Int16Array(this.outputChunkCapacity);
     this.outputBufferIndex = 0;
 
-    // VAD Schmitt-trigger hysteresis state
+    // VAD Schmitt-trigger hysteresis state with Dynamic Noise Floor Estimation
     this.isSpeechActive = false;
     this.hangoverCounter = 0;
     this.HANGOVER_LIMIT_FRAMES = 3;
+    this.noiseFloorDb = -55.0; // Running noise floor tracker
     this.VAD_ASSERT_DB = -42;
     this.VAD_DEASSERT_DB = -50;
   }
@@ -87,11 +88,21 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     const rms = Math.sqrt(powerSum / this.outputBufferIndex);
     const db = 20 * Math.log10(Math.max(rms, 1e-5));
 
+    // Dynamic Noise Floor update (slow adapt to ambient room noise, e.g. Android mobile AGC)
+    if (!this.isSpeechActive || db < this.noiseFloorDb + 3) {
+      this.noiseFloorDb = 0.96 * this.noiseFloorDb + 0.04 * db;
+      this.noiseFloorDb = Math.max(-65.0, Math.min(-32.0, this.noiseFloorDb));
+    }
+
+    // Adaptive threshold: at least 7.5 dB above ambient noise floor, bounded to [-44, -28] dB
+    const dynamicAssertDb = Math.max(-44.0, Math.min(-28.0, this.noiseFloorDb + 7.5));
+    const dynamicDeassertDb = Math.max(-52.0, Math.min(-34.0, this.noiseFloorDb + 3.0));
+
     // Schmitt-trigger VAD update
-    if (db > this.VAD_ASSERT_DB) {
+    if (db > dynamicAssertDb) {
       this.isSpeechActive = true;
       this.hangoverCounter = this.HANGOVER_LIMIT_FRAMES;
-    } else if (db < this.VAD_DEASSERT_DB) {
+    } else if (db < dynamicDeassertDb) {
       if (this.hangoverCounter > 0) {
         this.hangoverCounter--;
       } else {
@@ -108,6 +119,7 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
         metrics: {
           rmsDb: Number(db.toFixed(1)),
           speechDetected: this.isSpeechActive,
+          noiseFloorDb: Number(this.noiseFloorDb.toFixed(1)),
         },
       },
       [chunkTransfer.buffer]

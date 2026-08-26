@@ -48,6 +48,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [rttMs, setRttMs] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Готов к началу диалога');
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurn[]>([]);
   const [aiTranscript, setAiTranscript] = useState<string>('');
@@ -63,6 +64,41 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const isMutedRef = useRef(false);
   const lastAiSpeechEndedAtRef = useRef<number>(0);
   const isCleaningUpRef = useRef(false);
+  const wakeLockRef = useRef<any>(null);
+
+  // Screen Wake Lock API for Mobile (Android/iOS)
+  const acquireWakeLock = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && (navigator as any).wakeLock) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch (e) {}
+  };
+
+  const releaseWakeLock = async () => {
+    try {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    } catch (e) {}
+  };
+
+  // Auto-resume audio on visibility change
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible') {
+        if (playoutManagerRef.current) {
+          await playoutManagerRef.current.resume();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      void releaseWakeLock();
+    };
+  }, []);
 
   // Sync ref flags
   useEffect(() => {
@@ -197,6 +233,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       isCleaningUpRef.current = false;
       setStatusMessage('Подключение к голосовому каналу...');
 
+      // 0. Acquire Screen Wake Lock for mobile devices
+      void acquireWakeLock();
+
       // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
       let playoutManager = playoutManagerRef.current;
       if (!playoutManager) {
@@ -244,6 +283,26 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           if (!textPayload) return;
 
           const data = JSON.parse(textPayload);
+
+          // Heartbeat keepalive handling
+          if (data.type === 'ping') {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+            }
+            return;
+          }
+
+          if (data.type === 'pong_ack') {
+            if (typeof data.rtt === 'number') {
+              setRttMs(data.rtt);
+            }
+            return;
+          }
+
+          if (data.type === 'thinking_delay') {
+            setStatusMessage('⏳ ИИ генерирует развернутый ответ (задержка upstream)...');
+            return;
+          }
 
           if (data.type === 'setupComplete') {
             setStatusMessage('🔊 AI говорит...');
@@ -411,6 +470,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       playoutManagerRef.current = null;
     }
     inputAudioCtxRef.current = null;
+    void releaseWakeLock();
 
     setIsConnected(false);
     setIsRecording(false);
@@ -483,6 +543,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     isAiSpeaking,
     isRecording,
     isMuted,
+    rttMs,
     statusMessage,
     dialogueTurns,
     aiTranscript,

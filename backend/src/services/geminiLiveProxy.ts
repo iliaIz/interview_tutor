@@ -26,6 +26,10 @@ interface ProxySession {
   relevantGapIds?: string[];
   probesCount?: number;
   isRetry?: boolean;
+  lastActivityAt: number;
+  heartbeatInterval?: NodeJS.Timeout | null;
+  nudgeWatchdog?: NodeJS.Timeout | null;
+  greetingWatchdog?: NodeJS.Timeout | null;
 }
 
 /**
@@ -483,8 +487,24 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       referenceAnswer,
       relevantGapIds,
       probesCount: 0,
-      isRetry
+      isRetry,
+      lastActivityAt: Date.now(),
+      heartbeatInterval: null,
+      nudgeWatchdog: null,
+      greetingWatchdog: null
     };
+
+    // WebSocket Keepalive Heartbeat (every 15s)
+    session.heartbeatInterval = setInterval(() => {
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      }
+      // Check for half-open dead connection (no activity in 35s)
+      if (Date.now() - session.lastActivityAt > 35000) {
+        console.warn('⚠️ Session inactive for >35s. Terminating keepalive expired socket.');
+        terminate('KeepaliveTimeout');
+      }
+    }, 15000);
 
     const systemPromptText = buildSystemPrompt({
       topic,
@@ -697,15 +717,25 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
         // Clear watchdog and increment probesCount as soon as model starts responding
         if (parsed.serverContent?.modelTurn) {
+          session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
           if (greetingWatchdog) {
             clearTimeout(greetingWatchdog);
             greetingWatchdog = null;
           }
+          if (session.nudgeWatchdog) {
+            clearTimeout(session.nudgeWatchdog);
+            session.nudgeWatchdog = null;
+          }
         }
 
         // Handle Function Calling / toolCall
         if (parsed.toolCall?.functionCalls) {
+          session.lastActivityAt = Date.now();
+          if (session.nudgeWatchdog) {
+            clearTimeout(session.nudgeWatchdog);
+            session.nudgeWatchdog = null;
+          }
           console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
 
           for (const call of parsed.toolCall.functionCalls) {
@@ -930,6 +960,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     });
 
     clientSocket.on('message', (data: RawData, isBinary: boolean) => {
+      session.lastActivityAt = Date.now();
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
       let payloadBuffer = buffer;
 
@@ -937,10 +968,39 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         const text = buffer.toString();
         const parsed = JSON.parse(text);
 
+        // Heartbeat Pong response from client: calculate RTT and send ack to client
+        if (parsed.type === 'pong') {
+          const sentTs = typeof parsed.timestamp === 'number' ? parsed.timestamp : Date.now();
+          const rtt = Math.max(0, Date.now() - sentTs);
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(JSON.stringify({ type: 'pong_ack', rtt, timestamp: Date.now() }));
+          }
+          return;
+        }
+
+        // Heartbeat Ping from client: immediate Pong reply
+        if (parsed.type === 'ping') {
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(JSON.stringify({ type: 'pong', timestamp: parsed.timestamp || Date.now() }));
+          }
+          return;
+        }
+
         // Ignore duplicate setup frames from client since setup is already initiated via URL query params
         if (parsed.setup) {
           console.log('ℹ️ Client sent setup frame (session already configured via URL params, skipping duplicate setup)');
           return;
+        }
+
+        // Client committed turnComplete -> start upstream nudge watchdog (5.5s)
+        if (parsed.clientContent?.turnComplete) {
+          if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
+          session.nudgeWatchdog = setTimeout(() => {
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              console.log('⏱️ Upstream response delayed (>5.5s), notifying client...');
+              clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: 5500 }));
+            }
+          }, 5500);
         }
 
         // Normalize realtime audio chunks to canonical Gemini Live realtimeInput.audio
@@ -984,6 +1044,18 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       if (greetingWatchdog) {
         clearTimeout(greetingWatchdog);
         greetingWatchdog = null;
+      }
+      if (session.greetingWatchdog) {
+        clearTimeout(session.greetingWatchdog);
+        session.greetingWatchdog = null;
+      }
+      if (session.heartbeatInterval) {
+        clearInterval(session.heartbeatInterval);
+        session.heartbeatInterval = null;
+      }
+      if (session.nudgeWatchdog) {
+        clearTimeout(session.nudgeWatchdog);
+        session.nudgeWatchdog = null;
       }
       session.frameQueue = [];
       if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {
