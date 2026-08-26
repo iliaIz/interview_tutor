@@ -13,6 +13,7 @@ services:
       - caddy_config:/config
     networks:
       - app_internal_net
+      - mail-network
     mem_limit: 128m
     depends_on:
       - backend
@@ -50,6 +51,8 @@ networks:
     driver: bridge
   litellm_net:
     name: litellm_shared_network
+    external: true
+  mail-network:
     external: true
 
 volumes:
