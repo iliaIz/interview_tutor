@@ -857,10 +857,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
 
       const promptText = userGender === 'male'
-        ? 'Я закончил свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
+        ? 'Я закончил свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
         : userGender === 'female'
-        ? 'Я закончила свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
-        : 'Ответ завершен. Пожалуйста, оцените ответ и подведите итог.';
+        ? 'Я закончила свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
+        : 'Ответ завершен. Пожалуйста, оцените ответ или задайте уточняющий вопрос при необходимости.';
 
       const turnCompleteMsg = {
         clientContent: {
@@ -2244,10 +2244,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                           type="button"
                           onClick={triggerEndTurn}
                           className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
-                          title="Нажмите, когда закончите говорить, чтобы ИИ подвел итог и выставил оценку"
+                          title="Нажмите, когда закончите говорить: ИИ выслушает ответ, задаст уточнение при необходимости или подведет итог"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>Закончить ответ и получить оценку ➔</span>
+                          <span>Передать ответ ➔</span>
                         </button>
                       </div>
                     ) : (
