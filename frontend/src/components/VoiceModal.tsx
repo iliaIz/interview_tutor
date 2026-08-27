@@ -688,6 +688,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (data.serverContent.turnComplete) {
             isServerTurnCompleteRef.current = true;
             console.log('AI turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
+
+            // Dual-Sided Handshake: If audio playout already finished or no audio was received, activate mic immediately
+            if (!playoutManagerRef.current?.isPlaying() && !isEvaluationFinalizedRef.current) {
+              console.log('🔊 Audio queue already drained on turnComplete. Instantly activating candidate microphone...');
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setIsThinking(false);
+              isThinkingRef.current = false;
+              clearAllTurnWatchdogs();
+              lastAiSpeechEndedAtRef.current = Date.now();
+              setIsRecording(true);
+              isRecordingRef.current = true;
+              hasSpokenInTurnRef.current = false;
+              setDialogueTurns((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.text.includes('Ваша очередь')) return prev;
+                return [
+                  ...prev,
+                  { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
+                ];
+              });
+            }
           }
         }
       } catch (e) {

@@ -651,15 +651,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       geminiSocket.send(JSON.stringify(setupMessage));
     });
 
-    geminiSocket.on('message', (data: RawData, isBinary: boolean) => {
-      // Direct binary audio pass-through
-      if (isBinary) {
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(data, { binary: true });
-        }
-        return;
-      }
-
+    geminiSocket.on('message', (data: RawData) => {
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
       const str = buffer.toString('utf8');
       let isToolCallProcessed = false;
@@ -1022,17 +1014,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       }
     });
 
-    clientSocket.on('message', (data: RawData, isBinary: boolean) => {
+    clientSocket.on('message', (data: RawData) => {
       session.lastActivityAt = Date.now();
-      if (isBinary) {
-        if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
-          geminiSocket.send(data, { binary: true });
-        } else if (session.frameQueue.length < 50) {
-          session.frameQueue.push(Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer));
-        }
-        return;
-      }
-
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
       let payloadBuffer = buffer;
 

@@ -390,10 +390,18 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               }
             }
 
-            // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain to prevent cutting off speech
+            // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately
             if (data.serverContent.turnComplete) {
               lastAiSpeechEndedAtRef.current = Date.now();
               console.log('AI turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
+
+              if (!playoutManagerRef.current?.isPlaying() && !isCleaningUpRef.current) {
+                setIsAiSpeaking(false);
+                isAiSpeakingRef.current = false;
+                setIsRecording(true);
+                isRecordingRef.current = true;
+                setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+              }
             }
           }
         } catch (e) {
