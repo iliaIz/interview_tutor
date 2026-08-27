@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { envConfig } from '../config/env';
 dotenv.config();
 
 export interface EvalResult {
@@ -15,12 +16,9 @@ export async function evaluateAnswerWithGemini(
   userAnswer: string,
   userGender: 'female' | 'male' | 'neutral' = 'female'
 ): Promise<EvalResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
+  const endpointUrl = envConfig.proxy.chatUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
+  const modelName = envConfig.models.text;
 
   const genderDirective = userGender === 'female'
     ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В поле feedback обязательно используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично справилась», «Ты верно отметила», «Ты упустила»). Запрещено использовать мужской род.'

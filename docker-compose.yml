@@ -7,11 +7,13 @@ services:
       - "${BACKEND_PORT:-8091}:5000"
     environment:
       - PORT=5000
-      - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-v3}
-      - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-tts-live-v3}
+      - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-smart}
+      - GEMINI_FAST_MODEL=${GEMINI_FAST_MODEL:-gemini-fast}
+      - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-live-v2}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-tts-v3}
+      - GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL:-gemini-embedding}
       - LITELLM_BASE_URL=${LITELLM_BASE_URL:-${LITELLM_PROXY_URL:-http://host.docker.internal:4000/v1}}
       - LITELLM_API_KEY=${LITELLM_API_KEY:-sk-1234}
-      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-tts-v3}
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"

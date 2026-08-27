@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
+import { envConfig } from '../config/env';
 import { TOPIC_MAP } from './topics';
 
 dotenv.config();
@@ -233,11 +234,9 @@ export function updateBugChallengeStatus(params: {
 }
 
 export async function generateBugChallenge(params: GenerateBugChallengeParams): Promise<BugChallenge> {
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-smart';
+  const endpointUrl = envConfig.proxy.chatUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
+  const modelName = envConfig.models.text;
 
   let topicName = params.topic || 'Java & Spring Framework';
   const topicId = params.topicId || (params.topic ? params.topic.toLowerCase().replace(/\s+/g, '-') : 'general');

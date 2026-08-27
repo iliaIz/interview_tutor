@@ -1,4 +1,5 @@
 import { db } from './db';
+import { envConfig } from '../config/env';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -280,11 +281,9 @@ async function generateDialogueScript(
   options: GeneratePodcastOptions,
   questionsCount: number
 ): Promise<{ name_of_guest: string; dialogue: DialogueItem[] }> {
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
+  const endpointUrl = envConfig.proxy.chatUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
+  const modelName = envConfig.models.text;
 
   const isDuo = options.mode !== 'solo';
   const systemPrompt = options.systemPrompt || DEFAULT_STRICT_SYSTEM_PROMPT;
@@ -510,11 +509,9 @@ export class OpusEncoderService {
 export async function synthesizeTTSBuffer(text: string, voice: string): Promise<Buffer> {
   const validVoice = (['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voice)) ? voice : 'Kore';
 
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const speechUrl = `${cleanProxyBase}/v1/audio/speech`;
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const speechUrl = envConfig.proxy.speechUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
+  const ttsModel = envConfig.models.tts;
 
   const res = await fetch(speechUrl, {
     method: 'POST',
@@ -581,8 +578,8 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
   const jobId = crypto.randomBytes(16).toString('hex');
   const now = new Date().toISOString();
 
-  const scriptModel = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
-  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const scriptModel = envConfig.models.text;
+  const ttsModel = envConfig.models.tts;
 
   const jobState: PodcastJobState = {
     job_id: jobId,
@@ -629,8 +626,8 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
   if (!job) return;
 
   const startTime = Date.now();
-  const scriptModel = process.env.GEMINI_TEXT_MODEL || 'gemini-v3';
-  const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
+  const scriptModel = envConfig.models.text;
+  const ttsModel = envConfig.models.tts;
   const voice1 = options.voice1 || 'Kore';
   const voice2 = options.voice2 || 'Puck';
   const mode = options.mode || 'duo';

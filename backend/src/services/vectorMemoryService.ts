@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
+import { envConfig } from '../config/env';
 
 dotenv.config();
 
@@ -87,10 +88,9 @@ export async function embedText(text: string): Promise<Float32Array> {
     return embeddingCache.get(normalized)!;
   }
 
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-  const embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding';
+  const cleanProxyBase = envConfig.proxy.baseUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
+  const embeddingModel = envConfig.models.embedding;
 
   try {
     const controller = new AbortController();

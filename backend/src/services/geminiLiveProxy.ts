@@ -4,6 +4,7 @@ import url from 'url';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
+import { envConfig } from '../config/env';
 import { updateBugChallengeStatus } from './tutorService';
 import {
   findRelevantCandidateGaps,
@@ -505,15 +506,13 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const userProfile = getUserProfile();
     const relevantGapIds = candidateGaps.map((g) => g.id);
 
-    const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
-    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-    
+    const proxyApiKey = envConfig.proxy.apiKey;
     const requestedModel = (query.liveModel as string) || '';
     const liveModel = requestedModel === 'gemini-live-v3'
       ? 'gemini-live-v3'
-      : (process.env.GEMINI_LIVE_MODEL || 'gemini-live-v2');
+      : envConfig.models.live;
 
-    const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
     console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}]...`);
 

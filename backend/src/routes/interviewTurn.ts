@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../services/db';
+import { envConfig } from '../config/env';
 import { transcribeWithDeepgram } from '../services/deepgramService';
 import { synthesizeTTSBuffer } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
@@ -87,12 +88,10 @@ router.post('/turn', async (req: Request, res: Response) => {
     }
 
     // 2. Reasoning Phase: Evaluate transcript with Gemini Fast
-    const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-    const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-    const endpointUrl = `${cleanProxyBase}/v1/chat/completions`;
-    const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+    const endpointUrl = envConfig.proxy.chatUrl;
+    const proxyApiKey = envConfig.proxy.apiKey;
     // Use gemini-fast for sub-500ms deterministic Socratic reasoning
-    const modelName = process.env.GEMINI_FAST_MODEL || 'gemini-fast';
+    const modelName = envConfig.models.fast;
 
     const genderDirective = userGender === 'female'
       ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В feedback и репликах строго используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично раскрыла», «Ты верно отметила», «Ты упустила»).'

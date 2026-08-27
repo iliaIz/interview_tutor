@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { db } from './db';
+import { envConfig } from '../config/env';
 dotenv.config();
 
 export interface SystemHealthStatus {
@@ -48,14 +49,13 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   }
 
   // 2. Check LiteLLM Gateway & Models
-  const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
-  const cleanProxyBase = rawProxyUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
-  const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
+  const cleanProxyBase = envConfig.proxy.baseUrl;
+  const proxyApiKey = envConfig.proxy.apiKey;
 
-  const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-smart';
-  const liveModelName = process.env.GEMINI_LIVE_MODEL || 'gemini-live';
-  const ttsModelName = process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3';
-  const embeddingModelName = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding';
+  const textModelName = envConfig.models.text;
+  const liveModelName = envConfig.models.live;
+  const ttsModelName = envConfig.models.tts;
+  const embeddingModelName = envConfig.models.embedding;
 
   let aiStatus: 'ready' | 'connecting' | 'unreachable' = 'connecting';
   let latencyMs: number | undefined = undefined;

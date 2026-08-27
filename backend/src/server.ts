@@ -12,6 +12,7 @@ import memoryRouter from './routes/memory';
 import interviewTurnRouter from './routes/interviewTurn';
 import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
+import { envConfig } from './config/env';
 
 dotenv.config();
 
@@ -44,6 +45,20 @@ app.get('/api/health', async (req, res) => {
   const health = await checkSystemHealth();
   const statusCode = health.status === 'unreachable' ? 503 : 200;
   res.status(statusCode).json(health);
+});
+
+// Dynamic Model Discovery Configuration Endpoint for Frontend
+app.get('/api/config', (req, res) => {
+  res.json({
+    models: {
+      defaultLiveModel: envConfig.models.live,
+      defaultTtsModel: envConfig.models.tts,
+      defaultTextModel: envConfig.models.text,
+      defaultFastModel: envConfig.models.fast,
+      defaultEmbeddingModel: envConfig.models.embedding,
+      supportedLiveModels: ['gemini-live-v2', 'gemini-live-v3']
+    }
+  });
 });
 
 // Create HTTP server
