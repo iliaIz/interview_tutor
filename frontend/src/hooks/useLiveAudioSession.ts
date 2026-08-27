@@ -192,11 +192,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           const isAiCurrentlySpeaking =
             isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
 
-          // Audio Gating (SOTA 2026 Invariant):
-          // In 'manual' mode: NEVER stream realtimeInput.audio to Gemini Live during reflection.
-          const isManualMode = (currentParamsRef.current.turnMode || 'manual') !== 'auto';
+          // Continuous Smooth Realtime Streaming (SOTA 2026 Invariant):
+          // Stream standard 100ms PCM chunks while candidate is recording and AI is not speaking.
+          // In 'manual' mode, turnComplete is withheld until candidate commits their turn.
           const shouldTransmit =
-            !isManualMode &&
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
@@ -568,20 +567,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
     // 3. Send Turn Completion Signal over WebSocket
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const completionText = gender === 'male'
-        ? 'Я закончил свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
-        : gender === 'female'
-        ? 'Я закончила свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
-        : 'Ответ завершен. Пожалуйста, оцените ответ или задайте уточняющий вопрос при необходимости.';
-
       const endTurnSignal = {
         clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: completionText }]
-            }
-          ],
           turnComplete: true
         }
       };

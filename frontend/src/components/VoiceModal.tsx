@@ -851,53 +851,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
 
-    const userGender = interviewConfig.userGender || (localStorage.getItem('interview_user_gender') as any) || 'female';
-    const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
-
-    if (isManualMode) {
-      // SOTA 2026 Hybrid Dual-Commit:
-      // Send buffered audio frames to Gemini Live in an atomic burst
-      const pcmBase64 = encodePcmToInt16Base64();
-      if (pcmBase64 && pcmBase64.length > 50) {
-        const audioPayload = {
-          realtime_input: {
-            audio: {
-              mimeType: 'audio/pcm;rate=16000',
-              data: pcmBase64
-            }
-          }
-        };
-        wsRef.current.send(JSON.stringify(audioPayload));
+    const turnCompleteMsg = {
+      clientContent: {
+        turnComplete: true
       }
-
-      const promptText = userGender === 'male'
-        ? 'Я закончил свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
-        : userGender === 'female'
-        ? 'Я закончила свой ответ. Послушай меня: если нужно уточнить или углубиться — задай вопрос, если всё понятно — подведи итог и оцени.'
-        : 'Ответ завершен. Пожалуйста, оцените ответ или задайте уточняющий вопрос при необходимости.';
-
-      const turnCompleteMsg = {
-        clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: promptText }]
-            }
-          ],
-          turnComplete: true
-        }
-      };
-      wsRef.current.send(JSON.stringify(turnCompleteMsg));
-      console.log('📤 Sent manual audio burst & clientContent.turnComplete to Gemini Live');
-    } else {
-      const turnCompleteMsg = {
-        clientContent: {
-          turnComplete: true
-        }
-      };
-      wsRef.current.send(JSON.stringify(turnCompleteMsg));
-      console.log('📤 Sent clientContent.turnComplete to Gemini Live');
-    }
+    };
+    wsRef.current.send(JSON.stringify(turnCompleteMsg));
+    console.log('📤 Sent clientContent.turnComplete to Gemini Live');
   };
 
   /**
@@ -1087,13 +1047,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             userPcmChunksRef.current.push(float32);
           }
 
-          // Audio Gating (SOTA 2026 Invariant):
-          // In 'manual' mode: NEVER stream realtimeInput.audio to Gemini Live during candidate reflection.
-          // This guarantees that Google's server-side VAD will NEVER fire prematurely.
-          // In 'auto' mode: stream continuous realtimeInput.audio for Auto-VAD.
-          const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
+          // Continuous Smooth Realtime Streaming (SOTA 2026 Invariant):
+          // Stream standard 100ms PCM chunks while candidate is recording and AI is not speaking.
+          // In 'manual' mode, turnComplete is withheld until candidate clicks "Передать ответ ➔".
           const shouldTransmit =
-            !isManualMode &&
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
