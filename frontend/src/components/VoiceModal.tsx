@@ -1189,6 +1189,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
       setIsRecording(true);
       isRecordingRef.current = true;
+
+      // Auto-Healing: Ensure WebSocket is open when candidate enables microphone!
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        console.log('🔄 Auto-healing WebSocket on mic activation...');
+        const targetQ = questionsBatch?.[activeBatchIndex] || {
+          id: activeQuestionId,
+          topic: activeTopic,
+          question: activeQuestionText,
+          answer: activeReferenceAnswer
+        };
+        connectLiveWebSocket(activeBatchIndex, targetQ);
+      }
     }
   };
 
@@ -2145,8 +2157,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     >
                       <button
                         type="button"
-                        onClick={toggleMic}
+                        onClick={() => {
+                          if (isAiSpeaking) {
+                            playoutManagerRef.current?.handleInterruption();
+                          } else if (isRecording) {
+                            // In active recording: clicking the central circle transmits the answer!
+                            triggerEndTurn();
+                          } else {
+                            // Resume recording & auto-heal socket
+                            void toggleMic();
+                          }
+                        }}
                         className="w-24 h-24 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
+                        title={
+                          isAiSpeaking
+                            ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
+                            : isRecording
+                            ? 'Нажмите, чтобы передать ответ ИИ'
+                            : 'Нажмите, чтобы включить микрофон'
+                        }
                       >
                         {isAiSpeaking ? (
                           <>
@@ -2162,13 +2191,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                           <>
                             <Mic className={`w-8 h-8 ${isUserSpeaking ? 'text-emerald-500 scale-110' : 'text-emerald-600 animate-pulse'} transition-transform`} />
                             <span className="text-[10px] font-bold text-emerald-600 mt-1">
-                              {isUserSpeaking ? 'Слышу вас...' : 'Слушаю...'}
+                              {isUserSpeaking ? 'Передать ответ ➔' : 'Говорите...'}
                             </span>
                           </>
                         ) : (
                           <>
                             <MicOff className="w-8 h-8 text-slate-400" />
-                            <span className="text-[10px] font-bold text-slate-400 mt-1">Пауза</span>
+                            <span className="text-[10px] font-bold text-slate-400 mt-1">Включить</span>
                           </>
                         )}
                       </button>

@@ -970,16 +970,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 }));
               }
 
-              if (sessionType !== 'tutor') {
-                console.log('🔒 Evaluation delivered. Closing upstream Gemini WS to stop further AI speech.');
-                try {
-                  if (geminiSocket.readyState === WebSocket.OPEN) {
-                    geminiSocket.close();
-                  }
-                } catch (closeErr) {
-                  console.warn('Error closing upstream WS post-evaluation:', closeErr);
-                }
-              }
+              console.log('✅ Evaluation delivered to client. Keeping session lifeline open for Q&A and transition.');
             }
           }
         }
