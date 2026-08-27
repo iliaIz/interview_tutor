@@ -933,10 +933,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     playoutManagerRef.current = playoutManager;
     await playoutManager.resume();
 
-    // 2. Pre-warm microphone hardware directly within user gesture!
-    await initMicrophoneHardware();
+    // 2. Pre-warm microphone hardware asynchronously in background (non-blocking)
+    void initMicrophoneHardware();
 
-    // 3. Connect WebSocket
+    // 3. Connect WebSocket immediately so AI begins speaking without delay
     const targetQ = {
       id: activeQuestionId,
       topic: activeTopic,
@@ -1759,6 +1759,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                             onClick={() => {
                               if (isAiSpeaking) {
                                 playoutManagerRef.current?.handleInterruption();
+                                setIsAiSpeaking(false);
+                                isAiSpeakingRef.current = false;
+                                setIsRecording(true);
+                                isRecordingRef.current = true;
+                                lastAiSpeechEndedAtRef.current = Date.now();
                               } else if (isRecording) {
                                 triggerEndTurn();
                               } else {
@@ -2189,6 +2194,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         onClick={() => {
                           if (isAiSpeaking) {
                             playoutManagerRef.current?.handleInterruption();
+                            setIsAiSpeaking(false);
+                            isAiSpeakingRef.current = false;
+                            setIsRecording(true);
+                            isRecordingRef.current = true;
+                            lastAiSpeechEndedAtRef.current = Date.now();
                           } else if (isRecording) {
                             // In active recording: clicking the central circle transmits the answer!
                             triggerEndTurn();
