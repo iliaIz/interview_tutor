@@ -26,6 +26,7 @@ interface ProxySession {
   relevantGapIds?: string[];
   probesCount?: number;
   isRetry?: boolean;
+  hasCandidateResponded?: boolean;
   lastActivityAt: number;
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
@@ -320,10 +321,17 @@ ${((questionIndex ?? 0) + 1 < totalQuestions)
     : `=== РЕЖИМ ОЦЕНКИ С ПОДДЕРЖКОЙ БРЕЙКПОИНТА ===
 Пока кандидат сам отвечает — оценивай без подсказок. Но если кандидат явно просит объяснить или сдается — строго следуй протоколу брейкпоинта выше.`;
 
+  const firstTurnLockdownInstruction = `=== КАТЕГОРИЧЕСКИЙ ЗАПРЕТ ВЫЗОВА submit_interview_evaluation НА СТАРТЕ (FIRST-TURN LOCKDOWN) ===
+1. В самом начале сессии (на этапе приветствия) ты обязана ТОЛЬКО поздороваться и зачитать технический вопрос ГОЛОСОМ.
+2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать функцию submit_interview_evaluation на этапе первого приветствия и первого хода!
+3. Функция submit_interview_evaluation вызывается ИСКЛЮЧИТЕЛЬНО ПОСЛЕ того, как кандидат дал свой содержательный устный ответ на вопрос.`;
+
   if (customPromptOverride && customPromptOverride.trim().length > 20) {
     return `${customPromptOverride.trim()}
 
 ${genderRule}
+
+${firstTurnLockdownInstruction}
 
 ${deepDiveInstruction}
 
@@ -520,6 +528,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       relevantGapIds,
       probesCount: 0,
       isRetry,
+      hasCandidateResponded: false,
       lastActivityAt: Date.now(),
       heartbeatInterval: null,
       nudgeWatchdog: null,
@@ -851,6 +860,27 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 }));
               }
             } else if (call.name === 'submit_interview_evaluation') {
+              // SOTA First-Turn Guard: Reject premature evaluation if candidate has not yet responded
+              if (!session.hasCandidateResponded) {
+                console.warn('🛡️ [First-Turn Guard] Blocked premature submit_interview_evaluation before candidate spoke. Re-prompting AI to speak question...');
+                isToolCallProcessed = true;
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  geminiSocket.send(JSON.stringify({
+                    toolResponse: {
+                      functionResponses: [
+                        {
+                          response: {
+                            error: 'Кандидат еще не отвечал на вопрос. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку на этапе первого приветствия. Пожалуйста, поприветствуйте кандидата голосом и четко зачитайте вопрос темы вслух.'
+                          },
+                          id: call.id
+                        }
+                      ]
+                    }
+                  }));
+                }
+                return;
+              }
+
               isToolCallProcessed = true;
               const args = call.args || {};
               const score = typeof args.score === 'number' ? args.score : 75;
@@ -1032,6 +1062,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         if (parsed.setup) {
           console.log('ℹ️ Client sent setup frame (session already configured via URL params, skipping duplicate setup)');
           return;
+        }
+
+        // Client committed candidate turn (text, audio or turnComplete)
+        if (parsed.clientContent?.turns || parsed.clientContent?.turnComplete || parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {
+          session.hasCandidateResponded = true;
         }
 
         // Client committed turnComplete -> start upstream nudge watchdog (5.5s)

@@ -608,6 +608,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         } else if (data.type === 'evaluation_completed') {
           clearAllTurnWatchdogs();
           const evalData: EvaluationResult = data.evaluation;
+          // SOTA Guard: Suppress premature evaluation on Turn 0 if candidate hasn't spoken/submitted yet
+          if (!hasSpokenInTurnRef.current && userPcmChunksRef.current.length === 0 && !isSubmitting) {
+            console.warn('🛡️ Suppressed premature evaluation_completed on Turn 0 before candidate responded.');
+            return;
+          }
           finalizeEvaluation(evalData, targetQ.id, qIndex);
         } else if (data.error) {
           clearAllTurnWatchdogs();
@@ -1729,8 +1734,23 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         >
                           <button
                             type="button"
-                            onClick={toggleMic}
+                            onClick={() => {
+                              if (isAiSpeaking) {
+                                playoutManagerRef.current?.handleInterruption();
+                              } else if (isRecording) {
+                                triggerEndTurn();
+                              } else {
+                                void toggleMic();
+                              }
+                            }}
                             className="w-16 h-16 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
+                            title={
+                              isAiSpeaking
+                                ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
+                                : isRecording
+                                ? 'Нажмите, чтобы передать вопрос/реплику тьютору'
+                                : 'Нажмите, чтобы включить микрофон'
+                            }
                           >
                             {isAiSpeaking ? (
                               <Volume2 className="w-6 h-6 text-pastel-accentRose animate-bounce" />
