@@ -67,6 +67,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const lastAiSpeechEndedAtRef = useRef<number>(0);
   const isCleaningUpRef = useRef(false);
   const wakeLockRef = useRef<any>(null);
+  const currentParamsRef = useRef<LiveAudioSessionParams>({});
 
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
@@ -190,7 +191,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         if (type === 'AUDIO_FRAME') {
           const isAiCurrentlySpeaking =
             isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+
+          // Audio Gating (SOTA 2026 Invariant):
+          // In 'manual' mode: NEVER stream realtimeInput.audio to Gemini Live during reflection.
+          const isManualMode = (currentParamsRef.current.turnMode || 'manual') !== 'auto';
           const shouldTransmit =
+            !isManualMode &&
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
@@ -234,6 +240,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
    */
   const startSession = useCallback(async (params: LiveAudioSessionParams) => {
     try {
+      currentParamsRef.current = params;
       isCleaningUpRef.current = false;
       setStatusMessage('Подключение к голосовому каналу...');
 
@@ -347,6 +354,13 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Model Speech turn
             if (data.serverContent.modelTurn?.parts) {
+              // SOTA Protection: If user is in manual mode and has not finished turn, suppress unprompted modelTurn
+              const isManualMode = (currentParamsRef.current.turnMode || 'manual') !== 'auto';
+              if (isManualMode && isRecordingRef.current) {
+                console.warn('🛡️ Suppressed unprompted server modelTurn during candidate manual reflection.');
+                return;
+              }
+
               setIsAiSpeaking(true);
               isAiSpeakingRef.current = true;
               setIsRecording(false);

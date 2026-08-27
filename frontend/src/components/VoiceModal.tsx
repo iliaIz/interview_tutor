@@ -630,6 +630,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           // AI Speech turn
           if (data.serverContent.modelTurn?.parts) {
+            // SOTA Double-Lock Protection: In manual mode, if candidate is recording and has not committed turn,
+            // suppress unprompted server modelTurn.
+            const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
+            if (isManualMode && isRecordingRef.current && !isThinkingRef.current) {
+              console.warn('🛡️ Suppressed unprompted server modelTurn during candidate manual reflection.');
+              return;
+            }
+
             clearAllTurnWatchdogs();
             isServerTurnCompleteRef.current = false;
             setIsAiSpeaking(true);
@@ -808,6 +816,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(25); } catch {}
+    }
     setIsPauseHolding(false);
     if (!isRecordingRef.current || isAiSpeakingRef.current || isThinkingRef.current) return;
 
@@ -819,7 +830,52 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isThinkingRef.current = true;
     startTurnWatchdog();
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    // Check if WebSocket is open
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.warn('⚠️ WebSocket not open on triggerEndTurn. Falling back to instant REST evaluation...');
+      void executeInstantRestEvalFallback();
+      return;
+    }
+
+    const userGender = interviewConfig.userGender || (localStorage.getItem('interview_user_gender') as any) || 'female';
+    const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
+
+    if (isManualMode) {
+      // SOTA 2026 Hybrid Dual-Commit:
+      // Send buffered audio frames to Gemini Live in an atomic burst
+      const pcmBase64 = encodePcmToInt16Base64();
+      if (pcmBase64 && pcmBase64.length > 50) {
+        const audioPayload = {
+          realtime_input: {
+            audio: {
+              mimeType: 'audio/pcm;rate=16000',
+              data: pcmBase64
+            }
+          }
+        };
+        wsRef.current.send(JSON.stringify(audioPayload));
+      }
+
+      const promptText = userGender === 'male'
+        ? 'Я закончил свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
+        : userGender === 'female'
+        ? 'Я закончила свой ответ. Оцени, пожалуйста, мой ответ и подведи итог.'
+        : 'Ответ завершен. Пожалуйста, оцените ответ и подведите итог.';
+
+      const turnCompleteMsg = {
+        clientContent: {
+          turns: [
+            {
+              role: 'user',
+              parts: [{ text: promptText }]
+            }
+          ],
+          turnComplete: true
+        }
+      };
+      wsRef.current.send(JSON.stringify(turnCompleteMsg));
+      console.log('📤 Sent manual audio burst & clientContent.turnComplete to Gemini Live');
+    } else {
       const turnCompleteMsg = {
         clientContent: {
           turnComplete: true
@@ -1017,8 +1073,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             userPcmChunksRef.current.push(float32);
           }
 
-          // Soft-Gating: NEVER transmit mic audio while AI is speaking (prevents speaker echo from triggering false Barge-In)
+          // Audio Gating (SOTA 2026 Invariant):
+          // In 'manual' mode: NEVER stream realtimeInput.audio to Gemini Live during candidate reflection.
+          // This guarantees that Google's server-side VAD will NEVER fire prematurely.
+          // In 'auto' mode: stream continuous realtimeInput.audio for Auto-VAD.
+          const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
           const shouldTransmit =
+            !isManualMode &&
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
