@@ -390,24 +390,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               }
             }
 
-            // Turn Completed -> AI finished speaking, pass turn to user with settling delay
+            // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain to prevent cutting off speech
             if (data.serverContent.turnComplete) {
               lastAiSpeechEndedAtRef.current = Date.now();
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-
-              // Anti-echo settling delay (250ms) to allow audio buffer to drain
-              setTimeout(() => {
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isCleaningUpRef.current) {
-                  setIsRecording(true);
-                  isRecordingRef.current = true;
-                  setStatusMessage('🎙️ Ваша очередь: говорите в микрофон...');
-                  setDialogueTurns((prev) => [
-                    ...prev,
-                    { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон.' }
-                  ]);
-                }
-              }, 250);
+              console.log('AI turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
             }
           }
         } catch (e) {
