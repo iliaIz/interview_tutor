@@ -198,6 +198,65 @@ export class AudioPlayoutManager {
   }
 
   /**
+   * Play Base64-encoded audio (WAV, MP3, or raw PCM) natively via Web Audio API
+   */
+  public async playBase64Audio(base64Audio: string): Promise<void> {
+    if (!base64Audio) return;
+    const { context } = this.ensureContext();
+    if (context.state === 'suspended') {
+      await this.resume();
+    }
+    const binary = atob(base64Audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    try {
+      // Native fast decoding for WAV/MP3 from Gemini TTS v3
+      const audioBuffer = await context.decodeAudioData(bytes.buffer.slice(0));
+      this.playDecodedAudioBuffer(audioBuffer);
+    } catch {
+      // Fallback for raw PCM 24kHz Int16
+      this.enqueuePcmChunk(base64Audio);
+    }
+  }
+
+  public playDecodedAudioBuffer(buffer: AudioBuffer): void {
+    const { context, masterGain } = this.ensureContext();
+    if (!masterGain) return;
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(masterGain);
+
+    const now = context.currentTime;
+    if (this.playheadCursor < now + this.JITTER_LEAD_SECONDS) {
+      this.playheadCursor = now + this.JITTER_LEAD_SECONDS;
+    }
+
+    const startTime = this.playheadCursor;
+    source.start(startTime);
+    this.playheadCursor += buffer.duration;
+
+    this.activeSources.add(source);
+
+    source.onended = () => {
+      try {
+        source.disconnect();
+      } catch {}
+      this.activeSources.delete(source);
+      if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+        if (this.drainTimer) clearTimeout(this.drainTimer);
+        this.drainTimer = setTimeout(() => {
+          if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+            this.onPlaybackFinished?.();
+          }
+        }, 150);
+      }
+    };
+  }
+
+  /**
    * Enqueue Base64-encoded Int16 PCM 24kHz chunk into Web Audio timeline
    */
   public enqueuePcmChunk(base64Payload: string): void {

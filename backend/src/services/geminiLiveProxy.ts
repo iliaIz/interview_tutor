@@ -508,7 +508,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const proxyApiKey = process.env.LITELLM_API_KEY || 'sk-1234';
     const rawProxyUrl = process.env.LITELLM_BASE_URL || process.env.LITELLM_PROXY_URL || 'http://host.docker.internal:4000/v1';
     
-    const liveModel = process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3';
+    const requestedModel = (query.liveModel as string) || '';
+    const liveModel = requestedModel === 'gemini-live-v3'
+      ? 'gemini-live-v3'
+      : (process.env.GEMINI_LIVE_MODEL || 'gemini-live-v2');
 
     const cleanProxyWs = rawProxyUrl.replace(/^http/, 'ws').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;

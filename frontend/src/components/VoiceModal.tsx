@@ -201,6 +201,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const wakeLockRef = useRef<any>(null);
   const isEvaluationFinalizedRef = useRef(false);
   const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
+  const turnCountRef = useRef(0);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -497,6 +498,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       liveCoaching: String(!!interviewConfig.liveCoaching || sessionType === 'tutor'),
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: customPromptOverride || interviewConfig.customPromptOverride || '',
+      liveModel: interviewConfig.liveModel || 'gemini-live-v2',
       questionIndex: String(qIndex),
       totalQuestions: String(totalQuestions),
       isRetry: String(!!isRetry)
@@ -819,13 +821,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setEvaluation(null);
     setStage('active');
 
-    connectLiveWebSocket(activeBatchIndex, targetQ, true);
+    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    if (isManual) {
+      void startLiveInterview();
+    } else {
+      connectLiveWebSocket(activeBatchIndex, targetQ, true);
+    }
   };
 
   /**
-   * Completes candidate's current speaking turn and triggers Gemini Live response
+   * Completes candidate's current speaking turn and triggers AI response
    */
-  const triggerEndTurn = () => {
+  const triggerEndTurn = async () => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -844,7 +851,134 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isThinkingRef.current = true;
     startTurnWatchdog();
 
-    // Check if WebSocket is open
+    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    if (isManual) {
+      // 1. Convert Float32 audio chunks to 16kHz Int16 PCM Base64
+      let totalSamples = 0;
+      for (const chunk of userPcmChunksRef.current) {
+        totalSamples += chunk.length;
+      }
+      const mergedInt16 = new Int16Array(totalSamples);
+      let offset = 0;
+      for (const chunk of userPcmChunksRef.current) {
+        for (let i = 0; i < chunk.length; i++) {
+          const s = Math.max(-1, Math.min(1, chunk[i]));
+          mergedInt16[offset++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+      }
+      const bytes = new Uint8Array(mergedInt16.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Pcm = btoa(binary);
+
+      turnCountRef.current++;
+
+      try {
+        console.log(`📡 Sending candidate turn ${turnCountRef.current} to /api/interview/turn...`);
+        const res = await fetch('/api/interview/turn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionId: activeQuestionId,
+            topic: activeTopic,
+            questionText: activeQuestionText,
+            referenceAnswer: activeReferenceAnswer,
+            pcmBase64: base64Pcm,
+            history: dialogueTurns.filter((t) => t.role !== 'system'),
+            turnCount: turnCountRef.current,
+            maxProbes: interviewConfig.maxProbes || 2,
+            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+            deepDive: !!interviewConfig.deepDive,
+            liveCoaching: !!interviewConfig.liveCoaching,
+            voice: interviewConfig.voice,
+            userGender: interviewConfig.userGender || 'female'
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(`Turn API returned ${res.status}`);
+        }
+
+        const data = await res.json();
+        clearAllTurnWatchdogs();
+
+        if (data.transcript) {
+          setDialogueTurns((prev) => [...prev, { role: 'user', text: data.transcript }]);
+        }
+
+        if (data.action === 'probe') {
+          if (data.replyText) {
+            setDialogueTurns((prev) => [...prev, { role: 'ai', text: data.replyText }]);
+          }
+          setIsThinking(false);
+          isThinkingRef.current = false;
+          setIsAiSpeaking(true);
+          isAiSpeakingRef.current = true;
+
+          if (playoutManagerRef.current) {
+            playoutManagerRef.current.onPlaybackFinished = () => {
+              console.log('🔊 Probing audio finished. Activating candidate microphone...');
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setIsThinking(false);
+              isThinkingRef.current = false;
+              lastAiSpeechEndedAtRef.current = Date.now();
+              setIsRecording(true);
+              isRecordingRef.current = true;
+              userPcmChunksRef.current = [];
+              setDialogueTurns((prev) => [
+                ...prev,
+                { role: 'system', text: '🎙️ Ваша очередь: ответьте на уточняющий вопрос.' }
+              ]);
+            };
+
+            if (data.audioBase64) {
+              void playoutManagerRef.current.playBase64Audio(data.audioBase64);
+            }
+          }
+        } else {
+          // action === 'evaluate'
+          if (data.evaluation) {
+            setEvaluation(data.evaluation);
+            if (data.evaluation.spokenFeedback || data.evaluation.feedback) {
+              setDialogueTurns((prev) => [
+                ...prev,
+                { role: 'ai', text: data.evaluation.spokenFeedback || data.evaluation.feedback }
+              ]);
+            }
+          }
+          setIsThinking(false);
+          isThinkingRef.current = false;
+          setIsAiSpeaking(true);
+          isAiSpeakingRef.current = true;
+
+          if (playoutManagerRef.current && data.audioBase64) {
+            playoutManagerRef.current.onPlaybackFinished = () => {
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setStage('verdict');
+            };
+            void playoutManagerRef.current.playBase64Audio(data.audioBase64);
+          } else {
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setStage('verdict');
+          }
+        }
+      } catch (turnErr) {
+        console.error('Manual turn error:', turnErr);
+        clearAllTurnWatchdogs();
+        setIsThinking(false);
+        isThinkingRef.current = false;
+        setIsRecording(true);
+        isRecordingRef.current = true;
+      }
+      return;
+    }
+
+    // Auto-VAD Mode: Check if WebSocket is open
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.warn('⚠️ WebSocket not open on triggerEndTurn. Falling back to instant REST evaluation...');
       void executeInstantRestEvalFallback();
@@ -896,13 +1030,71 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     // 2. Pre-warm microphone hardware asynchronously in background (non-blocking)
     void initMicrophoneHardware();
 
-    // 3. Connect WebSocket immediately so AI begins speaking without delay
     const targetQ = {
       id: activeQuestionId,
       topic: activeTopic,
       question: activeQuestionText,
       answer: activeReferenceAnswer
     };
+
+    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    if (isManual) {
+      turnCountRef.current = 0;
+      setIsConnected(true);
+
+      try {
+        console.log(`🎙️ Synthesizing greeting with Gemini TTS v3 via LiteLLM Proxy...`);
+        const res = await fetch('/api/interview/greeting', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: targetQ.topic,
+            questionText: targetQ.question,
+            voice: interviewConfig.voice,
+            userGender: interviewConfig.userGender || 'female',
+            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy
+          })
+        });
+
+        if (!res.ok) throw new Error(`Greeting API failed with ${res.status}`);
+        const data = await res.json();
+
+        if (data.greetingText) {
+          setDialogueTurns([{ role: 'ai', text: data.greetingText }]);
+        }
+
+        if (playoutManagerRef.current) {
+          playoutManagerRef.current.onPlaybackFinished = () => {
+            console.log('🔊 Audio greeting finished. Activating candidate microphone...');
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsThinking(false);
+            isThinkingRef.current = false;
+            lastAiSpeechEndedAtRef.current = Date.now();
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            userPcmChunksRef.current = [];
+            setDialogueTurns((prev) => [
+              ...prev,
+              { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
+            ]);
+          };
+
+          if (data.audioBase64) {
+            void playoutManagerRef.current.playBase64Audio(data.audioBase64);
+          }
+        }
+      } catch (err) {
+        console.error('Manual greeting error:', err);
+        setIsAiSpeaking(false);
+        isAiSpeakingRef.current = false;
+        setIsRecording(true);
+        isRecordingRef.current = true;
+      }
+      return;
+    }
+
+    // 3. Connect Live WebSocket immediately for Auto-VAD mode
     connectLiveWebSocket(initialQuestionIndex, targetQ);
   };
 

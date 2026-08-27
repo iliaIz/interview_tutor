@@ -9,6 +9,7 @@ import profilesRouter from './routes/profiles';
 import sttRouter from './routes/stt';
 import tutorRouter from './routes/tutor';
 import memoryRouter from './routes/memory';
+import interviewTurnRouter from './routes/interviewTurn';
 import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 
@@ -31,6 +32,7 @@ app.use('/api/profiles', profilesRouter);
 app.use('/api/stt', sttRouter);
 app.use('/api/tutor', tutorRouter);
 app.use('/api/memory', memoryRouter);
+app.use('/api/interview', interviewTurnRouter);
 
 // Safety alias route for direct question queries
 app.get('/api/questions/:topicId', (req, res) => {
