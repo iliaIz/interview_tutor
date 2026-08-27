@@ -342,6 +342,11 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           if (data.serverContent) {
             // Barge-in interruption
             if (data.serverContent.interrupted) {
+              const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
+              if (isPlaying && !isRecordingRef.current) {
+                console.warn('🛡️ Suppressed false server-side Barge-In interruption in session hook.');
+                return;
+              }
               playoutManagerRef.current?.handleInterruption();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;

@@ -615,6 +615,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         } else if (data.serverContent) {
           // Barge-in interruption
           if (data.serverContent.interrupted) {
+            const isUserLoudlySpeaking = isUserSpeaking && rmsDb > -26;
+            const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
+
+            // SOTA Protection: If candidate is not actively speaking loudly and audio is currently playing,
+            // this is an echo-induced false interruption from Google Live. Suppress it!
+            if (!isUserLoudlySpeaking && isPlaying) {
+              console.warn('🛡️ Suppressed false server-side Barge-In interruption (acoustic echo). Continuing audio playout.');
+              return;
+            }
+
             playoutManagerRef.current?.handleInterruption();
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
@@ -672,30 +682,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           if (data.serverContent.turnComplete) {
             isServerTurnCompleteRef.current = true;
-            console.log('AI turn completed on server. Checking audio playback status...');
-
-            // If audio queue is already empty, open mic immediately
-            if (!playoutManagerRef.current?.isPlaying()) {
-              clearAllTurnWatchdogs();
-              lastAiSpeechEndedAtRef.current = Date.now();
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-              setIsThinking(false);
-              isThinkingRef.current = false;
-              if (!isEvaluationFinalizedRef.current) {
-                setIsRecording(true);
-                isRecordingRef.current = true;
-                hasSpokenInTurnRef.current = false;
-                setDialogueTurns((prev) => {
-                  const last = prev[prev.length - 1];
-                  if (last && last.text.includes('Ваша очередь')) return prev;
-                  return [
-                    ...prev,
-                    { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
-                  ];
-                });
-              }
-            }
+            console.log('AI turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
           }
         }
       } catch (e) {
@@ -1062,7 +1049,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           const isAiCurrentlySpeaking =
             isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
           const isReverbCooldownActive =
-            Date.now() - lastAiSpeechEndedAtRef.current < 250;
+            Date.now() - lastAiSpeechEndedAtRef.current < 450;
 
           if (isRecordingRef.current && !isAiCurrentlySpeaking && !isReverbCooldownActive) {
             const int16 = new Int16Array(pcmBuffer);

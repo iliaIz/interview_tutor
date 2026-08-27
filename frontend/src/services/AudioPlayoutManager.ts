@@ -255,6 +255,11 @@ export class AudioPlayoutManager {
       this.playheadCursor = now + this.JITTER_LEAD_SECONDS;
     }
 
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
+
     const startTime = this.playheadCursor;
     source.start(startTime);
     this.playheadCursor += buffer.duration;
@@ -267,14 +272,18 @@ export class AudioPlayoutManager {
       } catch {}
       this.activeSources.delete(source);
       if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
-        this.onPlaybackFinished?.();
+        if (this.drainTimer) clearTimeout(this.drainTimer);
+        this.drainTimer = setTimeout(() => {
+          if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+            this.onPlaybackFinished?.();
+          }
+        }, 300);
       }
     };
   }
 
-  /**
-   * Returns true if audio is currently actively scheduled or playing
-   */
+  private drainTimer: any = null;
+
   public isPlaying(): boolean {
     return this.activeSources.size > 0 || this.pendingSamples.length > 0;
   }
@@ -283,6 +292,10 @@ export class AudioPlayoutManager {
    * Clears scheduled queue and stops all active audio playback immediately
    */
   public clearQueue(): void {
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
     this.pendingSamples = [];
     for (const source of this.activeSources) {
       try {
