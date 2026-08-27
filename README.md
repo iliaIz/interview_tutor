@@ -87,4 +87,4 @@ python scripts/migrate_enhorse.py
 - **Exam Quiz & Active Recall**: многокритериальная оценка полноты ответов кандидата с сохранением истории в SQLite.
 - **LiteLLM Gateway Security**: централизованное проксирование запросов, пулинг API-ключей и двухуровневый Circuit Breaker.
 
-Подробные архитектурные инварианты и диаграммы см. в [AGENTS.md](AGENTS.md).
+Подробные архитектурные спецификации и Mermaid-диаграммы см. в [docs/architecture.md](docs/architecture.md), а инварианты агента в [AGENTS.md](AGENTS.md).
