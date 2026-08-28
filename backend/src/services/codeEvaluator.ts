@@ -268,6 +268,7 @@ ${codeXml}
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
+    signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({
       model,
       temperature: 0.1,
@@ -291,26 +292,51 @@ ${codeXml}
     throw new Error('LiteLLM returned empty completion response');
   }
 
+  const cleanContentStr = contentStr
+    .replace(/^\s*```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
   let evalData: any;
   try {
-    evalData = JSON.parse(contentStr);
+    evalData = JSON.parse(cleanContentStr);
   } catch (err: any) {
-    console.error('Failed to parse evaluation JSON from Gemini 3.7 Flash:', contentStr);
+    console.error('Failed to parse evaluation JSON from Gemini 3.7 Flash:', cleanContentStr);
     throw new Error(`Invalid JSON evaluation response from AI Gateway: ${err.message}`);
   }
 
   const result: EvaluationResult = {
-    compilationStatus: evalData.compilationStatus || { isCompilable: true, syntaxErrors: [] },
-    virtualExecutionResult: evalData.virtualExecutionResult || { passCount: 0, failCount: 0, testCases: [] },
-    concurrencyAnalysis: evalData.concurrencyAnalysis || { hasRaceConditions: false, hasJmmVisibilityIssues: false, hasCarrierThreadPinning: false, findings: [] },
-    architecturalCompliance: evalData.architecturalCompliance || { isSolidCompliant: true, springBootBestPracticesViolations: [], modernJava21IdiomAdoption: [] },
-    scoreBreakdown: evalData.scoreBreakdown || {
-      correctnessScore: 0,
-      concurrencyScore: 0,
-      architectureScore: 0,
-      modernIdiomsScore: 0,
-      overallScore: 0,
-      summaryReview: 'Evaluation completed.'
+    compilationStatus: {
+      isCompilable: Boolean(evalData.compilationStatus?.isCompilable ?? true),
+      syntaxErrors: Array.isArray(evalData.compilationStatus?.syntaxErrors) ? evalData.compilationStatus.syntaxErrors : []
+    },
+    virtualExecutionResult: {
+      passCount: Number(evalData.virtualExecutionResult?.passCount || 0),
+      failCount: Number(evalData.virtualExecutionResult?.failCount || 0),
+      testCases: Array.isArray(evalData.virtualExecutionResult?.testCases) ? evalData.virtualExecutionResult.testCases : []
+    },
+    concurrencyAnalysis: {
+      hasRaceConditions: Boolean(evalData.concurrencyAnalysis?.hasRaceConditions),
+      hasJmmVisibilityIssues: Boolean(evalData.concurrencyAnalysis?.hasJmmVisibilityIssues),
+      hasCarrierThreadPinning: Boolean(evalData.concurrencyAnalysis?.hasCarrierThreadPinning),
+      findings: Array.isArray(evalData.concurrencyAnalysis?.findings) ? evalData.concurrencyAnalysis.findings : []
+    },
+    architecturalCompliance: {
+      isSolidCompliant: Boolean(evalData.architecturalCompliance?.isSolidCompliant ?? true),
+      springBootBestPracticesViolations: Array.isArray(evalData.architecturalCompliance?.springBootBestPracticesViolations)
+        ? evalData.architecturalCompliance.springBootBestPracticesViolations
+        : [],
+      modernJava21IdiomAdoption: Array.isArray(evalData.architecturalCompliance?.modernJava21IdiomAdoption)
+        ? evalData.architecturalCompliance.modernJava21IdiomAdoption
+        : []
+    },
+    scoreBreakdown: {
+      correctnessScore: Number(evalData.scoreBreakdown?.correctnessScore || 0),
+      concurrencyScore: Number(evalData.scoreBreakdown?.concurrencyScore || 0),
+      architectureScore: Number(evalData.scoreBreakdown?.architectureScore || 0),
+      modernIdiomsScore: Number(evalData.scoreBreakdown?.modernIdiomsScore || 0),
+      overallScore: Number(evalData.scoreBreakdown?.overallScore || 0),
+      summaryReview: String(evalData.scoreBreakdown?.summaryReview || 'Оценка решения завершена.')
     },
     evaluationTimestamp: new Date().toISOString(),
     astSignalsSummary: preProcess.allSignals.map(s => `[${s.category}] ${s.description}`)

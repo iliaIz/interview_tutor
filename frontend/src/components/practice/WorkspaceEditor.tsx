@@ -35,6 +35,7 @@ export const WorkspaceEditor: React.FC = () => {
   const [isDiffOpen, setIsDiffOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
@@ -77,14 +78,25 @@ export const WorkspaceEditor: React.FC = () => {
     }
   };
 
+  const handleCancelEvaluation = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsPracticeEvaluating(false);
+  };
+
   const handleRunEvaluation = async () => {
     if (!activePracticeChallenge || isPracticeEvaluating) return;
     setIsPracticeEvaluating(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const res = await fetch('/api/practice/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           challengeId: activePracticeChallenge.id,
           files: practiceWorkspaceFiles,
@@ -101,6 +113,10 @@ export const WorkspaceEditor: React.FC = () => {
       const data = await res.json();
       setActivePracticeReport(data.evaluation);
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Evaluation cancelled by user.');
+        return;
+      }
       console.error('Evaluation error:', err);
       showToast({
         type: 'error',
@@ -109,6 +125,35 @@ export const WorkspaceEditor: React.FC = () => {
       });
     } finally {
       setIsPracticeEvaluating(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+
+      if (e.shiftKey) {
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const linePrefix = value.substring(lineStart, lineStart + 4);
+        if (linePrefix === '    ') {
+          const newValue = value.substring(0, lineStart) + value.substring(lineStart + 4);
+          updateWorkspaceFileContent(activeWorkspaceFileIndex, newValue);
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 4);
+          }, 0);
+        }
+      } else {
+        const newValue = value.substring(0, start) + '    ' + value.substring(end);
+        updateWorkspaceFileContent(activeWorkspaceFileIndex, newValue);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + 4;
+        }, 0);
+      }
     }
   };
 
@@ -199,6 +244,7 @@ export const WorkspaceEditor: React.FC = () => {
             value={currentFile.content}
             disabled={currentFile.readOnly}
             onChange={(e) => updateWorkspaceFileContent(activeWorkspaceFileIndex, e.target.value)}
+            onKeyDown={handleKeyDown}
             spellCheck={false}
             className={`w-full h-full p-3 font-mono text-xs leading-6 bg-transparent text-slate-100 resize-none focus:outline-none custom-scrollbar ${
               currentFile.readOnly ? 'opacity-70 cursor-not-allowed' : ''
@@ -215,7 +261,7 @@ export const WorkspaceEditor: React.FC = () => {
       </div>
 
       {/* Action Footer Bar */}
-      <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
+      <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {activePracticeChallenge.goldenMasterConfig?.enabled && (
             <button
@@ -229,7 +275,7 @@ export const WorkspaceEditor: React.FC = () => {
 
           <button
             onClick={handleSaveDraft}
-            disabled={isSavingDraft}
+            disabled={isSavingDraft || isPracticeEvaluating}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700 cursor-pointer"
             title="Сохранить черновик"
           >
@@ -239,6 +285,7 @@ export const WorkspaceEditor: React.FC = () => {
 
           <button
             onClick={handleResetWorkspace}
+            disabled={isPracticeEvaluating}
             className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer"
             title="Сбросить воркспейс к начальному состоянию"
           >
@@ -246,24 +293,29 @@ export const WorkspaceEditor: React.FC = () => {
           </button>
         </div>
 
-        {/* Run Evaluation Button */}
-        <button
-          onClick={handleRunEvaluation}
-          disabled={isPracticeEvaluating}
-          className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-md active:scale-95 disabled:opacity-75 cursor-pointer"
-        >
-          {isPracticeEvaluating ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Анализ решения Gemini 3.7 Flash...</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4 fill-current" />
-              <span>Запустить проверку (Senior AI Review)</span>
-            </>
-          )}
-        </button>
+        {/* Run / Cancel Evaluation Button */}
+        {isPracticeEvaluating ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCancelEvaluation}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold transition border border-rose-500/30 cursor-pointer"
+            >
+              Отменить
+            </button>
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose" />
+              <span>Анализ Gemini 3.7 Flash...</span>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleRunEvaluation}
+            className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-md active:scale-95 cursor-pointer"
+          >
+            <Play className="w-4 h-4 fill-current" />
+            <span>Запустить проверку (Senior AI Review)</span>
+          </button>
+        )}
       </div>
 
       {/* Golden Master Diff Modal */}

@@ -36,6 +36,7 @@ export function stripComments(source: string): { sanitized: string; strippedCoun
   let strippedCount = 0;
   let inString = false;
   let inChar = false;
+  let inTextBlock = false;
   let inLineComment = false;
   let inBlockComment = false;
   let result = '';
@@ -43,6 +44,7 @@ export function stripComments(source: string): { sanitized: string; strippedCoun
   for (let i = 0; i < source.length; i++) {
     const char = source[i];
     const next = source[i + 1];
+    const next2 = source[i + 2];
 
     if (inLineComment) {
       if (char === '\n') {
@@ -58,6 +60,21 @@ export function stripComments(source: string): { sanitized: string; strippedCoun
         i++; // skip '/'
       } else if (char === '\n') {
         result += '\n'; // preserve line numbers
+      }
+      continue;
+    }
+
+    if (inTextBlock) {
+      result += char;
+      if (char === '\\') {
+        if (next) {
+          result += next;
+          i++;
+        }
+      } else if (char === '"' && next === '"' && next2 === '"') {
+        inTextBlock = false;
+        result += '""';
+        i += 2;
       }
       continue;
     }
@@ -89,7 +106,15 @@ export function stripComments(source: string): { sanitized: string; strippedCoun
       continue;
     }
 
-    // Check start of string or char
+    // Check start of Java 21 text block (""")
+    if (char === '"' && next === '"' && next2 === '"') {
+      inTextBlock = true;
+      result += '"""';
+      i += 2;
+      continue;
+    }
+
+    // Check start of standard string or char
     if (char === '"') {
       inString = true;
       result += char;

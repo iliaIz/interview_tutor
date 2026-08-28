@@ -99,6 +99,16 @@ router.post('/evaluate', async (req, res) => {
       return res.status(400).json({ error: 'challengeId and non-empty files array are required' });
     }
 
+    if (files.length > 15) {
+      return res.status(400).json({ error: 'Exceeded maximum allowable files limit (15 files max)' });
+    }
+
+    for (const f of files) {
+      if (typeof f.content === 'string' && f.content.length > 200_000) {
+        return res.status(400).json({ error: `File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)` });
+      }
+    }
+
     const row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ?').get(challengeId) as any;
     if (!row) {
       return res.status(404).json({ error: 'Challenge not found' });
