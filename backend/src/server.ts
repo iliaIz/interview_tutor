@@ -10,7 +10,8 @@ import sttRouter from './routes/stt';
 import tutorRouter from './routes/tutor';
 import memoryRouter from './routes/memory';
 import interviewTurnRouter from './routes/interviewTurn';
-import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles } from './services/db';
+import practiceRouter from './routes/practice';
+import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles, seedCodingChallenges } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 import { envConfig } from './config/env';
 
@@ -34,6 +35,7 @@ app.use('/api/stt', sttRouter);
 app.use('/api/tutor', tutorRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/interview', interviewTurnRouter);
+app.use('/api/practice', practiceRouter);
 
 // Safety alias route for direct question queries
 app.get('/api/questions/:topicId', (req, res) => {
@@ -67,10 +69,11 @@ const server = http.createServer(app);
 // Setup Gemini Live WebSocket Proxy
 setupLiveWebSocketProxy(server);
 
-// Seed DB, recover orphaned jobs, seed profiles and start server
+// Seed DB, recover orphaned jobs, seed profiles, coding challenges and start server
 seedQuestionsFromJSON();
 recoverOrphanedJobs();
 seedDefaultProfiles();
+seedCodingChallenges();
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend Server running on http://localhost:${PORT}`);

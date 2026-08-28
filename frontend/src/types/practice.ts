@@ -1,0 +1,135 @@
+export type ChallengeCategory = 'all' | 'machine_coding' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+
+export interface FileNode {
+  path: string;
+  content: string;
+  readOnly: boolean;
+  hidden: boolean;
+  isMainEntryPoint?: boolean;
+}
+
+export interface TestCase {
+  id: string;
+  name: string;
+  phase: number;
+  weight: number;
+  timeoutMs: number;
+  input?: string;
+  expectedOutput?: string;
+  assertionScript?: string;
+  isHidden: boolean;
+}
+
+export interface PhasedRequirement {
+  phase: number;
+  unlockTimeMinutes: number;
+  title: string;
+  descriptionMarkdown: string;
+  addedFiles: FileNode[];
+  testCases: TestCase[];
+}
+
+export interface GoldenMasterConfig {
+  enabled: boolean;
+  approvedSnapshotPath: string;
+  receivedSnapshotPath: string;
+  snapshotGeneratorClass: string;
+  simulatedIterations: number;
+  ignoreLineEndings: boolean;
+  sampleBaselineText?: string;
+}
+
+export interface ConcurrencyHarnessConfig {
+  enabled: boolean;
+  useVirtualThreads: boolean;
+  concurrentThreadCount: number;
+  executionTimeoutMs: number;
+  detectCarrierThreadPinning: boolean;
+  detectThreadLeaks: boolean;
+  stressLoopCount: number;
+}
+
+export interface JavaIdiomRequirements {
+  requireSealedClasses?: boolean;
+  requireRecords?: boolean;
+  requirePatternMatching?: boolean;
+  disallowSynchronizedKeyword?: boolean;
+}
+
+export interface CodingChallenge {
+  id: string;
+  slug: string;
+  title: string;
+  category: 'machine_coding' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+  badge: string;
+  difficulty: 'Junior' | 'Middle' | 'Senior' | 'Lead';
+  targetStack: string;
+  timeLimitMinutes: number;
+  shortDescription: string;
+  instructionsMarkdown: string;
+  workspaceFiles: FileNode[];
+  phasedRequirements?: PhasedRequirement[];
+  goldenMasterConfig?: GoldenMasterConfig;
+  enforceSeamValidation?: boolean;
+  allowedPublicSignatureChanges?: number;
+  concurrencyConfig?: ConcurrencyHarnessConfig;
+  idiomRequirements?: JavaIdiomRequirements;
+  scoringWeights: {
+    functionalCorrectness: number;
+    concurrencySafety: number;
+    architectureAndCleanCode: number;
+    modernIdioms: number;
+  };
+  isCompleted?: boolean;
+  lastScore?: number;
+  lastStatus?: string;
+}
+
+export interface TestCaseResult {
+  testName: string;
+  status: 'PASSED' | 'FAILED' | 'EXECUTION_ERROR';
+  inputData: string;
+  expectedOutput: string;
+  actualVirtualOutput: string;
+  failureReason?: string;
+}
+
+export interface ConcurrencyFinding {
+  category: 'RACE_CONDITION' | 'NON_ATOMIC_COMPOUND' | 'JMM_VISIBILITY' | 'CARRIER_THREAD_PINNING' | 'DEADLOCK_RISK';
+  location: string;
+  description: string;
+  remediation: string;
+}
+
+export interface EvaluationResult {
+  compilationStatus: {
+    isCompilable: boolean;
+    syntaxErrors: { lineNumber: number; errorMessage: string }[];
+  };
+  virtualExecutionResult: {
+    passCount: number;
+    failCount: number;
+    testCases: TestCaseResult[];
+  };
+  concurrencyAnalysis: {
+    hasRaceConditions: boolean;
+    hasJmmVisibilityIssues: boolean;
+    hasCarrierThreadPinning: boolean;
+    findings: ConcurrencyFinding[];
+  };
+  architecturalCompliance: {
+    isSolidCompliant: boolean;
+    springBootBestPracticesViolations: string[];
+    modernJava21IdiomAdoption: string[];
+  };
+  scoreBreakdown: {
+    correctnessScore: number;
+    concurrencyScore: number;
+    architectureScore: number;
+    modernIdiomsScore: number;
+    overallScore: number;
+    summaryReview: string;
+  };
+  evaluationTimestamp: string;
+  astSignalsSummary: string[];
+}

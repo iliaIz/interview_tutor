@@ -137,12 +137,45 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS coding_challenges (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    badge TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    target_stack TEXT NOT NULL,
+    time_limit_minutes INTEGER DEFAULT 60,
+    short_description TEXT NOT NULL,
+    instructions_markdown TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS coding_submissions (
+    id TEXT PRIMARY KEY,
+    challenge_id TEXT NOT NULL,
+    user_id TEXT DEFAULT 'default_user',
+    files_json TEXT NOT NULL,
+    active_phase INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'DRAFT',
+    score INTEGER,
+    evaluation_json TEXT,
+    time_spent_seconds INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (challenge_id) REFERENCES coding_challenges(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_eval_question ON question_evaluations(question_id);
   CREATE INDEX IF NOT EXISTS idx_eval_topic ON question_evaluations(topic);
   CREATE INDEX IF NOT EXISTS idx_bug_topic ON bug_challenges(topic_id);
   CREATE INDEX IF NOT EXISTS idx_err_vec_status ON candidate_error_vectors(status);
   CREATE INDEX IF NOT EXISTS idx_err_vec_topic ON candidate_error_vectors(topic);
   CREATE INDEX IF NOT EXISTS idx_err_vec_user ON candidate_error_vectors(user_id);
+  CREATE INDEX IF NOT EXISTS idx_code_chall_cat ON coding_challenges(category);
+  CREATE INDEX IF NOT EXISTS idx_code_sub_chall ON coding_submissions(challenge_id);
 `);
 
 // Safe column migrations for existing SQLite databases
@@ -314,3 +347,54 @@ export function seedQuestionsFromJSON() {
   syncAll(questions);
   console.log(`✅ Database synced with ${questions.length} questions from enhorse/java-interview!`);
 }
+
+export function seedCodingChallenges() {
+  try {
+    const { SEEDED_CHALLENGES } = require('./challengeSeedData');
+    const upsertStmt = db.prepare(`
+      INSERT INTO coding_challenges (
+        id, slug, title, category, badge, difficulty, target_stack,
+        time_limit_minutes, short_description, instructions_markdown, manifest_json, updated_at
+      ) VALUES (
+        @id, @slug, @title, @category, @badge, @difficulty, @target_stack,
+        @time_limit_minutes, @short_description, @instructions_markdown, @manifest_json, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        slug = excluded.slug,
+        title = excluded.title,
+        category = excluded.category,
+        badge = excluded.badge,
+        difficulty = excluded.difficulty,
+        target_stack = excluded.target_stack,
+        time_limit_minutes = excluded.time_limit_minutes,
+        short_description = excluded.short_description,
+        instructions_markdown = excluded.instructions_markdown,
+        manifest_json = excluded.manifest_json,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+    const syncAll = db.transaction((challenges: any[]) => {
+      for (const ch of challenges) {
+        upsertStmt.run({
+          id: ch.id,
+          slug: ch.slug,
+          title: ch.title,
+          category: ch.category,
+          badge: ch.badge,
+          difficulty: ch.difficulty,
+          target_stack: ch.targetStack,
+          time_limit_minutes: ch.timeLimitMinutes,
+          short_description: ch.shortDescription,
+          instructions_markdown: ch.instructionsMarkdown,
+          manifest_json: JSON.stringify(ch)
+        });
+      }
+    });
+
+    syncAll(SEEDED_CHALLENGES);
+    console.log(`✅ Seeded ${SEEDED_CHALLENGES.length} premier coding challenges into SQLite DB`);
+  } catch (err) {
+    console.error('Error seeding coding challenges:', err);
+  }
+}
+

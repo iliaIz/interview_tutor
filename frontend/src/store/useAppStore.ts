@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { CodingChallenge, FileNode, EvaluationResult } from '../types/practice';
 
 export interface Question {
   id: string;
@@ -87,7 +88,12 @@ export interface QuestionEvaluationSummary {
   referenceAnswer?: string;
 }
 
+export type StudioTab = 'theory' | 'incidents' | 'practice';
+
 interface AppState {
+  currentStudioTab: StudioTab;
+  setStudioTab: (tab: StudioTab) => void;
+
   currentView: 'topics' | 'questions' | 'study' | 'quiz';
   selectedTopicId: string | null;
   selectedTopicName: string | null;
@@ -96,6 +102,24 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
+
+  // Practice Arena / Live-Coding State
+  activePracticeChallenge: CodingChallenge | null;
+  practiceWorkspaceFiles: FileNode[];
+  activeWorkspaceFileIndex: number;
+  activePracticePhase: number;
+  isPracticeEvaluating: boolean;
+  activePracticeReport: EvaluationResult | null;
+  practiceElapsedSeconds: number;
+
+  openPracticeChallenge: (challenge: CodingChallenge, draftFiles?: FileNode[]) => void;
+  closePracticeChallenge: () => void;
+  updateWorkspaceFileContent: (index: number, content: string) => void;
+  setActiveWorkspaceFileIndex: (index: number) => void;
+  setActivePracticePhase: (phase: number) => void;
+  setIsPracticeEvaluating: (isEval: boolean) => void;
+  setActivePracticeReport: (report: EvaluationResult | null) => void;
+  setPracticeElapsedSeconds: (sec: number | ((prev: number) => number)) => void;
 
   // Cheat Sheet Bookmarks
   cheatSheetBookmarks: CheatSheetBookmark[];
@@ -161,6 +185,9 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      currentStudioTab: 'theory',
+      setStudioTab: (tab) => set({ currentStudioTab: tab }),
+
       currentView: 'topics',
       selectedTopicId: null,
       selectedTopicName: null,
@@ -171,6 +198,55 @@ export const useAppStore = create<AppState>()(
       topicsProgress: {},
       evaluationsMap: {},
       activeReportModal: null,
+
+      // Practice Arena State
+      activePracticeChallenge: null,
+      practiceWorkspaceFiles: [],
+      activeWorkspaceFileIndex: 0,
+      activePracticePhase: 1,
+      isPracticeEvaluating: false,
+      activePracticeReport: null,
+      practiceElapsedSeconds: 0,
+
+      openPracticeChallenge: (challenge, draftFiles) => {
+        const filesToUse = draftFiles && draftFiles.length > 0
+          ? draftFiles
+          : (challenge.workspaceFiles || []);
+        
+        const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
+        set({
+          activePracticeChallenge: challenge,
+          practiceWorkspaceFiles: filesToUse,
+          activeWorkspaceFileIndex: mainIndex >= 0 ? mainIndex : 0,
+          activePracticePhase: 1,
+          activePracticeReport: null,
+          isPracticeEvaluating: false,
+          practiceElapsedSeconds: 0
+        });
+      },
+
+      closePracticeChallenge: () => set({
+        activePracticeChallenge: null,
+        practiceWorkspaceFiles: [],
+        activeWorkspaceFileIndex: 0,
+        activePracticeReport: null
+      }),
+
+      updateWorkspaceFileContent: (index, content) => set((state) => {
+        const updated = [...state.practiceWorkspaceFiles];
+        if (updated[index]) {
+          updated[index] = { ...updated[index], content };
+        }
+        return { practiceWorkspaceFiles: updated };
+      }),
+
+      setActiveWorkspaceFileIndex: (idx) => set({ activeWorkspaceFileIndex: idx }),
+      setActivePracticePhase: (phase) => set({ activePracticePhase: phase }),
+      setIsPracticeEvaluating: (isEval) => set({ isPracticeEvaluating: isEval }),
+      setActivePracticeReport: (report) => set({ activePracticeReport: report }),
+      setPracticeElapsedSeconds: (val) => set((state) => ({
+        practiceElapsedSeconds: typeof val === 'function' ? val(state.practiceElapsedSeconds) : val
+      })),
 
       // Cheat Sheet Bookmarks
       cheatSheetBookmarks: [],
@@ -382,6 +458,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'interview-prep-storage-v2',
       partialize: (state) => ({
+        currentStudioTab: state.currentStudioTab,
         currentView: state.currentView,
         selectedTopicId: state.selectedTopicId,
         selectedTopicName: state.selectedTopicName,
