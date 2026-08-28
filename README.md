@@ -1,90 +1,83 @@
-# 📚 Java & Spring Interview Platform — Актуальная База Вопросов и Ответов (746+ вопросов, 24 темы)
+# 📚 InterviewPrep AI — Платформа Подготовки к Техническим Собеседованиям (SOTA Август 2026)
 
-Интерактивная платформа и база знаний для подготовки к техническим собеседованиям на позицию **Java / Spring Developer** (от Junior до Senior/Lead). 
+Интерактивная Fullstack-платформа для подготовки к техническим собеседованиям на позиции **Java & Spring Developer** (от Junior до Principal/Architect).
 
-База данных синхронизируется с [enhorse/java-interview](https://github.com/enhorse/java-interview.git), а также дополнена передовыми материалами по **Spring Framework и Spring Boot 3** из [Baeldung](https://www.baeldung.com), [InterviewBit](https://www.interviewbit.com) и [Medium 2026 Edition](https://medium.com/illumination/top-50-java-spring-boot-interview-questions-2026-edition-57ecfbdf3061). Содержит **746 детальных вопросов с ответами**, кодом и диаграммами по **24 ключевым направлениям**.
+Платформа объединяет 3 ключевых режима подготовки:
+1. 🧠 **База Знаний & Голосовой AI-Интервьюер** (746+ вопросов по 24 темам, Сократический тьютор на Gemini Live, генерация аудио-подкастов).
+2. 🐛 **Прод-инциденты & Баги PROD** (симулятор аварий, поиск утечек памяти, deadlock'ов, гонок данных и уязвимостей).
+3. ⚡ **Live-Coding, Katas & Machine Coding Studio** (7 премиальных практических задач LLD/SOLID с гибридной оценкой кода Gemini 3.7 Flash и AST-анализом).
 
 ---
 
-## 🗂 24 Раздела базы знаний
+## 🗂 3 Режима платформы
 
-| Категория | Темы (Slug) | Иконка | Вопросов |
+```mermaid
+graph LR
+    Studio[✨ InterviewPrep AI Studio] --> M1[🧠 База Знаний & Голос]
+    Studio --> M2[🐛 Инциденты & Баги PROD]
+    Studio --> M3[⚡ Live-Coding & Katas SOTA 2026]
+
+    M1 --> V1[746 вопросов по 24 темам]
+    M1 --> V2[Gemini Live 24kHz HD Voice]
+    M1 --> V3[Аудио-рекапы с Gemini TTS]
+
+    M2 --> I1[Troubleshooting & RCA]
+    M2 --> I2[CVE & Concurrency Bugs]
+
+    M3 --> C1[Machine Coding / LLD Rate Limiter]
+    M3 --> C2[Legacy Refactoring Katas]
+    M3 --> C3[Loom Concurrency & Carrier Pinning]
+    M3 --> C4[OCP Dynamic Shifts & Golden Master]
+```
+
+---
+
+## ⚡ Каталог задач Live-Coding & Katas Studio
+
+| Задача (Slug) | Категория | Стек & Ключевые паттерны | Уровень |
 | :--- | :--- | :--- | :---: |
-| **Core Java & JVM** | `core` (Java Core), `oop` (ООП), `jvm` (JVM & Память), `jcf` (Java Collections), `java8` (Java 8+ Features) | ☕ 📦 ⚡ 📚 ✨ | **276** |
-| **Architecture & Concurrency** | `concurrency` (Многопоточность), `io` (I/O & NIO), `serialization` (Сериализация), `patterns` (Паттерны GoF) | ⚡ 🔄 📦 🔀 | **119** |
-| **Data & Storage** | `db` (Базы данных & Транзакции), `sql` (SQL & Оконные функции), `jdbc` (JDBC) | 🗄️ 📊 🔗 | **69** |
-| **Web & Enterprise** | `spring` (Spring Framework), `spring-boot` (Spring Boot 3), `reactive` (WebFlux/Reactor), `servlets` (Servlets & JSP), `web` (HTTP/REST/Web), `kafka` (Apache Kafka) | 🍃 ⚡ 📈 🖥️ 🌐 📡 | **218** |
-| **Engineering & Quality** | `test` (JUnit & Mockito), `log` (SLF4J/Logback), `xml` (XML/JSON), `uml` (UML) | ✅ 📝 📄 🕸️ | **35** |
-| **Frontend Basics** | `html` (Основы HTML), `css` (Основы CSS) | 📑 🎨 | **29** |
-| **ВСЕГО** | **24 темы** | — | **746 вопросов** |
+| **In-Memory Thread-Safe Rate Limiter** | `machine_coding` | Java 21, `ConcurrentHashMap`, Token Bucket, Virtual Threads Safe | **Senior** |
+| **Transactional Outbox Event Publisher** | `machine_coding` | Spring Boot 3, JPA, Kafka, Idempotency, At-Least-Once | **Senior** |
+| **Trip Service Legacy Refactoring Kata** | `refactoring_kata` | Seam Pattern, Isolated Unit Testing, Approval Testing | **Middle** |
+| **Gilded Rose Modern Java 21 Kata** | `refactoring_kata` | Sealed Interfaces, Pattern Matching for switch, Records | **Middle** |
+| **Virtual Threads Carrier Pinning Lab** | `concurrency_lab` | Project Loom, `ReentrantLock` vs `synchronized`, JFR Signals | **Senior** |
+| **High-Throughput Order Matching Engine** | `machine_coding` | Ring Buffer, Lock-Free Concurrency, L1/L2 Cache Locality | **Lead** |
+| **Domain Event Sourced Bank Account** | `machine_coding` | CQRS, Immutable Event Streams, Optimistic Concurrency | **Senior** |
 
 ---
 
-## 🚀 Структура проекта
+## 🤖 Архитектура и SOTA-инварианты
 
-```
-spring/
-├── 🌐 frontend/                # React 19 + TypeScript + Vite + Tailwind + Framer Motion
-├── 🖥️ backend/                 # Node.js + Express + Better-SQLite3 + Gemini TTS/Live API
-├── 🚀 quiz.py                  # Консольный тренажер (python quiz.py)
-├── 📄 markdown/                # 24 тематических Markdown-файла + master all_interview_questions.md
-│   └── sources/                # Исходные файлы Baeldung, InterviewBit, Medium 2026 (на англ. языке)
-├── ⚙️ json/                    # 24 JSON датасета + topics_metadata.json + all_interview_questions.json
-├── 🖼️ frontend/public/images/  # Диаграммы и схемы (SQL оконные функции и т.д.)
-└── 🛠 scripts/
-    ├── migrate_enhorse.py      # Мастер-скрипт миграции и компиляции базы знаний
-    ├── build_spring_topics.py  # Генератор обогащенных вопросов Spring & Spring Boot
-    └── fetch_and_merge_spring.py # Извлечение и форматирование исходников Baeldung / InterviewBit
-```
+1. **LiteLLM AI Gateway (`http://litellm-gateway:4000`):**
+   * Все вызовы моделей (`gemini-smart`, `gemini-live-v2`, `gemini-tts-v3`, `gemini-embedding`) идут через единый шлюз с пулингом API-ключей, Circuit Breaker и идемпотентной синхронизацией в PostgreSQL.
+2. **Двухэтапная гибридная оценка кода (Dual-Pass AST + AI):**
+   * **Этап 1 (AST Pre-Processor):** Детерминированная очистка комментариев с сохранением Text Blocks Java 21 (`"""`), выявление `synchronized`, CountDownLatch, Carrier Pinning и нарушений слоев.
+   * **Этап 2 (Gemini 3.7 Flash):** Флагманская модель с рассуждениями анализирует потокобезопасность, виртуальное выполнение и критерии SOLID/OCP за ~15 секунд.
+3. **Мобильная адаптивность (Android & Tablets):**
+   * На мобильных экранах доступен удобный переключатель вкладок **[📄 Спека | 💻 Код]** с поддержкой отступов клавишей `Tab` (4 пробела).
+4. **Голосовой протокол Gemini Live:**
+   * Гарантированный **First-Turn Lockdown** (приветствие и вопрос Turn 0) и **Dual-Sided Handshake** для синхронизации очереди воспроизведения с сетевым протоколом.
 
 ---
 
-## ⚡ Быстрый старт
+## 🚀 Запуск и деплой
 
-### 1. Веб-платформа (Fullstack)
+### 1. Локальный запуск
 ```bash
-# Запуск бэкенда
+# Бэкенд
 cd backend
 npm install
 npm run dev
 
-# Запуск фронтенда
+# Фронтенд
 cd ../frontend
 npm install
 npm run dev
 ```
 
-### 2. Консольный тренажер (CLI)
+### 2. Развертывание на VPS
 ```bash
-# Интерактивное меню по 24 темам
-python quiz.py
-
-# Выборка по теме (например, Spring, Spring Boot, Collections или Kafka):
-python quiz.py --topic spring --limit 10
-python quiz.py --topic spring-boot --limit 10
-python quiz.py --topic kafka --limit 5
-
-# Режим флешкарт:
-python quiz.py --interactive
+python scripts/deploy_to_vps.py
 ```
 
-### 3. Повторная миграция / Обновление данных
-```bash
-python scripts/migrate_enhorse.py
-```
-
----
-
-## 🤖 ИИ-возможности платформы (SOTA Август 2026)
-
-- **Gemini Live Multimodal Interview**: интерактивное голосовое Mock-интервью в реальном времени через двунаправленный WebSocket с 24kHz HD PCM звуком.
-  - **First-Turn Lockdown**: гарантированное устное приветствие и зачитывание вопроса без ложных преждевременных оценок.
-  - **Dual-Sided Handshake**: симметричная синхронизация Web Audio API таймлайна с сетевым протоколом `turnComplete`.
-  - **Manual & Auto-VAD Режимы**: комфортное размышление в тишине по кнопке «Передать ответ ➔» или живой диалог.
-  - **Сократический тьютор & Deep Dive**: пошаговый разбор устройства технологий «под капотом» с наводящими вопросами.
-- **AI Audio Recap**: генерация многоголосых аудио-подкастов по любой из 24 тем с синтезом речи Gemini TTS.
-- **Bug Simulator & Code Review**: интерактивный тренажер поиска скрытых багов и уязвимостей в промышленном коде Spring & Java.
-- **Exam Quiz & Active Recall**: многокритериальная оценка полноты ответов кандидата с сохранением истории в SQLite.
-- **LiteLLM Gateway Security**: централизованное проксирование запросов, пулинг API-ключей и двухуровневый Circuit Breaker.
-
-Подробные архитектурные спецификации и Mermaid-диаграммы см. в [docs/architecture.md](docs/architecture.md), а инварианты агента в [AGENTS.md](AGENTS.md).
+Подробные схемы архитектуры, стейт-машины и sequence-диаграммы описаны в [docs/architecture.md](docs/architecture.md), а инварианты агента — в [AGENTS.md](AGENTS.md).
