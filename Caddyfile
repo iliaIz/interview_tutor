@@ -40,7 +40,15 @@ djelu.site, www.djelu.site, 192-124-182-59.sslip.io, :80 {
 }
 
 mail.djelu.site {
-    reverse_proxy snappymail:8888
+    # 1. High-speed REST API for incoming emails, OTP codes and long-polling
+    handle /api/* {
+        reverse_proxy mail-api:8000
+    }
+
+    # 2. Webmail SnappyMail UI
+    handle {
+        reverse_proxy snappymail:8888
+    }
 }
 
 ai.djelu.site, ai.192-124-182-59.sslip.io {
