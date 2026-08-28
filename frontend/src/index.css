@@ -52,3 +52,34 @@
 .animate-aura-reverse {
   animation: floatAura 12s ease-in-out infinite reverse;
 }
+
+/* CodeMirror 6 Custom Luxury Styling */
+.custom-codemirror-container {
+  height: 100%;
+}
+
+.custom-codemirror-container .cm-editor {
+  height: 100% !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.65 !important;
+}
+
+.custom-codemirror-container .cm-scroller {
+  overflow: auto !important;
+  font-family: inherit !important;
+}
+
+.custom-codemirror-container .cm-gutters {
+  border-right: 1px solid #0f172a !important;
+  background-color: #020617 !important;
+}
+
+.custom-codemirror-container .cm-activeLine {
+  background-color: rgba(244, 114, 182, 0.05) !important;
+}
+
+.custom-codemirror-container .cm-activeLineGutter {
+  background-color: rgba(244, 114, 182, 0.12) !important;
+  color: #f472b6 !important;
+}

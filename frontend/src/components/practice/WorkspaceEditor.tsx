@@ -1,4 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import { java } from '@codemirror/lang-java';
+import { createTheme } from '@uiw/codemirror-themes';
+import { tags as t } from '@lezer/highlight';
 import { useAppStore } from '../../store/useAppStore';
 import {
   Play,
@@ -7,14 +11,38 @@ import {
   FileCode,
   Lock,
   Loader2,
-  Check,
   Shield,
-  Clock,
-  Sparkles,
-  Maximize2,
-  Minimize2
+  Clock
 } from 'lucide-react';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
+
+// Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
+const luxuryPastelTheme = createTheme({
+  theme: 'dark',
+  settings: {
+    background: '#020617', // Slate-950
+    backgroundImage: '',
+    foreground: '#e2e8f0', // Slate-200
+    caret: '#f472b6', // Pastel Rose
+    selection: '#334155', // Slate-700
+    selectionMatch: '#1e293b',
+    lineHighlight: 'rgba(244, 114, 182, 0.06)',
+    gutterBackground: '#020617',
+    gutterForeground: '#475569',
+    gutterBorder: '#0f172a'
+  },
+  styles: [
+    { tag: t.comment, color: '#64748b', fontStyle: 'italic' },
+    { tag: [t.keyword, t.modifier], color: '#f472b6', fontWeight: 'bold' }, // Rose keywords (class, record, public, volatile)
+    { tag: [t.typeName, t.className, t.definition(t.typeName)], color: '#38bdf8' }, // Sky-blue types (String, TokenBucket, Map)
+    { tag: [t.string, t.special(t.string)], color: '#34d399' }, // Emerald strings & text blocks
+    { tag: [t.number, t.bool, t.null], color: '#c084fc' }, // Violet literals (100, true, false, null)
+    { tag: [t.variableName, t.propertyName], color: '#e2e8f0' },
+    { tag: [t.function(t.variableName), t.function(t.propertyName)], color: '#67e8f9' }, // Cyan function names (tryAcquire, create)
+    { tag: [t.annotation, t.meta], color: '#fb923c', fontStyle: 'italic' }, // Orange annotations (@Override, @Transactional)
+    { tag: [t.operator, t.punctuation], color: '#94a3b8' }
+  ]
+});
 
 export const WorkspaceEditor: React.FC = () => {
   const {
@@ -129,34 +157,6 @@ export const WorkspaceEditor: React.FC = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = e.currentTarget;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const value = textarea.value;
-
-      if (e.shiftKey) {
-        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-        const linePrefix = value.substring(lineStart, lineStart + 4);
-        if (linePrefix === '    ') {
-          const newValue = value.substring(0, lineStart) + value.substring(lineStart + 4);
-          updateWorkspaceFileContent(activeWorkspaceFileIndex, newValue);
-          setTimeout(() => {
-            textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 4);
-          }, 0);
-        }
-      } else {
-        const newValue = value.substring(0, start) + '    ' + value.substring(end);
-        updateWorkspaceFileContent(activeWorkspaceFileIndex, newValue);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + 4;
-        }, 0);
-      }
-    }
-  };
-
   const handleResetWorkspace = async () => {
     if (!activePracticeChallenge) return;
     if (!window.confirm('Сбросить весь воркспейс к начальному состоянию? Текущие изменения будут удалены.')) {
@@ -165,7 +165,6 @@ export const WorkspaceEditor: React.FC = () => {
 
     try {
       await fetch(`/api/practice/reset/${activePracticeChallenge.id}`, { method: 'POST' });
-      // Reset local files to seed files
       activePracticeChallenge.workspaceFiles.forEach((file, idx) => {
         updateWorkspaceFileContent(idx, file.content);
       });
@@ -180,8 +179,6 @@ export const WorkspaceEditor: React.FC = () => {
   };
 
   if (!currentFile || !activePracticeChallenge) return null;
-
-  const lines = currentFile.content.split('\n');
 
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 relative">
@@ -229,35 +226,53 @@ export const WorkspaceEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* Editor Body */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Line Numbers */}
-        <div className="w-12 bg-slate-950 py-3 text-right pr-3 select-none text-slate-600 font-mono text-xs border-r border-slate-900 leading-6">
-          {lines.map((_, i) => (
-            <div key={i}>{i + 1}</div>
-          ))}
-        </div>
+      {/* CodeMirror 6 Editor Body */}
+      <div className="flex-1 flex overflow-hidden relative font-mono text-xs">
+        <CodeMirror
+          value={currentFile.content}
+          height="100%"
+          className="w-full h-full custom-codemirror-container"
+          theme={luxuryPastelTheme}
+          extensions={[java()]}
+          readOnly={currentFile.readOnly}
+          editable={!currentFile.readOnly}
+          indentWithTab={true}
+          basicSetup={{
+            lineNumbers: true,
+            highlightActiveLineGutter: true,
+            highlightSpecialChars: true,
+            history: true,
+            foldGutter: true,
+            drawSelection: true,
+            dropCursor: true,
+            allowMultipleSelections: true,
+            indentOnInput: true,
+            syntaxHighlighting: true,
+            bracketMatching: true,
+            closeBrackets: true,
+            autocompletion: true,
+            rectangularSelection: true,
+            crosshairCursor: true,
+            highlightActiveLine: true,
+            highlightSelectionMatches: true,
+            closeBracketsKeymap: true,
+            defaultKeymap: true,
+            searchKeymap: true,
+            historyKeymap: true,
+            foldKeymap: true,
+            completionKeymap: true,
+            lintKeymap: true
+          }}
+          onChange={(value) => {
+            updateWorkspaceFileContent(activeWorkspaceFileIndex, value);
+          }}
+        />
 
-        {/* Text Area / Code Content */}
-        <div className="flex-1 relative overflow-auto custom-scrollbar">
-          <textarea
-            value={currentFile.content}
-            disabled={currentFile.readOnly}
-            onChange={(e) => updateWorkspaceFileContent(activeWorkspaceFileIndex, e.target.value)}
-            onKeyDown={handleKeyDown}
-            spellCheck={false}
-            className={`w-full h-full p-3 font-mono text-xs leading-6 bg-transparent text-slate-100 resize-none focus:outline-none custom-scrollbar ${
-              currentFile.readOnly ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-            style={{ tabSize: 4 }}
-          />
-
-          {currentFile.readOnly && (
-            <div className="absolute top-3 right-3 bg-slate-800/90 text-slate-400 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-700 pointer-events-none flex items-center gap-1">
-              <Lock className="w-3 h-3" /> Контракт (Read-Only)
-            </div>
-          )}
-        </div>
+        {currentFile.readOnly && (
+          <div className="absolute top-3 right-5 bg-slate-900/90 text-slate-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-700 pointer-events-none flex items-center gap-1.5 shadow-md z-10">
+            <Lock className="w-3 h-3 text-amber-400" /> Контракт (Read-Only)
+          </div>
+        )}
       </div>
 
       {/* Action Footer Bar */}
