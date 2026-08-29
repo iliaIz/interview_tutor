@@ -88,6 +88,29 @@ export interface QuestionEvaluationSummary {
   referenceAnswer?: string;
 }
 
+export interface WhiteboardState {
+  isOpen?: boolean;
+  action: 'write' | 'patch' | 'highlight' | 'clear';
+  title?: string;
+  language?: string;
+  code?: string;
+  highlightLines?: number[];
+  explanation?: string;
+  updatedAt?: number;
+}
+
+export interface ActiveBatchSession {
+  sessionId: string;
+  topicId?: string;
+  topicName: string;
+  questions: Question[];
+  currentIndex: number;
+  results: Record<string, any>;
+  startedAt: string;
+  updatedAt: string;
+  isComplete: boolean;
+}
+
 export type StudioTab = 'theory' | 'incidents' | 'practice';
 
 interface AppState {
@@ -102,6 +125,17 @@ interface AppState {
   shuffleMap: Record<string, boolean>;
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
+
+  // Active Multi-Question Batch Session Checkpoint
+  activeBatchSession: ActiveBatchSession | null;
+  saveBatchSessionCheckpoint: (sessionId: string, patch: Partial<ActiveBatchSession>) => void;
+  clearBatchSession: () => void;
+
+  // AI Live Whiteboard State
+  activeWhiteboardState: WhiteboardState | null;
+  isWhiteboardOpen: boolean;
+  setWhiteboardState: (wb: WhiteboardState | null) => void;
+  setIsWhiteboardOpen: (open: boolean) => void;
 
   // Practice Arena / Live-Coding State
   activePracticeChallenge: CodingChallenge | null;
@@ -198,6 +232,31 @@ export const useAppStore = create<AppState>()(
       topicsProgress: {},
       evaluationsMap: {},
       activeReportModal: null,
+
+      // Multi-Question Active Session Checkpoint State
+      activeBatchSession: null,
+      saveBatchSessionCheckpoint: (sessionId, patch) => set((state) => {
+        const prevSession = state.activeBatchSession?.sessionId === sessionId ? state.activeBatchSession : null;
+        const updatedSession: ActiveBatchSession = {
+          sessionId,
+          topicId: patch.topicId || prevSession?.topicId || '',
+          topicName: patch.topicName || prevSession?.topicName || 'Java Core & Spring',
+          questions: patch.questions || prevSession?.questions || [],
+          currentIndex: patch.currentIndex !== undefined ? patch.currentIndex : (prevSession?.currentIndex ?? 0),
+          results: { ...(prevSession?.results || {}), ...(patch.results || {}) },
+          startedAt: prevSession?.startedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isComplete: patch.isComplete !== undefined ? patch.isComplete : (prevSession?.isComplete ?? false)
+        };
+        return { activeBatchSession: updatedSession };
+      }),
+      clearBatchSession: () => set({ activeBatchSession: null }),
+
+      // AI Live Whiteboard State
+      activeWhiteboardState: null,
+      isWhiteboardOpen: false,
+      setWhiteboardState: (wb) => set({ activeWhiteboardState: wb, isWhiteboardOpen: wb ? (wb.action !== 'clear') : false }),
+      setIsWhiteboardOpen: (open) => set({ isWhiteboardOpen: open }),
 
       // Practice Arena State
       activePracticeChallenge: null,
@@ -467,6 +526,7 @@ export const useAppStore = create<AppState>()(
         topicsProgress: state.topicsProgress,
         evaluationsMap: state.evaluationsMap,
         cheatSheetBookmarks: state.cheatSheetBookmarks,
+        activeBatchSession: state.activeBatchSession,
       })
     }
   )

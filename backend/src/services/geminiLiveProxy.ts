@@ -149,7 +149,15 @@ export function buildSystemPrompt(params: {
     : `=== РЕЖИМ ВЕДЕНИЯ ДИАЛОГА: СВОБОДНЫЙ ДИАЛОГ (FULL DUPLEX AUTO-VAD) ===
 Слушай речь кандидата и реагируй после естественных пауз в ответе.`;
 
-  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}`;
+  const whiteboardInstruction = `=== ИНТЕРАКТИВНАЯ ДОСКА И ДЕМОНСТРАЦИЯ КОДА (ИНСТРУМЕНТ: update_whiteboard) ===
+У кандидата на экране есть выдвижная интерактивная доска для кода и схем.
+Если кандидат просит показать пример кода («покажи на коде», «напиши пример», «как это выглядит в Spring / Java», «напиши реализацию»),
+или если при объяснении устройства под капотом, паттерна, структуры данных, алгоритма или аннотации полезно наглядно показать код:
+1. ОБЯЗАТЕЛЬНО вызови инструмент \`update_whiteboard\` со структурированным сниппетом (action: 'write' | 'patch' | 'highlight' | 'clear', title: '...', language: 'java', code: '...', highlightLines: [...], explanation: '...').
+2. Одновременно голосом кратко поясни, на что обратить внимание («Я вывела пример на доску справа...»).
+3. Когда ты переходишь к новой теме или стираешь код — вызови \`update_whiteboard\` с action: 'clear'.`;
+
+  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}`;
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor') {
@@ -542,9 +550,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       if (clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
       }
-      // Check for half-open dead connection (no activity in 35s)
-      if (Date.now() - session.lastActivityAt > 35000) {
-        console.warn('⚠️ Session inactive for >35s. Terminating keepalive expired socket.');
+      // Adaptive Keepalive: In manual mode candidate might reflect/pause for up to 3 minutes (180s)
+      const inactivityLimitMs = turnMode === 'manual' ? 180000 : 60000;
+      if (Date.now() - session.lastActivityAt > inactivityLimitMs) {
+        console.warn(`⚠️ Session inactive for >${inactivityLimitMs / 1000}s. Terminating keepalive expired socket.`);
         terminate('KeepaliveTimeout');
       }
     }, 15000);
@@ -576,6 +585,32 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     });
 
     const toolDeclarations: any[] = [];
+
+    // Universal AI Whiteboard Tool (available in all interview & tutor sessions)
+    toolDeclarations.push({
+      name: 'update_whiteboard',
+      description: 'Отобразить, обновить, выделить или стереть пример кода или архитектурную схему на интерактивной доске кандидата',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          action: {
+            type: 'STRING',
+            enum: ['write', 'patch', 'highlight', 'clear'],
+            description: 'write: создать/заменить код; patch: показать diff правок; highlight: подсветить строки; clear: очистить доску'
+          },
+          title: { type: 'STRING', description: 'Краткий понятный заголовок (например, "Пример Singleton с volatile")' },
+          language: { type: 'STRING', description: 'Язык программирования (java, sql, yaml, json)' },
+          code: { type: 'STRING', description: 'Исходный код для показа на доске' },
+          highlightLines: {
+            type: 'ARRAY',
+            items: { type: 'INTEGER' },
+            description: 'Номера строк для визуального акцента'
+          },
+          explanation: { type: 'STRING', description: 'Краткое пояснение' }
+        },
+        required: ['action']
+      }
+    });
 
     if (sessionType === 'interview') {
       toolDeclarations.push({
@@ -784,7 +819,54 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
 
           for (const call of parsed.toolCall.functionCalls) {
-            if (call.name === 'mark_bug_solved') {
+            if (call.name === 'update_whiteboard') {
+              isToolCallProcessed = true;
+              const args = call.args || {};
+              const action = args.action || 'write';
+              const title = args.title || (action === 'clear' ? 'Доска очищена' : 'Демонстрация кода');
+              const language = args.language || 'java';
+              const code = args.code || '';
+              const highlightLines = Array.isArray(args.highlightLines) ? args.highlightLines : [];
+              const explanation = args.explanation || '';
+
+              console.log(`🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length})`);
+
+              // Immediate toolResponse so model continues speaking seamlessly
+              const toolResponse = {
+                toolResponse: {
+                  functionResponses: [
+                    {
+                      id: call.id,
+                      name: call.name,
+                      response: {
+                        status: 'SUCCESS',
+                        message: 'Интерактивная доска обновлена на экране кандидата.'
+                      }
+                    }
+                  ]
+                }
+              };
+
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(toolResponse));
+              }
+
+              // Send event to client
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                clientSocket.send(JSON.stringify({
+                  type: 'whiteboard_update',
+                  payload: {
+                    action,
+                    title,
+                    language,
+                    code,
+                    highlightLines,
+                    explanation,
+                    updatedAt: Date.now()
+                  }
+                }));
+              }
+            } else if (call.name === 'mark_bug_solved') {
               isToolCallProcessed = true;
               const args = call.args || {};
               const isSolved = args.isSolved ?? true;

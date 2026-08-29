@@ -33,7 +33,8 @@ import {
   Send,
   VolumeX,
   Keyboard,
-  Clock
+  Clock,
+  Code2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -41,6 +42,8 @@ import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { CandidatePersonaHUD } from './CandidatePersonaHUD';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { CodeViewer } from './CodeViewer';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { WhiteboardDrawer } from './WhiteboardDrawer';
 import {
   AcousticMetrics,
   AcousticTelemetryService,
@@ -49,7 +52,7 @@ import { triggerSuccessConfetti } from '../utils/confetti';
 import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
-import { Question } from '../store/useAppStore';
+import { Question, useAppStore } from '../store/useAppStore';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -103,13 +106,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const isBatchMode = Boolean(questionsBatch && questionsBatch.length > 0);
   const totalQuestions = isBatchMode && questionsBatch ? questionsBatch.length : 1;
 
+  // Store hooks for Session Checkpointing and AI Whiteboard
+  const {
+    activeBatchSession,
+    saveBatchSessionCheckpoint,
+    clearBatchSession,
+    activeWhiteboardState,
+    setWhiteboardState,
+    isWhiteboardOpen,
+    setIsWhiteboardOpen
+  } = useAppStore();
+
   // Session Type State ('interview' | 'tutor')
   const [sessionType, setSessionType] = useState<'interview' | 'tutor'>(initialSessionType);
   const [tutorMode, setTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>(initialTutorMode);
 
-  // Active Batch Index state
+  // Active Batch Index state & Stale-Closure Resistant Refs
   const [activeBatchIndex, setActiveBatchIndex] = useState<number>(initialQuestionIndex);
   const [batchResults, setBatchResults] = useState<Record<string, EvaluationResult>>({});
+  const batchResultsRef = useRef<Record<string, EvaluationResult>>({});
+  const sessionIdRef = useRef<string>('');
 
   // Resolve current active question
   const currentQ: Question | null = isBatchMode && questionsBatch ? questionsBatch[activeBatchIndex] || questionsBatch[0] : null;
@@ -337,7 +353,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   };
 
-  // Synchronize initialQuestionIndex when opened
+  // Synchronize initialQuestionIndex & Checkpoint when opened
   useEffect(() => {
     if (!isOpen) {
       teardownFullAudio();
@@ -345,10 +361,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
 
-    setActiveBatchIndex(initialQuestionIndex);
     setSessionType(initialSessionType || 'interview');
     setTutorMode(initialTutorMode || 'deep_dive');
-    setBatchResults({});
+
+    // Check for existing valid session checkpoint for this topic
+    if (
+      isBatchMode &&
+      activeBatchSession &&
+      !activeBatchSession.isComplete &&
+      (activeBatchSession.topicName === activeTopic || !activeBatchSession.topicName) &&
+      Object.keys(activeBatchSession.results || {}).length > 0
+    ) {
+      sessionIdRef.current = activeBatchSession.sessionId;
+      batchResultsRef.current = { ...activeBatchSession.results };
+      setBatchResults(activeBatchSession.results);
+      setActiveBatchIndex(Math.min(activeBatchSession.currentIndex, totalQuestions - 1));
+    } else {
+      sessionIdRef.current = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      batchResultsRef.current = {};
+      setBatchResults({});
+      setActiveBatchIndex(initialQuestionIndex);
+    }
+
     setStage('lobby');
     setEvaluation(null);
     setDialogueTurns([]);
@@ -364,7 +398,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     return () => {
       teardownFullAudio();
     };
-  }, [isOpen, initialSessionType, initialTutorMode]);
+  }, [isOpen]);
 
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {
@@ -573,6 +607,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         // Upstream response delayed nudge (>5.5s)
         if (data.type === 'thinking_delay') {
           setThinkingStage('delayed');
+          return;
+        }
+
+        // Live Whiteboard sync from AI
+        if (data.type === 'whiteboard_update') {
+          const payload = data.payload;
+          setWhiteboardState(payload);
+          if (payload?.action !== 'clear') {
+            setIsWhiteboardOpen(true);
+          }
           return;
         }
 
@@ -994,13 +1038,40 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     console.log('📤 Sent clientContent.turnComplete to Gemini Live');
   };
 
-  /**
-   * Start Live Interview Session
-   * Called on direct user click on "Начать собеседование" button
-   */
-  const startLiveInterview = async () => {
-    setActiveBatchIndex(initialQuestionIndex);
+  const canResumeSession = Boolean(
+    isBatchMode &&
+    activeBatchSession &&
+    !activeBatchSession.isComplete &&
+    (activeBatchSession.topicName === activeTopic || !activeBatchSession.topicName) &&
+    Object.keys(activeBatchSession.results || {}).length > 0
+  );
+
+  const handleResumeSession = async () => {
+    if (!activeBatchSession) return;
+    sessionIdRef.current = activeBatchSession.sessionId;
+    batchResultsRef.current = { ...activeBatchSession.results };
+    setBatchResults(activeBatchSession.results);
+    const targetIdx = Math.min(activeBatchSession.currentIndex, totalQuestions - 1);
+    setActiveBatchIndex(targetIdx);
+    if (onIndexChange) onIndexChange(targetIdx);
+    await startLiveInterviewWithIndex(targetIdx);
+  };
+
+  const handleStartFresh = async () => {
+    clearBatchSession();
+    sessionIdRef.current = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    batchResultsRef.current = {};
     setBatchResults({});
+    setActiveBatchIndex(initialQuestionIndex);
+    if (onIndexChange) onIndexChange(initialQuestionIndex);
+    await startLiveInterviewWithIndex(initialQuestionIndex);
+  };
+
+  /**
+   * Start Live Interview Session with specific question index
+   */
+  const startLiveInterviewWithIndex = async (targetIndex: number) => {
+    setActiveBatchIndex(targetIndex);
     setStage('active');
     setEvaluation(null);
     setIsAiSpeaking(true);
@@ -1013,11 +1084,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     hasSpokenInTurnRef.current = false;
     isServerTurnCompleteRef.current = false;
     setDialogueTurns([
-      { role: 'system', text: '🎙️ Подключение к голосовому каналу... ИИ-интервьюер сейчас поздоровается и задаст вопрос.' }
+      { role: 'system', text: `🎙️ Подключение к голосовому каналу... (Вопрос ${targetIndex + 1} из ${totalQuestions})` }
     ]);
     userPcmChunksRef.current = [];
     transcriptRef.current = '';
+    isEvaluationFinalizedRef.current = false;
     setIsSubmitting(false);
+
+    if (!sessionIdRef.current) {
+      sessionIdRef.current = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    }
 
     // 0. Acquire Screen Wake Lock for mobile devices
     void acquireWakeLock();
@@ -1030,7 +1106,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     // 2. Pre-warm microphone hardware asynchronously in background (non-blocking)
     void initMicrophoneHardware();
 
-    const targetQ = {
+    const targetQ = questionsBatch?.[targetIndex] || {
       id: activeQuestionId,
       topic: activeTopic,
       question: activeQuestionText,
@@ -1095,7 +1171,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
 
     // 3. Connect Live WebSocket immediately for Auto-VAD mode
-    connectLiveWebSocket(initialQuestionIndex, targetQ);
+    connectLiveWebSocket(targetIndex, targetQ);
+  };
+
+  /**
+   * Start Live Interview Session
+   * Called on direct user click on "Начать собеседование" button
+   */
+  const startLiveInterview = async () => {
+    await startLiveInterviewWithIndex(activeBatchIndex);
   };
 
   /**
@@ -1431,9 +1515,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
     setEvaluation(finalResult);
 
-    // Accumulate in batch results
-    const updatedBatch = { ...batchResults, [evaluatedQuestionId]: finalResult };
-    setBatchResults(updatedBatch);
+    // Atomically accumulate in ref and functional state (immune to stale closures)
+    batchResultsRef.current[evaluatedQuestionId] = finalResult;
+    setBatchResults((prev) => ({ ...prev, [evaluatedQuestionId]: finalResult }));
+
+    // Persist session checkpoint in Zustand & LocalStorage
+    if (sessionIdRef.current) {
+      saveBatchSessionCheckpoint(sessionIdRef.current, {
+        topicId: activeTopic,
+        topicName: activeTopic,
+        questions: questionsBatch || [],
+        currentIndex: qIndex + 1,
+        results: { ...batchResultsRef.current },
+        isComplete: !isBatchMode || qIndex >= totalQuestions - 1
+      });
+    }
 
     setIsSubmitting(false);
 
@@ -1447,7 +1543,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     } else if (isBatchMode && qIndex === totalQuestions - 1) {
       setStage('grand_finale');
       triggerSuccessConfetti();
-      if (onBatchComplete) onBatchComplete(updatedBatch);
+      if (onBatchComplete) onBatchComplete({ ...batchResultsRef.current });
     } else {
       setStage('verdict');
       if ((finalResult.score ?? 0) >= 80) triggerSuccessConfetti();
@@ -1605,13 +1701,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   if (!isOpen || typeof document === 'undefined') return null;
 
-  // Calculate Grand Finale stats
-  const evaluatedKeys = Object.keys(batchResults);
+  // Calculate Grand Finale stats with complete resilience (Zustand + Ref + State)
+  const allResults: Record<string, EvaluationResult> = {
+    ...(activeBatchSession?.results || {}),
+    ...batchResultsRef.current,
+    ...batchResults
+  };
+  const evaluatedKeys = Object.keys(allResults);
   const totalEvaluated = evaluatedKeys.length;
   const avgScore = totalEvaluated > 0
-    ? Math.round(evaluatedKeys.reduce((acc, k) => acc + (batchResults[k]?.score ?? 0), 0) / totalEvaluated)
+    ? Math.round(evaluatedKeys.reduce((acc, k) => acc + (allResults[k]?.score ?? 0), 0) / totalEvaluated)
     : 0;
-  const passedCount = evaluatedKeys.filter((k) => batchResults[k]?.isPassed).length;
+  const passedCount = evaluatedKeys.filter((k) => allResults[k]?.isPassed).length;
 
   return createPortal(
     <div className="fixed inset-0 z-[9000] flex items-center justify-center p-3 md:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
@@ -1653,8 +1754,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 <span>
                   {stage === 'lobby'
                     ? sessionType === 'tutor'
-                      ? 'Совместный разбор вопроса и эталонного ответа'
-                      : isBatchMode ? 'Непрерывное собеседование по порции' : 'Персональное собеседование'
+                      ? 'Лобби ментора'
+                      : 'Лобби собеседования'
                     : stage === 'active'
                     ? sessionType === 'tutor'
                       ? 'Голосовой диалог с наставником'
@@ -1675,6 +1776,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 <span>{rttMs} ms</span>
               </div>
             )}
+
+            {/* Whiteboard Sidecar Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+              className={`px-2.5 py-1 rounded-full border transition flex items-center gap-1 text-[11px] font-semibold cursor-pointer shadow-2xs ${
+                activeWhiteboardState?.code
+                  ? 'bg-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-xs'
+                  : 'bg-pastel-card hover:bg-pastel-card/80 border-pastel-border text-pastel-sub hover:text-pastel-text'
+              }`}
+              title={activeWhiteboardState?.code ? 'Открыть интерактивную доску ИИ с кодом' : 'Интерактивная доска ИИ'}
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              {activeWhiteboardState?.code && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+              <span className="hidden sm:inline">Доска</span>
+            </button>
+
             <CandidatePersonaHUD
               questionText={activeQuestionText}
               topic={activeTopic}
@@ -2029,10 +2149,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                                 : 'text-pastel-sub italic text-[10px]'
                             }`}
                           >
-                            <span className="shrink-0">
+                            <span className="shrink-0 pt-0.5">
                               {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
                             </span>
-                            <span>{turn.text}</span>
+                            <div className="flex-1 min-w-0">
+                              <MarkdownRenderer content={turn.text} compact />
+                            </div>
                           </div>
                         ))
                       )}
@@ -2242,6 +2364,44 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Resume Session Card (if unfinished session exists) */}
+                {canResumeSession && activeBatchSession && (
+                  <div className="w-full max-w-sm p-3.5 rounded-2xl bg-gradient-to-r from-pastel-accentViolet/15 via-white to-pastel-accentRose/15 border border-pastel-accentViolet/40 shadow-xs space-y-2 text-left animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-pastel-accentViolet animate-bounce" />
+                        <span className="text-xs font-bold text-pastel-text">
+                          Сохраненная сессия
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-accentViolet text-white">
+                        {Object.keys(activeBatchSession.results || {}).length} из {activeBatchSession.questions?.length || totalQuestions} пройдено
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-pastel-muted leading-tight">
+                      Хотите продолжить с сохраненными баллами или начать заново?
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleResumeSession}
+                        className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold text-xs shadow-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <FastForward className="w-3.5 h-3.5" />
+                        <span>Продолжить (#{Math.min(activeBatchSession.currentIndex + 1, totalQuestions)})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStartFresh}
+                        className="py-2 px-3 rounded-xl bg-white hover:bg-slate-100 border border-pastel-border text-pastel-sub hover:text-pastel-text text-xs font-semibold transition cursor-pointer"
+                        title="Очистить чекпоинт и начать с вопроса #1"
+                      >
+                        С нуля
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action Buttons: START + SETTINGS */}
                 <div className="w-full max-w-sm space-y-2.5">
@@ -2492,10 +2652,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                             : 'text-pastel-sub italic text-[11px]'
                         }`}
                       >
-                        <span className="shrink-0">
+                        <span className="shrink-0 pt-0.5">
                           {turn.role === 'ai' ? '🤖' : turn.role === 'user' ? '👤' : 'ℹ️'}
                         </span>
-                        <span>{turn.text}</span>
+                        <div className="flex-1 min-w-0">
+                          <MarkdownRenderer content={turn.text} compact />
+                        </div>
                       </div>
                     ))
                   )}
@@ -2974,7 +3136,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             {(evaluation.spokenFeedback || evaluation.feedback) && (
               <div className="p-3.5 rounded-2xl bg-pastel-card border border-pastel-border text-xs leading-relaxed text-pastel-text">
                 <span className="font-bold text-pastel-accentViolet block mb-1">Резюме интервьюера:</span>
-                <p>{evaluation.spokenFeedback || evaluation.feedback}</p>
+                <MarkdownRenderer content={evaluation.spokenFeedback || evaluation.feedback || ''} compact />
               </div>
             )}
 
@@ -3041,7 +3203,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <div className="space-y-2">
               <h5 className="text-xs font-bold text-pastel-text px-1">Детализация по вопросам темы:</h5>
               {questionsBatch?.map((q, idx) => {
-                const res = batchResults[q.id];
+                const res = allResults[q.id];
                 const isExpanded = expandedSummaryIds.has(q.id);
                 return (
                   <div
@@ -3155,6 +3317,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       <MemoryRadarDrawer
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
+      />
+
+      {/* Interactive AI Whiteboard Drawer */}
+      <WhiteboardDrawer
+        isOpen={isWhiteboardOpen}
+        onClose={() => setIsWhiteboardOpen(false)}
+        state={activeWhiteboardState}
       />
     </div>,
     document.body

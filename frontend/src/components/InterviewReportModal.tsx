@@ -7,6 +7,7 @@ import { motion, AnimatePresence, animate } from 'framer-motion';
 import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export interface InterviewReportData {
   id?: string;
@@ -526,9 +527,9 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="p-4 bg-white text-xs text-pastel-text leading-relaxed border-t border-pastel-border/60"
                   >
-                    <pre className="whitespace-pre-wrap font-sans text-xs bg-pastel-bg/60 p-3 rounded-xl border border-pastel-border/60">
-                      {report.referenceAnswer}
-                    </pre>
+                    <div className="mt-1">
+                      <MarkdownRenderer content={report.referenceAnswer} />
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

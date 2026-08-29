@@ -20,9 +20,8 @@ import {
   Mic
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface QuestionWithStatus extends Question {
   isCompleted?: boolean;
@@ -653,10 +652,8 @@ export const QuestionExplorer: React.FC = () => {
                           <div className="text-[11px] font-bold uppercase tracking-wider text-pastel-muted mb-2 flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-pastel-accentRose" /> Эталонный ответ:
                           </div>
-                          <div className="prose prose-xs max-w-none">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {q.answer}
-                            </ReactMarkdown>
+                          <div className="mt-1">
+                            <MarkdownRenderer content={q.answer} />
                           </div>
                         </motion.div>
                       )}

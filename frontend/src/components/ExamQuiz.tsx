@@ -21,9 +21,8 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { triggerSuccessConfetti } from '../utils/confetti';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface EvalRecord {
   question: Question;
@@ -415,10 +414,8 @@ export const ExamQuiz: React.FC = () => {
                             <span className="font-bold text-pastel-accentRose block mb-1 flex items-center gap-1">
                               <Sparkles className="w-3.5 h-3.5" /> Эталонный ответ из базы:
                             </span>
-                            <div className="prose prose-xs max-w-none text-pastel-text">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {rec.question.answer}
-                              </ReactMarkdown>
+                            <div className="mt-1">
+                              <MarkdownRenderer content={rec.question.answer} compact />
                             </div>
                           </div>
                         </motion.div>
