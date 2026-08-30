@@ -45,21 +45,21 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
 
   return (
     <div className={`relative ${className}`}>
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1 sm:gap-2">
         {/* Seniority Pill */}
         <button
           onClick={() => onOpenRadar?.()}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:shadow-sm ${seniorityMeta.color}`}
+          className={`inline-flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border transition-all duration-200 hover:shadow-sm touch-manipulation shrink-0 ${seniorityMeta.color}`}
           title="Нажмите, чтобы открыть радар знаний и настройки профиля"
         >
-          <Target className="w-3.5 h-3.5" />
-          <span>{seniorityMeta.badge}</span>
+          <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          <span className="hidden sm:inline">{seniorityMeta.badge}</span>
         </button>
 
         {/* Dynamic Vector Memory Indicator */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 ${
+          className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-medium border transition-all duration-200 touch-manipulation shrink-0 ${
             hasActiveGaps
               ? 'bg-rose-50/90 text-rose-800 border-rose-200/80 hover:bg-rose-100/90 shadow-sm'
               : 'bg-white/80 text-slate-600 border-pastel-border hover:bg-pastel-lavender/50'
@@ -68,13 +68,14 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
           {hasActiveGaps ? (
             <>
               <Brain className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
-              <span>Память ИИ: {relevantGaps.length} смежный пробел на контроле</span>
+              <span className="hidden lg:inline">Память ИИ: {relevantGaps.length} смежный пробел на контроле</span>
+              <span className="lg:hidden">{relevantGaps.length} пробел</span>
               <ChevronDown className={`w-3 h-3 text-rose-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </>
           ) : (
             <>
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Контекст чист (нет уязвимостей)</span>
+              <span>Контекст чист</span>
             </>
           )}
         </button>

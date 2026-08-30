@@ -1814,16 +1814,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const passedCount = evaluatedKeys.filter((k) => allResults[k]?.isPassed).length;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-3 md:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className={`bg-white rounded-3xl p-4 md:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 ${
+        className={`bg-white rounded-3xl p-3.5 sm:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 ${
           sessionType === 'tutor'
-            ? 'max-w-5xl w-full max-h-[92vh]'
-            : 'max-w-xl w-full max-h-[92vh]'
+            ? 'max-w-5xl w-full max-h-[96dvh] sm:max-h-[92vh]'
+            : 'max-w-xl w-full max-h-[96dvh] sm:max-h-[92vh]'
         }`}
       >
         {/* Soft Ambient Glows */}
@@ -1831,46 +1831,47 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-pastel-accentViolet/20 blur-2xl pointer-events-none" />
 
         {/* Header with Batch Progress Tracker */}
-        <div className="flex items-center justify-between pb-3 border-b border-pastel-border/60 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs">
+        <div className="flex items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-pastel-border/60 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-pastel-text text-sm md:text-base">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-pastel-text text-xs sm:text-base truncate">
                   {sessionType === 'tutor' ? 'AI-Тьютор • Deep Dive' : 'Gemini Live Interviewer'}
                 </h3>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-pastel-muted">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-pastel-muted truncate">
                 {isBatchMode && (
-                  <span className="font-bold text-pastel-accentViolet flex items-center gap-1">
+                  <span className="font-bold text-pastel-accentViolet flex items-center gap-1 shrink-0">
                     <Layers className="w-3 h-3" />
-                    Вопрос {activeBatchIndex + 1} из {totalQuestions}
+                    {activeBatchIndex + 1}/{totalQuestions}
                   </span>
                 )}
-                <span>
+                <span className="truncate">
                   {stage === 'lobby'
                     ? sessionType === 'tutor'
                       ? 'Лобби ментора'
-                      : 'Лобби собеседования'
+                      : 'Лобби'
                     : stage === 'active'
                     ? sessionType === 'tutor'
-                      ? 'Голосовой диалог с наставником'
-                      : 'Голосовой диалог в реальном времени'
+                      ? 'Диалог с наставником'
+                      : 'Live диалог'
                     : stage === 'transition'
-                    ? 'Автопереход к следующему вопросу'
+                    ? 'Автопереход'
                     : stage === 'grand_finale'
-                    ? '🎉 Итоги всего собеседования'
-                    : 'Результаты ответа'}
+                    ? '🎉 Итоги'
+                    : 'Результаты'}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {rttMs !== null && (
-              <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-sub shadow-2xs" title="Задержка сети (RTT)">
+              <div className="hidden md:flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-sub shadow-2xs" title="Задержка сети (RTT)">
                 <span className={`w-1.5 h-1.5 rounded-full ${rttMs < 120 ? 'bg-emerald-500' : rttMs < 350 ? 'bg-amber-500' : 'bg-red-500'}`} />
                 <span>{rttMs} ms</span>
               </div>
@@ -1880,7 +1881,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             <button
               type="button"
               onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-              className={`px-2.5 py-1 rounded-full border transition flex items-center gap-1 text-[11px] font-semibold cursor-pointer shadow-2xs ${
+              className={`p-1.5 sm:px-2.5 sm:py-1 rounded-full border transition flex items-center gap-1 text-[11px] font-semibold cursor-pointer shadow-2xs touch-manipulation ${
                 activeWhiteboardState?.code
                   ? 'bg-pastel-accentViolet/20 border-pastel-accentViolet text-pastel-accentViolet shadow-xs'
                   : 'bg-pastel-card hover:bg-pastel-card/80 border-pastel-border text-pastel-sub hover:text-pastel-text'
@@ -1891,20 +1892,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               {activeWhiteboardState?.code && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               )}
-              <span className="hidden sm:inline">Доска</span>
+              <span className="hidden md:inline">Доска</span>
             </button>
 
+            {/* Candidate Persona HUD with Responsive Disclosure */}
             <CandidatePersonaHUD
               questionText={activeQuestionText}
               topic={activeTopic}
               questionId={activeQuestionId}
               onOpenRadar={() => setIsRadarOpen(true)}
             />
+
+            {/* Guaranteed Escape Hatch - Close Button */}
             <button
+              type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-pastel-bg text-pastel-muted hover:text-pastel-text flex items-center justify-center hover:bg-pastel-rose/40 transition cursor-pointer"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-pastel-bg/90 hover:bg-rose-100 text-pastel-sub hover:text-rose-600 flex items-center justify-center transition active:scale-95 cursor-pointer touch-manipulation shrink-0 border border-pastel-border/60 shadow-2xs ml-0.5"
+              aria-label="Закрыть окно собеседования"
+              title="Закрыть (Esc)"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
