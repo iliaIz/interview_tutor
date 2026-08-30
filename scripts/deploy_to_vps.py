@@ -38,7 +38,7 @@ def create_tarball():
                 tar.add(fp, arcname=f"backend/{f}")
 
         # Root files
-        for f in ["Caddyfile", "docker-compose.prod.yml", "docker-compose.yml"]:
+        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml"]:
             fp = os.path.join(root_dir, f)
             if os.path.exists(fp):
                 tar.add(fp, arcname=f)
