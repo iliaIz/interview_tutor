@@ -5,6 +5,7 @@ import { envConfig } from '../config/env';
 import { transcribeWithDeepgram } from '../services/deepgramService';
 import { synthesizeTTSBuffer } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
+import { getOrCreateSessionMemory } from '../services/geminiLiveProxy';
 
 const router = Router();
 
@@ -23,24 +24,58 @@ router.post('/greeting', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'questionText is required' });
     }
 
-    const greetingIntro = userGender === 'male'
-      ? `Привет! Я твой технический интервьюер по теме ${topic}. Давай разберем вопрос:`
-      : userGender === 'female'
-      ? `Привет! Я твой технический интервьюер по теме ${topic}. Давай разберем вопрос:`
-      : `Здравствуйте! Мы начинаем техническое интервью по теме ${topic}. Вот ваш вопрос:`;
+    const genderDirective = userGender === 'female'
+      ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. Обращайся вежливо и поддерживающе, используя ЖЕНСКИЕ окончания в прошедшем времени («Ты готова», «Ты выбрала»).'
+      : userGender === 'male'
+      ? 'Кандидат — МУЖЧИНА. Обращайся вежливо и поддерживающе, используя МУЖСКИЕ окончания («Ты готов», «Ты выбрал»).'
+      : 'Обращайся уважительно на «Вы».';
 
-    const fullGreetingText = `${greetingIntro} ${questionText}`;
+    const greetingPrompt = `Ты профессиональный и доброжелательный технический интервьюер.
+${genderDirective}
+Твоя задача — поприветствовать кандидата одной короткой, естественной живой фразой (максимум 1 предложение) и четко зачитать технический вопрос по теме «${topic}».
 
-    const audioBuf = await synthesizeTTSBuffer(fullGreetingText, voice);
-    const audioBase64 = audioBuf.toString('base64');
+ВОПРОС ДЛЯ ОЗВУЧИВАНИЯ:
+"${questionText}"
 
-    res.json({
-      greetingText: fullGreetingText,
+ВАЖНО:
+- НЕ давай подсказок и не отвечай на вопрос.
+- Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
+
+    const endpointUrl = envConfig.proxy.chatUrl;
+    const proxyApiKey = envConfig.proxy.apiKey;
+    const modelName = envConfig.models.fast;
+
+    const chatResponse = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${proxyApiKey}`
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: greetingPrompt }],
+        temperature: 0.3
+      })
+    });
+
+    if (!chatResponse.ok) {
+      throw new Error(`Proxy returned ${chatResponse.status}: ${await chatResponse.text()}`);
+    }
+
+    const chatData = await chatResponse.json();
+    const greetingText = chatData.choices?.[0]?.message?.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
+
+    // Synthesize TTS
+    const ttsBuf = await synthesizeTTSBuffer(greetingText, voice);
+    const audioBase64 = ttsBuf.toString('base64');
+
+    return res.json({
+      text: greetingText,
       audioBase64
     });
   } catch (err: any) {
     console.error('Error in /api/interview/greeting:', err);
-    res.status(500).json({ error: err.message || 'Greeting synthesis failed' });
+    return res.status(500).json({ error: err.message || 'Greeting synthesis failed' });
   }
 });
 
@@ -48,6 +83,7 @@ router.post('/greeting', async (req: Request, res: Response) => {
 router.post('/turn', async (req: Request, res: Response) => {
   try {
     const {
+      sessionId,
       questionId,
       topic = 'Java Core',
       questionText,
@@ -85,6 +121,13 @@ router.post('/turn', async (req: Request, res: Response) => {
 
     if (!candidateText) {
       candidateText = '(Кандидат завершил ответ без звука)';
+    }
+
+    if (sessionId && candidateText) {
+      const mem = getOrCreateSessionMemory(sessionId, questionId);
+      mem.turns.push({ role: 'user', text: candidateText });
+      mem.lastSpeaker = 'user';
+      mem.updatedAt = Date.now();
     }
 
     // 2. Reasoning Phase: Evaluate transcript with Gemini Fast
@@ -185,6 +228,13 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
 
     const ttsBuf = await synthesizeTTSBuffer(textToVoice, voice);
     const audioBase64Out = ttsBuf.toString('base64');
+
+    if (sessionId && textToVoice) {
+      const mem = getOrCreateSessionMemory(sessionId, questionId);
+      mem.turns.push({ role: 'model', text: textToVoice });
+      mem.lastSpeaker = 'model';
+      mem.updatedAt = Date.now();
+    }
 
     // 4. Persistence (if evaluate)
     let decayResult = null;

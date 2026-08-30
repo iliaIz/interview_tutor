@@ -16,11 +16,52 @@ import {
 
 dotenv.config();
 
+export interface LiveTurn {
+  role: 'user' | 'model';
+  text: string;
+}
+
+export interface LiveSessionMemory {
+  sessionId: string;
+  questionId: string;
+  turns: LiveTurn[];
+  lastSpeaker: 'user' | 'model' | 'none';
+  updatedAt: number;
+}
+
+export const liveSessionRegistry = new Map<string, LiveSessionMemory>();
+
+// Auto-cleanup registry every 10 minutes (remove sessions idle > 30 mins)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, mem] of liveSessionRegistry.entries()) {
+    if (now - mem.updatedAt > 30 * 60 * 1000) {
+      liveSessionRegistry.delete(key);
+    }
+  }
+}, 10 * 60 * 1000);
+
+export function getOrCreateSessionMemory(sessionId: string, questionId: string): LiveSessionMemory {
+  let mem = liveSessionRegistry.get(sessionId);
+  if (!mem) {
+    mem = {
+      sessionId,
+      questionId,
+      turns: [],
+      lastSpeaker: 'none',
+      updatedAt: Date.now()
+    };
+    liveSessionRegistry.set(sessionId, mem);
+  }
+  return mem;
+}
+
 interface ProxySession {
   clientSocket: WebSocket;
   geminiSocket: WebSocket;
   isSetupComplete: boolean;
   frameQueue: Buffer[];
+  sessionId?: string;
   questionId?: string;
   topic?: string;
   referenceAnswer?: string;
@@ -32,6 +73,7 @@ interface ProxySession {
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
   greetingWatchdog?: NodeJS.Timeout | null;
+  currentAiTurnText?: string;
 }
 
 /**
@@ -472,6 +514,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       } catch {}
     }
 
+    const sessionId = (query.sessionId as string) || '';
     const questionId = (query.questionId as string) || '';
     const topic = (query.topic as string) || 'Java & Spring Framework';
     const questionText = (query.questionText as string) || '';
@@ -488,9 +531,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const totalQuestions = Math.max(1, parseInt((query.totalQuestions as string) || '1', 10) || 1);
     const isRetry = query.isRetry === 'true';
     const isResumed = query.isResumed === 'true';
-    const resumptionSummary = (query.resumptionSummary as string) || '';
-    const lastCandidateTurn = (query.lastCandidateTurn as string) || '';
-    const lastAiTurn = (query.lastAiTurn as string) || '';
     const initialProbesCount = Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0);
 
     let customAnchors: string[] = [];
@@ -529,7 +569,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Session: ${sessionId || 'anon'}, Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
     let greetingWatchdog: NodeJS.Timeout | null = null;
@@ -539,6 +579,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       geminiSocket,
       isSetupComplete: false,
       frameQueue: [],
+      sessionId,
       questionId,
       topic,
       referenceAnswer,
@@ -549,7 +590,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       lastActivityAt: Date.now(),
       heartbeatInterval: null,
       nudgeWatchdog: null,
-      greetingWatchdog: null
+      greetingWatchdog: null,
+      currentAiTurnText: ''
     };
 
     // WebSocket Keepalive Heartbeat (every 15s)
@@ -706,100 +748,168 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         // Handle setupComplete from Google Gemini
         if (parsed.setupComplete) {
           session.isSetupComplete = true;
-          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType})! Sending greeting trigger...`);
+          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType}, isResumed: ${isResumed}, sessionId: ${session.sessionId || 'none'})!`);
 
-          let greetingText = '';
           if (isResumed) {
-            greetingText = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА ПОСЛЕ ТЕХНИЧЕСКОГО ПЕРЕРЫВА]:
-ТЕКУЩИЙ ВОПРОС: "${questionText || topic}"
-${referenceAnswer ? `ЭТАЛОННЫЙ ОТВЕТ (ЗОЛОТОЙ СТАНДАРТ ТЕОРИИ):\n"""\n${referenceAnswer}\n"""` : ''}
+            const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
+            const hasHistory = mem && mem.turns.length > 0;
 
-КОНТЕКСТ ТЕКУЩЕГО ДИАЛОГА ПО ЭТОМУ ВОПРОСУ:
-- Уже обсуждено: ${resumptionSummary || 'Кандидат уже давал пояснения'}
-${lastCandidateTurn ? `- Предыдущая реплика кандидата: "${lastCandidateTurn}"` : ''}
-${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${lastAiTurn}"` : ''}
+            if (hasHistory) {
+              console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
+              const replayTurns = mem.turns.map((t) => ({
+                role: t.role,
+                parts: [{ text: t.text }]
+              }));
 
-СТРОГИЕ ИНВАРИАНТЫ:
-1. НЕ здоровайся заново. НЕ зачитывай вопрос темы с начала.
-2. Одной короткой живой фразой-связкой (1 предложение) подтверди продолжение мысли («Давай продолжим...», «Итак, возвращаясь к...») и сразу передай слово кандидату или задай следующий логический вопрос.`;
-          } else if (sessionType === 'tutor') {
-            if (tutorMode === 'bug_hunt') {
-              greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
-            } else if (tutorMode === 'deep_dive') {
-              greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
-            } else if (tutorMode === 'free_chat') {
-              greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
-            } else if (tutorMode === 'socratic') {
-              greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
-            } else if (tutorMode === 'eli5') {
-              greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
-            } else {
-              greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
-            }
-          } else {
-            const isSubsequent = questionIndex > 0;
-            if (session.isRetry) {
-              greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри одной фразой и четко задай этот вопрос.`;
-            } else {
-              greetingText = isSubsequent
-                ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
-                : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
-            }
-          }
-
-          const initialGreetingTurn = {
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      text: greetingText
-                    }
-                  ]
+              // Send structured multi-turn conversation history to Google Gemini Live
+              const multiTurnMessage = {
+                clientContent: {
+                  turns: replayTurns,
+                  turnComplete: false
                 }
-              ],
-              turnComplete: true
-            }
-          };
+              };
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(multiTurnMessage));
+              }
 
-          if (geminiSocket.readyState === WebSocket.OPEN) {
-            geminiSocket.send(JSON.stringify(initialGreetingTurn));
-          }
-
-          // Watchdog
-          if (greetingWatchdog) clearTimeout(greetingWatchdog);
-          greetingWatchdog = setTimeout(() => {
-            if (geminiSocket.readyState === WebSocket.OPEN) {
-              console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
-              const nudgeTurn = {
+              // Silent Resumption: if candidate was speaking or reflecting when connection dropped, keep AI silent!
+              if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
+                console.log(`🤫 Silent Resumption active for session ${session.sessionId}: AI remains quiet, microphone immediately unlocked for candidate.`);
+                if (clientSocket.readyState === WebSocket.OPEN) {
+                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true }));
+                }
+              } else {
+                // If disconnect happened mid-AI monologue, trigger a concise 1-sentence thought completion
+                console.log(`🎙️ Mid-turn Resumption for session ${session.sessionId}: triggering brief completion without greetings.`);
+                const continueTurn = {
+                  clientContent: {
+                    turns: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {
+                            text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ]: Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
+                          }
+                        ]
+                      }
+                    ],
+                    turnComplete: true
+                  }
+                };
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  geminiSocket.send(JSON.stringify(continueTurn));
+                }
+                if (clientSocket.readyState === WebSocket.OPEN) {
+                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
+                }
+              }
+            } else {
+              // Fallback if memory was cold: send concise non-regreeting continuation
+              const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
+              const initialGreetingTurn = {
                 clientContent: {
                   turns: [
                     {
                       role: 'user',
-                      parts: [
-                        {
-                          text: sessionType === 'tutor'
-                            ? (tutorMode === 'bug_hunt'
-                              ? 'Начни устное код-ревью в 1 короткой фразе.'
-                              : tutorMode === 'free_chat'
-                              ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
-                              : 'Начни диалог тьютора в 1 короткой фразе.')
-                            : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
-                        }
-                      ]
+                      parts: [{ text: fallbackGreeting }]
                     }
                   ],
                   turnComplete: true
                 }
               };
-              try {
-                geminiSocket.send(JSON.stringify(nudgeTurn));
-              } catch (nudgeErr) {
-                console.warn('Watchdog nudge send warning:', nudgeErr);
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(initialGreetingTurn));
+              }
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
               }
             }
-          }, 3500);
+          } else {
+            let greetingText = '';
+            if (sessionType === 'tutor') {
+              if (tutorMode === 'bug_hunt') {
+                greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
+              } else if (tutorMode === 'deep_dive') {
+                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
+              } else if (tutorMode === 'free_chat') {
+                greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
+              } else if (tutorMode === 'socratic') {
+                greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
+              } else if (tutorMode === 'eli5') {
+                greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
+              } else {
+                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
+              }
+            } else {
+              const isSubsequent = questionIndex > 0;
+              if (session.isRetry) {
+                greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри одной фразой и четко задай этот вопрос.`;
+              } else {
+                greetingText = isSubsequent
+                  ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
+                  : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+              }
+            }
+
+            const initialGreetingTurn = {
+              clientContent: {
+                turns: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        text: greetingText
+                      }
+                    ]
+                  }
+                ],
+                turnComplete: true
+              }
+            };
+
+            if (geminiSocket.readyState === WebSocket.OPEN) {
+              geminiSocket.send(JSON.stringify(initialGreetingTurn));
+            }
+
+            // Watchdog
+            if (greetingWatchdog) clearTimeout(greetingWatchdog);
+            greetingWatchdog = setTimeout(() => {
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
+                const nudgeTurn = {
+                  clientContent: {
+                    turns: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {
+                            text: sessionType === 'tutor'
+                              ? (tutorMode === 'bug_hunt'
+                                ? 'Начни устное код-ревью в 1 короткой фразе.'
+                                : tutorMode === 'free_chat'
+                                ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
+                                : 'Начни диалог тьютора в 1 короткой фразе.')
+                              : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
+                          }
+                        ]
+                      }
+                    ],
+                    turnComplete: true
+                  }
+                };
+                try {
+                  geminiSocket.send(JSON.stringify(nudgeTurn));
+                } catch (nudgeErr) {
+                  console.warn('Watchdog nudge send warning:', nudgeErr);
+                }
+              }
+            }, 3500);
+
+            // Notify client
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              clientSocket.send(JSON.stringify({ type: 'setupComplete' }));
+            }
+          }
 
           // Drain queued frames
           while (session.frameQueue.length > 0) {
@@ -808,14 +918,9 @@ ${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${la
               geminiSocket.send(frame);
             }
           }
-
-          // Notify client
-          if (clientSocket.readyState === WebSocket.OPEN) {
-            clientSocket.send(JSON.stringify({ type: 'setupComplete' }));
-          }
         }
 
-        // Clear watchdog and increment probesCount as soon as model starts responding
+        // Model Turn Text accumulation and watchdog clearing
         if (parsed.serverContent?.modelTurn) {
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
@@ -826,6 +931,38 @@ ${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${la
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
             session.nudgeWatchdog = null;
+          }
+
+          if (parsed.serverContent.modelTurn.parts) {
+            for (const part of parsed.serverContent.modelTurn.parts) {
+              if (part.text) {
+                session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
+              }
+            }
+          }
+        }
+
+        // AI finished generating turn: commit to session turn history
+        if (parsed.serverContent?.turnComplete) {
+          if (session.currentAiTurnText && session.sessionId) {
+            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+            mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+            mem.lastSpeaker = 'model';
+            mem.updatedAt = Date.now();
+            session.currentAiTurnText = '';
+          }
+        }
+
+        // Barge-in interruption during AI speech
+        if (parsed.serverContent?.interrupted) {
+          if (session.sessionId) {
+            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+            if (session.currentAiTurnText) {
+              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+              session.currentAiTurnText = '';
+            }
+            mem.lastSpeaker = 'user';
+            mem.updatedAt = Date.now();
           }
         }
 
@@ -1143,6 +1280,45 @@ ${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${la
             clientSocket.send(JSON.stringify({ type: 'pong', timestamp: parsed.timestamp || Date.now() }));
           }
           return;
+        }
+
+        // First-frame resumption sync from client (robust fallback if memory was cold)
+        if (parsed.type === 'resume_sync' && Array.isArray(parsed.turns) && session.sessionId) {
+          const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+          if (mem.turns.length === 0 && parsed.turns.length > 0) {
+            mem.turns = parsed.turns
+              .map((t: any) => ({
+                role: (t.role === 'model' || t.role === 'ai' ? 'model' : 'user') as 'user' | 'model',
+                text: String(t.text || '').trim()
+              }))
+              .filter((t: any) => t.text.length > 0);
+            mem.lastSpeaker = mem.turns[mem.turns.length - 1]?.role || 'none';
+            mem.updatedAt = Date.now();
+            console.log(`📥 Seeded session memory from client resume_sync frame: ${mem.turns.length} turns for session ${session.sessionId}`);
+          }
+          return;
+        }
+
+        // Client text message turn tracking
+        if (parsed.clientContent?.turns && session.sessionId) {
+          for (const turn of parsed.clientContent.turns) {
+            if (turn.parts) {
+              const turnText = turn.parts.map((p: any) => p.text || '').join('').trim();
+              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ')) {
+                const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+                mem.turns.push({ role: 'user', text: turnText });
+                mem.lastSpeaker = 'user';
+                mem.updatedAt = Date.now();
+              }
+            }
+          }
+        }
+
+        // Client audio turn tracking
+        if (session.sessionId && (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks)) {
+          const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+          mem.lastSpeaker = 'user';
+          mem.updatedAt = Date.now();
         }
 
         // Ignore duplicate setup frames from client since setup is already initiated via URL query params

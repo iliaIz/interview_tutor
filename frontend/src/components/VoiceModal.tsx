@@ -512,13 +512,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     qIndex: number,
     targetQ: { id: string; topic: string; question: string; answer: string },
     isRetry?: boolean,
-    isResumed?: boolean,
-    resumptionContext?: {
-      resumptionSummary?: string;
-      lastCandidateTurn?: string;
-      lastAiTurn?: string;
-      probesCount?: number;
-    }
+    isResumed?: boolean
   ) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     let hostWithPort = window.location.host;
@@ -527,6 +521,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
 
     const params = new URLSearchParams({
+      sessionId: sessionIdRef.current,
       questionId: targetQ.id,
       topic: targetQ.topic,
       questionText: targetQ.question,
@@ -545,16 +540,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       liveModel: interviewConfig.liveModel || 'gemini-live-v2',
       questionIndex: String(qIndex),
       totalQuestions: String(totalQuestions),
-      isRetry: String(!!isRetry)
+      isRetry: String(!!isRetry),
+      isResumed: String(!!isResumed),
+      probesCount: String(turnCountRef.current)
     });
-
-    if (isResumed && resumptionContext) {
-      params.set('isResumed', 'true');
-      if (resumptionContext.resumptionSummary) params.set('resumptionSummary', resumptionContext.resumptionSummary);
-      if (resumptionContext.lastCandidateTurn) params.set('lastCandidateTurn', resumptionContext.lastCandidateTurn);
-      if (resumptionContext.lastAiTurn) params.set('lastAiTurn', resumptionContext.lastAiTurn);
-      if (typeof resumptionContext.probesCount === 'number') params.set('probesCount', String(resumptionContext.probesCount));
-    }
 
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
     console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}, isResumed=${!!isResumed}, type=${sessionType}):`, wsUrl);
@@ -590,6 +579,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     ws.onopen = () => {
       setIsConnected(true);
       console.log('✅ Live WebSocket connected to backend proxy');
+
+      // First-Frame Resumption Sync: pass structured turns as JSON frame (zero risk of HTTP 414 URI Too Long)
+      if (isResumed) {
+        const turnsToSync = dialogueTurnsRef.current
+          .filter((t) => t.role === 'user' || t.role === 'ai')
+          .map((t) => ({ role: t.role, text: t.text }));
+        if (turnsToSync.length > 0) {
+          console.log(`📤 Sending first-frame resume_sync to backend (${turnsToSync.length} turns)...`);
+          ws.send(JSON.stringify({
+            type: 'resume_sync',
+            sessionId: sessionIdRef.current,
+            turns: turnsToSync
+          }));
+        }
+      }
     };
 
     ws.onmessage = async (event) => {
@@ -647,9 +651,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               ...prev,
               {
                 role: 'system',
-                text: '⚡ Контекст восстановлен: продолжаем диалог с места паузы.'
+                text: '⚡ Контекст сохранен: продолжаем диалог с места паузы.'
               }
             ]);
+            if (data.silent) {
+              console.log('🤫 Silent Resumption confirmed by server: activating candidate microphone.');
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setIsThinking(false);
+              isThinkingRef.current = false;
+              setIsRecording(true);
+              isRecordingRef.current = true;
+            }
           } else if (sessionType === 'tutor') {
             setDialogueTurns((prev) => [
               ...prev,
@@ -821,11 +834,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           const aiTurns = turns.filter((t) => t.role === 'ai');
           const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
           const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
-          const resumptionSummary = turns
-            .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text}`)
-            .join('\n')
-            .slice(0, 3000);
-
           setDialogueTurns((prev) => [
             ...prev,
             { role: 'system', text: '🔄 Соединение обновлено, контекст сохранен. Продолжаем...' }
@@ -833,12 +841,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           setTimeout(() => {
             if (!isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
-              connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
-                resumptionSummary,
-                lastCandidateTurn,
-                lastAiTurn,
-                probesCount: turnCountRef.current
-              });
+              connectLiveWebSocket(activeBatchIndex, targetQ, false, true);
             }
           }, 500);
         } else {
@@ -864,22 +867,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     resumeAttemptsRef.current = 0;
     setIsConnectionLost(false);
 
-    const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');
-    const userTurns = turns.filter((t) => t.role === 'user');
-    const aiTurns = turns.filter((t) => t.role === 'ai');
-    const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
-    const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
-    const resumptionSummary = turns
-      .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text}`)
-      .join('\n')
-      .slice(0, 3000);
-
-    connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
-      resumptionSummary,
-      lastCandidateTurn,
-      lastAiTurn,
-      probesCount: turnCountRef.current
-    });
+    connectLiveWebSocket(activeBatchIndex, targetQ, false, true);
   };
 
   /**
@@ -1022,6 +1010,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            sessionId: sessionIdRef.current,
             questionId: activeQuestionId,
             topic: activeTopic,
             questionText: activeQuestionText,
