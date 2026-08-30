@@ -710,8 +710,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
           let greetingText = '';
           if (isResumed) {
-            greetingText = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА ПОСЛЕ ТЕХНИЧЕСКОГО ПЕРЕРЫВА]: Мы продолжаем обсуждение текущего вопроса «${questionText || topic}».
-Контекст предыдущего диалога:
+            greetingText = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА ПОСЛЕ ТЕХНИЧЕСКОГО ПЕРЕРЫВА]:
+ТЕКУЩИЙ ВОПРОС: "${questionText || topic}"
+${referenceAnswer ? `ЭТАЛОННЫЙ ОТВЕТ (ЗОЛОТОЙ СТАНДАРТ ТЕОРИИ):\n"""\n${referenceAnswer}\n"""` : ''}
+
+КОНТЕКСТ ТЕКУЩЕГО ДИАЛОГА ПО ЭТОМУ ВОПРОСУ:
 - Уже обсуждено: ${resumptionSummary || 'Кандидат уже давал пояснения'}
 ${lastCandidateTurn ? `- Предыдущая реплика кандидата: "${lastCandidateTurn}"` : ''}
 ${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${lastAiTurn}"` : ''}

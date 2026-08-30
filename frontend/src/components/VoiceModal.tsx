@@ -34,7 +34,8 @@ import {
   VolumeX,
   Keyboard,
   Clock,
-  Code2
+  Code2,
+  WifiOff
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -163,6 +164,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [isPauseHolding, setIsPauseHolding] = useState<boolean>(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [isConnectionLost, setIsConnectionLost] = useState(false);
   const [rmsDb, setRmsDb] = useState<number>(-60);
   const [dialogueTurns, setDialogueTurns] = useState<
     Array<{ role: 'ai' | 'user' | 'system'; text: string }>
@@ -638,6 +640,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         if (data.type === 'setupComplete') {
           resumeAttemptsRef.current = 0;
+          setIsConnectionLost(false);
           const isSubsequent = qIndex > 0;
           if (isResumed) {
             setDialogueTurns((prev) => [
@@ -807,36 +810,41 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       const isSessionActive = stage === 'active' && !isEvaluationFinalizedRef.current && !!targetQ;
       const isDeliberateAbort = ev.code === 1000 && ev.reason === 'client_abort';
 
-      if (isSessionActive && !isDeliberateAbort && resumeAttemptsRef.current < 3) {
-        resumeAttemptsRef.current++;
-        console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/3 with state snapshot...`);
+      if (isSessionActive && !isDeliberateAbort) {
+        if (resumeAttemptsRef.current < 3) {
+          resumeAttemptsRef.current++;
+          console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/3 with state snapshot...`);
 
-        // Compile state snapshot from dialogueTurnsRef
-        const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');
-        const userTurns = turns.filter((t) => t.role === 'user');
-        const aiTurns = turns.filter((t) => t.role === 'ai');
-        const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
-        const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
-        const resumptionSummary = turns
-          .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text.slice(0, 140)}`)
-          .join(' | ')
-          .slice(0, 800);
+          // Compile state snapshot from dialogueTurnsRef (Strict Question-Boundary Isolation & Splicing up to 3000 chars)
+          const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');
+          const userTurns = turns.filter((t) => t.role === 'user');
+          const aiTurns = turns.filter((t) => t.role === 'ai');
+          const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
+          const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
+          const resumptionSummary = turns
+            .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text}`)
+            .join('\n')
+            .slice(0, 3000);
 
-        setDialogueTurns((prev) => [
-          ...prev,
-          { role: 'system', text: '🔄 Соединение обновлено, контекст сохранен. Продолжаем...' }
-        ]);
+          setDialogueTurns((prev) => [
+            ...prev,
+            { role: 'system', text: '🔄 Соединение обновлено, контекст сохранен. Продолжаем...' }
+          ]);
 
-        setTimeout(() => {
-          if (!isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
-            connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
-              resumptionSummary,
-              lastCandidateTurn,
-              lastAiTurn,
-              probesCount: turnCountRef.current
-            });
-          }
-        }, 500);
+          setTimeout(() => {
+            if (!isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+              connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
+                resumptionSummary,
+                lastCandidateTurn,
+                lastAiTurn,
+                probesCount: turnCountRef.current
+              });
+            }
+          }, 500);
+        } else {
+          console.warn('⚠️ Auto-resumption attempts exhausted (3/3). Displaying Recovery Card.');
+          setIsConnectionLost(true);
+        }
       }
     };
 
@@ -845,6 +853,33 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       clearAllTurnWatchdogs();
       setIsConnected(false);
     };
+  };
+
+  /**
+   * Action: Manual Reconnect when offline / auto-resume exhausted
+   */
+  const handleManualReconnect = () => {
+    const targetQ = questionsBatch?.[activeBatchIndex];
+    if (!targetQ) return;
+    resumeAttemptsRef.current = 0;
+    setIsConnectionLost(false);
+
+    const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');
+    const userTurns = turns.filter((t) => t.role === 'user');
+    const aiTurns = turns.filter((t) => t.role === 'ai');
+    const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
+    const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
+    const resumptionSummary = turns
+      .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text}`)
+      .join('\n')
+      .slice(0, 3000);
+
+    connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
+      resumptionSummary,
+      lastCandidateTurn,
+      lastAiTurn,
+      probesCount: turnCountRef.current
+    });
   };
 
   /**
@@ -1136,6 +1171,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setActiveBatchIndex(targetIndex);
     setStage('active');
     setEvaluation(null);
+    setIsConnectionLost(false);
+    resumeAttemptsRef.current = 0;
     setIsAiSpeaking(true);
     isAiSpeakingRef.current = true;
     setIsRecording(false);
@@ -2534,6 +2571,39 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Offline Recovery Card upon 3 failed auto-resumes */}
+                {isConnectionLost && (
+                  <div className="mt-2.5 p-4 rounded-2xl bg-white/95 border border-rose-200/90 shadow-md text-center max-w-md mx-auto animate-fade-in shrink-0">
+                    <div className="flex items-center justify-center gap-2 mb-1.5 text-rose-600 font-bold text-xs">
+                      <WifiOff className="w-4 h-4" />
+                      <span>Связь с голосовым каналом прервана</span>
+                    </div>
+                    <p className="text-[11px] text-pastel-sub mb-3 leading-relaxed">
+                      История вашего ответа и контекст текущего вопроса сохранены. Вы можете возобновить диалог с сохраненного места.
+                    </p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleManualReconnect}
+                        className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold text-xs shadow-xs hover:opacity-95 transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Возобновить разговор</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          teardownFullAudio();
+                          setStage('lobby');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-pastel-card hover:bg-white border border-pastel-border text-pastel-sub hover:text-pastel-text text-xs font-semibold transition cursor-pointer"
+                      >
+                        В лобби
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="my-3.5 flex flex-col items-center justify-center shrink-0">
                   <div className="relative flex items-center justify-center">
