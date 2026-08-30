@@ -54,6 +54,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
 
   const textModelName = envConfig.models.text;
   const liveModelName = envConfig.models.live;
+  const livePreviewModelName = envConfig.models.livePreview;
   const ttsModelName = envConfig.models.tts;
   const embeddingModelName = envConfig.models.embedding;
 
@@ -64,6 +65,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
 
   let textModelReady = false;
   let liveModelReady = false;
+  let livePreviewModelReady = false;
   let ttsModelReady = false;
   let embeddingModelReady = false;
 
@@ -100,6 +102,9 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
         liveModelReady = availableInProxy.includes(liveModelName) || 
                          availableInProxy.includes('gemini-tts-live-v3') ||
                          availableInProxy.includes('gemini-live');
+        livePreviewModelReady = !livePreviewModelName ||
+                                availableInProxy.includes(livePreviewModelName) ||
+                                availableInProxy.includes('gemini-live-v3');
         ttsModelReady = availableInProxy.includes(ttsModelName) ||
                         availableInProxy.includes('gemini-tts-v3');
         embeddingModelReady = availableInProxy.includes(embeddingModelName) ||
@@ -107,13 +112,14 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
                               availableInProxy.includes('text-embedding-3-small') ||
                               availableInProxy.includes('text-embedding-004');
 
-        if (textModelReady && liveModelReady && ttsModelReady && embeddingModelReady) {
+        if (textModelReady && liveModelReady && livePreviewModelReady && ttsModelReady && embeddingModelReady) {
           aiStatus = 'ready';
         } else {
           aiStatus = 'connecting';
           const missing = [];
           if (!textModelReady) missing.push(`TEXT (${textModelName})`);
           if (!liveModelReady) missing.push(`LIVE (${liveModelName})`);
+          if (!livePreviewModelReady && livePreviewModelName) missing.push(`LIVE_PREVIEW (${livePreviewModelName})`);
           if (!ttsModelReady) missing.push(`TTS (${ttsModelName})`);
           if (!embeddingModelReady) missing.push(`EMBEDDING (${embeddingModelName})`);
           aiError = `Не найдены модели в LiteLLM-Proxy: ${missing.join(', ')}`;

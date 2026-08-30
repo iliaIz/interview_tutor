@@ -54,11 +54,12 @@ app.get('/api/config', (req, res) => {
   res.json({
     models: {
       defaultLiveModel: envConfig.models.live,
+      defaultLivePreviewModel: envConfig.models.livePreview,
       defaultTtsModel: envConfig.models.tts,
       defaultTextModel: envConfig.models.text,
       defaultFastModel: envConfig.models.fast,
       defaultEmbeddingModel: envConfig.models.embedding,
-      supportedLiveModels: ['gemini-live-v2', 'gemini-live-v3']
+      supportedLiveModels: envConfig.models.supportedLiveModels
     }
   });
 });

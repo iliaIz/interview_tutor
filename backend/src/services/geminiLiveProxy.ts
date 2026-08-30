@@ -516,9 +516,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const proxyApiKey = envConfig.proxy.apiKey;
     const requestedModel = (query.liveModel as string) || '';
-    const liveModel = requestedModel === 'gemini-live-v3'
-      ? 'gemini-live-v3'
-      : envConfig.models.live;
+    const isSupported = envConfig.models.supportedLiveModels.includes(requestedModel);
+    const liveModel = isSupported ? requestedModel : envConfig.models.live;
+    if (requestedModel && !isSupported) {
+      console.warn(`⚠️ Requested Live model "${requestedModel}" is not in supported list [${envConfig.models.supportedLiveModels.join(', ')}]. Falling back to default "${envConfig.models.live}".`);
+    }
 
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
