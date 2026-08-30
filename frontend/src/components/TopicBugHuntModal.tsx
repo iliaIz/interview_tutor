@@ -160,22 +160,32 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [isExhausted, setIsExhausted] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   
-  // Honest Monotonic Elapsed Timer
+  // Honest Monotonic Elapsed Timer & Cognitive Stepper
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [loaderStepIndex, setLoaderStepIndex] = useState(0);
+  const [triviaIndex, setTriviaIndex] = useState(0);
 
   const LOADER_STEPS = [
-    'Анализ архитектурных паттернов и спецификаций...',
-    'Инъекция скрытого производственного дефекта в стек...',
-    'Сборка контекста инцидента и телеметрии Grafana/Sentry...',
-    'Финальная валидация решения и компиляция кейса...'
+    '🔍 Анализ архитектурных спецификаций (Java 21 & Spring Boot 3.4)...',
+    '⚡ Ментальное моделирование конкурентных гонок (Race Conditions & Loom)...',
+    '📊 Синтез контекста инцидента и телеметрии Grafana/Sentry...',
+    '🛡️ Многопроходная верификация эталонного фикса и калибровка подсказок...'
   ];
 
-  // Monotonic timer for generation HUD
+  const EDUCATIONAL_TRIVIA = [
+    '💡 В Java 21 `synchronized` блокирует несущий поток (Carrier Thread) виртуального Loom-потока. В высоконагруженных микросервисах используйте `ReentrantLock`.',
+    '💡 `@Transactional` в Spring по умолчанию не откатывает Checked исключения (`Exception`). Чтобы откатывать любые сбои, используйте `rollbackFor = Exception.class`.',
+    '💡 В `ConcurrentHashMap` метод `computeIfAbsent()` гарантирует атомарность на уровне ключа, но вычисления внутри лямбды должны быть быстрыми и неблокирующими.',
+    '💡 Паттерн Transactional Outbox решает проблему Dual-Write: запись бизнес-сущности и сообщения в очередь происходит в одной ACID-транзакции БД.',
+    '💡 В Hibernate 6.6 генератор ID `SEQUENCE` с `allocationSize > 1` снижает количество сетевых round-trip запросов к PostgreSQL в разы.'
+  ];
+
+  // Monotonic timer for generation HUD & trivia cycling
   useEffect(() => {
     if (!isLoadingChallenge && !isLoadingVariation) {
       setElapsedSeconds(0);
       setLoaderStepIndex(0);
+      setTriviaIndex(0);
       return;
     }
     const secTimer = setInterval(() => {
@@ -184,11 +194,16 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
     const stepTimer = setInterval(() => {
       setLoaderStepIndex((prev) => (prev + 1) % LOADER_STEPS.length);
-    }, 3500);
+    }, 3200);
+
+    const triviaTimer = setInterval(() => {
+      setTriviaIndex((prev) => (prev + 1) % EDUCATIONAL_TRIVIA.length);
+    }, 4500);
 
     return () => {
       clearInterval(secTimer);
       clearInterval(stepTimer);
+      clearInterval(triviaTimer);
     };
   }, [isLoadingChallenge, isLoadingVariation]);
 
@@ -977,18 +992,21 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </button>
                 </div>
               ) : isLoadingChallenge ? (
-                <div className="py-16 flex flex-col items-center justify-center gap-4 text-[#7E699B] max-w-md mx-auto text-center">
+                <div className="py-12 flex flex-col items-center justify-center gap-4 text-[#7E699B] max-w-lg mx-auto text-center animate-fade-in">
                   <div className="relative">
                     <Loader2 className="w-10 h-10 text-pink-600 animate-spin" />
                     <span className="absolute inset-0 rounded-full bg-pink-400/20 animate-ping" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 w-full">
                     <div className="flex items-center justify-center gap-2">
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-pink-100 text-[#4A1E6D] border border-pink-200">
                         ⏳ {formatElapsed(elapsedSeconds)}
                       </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-purple-100/80 text-purple-950 border border-purple-200 shadow-2xs">
+                        🧠 Deep Reasoning: 4096 токенов
+                      </span>
                     </div>
-                    <p className="text-xs font-mono font-bold text-[#4A1E6D] transition-all duration-300">
+                    <p className="text-xs font-mono font-bold text-[#4A1E6D] transition-all duration-300 min-h-[32px] flex items-center justify-center px-4">
                       {LOADER_STEPS[loaderStepIndex]}
                     </p>
                     <p className="text-[10px] text-[#9D88B5]">
@@ -996,7 +1014,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     </p>
                   </div>
                   {/* Step indicators */}
-                  <div className="flex items-center gap-1.5 pt-1">
+                  <div className="flex items-center gap-1.5 pt-0.5">
                     {LOADER_STEPS.map((_, idx) => (
                       <span
                         key={idx}
@@ -1009,8 +1027,23 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                     ))}
                   </div>
 
+                  {/* Educational Micro-Trivia Card */}
+                  <div className="w-full mt-2 p-3.5 rounded-2xl bg-white/90 border border-pink-200/80 shadow-xs text-left animate-fade-in transition-all">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold text-pink-700 uppercase tracking-wider flex items-center gap-1">
+                        <span>💡 Инсайт по теме</span>
+                      </span>
+                      <span className="text-[9px] text-[#9D88B5] font-mono">
+                        Инсайт {triviaIndex + 1} из {EDUCATIONAL_TRIVIA.length}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#4A1E6D] leading-snug font-normal">
+                      {EDUCATIONAL_TRIVIA[triviaIndex]}
+                    </p>
+                  </div>
+
                   {/* Cancel and fallback to bank button */}
-                  <div className="pt-3">
+                  <div className="pt-2">
                     <button
                       type="button"
                       onClick={handleCancelGenerationAndOpenBank}

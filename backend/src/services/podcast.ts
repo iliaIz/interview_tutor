@@ -1,5 +1,6 @@
 import { db } from './db';
 import { envConfig } from '../config/env';
+import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -315,11 +316,14 @@ ${text}`;
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${proxyApiKey}`,
     },
+    signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({
       model: modelName,
       messages: [{ role: 'user', content: scriptPrompt }],
       response_format: { type: 'json_object' },
-      temperature: 0.3
+      temperature: REASONING_PRESETS.podcastDramaturgy.temperature,
+      max_tokens: REASONING_PRESETS.podcastDramaturgy.maxTokens,
+      extra_body: buildReasoningExtraBody(REASONING_PRESETS.podcastDramaturgy)
     })
   });
 

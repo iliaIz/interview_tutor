@@ -218,6 +218,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const isEvaluationFinalizedRef = useRef(false);
   const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
   const turnCountRef = useRef(0);
+  const resumeAttemptsRef = useRef(0);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -508,7 +509,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const connectLiveWebSocket = (
     qIndex: number,
     targetQ: { id: string; topic: string; question: string; answer: string },
-    isRetry?: boolean
+    isRetry?: boolean,
+    isResumed?: boolean,
+    resumptionContext?: {
+      resumptionSummary?: string;
+      lastCandidateTurn?: string;
+      lastAiTurn?: string;
+      probesCount?: number;
+    }
   ) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     let hostWithPort = window.location.host;
@@ -538,8 +546,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isRetry: String(!!isRetry)
     });
 
+    if (isResumed && resumptionContext) {
+      params.set('isResumed', 'true');
+      if (resumptionContext.resumptionSummary) params.set('resumptionSummary', resumptionContext.resumptionSummary);
+      if (resumptionContext.lastCandidateTurn) params.set('lastCandidateTurn', resumptionContext.lastCandidateTurn);
+      if (resumptionContext.lastAiTurn) params.set('lastAiTurn', resumptionContext.lastAiTurn);
+      if (typeof resumptionContext.probesCount === 'number') params.set('probesCount', String(resumptionContext.probesCount));
+    }
+
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
-    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}, type=${sessionType}):`, wsUrl);
+    console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}, isResumed=${!!isResumed}, type=${sessionType}):`, wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -606,7 +622,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         // Upstream response delayed nudge (>5.5s)
         if (data.type === 'thinking_delay') {
-          setThinkingStage('delayed');
+      setThinkingStage('delayed');
           return;
         }
 
@@ -621,8 +637,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         }
 
         if (data.type === 'setupComplete') {
+          resumeAttemptsRef.current = 0;
           const isSubsequent = qIndex > 0;
-          if (sessionType === 'tutor') {
+          if (isResumed) {
+            setDialogueTurns((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                text: '⚡ Контекст восстановлен: продолжаем диалог с места паузы.'
+              }
+            ]);
+          } else if (sessionType === 'tutor') {
             setDialogueTurns((prev) => [
               ...prev,
               {
@@ -776,6 +801,43 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isThinkingRef.current = false;
       setThinkingStage('idle');
       setIsUserSpeaking(false);
+
+      // SOTA Auto-Resumption: Seamless reconnection with compacted context on Google/network timeouts
+      const targetQ = questionsBatch?.[activeBatchIndex];
+      const isSessionActive = stage === 'active' && !isEvaluationFinalizedRef.current && !!targetQ;
+      const isDeliberateAbort = ev.code === 1000 && ev.reason === 'client_abort';
+
+      if (isSessionActive && !isDeliberateAbort && resumeAttemptsRef.current < 3) {
+        resumeAttemptsRef.current++;
+        console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/3 with state snapshot...`);
+
+        // Compile state snapshot from dialogueTurnsRef
+        const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');
+        const userTurns = turns.filter((t) => t.role === 'user');
+        const aiTurns = turns.filter((t) => t.role === 'ai');
+        const lastCandidateTurn = userTurns[userTurns.length - 1]?.text || '';
+        const lastAiTurn = aiTurns[aiTurns.length - 1]?.text || '';
+        const resumptionSummary = turns
+          .map((t) => `${t.role === 'user' ? 'Кандидат' : 'ИИ'}: ${t.text.slice(0, 140)}`)
+          .join(' | ')
+          .slice(0, 800);
+
+        setDialogueTurns((prev) => [
+          ...prev,
+          { role: 'system', text: '🔄 Соединение обновлено, контекст сохранен. Продолжаем...' }
+        ]);
+
+        setTimeout(() => {
+          if (!isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+            connectLiveWebSocket(activeBatchIndex, targetQ, false, true, {
+              resumptionSummary,
+              lastCandidateTurn,
+              lastAiTurn,
+              probesCount: turnCountRef.current
+            });
+          }
+        }, 500);
+      }
     };
 
     ws.onerror = (err) => {

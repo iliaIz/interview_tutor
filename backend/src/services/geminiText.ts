@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { envConfig } from '../config/env';
+import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 dotenv.config();
 
 export interface EvalResult {
@@ -50,13 +51,14 @@ ${userAnswer}`;
 
   // Route strictly via LiteLLM Proxy
   try {
-    console.log(`🤖 Evaluating text answer via LiteLLM Proxy (${endpointUrl}) using model [${modelName}]...`);
+    console.log(`🤖 Evaluating text answer via LiteLLM Proxy (${endpointUrl}) using model [${modelName}] with thinking_budget=${REASONING_PRESETS.conceptualGrading.thinkingBudget}...`);
     const proxyRes = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${proxyApiKey}`,
       },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model: modelName,
         messages: [
@@ -64,7 +66,9 @@ ${userAnswer}`;
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.2
+        temperature: REASONING_PRESETS.conceptualGrading.temperature,
+        max_tokens: REASONING_PRESETS.conceptualGrading.maxTokens,
+        extra_body: buildReasoningExtraBody(REASONING_PRESETS.conceptualGrading)
       })
     });
 

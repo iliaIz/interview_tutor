@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { db } from './db';
 import { envConfig } from '../config/env';
 import { TOPIC_MAP } from './topics';
+import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 
 dotenv.config();
 
@@ -415,6 +416,18 @@ ${contextInfo}
   try {
     console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Model: ${modelName}, Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
     
+    const reasoningPayload = {
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: REASONING_PRESETS.deepIncidentSynthesis.temperature,
+      max_tokens: REASONING_PRESETS.deepIncidentSynthesis.maxTokens,
+      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
+    };
+
     let proxyRes: Response;
     try {
       proxyRes = await fetch(endpointUrl, {
@@ -423,15 +436,8 @@ ${contextInfo}
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${proxyApiKey}`,
         },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.75
-        })
+        signal: AbortSignal.timeout(90_000),
+        body: JSON.stringify(reasoningPayload)
       });
     } catch (fetchErr: any) {
       if (endpointUrl.includes('host.docker.internal')) {
@@ -443,15 +449,8 @@ ${contextInfo}
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${proxyApiKey}`,
           },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt }
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.75
-          })
+          signal: AbortSignal.timeout(90_000),
+          body: JSON.stringify(reasoningPayload)
         });
       } else {
         throw fetchErr;

@@ -487,6 +487,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const questionIndex = Math.max(0, parseInt((query.questionIndex as string) || '0', 10) || 0);
     const totalQuestions = Math.max(1, parseInt((query.totalQuestions as string) || '1', 10) || 1);
     const isRetry = query.isRetry === 'true';
+    const isResumed = query.isResumed === 'true';
+    const resumptionSummary = (query.resumptionSummary as string) || '';
+    const lastCandidateTurn = (query.lastCandidateTurn as string) || '';
+    const lastAiTurn = (query.lastAiTurn as string) || '';
+    const initialProbesCount = Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0);
 
     let customAnchors: string[] = [];
     if (query.customAnchors) {
@@ -524,7 +529,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}]...`);
+    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
     let greetingWatchdog: NodeJS.Timeout | null = null;
@@ -538,9 +543,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       topic,
       referenceAnswer,
       relevantGapIds,
-      probesCount: 0,
+      probesCount: isResumed ? initialProbesCount : 0,
       isRetry,
-      hasCandidateResponded: false,
+      hasCandidateResponded: isResumed, // Resumed session already has previous candidate speech
       lastActivityAt: Date.now(),
       heartbeatInterval: null,
       nudgeWatchdog: null,
@@ -704,7 +709,17 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           console.log(`🎉 Upstream setupComplete received (Type: ${sessionType})! Sending greeting trigger...`);
 
           let greetingText = '';
-          if (sessionType === 'tutor') {
+          if (isResumed) {
+            greetingText = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА ПОСЛЕ ТЕХНИЧЕСКОГО ПЕРЕРЫВА]: Мы продолжаем обсуждение текущего вопроса «${questionText || topic}».
+Контекст предыдущего диалога:
+- Уже обсуждено: ${resumptionSummary || 'Кандидат уже давал пояснения'}
+${lastCandidateTurn ? `- Предыдущая реплика кандидата: "${lastCandidateTurn}"` : ''}
+${lastAiTurn ? `- Твоя последняя реплика/вопрос: "${lastAiTurn}"` : ''}
+
+СТРОГИЕ ИНВАРИАНТЫ:
+1. НЕ здоровайся заново. НЕ зачитывай вопрос темы с начала.
+2. Одной короткой живой фразой-связкой (1 предложение) подтверди продолжение мысли («Давай продолжим...», «Итак, возвращаясь к...») и сразу передай слово кандидату или задай следующий логический вопрос.`;
+          } else if (sessionType === 'tutor') {
             if (tutorMode === 'bug_hunt') {
               greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
             } else if (tutorMode === 'deep_dive') {

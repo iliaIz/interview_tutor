@@ -2,6 +2,7 @@ import { preProcessWorkspaceFiles } from './astAnalyzer';
 import { CodingChallenge } from './challengeSeedData';
 import { recordNewErrorGap } from './vectorMemoryService';
 import { envConfig } from '../config/env';
+import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 
 export interface EvaluationRequest {
   challenge: CodingChallenge;
@@ -268,12 +269,13 @@ ${codeXml}
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(90_000),
     body: JSON.stringify({
       model,
-      temperature: 0.1,
-      max_tokens: 4096,
+      temperature: REASONING_PRESETS.codeAudit.temperature,
+      max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
       response_format: { type: 'json_object' },
+      extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
       messages: [
         { role: 'system', content: systemInstruction },
         { role: 'user', content: userPrompt }
