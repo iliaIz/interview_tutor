@@ -82,7 +82,7 @@ export const MemoryRadarDrawer: React.FC<MemoryRadarDrawerProps> = ({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="w-full max-w-3xl max-h-[88vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-pastel-border overflow-hidden"
+          className="w-full max-w-3xl max-h-[88dvh] flex flex-col bg-white rounded-3xl shadow-2xl border border-pastel-border overflow-hidden"
         >
           {/* 1. Header (Soft Luxury Pastel) */}
           <div className="p-5 sm:p-6 border-b border-pastel-border bg-gradient-to-r from-pastel-rose via-white to-pastel-lavender flex items-center justify-between shrink-0">

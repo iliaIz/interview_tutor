@@ -649,7 +649,7 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
-        className="bg-[#FFF9FB] border border-pink-200/90 w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#2D1B4E] modal-overscroll-contain"
+        className="bg-[#FFF9FB] border border-pink-200/90 w-full max-w-4xl max-h-[92dvh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#2D1B4E] modal-overscroll-contain"
       >
         {/* Modal Top Bar in Pure Soft Luxury Glass */}
         <div className="px-6 py-4 bg-white/90 border-b border-pink-100/90 flex items-center justify-between backdrop-blur-md">

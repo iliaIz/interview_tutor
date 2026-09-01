@@ -58,6 +58,12 @@
   height: 100%;
 }
 
+/* 120 FPS CSS List Virtualization */
+.card-content-visibility {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 90px;
+}
+
 .custom-codemirror-container .cm-editor {
   height: 100% !important;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;

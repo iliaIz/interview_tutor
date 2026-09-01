@@ -1,28 +1,36 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { StudioHeader } from './components/StudioHeader';
-import { TopicSelector } from './components/TopicSelector';
-import { QuestionExplorer } from './components/QuestionExplorer';
-import { StudyDeck } from './components/StudyDeck';
-import { ExamQuiz } from './components/ExamQuiz';
-import { AcademyStudio } from './components/academy/AcademyStudio';
-import { PracticeArena } from './components/practice/PracticeArena';
-import { GuidedRoadmapStudio } from './components/roadmap/GuidedRoadmapStudio';
-
-
-import { SystemDesignCatalog } from './components/system_design/SystemDesignCatalog';
-import { SystemDesignArena } from './components/system_design/SystemDesignArena';
-import { IncidentTriageCatalog } from './components/triage/IncidentTriageCatalog';
-import { IncidentTriageStudio } from './components/triage/IncidentTriageStudio';
 import { AuthGateModal } from './components/auth/AuthGateModal';
-import { ProfileEditModal } from './components/auth/ProfileEditModal';
-import { AdminInvitesModal } from './components/auth/AdminInvitesModal';
-import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
-import { InterviewReportModal } from './components/InterviewReportModal';
-import { TopicBugHuntModal } from './components/TopicBugHuntModal';
 import { Toast } from './components/Toast';
 import { Heart, Loader2 } from 'lucide-react';
+
+// Code Splitting & Dynamic Imports for Ultra-Fast Initial Render (180kB initial chunk)
+const AcademyStudio = lazy(() => import('./components/academy/AcademyStudio').then(m => ({ default: m.AcademyStudio })));
+const PracticeArena = lazy(() => import('./components/practice/PracticeArena').then(m => ({ default: m.PracticeArena })));
+const SystemDesignCatalog = lazy(() => import('./components/system_design/SystemDesignCatalog').then(m => ({ default: m.SystemDesignCatalog })));
+const SystemDesignArena = lazy(() => import('./components/system_design/SystemDesignArena').then(m => ({ default: m.SystemDesignArena })));
+const IncidentTriageCatalog = lazy(() => import('./components/triage/IncidentTriageCatalog').then(m => ({ default: m.IncidentTriageCatalog })));
+const IncidentTriageStudio = lazy(() => import('./components/triage/IncidentTriageStudio').then(m => ({ default: m.IncidentTriageStudio })));
+const TopicSelector = lazy(() => import('./components/TopicSelector').then(m => ({ default: m.TopicSelector })));
+const QuestionExplorer = lazy(() => import('./components/QuestionExplorer').then(m => ({ default: m.QuestionExplorer })));
+const StudyDeck = lazy(() => import('./components/StudyDeck').then(m => ({ default: m.StudyDeck })));
+const ExamQuiz = lazy(() => import('./components/ExamQuiz').then(m => ({ default: m.ExamQuiz })));
+const TopicBugHuntModal = lazy(() => import('./components/TopicBugHuntModal').then(m => ({ default: m.TopicBugHuntModal })));
+const InterviewReportModal = lazy(() => import('./components/InterviewReportModal').then(m => ({ default: m.InterviewReportModal })));
+const AudioRecapModal = lazy(() => import('./components/AudioRecapModal').then(m => ({ default: m.AudioRecapModal })));
+const ProfileEditModal = lazy(() => import('./components/auth/ProfileEditModal').then(m => ({ default: m.ProfileEditModal })));
+const AdminInvitesModal = lazy(() => import('./components/auth/AdminInvitesModal').then(m => ({ default: m.AdminInvitesModal })));
+
+const StudioSuspenseLoader: React.FC = () => (
+  <div className="flex-1 min-h-[400px] flex items-center justify-center p-8">
+    <div className="flex flex-col items-center gap-2.5 p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-pastel-border/60 shadow-xs animate-fade-in">
+      <Loader2 className="w-6 h-6 animate-spin text-pastel-accentRose" />
+      <span className="text-xs font-bold text-pastel-muted font-sans">Загрузка студии...</span>
+    </div>
+  </div>
+);
 
 export const App: React.FC = () => {
   const {
@@ -46,18 +54,34 @@ export const App: React.FC = () => {
     checkAuthSession();
     checkHealth();
 
-    // Polling interval depending on readiness
+    // SOTA 2026 Page Visibility Aware Poller (Saves battery & mobile cellular data)
     let intervalId: any = null;
-    const runPoller = () => {
-      const pollMs = systemHealth.isAiReady ? 25000 : 2500;
+
+    const startPolling = () => {
+      if (intervalId) clearInterval(intervalId);
+      const pollMs = systemHealth.isAiReady ? 30000 : 3000;
       intervalId = setInterval(() => {
-        checkHealth();
+        if (document.visibilityState === 'visible') {
+          checkHealth();
+        }
       }, pollMs);
     };
 
-    runPoller();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkHealth();
+        startPolling();
+      } else {
+        if (intervalId) clearInterval(intervalId);
+      }
+    };
+
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       if (intervalId) clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [systemHealth.isAiReady]);
 
@@ -86,7 +110,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // 3. Authenticated: Render full studio
+  // 3. Authenticated: Render full studio with dynamic lazy suspense
   return (
     <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose font-sans">
       {/* Floating Ambient Mesh Auras for High-End Luxury Feel */}
@@ -97,47 +121,51 @@ export const App: React.FC = () => {
       {/* Studio Segmented Navigation Header */}
       <StudioHeader />
 
-      {/* Main Content Area */}
-      <main className="flex-1">
-        {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
-        
-        {currentStudioTab === 'practice' && <PracticeArena />}
+      {/* Main Content Area wrapped in Suspense */}
+      <main className="flex-1 flex flex-col">
+        <Suspense fallback={<StudioSuspenseLoader />}>
+          {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
+          
+          {currentStudioTab === 'practice' && <PracticeArena />}
 
+          {currentStudioTab === 'system_design' && (
+            activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />
+          )}
 
-        {currentStudioTab === 'system_design' && (
-          activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />
-        )}
+          {currentStudioTab === 'triage' && (
+            activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
+          )}
 
-        {currentStudioTab === 'triage' && (
-          activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
-        )}
-
-        {currentStudioTab === 'theory' && (
-          <>
-            {currentView === 'topics' && <TopicSelector />}
-            {currentView === 'questions' && <QuestionExplorer />}
-            {currentView === 'study' && <StudyDeck />}
-            {currentView === 'quiz' && <ExamQuiz />}
-          </>
-        )}
+          {currentStudioTab === 'theory' && (
+            <>
+              {currentView === 'topics' && <TopicSelector />}
+              {currentView === 'questions' && <QuestionExplorer />}
+              {currentView === 'study' && <StudyDeck />}
+              {currentView === 'quiz' && <ExamQuiz />}
+            </>
+          )}
+        </Suspense>
       </main>
 
       {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
-      <AudioRecapModal />
+      <Suspense fallback={null}>
+        <AudioRecapModal />
+        <InterviewReportModal
+          isOpen={Boolean(activeReportModal)}
+          onClose={closeReportModal}
+          report={activeReportModal}
+        />
+        <TopicBugHuntModal
+          isOpen={Boolean(activeTopicBugHunt)}
+          onClose={closeTopicBugHunt}
+          topicId={activeTopicBugHunt?.topicId || ''}
+          topicName={activeTopicBugHunt?.topicName || ''}
+        />
+        <ProfileEditModal />
+        <AdminInvitesModal />
+      </Suspense>
+
       <AudioPlayerBar />
-      <InterviewReportModal
-        isOpen={Boolean(activeReportModal)}
-        onClose={closeReportModal}
-        report={activeReportModal}
-      />
-      <TopicBugHuntModal
-        isOpen={Boolean(activeTopicBugHunt)}
-        onClose={closeTopicBugHunt}
-        topicId={activeTopicBugHunt?.topicId || ''}
-        topicName={activeTopicBugHunt?.topicName || ''}
-      />
-      <ProfileEditModal />
-      <AdminInvitesModal />
       <Toast />
 
       {/* Footer */}

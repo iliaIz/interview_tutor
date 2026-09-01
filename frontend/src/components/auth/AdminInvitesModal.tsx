@@ -146,7 +146,7 @@ export const AdminInvitesModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/40 backdrop-blur-md overflow-y-auto modal-overscroll-contain font-sans">
-      <div className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[90dvh] my-auto animate-in fade-in zoom-in-95 duration-200">
         
         {/* Soft Ambient Mesh Auras */}
         <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-gradient-to-br from-pastel-accentRose/20 to-transparent blur-2xl pointer-events-none" />

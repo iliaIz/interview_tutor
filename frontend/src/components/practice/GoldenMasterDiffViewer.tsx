@@ -17,7 +17,7 @@ export const GoldenMasterDiffViewer: React.FC<GoldenMasterDiffViewerProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl border border-pastel-border shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl border border-pastel-border shadow-2xl max-w-4xl w-full max-h-[85dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 border-b border-pastel-border flex items-center justify-between bg-pastel-bg/60">
           <div className="flex items-center gap-2.5">

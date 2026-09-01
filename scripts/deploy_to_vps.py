@@ -81,7 +81,7 @@ def deploy():
     docker compose -f docker-compose.prod.yml build backend
     
     echo "Recreating backend service..."
-    docker compose -f docker-compose.prod.yml up -d --no-deps backend
+    docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend
     
     echo "Reloading Caddy reverse proxy..."
     docker exec interview-caddy-ssl caddy reload || docker compose -f docker-compose.prod.yml restart caddy

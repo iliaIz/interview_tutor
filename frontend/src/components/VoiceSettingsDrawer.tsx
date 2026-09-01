@@ -87,7 +87,7 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            className="w-full max-w-2xl max-h-[86vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-pastel-border overflow-hidden my-auto relative z-10"
+            className="w-full max-w-2xl max-h-[86dvh] flex flex-col bg-white rounded-3xl shadow-2xl border border-pastel-border overflow-hidden my-auto relative z-10"
           >
             {/* 1. Header (Solid White) */}
             <div className="p-5 md:p-6 border-b border-pastel-border bg-white flex items-center justify-between shrink-0">

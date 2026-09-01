@@ -98,7 +98,7 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto modal-overscroll-contain"
+        className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92dvh] my-auto modal-overscroll-contain"
       >
 
         {/* Soft Ambient Mesh Auras */}

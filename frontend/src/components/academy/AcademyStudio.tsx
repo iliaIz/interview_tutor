@@ -650,7 +650,7 @@ export const AcademyStudio: React.FC = () => {
                             <div
                               key={step.stepNumber}
                               onClick={() => openAcademyStepModal(step)}
-                              className={`p-4 sm:p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-4 relative overflow-hidden group ${
+                              className={`card-content-visibility p-4 sm:p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-4 relative overflow-hidden group ${
                                 isCompleted
                                   ? 'bg-white border-emerald-200/80 shadow-xs hover:border-emerald-300'
                                   : 'bg-white hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs hover:shadow-md'
@@ -673,7 +673,7 @@ export const AcademyStudio: React.FC = () => {
                                       e.stopPropagation();
                                       handleToggleStep(step.stepNumber, !isCompleted);
                                     }}
-                                    className="p-1 rounded-full text-pastel-muted hover:text-emerald-600 transition cursor-pointer"
+                                    className="p-2 -m-1 rounded-xl text-pastel-muted hover:text-emerald-600 transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation focus:outline-hidden"
                                     title={isCompleted ? "Отменить зачёт" : "Отметить выполненным"}
                                   >
                                     {isCompleted ? (

@@ -42,7 +42,7 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl border border-pastel-border shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl border border-pastel-border shadow-2xl max-w-3xl w-full max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header Banner */}
         <div className={`p-6 border-b border-pastel-border flex items-center justify-between ${
           isPassed

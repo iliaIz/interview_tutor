@@ -569,7 +569,7 @@ export const QuestionExplorer: React.FC = () => {
                   {/* Row Checkbox (with Shift-click handler) */}
                   <button
                     onClick={(e) => handleItemSelect(q.id, idx, e)}
-                    className="mt-0.5 text-pastel-muted hover:text-pastel-accentRose transition shrink-0 cursor-pointer p-0.5 rounded focus:outline-none"
+                    className="mt-0.5 text-pastel-muted hover:text-pastel-accentRose transition shrink-0 cursor-pointer p-2 -m-1 rounded-xl focus:outline-hidden touch-manipulation flex items-center justify-center min-w-[36px] min-h-[36px]"
                     title="Выбрать вопрос (Shift + клик для диапазона)"
                   >
                     {isSelected ? (
