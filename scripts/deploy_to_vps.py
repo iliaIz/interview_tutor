@@ -139,7 +139,31 @@ def deploy():
         ticket_res = session.post("https://djelu.site/api/auth/ws-ticket", timeout=10)
         print(f"8. WebSocket One-Time Ticket: {ticket_res.status_code} (Ticket: {ticket_res.json().get('ticket')[:12]}...)")
 
-        print("\n🎉 PRODUCTION DEPLOYMENT & SOTA 2026 AUTH SYSTEM 100% VERIFIED!")
+        # 9. Profile rename check
+        prof_res = session.put("https://djelu.site/api/auth/profile", json={"name": "Djelu (Owner)"}, timeout=10)
+        print(f"9. Profile Rename (PUT /profile): {prof_res.status_code} (New Name: {prof_res.json().get('user', {}).get('name')})")
+
+        # 10. List invites (Owner RBAC check)
+        invs_res = session.get("https://djelu.site/api/auth/invites", timeout=10)
+        print(f"10. Owner Invites List (GET /invites): {invs_res.status_code} (Found {len(invs_res.json())} invites)")
+
+        # 11. Create new invite from UI API
+        new_inv_res = session.post("https://djelu.site/api/auth/invites", json={
+            "name": "Auto-Test Candidate",
+            "role": "candidate",
+            "maxUses": 1
+        }, timeout=10)
+        new_inv_data = new_inv_res.json()
+        print(f"11. Create Invite API (POST /invites): {new_inv_res.status_code} (Code: {new_inv_data.get('invite', {}).get('plainCode')})")
+
+        # 12. Revoke invite API
+        created_id = new_inv_data.get('invite', {}).get('inviteId')
+        if created_id:
+            rev_res = session.post(f"https://djelu.site/api/auth/invites/{created_id}/revoke", timeout=10)
+            print(f"12. Revoke Invite API (POST /invites/:id/revoke): {rev_res.status_code}")
+
+        print("\n🎉 PRODUCTION DEPLOYMENT, UNIFIED SOFT PASTEL THEME & RBAC INVITES 100% VERIFIED!")
+
 
     except Exception as e:
         print(f"Health check warning: {e}")

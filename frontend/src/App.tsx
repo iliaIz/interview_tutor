@@ -12,12 +12,15 @@ import { SystemDesignArena } from './components/system_design/SystemDesignArena'
 import { IncidentTriageCatalog } from './components/triage/IncidentTriageCatalog';
 import { IncidentTriageStudio } from './components/triage/IncidentTriageStudio';
 import { AuthGateModal } from './components/auth/AuthGateModal';
+import { ProfileEditModal } from './components/auth/ProfileEditModal';
+import { AdminInvitesModal } from './components/auth/AdminInvitesModal';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { TopicBugHuntModal } from './components/TopicBugHuntModal';
 import { Toast } from './components/Toast';
 import { Heart, Loader2 } from 'lucide-react';
+
 
 export const App: React.FC = () => {
   const {
@@ -119,7 +122,10 @@ export const App: React.FC = () => {
         topicId={activeTopicBugHunt?.topicId || ''}
         topicName={activeTopicBugHunt?.topicName || ''}
       />
+      <ProfileEditModal />
+      <AdminInvitesModal />
       <Toast />
+
 
       {/* Footer */}
       {currentStudioTab !== 'practice' && !activeSystemDesignScenario && !activeTriageIncident && (

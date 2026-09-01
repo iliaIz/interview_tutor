@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { authService } from '../services/authService';
-import { requireAuth, AuthenticatedRequest, extractSessionToken } from '../middleware/auth';
+import { requireAuth, requireRole, AuthenticatedRequest, extractSessionToken } from '../middleware/auth';
 import { db } from '../services/db';
 
 export const authRouter = Router();
+
 
 
 // POST /api/auth/login
@@ -124,4 +125,58 @@ authRouter.put('/profile', requireAuth, (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ error: 'Failed to update profile', message: err.message });
   }
 });
+
+// GET /api/auth/invites (List all invites - Owner only)
+authRouter.get('/invites', requireAuth, requireRole('owner'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const invites = authService.listInvites();
+    res.json(invites);
+  } catch (err: any) {
+    console.error('List invites error:', err);
+    res.status(500).json({ error: 'Failed to list invites', message: err.message });
+  }
+});
+
+// POST /api/auth/invites (Create invite - Owner only)
+authRouter.post('/invites', requireAuth, requireRole('owner'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, role, code, maxUses, label } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Пожалуйста, укажите имя пользователя/кандидата' });
+    }
+
+    const created = authService.createInvite({
+      name: name.trim(),
+      role: role === 'owner' || role === 'mentor' ? role : 'candidate',
+      code: typeof code === 'string' && code.trim() ? code.trim() : undefined,
+      maxUses: typeof maxUses === 'number' ? maxUses : 0,
+      label: typeof label === 'string' && label.trim() ? label.trim() : undefined
+    });
+
+    res.json({
+      success: true,
+      invite: created
+    });
+  } catch (err: any) {
+    console.error('Create invite error:', err);
+    res.status(500).json({ error: 'Failed to create invite', message: err.message });
+  }
+});
+
+// POST /api/auth/invites/:id/revoke (Revoke invite - Owner only)
+authRouter.post('/invites/:id/revoke', requireAuth, requireRole('owner'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const success = authService.revokeInvite(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Инвайт не найден или уже отозван' });
+    }
+    res.json({ success: true, message: 'Инвайт успешно отозван' });
+  } catch (err: any) {
+    console.error('Revoke invite error:', err);
+    res.status(500).json({ error: 'Failed to revoke invite', message: err.message });
+  }
+});
+
 

@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAppStore, StudioTab } from '../store/useAppStore';
-import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut, Edit2 } from 'lucide-react';
-import { ProfileEditModal } from './auth/ProfileEditModal';
+import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut, Edit2, KeyRound } from 'lucide-react';
 
 export const StudioHeader: React.FC = () => {
-  const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt, currentUser, logout } = useAppStore();
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt, currentUser, logout, openProfileModal, openAdminInvitesModal } = useAppStore();
+
 
 
 
@@ -125,20 +124,31 @@ export const StudioHeader: React.FC = () => {
 
           {currentUser && (
             <div className="flex items-center gap-1.5 pl-2 border-l border-pastel-border/80">
+              {currentUser.role === 'owner' && (
+                <button
+                  onClick={openAdminInvitesModal}
+                  title="Генератор инвайт-кодов (Владелец)"
+                  className="hidden md:flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-200/80 shadow-2xs transition cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Инвайты</span>
+                </button>
+              )}
+
               <button
-                onClick={() => setIsProfileModalOpen(true)}
+                onClick={openProfileModal}
                 title={`Настройки профиля: ${currentUser.name} (${currentUser.role})`}
-                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-100 border border-slate-800 hover:border-slate-700 shadow-2xs transition cursor-pointer group"
+                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-pastel-card hover:bg-pastel-rose/50 text-pastel-text border border-pastel-border hover:border-pastel-accentRose/50 shadow-2xs transition cursor-pointer group"
               >
                 <User className="w-3.5 h-3.5 text-pastel-accentRose" />
                 <span className="max-w-[120px] truncate hidden sm:inline">{currentUser.name}</span>
-                <Edit2 className="w-3 h-3 text-slate-500 group-hover:text-pastel-accentRose transition hidden sm:inline" />
+                <Edit2 className="w-3 h-3 text-pastel-muted group-hover:text-pastel-accentRose transition hidden sm:inline" />
               </button>
 
               <button
                 onClick={() => logout()}
                 title="Выйти из студии"
-                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                className="p-1.5 rounded-xl text-pastel-muted hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -146,14 +156,9 @@ export const StudioHeader: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* User Profile Edit Modal */}
-      <ProfileEditModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-      />
     </header>
   );
 };
+
 
 

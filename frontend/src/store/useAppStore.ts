@@ -256,11 +256,16 @@ interface AppState {
   // Authentication State & Actions
   currentUser: { id: string; name: string; role: string } | null;
   isAuthChecking: boolean;
+  isProfileModalOpen: boolean;
+  isAdminInvitesModalOpen: boolean;
+  openProfileModal: () => void;
+  closeProfileModal: () => void;
+  openAdminInvitesModal: () => void;
+  closeAdminInvitesModal: () => void;
   loginWithInviteCode: (inviteCode: string) => Promise<{ success: boolean; error?: string }>;
   updateUserName: (newName: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuthSession: () => Promise<void>;
-
 
   // Audio Recap Actions
   openRecapModal: (target: RecapTarget) => void;
@@ -275,8 +280,16 @@ export const useAppStore = create<AppState>()(
       // Authentication
       currentUser: null,
       isAuthChecking: true,
+      isProfileModalOpen: false,
+      isAdminInvitesModalOpen: false,
+
+      openProfileModal: () => set({ isProfileModalOpen: true }),
+      closeProfileModal: () => set({ isProfileModalOpen: false }),
+      openAdminInvitesModal: () => set({ isAdminInvitesModalOpen: true }),
+      closeAdminInvitesModal: () => set({ isAdminInvitesModalOpen: false }),
 
       loginWithInviteCode: async (inviteCode: string) => {
+
         try {
           const res = await fetch('/api/auth/login', {
             method: 'POST',

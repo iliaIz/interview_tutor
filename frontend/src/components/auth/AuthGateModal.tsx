@@ -26,14 +26,14 @@ export const AuthGateModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-2xl overflow-hidden font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-2xl overflow-hidden font-sans">
       {/* Ambient Luxury Auras */}
-      <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-pastel-accentRose/20 to-transparent blur-3xl pointer-events-none animate-aura-slow" />
-      <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-gradient-to-tl from-pastel-accentViolet/20 via-pink-400/10 to-transparent blur-3xl pointer-events-none animate-aura-reverse" />
+      <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-pastel-accentRose/25 to-transparent blur-3xl pointer-events-none animate-aura-slow" />
+      <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-gradient-to-tl from-pastel-accentViolet/25 via-pink-400/15 to-transparent blur-3xl pointer-events-none animate-aura-reverse" />
 
       {/* Main Glass Card */}
       <div 
-        className={`relative w-full max-w-md bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-transform duration-300 ${
+        className={`relative w-full max-w-md bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-transform duration-300 overflow-hidden ${
           isShaking ? 'animate-shake' : ''
         }`}
       >
@@ -42,19 +42,19 @@ export const AuthGateModal: React.FC = () => {
 
         {/* Brand Icon Header */}
         <div className="flex flex-col items-center text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-lg shadow-pastel-accentRose/25 ring-4 ring-slate-800/50">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-lg shadow-pastel-accentRose/25 ring-4 ring-pastel-rose">
             <Shield className="w-7 h-7" />
           </div>
 
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-pastel-rose/10 text-pastel-accentRose border border-pastel-accentRose/20 mb-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 mb-2">
               <Lock className="w-3 h-3" />
               <span>Закрытый доступ SOTA 2026</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-pastel-text tracking-tight">
               InterviewPrep AI Studio
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+            <p className="text-xs text-pastel-muted mt-1 max-w-xs leading-relaxed">
               Лаборатория подготовки к Senior/Staff собеседованиям по Java, Spring & System Design
             </p>
           </div>
@@ -63,13 +63,13 @@ export const AuthGateModal: React.FC = () => {
         {/* Form */}
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+            <label className="text-xs font-bold text-pastel-text flex items-center justify-between">
               <span>Инвайт-код доступа:</span>
-              <span className="text-[10px] font-mono text-slate-500">Master / VIP</span>
+              <span className="text-[10px] font-mono text-pastel-muted">Master / VIP</span>
             </label>
 
             <div className="relative">
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <KeyRound className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 autoFocus
@@ -80,12 +80,12 @@ export const AuthGateModal: React.FC = () => {
                   if (errorMessage) setErrorMessage(null);
                 }}
                 disabled={isLoading}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-pastel-accentRose/60 rounded-2xl pl-10 pr-4 py-3 text-sm font-mono tracking-widest text-slate-100 placeholder-slate-600 uppercase focus:outline-none transition shadow-inner disabled:opacity-50"
+                className="w-full bg-pastel-bg border border-pastel-border focus:border-pastel-accentRose rounded-2xl pl-10 pr-4 py-3 text-sm font-mono tracking-widest text-pastel-text placeholder-pastel-muted/50 uppercase focus:outline-none transition shadow-2xs disabled:opacity-50"
               />
             </div>
 
             {errorMessage && (
-              <p className="text-xs text-rose-400 font-medium mt-1.5 flex items-center gap-1.5">
+              <p className="text-xs text-rose-600 font-medium mt-1.5 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 <span>{errorMessage}</span>
               </p>
@@ -112,7 +112,7 @@ export const AuthGateModal: React.FC = () => {
         </form>
 
         {/* Footer info */}
-        <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-[11px] text-slate-500 font-mono flex items-center justify-center gap-1.5">
+        <div className="mt-6 pt-4 border-t border-pastel-border/80 text-center text-[11px] text-pastel-muted font-mono flex items-center justify-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-pastel-accentRose" />
           <span>Персональные инвайты & Безопасные 30-дневные сессии</span>
         </div>

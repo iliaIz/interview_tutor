@@ -76,3 +76,26 @@ export function optionalAuth(req: AuthenticatedRequest, res: Response, next: Nex
   }
   next();
 }
+
+export function requireRole(...allowedRoles: string[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        code: 'AUTH_REQUIRED',
+        message: 'Требуется авторизация'
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'INSUFFICIENT_PERMISSIONS',
+        message: 'Недостаточно прав для выполнения данной операции'
+      });
+    }
+
+    next();
+  };
+}
+

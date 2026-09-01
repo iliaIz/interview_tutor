@@ -156,6 +156,91 @@ export class AuthService {
   }
 
   /**
+   * Lists all invites with stats (for Owner).
+   */
+  public listInvites(): any[] {
+    const rows = db.prepare(`
+      SELECT t.id, t.label, t.role, t.is_active, t.max_uses, t.use_count, t.created_at, t.last_used_at,
+             u.id as user_id, u.name as user_name, u.last_login_at
+      FROM invite_tokens t
+      JOIN users u ON t.user_id = u.id
+      ORDER BY t.created_at DESC
+    `).all() as any[];
+
+    return rows.map(r => ({
+      id: r.id,
+      label: r.label,
+      role: r.role,
+      isActive: Boolean(r.is_active),
+      maxUses: r.max_uses,
+      useCount: r.use_count,
+      createdAt: r.created_at,
+      lastUsedAt: r.last_used_at,
+      userId: r.user_id,
+      userName: r.user_name,
+      userLastLoginAt: r.last_login_at
+    }));
+  }
+
+  /**
+   * Creates a new invite token with assigned role and user.
+   */
+  public createInvite(params: {
+    name: string;
+    role?: 'candidate' | 'mentor' | 'owner';
+    code?: string;
+    maxUses?: number;
+    label?: string;
+  }): { inviteId: string; plainCode: string; user: User } {
+    const cleanName = (params.name || 'Кандидат').trim();
+    const role = params.role || 'candidate';
+    const maxUses = typeof params.maxUses === 'number' ? params.maxUses : 0;
+    
+    // Generate human-friendly code if omitted, e.g. JAVA-CANDIDATE-A8B9
+    const plainCode = params.code && params.code.trim() 
+      ? params.code.trim().toUpperCase() 
+      : `JAVA-${role.toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    
+    const codeHash = this.hashInviteCode(plainCode);
+    const userId = `user_${crypto.randomBytes(4).toString('hex')}`;
+    const inviteId = `inv_${crypto.randomBytes(4).toString('hex')}`;
+    const label = params.label || cleanName;
+
+    // Create user
+    db.prepare(`
+      INSERT INTO users (id, name, role, created_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(userId, cleanName, role);
+
+    // Create invite token
+    db.prepare(`
+      INSERT INTO invite_tokens (id, code_hash, label, user_id, role, is_active, max_uses, use_count, created_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?, 0, CURRENT_TIMESTAMP)
+    `).run(inviteId, codeHash, label, userId, role, maxUses);
+
+    const user: User = {
+      id: userId,
+      name: cleanName,
+      role,
+      created_at: new Date().toISOString()
+    };
+
+    return { inviteId, plainCode, user };
+  }
+
+  /**
+   * Revokes an invite code.
+   */
+  public revokeInvite(inviteId: string): boolean {
+    const res = db.prepare(`
+      UPDATE invite_tokens
+      SET is_active = 0
+      WHERE id = ?
+    `).run(inviteId);
+    return res.changes > 0;
+  }
+
+  /**
    * Periodic cleanup of expired sessions and burned tickets.
    */
   public cleanupExpired(): void {
@@ -164,6 +249,7 @@ export class AuthService {
       db.prepare('DELETE FROM ws_tickets WHERE expires_at <= CURRENT_TIMESTAMP').run();
     } catch {}
   }
+
 }
 
 export const authService = new AuthService();

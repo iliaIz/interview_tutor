@@ -14,7 +14,7 @@ export const SystemDesignCatalog: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
-    fetch('/api/system-design/scenarios')
+    fetch('/api/system-design/scenarios', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setScenarios(data);
@@ -38,7 +38,7 @@ export const SystemDesignCatalog: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[500px] text-pastel-muted">
+      <div className="flex items-center justify-center min-h-[500px] text-pastel-muted font-sans">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-pastel-accentRose border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-mono">Загрузка каталога System Design...</p>
@@ -48,40 +48,40 @@ export const SystemDesignCatalog: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-20">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-20 font-sans">
       {/* Header Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-pastel-accentRose/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-pastel-accentViolet border border-purple-200">
                 🏛️ High-Level Design Studio
               </span>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-pastel-muted font-mono">
                 {scenarios.length} сценариев BigTech
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-pastel-text tracking-tight">
               System Design & Архитектура Высоких Нагрузок
             </h1>
-            <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+            <p className="text-sm text-pastel-muted mt-1 max-w-2xl">
               20 эталонных сценариев онсайтов в Яндекс, Т-Банк, Stripe, Uber: расчеты Back-of-the-Envelope, живые топологии Mermaid, разбор узких мест и сократический Staff AI.
             </p>
           </div>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80 flex flex-col sm:flex-row gap-3">
+        <div className="mt-6 pt-5 border-t border-pastel-border/60 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Поиск по названию, стеку или домену (например, Payment, Kafka, Geo)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-pastel-accentRose/60 font-mono transition"
+              className="w-full bg-pastel-bg border border-pastel-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-pastel-accentRose font-sans transition shadow-2xs"
             />
           </div>
         </div>
@@ -95,8 +95,8 @@ export const SystemDesignCatalog: React.FC = () => {
             onClick={() => setSelectedCategory(cat)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
               selectedCategory === cat
-                ? 'bg-slate-800 text-blue-400 border border-blue-500/40 shadow-sm'
-                : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                ? 'bg-white text-pastel-accentRose border border-pastel-accentRose/40 shadow-sm'
+                : 'bg-white/70 text-pastel-muted hover:text-pastel-text border border-pastel-border'
             }`}
           >
             {cat === 'all' ? `Все сценарии (${scenarios.length})` : cat}
@@ -105,51 +105,48 @@ export const SystemDesignCatalog: React.FC = () => {
       </div>
 
       {/* Scenarios Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredScenarios.map(sc => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredScenarios.map((scenario) => (
           <div
-            key={sc.id}
-            onClick={() => openSystemDesignScenario(sc)}
-            className="bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 rounded-2xl p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between group shadow-lg hover:shadow-blue-500/5 relative"
+            key={scenario.id}
+            onClick={() => openSystemDesignScenario(scenario)}
+            className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/50 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
           >
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  {sc.category}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30">
+                  {scenario.category}
                 </span>
-                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 uppercase">
-                  {sc.difficulty}
+                <span className="text-[10px] font-mono text-pastel-muted font-bold flex items-center gap-1">
+                  <Activity className="w-3 h-3 text-emerald-600" />
+                  {scenario.trafficProfile.estimatedPeakRPS}
                 </span>
               </div>
 
-              <h3 className="text-base font-bold text-slate-100 group-hover:text-blue-400 transition line-clamp-2">
-                {sc.title}
-              </h3>
+              <div>
+                <h3 className="font-bold text-base text-pastel-text group-hover:text-pastel-accentRose transition-colors">
+                  {scenario.title}
+                </h3>
+                <p className="text-xs text-pastel-muted mt-1 line-clamp-2 leading-relaxed">
+                  {scenario.contextMarkdown}
+                </p>
+              </div>
 
-              <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
-                {sc.contextMarkdown}
-              </p>
+              {/* SLA & Scale Tags */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                  SLA: {scenario.trafficProfile.slaAvailability}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-50 text-pastel-accentViolet border border-purple-200">
+                  DAU: {scenario.trafficProfile.targetDAU}
+                </span>
+              </div>
 
-              {/* Traffic Snapshot */}
-              {sc.trafficProfile && (
-                <div className="mt-4 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span>⚡ Пиковый RPS:</span>
-                    <span className="text-slate-200 font-bold">{sc.trafficProfile.estimatedPeakRPS}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>👥 Аудитория DAU:</span>
-                    <span className="text-slate-200">{sc.trafficProfile.targetDAU}</span>
-                  </div>
-                </div>
-              )}
             </div>
 
-            <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-              <span className="font-mono text-[11px] flex items-center gap-1.5 text-blue-400 font-bold group-hover:translate-x-0.5 transition">
-                <span>Перейти к проектированию</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </span>
+            <div className="mt-5 pt-3 border-t border-pastel-border/60 flex items-center justify-between text-xs font-bold text-pastel-muted group-hover:text-pastel-accentRose transition-colors">
+              <span>Открыть архитектурную арену</span>
+              <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         ))}

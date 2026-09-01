@@ -20,7 +20,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('all');
 
   useEffect(() => {
-    fetch('/api/roadmaps')
+    fetch('/api/roadmaps', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setRoadmaps(data);
@@ -34,7 +34,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
   useEffect(() => {
     if (!activeRoadmapId) return;
     setLoading(true);
-    fetch(`/api/roadmaps/${activeRoadmapId}`)
+    fetch(`/api/roadmaps/${activeRoadmapId}`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setCurrentRoadmap(data);
@@ -51,7 +51,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
 
   if (loading || !currentRoadmap) {
     return (
-      <div className="flex items-center justify-center min-h-[500px] text-pastel-muted">
+      <div className="flex items-center justify-center min-h-[500px] text-pastel-muted font-sans">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-pastel-accentRose border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-mono">Загрузка траектории подготовки...</p>
@@ -65,10 +65,10 @@ export const GuidedRoadmapStudio: React.FC = () => {
   const progressPercent = Math.round((completedCount / currentRoadmap.totalSteps) * 100);
 
   const getSeniorRank = (pct: number) => {
-    if (pct >= 85) return { title: '👑 BigTech Bar-Raiser (Principal Candidate)', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' };
-    if (pct >= 50) return { title: '⭐ Solid Senior Ready (Confident Hire)', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
-    if (pct >= 25) return { title: '📈 Middle+ / Developing Senior', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' };
-    return { title: '🌱 Начало подготовки (Junior / Middle)', color: 'text-slate-400 bg-slate-800 border-slate-700' };
+    if (pct >= 85) return { title: '👑 BigTech Bar-Raiser (Principal Candidate)', color: 'text-amber-800 bg-amber-50 border-amber-200' };
+    if (pct >= 50) return { title: '⭐ Solid Senior Ready (Confident Hire)', color: 'text-emerald-800 bg-emerald-50 border-emerald-200' };
+    if (pct >= 25) return { title: '📈 Middle+ / Developing Senior', color: 'text-blue-800 bg-blue-50 border-blue-200' };
+    return { title: '🌱 Начало подготовки (Junior / Middle)', color: 'text-pastel-muted bg-pastel-bg border-pastel-border' };
   };
 
   const rank = getSeniorRank(progressPercent);
@@ -98,7 +98,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
   const handleLaunchLLD = async (step: RoadmapStep) => {
     if (!step.lldChallengeId) return;
     try {
-      const res = await fetch(`/api/practice/challenges/${step.lldChallengeId}`);
+      const res = await fetch(`/api/practice/challenges/${step.lldChallengeId}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setStudioTab('practice');
@@ -121,31 +121,31 @@ export const GuidedRoadmapStudio: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-20">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-20 font-sans">
       {/* Header Program Selector */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-pastel-accentRose/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-pastel-accentRose/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-pastel-rose/10 text-pastel-accentRose border border-pastel-accentRose/20">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30">
                 SOTA 2026 Траектории
               </span>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-pastel-muted font-mono">
                 {completedCount} из {currentRoadmap.totalSteps} шагов пройдено
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-pastel-text tracking-tight">
               {currentRoadmap.title}
             </h1>
-            <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+            <p className="text-sm text-pastel-muted mt-1 max-w-2xl">
               {currentRoadmap.description}
             </p>
           </div>
 
           {/* Program Switcher Tabs */}
-          <div className="flex items-center gap-2 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 shrink-0">
+          <div className="flex items-center gap-2 bg-pastel-bg/80 p-1.5 rounded-2xl border border-pastel-border shrink-0">
             {roadmaps.map(rm => {
               const isActive = rm.id === currentRoadmap.id;
               return (
@@ -155,7 +155,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
                   className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     isActive
                       ? 'bg-gradient-to-r from-pastel-accentRose/20 to-pastel-accentViolet/20 text-pastel-accentRose border border-pastel-accentRose/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      : 'text-pastel-muted hover:text-pastel-text hover:bg-white/80'
                   }`}
                 >
                   <span>{rm.title.split(':')[0]}</span>
@@ -166,13 +166,13 @@ export const GuidedRoadmapStudio: React.FC = () => {
         </div>
 
         {/* Readiness Index & Progress Bar */}
-        <div className="mt-6 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mt-6 pt-6 border-t border-pastel-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex-1 max-w-xl">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-slate-400 font-medium">Senior Readiness Index:</span>
+              <span className="text-pastel-muted font-medium">Senior Readiness Index:</span>
               <span className="font-mono font-bold text-pastel-accentRose">{progressPercent}%</span>
             </div>
-            <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div className="w-full h-2.5 bg-pastel-bg rounded-full overflow-hidden border border-pastel-border">
               <div 
                 className="h-full bg-gradient-to-r from-pastel-accentRose via-pastel-accentViolet to-emerald-400 transition-all duration-500 rounded-full"
                 style={{ width: `${progressPercent}%` }}
@@ -180,7 +180,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
             </div>
           </div>
 
-          <div className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${rank.color}`}>
+          <div className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-2xs ${rank.color}`}>
             <Award className="w-4 h-4 shrink-0" />
             <span>{rank.title}</span>
           </div>
@@ -193,8 +193,8 @@ export const GuidedRoadmapStudio: React.FC = () => {
           onClick={() => setSelectedMilestoneId('all')}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
             selectedMilestoneId === 'all'
-              ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40'
-              : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+              ? 'bg-white text-pastel-accentRose border border-pastel-accentRose/40 shadow-sm'
+              : 'bg-white/70 text-pastel-muted hover:text-pastel-text border border-pastel-border'
           }`}
         >
           Все шаги ({currentRoadmap.totalSteps})
@@ -205,8 +205,8 @@ export const GuidedRoadmapStudio: React.FC = () => {
             onClick={() => setSelectedMilestoneId(m.id)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
               selectedMilestoneId === m.id
-                ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40'
-                : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                ? 'bg-white text-pastel-accentRose border border-pastel-accentRose/40 shadow-sm'
+                : 'bg-white/70 text-pastel-muted hover:text-pastel-text border border-pastel-border'
             }`}
           >
             {m.title}
@@ -224,18 +224,18 @@ export const GuidedRoadmapStudio: React.FC = () => {
             <div
               key={step.stepNumber}
               onClick={() => setActiveRoadmapStep(step)}
-              className={`bg-slate-900/90 border rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between relative group hover:border-slate-700 ${
+              className={`bg-white/95 border rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between relative group hover:shadow-md ${
                 isSelected
-                  ? 'border-pastel-accentRose/60 ring-1 ring-pastel-accentRose/40 bg-slate-850 shadow-lg'
+                  ? 'border-pastel-accentRose ring-2 ring-pastel-accentRose/30 bg-pastel-rose/20 shadow-md'
                   : isDone
-                  ? 'border-emerald-500/30 bg-slate-900/50'
-                  : 'border-slate-800'
+                  ? 'border-emerald-200/80 bg-emerald-50/30'
+                  : 'border-pastel-border/80 shadow-2xs'
               }`}
             >
               <div>
                 {/* Step Card Top: Number & Checkbox */}
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-pastel-bg text-pastel-muted border border-pastel-border">
                     Шаг {step.stepNumber} / {currentRoadmap.totalSteps}
                   </span>
 
@@ -244,67 +244,118 @@ export const GuidedRoadmapStudio: React.FC = () => {
                       e.stopPropagation();
                       toggleRoadmapStepCompleted(currentRoadmap.id, step.stepNumber);
                     }}
-                    className="cursor-pointer text-slate-500 hover:text-emerald-400 transition"
+                    className="cursor-pointer text-pastel-muted hover:text-emerald-600 transition"
                     title={isDone ? 'Отметить как не пройденный' : 'Отметить как освоенный'}
                   >
                     {isDone ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
                     ) : (
-                      <Circle className="w-5 h-5 hover:text-slate-300" />
+                      <Circle className="w-5 h-5 hover:text-emerald-500" />
                     )}
                   </button>
                 </div>
 
-                {/* Step Title */}
-                <h3 className="font-bold text-sm text-slate-100 group-hover:text-pastel-accentRose transition line-clamp-1">
+                {/* Step Title & Details */}
+                <h3 className="font-bold text-sm text-pastel-text leading-snug group-hover:text-pastel-accentRose transition-colors">
                   {step.title}
                 </h3>
-
-                {/* Senior Bar Concept */}
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-pastel-muted mt-1 line-clamp-2 leading-relaxed">
                   {step.seniorBarConcept}
                 </p>
               </div>
 
-              {/* Action Buttons Hub */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleLaunchTheory(step); }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-pastel-accentRose/20 text-slate-300 hover:text-pastel-accentRose transition cursor-pointer"
-                    title="Теория & Voice AI"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleLaunchTriage(step); }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-pastel-accentViolet/20 text-slate-300 hover:text-pastel-accentViolet transition cursor-pointer"
-                    title="Триаж прод-аварии"
-                  >
-                    <Bug className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleLaunchLLD(step); }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 transition cursor-pointer"
-                    title="Machine Coding LLD"
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleLaunchHLD(step); }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 transition cursor-pointer"
-                    title="System Design HLD"
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                  </button>
+              {/* Step Badges & Action Links */}
+              <div className="mt-4 pt-3 border-t border-pastel-border/60 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {step.theoryQuestionId && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-pastel-accentViolet border border-purple-200 flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" /> Теория
+                    </span>
+                  )}
+                  {step.lldChallengeId && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                      <Code2 className="w-3 h-3" /> LLD Код
+                    </span>
+                  )}
+                  {step.hldScenarioId && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                      <Layers className="w-3 h-3" /> System Design
+                    </span>
+                  )}
+                  {step.incidentKataId && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3" /> Авария
+                    </span>
+                  )}
                 </div>
 
-                <span className="text-[10px] text-slate-500 font-mono">~{step.estimatedMinutes} мин</span>
+                <span className="text-[11px] font-mono text-pastel-muted font-bold">
+                  {step.estimatedMinutes} мин
+                </span>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Active Step Dedicated Studio Launcher Bar */}
+      {activeRoadmapStep && (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-pastel-rose text-pastel-accentRose">
+                Выбранный шаг #{activeRoadmapStep.stepNumber}
+              </span>
+              <span className="text-xs text-pastel-muted font-mono">{activeRoadmapStep.milestoneId}</span>
+            </div>
+            <h4 className="font-bold text-base text-pastel-text">{activeRoadmapStep.title}</h4>
+            <p className="text-xs text-pastel-muted max-w-3xl">{activeRoadmapStep.seniorBarConcept}</p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {activeRoadmapStep.theoryQuestionId && (
+              <button
+                onClick={() => handleLaunchTheory(activeRoadmapStep)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet hover:opacity-95 transition shadow-sm cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Открыть теорию</span>
+              </button>
+            )}
+
+            {activeRoadmapStep.lldChallengeId && (
+              <button
+                onClick={() => handleLaunchLLD(activeRoadmapStep)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 transition shadow-sm cursor-pointer"
+              >
+                <Code2 className="w-4 h-4" />
+                <span>Запустить LLD Арену</span>
+              </button>
+            )}
+
+            {activeRoadmapStep.hldScenarioId && (
+              <button
+                onClick={() => handleLaunchHLD(activeRoadmapStep)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-pastel-accentViolet hover:opacity-95 transition shadow-sm cursor-pointer"
+              >
+                <Layers className="w-4 h-4" />
+                <span>Запустить System Design</span>
+              </button>
+            )}
+
+            {activeRoadmapStep.incidentKataId && (
+              <button
+                onClick={() => handleLaunchTriage(activeRoadmapStep)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:opacity-95 transition shadow-sm cursor-pointer"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                <span>Начать триаж инцидента</span>
+              </button>
+            )}
+          </div>
+
+        </div>
+      )}
     </div>
   );
 };
