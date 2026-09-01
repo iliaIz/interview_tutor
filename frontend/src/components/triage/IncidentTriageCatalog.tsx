@@ -15,9 +15,14 @@ export const IncidentTriageCatalog: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/triage/challenges', { credentials: 'include' })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        setIncidents(data);
+        if (Array.isArray(data)) {
+          setIncidents(data);
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -26,13 +31,15 @@ export const IncidentTriageCatalog: React.FC = () => {
       });
   }, []);
 
-  const filteredIncidents = incidents.filter(inc => {
+  const safeIncidents = Array.isArray(incidents) ? incidents : [];
+  const filteredIncidents = safeIncidents.filter(inc => {
     const matchesSev = selectedSeverity === 'all' || inc.severity === selectedSeverity;
     const matchesSearch = !searchQuery || 
       inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inc.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSev && matchesSearch;
   });
+
 
   if (loading) {
     return (

@@ -21,7 +21,6 @@ import { TopicBugHuntModal } from './components/TopicBugHuntModal';
 import { Toast } from './components/Toast';
 import { Heart, Loader2 } from 'lucide-react';
 
-
 export const App: React.FC = () => {
   const {
     currentUser,
@@ -59,26 +58,38 @@ export const App: React.FC = () => {
     };
   }, [systemHealth.isAiReady]);
 
+  // 1. Loading state during initial session verification
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-pastel-bg text-pastel-text font-sans">
+        <div className="flex flex-col items-center gap-3 text-pastel-muted">
+          <Loader2 className="w-8 h-8 animate-spin text-pastel-accentRose" />
+          <span className="text-xs font-mono">Проверка сессии доступа...</span>
+        </div>
+      </div>
+    );
+  }
 
+  // 2. Auth Gate Shield: If not authenticated, render ONLY the luxury Auth Gate Modal
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-pastel-bg text-pastel-text relative overflow-hidden font-sans">
+        <div className="fixed -top-28 -left-28 w-96 h-96 rounded-full bg-gradient-to-br from-pastel-accentRose/20 to-transparent blur-3xl pointer-events-none" />
+        <div className="fixed top-1/3 -right-28 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-pastel-accentViolet/20 to-transparent blur-3xl pointer-events-none" />
+        <div className="fixed -bottom-20 left-1/3 w-[360px] h-[360px] rounded-full bg-gradient-to-tr from-pastel-peach/30 to-transparent blur-3xl pointer-events-none" />
+        <AuthGateModal />
+        <Toast />
+      </div>
+    );
+  }
+
+  // 3. Authenticated: Render full studio
   return (
-    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose">
+    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose font-sans">
       {/* Floating Ambient Mesh Auras for High-End Luxury Feel */}
       <div className="fixed -top-28 -left-28 w-96 h-96 rounded-full bg-gradient-to-br from-pastel-accentRose/15 to-transparent blur-3xl pointer-events-none animate-aura-slow z-0" />
       <div className="fixed top-1/3 -right-28 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-pastel-accentViolet/15 via-pastel-lavender/30 to-transparent blur-3xl pointer-events-none animate-aura-reverse z-0" />
       <div className="fixed -bottom-20 left-1/3 w-[360px] h-[360px] rounded-full bg-gradient-to-tr from-pastel-peach/30 to-transparent blur-3xl pointer-events-none z-0" />
-
-      {/* Auth Gate Shield: Blocks unauthorized access to studio */}
-      {!currentUser && !isAuthChecking && <AuthGateModal />}
-
-      {/* Loading state during initial session verification */}
-      {isAuthChecking && !currentUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md">
-          <div className="flex flex-col items-center gap-3 text-slate-300">
-            <Loader2 className="w-8 h-8 animate-spin text-pastel-accentRose" />
-            <span className="text-xs font-mono">Проверка сессии доступа...</span>
-          </div>
-        </div>
-      )}
 
       {/* Studio Segmented Navigation Header */}
       <StudioHeader />
@@ -107,7 +118,6 @@ export const App: React.FC = () => {
         )}
       </main>
 
-
       {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
       <AudioRecapModal />
       <AudioPlayerBar />
@@ -125,7 +135,6 @@ export const App: React.FC = () => {
       <ProfileEditModal />
       <AdminInvitesModal />
       <Toast />
-
 
       {/* Footer */}
       {currentStudioTab !== 'practice' && !activeSystemDesignScenario && !activeTriageIncident && (

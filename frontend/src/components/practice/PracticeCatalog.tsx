@@ -38,11 +38,14 @@ export const PracticeCatalog: React.FC = () => {
 
   const fetchChallenges = async () => {
     try {
-      const res = await fetch('/api/practice/challenges');
+      const res = await fetch('/api/practice/challenges', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setChallenges(data);
+        if (Array.isArray(data)) {
+          setChallenges(data);
+        }
       }
+
     } catch (err) {
       console.error('Error fetching practice challenges:', err);
     } finally {

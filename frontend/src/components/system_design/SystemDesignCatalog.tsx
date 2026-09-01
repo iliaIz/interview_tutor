@@ -15,9 +15,14 @@ export const SystemDesignCatalog: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/system-design/scenarios', { credentials: 'include' })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        setScenarios(data);
+        if (Array.isArray(data)) {
+          setScenarios(data);
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -26,15 +31,17 @@ export const SystemDesignCatalog: React.FC = () => {
       });
   }, []);
 
-  const categories = ['all', ...Array.from(new Set(scenarios.map(s => s.category)))];
+  const safeScenarios = Array.isArray(scenarios) ? scenarios : [];
+  const categories = ['all', ...Array.from(new Set(safeScenarios.map(s => s.category)))];
 
-  const filteredScenarios = scenarios.filter(s => {
+  const filteredScenarios = safeScenarios.filter(s => {
     const matchesCat = selectedCategory === 'all' || s.category === selectedCategory;
     const matchesSearch = !searchQuery || 
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
 
   if (loading) {
     return (

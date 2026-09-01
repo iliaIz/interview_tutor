@@ -21,11 +21,16 @@ export const GuidedRoadmapStudio: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/roadmaps', { credentials: 'include' })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        setRoadmaps(data);
-        if (data.length > 0 && !activeRoadmapId) {
-          setActiveRoadmapId(data[0].id);
+        if (Array.isArray(data) && data.length > 0) {
+          setRoadmaps(data);
+          if (!activeRoadmapId) {
+            setActiveRoadmapId(data[0].id);
+          }
         }
       })
       .catch(err => console.error('Failed to load roadmaps:', err));
@@ -35,11 +40,16 @@ export const GuidedRoadmapStudio: React.FC = () => {
     if (!activeRoadmapId) return;
     setLoading(true);
     fetch(`/api/roadmaps/${activeRoadmapId}`, { credentials: 'include' })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        setCurrentRoadmap(data);
-        if (!activeRoadmapStep && data.steps?.length > 0) {
-          setActiveRoadmapStep(data.steps[0]);
+        if (data && Array.isArray(data.steps) && Array.isArray(data.milestones)) {
+          setCurrentRoadmap(data);
+          if (!activeRoadmapStep && data.steps.length > 0) {
+            setActiveRoadmapStep(data.steps[0]);
+          }
         }
         setLoading(false);
       })
@@ -49,7 +59,7 @@ export const GuidedRoadmapStudio: React.FC = () => {
       });
   }, [activeRoadmapId]);
 
-  if (loading || !currentRoadmap) {
+  if (loading || !currentRoadmap || !Array.isArray(currentRoadmap.steps)) {
     return (
       <div className="flex items-center justify-center min-h-[500px] text-pastel-muted font-sans">
         <div className="flex flex-col items-center gap-3">
@@ -62,7 +72,8 @@ export const GuidedRoadmapStudio: React.FC = () => {
 
   const completedList = completedRoadmapSteps[currentRoadmap.id] || [];
   const completedCount = completedList.length;
-  const progressPercent = Math.round((completedCount / currentRoadmap.totalSteps) * 100);
+  const totalSteps = currentRoadmap.totalSteps || currentRoadmap.steps.length || 1;
+  const progressPercent = Math.min(100, Math.round((completedCount / totalSteps) * 100));
 
   const getSeniorRank = (pct: number) => {
     if (pct >= 85) return { title: '👑 BigTech Bar-Raiser (Principal Candidate)', color: 'text-amber-800 bg-amber-50 border-amber-200' };
@@ -73,9 +84,11 @@ export const GuidedRoadmapStudio: React.FC = () => {
 
   const rank = getSeniorRank(progressPercent);
 
+  const stepsList = Array.isArray(currentRoadmap.steps) ? currentRoadmap.steps : [];
   const filteredSteps = selectedMilestoneId === 'all'
-    ? currentRoadmap.steps
-    : currentRoadmap.steps.filter(s => s.milestoneId === selectedMilestoneId);
+    ? stepsList
+    : stepsList.filter(s => s.milestoneId === selectedMilestoneId);
+
 
   const handleLaunchTheory = (step: RoadmapStep) => {
     setStudioTab('theory');
