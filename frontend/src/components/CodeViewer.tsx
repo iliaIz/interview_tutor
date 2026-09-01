@@ -1,15 +1,70 @@
 import React, { useMemo, useState } from 'react';
 import Prism from '../utils/prismSetup';
 import { Highlight, type PrismTheme } from 'prism-react-renderer';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Search } from 'lucide-react';
 
-// Import Prism language definitions for Java, Kotlin, SQL
+// Import Prism language definitions for Java, Kotlin, SQL, JSON, Bash
 import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-kotlin';
 import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-bash';
+
+/**
+ * Register Custom JVM Forensics & SRE Observability Log Grammar into Prism
+ */
+if (Prism && Prism.languages) {
+  Prism.languages.log = {
+    'thread-deadlock': {
+      pattern: /Found \d+ Java-level deadlock|Deadlock detected|deadlock/i,
+      alias: 'important'
+    },
+    'thread-state-runnable': {
+      pattern: /java\.lang\.Thread\.State:\s*RUNNABLE/i,
+      alias: 'attr-name'
+    },
+    'thread-state-blocked': {
+      pattern: /java\.lang\.Thread\.State:\s*BLOCKED[^\n]*/i,
+      alias: 'deleted'
+    },
+    'thread-state-waiting': {
+      pattern: /java\.lang\.Thread\.State:\s*(TIMED_WAITING|WAITING)[^\n]*/i,
+      alias: 'keyword'
+    },
+    'lock-address': {
+      pattern: /<0x[0-9a-fA-F]+>|parking to wait for <0x[0-9a-fA-F]+>|waiting on <0x[0-9a-fA-F]+>|locked <0x[0-9a-fA-F]+>/i,
+      alias: 'number'
+    },
+    'log-error': {
+      pattern: /\b(FATAL|ERROR|SEVERE|CRITICAL|OutOfMemoryError|NullPointerException|Deadlock|TimeoutException|SQLException|HikariPool-\d+ - Connection is not available)\b/,
+      alias: 'deleted'
+    },
+    'log-warn': {
+      pattern: /\b(WARN|WARNING|Slow query|High GC pause|Pool exhausted)\b/,
+      alias: 'annotation'
+    },
+    'log-info': {
+      pattern: /\b(INFO|DEBUG|TRACE)\b/,
+      alias: 'function'
+    },
+    'thread-name': {
+      pattern: /"[^"\n]+"(?=\s+#\d+)/,
+      alias: 'class-name'
+    },
+    'timestamp': {
+      pattern: /\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/,
+      alias: 'comment'
+    },
+    'string': {
+      pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
+      greedy: true
+    },
+    'number': /\b\d+(?:\.\d+)?(?:ms|s|MB|GB|KB|K|M|B)?\b/
+  };
+
+  Prism.languages.jstack = Prism.languages.log;
+}
 
 /**
  * Velvet Obsidian Luxury Dark Theme Token Mappings
@@ -70,10 +125,24 @@ export const velvetObsidianTheme: PrismTheme = {
         color: '#89DDFF',
       },
     },
+    {
+      types: ['deleted', 'important'],
+      style: {
+        color: '#FF6B6B',
+        fontWeight: 'bold',
+      },
+    },
+    {
+      types: ['inserted'],
+      style: {
+        color: '#49D69E',
+        fontWeight: 'bold',
+      },
+    },
   ],
 };
 
-export type SupportedLanguage = 'java' | 'kotlin' | 'sql' | 'json' | 'bash' | 'markdown' | string;
+export type SupportedLanguage = 'java' | 'kotlin' | 'sql' | 'json' | 'bash' | 'markdown' | 'log' | 'jstack' | string;
 
 export interface CodeViewerProps {
   code: string;
@@ -83,6 +152,7 @@ export interface CodeViewerProps {
   title?: string;
   className?: string;
   maxHeight?: string;
+  searchQuery?: string;
 }
 
 type DiffKind = 'added' | 'removed' | 'neutral';
@@ -90,6 +160,7 @@ type DiffKind = 'added' | 'removed' | 'neutral';
 interface LineMetadata {
   diffKind: DiffKind;
   cleanText: string;
+  isMatch?: boolean;
 }
 
 const CodeViewerComponent: React.FC<CodeViewerProps> = ({
@@ -100,24 +171,33 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
   title,
   className = '',
   maxHeight,
+  searchQuery = '',
 }) => {
   const [copied, setCopied] = useState(false);
 
-  // Normalize code and extract unified diff metadata
-  const { normalizedCode, linesMeta } = useMemo(() => {
+  // Normalize code and extract unified diff & search match metadata
+  const { normalizedCode, linesMeta, totalMatches } = useMemo(() => {
     const rawLines = (code || '').trimEnd().split('\n');
+    const cleanSearch = searchQuery.trim().toLowerCase();
 
     if (!isDiff) {
+      let matchesCount = 0;
+      const metadata: LineMetadata[] = rawLines.map((line) => {
+        const isMatch = cleanSearch.length > 0 && line.toLowerCase().includes(cleanSearch);
+        if (isMatch) matchesCount++;
+        return { diffKind: 'neutral', cleanText: line, isMatch };
+      });
+
       return {
         normalizedCode: rawLines.join('\n'),
-        linesMeta: rawLines.map(
-          (): LineMetadata => ({ diffKind: 'neutral', cleanText: '' })
-        ),
+        linesMeta: metadata,
+        totalMatches: matchesCount,
       };
     }
 
     const metadata: LineMetadata[] = [];
     const sanitizedCodeLines: string[] = [];
+    let matchesCount = 0;
 
     for (const rawLine of rawLines) {
       let diffKind: DiffKind = 'neutral';
@@ -131,15 +211,19 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
         cleanText = ' ' + rawLine.slice(1);
       }
 
-      metadata.push({ diffKind, cleanText });
+      const isMatch = cleanSearch.length > 0 && cleanText.toLowerCase().includes(cleanSearch);
+      if (isMatch) matchesCount++;
+
+      metadata.push({ diffKind, cleanText, isMatch });
       sanitizedCodeLines.push(cleanText);
     }
 
     return {
       normalizedCode: sanitizedCodeLines.join('\n'),
       linesMeta: metadata,
+      totalMatches: matchesCount,
     };
-  }, [code, isDiff]);
+  }, [code, isDiff, searchQuery]);
 
   const handleCopy = () => {
     // Copy clean code without diff signs if in diff mode
@@ -173,13 +257,19 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {searchQuery && totalMatches > 0 && (
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+              <Search className="w-3 h-3" />
+              <span>{totalMatches} совп.</span>
+            </span>
+          )}
           <span className="text-[10px] uppercase font-mono tracking-wider text-[#7E7796] bg-[#1E1A2E] px-2 py-0.5 rounded-md border border-[#2A243E]">
             {isDiff ? 'Unified Diff' : language}
           </span>
           <button
             onClick={handleCopy}
             title="Скопировать код"
-            className="flex items-center gap-1.5 text-[11px] text-[#A59CBF] hover:text-white transition-colors bg-[#1E1A2E] hover:bg-[#2A243E] px-2.5 py-1 rounded-lg border border-[#2A243E]"
+            className="flex items-center gap-1.5 text-[11px] text-[#A59CBF] hover:text-white transition-colors bg-[#1E1A2E] hover:bg-[#2A243E] px-2.5 py-1 rounded-lg border border-[#2A243E] cursor-pointer"
           >
             {copied ? (
               <>
@@ -201,7 +291,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
         prism={Prism}
         theme={velvetObsidianTheme}
         code={normalizedCode}
-        language={language}
+        language={language === 'jstack' || language === 'log' ? 'log' : language}
       >
         {({ className: highlightClass, style, tokens, getLineProps, getTokenProps }) => (
           <pre
@@ -211,7 +301,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
             <code className="block min-w-full py-3">
               <div className="w-max min-w-full">
                 {tokens.map((lineTokens, lineIndex) => {
-                  const meta = linesMeta[lineIndex] || { diffKind: 'neutral' };
+                  const meta = linesMeta[lineIndex] || { diffKind: 'neutral', isMatch: false };
                   const lineProps = getLineProps({ line: lineTokens, key: lineIndex });
 
                   let rowBgStyle = 'hover:bg-white/[0.03] transition-colors duration-75';
@@ -230,6 +320,8 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
                     } else {
                       rowBgStyle = 'border-l-2 border-transparent';
                     }
+                  } else if (meta.isMatch) {
+                    rowBgStyle = 'bg-amber-500/20 border-l-2 border-amber-400 ring-1 ring-amber-400/30';
                   }
 
                   return (
@@ -239,7 +331,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
                       className={`flex items-baseline w-full px-2 py-0.5 ${rowBgStyle}`}
                     >
                       {showLineNumbers && (
-                        <span className="w-8 flex-shrink-0 select-none pr-3 text-right font-mono text-[11px] text-[#7E7796] tabular-nums">
+                        <span className="w-9 flex-shrink-0 select-none pr-3 text-right font-mono text-[11px] text-[#7E7796] tabular-nums">
                           {lineIndex + 1}
                         </span>
                       )}
@@ -278,9 +370,9 @@ export const CodeViewer = React.memo(CodeViewerComponent, (prev, next) => {
     prev.showLineNumbers === next.showLineNumbers &&
     prev.title === next.title &&
     prev.className === next.className &&
-    prev.maxHeight === next.maxHeight
+    prev.maxHeight === next.maxHeight &&
+    prev.searchQuery === next.searchQuery
   );
 });
 
 export default CodeViewer;
-

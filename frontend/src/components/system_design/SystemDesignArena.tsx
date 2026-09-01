@@ -3,9 +3,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { SystemDesignEvaluation } from '../../types/nextgen';
 import { 
   ArrowLeft, BookOpen, Layers, MessageSquare, Send, Award,
-  Sparkles, ShieldAlert, Cpu, Database, CheckCircle2, RotateCcw, X, Loader2
+  Sparkles, ShieldAlert, Cpu, Database, CheckCircle2, RotateCcw, X, Loader2,
+  Eye, Edit3, Code2
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { MermaidPreview } from './MermaidPreview';
+import { MarkdownRenderer } from '../MarkdownRenderer';
 
 const cleanScenarioText = (text?: string): string => {
   if (!text) return '';
@@ -48,21 +51,12 @@ const renderCalculationsBlock = (rawText?: string) => {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-pastel-border/60">
-            {bodyRows.map((row, rIdx) => (
-              <tr key={rIdx} className="hover:bg-pastel-rose/20 transition">
-                {row.map((cell, cIdx) => (
-                  <td
-                    key={cIdx}
-                    className={`px-3.5 py-2.5 ${
-                      cIdx === 0
-                        ? 'font-bold text-pastel-text'
-                        : cIdx === row.length - 1
-                        ? 'font-mono font-bold text-purple-700 bg-purple-50/40'
-                        : 'font-mono text-slate-600'
-                    }`}
-                  >
-                    {cell || '—'}
+          <tbody className="divide-y divide-pastel-border/60 font-mono">
+            {bodyRows.map((row, rowIdx) => (
+              <tr key={rowIdx} className="hover:bg-pastel-bg/40 transition">
+                {row.map((cell, cellIdx) => (
+                  <td key={cellIdx} className="px-3.5 py-2.5 text-pastel-text">
+                    {cell}
                   </td>
                 ))}
               </tr>
@@ -74,9 +68,9 @@ const renderCalculationsBlock = (rawText?: string) => {
   }
 
   return (
-    <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-mono bg-pastel-bg p-4 rounded-xl border border-pastel-border mt-2">
+    <p className="text-xs text-pastel-muted leading-relaxed whitespace-pre-line">
       {cleaned}
-    </div>
+    </p>
   );
 };
 
@@ -90,12 +84,23 @@ export const SystemDesignArena: React.FC = () => {
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'staff_ai'>('spec');
   
-  // Candidate Notes & Architecture State
-  const [mermaidCode, setMermaidCode] = useState(activeSystemDesignScenario?.initialMermaid || '');
-  const [candidateNotes, setCandidateNotes] = useState('');
+  // Interactive Diagram & Candidate Solution State
+  const [mermaidCode, setMermaidCode] = useState<string>(
+    activeSystemDesignScenario?.initialMermaid || 
+`graph TD
+  Client[🌐 Web / Mobile Client] -->|HTTPS / TLS| LB[⚖️ Load Balancer]
+  LB --> Gateway[🚪 API Gateway]
+  Gateway --> ServiceA[⚙️ Core Service]
+  ServiceA --> DB[(🗄️ Primary PostgreSQL)]
+  ServiceA --> Cache[(⚡ Redis Cache)]
+  ServiceA --> Kafka[/📨 Kafka Event Bus/]`
+  );
   
-  // Staff AI Chat State
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
+  const [candidateNotes, setCandidateNotes] = useState<string>('');
+  const [notesViewMode, setNotesViewMode] = useState<'edit' | 'preview'>('edit');
+
+  // Interactive Staff AI Chat State
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
     {
       role: 'assistant',
       content: `Здравствуйте! Я Staff-интервьюер по System Design. Расскажите, как вы планируете построить архитектуру для «${activeSystemDesignScenario?.title || 'этого сервиса'}»? С каких ключевых компонентов вы начнете?`
@@ -176,6 +181,13 @@ export const SystemDesignArena: React.FC = () => {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      void handleEvaluate();
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg text-pastel-text relative font-sans">
       {/* Top Bar */}
@@ -227,7 +239,7 @@ export const SystemDesignArena: React.FC = () => {
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Архитектура</span>
+            <span>Архитектура & Схема</span>
           </button>
 
           <button
@@ -245,15 +257,16 @@ export const SystemDesignArena: React.FC = () => {
         <button
           onClick={handleEvaluate}
           disabled={isEvaluating}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white transition shadow-sm shadow-pastel-accentRose/20 cursor-pointer disabled:opacity-50 shrink-0"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white transition shadow-sm shadow-pastel-accentRose/20 cursor-pointer disabled:opacity-50 shrink-0 touch-manipulation active:scale-95"
         >
           {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать проект'}</span>
+          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать проект (Ctrl+↵)'}</span>
+          <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
         </button>
       </div>
 
       {/* Main Content Body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" onKeyDown={handleKeyDown}>
         {activeTab === 'spec' && (
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Traffic Profile */}
@@ -321,33 +334,85 @@ export const SystemDesignArena: React.FC = () => {
         )}
 
         {activeTab === 'architecture' && (
-          <div className="max-w-5xl mx-auto space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Mermaid Editor */}
-              <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col h-[500px] shadow-2xs">
-                <span className="text-xs font-bold text-pastel-text mb-2 font-mono">
-                  Топология компонентов (Mermaid диаграмма):
-                </span>
-                <textarea
-                  value={mermaidCode}
-                  onChange={(e) => setMermaidCode(e.target.value)}
-                  className="flex-1 w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-blue-300 focus:outline-none focus:border-pastel-accentRose resize-none"
-                  placeholder="graph TD..."
-                />
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Split Arena: Left Code & Notes Editor, Right Live Mermaid Canvas */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
+              
+              {/* Left Column (5 cols): Mermaid Code & Candidate Notes */}
+              <div className="lg:col-span-6 flex flex-col gap-4">
+                
+                {/* 1. Mermaid Code Editor */}
+                <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2">
+                    <span className="text-xs font-bold text-pastel-text font-mono flex items-center gap-1.5">
+                      <Code2 className="w-4 h-4 text-pastel-accentRose" />
+                      <span>Mermaid Код Топологии:</span>
+                    </span>
+                    <span className="text-[10px] text-pastel-muted font-mono">graph TD / C4 / Sequence</span>
+                  </div>
+
+                  <textarea
+                    value={mermaidCode}
+                    onChange={(e) => setMermaidCode(e.target.value)}
+                    className="w-full h-56 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-blue-300 focus:outline-hidden focus:border-pastel-accentRose resize-none leading-relaxed selection:bg-[#3D3558]"
+                    placeholder="graph TD..."
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* 2. Candidate Design Notes with Notion-Style Preview */}
+                <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col shadow-2xs space-y-2 flex-1">
+                  <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2">
+                    <span className="text-xs font-bold text-pastel-text font-mono">
+                      Пояснительная записка (CAP, Шардирование, Кэш):
+                    </span>
+
+                    <div className="flex items-center bg-pastel-bg p-0.5 rounded-lg border border-pastel-border">
+                      <button
+                        onClick={() => setNotesViewMode('edit')}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                          notesViewMode === 'edit' ? 'bg-white text-pastel-text shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                        }`}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Редактор</span>
+                      </button>
+                      <button
+                        onClick={() => setNotesViewMode('preview')}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                          notesViewMode === 'preview' ? 'bg-white text-pastel-accentRose shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                        }`}
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>Предпросмотр</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {notesViewMode === 'edit' ? (
+                    <textarea
+                      value={candidateNotes}
+                      onChange={(e) => setCandidateNotes(e.target.value)}
+                      className="flex-1 min-h-[160px] w-full bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text focus:outline-hidden focus:border-pastel-accentRose resize-none"
+                      placeholder="Опишите стратегию партиционирования, выбор СУБД, схему репликации и защиту от сбоев (поддерживается Markdown)..."
+                    />
+                  ) : (
+                    <div className="flex-1 min-h-[160px] p-3 rounded-xl bg-pastel-bg/60 border border-pastel-border overflow-y-auto">
+                      {candidateNotes.trim() ? (
+                        <MarkdownRenderer content={candidateNotes} />
+                      ) : (
+                        <span className="text-xs text-pastel-muted italic">Пояснительная записка пока пуста.</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Candidate Design Notes */}
-              <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col h-[500px] shadow-2xs">
-                <span className="text-xs font-bold text-pastel-text mb-2 font-mono">
-                  Пояснительная записка кандидата (Шардирование, CAP, Кэш):
-                </span>
-                <textarea
-                  value={candidateNotes}
-                  onChange={(e) => setCandidateNotes(e.target.value)}
-                  className="flex-1 w-full bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text focus:outline-none focus:border-pastel-accentRose resize-none"
-                  placeholder="Опишите стратегии партиционирования, выбор СУБД, схему репликации и защиту от сбоев..."
-                />
+              {/* Right Column (6 cols): Live Interactive Mermaid SVG Canvas */}
+              <div className="lg:col-span-6 flex flex-col min-h-[500px]">
+                <MermaidPreview code={mermaidCode} className="flex-1" />
               </div>
+
             </div>
           </div>
         )}
@@ -386,7 +451,7 @@ export const SystemDesignArena: React.FC = () => {
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Ответьте интервьюеру или задайте уточняющий вопрос..."
-                className="flex-1 bg-pastel-bg border border-pastel-border rounded-xl px-3.5 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-pastel-accentRose font-sans"
+                className="flex-1 bg-pastel-bg border border-pastel-border rounded-xl px-3.5 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-pastel-accentRose font-sans"
               />
               <button
                 onClick={handleSendMessage}
@@ -403,7 +468,7 @@ export const SystemDesignArena: React.FC = () => {
       {/* Evaluation Modal in Soft Luxury Pastel */}
       {evaluationResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl relative overflow-hidden font-sans my-auto">
+          <div className="bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 max-w-2xl w-full max-h-[90dvh] overflow-y-auto space-y-5 shadow-2xl relative overflow-hidden font-sans my-auto">
             
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">

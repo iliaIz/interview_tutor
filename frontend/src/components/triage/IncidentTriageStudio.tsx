@@ -3,9 +3,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { IncidentTriageEvaluation } from '../../types/nextgen';
 import { 
   ArrowLeft, Terminal, AlertTriangle, CheckCircle2, Award,
-  Send, Sparkles, Flame, Copy, Check, FileCode, Activity, Loader2
+  Send, Sparkles, Flame, Copy, Check, FileCode, Activity, Loader2,
+  Search, X, Eye, Edit3, ShieldAlert
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { CodeViewer } from '../CodeViewer';
+import { MarkdownRenderer } from '../MarkdownRenderer';
 
 export const IncidentTriageStudio: React.FC = () => {
   const { 
@@ -17,27 +20,22 @@ export const IncidentTriageStudio: React.FC = () => {
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<'symptoms' | 'artifact' | 'rca'>('artifact');
   
+  // Log Search and Quick Filter State
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  
+  // RCA Edit / Preview Modes
   const [rcaHypothesis, setRcaHypothesis] = useState('');
+  const [rcaMode, setRcaMode] = useState<'edit' | 'preview'>('edit');
+
   const [preventionPlan, setPreventionPlan] = useState('');
+  const [preventionMode, setPreventionMode] = useState<'edit' | 'preview'>('edit');
   
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<IncidentTriageEvaluation | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
 
   useBodyScrollLock(Boolean(evaluationResult));
 
   if (!activeTriageIncident) return null;
-
-  const handleCopyArtifact = () => {
-    navigator.clipboard.writeText(activeTriageIncident.rawArtifactText);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-    showToast({
-      type: 'success',
-      title: 'Скопировано',
-      message: 'Диагностический дамп скопирован в буфер'
-    });
-  };
 
   const handleEvaluate = async () => {
     if (!rcaHypothesis.trim() || !preventionPlan.trim()) {
@@ -75,6 +73,13 @@ export const IncidentTriageStudio: React.FC = () => {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      void handleEvaluate();
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg text-pastel-text relative font-sans">
       {/* Top Bar */}
@@ -106,7 +111,6 @@ export const IncidentTriageStudio: React.FC = () => {
             {activeTriageIncident.title}
           </span>
         </div>
-
 
         {/* Tab Switcher */}
         <div className="flex items-center bg-pastel-bg p-0.5 rounded-xl border border-pastel-border shrink-0">
@@ -148,7 +152,7 @@ export const IncidentTriageStudio: React.FC = () => {
           className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white transition shadow-sm cursor-pointer disabled:opacity-50 shrink-0 active:scale-95 touch-manipulation"
         >
           {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать RCA'}</span>
+          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать RCA (Ctrl+↵)'}</span>
           <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
         </button>
       </div>
@@ -187,55 +191,166 @@ export const IncidentTriageStudio: React.FC = () => {
 
         {activeTab === 'artifact' && (
           <div className="max-w-5xl mx-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-pastel-muted flex items-center gap-1.5">
-                <Terminal className="w-4 h-4 text-amber-600" />
-                <span>Сырой диагностический артефакт (Thread Dump / GC Log / Trace):</span>
-              </span>
+            {/* SRE Observability Toolbar: Search & Fast Filter Chips */}
+            <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-3 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-pastel-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={logSearchQuery}
+                    onChange={(e) => setLogSearchQuery(e.target.value)}
+                    placeholder="Поиск по стектрейсу (Deadlock, thread, pool, exception)..."
+                    className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-pastel-bg border border-pastel-border rounded-xl focus:outline-hidden focus:border-amber-400 placeholder:text-pastel-muted/60"
+                  />
+                  {logSearchQuery && (
+                    <button
+                      onClick={() => setLogSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-pastel-muted hover:text-pastel-text"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-              <button
-                onClick={handleCopyArtifact}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-pastel-rose/30 text-pastel-text text-xs font-mono border border-pastel-border transition cursor-pointer shadow-2xs"
-              >
-                {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-pastel-muted" />}
-                <span>{isCopied ? 'Скопировано' : 'Копировать дамп'}</span>
-              </button>
+              {/* Fast Focus Chips */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setLogSearchQuery('deadlock')}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+                >
+                  🔴 Deadlock
+                </button>
+                <button
+                  onClick={() => setLogSearchQuery('BLOCKED')}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
+                >
+                  ⚠️ Blocked
+                </button>
+                <button
+                  onClick={() => setLogSearchQuery('OutOfMemoryError')}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                >
+                  💥 OOM / GC
+                </button>
+                <button
+                  onClick={() => setLogSearchQuery('HikariPool')}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                >
+                  ⚡ HikariCP
+                </button>
+              </div>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 overflow-x-auto shadow-sm">
-              <pre className="text-xs font-mono text-amber-300 whitespace-pre-wrap leading-relaxed">
-                {activeTriageIncident.rawArtifactText}
-              </pre>
-            </div>
+            {/* SRE Observability Terminal (CodeViewer with JVM Log Tokenization) */}
+            <CodeViewer
+              code={activeTriageIncident.rawArtifactText}
+              language="log"
+              title="Observability SRE Terminal (Thread Dump & Diagnostics)"
+              searchQuery={logSearchQuery}
+              showLineNumbers={true}
+              maxHeight="max-h-[600px]"
+            />
           </div>
         )}
 
         {activeTab === 'rca' && (
-          <div className="max-w-4xl mx-auto space-y-4">
-            <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-4 shadow-2xs">
-              <div>
-                <label className="text-xs font-bold text-pastel-text block mb-1.5">
-                  1. Гипотеза корневой причины (Root Cause Analysis):
+          <div className="max-w-4xl mx-auto space-y-6" onKeyDown={handleKeyDown}>
+            {/* Block 1: RCA Hypothesis */}
+            <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2.5">
+                <label className="text-xs font-bold text-pastel-text flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-amber-600" />
+                  <span>1. Гипотеза корневой причины (Root Cause Analysis):</span>
                 </label>
+
+                <div className="flex items-center bg-pastel-bg p-0.5 rounded-lg border border-pastel-border">
+                  <button
+                    onClick={() => setRcaMode('edit')}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      rcaMode === 'edit' ? 'bg-white text-pastel-text shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>Редактор</span>
+                  </button>
+                  <button
+                    onClick={() => setRcaMode('preview')}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      rcaMode === 'preview' ? 'bg-white text-pastel-accentRose shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" />
+                    <span>Предпросмотр</span>
+                  </button>
+                </div>
+              </div>
+
+              {rcaMode === 'edit' ? (
                 <textarea
                   value={rcaHypothesis}
                   onChange={(e) => setRcaHypothesis(e.target.value)}
-                  placeholder="Опишите, что именно вызвало сбой на уровне JVM, блокировок, потоков или СУБД..."
-                  className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-amber-500 resize-none shadow-2xs"
+                  placeholder="Опишите, что именно вызвало сбой на уровне JVM, блокировок, потоков или СУБД (поддерживается Markdown)..."
+                  className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-amber-500 resize-none shadow-2xs"
                 />
+              ) : (
+                <div className="min-h-[144px] p-3 rounded-xl bg-pastel-bg/60 border border-pastel-border">
+                  {rcaHypothesis.trim() ? (
+                    <MarkdownRenderer content={rcaHypothesis} />
+                  ) : (
+                    <span className="text-xs text-pastel-muted italic">Текст гипотезы пока пуст.</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Block 2: Prevention Plan */}
+            <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2.5">
+                <label className="text-xs font-bold text-pastel-text flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>2. Архитектурный план превентивных мер (Remediation Plan):</span>
+                </label>
+
+                <div className="flex items-center bg-pastel-bg p-0.5 rounded-lg border border-pastel-border">
+                  <button
+                    onClick={() => setPreventionMode('edit')}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      preventionMode === 'edit' ? 'bg-white text-pastel-text shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>Редактор</span>
+                  </button>
+                  <button
+                    onClick={() => setPreventionMode('preview')}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                      preventionMode === 'preview' ? 'bg-white text-pastel-accentRose shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" />
+                    <span>Предпросмотр</span>
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-pastel-text block mb-1.5">
-                  2. Архитектурный план превентивных мер (Remediation Plan):
-                </label>
+              {preventionMode === 'edit' ? (
                 <textarea
                   value={preventionPlan}
                   onChange={(e) => setPreventionPlan(e.target.value)}
                   placeholder="Опишите, как перепроектировать код или конфигурацию (ReentrantLock, таймауты, индексы, ScopedValue), чтобы исключить рецидив..."
-                  className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-amber-500 resize-none shadow-2xs"
+                  className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-amber-500 resize-none shadow-2xs"
                 />
-              </div>
+              ) : (
+                <div className="min-h-[144px] p-3 rounded-xl bg-pastel-bg/60 border border-pastel-border">
+                  {preventionPlan.trim() ? (
+                    <MarkdownRenderer content={preventionPlan} />
+                  ) : (
+                    <span className="text-xs text-pastel-muted italic">План превентивных мер пока пуст.</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -244,7 +359,7 @@ export const IncidentTriageStudio: React.FC = () => {
       {/* Evaluation Result Modal */}
       {evaluationResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl relative overflow-hidden font-sans my-auto">
+          <div className="bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 max-w-2xl w-full max-h-[90dvh] overflow-y-auto space-y-5 shadow-2xl relative overflow-hidden font-sans my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Award className="w-6 h-6 text-amber-600" />

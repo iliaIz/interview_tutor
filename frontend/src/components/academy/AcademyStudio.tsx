@@ -80,7 +80,7 @@ export const AcademyStudio: React.FC = () => {
           
           setOpenMilestones((prev) => {
             if (prev.size > 0) return prev; // Preserve user's manual toggles
-            return new Set([activeMid, data.milestones[0].id]);
+            return new Set([activeMid || data.milestones[0].id]);
           });
         }
       }
