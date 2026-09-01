@@ -177,6 +177,68 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_err_vec_user ON candidate_error_vectors(user_id);
   CREATE INDEX IF NOT EXISTS idx_code_chall_cat ON coding_challenges(category);
   CREATE INDEX IF NOT EXISTS idx_code_sub_chall ON coding_submissions(challenge_id);
+  CREATE TABLE IF NOT EXISTS system_design_challenges (
+    id TEXT PRIMARY KEY,
+    scenario_number INTEGER,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS production_triage_challenges (
+    id TEXT PRIMARY KEY,
+    incident_number INTEGER,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS guided_roadmaps (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    total_steps INTEGER NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS roadmap_progress (
+    user_id TEXT DEFAULT 'default_user',
+    roadmap_id TEXT NOT NULL,
+    completed_steps_json TEXT NOT NULL,
+    current_step INTEGER DEFAULT 1,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, roadmap_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS system_design_submissions (
+    id TEXT PRIMARY KEY,
+    scenario_id TEXT NOT NULL,
+    user_id TEXT DEFAULT 'default_user',
+    architecture_mermaid TEXT,
+    notes_markdown TEXT,
+    evaluation_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS triage_submissions (
+    id TEXT PRIMARY KEY,
+    incident_id TEXT NOT NULL,
+    user_id TEXT DEFAULT 'default_user',
+    rca_hypothesis TEXT NOT NULL,
+    prevention_plan TEXT NOT NULL,
+    evaluation_json TEXT,
+    score INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Migration: Ensure track column exists in coding_challenges table
@@ -189,7 +251,6 @@ try {
 } catch (e) {
   console.error("Migration error for coding_challenges:", e);
 }
-
 
 // Safe column migrations for existing SQLite databases
 try {
@@ -207,6 +268,7 @@ try {
     );
   `);
 } catch {}
+
 
 export function seedDefaultProfiles() {
   try {
@@ -427,5 +489,114 @@ export function seedCodingChallenges() {
     console.error('Error seeding coding challenges:', err);
   }
 }
+
+export function seedNextGenCatalogs() {
+  try {
+    const resolveJsonPath = (filename: string) => {
+      const paths = [
+        path.join(__dirname, `../../../json/${filename}`),
+        path.join(__dirname, `../../json/${filename}`),
+        path.join(process.cwd(), `json/${filename}`)
+      ];
+      return paths.find(p => fs.existsSync(p));
+    };
+
+    // 1. System Design
+    const sdPath = resolveJsonPath('system_design_scenarios.json');
+    if (sdPath) {
+      const scenarios = JSON.parse(fs.readFileSync(sdPath, 'utf-8'));
+      const upsertSd = db.prepare(`
+        INSERT INTO system_design_challenges (id, scenario_number, slug, title, category, difficulty, manifest_json, updated_at)
+        VALUES (@id, @scenario_number, @slug, @title, @category, @difficulty, @manifest_json, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          scenario_number = excluded.scenario_number,
+          slug = excluded.slug,
+          title = excluded.title,
+          category = excluded.category,
+          difficulty = excluded.difficulty,
+          manifest_json = excluded.manifest_json,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const syncSd = db.transaction((items: any[]) => {
+        for (const sc of items) {
+          upsertSd.run({
+            id: sc.id,
+            scenario_number: sc.scenarioNumber || 1,
+            slug: sc.slug || sc.id,
+            title: sc.title,
+            category: sc.category || 'Distributed Systems',
+            difficulty: sc.difficulty || 'senior',
+            manifest_json: JSON.stringify(sc)
+          });
+        }
+      });
+      syncSd(scenarios);
+      console.log(`✅ Seeded ${scenarios.length} System Design scenarios into SQLite`);
+    }
+
+    // 2. Production Triage
+    const triagePath = resolveJsonPath('production_triage_challenges.json');
+    if (triagePath) {
+      const incidents = JSON.parse(fs.readFileSync(triagePath, 'utf-8'));
+      const upsertTriage = db.prepare(`
+        INSERT INTO production_triage_challenges (id, incident_number, slug, title, category, severity, manifest_json, updated_at)
+        VALUES (@id, @incident_number, @slug, @title, @category, @severity, @manifest_json, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          incident_number = excluded.incident_number,
+          slug = excluded.slug,
+          title = excluded.title,
+          category = excluded.category,
+          severity = excluded.severity,
+          manifest_json = excluded.manifest_json,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const syncTriage = db.transaction((items: any[]) => {
+        for (const inc of items) {
+          upsertTriage.run({
+            id: inc.id,
+            incident_number: inc.incidentNumber || 1,
+            slug: inc.slug || inc.id,
+            title: inc.title,
+            category: inc.category || 'Production Forensics',
+            severity: inc.severity || 'CRITICAL',
+            manifest_json: JSON.stringify(inc)
+          });
+        }
+      });
+      syncTriage(incidents);
+      console.log(`✅ Seeded ${incidents.length} Production Triage cases into SQLite`);
+    }
+
+    // 3. Guided Roadmaps
+    const roadmapsPath = resolveJsonPath('guided_roadmaps.json');
+    if (roadmapsPath) {
+      const roadmaps = JSON.parse(fs.readFileSync(roadmapsPath, 'utf-8'));
+      const upsertRm = db.prepare(`
+        INSERT INTO guided_roadmaps (id, title, total_steps, manifest_json, updated_at)
+        VALUES (@id, @title, @total_steps, @manifest_json, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          total_steps = excluded.total_steps,
+          manifest_json = excluded.manifest_json,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const syncRm = db.transaction((items: any[]) => {
+        for (const rm of items) {
+          upsertRm.run({
+            id: rm.id,
+            title: rm.title,
+            total_steps: rm.totalSteps || 25,
+            manifest_json: JSON.stringify(rm)
+          });
+        }
+      });
+      syncRm(roadmaps);
+      console.log(`✅ Seeded ${roadmaps.length} Guided Roadmap programs (25/50/100) into SQLite`);
+    }
+  } catch (err) {
+    console.error('Error seeding Next-Gen catalogs:', err);
+  }
+}
+
 
 

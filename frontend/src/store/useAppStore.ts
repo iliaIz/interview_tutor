@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CodingChallenge, FileNode, EvaluationResult } from '../types/practice';
+import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
 
 export interface Question {
   id: string;
@@ -127,11 +128,29 @@ export interface ActiveBatchSession {
   isComplete: boolean;
 }
 
-export type StudioTab = 'theory' | 'incidents' | 'practice';
+export type StudioTab = 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage';
 
 interface AppState {
   currentStudioTab: StudioTab;
   setStudioTab: (tab: StudioTab) => void;
+
+  // System Design Studio State
+  activeSystemDesignScenario: SystemDesignScenario | null;
+  openSystemDesignScenario: (scenario: SystemDesignScenario) => void;
+  closeSystemDesignScenario: () => void;
+
+  // Production Incident Triage Lab State
+  activeTriageIncident: ProductionIncident | null;
+  openTriageIncident: (incident: ProductionIncident) => void;
+  closeTriageIncident: () => void;
+
+  // Guided Non-Linear Roadmaps State
+  activeRoadmapId: string;
+  setActiveRoadmapId: (id: string) => void;
+  activeRoadmapStep: RoadmapStep | null;
+  setActiveRoadmapStep: (step: RoadmapStep | null) => void;
+  completedRoadmapSteps: Record<string, number[]>;
+  toggleRoadmapStepCompleted: (roadmapId: string, stepNumber: number) => void;
 
   currentView: 'topics' | 'questions' | 'study' | 'quiz';
   selectedTopicId: string | null;
@@ -244,8 +263,39 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      currentStudioTab: 'theory',
+      currentStudioTab: 'roadmaps',
       setStudioTab: (tab) => set({ currentStudioTab: tab }),
+
+      // System Design
+      activeSystemDesignScenario: null,
+      openSystemDesignScenario: (scenario) => set({ activeSystemDesignScenario: scenario }),
+      closeSystemDesignScenario: () => set({ activeSystemDesignScenario: null }),
+
+      // Triage Lab
+      activeTriageIncident: null,
+      openTriageIncident: (incident) => set({ activeTriageIncident: incident }),
+      closeTriageIncident: () => set({ activeTriageIncident: null }),
+
+      // Roadmaps
+      activeRoadmapId: 'senior-sprint-25',
+      setActiveRoadmapId: (id) => set({ activeRoadmapId: id }),
+      activeRoadmapStep: null,
+      setActiveRoadmapStep: (step) => set({ activeRoadmapStep: step }),
+      completedRoadmapSteps: {},
+      toggleRoadmapStepCompleted: (roadmapId, stepNumber) => set((state) => {
+        const current = state.completedRoadmapSteps[roadmapId] || [];
+        const isCompleted = current.includes(stepNumber);
+        const updated = isCompleted
+          ? current.filter(s => s !== stepNumber)
+          : [...current, stepNumber];
+        return {
+          completedRoadmapSteps: {
+            ...state.completedRoadmapSteps,
+            [roadmapId]: updated
+          }
+        };
+      }),
+
 
       currentView: 'topics',
       selectedTopicId: null,

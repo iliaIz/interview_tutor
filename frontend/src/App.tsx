@@ -6,6 +6,11 @@ import { QuestionExplorer } from './components/QuestionExplorer';
 import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
 import { PracticeArena } from './components/practice/PracticeArena';
+import { GuidedRoadmapStudio } from './components/roadmap/GuidedRoadmapStudio';
+import { SystemDesignCatalog } from './components/system_design/SystemDesignCatalog';
+import { SystemDesignArena } from './components/system_design/SystemDesignArena';
+import { IncidentTriageCatalog } from './components/triage/IncidentTriageCatalog';
+import { IncidentTriageStudio } from './components/triage/IncidentTriageStudio';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { InterviewReportModal } from './components/InterviewReportModal';
@@ -22,7 +27,9 @@ export const App: React.FC = () => {
     activeReportModal,
     closeReportModal,
     activeTopicBugHunt,
-    closeTopicBugHunt
+    closeTopicBugHunt,
+    activeSystemDesignScenario,
+    activeTriageIncident
   } = useAppStore();
 
   React.useEffect(() => {
@@ -56,9 +63,19 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {currentStudioTab === 'practice' ? (
-          <PracticeArena />
-        ) : (
+        {currentStudioTab === 'roadmaps' && <GuidedRoadmapStudio />}
+        
+        {currentStudioTab === 'practice' && <PracticeArena />}
+
+        {currentStudioTab === 'system_design' && (
+          activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />
+        )}
+
+        {currentStudioTab === 'triage' && (
+          activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
+        )}
+
+        {currentStudioTab === 'theory' && (
           <>
             {currentView === 'topics' && <TopicSelector />}
             {currentView === 'questions' && <QuestionExplorer />}
@@ -85,7 +102,7 @@ export const App: React.FC = () => {
       <Toast />
 
       {/* Footer */}
-      {currentStudioTab !== 'practice' && (
+      {currentStudioTab !== 'practice' && !activeSystemDesignScenario && !activeTriageIncident && (
         <footer className="border-t border-pastel-border/60 bg-white/60 backdrop-blur-md py-4 text-center text-xs text-pastel-muted">
           <p className="flex items-center justify-center gap-1">
             Создано с заботой <Heart className="w-3.5 h-3.5 text-pastel-accentRose fill-pastel-accentRose inline" /> для комфортной и уверенной подготовки к собеседованиям.

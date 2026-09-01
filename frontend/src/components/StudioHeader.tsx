@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore, StudioTab } from '../store/useAppStore';
-import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2 } from 'lucide-react';
+import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers } from 'lucide-react';
 
 export const StudioHeader: React.FC = () => {
   const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt } = useAppStore();
@@ -49,10 +49,14 @@ export const StudioHeader: React.FC = () => {
   };
 
   const tabs: { id: StudioTab; label: string; icon: React.ComponentType<any>; badge?: string }[] = [
-    { id: 'theory', label: 'База знаний & Голос', icon: BookOpen },
-    { id: 'incidents', label: 'Инциденты & Баги', icon: Bug, badge: 'PROD' },
-    { id: 'practice', label: 'Live-Coding & Katas', icon: Code2, badge: 'SOTA 2026' }
+    { id: 'roadmaps', label: 'Траектории', icon: Compass, badge: '25/50/100' },
+    { id: 'theory', label: 'База знаний', icon: BookOpen },
+    { id: 'incidents', label: 'Инциденты', icon: Bug, badge: '70 Ката' },
+    { id: 'triage', label: 'Триаж Дампов', icon: Terminal, badge: '15 Дампов' },
+    { id: 'practice', label: 'Machine Coding', icon: Code2, badge: '35 LLD' },
+    { id: 'system_design', label: 'System Design', icon: Layers, badge: '20 HLD' }
   ];
+
 
   return (
     <header className="border-b border-pastel-border/70 bg-white/80 backdrop-blur-xl sticky top-0 z-40 shadow-xs">

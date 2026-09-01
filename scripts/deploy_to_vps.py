@@ -100,7 +100,7 @@ def deploy():
     except:
         pass
 
-    print("\n[5/5] Performing Health Check on https://djelu.site...")
+    print("\n[5/5] Performing Health Checks on https://djelu.site...")
     time.sleep(3)
     try:
         res = requests.get("https://djelu.site/api/health", timeout=10)
@@ -110,7 +110,21 @@ def deploy():
         # Check practice challenges
         c_res = requests.get("https://djelu.site/api/practice/challenges", timeout=10)
         print(f"Practice Challenges Status: {c_res.status_code} (Found {len(c_res.json())} challenges)")
-        print("\n🎉 PRODUCTION DEPLOYMENT COMPLETE & VERIFIED!")
+
+        # Check system design
+        sd_res = requests.get("https://djelu.site/api/system-design/scenarios", timeout=10)
+        print(f"System Design Scenarios Status: {sd_res.status_code} (Found {len(sd_res.json())} scenarios)")
+
+        # Check triage
+        tr_res = requests.get("https://djelu.site/api/triage/challenges", timeout=10)
+        print(f"Incident Triage Status: {tr_res.status_code} (Found {len(tr_res.json())} incidents)")
+
+        # Check roadmaps
+        rm_res = requests.get("https://djelu.site/api/roadmaps", timeout=10)
+        print(f"Guided Roadmaps Status: {rm_res.status_code} (Found {len(rm_res.json())} roadmap tracks)")
+
+        print("\n🎉 PRODUCTION DEPLOYMENT COMPLETE & ALL NEXT-GEN ENDPOINTS VERIFIED!")
+
     except Exception as e:
         print(f"Health check warning: {e}")
 

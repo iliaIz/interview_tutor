@@ -11,7 +11,10 @@ import tutorRouter from './routes/tutor';
 import memoryRouter from './routes/memory';
 import interviewTurnRouter from './routes/interviewTurn';
 import practiceRouter from './routes/practice';
-import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles, seedCodingChallenges } from './services/db';
+import { systemDesignRouter } from './routes/systemDesign';
+import { triageRouter } from './routes/triage';
+import { roadmapsRouter } from './routes/roadmaps';
+import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles, seedCodingChallenges, seedNextGenCatalogs } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 import { envConfig } from './config/env';
 
@@ -36,6 +39,10 @@ app.use('/api/tutor', tutorRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/interview', interviewTurnRouter);
 app.use('/api/practice', practiceRouter);
+app.use('/api/system-design', systemDesignRouter);
+app.use('/api/triage', triageRouter);
+app.use('/api/roadmaps', roadmapsRouter);
+
 
 // Safety alias route for direct question queries
 app.get('/api/questions/:topicId', (req, res) => {
@@ -70,11 +77,13 @@ const server = http.createServer(app);
 // Setup Gemini Live WebSocket Proxy
 setupLiveWebSocketProxy(server);
 
-// Seed DB, recover orphaned jobs, seed profiles, coding challenges and start server
+// Seed DB, recover orphaned jobs, seed profiles, coding challenges, and Next-Gen catalogs
 seedQuestionsFromJSON();
 recoverOrphanedJobs();
 seedDefaultProfiles();
 seedCodingChallenges();
+seedNextGenCatalogs();
+
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend Server running on http://localhost:${PORT}`);
