@@ -873,12 +873,12 @@ export const useAppStore = create<AppState>()(
         currentView: state.currentView,
         selectedTopicId: state.selectedTopicId,
         selectedTopicName: state.selectedTopicName,
+        activeAcademyCourseId: state.activeAcademyCourseId,
         shuffleMap: state.shuffleMap,
         batchSizeMap: state.batchSizeMap,
         topicsProgress: state.topicsProgress,
         evaluationsMap: state.evaluationsMap,
         cheatSheetBookmarks: state.cheatSheetBookmarks,
-        activeBatchSession: state.activeBatchSession,
         topicAccessMap: state.topicAccessMap,
         codeRevisions: state.codeRevisions,
       })

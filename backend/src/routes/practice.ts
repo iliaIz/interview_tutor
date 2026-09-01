@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { db } from '../services/db';
 import { evaluateChallengeSubmission } from '../services/codeEvaluator';
 import { CodingChallenge } from '../services/challengeSeedData';
+import { getAuthUserId } from '../middleware/auth';
 
 const router = Router();
 
-// GET /api/practice/challenges - List all challenges with category filter & submission status
+// GET /api/practice/challenges - List all challenges with category filter & submission status for current user
 router.get('/challenges', (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const { category, track } = req.query;
     let query = 'SELECT id, slug, title, category, track, badge, difficulty, target_stack, time_limit_minutes, short_description, updated_at FROM coding_challenges';
     const params: any[] = [];
@@ -29,9 +31,9 @@ router.get('/challenges', (req, res) => {
 
     const rows = db.prepare(query).all(...params) as any[];
 
-    // Fetch submission status for each challenge
+    // Fetch submission status for the authenticated user
     const subStmt = db.prepare('SELECT challenge_id, status, score, updated_at FROM coding_submissions WHERE user_id = ?');
-    const submissions = subStmt.all('default_user') as any[];
+    const submissions = subStmt.all(userId) as any[];
     const subMap = new Map(submissions.map(s => [s.challenge_id, s]));
 
     const result = rows.map(r => {
@@ -55,10 +57,10 @@ router.get('/challenges', (req, res) => {
   }
 });
 
-
-// GET /api/practice/challenges/:id - Get full challenge manifest
+// GET /api/practice/challenges/:id - Get full challenge manifest for current user
 router.get('/challenges/:id', (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const challengeId = req.params.id;
     const row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
 
@@ -70,7 +72,7 @@ router.get('/challenges/:id', (req, res) => {
 
     // Check if user has an active draft
     const draftRow = db.prepare('SELECT files_json, active_phase, status, score, evaluation_json, time_spent_seconds FROM coding_submissions WHERE challenge_id = ? AND user_id = ?')
-      .get(manifest.id, 'default_user') as any;
+      .get(manifest.id, userId) as any;
 
     let draftFiles = null;
     let activePhase = 1;
@@ -104,6 +106,7 @@ router.get('/challenges/:id', (req, res) => {
 // POST /api/practice/evaluate - Submit workspace files for dual-pass evaluation
 router.post('/evaluate', async (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = req.body;
 
     if (!challengeId || !Array.isArray(files) || files.length === 0) {
@@ -138,7 +141,7 @@ router.post('/evaluate', async (req, res) => {
     const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;
     const status = isPassed ? 'PASSED' : 'FAILED';
 
-    // Upsert into coding_submissions
+    // Upsert into coding_submissions with isolated userId
     const upsertStmt = db.prepare(`
       INSERT INTO coding_submissions (
         id, challenge_id, user_id, files_json, active_phase, status, score,
@@ -157,11 +160,11 @@ router.post('/evaluate', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `);
 
-    const submissionId = `sub_${challengeId}_default_user`;
+    const submissionId = `sub_${challengeId}_${userId}`;
     upsertStmt.run({
       id: submissionId,
       challenge_id: challengeId,
-      user_id: 'default_user',
+      user_id: userId,
       files_json: JSON.stringify(files),
       active_phase: activePhase,
       status,
@@ -182,20 +185,21 @@ router.post('/evaluate', async (req, res) => {
   }
 });
 
-// POST /api/practice/draft - Auto-save workspace draft
+// POST /api/practice/draft - Auto-save workspace draft for active user
 router.post('/draft', (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = req.body;
     if (!challengeId || !Array.isArray(files)) {
       return res.status(400).json({ error: 'challengeId and files array are required' });
     }
 
-    const submissionId = `sub_${challengeId}_default_user`;
+    const submissionId = `sub_${challengeId}_${userId}`;
     const stmt = db.prepare(`
       INSERT INTO coding_submissions (
         id, challenge_id, user_id, files_json, active_phase, time_spent_seconds, updated_at
       ) VALUES (
-        ?, ?, 'default_user', ?, ?, ?, CURRENT_TIMESTAMP
+        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
       )
       ON CONFLICT(id) DO UPDATE SET
         files_json = excluded.files_json,
@@ -204,7 +208,7 @@ router.post('/draft', (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `);
 
-    stmt.run(submissionId, challengeId, JSON.stringify(files), activePhase, timeSpentSeconds);
+    stmt.run(submissionId, challengeId, userId, JSON.stringify(files), activePhase, timeSpentSeconds);
     res.json({ success: true, savedAt: new Date().toISOString() });
   } catch (err: any) {
     console.error('Error saving practice draft:', err);
@@ -212,11 +216,12 @@ router.post('/draft', (req, res) => {
   }
 });
 
-// POST /api/practice/reset/:challengeId - Reset workspace draft to initial state
+// POST /api/practice/reset/:challengeId - Reset workspace draft to initial state for active user
 router.post('/reset/:challengeId', (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const challengeId = req.params.challengeId;
-    const submissionId = `sub_${challengeId}_default_user`;
+    const submissionId = `sub_${challengeId}_${userId}`;
     db.prepare('DELETE FROM coding_submissions WHERE id = ?').run(submissionId);
     res.json({ success: true, message: 'Challenge workspace reset to default.' });
   } catch (err: any) {
@@ -262,6 +267,4 @@ router.post('/generate-task', async (req, res) => {
   }
 });
 
-
 export default router;
-

@@ -355,16 +355,17 @@ export async function recordNewErrorGap(params: {
   subtopic?: string;
   errorConcept: string;
   initialDeficit?: number;
+  userId?: string;
 }): Promise<string> {
-  const { questionId, topic, subtopic, errorConcept, initialDeficit = 1.0 } = params;
+  const { questionId, topic, subtopic, errorConcept, initialDeficit = 1.0, userId = 'default_user' } = params;
   const id = `gap_${crypto.randomBytes(12).toString('hex')}`;
 
-  // Check if identical or very similar error already exists
+  // Check if identical or very similar error already exists for this user
   const existing = db.prepare(`
     SELECT id, deficit_weight, solo_streak
     FROM candidate_error_vectors
-    WHERE topic = ? AND error_concept = ?
-  `).get(topic, errorConcept) as any;
+    WHERE user_id = ? AND topic = ? AND error_concept = ?
+  `).get(userId, topic, errorConcept) as any;
 
   if (existing) {
     db.prepare(`
@@ -388,12 +389,13 @@ export async function recordNewErrorGap(params: {
       embedding, deficit_weight, status, solo_streak, assisted_count,
       last_tested_at, created_at, updated_at
     ) VALUES (
-      @id, 'default_user', @questionId, @topic, @subtopic, @errorConcept,
+      @id, @userId, @questionId, @topic, @subtopic, @errorConcept,
       @embedding, @deficitWeight, 'ACTIVE_DEFICIT', 0, 0,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `).run({
     id,
+    userId,
     questionId: questionId || null,
     topic,
     subtopic: subtopic || null,

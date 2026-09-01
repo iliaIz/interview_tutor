@@ -99,3 +99,14 @@ export function requireRole(...allowedRoles: string[]) {
   };
 }
 
+export function getAuthUserId(req: Request): string {
+  const token = extractSessionToken(req);
+  if (token) {
+    const result = authService.validateSession(token);
+    if (result?.user?.id) {
+      return result.user.id;
+    }
+  }
+  return (req as any).user?.id || (req as any).session?.userId || 'default_user';
+}
+
