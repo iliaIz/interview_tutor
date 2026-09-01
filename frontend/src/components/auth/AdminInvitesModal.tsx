@@ -221,7 +221,7 @@ export const AdminInvitesModal: React.FC = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Например: Иван Иванов (Senior)"
-                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none transition shadow-2xs"
+                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-base sm:text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none transition shadow-2xs"
                 />
               </div>
 
@@ -230,20 +230,19 @@ export const AdminInvitesModal: React.FC = () => {
                 <select
                   value={role}
                   onChange={(e: any) => setRole(e.target.value)}
-                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-xs text-pastel-text focus:outline-none transition shadow-2xs"
+                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-base sm:text-xs text-pastel-text focus:outline-none transition shadow-2xs"
                 >
                   <option value="user">🛡️ Пользователь (Полный доступ ко всей Студии)</option>
                   <option value="owner">👑 Владелец (Администратор с управлением инвайтами)</option>
                 </select>
               </div>
 
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-pastel-muted">Лимит использований:</label>
                 <select
                   value={maxUses}
                   onChange={(e) => setMaxUses(Number(e.target.value))}
-                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-xs text-pastel-text focus:outline-none transition shadow-2xs"
+                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-base sm:text-xs text-pastel-text focus:outline-none transition shadow-2xs"
                 >
                   <option value={0}>♾️ Безлимитный (многократный вход)</option>
                   <option value={1}>1️⃣ Одноразовый (для 1 кандидата)</option>
@@ -259,7 +258,7 @@ export const AdminInvitesModal: React.FC = () => {
                   value={customCode}
                   onChange={(e) => setCustomCode(e.target.value)}
                   placeholder="Оставьте пустым для авто-генерации"
-                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-xs text-pastel-text font-mono uppercase placeholder-pastel-muted/50 focus:outline-none transition shadow-2xs"
+                  className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-base sm:text-xs text-pastel-text font-mono uppercase placeholder-pastel-muted/50 focus:outline-none transition shadow-2xs"
                 />
               </div>
             </div>

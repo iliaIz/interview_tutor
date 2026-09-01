@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { db } from '../services/db';
 import { TOPIC_DEFINITIONS, TOPIC_MAP } from '../services/topics';
+import { getAuthUserId } from '../middleware/auth';
 
 const router = Router();
 
-// GET /api/topics - List all topics with progress summary and category grouping
+// GET /api/topics - List all topics with progress summary for authenticated user
 router.get('/', (req, res) => {
-  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
+  const userId = getAuthUserId(req);
+  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?');
   const evalStmt = db.prepare(`
     SELECT question_id, MAX(score) as max_score, MAX(is_passed) as any_passed
@@ -18,7 +20,7 @@ router.get('/', (req, res) => {
   const result = TOPIC_DEFINITIONS.map(t => {
     const dbTopicName = t.name;
     const topicId = t.id;
-    const row = progressStmt.get(dbTopicName) as any;
+    const row = progressStmt.get(userId, dbTopicName) as any;
     const countRow = countStmt.get(dbTopicName) as any;
     const total = countRow ? countRow.count : 0;
     
@@ -68,6 +70,7 @@ router.get('/', (req, res) => {
 
 // GET /api/topics/:topicId/batch?size=5&shuffle=true
 router.get('/:topicId/batch', (req, res) => {
+  const userId = getAuthUserId(req);
   const topicId = req.params.topicId.toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
 
@@ -79,8 +82,8 @@ router.get('/:topicId/batch', (req, res) => {
   const shuffleParam = req.query.shuffle === 'true';
 
   // Get user progress
-  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
-  const progressRow = progressStmt.get(dbTopicName) as any;
+  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
+  const progressRow = progressStmt.get(userId, dbTopicName) as any;
 
   let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
 
@@ -109,8 +112,9 @@ router.get('/:topicId/batch', (req, res) => {
   });
 });
 
-// POST /api/topics/:topicId/progress - Save progress
+// POST /api/topics/:topicId/progress - Save progress for authenticated user
 router.post('/:topicId/progress', (req, res) => {
+  const userId = getAuthUserId(req);
   const topicId = req.params.topicId.toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
   if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
@@ -122,9 +126,9 @@ router.post('/:topicId/progress', (req, res) => {
   const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
   const stmt = db.prepare(`
-    INSERT INTO user_progress (topic, completed_ids, mastered_ids, review_ids, last_question_id, percentage, shuffle, batch_size, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(topic) DO UPDATE SET
+    INSERT INTO user_progress (user_id, topic, completed_ids, mastered_ids, review_ids, last_question_id, percentage, shuffle, batch_size, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, topic) DO UPDATE SET
       completed_ids = excluded.completed_ids,
       mastered_ids = excluded.mastered_ids,
       review_ids = excluded.review_ids,
@@ -136,6 +140,7 @@ router.post('/:topicId/progress', (req, res) => {
   `);
 
   stmt.run(
+    userId,
     dbTopicName,
     JSON.stringify(completedIds),
     JSON.stringify(masteredIds),
@@ -151,6 +156,7 @@ router.post('/:topicId/progress', (req, res) => {
 
 // GET /api/topics/:topicId/questions - Get all questions for a specific topic with user status
 router.get('/:topicId/questions', (req, res) => {
+  const userId = getAuthUserId(req);
   const topicId = req.params.topicId.toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
 
@@ -159,8 +165,8 @@ router.get('/:topicId/questions', (req, res) => {
   }
 
   // Get user progress
-  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
-  const progressRow = progressStmt.get(dbTopicName) as any;
+  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
+  const progressRow = progressStmt.get(userId, dbTopicName) as any;
 
   let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
   let masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
@@ -196,14 +202,15 @@ router.get('/:topicId/questions', (req, res) => {
       const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
       db.prepare(`
-        INSERT INTO user_progress (topic, completed_ids, mastered_ids, percentage, shuffle, batch_size, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(topic) DO UPDATE SET
+        INSERT INTO user_progress (user_id, topic, completed_ids, mastered_ids, percentage, shuffle, batch_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, topic) DO UPDATE SET
           completed_ids = excluded.completed_ids,
           mastered_ids = excluded.mastered_ids,
           percentage = excluded.percentage,
           updated_at = CURRENT_TIMESTAMP
       `).run(
+        userId,
         dbTopicName,
         JSON.stringify(completedIds),
         JSON.stringify(masteredIds),
@@ -261,8 +268,9 @@ router.post('/questions/by-ids', (req, res) => {
   res.json({ questions: formatted });
 });
 
-// POST /api/topics/:topicId/reset - Reset progress ("Сначала")
+// POST /api/topics/:topicId/reset - Reset progress ("Сначала") for authenticated user
 router.post('/:topicId/reset', (req, res) => {
+  const userId = getAuthUserId(req);
   const topicId = req.params.topicId.toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
   if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
@@ -275,10 +283,10 @@ router.post('/:topicId/reset', (req, res) => {
         last_question_id = NULL,
         percentage = 0,
         updated_at = CURRENT_TIMESTAMP
-    WHERE topic = ?
+    WHERE user_id = ? AND topic = ?
   `);
 
-  stmt.run(dbTopicName);
+  stmt.run(userId, dbTopicName);
 
   res.json({ success: true, topic: dbTopicName });
 });

@@ -103,9 +103,9 @@ export const PracticeArena: React.FC = () => {
 
       {/* Main Split Workspace: Left = Spec Panel, Right = Multi-File Editor */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Specification Sidebar (38%) */}
+        {/* Left Specification Sidebar (38% on desktop, max 780px on 2xl Ultrawide) */}
         <div
-          className={`w-full md:w-[38%] h-full overflow-hidden shrink-0 border-r border-pastel-border ${
+          className={`w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px] h-full overflow-hidden shrink-0 border-r border-pastel-border ${
             mobileTab === 'spec' ? 'flex flex-col' : 'hidden md:flex flex-col'
           }`}
         >

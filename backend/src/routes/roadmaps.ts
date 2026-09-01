@@ -49,8 +49,8 @@ function getUserEntityProgress(userId: string): UserEntityProgress {
 
     // 4. Mastered topics
     const topicRows = db.prepare(`
-      SELECT topic, mastered_ids FROM user_progress WHERE mastered_ids IS NOT NULL
-    `).all() as any[];
+      SELECT topic, mastered_ids FROM user_progress WHERE user_id = ? AND mastered_ids IS NOT NULL
+    `).all(userId) as any[];
     const masteredTopics = new Set<string>();
     for (const tr of topicRows) {
       try {

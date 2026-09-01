@@ -27,14 +27,17 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS user_progress (
-    topic TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default_user',
+    topic TEXT NOT NULL,
     completed_ids TEXT,
     last_question_id TEXT,
     mastered_ids TEXT,
     review_ids TEXT,
+    percentage INTEGER DEFAULT 0,
     shuffle INTEGER DEFAULT 0,
     batch_size INTEGER DEFAULT 5,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, topic)
   );
 
   CREATE TABLE IF NOT EXISTS podcast_jobs (
@@ -302,6 +305,38 @@ try {
   }
 } catch (e) {
   console.error("Migration error for coding_challenges:", e);
+}
+
+// Migration: Ensure user_progress supports multi-user composite key
+try {
+  const cols = db.pragma('table_info(user_progress)') as any[];
+  const hasUserId = cols.some(c => c.name === 'user_id');
+  if (!hasUserId) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_progress_v2 (
+        user_id TEXT NOT NULL DEFAULT 'default_user',
+        topic TEXT NOT NULL,
+        completed_ids TEXT,
+        last_question_id TEXT,
+        mastered_ids TEXT,
+        review_ids TEXT,
+        percentage INTEGER DEFAULT 0,
+        shuffle INTEGER DEFAULT 0,
+        batch_size INTEGER DEFAULT 5,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, topic)
+      );
+      INSERT OR IGNORE INTO user_progress_v2 (user_id, topic, completed_ids, last_question_id, mastered_ids, review_ids, percentage, shuffle, batch_size, updated_at)
+        SELECT 'default_user', topic, completed_ids, last_question_id, mastered_ids, review_ids, 0, shuffle, batch_size, updated_at FROM user_progress;
+      DROP TABLE user_progress;
+      ALTER TABLE user_progress_v2 RENAME TO user_progress;
+      CREATE INDEX IF NOT EXISTS idx_user_prog_user ON user_progress(user_id);
+    `);
+    console.log("✅ Migrated user_progress table to multi-user composite primary key");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_user_prog_user ON user_progress(user_id);");
+} catch (e) {
+  console.error("Migration error for user_progress:", e);
 }
 
 // Migration: Ensure category column exists in guided_roadmaps table

@@ -413,7 +413,7 @@ export const QuestionExplorer: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск по номеру (#5) или формулировке вопроса..."
-              className="w-full pl-10 pr-9 py-2 rounded-xl bg-pastel-bg/50 border border-pastel-border text-xs md:text-sm text-pastel-text placeholder-pastel-muted focus:outline-none focus:bg-white focus:ring-2 focus:ring-pastel-accentRose/30 focus:border-pastel-accentRose transition"
+              className="w-full pl-10 pr-9 py-2 rounded-xl bg-pastel-bg/50 border border-pastel-border text-base sm:text-xs md:text-sm text-pastel-text placeholder-pastel-muted focus:outline-none focus:bg-white focus:ring-2 focus:ring-pastel-accentRose/30 focus:border-pastel-accentRose transition"
             />
             {searchQuery && (
               <button

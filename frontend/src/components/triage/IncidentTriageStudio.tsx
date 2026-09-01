@@ -190,7 +190,7 @@ export const IncidentTriageStudio: React.FC = () => {
         )}
 
         {activeTab === 'artifact' && (
-          <div className="max-w-5xl mx-auto space-y-3">
+          <div className="max-w-5xl 2xl:max-w-[2000px] mx-auto space-y-3">
             {/* SRE Observability Toolbar: Search & Fast Filter Chips */}
             <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-3 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2 flex-1 min-w-[240px]">
@@ -201,7 +201,7 @@ export const IncidentTriageStudio: React.FC = () => {
                     value={logSearchQuery}
                     onChange={(e) => setLogSearchQuery(e.target.value)}
                     placeholder="Поиск по стектрейсу (Deadlock, thread, pool, exception)..."
-                    className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-pastel-bg border border-pastel-border rounded-xl focus:outline-hidden focus:border-amber-400 placeholder:text-pastel-muted/60"
+                    className="w-full pl-8 pr-7 py-1.5 text-base sm:text-xs font-mono bg-pastel-bg border border-pastel-border rounded-xl focus:outline-hidden focus:border-amber-400 placeholder:text-pastel-muted/60"
                   />
                   {logSearchQuery && (
                     <button

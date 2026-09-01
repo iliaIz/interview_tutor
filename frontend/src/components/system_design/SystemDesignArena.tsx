@@ -334,7 +334,7 @@ export const SystemDesignArena: React.FC = () => {
         )}
 
         {activeTab === 'architecture' && (
-          <div className="max-w-7xl mx-auto space-y-6">
+          <div className="max-w-7xl 2xl:max-w-[2200px] mx-auto space-y-6">
             {/* Split Arena: Left Code & Notes Editor, Right Live Mermaid Canvas */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
               
