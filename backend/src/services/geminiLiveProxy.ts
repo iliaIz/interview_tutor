@@ -13,6 +13,9 @@ import {
   getUserProfile,
   CandidateGap
 } from './vectorMemoryService';
+import { authService } from './authService';
+import { parseCookies } from '../middleware/auth';
+
 
 dotenv.config();
 
@@ -510,12 +513,41 @@ export function setupLiveWebSocketProxy(server: http.Server) {
   const wss = new WebSocketServer({ server, path: '/ws/live' });
 
   wss.on('connection', async (clientSocket: WebSocket, req: http.IncomingMessage) => {
-    console.log('🎙️ Client connected to Live Audio WS Proxy');
-
     const parsedUrl = url.parse(req.url || '', true);
     const query = parsedUrl.query;
 
+    // Zero-Trust WebSocket Auth Verification (Ticket or HttpOnly Cookie)
+    const ticket = (query.ticket as string) || '';
+    let authenticatedUser: any = null;
+
+    if (ticket) {
+      const ticketResult = authService.verifyAndConsumeWsTicket(ticket);
+      if (ticketResult) {
+        authenticatedUser = ticketResult.user;
+      }
+    }
+
+    if (!authenticatedUser) {
+      const cookies = parseCookies(req.headers.cookie);
+      const sessionToken = cookies['session_token'];
+      if (sessionToken) {
+        const sessionResult = authService.validateSession(sessionToken);
+        if (sessionResult) {
+          authenticatedUser = sessionResult.user;
+        }
+      }
+    }
+
+    if (!authenticatedUser) {
+      console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
+      clientSocket.close(4401, 'Unauthorized: Valid ticket or invite session required');
+      return;
+    }
+
+    console.log(`🎙️ Authenticated client connected to Live Audio WS Proxy (user: ${authenticatedUser.name})`);
+
     const sessionType = ((query.sessionType as string) === 'tutor' ? 'tutor' : 'interview') as 'interview' | 'tutor';
+
     const tutorMode = (query.tutorMode as any) || 'deep_dive';
     const bugTitle = (query.bugTitle as string) || '';
     const bugExplanation = (query.bugExplanation as string) || '';

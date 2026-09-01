@@ -1,9 +1,10 @@
 import React from 'react';
 import { useAppStore, StudioTab } from '../store/useAppStore';
-import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers } from 'lucide-react';
+import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut } from 'lucide-react';
 
 export const StudioHeader: React.FC = () => {
-  const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt } = useAppStore();
+  const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt, currentUser, logout } = useAppStore();
+
 
   const renderHealthBadge = () => {
     if (systemHealth.isAiReady) {
@@ -115,11 +116,32 @@ export const StudioHeader: React.FC = () => {
           })}
         </nav>
 
-        {/* Health Status Badge */}
+        {/* Health Status & User Profile Badge */}
         <div className="flex items-center gap-2 shrink-0">
           {renderHealthBadge()}
+
+          {currentUser && (
+            <div className="flex items-center gap-1.5 pl-2 border-l border-pastel-border/80">
+              <div 
+                title={`Авторизован: ${currentUser.name} (${currentUser.role})`}
+                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-slate-900 text-slate-100 border border-slate-800 shadow-2xs"
+              >
+                <User className="w-3.5 h-3.5 text-pastel-accentRose" />
+                <span className="max-w-[110px] truncate hidden sm:inline">{currentUser.name}</span>
+              </div>
+
+              <button
+                onClick={() => logout()}
+                title="Выйти из студии"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
 };
+

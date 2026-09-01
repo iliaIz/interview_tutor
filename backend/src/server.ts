@@ -14,7 +14,16 @@ import practiceRouter from './routes/practice';
 import { systemDesignRouter } from './routes/systemDesign';
 import { triageRouter } from './routes/triage';
 import { roadmapsRouter } from './routes/roadmaps';
-import { seedQuestionsFromJSON, recoverOrphanedJobs, seedDefaultProfiles, seedCodingChallenges, seedNextGenCatalogs } from './services/db';
+import { authRouter } from './routes/auth';
+import { requireAuth } from './middleware/auth';
+import { 
+  seedQuestionsFromJSON, 
+  recoverOrphanedJobs, 
+  seedDefaultProfiles, 
+  seedCodingChallenges, 
+  seedNextGenCatalogs,
+  seedMasterInviteCode
+} from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 import { envConfig } from './config/env';
 
@@ -23,25 +32,32 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }));
 
 import { checkSystemHealth } from './services/health';
 
-// API Routes
-app.use('/api/topics', topicsRouter);
-app.use('/api/eval', evalRouter);
-app.use('/api/podcast', podcastRouter);
-app.use('/api/profiles', profilesRouter);
-app.use('/api/stt', sttRouter);
-app.use('/api/tutor', tutorRouter);
-app.use('/api/memory', memoryRouter);
-app.use('/api/interview', interviewTurnRouter);
-app.use('/api/practice', practiceRouter);
-app.use('/api/system-design', systemDesignRouter);
-app.use('/api/triage', triageRouter);
-app.use('/api/roadmaps', roadmapsRouter);
+// Public Auth & Config Routes
+app.use('/api/auth', authRouter);
+
+// Protected Studio APIs (Zero Trust Token Protection)
+app.use('/api/topics', requireAuth, topicsRouter);
+app.use('/api/eval', requireAuth, evalRouter);
+app.use('/api/podcast', requireAuth, podcastRouter);
+app.use('/api/profiles', requireAuth, profilesRouter);
+app.use('/api/stt', requireAuth, sttRouter);
+app.use('/api/tutor', requireAuth, tutorRouter);
+app.use('/api/memory', requireAuth, memoryRouter);
+app.use('/api/interview', requireAuth, interviewTurnRouter);
+app.use('/api/practice', requireAuth, practiceRouter);
+app.use('/api/system-design', requireAuth, systemDesignRouter);
+app.use('/api/triage', requireAuth, triageRouter);
+app.use('/api/roadmaps', requireAuth, roadmapsRouter);
+
 
 
 // Safety alias route for direct question queries
@@ -83,6 +99,8 @@ recoverOrphanedJobs();
 seedDefaultProfiles();
 seedCodingChallenges();
 seedNextGenCatalogs();
+seedMasterInviteCode();
+
 
 
 server.listen(PORT, () => {

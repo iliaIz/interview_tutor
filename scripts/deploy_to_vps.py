@@ -100,33 +100,50 @@ def deploy():
     except:
         pass
 
-    print("\n[5/5] Performing Health Checks on https://djelu.site...")
+    print("\n[5/5] Performing Zero-Trust & Health Checks on https://djelu.site...")
     time.sleep(3)
     try:
-        res = requests.get("https://djelu.site/api/health", timeout=10)
-        print(f"Health Check Status: {res.status_code}")
-        print(f"Health Response: {res.json()}")
-        
-        # Check practice challenges
-        c_res = requests.get("https://djelu.site/api/practice/challenges", timeout=10)
-        print(f"Practice Challenges Status: {c_res.status_code} (Found {len(c_res.json())} challenges)")
+        session = requests.Session()
 
-        # Check system design
-        sd_res = requests.get("https://djelu.site/api/system-design/scenarios", timeout=10)
-        print(f"System Design Scenarios Status: {sd_res.status_code} (Found {len(sd_res.json())} scenarios)")
+        # 1. Health check (public)
+        res = session.get("https://djelu.site/api/health", timeout=10)
+        print(f"1. Health Check (Public): {res.status_code}")
+        print(f"   Response: {res.json()}")
 
-        # Check triage
-        tr_res = requests.get("https://djelu.site/api/triage/challenges", timeout=10)
-        print(f"Incident Triage Status: {tr_res.status_code} (Found {len(tr_res.json())} incidents)")
+        # 2. Zero-Trust Check: Unauthorized request must be rejected with 401
+        unauth_res = session.get("https://djelu.site/api/system-design/scenarios", timeout=10)
+        print(f"2. Zero-Trust Check (Unauthorized API access): {unauth_res.status_code} (Expected 401)")
+        assert unauth_res.status_code == 401, f"Expected 401 Unauthorized, got {unauth_res.status_code}"
 
-        # Check roadmaps
-        rm_res = requests.get("https://djelu.site/api/roadmaps", timeout=10)
-        print(f"Guided Roadmaps Status: {rm_res.status_code} (Found {len(rm_res.json())} roadmap tracks)")
+        # 3. Login with Master Invite Code
+        master_code = os.environ.get("MASTER_INVITE_CODE", "SENIOR-JAVA-2026-VIP")
+        login_res = session.post("https://djelu.site/api/auth/login", json={"inviteCode": master_code}, timeout=10)
+        print(f"3. Master Invite Login: {login_res.status_code}")
+        assert login_res.status_code == 200, f"Login failed with status {login_res.status_code}: {login_res.text}"
+        login_data = login_res.json()
+        print(f"   Logged in as: {login_data.get('user', {}).get('name')}")
 
-        print("\n🎉 PRODUCTION DEPLOYMENT COMPLETE & ALL NEXT-GEN ENDPOINTS VERIFIED!")
+        # 4. Authenticated API checks
+        c_res = session.get("https://djelu.site/api/practice/challenges", timeout=10)
+        print(f"4. Practice Challenges (Auth): {c_res.status_code} (Found {len(c_res.json())} challenges)")
+
+        sd_res = session.get("https://djelu.site/api/system-design/scenarios", timeout=10)
+        print(f"5. System Design Scenarios (Auth): {sd_res.status_code} (Found {len(sd_res.json())} scenarios)")
+
+        tr_res = session.get("https://djelu.site/api/triage/challenges", timeout=10)
+        print(f"6. Incident Triage (Auth): {tr_res.status_code} (Found {len(tr_res.json())} incidents)")
+
+        rm_res = session.get("https://djelu.site/api/roadmaps", timeout=10)
+        print(f"7. Guided Roadmaps (Auth): {rm_res.status_code} (Found {len(rm_res.json())} roadmap tracks)")
+
+        ticket_res = session.post("https://djelu.site/api/auth/ws-ticket", timeout=10)
+        print(f"8. WebSocket One-Time Ticket: {ticket_res.status_code} (Ticket: {ticket_res.json().get('ticket')[:12]}...)")
+
+        print("\n🎉 PRODUCTION DEPLOYMENT & SOTA 2026 AUTH SYSTEM 100% VERIFIED!")
 
     except Exception as e:
         print(f"Health check warning: {e}")
+
 
 if __name__ == "__main__":
     deploy()

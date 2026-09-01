@@ -512,13 +512,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   /**
    * Connects to Live WebSocket Proxy with question-specific parameters
    */
-  const connectLiveWebSocket = (
+  const connectLiveWebSocket = async (
     qIndex: number,
     targetQ: { id: string; topic: string; question: string; answer: string },
     isRetry?: boolean,
     isResumed?: boolean
   ) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
     let hostWithPort = window.location.host;
     if (window.location.port === '8090') {
       hostWithPort = `${window.location.hostname}:8091`;
@@ -549,10 +550,27 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       probesCount: String(turnCountRef.current)
     });
 
+    // SOTA 2026: Prefetch One-Time WS Ticket for Zero-Trust Gemini Live Handshake
+    try {
+      const ticketRes = await fetch('/api/auth/ws-ticket', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (ticketRes.ok) {
+        const ticketData = await ticketRes.json();
+        if (ticketData.ticket) {
+          params.set('ticket', ticketData.ticket);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not prefetch WS ticket, relying on cookie auth fallback:', e);
+    }
+
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
     console.log(`Connecting to Live WebSocket (Q ${qIndex + 1}/${totalQuestions}, isRetry=${!!isRetry}, isResumed=${!!isResumed}, type=${sessionType}):`, wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+
 
     // Attach playback finished callback to playout manager for instant mic transition
     if (playoutManagerRef.current) {

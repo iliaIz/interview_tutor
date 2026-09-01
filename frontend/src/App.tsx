@@ -11,15 +11,19 @@ import { SystemDesignCatalog } from './components/system_design/SystemDesignCata
 import { SystemDesignArena } from './components/system_design/SystemDesignArena';
 import { IncidentTriageCatalog } from './components/triage/IncidentTriageCatalog';
 import { IncidentTriageStudio } from './components/triage/IncidentTriageStudio';
+import { AuthGateModal } from './components/auth/AuthGateModal';
 import { AudioRecapModal } from './components/AudioRecapModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { TopicBugHuntModal } from './components/TopicBugHuntModal';
 import { Toast } from './components/Toast';
-import { Heart } from 'lucide-react';
+import { Heart, Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
+    currentUser,
+    isAuthChecking,
+    checkAuthSession,
     currentStudioTab,
     currentView,
     systemHealth,
@@ -33,7 +37,8 @@ export const App: React.FC = () => {
   } = useAppStore();
 
   React.useEffect(() => {
-    // Initial check
+    // Initial Auth & Health Check
+    checkAuthSession();
     checkHealth();
 
     // Polling interval depending on readiness
@@ -51,12 +56,26 @@ export const App: React.FC = () => {
     };
   }, [systemHealth.isAiReady]);
 
+
   return (
     <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose">
       {/* Floating Ambient Mesh Auras for High-End Luxury Feel */}
       <div className="fixed -top-28 -left-28 w-96 h-96 rounded-full bg-gradient-to-br from-pastel-accentRose/15 to-transparent blur-3xl pointer-events-none animate-aura-slow z-0" />
       <div className="fixed top-1/3 -right-28 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-pastel-accentViolet/15 via-pastel-lavender/30 to-transparent blur-3xl pointer-events-none animate-aura-reverse z-0" />
       <div className="fixed -bottom-20 left-1/3 w-[360px] h-[360px] rounded-full bg-gradient-to-tr from-pastel-peach/30 to-transparent blur-3xl pointer-events-none z-0" />
+
+      {/* Auth Gate Shield: Blocks unauthorized access to studio */}
+      {!currentUser && !isAuthChecking && <AuthGateModal />}
+
+      {/* Loading state during initial session verification */}
+      {isAuthChecking && !currentUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-3 text-slate-300">
+            <Loader2 className="w-8 h-8 animate-spin text-pastel-accentRose" />
+            <span className="text-xs font-mono">Проверка сессии доступа...</span>
+          </div>
+        </div>
+      )}
 
       {/* Studio Segmented Navigation Header */}
       <StudioHeader />
@@ -84,6 +103,7 @@ export const App: React.FC = () => {
           </>
         )}
       </main>
+
 
       {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
       <AudioRecapModal />

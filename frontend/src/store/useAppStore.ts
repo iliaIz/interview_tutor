@@ -253,6 +253,13 @@ interface AppState {
   showToast: (notification: Omit<ToastNotification, 'id'>) => void;
   hideToast: () => void;
 
+  // Authentication State & Actions
+  currentUser: { id: string; name: string; role: string } | null;
+  isAuthChecking: boolean;
+  loginWithInviteCode: (inviteCode: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  checkAuthSession: () => Promise<void>;
+
   // Audio Recap Actions
   openRecapModal: (target: RecapTarget) => void;
   closeRecapModal: () => void;
@@ -263,8 +270,70 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // Authentication
+      currentUser: null,
+      isAuthChecking: true,
+
+      loginWithInviteCode: async (inviteCode: string) => {
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ inviteCode })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            set({ currentUser: data.user });
+            get().showToast({
+              type: 'success',
+              title: 'Добро пожаловать в Студию!',
+              message: `Доступ активирован: ${data.user.name}`
+            });
+            return { success: true };
+          } else {
+            return { success: false, error: data.message || data.error || 'Неверный инвайт-код' };
+          }
+        } catch (err: any) {
+          return { success: false, error: 'Сетевая ошибка при проверке инвайт-кода' };
+        }
+      },
+
+      logout: async () => {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } catch {}
+        set({ currentUser: null });
+        get().showToast({
+          type: 'info',
+          title: 'Сессия завершена',
+          message: 'Вы успешно вышли из студии'
+        });
+      },
+
+      checkAuthSession: async () => {
+        set({ isAuthChecking: true });
+        try {
+          const res = await fetch('/api/auth/me', {
+            credentials: 'include'
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ currentUser: data.user, isAuthChecking: false });
+          } else {
+            set({ currentUser: null, isAuthChecking: false });
+          }
+        } catch {
+          set({ currentUser: null, isAuthChecking: false });
+        }
+      },
+
       currentStudioTab: 'roadmaps',
       setStudioTab: (tab) => set({ currentStudioTab: tab }),
+
 
       // System Design
       activeSystemDesignScenario: null,

@@ -1,8 +1,10 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/interview.db');
+
 const dataDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dataDir)) {
@@ -239,7 +241,51 @@ db.exec(`
     score INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT DEFAULT 'candidate',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login_at DATETIME
+  );
+
+  CREATE TABLE IF NOT EXISTS invite_tokens (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT UNIQUE NOT NULL,
+    label TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT DEFAULT 'candidate',
+    is_active INTEGER DEFAULT 1,
+    max_uses INTEGER DEFAULT 0,
+    use_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    user_agent TEXT,
+    ip_address TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS ws_tickets (
+    ticket_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_ws_tickets_exp ON ws_tickets(expires_at);
 `);
+
 
 // Migration: Ensure track column exists in coding_challenges table
 try {
@@ -597,6 +643,34 @@ export function seedNextGenCatalogs() {
     console.error('Error seeding Next-Gen catalogs:', err);
   }
 }
+
+export function seedMasterInviteCode() {
+  try {
+    const masterCode = (process.env.MASTER_INVITE_CODE || 'SENIOR-JAVA-2026-VIP').trim();
+    const codeHash = crypto.createHash('sha256').update(masterCode).digest('hex');
+
+    // 1. Ensure master user exists
+    db.prepare(`
+      INSERT INTO users (id, name, role, created_at)
+      VALUES ('user_master', 'Главный Инженер (Master)', 'owner', CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET role = 'owner'
+    `).run();
+
+    // 2. Ensure master invite token exists
+    db.prepare(`
+      INSERT INTO invite_tokens (id, code_hash, label, user_id, role, is_active, max_uses, created_at)
+      VALUES ('invite_master', ?, 'Мастер-доступ (VIP)', 'user_master', 'owner', 1, 0, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        code_hash = excluded.code_hash,
+        is_active = 1
+    `).run(codeHash);
+
+    console.log(`✅ Seeded Master Invite Access (code: ${masterCode.slice(0, 3)}***) into SQLite`);
+  } catch (err) {
+    console.error('Error seeding master invite code:', err);
+  }
+}
+
 
 
 
