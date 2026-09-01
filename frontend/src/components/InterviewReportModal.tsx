@@ -5,9 +5,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
-import { triggerSuccessConfetti } from '../utils/confetti';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { triggerSuccessConfetti } from '../utils/confetti';
 
 export interface InterviewReportData {
   id?: string;
@@ -38,6 +39,9 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
   onClose,
   report
 }) => {
+  // Lock background body scroll on mobile & desktop when modal is active
+  useBodyScrollLock(isOpen);
+
   const [showFullTranscript, setShowFullTranscript] = useState(false);
   const [showReferenceAnswer, setShowReferenceAnswer] = useState(false);
   const [isRadarOpen, setIsRadarOpen] = useState(false);
@@ -88,14 +92,15 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
   const strokeDashoffset = 283 - (283 * displayScore) / 100;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto modal-overscroll-contain">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
+        className="bg-white/95 rounded-3xl max-w-2xl w-full border border-pastel-rose/80 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto modal-overscroll-contain"
       >
+
         {/* Soft Ambient Mesh Auras */}
         <div className="absolute -top-16 -right-16 w-44 h-44 rounded-full bg-gradient-to-br from-pastel-accentRose/20 to-transparent blur-2xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-44 h-44 rounded-full bg-gradient-to-tr from-pastel-accentViolet/20 to-transparent blur-2xl pointer-events-none" />

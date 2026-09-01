@@ -99,6 +99,22 @@ export interface WhiteboardState {
   updatedAt?: number;
 }
 
+export interface CodeArtifactRevision {
+  id: string;             // e.g. 'rev_1', 'rev_2'
+  index: number;          // 1 .. 10
+  title: string;          // e.g. "2. Оптимизация Stream"
+  language: string;       // "java" | "sql"
+  code: string;
+  timestamp: number;
+  author: 'ai' | 'user';
+  diffFromPrev?: string;
+}
+
+export interface TopicAccessMeta {
+  lastAccessedAt: number;
+  count: number;
+}
+
 export interface ActiveBatchSession {
   sessionId: string;
   topicId?: string;
@@ -126,16 +142,25 @@ interface AppState {
   batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
 
+  // Recency & Topic Access Map (MRU Sorting)
+  topicAccessMap: Record<string, TopicAccessMeta>;
+  recordTopicAccess: (topicId: string) => void;
+
   // Active Multi-Question Batch Session Checkpoint
   activeBatchSession: ActiveBatchSession | null;
   saveBatchSessionCheckpoint: (sessionId: string, patch: Partial<ActiveBatchSession>) => void;
   clearBatchSession: () => void;
 
-  // AI Live Whiteboard State
+  // AI Live Whiteboard State & Revision History (10-slot Ring Buffer)
   activeWhiteboardState: WhiteboardState | null;
   isWhiteboardOpen: boolean;
+  codeRevisions: CodeArtifactRevision[];
+  activeRevisionId: string | null;
   setWhiteboardState: (wb: WhiteboardState | null) => void;
   setIsWhiteboardOpen: (open: boolean) => void;
+  addCodeRevision: (rev: { title: string; language?: string; code: string; author?: 'ai' | 'user' }) => void;
+  setActiveRevision: (id: string) => void;
+  clearCodeRevisions: () => void;
 
   // Practice Arena / Live-Coding State
   activePracticeChallenge: CodingChallenge | null;
@@ -233,6 +258,24 @@ export const useAppStore = create<AppState>()(
       evaluationsMap: {},
       activeReportModal: null,
 
+      // Recency & Topic Access Map
+      topicAccessMap: {},
+      recordTopicAccess: (topicId) => {
+        if (!topicId) return;
+        set((state) => {
+          const prev = state.topicAccessMap[topicId] || { lastAccessedAt: 0, count: 0 };
+          return {
+            topicAccessMap: {
+              ...state.topicAccessMap,
+              [topicId]: {
+                lastAccessedAt: Date.now(),
+                count: prev.count + 1
+              }
+            }
+          };
+        });
+      },
+
       // Multi-Question Active Session Checkpoint State
       activeBatchSession: null,
       saveBatchSessionCheckpoint: (sessionId, patch) => set((state) => {
@@ -252,11 +295,77 @@ export const useAppStore = create<AppState>()(
       }),
       clearBatchSession: () => set({ activeBatchSession: null }),
 
-      // AI Live Whiteboard State
+      // AI Live Whiteboard State & Revision History (10-slot Ring Buffer)
       activeWhiteboardState: null,
       isWhiteboardOpen: false,
-      setWhiteboardState: (wb) => set({ activeWhiteboardState: wb, isWhiteboardOpen: wb ? (wb.action !== 'clear') : false }),
+      codeRevisions: [],
+      activeRevisionId: null,
+
+      setWhiteboardState: (wb) => {
+        set((state) => {
+          const newState = {
+            activeWhiteboardState: wb,
+            isWhiteboardOpen: wb ? (wb.action !== 'clear') : false
+          };
+
+          // If code is supplied, record as revision if distinct
+          if (wb?.code && wb.code.trim().length > 0) {
+            const currentRevs = state.codeRevisions || [];
+            const lastRev = currentRevs[currentRevs.length - 1];
+            if (!lastRev || lastRev.code !== wb.code) {
+              const nextIndex = (lastRev ? lastRev.index : 0) + 1;
+              const revId = `rev_${Date.now().toString(36)}_${nextIndex}`;
+              const newRev: CodeArtifactRevision = {
+                id: revId,
+                index: nextIndex,
+                title: wb.title || `Версия ${nextIndex}`,
+                language: wb.language || 'java',
+                code: wb.code,
+                timestamp: Date.now(),
+                author: 'ai'
+              };
+              const updatedRevs = [...currentRevs, newRev].slice(-10); // Keep last 10
+              return {
+                ...newState,
+                codeRevisions: updatedRevs,
+                activeRevisionId: revId
+              };
+            }
+          }
+          return newState;
+        });
+      },
+
       setIsWhiteboardOpen: (open) => set({ isWhiteboardOpen: open }),
+
+      addCodeRevision: ({ title, language = 'java', code, author = 'ai' }) => {
+        if (!code || !code.trim()) return;
+        set((state) => {
+          const currentRevs = state.codeRevisions || [];
+          const lastRev = currentRevs[currentRevs.length - 1];
+          if (lastRev && lastRev.code === code) return state;
+
+          const nextIndex = (lastRev ? lastRev.index : 0) + 1;
+          const revId = `rev_${Date.now().toString(36)}_${nextIndex}`;
+          const newRev: CodeArtifactRevision = {
+            id: revId,
+            index: nextIndex,
+            title: title || `Версия ${nextIndex}`,
+            language,
+            code,
+            timestamp: Date.now(),
+            author
+          };
+          const updatedRevs = [...currentRevs, newRev].slice(-10);
+          return {
+            codeRevisions: updatedRevs,
+            activeRevisionId: revId
+          };
+        });
+      },
+
+      setActiveRevision: (id) => set({ activeRevisionId: id }),
+      clearCodeRevisions: () => set({ codeRevisions: [], activeRevisionId: null }),
 
       // Practice Arena State
       activePracticeChallenge: null,
@@ -348,35 +457,50 @@ export const useAppStore = create<AppState>()(
       recapTarget: null,
       activeTopicBugHunt: null,
 
-      openTopicBugHunt: (topicId, topicName) => set({ activeTopicBugHunt: { topicId, topicName } }),
+      openTopicBugHunt: (topicId, topicName) => {
+        get().recordTopicAccess(topicId);
+        set({ activeTopicBugHunt: { topicId, topicName } });
+      },
       closeTopicBugHunt: () => set({ activeTopicBugHunt: null }),
 
       setView: (view) => set({ currentView: view }),
-      setSelectedTopic: (topicId, name) => set({ selectedTopicId: topicId, selectedTopicName: name }),
+      setSelectedTopic: (topicId, name) => {
+        get().recordTopicAccess(topicId);
+        set({ selectedTopicId: topicId, selectedTopicName: name });
+      },
       setBatch: (questions) => set({ currentBatch: questions, currentQuestionIndex: 0 }),
       setQuestionIndex: (idx) => set({ currentQuestionIndex: idx }),
 
-      openTopicQuestions: (topicId, topicName) => set({
-        selectedTopicId: topicId,
-        selectedTopicName: topicName,
-        currentView: 'questions'
-      }),
+      openTopicQuestions: (topicId, topicName) => {
+        get().recordTopicAccess(topicId);
+        set({
+          selectedTopicId: topicId,
+          selectedTopicName: topicName,
+          currentView: 'questions'
+        });
+      },
 
-      startStudyWithQuestions: (topicId, topicName, questions) => set({
-        selectedTopicId: topicId,
-        selectedTopicName: topicName,
-        currentBatch: questions,
-        currentQuestionIndex: 0,
-        currentView: 'study'
-      }),
+      startStudyWithQuestions: (topicId, topicName, questions) => {
+        get().recordTopicAccess(topicId);
+        set({
+          selectedTopicId: topicId,
+          selectedTopicName: topicName,
+          currentBatch: questions,
+          currentQuestionIndex: 0,
+          currentView: 'study'
+        });
+      },
 
-      startQuizWithQuestions: (topicId, topicName, questions) => set({
-        selectedTopicId: topicId,
-        selectedTopicName: topicName,
-        currentBatch: questions,
-        currentQuestionIndex: 0,
-        currentView: 'quiz'
-      }),
+      startQuizWithQuestions: (topicId, topicName, questions) => {
+        get().recordTopicAccess(topicId);
+        set({
+          selectedTopicId: topicId,
+          selectedTopicName: topicName,
+          currentBatch: questions,
+          currentQuestionIndex: 0,
+          currentView: 'quiz'
+        });
+      },
 
       toggleShuffle: (topicId) => set((state) => ({
         shuffleMap: { ...state.shuffleMap, [topicId]: !state.shuffleMap[topicId] }
@@ -509,7 +633,12 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-      openRecapModal: (target) => set({ isRecapModalOpen: true, recapTarget: target }),
+      openRecapModal: (target) => {
+        if (target?.topicId) {
+          get().recordTopicAccess(target.topicId);
+        }
+        set({ isRecapModalOpen: true, recapTarget: target });
+      },
       closeRecapModal: () => set({ isRecapModalOpen: false }),
       setActiveAudioJob: (job) => set({ activeAudioJob: job }),
       clearActiveAudioJob: () => set({ activeAudioJob: null }),
@@ -527,7 +656,10 @@ export const useAppStore = create<AppState>()(
         evaluationsMap: state.evaluationsMap,
         cheatSheetBookmarks: state.cheatSheetBookmarks,
         activeBatchSession: state.activeBatchSession,
+        topicAccessMap: state.topicAccessMap,
+        codeRevisions: state.codeRevisions,
       })
     }
   )
 );
+

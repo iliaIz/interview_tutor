@@ -24,6 +24,7 @@ export interface LiveAudioSessionParams {
   bugExplanation?: string;
   codeSnippet?: string;
   hints?: string[];
+  initialUserMessage?: string;
 }
 
 export interface DialogueTurn {
@@ -149,6 +150,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.hints && params.hints.length > 0) {
       query.set('hints', JSON.stringify(params.hints));
     }
+    if (params.initialUserMessage) {
+      query.set('initialUserMessage', params.initialUserMessage);
+    }
 
     return `${protocol}//${hostWithPort}/ws/live?${query.toString()}`;
   };
@@ -268,6 +272,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       isAiSpeakingRef.current = true;
       setIsRecording(false);
       isRecordingRef.current = false;
+
+      if (params.initialUserMessage) {
+        setDialogueTurns([{ role: 'user', text: params.initialUserMessage }]);
+      } else {
+        setDialogueTurns([]);
+      }
 
       // 2. Open WebSocket
       const wsUrl = resolveWsUrl(params);

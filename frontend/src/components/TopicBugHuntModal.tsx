@@ -32,9 +32,10 @@ import {
 } from 'lucide-react';
 import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
-import { triggerSuccessConfetti } from '../utils/confetti';
 import { CandidatePersonaHUD } from './CandidatePersonaHUD';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { triggerSuccessConfetti } from '../utils/confetti';
 
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
 export type DefectFocus = 'all' | 'concurrency' | 'memory' | 'spring_aop' | 'contracts';
@@ -124,6 +125,9 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   topicId,
   topicName,
 }) => {
+  // Lock background body scroll on mobile & desktop when modal is active
+  useBodyScrollLock(isOpen);
+
   // Modal Stage: 'lobby' (Zero Waste Setup) vs 'workout' (Active Arena)
   const [stage, setStage] = useState<'lobby' | 'workout'>('lobby');
   const [isRadarOpen, setIsRadarOpen] = useState(false);
@@ -288,17 +292,15 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         codeSnippet: challenge?.codeSnippet || '',
         hints: challenge?.hints || [],
         questionId: challenge?.id || '',
-        voice: 'Aoede'
-      }).then(() => {
-        setTimeout(() => {
-          sendTextMessage(text, text);
-        }, 500);
+        voice: 'Aoede',
+        initialUserMessage: text
       });
     } else {
       sendTextMessage(text, text);
     }
     setInputText('');
   };
+
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -614,12 +616,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-[#1A0B2E]/40 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-[#1A0B2E]/40 backdrop-blur-md animate-fade-in modal-overscroll-contain">
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
-        className="bg-[#FFF9FB] border border-pink-200/90 w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#2D1B4E]"
+        className="bg-[#FFF9FB] border border-pink-200/90 w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#2D1B4E] modal-overscroll-contain"
       >
         {/* Modal Top Bar in Pure Soft Luxury Glass */}
         <div className="px-6 py-4 bg-white/90 border-b border-pink-100/90 flex items-center justify-between backdrop-blur-md">

@@ -98,7 +98,8 @@ router.post('/turn', async (req: Request, res: Response) => {
       deepDive = true,
       liveCoaching = true,
       voice = 'Kore',
-      userGender = 'female'
+      userGender = 'female',
+      activeCodeArtifact
     } = req.body;
 
     if (!questionText) {
@@ -142,6 +143,10 @@ router.post('/turn', async (req: Request, res: Response) => {
       ? 'Кандидат — МУЖЧИНА. В feedback используй мужские окончания («Ты отлично раскрыл», «Ты верно отметил»).'
       : 'Обращайся уважительно на «Вы».';
 
+    const activeCodeSection = activeCodeArtifact?.code
+      ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
+      : '';
+
     const systemPrompt = `Ты Senior/Lead технический интервьюер и ментор по теме «${topic}».
 ${genderDirective}
 
@@ -149,7 +154,7 @@ ${genderDirective}
 Вопрос: "${questionText}"
 Эталонный ответ:
 """${referenceAnswer}"""
-
+${activeCodeSection}
 РЕЖИМ РАБОТЫ:
 Стратегия: ${strategy} (Сократический диалог).
 Deep Dive: ${deepDive ? 'Включен (углубляйся во внутреннее устройство, JVM, байткод, пограничные случаи)' : 'Выключен'}.

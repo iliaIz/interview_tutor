@@ -83,3 +83,16 @@
   background-color: rgba(244, 114, 182, 0.12) !important;
   color: #f472b6 !important;
 }
+
+/* Mobile Touch & Overscroll Containment (SOTA 2026 Mobile UX) */
+.modal-overscroll-contain {
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+.touch-contain-all {
+  overscroll-behavior: contain !important;
+  touch-action: manipulation !important;
+}
+

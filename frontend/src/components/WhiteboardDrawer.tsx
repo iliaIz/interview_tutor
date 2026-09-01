@@ -13,7 +13,8 @@ import {
   Info
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
-import { WhiteboardState } from '../store/useAppStore';
+import { CodeArtifactTimeline } from './CodeArtifactTimeline';
+import { WhiteboardState, useAppStore } from '../store/useAppStore';
 
 export interface WhiteboardDrawerProps {
   isOpen: boolean;
@@ -126,15 +127,17 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
             </div>
           )}
 
-          {/* Code Viewer Body */}
-          <div className="flex-1 overflow-y-auto p-3.5 custom-scrollbar">
-            <CodeViewer
-              code={state.code}
-              language={state.language || 'java'}
-              isDiff={isDiff}
-              showLineNumbers={true}
-              className="border-none shadow-none"
-            />
+          {/* Code Artifact History & Viewer Body */}
+          <div className="flex-1 overflow-y-auto p-3.5 custom-scrollbar modal-overscroll-contain space-y-3">
+            <CodeArtifactTimeline showDiffToggle={true} />
+            
+            {/* If no revisions exist yet, fallback to direct CodeViewer */}
+            {(!state.code ? null : (
+              <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between pt-1">
+                <span>Интерактивный артефакт ИИ</span>
+                <span>Строк: {state.code.split('\n').length}</span>
+              </div>
+            ))}
           </div>
 
           {/* Footer Bar */}

@@ -92,7 +92,7 @@ interface LineMetadata {
   cleanText: string;
 }
 
-export const CodeViewer: React.FC<CodeViewerProps> = ({
+const CodeViewerComponent: React.FC<CodeViewerProps> = ({
   code,
   language = 'java',
   isDiff = false,
@@ -154,7 +154,8 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-xs md:text-sm shadow-xl ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-xs md:text-sm shadow-xl modal-overscroll-contain ${className}`}
+      style={{ contain: 'content' }}
     >
       {/* Header bar with macOS window dots and copy button */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-[#141220] border-b border-[#2A243E] select-none">
@@ -204,7 +205,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
       >
         {({ className: highlightClass, style, tokens, getLineProps, getTokenProps }) => (
           <pre
-            className={`${highlightClass} m-0 overflow-x-auto p-0 selection:bg-[#3D3558] ${maxHeight ? maxHeight : ''}`}
+            className={`${highlightClass} m-0 overflow-x-auto p-0 selection:bg-[#3D3558] modal-overscroll-contain ${maxHeight ? maxHeight : ''}`}
             style={{ ...style, backgroundColor: '#0B0C10' }}
           >
             <code className="block min-w-full py-3">
@@ -268,4 +269,18 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
     </div>
   );
 };
+
+export const CodeViewer = React.memo(CodeViewerComponent, (prev, next) => {
+  return (
+    prev.code === next.code &&
+    prev.language === next.language &&
+    prev.isDiff === next.isDiff &&
+    prev.showLineNumbers === next.showLineNumbers &&
+    prev.title === next.title &&
+    prev.className === next.className &&
+    prev.maxHeight === next.maxHeight
+  );
+});
+
 export default CodeViewer;
+

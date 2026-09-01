@@ -36,7 +36,12 @@ import {
   Bug,
   Crown,
   Trophy,
-  Loader2
+  Loader2,
+  Clock,
+  ArrowUpDown,
+  History,
+  TrendingUp,
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -89,7 +94,8 @@ export const TopicSelector: React.FC = () => {
     openRecapModal,
     openTopicQuestions,
     openTopicBugHunt,
-    showToast
+    showToast,
+    topicAccessMap
   } = useAppStore();
 
   const [topics, setTopics] = useState<any[]>([]);
@@ -97,6 +103,7 @@ export const TopicSelector: React.FC = () => {
   const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Все разделы');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortMode, setSortMode] = useState<'mru' | 'default' | 'progress' | 'questions'>('mru');
 
   const fetchTopics = async () => {
     try {
@@ -116,8 +123,8 @@ export const TopicSelector: React.FC = () => {
     fetchTopics();
   }, []);
 
-  const filteredTopics = useMemo(() => {
-    return topics.filter((t) => {
+  const filteredAndSortedTopics = useMemo(() => {
+    const filtered = topics.filter((t) => {
       const matchesCategory =
         selectedCategory === 'Все разделы' || t.category === selectedCategory;
       const matchesSearch =
@@ -125,7 +132,31 @@ export const TopicSelector: React.FC = () => {
         t.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [topics, selectedCategory, searchQuery]);
+
+    return [...filtered].sort((a, b) => {
+      if (sortMode === 'mru') {
+        const aMeta = topicAccessMap?.[a.id];
+        const bMeta = topicAccessMap?.[b.id];
+        const aTime = aMeta?.lastAccessedAt || 0;
+        const bTime = bMeta?.lastAccessedAt || 0;
+        if (aTime && bTime) return bTime - aTime;
+        if (aTime && !bTime) return -1;
+        if (!aTime && bTime) return 1;
+        return 0;
+      }
+      if (sortMode === 'progress') {
+        const aProgress = topicsProgress[a.id]?.percentage || a.percentage || 0;
+        const bProgress = topicsProgress[b.id]?.percentage || b.percentage || 0;
+        return bProgress - aProgress;
+      }
+      if (sortMode === 'questions') {
+        const aCount = a.questionCount || a.total || 0;
+        const bCount = b.questionCount || b.total || 0;
+        return bCount - aCount;
+      }
+      return 0;
+    });
+  }, [topics, selectedCategory, searchQuery, sortMode, topicAccessMap, topicsProgress]);
 
   const handleStartTopic = async (topicId: string, topicName: string, reset: boolean = false) => {
     setStartingTopicId(topicId);
@@ -219,42 +250,106 @@ export const TopicSelector: React.FC = () => {
         </p>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-3.5 rounded-3xl border border-pastel-border shadow-xs">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                selectedCategory === cat
-                  ? 'bg-pastel-text text-white shadow-2xs'
-                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+      {/* Filter, Search & Sort Bar */}
+      <div className="space-y-3 bg-white/80 backdrop-blur-md p-3.5 rounded-3xl border border-pastel-border shadow-xs">
+        {/* Top: Category Pills & Search */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Category Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-pastel-text text-white shadow-2xs'
+                    : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Input */}
+          <div className="relative w-full md:w-64">
+            <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Поиск по темам..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-pastel-bg border border-pastel-border rounded-2xl text-xs text-pastel-text placeholder-pastel-muted focus:outline-none focus:ring-2 focus:ring-pastel-accentRose/40 transition"
+            />
+          </div>
         </div>
 
-        {/* Search Input */}
-        <div className="relative w-full md:w-64">
-          <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Поиск по темам..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-pastel-bg border border-pastel-border rounded-2xl text-xs text-pastel-text placeholder-pastel-muted focus:outline-none focus:ring-2 focus:ring-pastel-accentRose/40 transition"
-          />
+        {/* Bottom: Sort Mode Chips */}
+        <div className="flex items-center justify-between pt-2 border-t border-pastel-border/50 text-xs text-pastel-muted">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+            <span className="inline-flex items-center gap-1 font-bold text-[11px] text-pastel-text shrink-0 mr-1">
+              <ArrowUpDown className="w-3.5 h-3.5 text-pastel-accentRose" />
+              <span>Сортировка:</span>
+            </span>
+
+            <button
+              onClick={() => setSortMode('mru')}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer shrink-0 ${
+                sortMode === 'mru'
+                  ? 'bg-pastel-accentRose text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card border border-pastel-border/40'
+              }`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>Недавние</span>
+            </button>
+
+            <button
+              onClick={() => setSortMode('progress')}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer shrink-0 ${
+                sortMode === 'progress'
+                  ? 'bg-pastel-accentRose text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card border border-pastel-border/40'
+              }`}
+            >
+              <TrendingUp className="w-3 h-3" />
+              <span>По прогрессу</span>
+            </button>
+
+            <button
+              onClick={() => setSortMode('questions')}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer shrink-0 ${
+                sortMode === 'questions'
+                  ? 'bg-pastel-accentRose text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card border border-pastel-border/40'
+              }`}
+            >
+              <BarChart2 className="w-3 h-3" />
+              <span>По объёму</span>
+            </button>
+
+            <button
+              onClick={() => setSortMode('default')}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer shrink-0 ${
+                sortMode === 'default'
+                  ? 'bg-pastel-accentRose text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-pastel-card border border-pastel-border/40'
+              }`}
+            >
+              <span>По умолчанию</span>
+            </button>
+          </div>
+
+          <span className="text-[11px] font-medium text-pastel-muted shrink-0 hidden sm:inline">
+            Тем найдено: <strong className="text-pastel-text">{filteredAndSortedTopics.length}</strong>
+          </span>
         </div>
       </div>
 
       {/* Topics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <AnimatePresence>
-          {filteredTopics.map((t, idx) => {
+          {filteredAndSortedTopics.map((t, idx) => {
             const IconComponent = ICON_MAP[t.icon] || Coffee;
             const progress = topicsProgress[t.id];
             const completedCount = progress?.completedCount !== undefined ? progress.completedCount : (t.completedCount || 0);
@@ -262,6 +357,7 @@ export const TopicSelector: React.FC = () => {
             const isShuffle = shuffleMap[t.id] || false;
             const isFullyMastered = percentage === 100;
             const isStarting = startingTopicId === t.id;
+            const accessMeta = topicAccessMap?.[t.id];
 
             return (
               <motion.div
@@ -278,11 +374,20 @@ export const TopicSelector: React.FC = () => {
                 }`}
               >
                 <div>
-                  {/* Top Row: Category tag + Progress badge */}
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border/60">
-                      {t.category}
-                    </span>
+                  {/* Top Row: Category tag + Recency badge + Progress badge */}
+                  <div className="flex items-start justify-between mb-3 gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border/60">
+                        {t.category}
+                      </span>
+                      {accessMeta?.lastAccessedAt ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-pastel-accentViolet bg-pastel-lavender/50 px-2 py-0.5 rounded-full border border-pastel-accentViolet/20">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>Недавно</span>
+                        </span>
+                      ) : null}
+                    </div>
+
 
                     {/* Mini circular progress or Mastered Trophy */}
                     {isFullyMastered ? (

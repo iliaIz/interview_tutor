@@ -6,6 +6,7 @@ import {
   BarChart3, Download, Clock, Cpu, Layers, FileText, Check, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 const RUSSIAN_VOICES = [
   { id: 'Kore', name: 'Kore (Светлана)', gender: 'Женский', desc: 'Уверенный, чёткий' },
@@ -40,6 +41,9 @@ const SOLO_TONE_PROMPTS: Record<string, string> = {
 
 export const AudioRecapModal: React.FC = () => {
   const { isRecapModalOpen, closeRecapModal, recapTarget, setActiveAudioJob, showToast, systemHealth } = useAppStore();
+
+  // Lock background body scroll on mobile & desktop when modal is active
+  useBodyScrollLock(isRecapModalOpen);
 
   const [mode, setMode] = useState<'duo' | 'solo'>('duo');
   const [voice1, setVoice1] = useState<string>('Kore');
@@ -406,13 +410,13 @@ export const AudioRecapModal: React.FC = () => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/50 backdrop-blur-md overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/50 backdrop-blur-md overflow-y-auto modal-overscroll-contain">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.25 }}
-          className="w-full max-w-3xl bg-white/95 rounded-3xl p-5 md:p-8 shadow-2xl border border-pastel-rose/80 relative overflow-hidden my-auto max-h-[92vh] flex flex-col"
+          className="w-full max-w-3xl bg-white/95 rounded-3xl p-5 md:p-8 shadow-2xl border border-pastel-rose/80 relative overflow-hidden my-auto max-h-[92vh] flex flex-col modal-overscroll-contain"
         >
           {/* Ambient blurs */}
           <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-pastel-accentRose/20 blur-2xl pointer-events-none" />

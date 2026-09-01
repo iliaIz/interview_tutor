@@ -135,6 +135,8 @@ export function buildSystemPrompt(params: {
   targetSeniority?: string;
   primaryStack?: string;
   candidateGaps?: CandidateGap[];
+  activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string; };
+  codeRevisionsSummary?: Array<{ id: string; title: string; }>;
 }): string {
   const {
     topic,
@@ -159,7 +161,9 @@ export function buildSystemPrompt(params: {
     hints,
     targetSeniority = 'senior',
     primaryStack = 'Java 21, Spring Boot 3.3',
-    candidateGaps = []
+    candidateGaps = [],
+    activeCodeArtifact,
+    codeRevisionsSummary
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -199,7 +203,17 @@ export function buildSystemPrompt(params: {
 2. Одновременно голосом кратко поясни, на что обратить внимание («Я вывела пример на доску справа...»).
 3. Когда ты переходишь к новой теме или стираешь код — вызови \`update_whiteboard\` с action: 'clear'.`;
 
-  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}`;
+  const activeArtifactSection = activeCodeArtifact?.code
+    ? `\n=== АКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.id || 'активная версия'}: "${activeCodeArtifact.title || 'Сниппет'}") ===
+\`\`\`${activeCodeArtifact.language || 'java'}
+${activeCodeArtifact.code}
+\`\`\`
+${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ ВЕРСИИ КОДА В ИСТОРИИ СЕССИИ (Кандидат сейчас просматривает версию ${activeCodeArtifact.id || 'активную'}):\n${codeRevisionsSummary.map((r: any) => `  - [${r.id}] ${r.title} ${r.id === activeCodeArtifact?.id ? '(АКТИВНА)' : ''}`).join('\n')}\n` : ''}
+ДИРЕКТИВА ПО КОНТЕКСТУ КОДА: Кандидат сейчас смотрит на версию ${activeCodeArtifact.id || 'активную'}. Если он задает вопрос по коду или строкам («почему тут так?», «что в 5-й строке?»), отвечай применительно именно к этому сниппету.\n`
+    : '';
+
+  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}${activeArtifactSection}`;
+
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor') {
@@ -532,6 +546,21 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const isRetry = query.isRetry === 'true';
     const isResumed = query.isResumed === 'true';
     const initialProbesCount = Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0);
+    const initialUserMessage = ((query.initialUserMessage as string) || '').trim();
+
+    let activeCodeArtifact: any = null;
+    if (query.activeCodeArtifact) {
+      try {
+        activeCodeArtifact = JSON.parse(query.activeCodeArtifact as string);
+      } catch {}
+    }
+
+    let codeRevisionsSummary: any = null;
+    if (query.codeRevisionsSummary) {
+      try {
+        codeRevisionsSummary = JSON.parse(query.codeRevisionsSummary as string);
+      } catch {}
+    }
 
     let customAnchors: string[] = [];
     if (query.customAnchors) {
@@ -630,8 +659,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       hints: parsedHints,
       targetSeniority: userProfile.targetSeniority,
       primaryStack: userProfile.primaryStack,
-      candidateGaps
+      candidateGaps,
+      activeCodeArtifact,
+      codeRevisionsSummary
     });
+
 
     const toolDeclarations: any[] = [];
 
@@ -826,7 +858,12 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             }
           } else {
             let greetingText = '';
-            if (sessionType === 'tutor') {
+            if (initialUserMessage) {
+              // User connected by sending a concrete textual question/code critique
+              greetingText = initialUserMessage;
+              session.hasCandidateResponded = true;
+              console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
+            } else if (sessionType === 'tutor') {
               if (tutorMode === 'bug_hunt') {
                 greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
               } else if (tutorMode === 'deep_dive') {
@@ -871,45 +908,51 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               geminiSocket.send(JSON.stringify(initialGreetingTurn));
             }
 
-            // Watchdog
+            // Watchdog (only for synthetic greetings, never for user queries)
             if (greetingWatchdog) clearTimeout(greetingWatchdog);
-            greetingWatchdog = setTimeout(() => {
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
-                const nudgeTurn = {
-                  clientContent: {
-                    turns: [
-                      {
-                        role: 'user',
-                        parts: [
-                          {
-                            text: sessionType === 'tutor'
-                              ? (tutorMode === 'bug_hunt'
-                                ? 'Начни устное код-ревью в 1 короткой фразе.'
-                                : tutorMode === 'free_chat'
-                                ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
-                                : 'Начни диалог тьютора в 1 короткой фразе.')
-                              : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
-                          }
-                        ]
-                      }
-                    ],
-                    turnComplete: true
+            if (!initialUserMessage) {
+              greetingWatchdog = setTimeout(() => {
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
+                  const nudgeTurn = {
+                    clientContent: {
+                      turns: [
+                        {
+                          role: 'user',
+                          parts: [
+                            {
+                              text: sessionType === 'tutor'
+                                ? (tutorMode === 'bug_hunt'
+                                  ? 'Начни устное код-ревью в 1 короткой фразе.'
+                                  : tutorMode === 'free_chat'
+                                  ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
+                                  : 'Начни диалог тьютора в 1 короткой фразе.')
+                                : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
+                            }
+                          ]
+                        }
+                      ],
+                      turnComplete: true
+                    }
+                  };
+                  try {
+                    geminiSocket.send(JSON.stringify(nudgeTurn));
+                  } catch (nudgeErr) {
+                    console.warn('Watchdog nudge send warning:', nudgeErr);
                   }
-                };
-                try {
-                  geminiSocket.send(JSON.stringify(nudgeTurn));
-                } catch (nudgeErr) {
-                  console.warn('Watchdog nudge send warning:', nudgeErr);
                 }
-              }
-            }, 3500);
+              }, 3500);
+            }
 
             // Notify client
             if (clientSocket.readyState === WebSocket.OPEN) {
-              clientSocket.send(JSON.stringify({ type: 'setupComplete' }));
+              clientSocket.send(JSON.stringify({
+                type: 'setupComplete',
+                hasInitialUserMessage: !!initialUserMessage
+              }));
             }
           }
+
 
           // Drain queued frames
           while (session.frameQueue.length > 0) {

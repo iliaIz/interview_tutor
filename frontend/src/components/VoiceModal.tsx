@@ -51,9 +51,10 @@ import {
 } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
-import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
+import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { Question, useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -106,6 +107,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 }) => {
   const isBatchMode = Boolean(questionsBatch && questionsBatch.length > 0);
   const totalQuestions = isBatchMode && questionsBatch ? questionsBatch.length : 1;
+
+  // Lock background body scroll on mobile & desktop when modal is active
+  useBodyScrollLock(isOpen);
 
   // Store hooks for Session Checkpointing and AI Whiteboard
   const {
@@ -1222,9 +1226,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         if (!res.ok) throw new Error(`Greeting API failed with ${res.status}`);
         const data = await res.json();
+        const greeting = data.greetingText || data.text;
 
-        if (data.greetingText) {
-          setDialogueTurns([{ role: 'ai', text: data.greetingText }]);
+        if (greeting) {
+          setDialogueTurns([{ role: 'ai', text: greeting }]);
         }
 
         if (playoutManagerRef.current) {
@@ -1803,13 +1808,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const passedCount = evaluatedKeys.filter((k) => allResults[k]?.isPassed).length;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto modal-overscroll-contain">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className={`bg-white rounded-3xl p-3.5 sm:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 ${
+        className={`bg-white rounded-3xl p-3.5 sm:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 modal-overscroll-contain ${
           sessionType === 'tutor'
             ? 'max-w-5xl w-full max-h-[96dvh] sm:max-h-[92vh]'
             : 'max-w-xl w-full max-h-[96dvh] sm:max-h-[92vh]'
