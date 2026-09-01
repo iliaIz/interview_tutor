@@ -7,7 +7,7 @@ def parse_senior_sprint(file_path):
         content = f.read()
 
     # Split into steps
-    step_blocks = re.findall(r'### \*\*Шаг (\d+)\.\s*(.*?)\*\*(.*?)(?=### \*\*Шаг \d+|\Z)', content, re.DOTALL)
+    step_blocks = re.findall(r'### \*\*Шаг (\d+)(?:\\)?\.\s*(.*?)\*\*(.*?)(?=### \*\*Шаг \d+|\Z)', content, re.DOTALL)
     steps = []
     
     milestones = [
@@ -18,10 +18,12 @@ def parse_senior_sprint(file_path):
         {"id": "m5", "title": "Майлстоун 5: Concurrency, Безопасность & Отказоустойчивость", "stepRange": "20–25"}
     ]
 
+    seen_nums = set()
     for num_str, title, block in step_blocks:
         num = int(num_str)
-        if num > 25:
+        if num > 25 or num in seen_nums:
             continue
+        seen_nums.add(num)
             
         m_id = "m1" if num <= 5 else "m2" if num <= 13 else "m3" if num <= 16 else "m4" if num <= 19 else "m5"
         

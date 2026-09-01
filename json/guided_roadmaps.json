@@ -35,7 +35,691 @@
         "stepRange": "20–25"
       }
     ],
-    "steps": []
+    "steps": [
+      {
+        "stepNumber": 1,
+        "title": "Java 21 Virtual Threads & Continuation Mechanics",
+        "milestoneId": "m1",
+        "seniorBarConcept": "Модель исполнения виртуальных потоков (JEP 444), концепция Continuations в JVM, разделение Carrier Threads и Virtual Threads1.",
+        "interviewTrap": "Кандидат считает, что виртуальные потоки предназначены для ускорения CPU-bound вычислений или снижают задержку (Latency) одиночного запроса.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Объясните механизм удержания и восстановления контекста (yield/mount/unmount) виртуального потока в куче JVM.",
+          "taskType": "lld",
+          "taskDescription": "Реализовать HTTP-клиент на Java 21, использующий Executors.newVirtualThreadPerTaskExecutor(), с ограничением параллелизма к внешнему сервису через Semaphore без применения платформенных пулов.",
+          "lldChallengeSlug": "lld-rate-limiter",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Оценка влияния глубины нативного стека вызовов на объемы памяти кучи при переносе кадров стека Continuations."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Модель исполнения виртуальных потоков (JEP 444), концепция C",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": [
+          "concurrency-master:step-1"
+        ]
+      },
+      {
+        "stepNumber": 2,
+        "title": "Virtual Thread Pinning: Synchronized vs ReentrantLock & JFR",
+        "milestoneId": "m1",
+        "seniorBarConcept": "Привязка (Pinning) виртуального потока к Carrier Thread при блокирующем I/O внутри synchronized блоков или нативных методов в Java 211.",
+        "interviewTrap": "Незнание того, что в Java 21–23 synchronized вызывает Pinning, тогда как в Java 24 (JEP 491\\) эта проблема устранена11.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "По какой причине монитор synchronized блокирует отмонтирование Carrier-потока в JDK 21, и как это приводит к starvation пула ForkJoinPool1?",
+          "taskType": "lld",
+          "taskDescription": "Провести рефакторинг Legacy-кэша с synchronized методами на ReentrantLock с корректной гарантией отпускания блокировки в блоке finally.",
+          "lldChallengeSlug": "lld-multi-threaded-elevator",
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-02"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Настройка фильтрации событий JFR jdk.VirtualThreadPinned и анализ системного свойства jdk.tracePinnedThreads1."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Привязка (Pinning) виртуального потока к Carrier Thread при ",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": [
+          "concurrency-master:step-2"
+        ]
+      },
+      {
+        "stepNumber": 3,
+        "title": "Java 21 Sequenced Collections & Pattern Matching Evolution",
+        "milestoneId": "m1",
+        "seniorBarConcept": "Иерархия SequencedCollection, SequencedSet, SequencedMap, сопоставление с шаблонами для типа Record и switch.",
+        "interviewTrap": "Попытка мутации порядка элементов коллекции через сомнительные обертки вместо вызова методологически верного view-представления .reversed().",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Какую проблему решает появление единого интерфейса с гарантированным порядком обхода элементов для legacy-коллекций?",
+          "taskType": "lld",
+          "taskDescription": "Написать обработчик доменных событий с использованием Sealed Interfaces, Records и Pattern Matching в switch с guard-условиями (when).",
+          "lldChallengeSlug": "lld-task-scheduler-cron",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Проверка полноты охвата типов (Exhaustiveness Check) при компиляции запечатанных иерархий с рекурсивными Record patterns."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Иерархия SequencedCollection, SequencedSet, SequencedMap, со",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 4,
+        "title": "Spring Boot 3.3 Class Data Sharing (CDS) & Startup Optimization",
+        "milestoneId": "m1",
+        "seniorBarConcept": "Оптимизация времени запуска и использования оперативной памяти с помощью Class Data Sharing (CDS) и инструментария jarmode=tools в Spring Boot 3.32.",
+        "interviewTrap": "Использование устаревшего \\-Djarmode=layertools вместо нового режима extraction в Spring Boot 3.33.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "В чем заключается двухстадийный процесс подготовки .jsa архива при помощи Spring Boot 3.3 jarmode=tools3?",
+          "taskType": "config",
+          "taskDescription": "Написать Dockerfile с многоэтапной сборкой, выполняющий распаковку Fat JAR через jarmode=tools, тренировочный прогон и генерацию CDS архива3.",
+          "lldChallengeSlug": "lld-highload-counter-striped",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Анализ экономии физической оперативной памяти (RSS) за счет совместного использования метаданных классов (Shared Read-Only Memory) несколькими процессами JVM."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Оптимизация времени запуска и использования оперативной памя",
+          "Успешная реализация практической задачи (Config)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": [
+          "concurrency-master:step-4"
+        ]
+      },
+      {
+        "stepNumber": 5,
+        "title": "Spring Boot 3.3 Observability & OpenTelemetry Integration",
+        "milestoneId": "m1",
+        "seniorBarConcept": "Сквозной контекст наблюдения на базе Micrometer Observation API, поддержка OpenTelemetry стандартов и аннотаций @SpanTag в Spring Boot 3.32.",
+        "interviewTrap": "Потеря контекста трассировки (traceId) при передаче асинхронных задач между потоками или при работе с виртуальными потоками.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Какое значение по умолчанию использует Spring Boot 3.3 для service.name в OpenTelemetry, если имя приложения не задано явно, и почему это важно2?",
+          "taskType": "lld",
+          "taskDescription": "Реализовать кастомный ObservationHandler, добавляющий бизнес-теги в контекст спана при вызове методов, аннотированных @SpanTag2.",
+          "lldChallengeSlug": "lld-connection-pool-manager",
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-04"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Конфигурирование проброса контекста трассировки поверх Virtual Threads с использованием ScopedValue взамен классического ThreadLocal."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Сквозной контекст наблюдения на базе Micrometer Observation ",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 6,
+        "title": "Spring Boot 3.3 Virtual Threads Scaling & WebSocket Support",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Включение свойством spring.threads.virtual.enabled=true, интеграция Loom с сервлетными контейнерами Tomcat/Jetty и поддержка Virtual Threads для WebSockets2.",
+        "interviewTrap": "Включение Virtual Threads без аудита пула соединений с БД (HikariCP) или использование Undertow в релизе 3.3.0-M3 из\\-за известных проблем с утечками памяти15.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Как Spring Boot 3.3 меняет модель обработки соединений WebSocket при включении поддержки виртуальных потоков2?",
+          "taskType": "system design",
+          "taskDescription": "Спроектировать конфигурацию Spring Boot 3.3 сервиса под обработку 100,000 одновременных WebSocket-соединений с корректной настройкой OS и пулов.",
+          "lldChallengeSlug": "lld-transactional-outbox",
+          "hldScenarioId": "hld-scenario-01",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Причины временного отзыва поддержки виртуальных потоков для Undertow в Spring Boot 3.315."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Включение свойством spring.threads.virtual.enabled=true, инт",
+          "Успешная реализация практической задачи (System Design)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 7,
+        "title": "PostgreSQL MVCC Internals, Tuple Headers & HOT Updates",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Механизм многоверсионности (MVCC) в PostgreSQL: служебные поля кортежа (xmin, xmax, ctid), правила видимости транзакций, Heap Only Tuples (HOT) updates и работа VACUUM.",
+        "interviewTrap": "Кандидат полагает, что UPDATE в PostgreSQL перезаписывает байты на диске на том же месте (in-place modification).",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Опишите условия, необходимые для успешного срабатывания оптимизации HOT Update, и объясните, как она предотвращает разрастание B-Tree индексов.",
+          "taskType": "триаж",
+          "taskDescription": "Обнаружить таблицу с высокими показателями Bloat по системным представлениям pg\\_stat\\_user\\_tables и составить SQL-скрипт ее очистки без длительной блокировки.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-07"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Влияние затянутых незавершенных транзакций (Long-running transactions) на сдвиг горизонта xmin и предотвращение очистки мертвых строк."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Механизм многоверсионности (MVCC) в PostgreSQL: служебные по",
+          "Успешная реализация практической задачи (Триаж)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 8,
+        "title": "PostgreSQL Isolation Levels, Write Skew & SSI",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Уровни изоляции транзакций в PostgreSQL: Read Committed, Repeatable Read, Serializable; аномалии: Write Skew и работа механизмов Serializable Snapshot Isolation (SSI).",
+        "interviewTrap": "Утверждение, что уровень изоляции Repeatable Read в PostgreSQL полностью предотвращает аномалию Write Skew.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Продемонстрируйте сценарий возникновения Write Skew при уровне Repeatable Read и объясните, как SSI выявляет опасные связи в графе зависимостей (rw-antidependencies).",
+          "taskType": "lld",
+          "taskDescription": "Написать код финансового списания средств с защитой от Write Skew двумя методами: через SELECT ... FOR UPDATE и через уровень Serializable с обработкой ошибок 40001\\.",
+          "lldChallengeSlug": "lld-double-entry-ledger",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Анализ механизмов эскалации SIREAD-блокировок с уровня строк до уровня страниц и таблиц."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Уровни изоляции транзакций в PostgreSQL: Read Committed, Rep",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 9,
+        "title": "PostgreSQL Locking Strategy, Advisory Locks & Deadlock Triage",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Иерархия блокировок в PostgreSQL (Row-level: FOR UPDATE, FOR NO KEY UPDATE; Table-level), рекомендательные блокировки (Advisory Locks).",
+        "interviewTrap": "Неоправданное применение FOR UPDATE там, где достаточно FOR NO KEY UPDATE, приведет к блокировке операций вставки во внешние таблицы с Foreign Key.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "В чем различие между FOR UPDATE и FOR NO KEY UPDATE с точки зрения блокировки внешних ключей?",
+          "taskType": "lld",
+          "taskDescription": "Реализовать распределенный шедулер задач на базе PostgreSQL с гарантиями эксклюзивного выполнения через pg\\_try\\_advisory\\_xact\\_lock.",
+          "lldChallengeSlug": "lld-distributed-lock-redis",
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-03"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Анализ причин возникшего Deadlock по логам базы данных и графу pg\\_locks."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Иерархия блокировок в PostgreSQL (Row-level: FOR UPDATE, FOR",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 10,
+        "title": "PostgreSQL B-Tree vs GIN/BRIN Indexing & Index-Only Scans",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Устройство B-Tree, GIN, BRIN индексов, условия выполнения Index-Only Scan, значение Visibility Map и покрывающие индексы (INCLUDE).",
+        "interviewTrap": "Утверждение, что Index-Only Scan никогда не обращается к таблице (Heap), без учета состояния Visibility Map.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Каким образом индекс BRIN (Block Range Index) достигает превосходных показателей сжатия на упорядоченных по времени данных (Time-Series)?",
+          "taskType": "sql",
+          "taskDescription": "Оптимизировать медленный запрос фильтрации по JSONB с помощью GIN-индекса и подтвердить выбор плана через EXPLAIN (ANALYZE, BUFFERS).",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Оценка эффективности дедупликации B-Tree индексов и порядка столбцов в составном индексе."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Устройство B-Tree, GIN, BRIN индексов, условия выполнения In",
+          "Успешная реализация практической задачи (SQL)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 11,
+        "title": "Kafka Partitioning Strategy, Consumer Groups & Key Distribution",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Партиционирование в Apache Kafka, распределение ключей (Key-based partitioning), MurmurHash2, структура Consumer Groups.",
+        "interviewTrap": "Кандидат полагает, что увеличение числа партиций в топике не нарушает строгий порядок обработки сообщений по имеющимся ключам.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Как дефолтный партиционер Kafka распределяет сообщения с ключом и без ключа? Что происходит при добавлении партиций в действующий топик?",
+          "taskType": "lld",
+          "taskDescription": "Реализовать кастомный Partitioner на Java для выделения критических транзакций VIP-клиентов в отдельную изолированную партицию.",
+          "lldChallengeSlug": "lld-consistent-hash-ring",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Способы борьбы с перекосом нагрузки (Key Skew / Hot Keys) в партициях."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Партиционирование в Apache Kafka, распределение ключей (Key-",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 12,
+        "title": "Kafka Cooperative Sticky Rebalancer vs Eager Protocol",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Протоколы ребалансировки Consumer Group: Eager (Range/RoundRobin) против Incremental Cooperative Rebalancing (CooperativeStickyAssignor).",
+        "interviewTrap": "Кандидат не знает, что протокол Eager останавливает потребление всей группы (Stop-The-World) во время любой ребалансировки.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Опишите фазы двухэтапного перехода (Two-pass rebalance) при добавлении нового консьюмера в режиме CooperativeStickyAssignor.",
+          "taskType": "config",
+          "taskDescription": "Перевести конфигурацию Spring Kafka на CooperativeStickyAssignor и настроить таймауты max.poll.interval.ms во избежание ложных ребалансировок.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Использование статического членства (group.instance.id) для исключения ребалансировок при плановых перезапусках подов в Kubernetes."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Протоколы ребалансировки Consumer Group: Eager (Range/RoundR",
+          "Успешная реализация практической задачи (Config)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 13,
+        "title": "Kafka Exactly-Once Semantics (EOS) & Transactional Producer",
+        "milestoneId": "m2",
+        "seniorBarConcept": "Гарантия Exactly-Once Semantics (EOS v2): Идемпотентный Продюсер, Транзакционный Продюсер (transactional.id), Transaction Coordinator, изоляция read\\_committed6.",
+        "interviewTrap": "Путаница между семантикой Exactly-Once внутри Kafka (read-process-write) и внешними побочными эффектами (вызовы сторонних REST API)6.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Объясните работу протокола двухфазного коммита (2PC) в Kafka при атомарной записи сообщений и фиксации офсетов в рамках транзакции7.",
+          "taskType": "lld",
+          "taskDescription": "Написать сервис обработки сообщений на Spring Kafka с включенной транзакционностью и уровнем изоляции read\\_committed6.",
+          "lldChallengeSlug": "lld-saga-orchestrator",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Поведение консьюмера в режиме read\\_committed при встрече с маркерами отмененных транзакций (Aborted Transactions Control Batches)7."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Гарантия Exactly-Once Semantics (EOS v2): Идемпотентный Прод",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 14,
+        "title": "System Design: Rate Limiting Architecture",
+        "milestoneId": "m3",
+        "seniorBarConcept": "Алгоритмы ограничения пропускной способности: Token Bucket, Leaky Bucket, Fixed Window, Sliding Window Log, Sliding Window Counter.",
+        "interviewTrap": "Реализация алгоритма Sliding Window Counter на Redis без использования атомарных Lua-скриптов, приводящая к race condition под нагрузкой.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Сравните Token Bucket и Sliding Window Counter по расходу памяти и точности обработки пиковых всплесков трафика.",
+          "taskType": "system design",
+          "taskDescription": "Спроектировать распределенный Rate Limiter для API Gateway с производительностью 500,000 RPS на базе Redis Cluster и локального fallback-кэша.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": "hld-scenario-02",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Многоуровневый Rate Limiting с дифференцированными лимитами по IP, User ID и Tenant ID в Multi-Tenant архитектуре."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Алгоритмы ограничения пропускной способности: Token Bucket, ",
+          "Успешная реализация практической задачи (System Design)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 15,
+        "title": "System Design: Distributed Caching & Cache Stampede",
+        "milestoneId": "m3",
+        "seniorBarConcept": "Стратегии кэширования (Read-Through, Write-Through, Cache-Aside), проблемы Cache Stampede, Cache Penetration, Cache Avalanche. Паттерны Single-Flight и Probabilistic Early Expiration (XFetch).",
+        "interviewTrap": "Использование обычного synchronized в Java коде для предотвращения Cache Stampede в кластерном приложении из десятков нод.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "В чем заключается математическая суть алгоритма вероятностного досрочного пересчета кэша XFetch?",
+          "taskType": "lld",
+          "taskDescription": "Реализовать обертку над Redis-клиентом с применением паттерна Single-Flight (через CompletableFuture), гарантирующую ровно один запрос к БД при промахе кэша.",
+          "lldChallengeSlug": "lld-cache-stampede-xfetch",
+          "hldScenarioId": "hld-scenario-03",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Двухуровневое кэширование L1 (In-Memory Java) \\+ L2 (Distributed Redis) с инвалидацией через Redis Pub/Sub или Kafka."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Стратегии кэширования (Read-Through, Write-Through, Cache-As",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 16,
+        "title": "System Design: Consistent Hashing & Database Sharding Strategies",
+        "milestoneId": "m3",
+        "seniorBarConcept": "Согласованное хэширование (Consistent Hashing), Виртуальные ноды (Virtual Nodes), стратегии шардирования (Range, Hash, Directory-based), миграция данных при перебалансировке.",
+        "interviewTrap": "Использование простой формулы hash(key) % N для шардирования, приводящее к необходимости перераспределения 99% данных при изменении N.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Объясните, как виртуальные ноды (vnodes) решают проблему неравномерного распределения данных (Hotspots) на кольце хэшей.",
+          "taskType": "system design",
+          "taskDescription": "Спроектировать схему горизонтального шардирования PostgreSQL на 100 ТБ с горячим добавлением шардов без остановки обслуживания.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": "hld-scenario-04",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Организация выполнения распределенных JOIN-запросов и генерация глобально уникальных ID (Snowflake, TSID)."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Согласованное хэширование (Consistent Hashing), Виртуальные ",
+          "Успешная реализация практической задачи (System Design)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 17,
+        "title": "JVM Forensics: Thread Dump Analysis & Carrier Thread Pinning",
+        "milestoneId": "m4",
+        "seniorBarConcept": "Триаж дампа потоков (Thread Dump), состояния потоков (BLOCKED, WAITING, RUNNABLE), обнаружение Deadlocks и виртуальных потоков в состоянии Pinning1.",
+        "interviewTrap": "Неумение отличить виртуальный поток в состоянии PARKED от заблокированного платформенного потока1.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Как в текстовом дампе потоков визуально отличается стек вызова виртуального потока от платформенного worker-потока ForkJoinPool1?",
+          "taskType": "триаж",
+          "taskDescription": "По предоставленному дампа потоков найти причину 100% загрузки CPU и определить поток-источник блокировки ресурсов.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-01"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Расшифровка структур java.lang.VirtualThread в формате JSON дампа (jcmd \\<pid\\> Thread.dump\\_to\\_file \\-format=json)."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Триаж дампа потоков (Thread Dump), состояния потоков (BLOCKE",
+          "Успешная реализация практической задачи (Триаж)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 18,
+        "title": "JVM Forensics: Memory Leaks & MAT Analysis",
+        "milestoneId": "m4",
+        "seniorBarConcept": "Диагностика утечек памяти (OutOfMemoryError: Java heap space), анализ дампов кучи (hprof), работа с Eclipse Memory Analyzer (MAT), понятия Shallow vs Retained Heap, Dominator Tree, GC Roots.",
+        "interviewTrap": "Попытка поиска утечки памяти по объектам с наибольшим Shallow Size вместо анализа Retained Size и путей до GC Roots.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "В чем различие между Shallow Heap и Retained Heap? Как Dominator Tree помогает изолировать корень утечки памяти?",
+          "taskType": "триаж",
+          "taskDescription": "Проанализировать .hprof файл, найти класс-источник утечки памяти (например, незакрытый ThreadLocal или статическая коллекция) и предоставить исправление.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-05"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Диагностика утечек нативной памяти (Off-Heap / Direct ByteBuffers) с помощью инструментов Native Memory Tracking (NMT) и jemalloc."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Диагностика утечек памяти (OutOfMemoryError: Java heap space",
+          "Успешная реализация практической задачи (Триаж)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 19,
+        "title": "JVM Forensics: G1 GC STW Mechanics & Humongous Objects",
+        "milestoneId": "m4",
+        "seniorBarConcept": "Архитектура G1 GC: Регионы, Eden, Survivor, Old, Humongous области, паузы Stop-The-World, Remembered Sets (RSets) и Card Tables.",
+        "interviewTrap": "Кандидат думает, что Humongous-объекты аллоцируются в Young Generation и проходят стандартный цикл тенирования (Tenuring).",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Почему аллокация Humongous-объектов (размером \\> 50% региона) вызывает частые сборки мусора и провоцирует панические Full GC?",
+          "taskType": "триаж",
+          "taskDescription": "По логам сбора мусора (-Xlog:gc\\*) определить причину затяжных STW пауз и составить список флагов JVM для стабилизации работы.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": "triage-incident-06"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Сравнительный анализ работы Generational ZGC в Java 21 под требования к задержкам суб-миллисекундного уровня."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Архитектура G1 GC: Регионы, Eden, Survivor, Old, Humongous о",
+          "Успешная реализация практической задачи (Триаж)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 20,
+        "title": "Concurrent Data Structures: Lock-Free Queues & CAS Loops",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Неблокирующие структуры данных, атомарные инструкции CPU (Compare-And-Swap — CAS), алгоритмы Michael-Scott Queue, проблема ABA и решение через AtomicStampedReference.",
+        "interviewTrap": "Написание бесконечного CAS-цикла без вызова Thread.onSpinWait(), приводящее к избыточной загрузке ядра CPU.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Опишите сущность проблемы ABA при реализации неблокирующего стека или очереди. Какими средствами она устраняется?",
+          "taskType": "lld",
+          "taskDescription": "Реализовать потокобезопасный Lock-Free стек на Java с использованием AtomicReference и корректной обработкой CAS-петель.",
+          "lldChallengeSlug": "lld-lock-free-stack",
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Использование VarHandle в Java 21 взамен sun.misc.Unsafe для атомарных операций над элементами массивов."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Неблокирующие структуры данных, атомарные инструкции CPU (Co",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": [
+          "concurrency-master:step-20"
+        ]
+      },
+      {
+        "stepNumber": 21,
+        "title": "Spring Security 3.3 & JWT Auto-Configuration Internals",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Автоконфигурация Spring Security 3.3 для JWT Resource Server (JwtAuthenticationConverter), цепь фильтров SecurityFilterChain, асинхронный контекст безопасности2.",
+        "interviewTrap": "Использование устаревших конфигурационных классов WebSecurityConfigurerAdapter или потеря SecurityContext в виртуальных потоках.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Как Spring Security 3.3 автоматически настраивает JwtAuthenticationConverter при задании свойств префиксов ролей и наименований claims2?",
+          "taskType": "config",
+          "taskDescription": "Составить конфигурацию SecurityFilterChain с поддержкой JWT, проверкой подписи через JWK Set URI и безопасным пробросом контекста.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Настройка двусторонней аутентификации TLS (mTLS) с динамической валидацией сертификатов через SSL SNI support в Spring Boot 3.32."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Автоконфигурация Spring Security 3.3 для JWT Resource Server",
+          "Успешная реализация практической задачи (Config)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 22,
+        "title": "HighLoad API Gateway Design & Resilience Patterns",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Паттерны отказоустойчивости: Circuit Breaker, Rate Limiter, Bulkhead, Retry, Time Limiter в библиотеке Resilience4j.",
+        "interviewTrap": "Настройка паттерна Retry без экспоненциального отката (Exponential Backoff) и рандомизации (Jitter), вызывающая шторм повторных запросов (Retry Storm).",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Назовите состояния автомата Circuit Breaker и объясните формулу расчета процента ошибок в скользящем окне.",
+          "taskType": "lld",
+          "taskDescription": "Спроектировать слой интеграции с внешним платежным шлюзом с использованием Resilience4j декораторов, изолированных пулов (Bulkhead) и фоллбеков.",
+          "lldChallengeSlug": "lld-circuit-breaker-resilience",
+          "hldScenarioId": "hld-scenario-05",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Предотвращение эффекта Cascade Failure в микросервисной сети при массовом срабатывании Circuit Breakers."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Паттерны отказоустойчивости: Circuit Breaker, Rate Limiter, ",
+          "Успешная реализация практической задачи (LLD)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 23,
+        "title": "Database Schema Migrations at Scale",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Безопасная миграция схем баз данных под высокой нагрузкой (Zero Downtime DDL), использование Flyway 10 в Spring Boot 3.3, правило \"Expand and Contract\"3.",
+        "interviewTrap": "Выполнение операций ALTER TABLE ADD COLUMN ... DEFAULT ... без учета особенностей блокировок таблицы ACCESS EXCLUSIVE.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Из каких 4-х изолированных релизов состоит процесс переименования столбца таблицы в паттерне \"Expand and Contract\"?",
+          "taskType": "sql",
+          "taskDescription": "Написать набор Flyway-скриптов для безопасного добавления столбца с ограничением FOREIGN KEY и фоновым заполнением данных без долгой блокировки таблицы.",
+          "lldChallengeSlug": null,
+          "hldScenarioId": null,
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Использование CREATE INDEX CONCURRENTLY в PostgreSQL и нюансы выполнения миграций в транзакционном блоке Flyway."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Безопасная миграция схем баз данных под высокой нагрузкой (Z",
+          "Успешная реализация практической задачи (SQL)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 24,
+        "title": "Distributed Transactions: Saga Pattern vs 2PC",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Согласованность данных в распределенных системах: Протокол двухфазного коммита (2PC) против паттерна Saga (Choreography & Orchestration), компенсационные транзакции.",
+        "interviewTrap": "Кандидат предлагает применить 2PC поверх микросервисов с синхронными REST-вызовами, игнорируя проблемы блокировки ресурсов и невысокой доступности.",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Сравните Saga Choreography и Saga Orchestration по критериям связности сервисов, сложности отладки и масштабируемости.",
+          "taskType": "system design",
+          "taskDescription": "Спроектировать оркестратор Saga для заказа в e-commerce с описанием шагов компенсации при отказе на этапе резервирования товара.",
+          "lldChallengeSlug": "lld-event-sourcing-cqrs",
+          "hldScenarioId": "hld-scenario-06",
+          "triageIncidentId": null
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Гарантии доставки компенсационных сообщений с использованием паттерна Transactional Outbox и транзакционных продюсеров Kafka7."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Согласованность данных в распределенных системах: Протокол д",
+          "Успешная реализация практической задачи (System Design)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      },
+      {
+        "stepNumber": 25,
+        "title": "Senior Live-Coding: Bounded Lock-Free Ring Buffer with Virtual Thread Awareness",
+        "milestoneId": "m5",
+        "seniorBarConcept": "Практическая реализация неблокирующих структур данных с оптимизацией под Java 21 и Virtual Threads.",
+        "interviewTrap": "Допущение гонки условий (Race Condition) на границах опустошения или переполнения буфера при одновременных вызовах offer() и poll().",
+        "estimatedMinutes": 25,
+        "coreRequirements": {
+          "theoryTopic": "core",
+          "theoryTitle": "Каким образом использование VarHandle в Java 21 позволяет производить атомарные операции над элементами массива без создания лишних объектов-оберток?",
+          "taskType": "live-coding",
+          "taskDescription": "За 45 минут написать на Java 21 потокобезопасную ограниченную очередь (Bounded Queue) на базе кольцевого массива с использованием CAS-операций и адаптивной парковкой потоков.",
+          "lldChallengeSlug": "lld-highload-trading-matching-engine",
+          "hldScenarioId": "hld-scenario-07",
+          "triageIncidentId": "triage-incident-15"
+        },
+        "bonusDeepDive": {
+          "title": "⭐ Bar-Raiser Углубление",
+          "description": "Оптимизация ожидания через LockSupport.parkNanos() без блокирования Carrier-потоков в Loom."
+        },
+        "masteryChecklist": [
+          "Глубокое понимание Практическая реализация неблокирующих структур данных с опти",
+          "Успешная реализация практической задачи (Live-Coding)",
+          "Готовность аргументировать компромиссы (Trade-offs) на собеседовании"
+        ],
+        "crossCourseLinks": []
+      }
+    ]
   },
   {
     "id": "staff-principal-track-60",

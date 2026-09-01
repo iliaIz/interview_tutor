@@ -1,28 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AcademyCourse, AcademyStep } from '../../types/nextgen';
 import { AcademyStepModal } from './AcademyStepModal';
 import { 
   Sparkles, 
-  Compass, 
   CheckCircle2, 
   Circle, 
   ArrowRight, 
-  Flame, 
-  ShieldCheck, 
   Clock, 
   Layers, 
   Code2, 
   Terminal, 
   BookOpen, 
-  Award,
-  Zap,
-  Target,
-  Cpu,
-  Database,
-  Search,
-  Activity
+  Target, 
+  Cpu, 
+  Database, 
+  Search, 
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Filter,
+  CheckCheck,
+  RotateCcw,
+  Flame
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+type StepFilterType = 'all' | 'uncompleted' | 'lld' | 'hld' | 'triage' | 'theory';
 
 export const AcademyStudio: React.FC = () => {
   const { 
@@ -37,9 +42,10 @@ export const AcademyStudio: React.FC = () => {
   const [courses, setCourses] = useState<AcademyCourse[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'career' | 'domain'>('career');
   const [currentCourse, setCurrentCourse] = useState<AcademyCourse | null>(null);
-  const [activeMilestoneId, setActiveMilestoneId] = useState<string>('all');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [openMilestones, setOpenMilestones] = useState<Set<string>>(new Set());
+  const [filterType, setFilterType] = useState<StepFilterType>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Fetch all courses catalog
   const fetchCourses = async () => {
@@ -66,6 +72,17 @@ export const AcademyStudio: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setCurrentCourse(data);
+
+        // Auto-expand milestones: expand all or active milestone by default
+        if (data.milestones && data.milestones.length > 0) {
+          const firstUncompleted = (data.steps || []).find((s: AcademyStep) => !s.isCompleted);
+          const activeMid = firstUncompleted ? firstUncompleted.milestoneId : data.milestones[0].id;
+          
+          setOpenMilestones((prev) => {
+            if (prev.size > 0) return prev; // Preserve user's manual toggles
+            return new Set([activeMid, data.milestones[0].id]);
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load course details:', e);
@@ -84,7 +101,9 @@ export const AcademyStudio: React.FC = () => {
 
   const handleCourseChange = (id: string) => {
     setActiveAcademyCourseId(id);
-    setActiveMilestoneId('all');
+    setOpenMilestones(new Set());
+    setFilterType('all');
+    setSearchQuery('');
   };
 
   const handleToggleStep = async (stepNumber: number, isCompleted: boolean) => {
@@ -95,19 +114,80 @@ export const AcademyStudio: React.FC = () => {
     fetchCourses();
   };
 
-  const filteredCourses = courses.filter(c => c.category === selectedCategory);
+  const toggleMilestone = (mid: string) => {
+    setOpenMilestones((prev) => {
+      const next = new Set(prev);
+      if (next.has(mid)) {
+        next.delete(mid);
+      } else {
+        next.add(mid);
+      }
+      return next;
+    });
+  };
 
-  // Determine current active focus step (first uncompleted step)
-  const steps = currentCourse?.steps || [];
-  const nextFocusStep = steps.find(s => !s.isCompleted) || steps[0];
+  const expandAllMilestones = () => {
+    if (!currentCourse?.milestones) return;
+    setOpenMilestones(new Set(currentCourse.milestones.map((m) => m.id)));
+  };
 
-  const filteredSteps = steps.filter(step => {
-    const matchesMilestone = activeMilestoneId === 'all' || step.milestoneId === activeMilestoneId;
-    const matchesSearch = !searchQuery.trim() || 
-      step.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      step.seniorBarConcept.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesMilestone && matchesSearch;
-  });
+  const collapseAllMilestones = () => {
+    setOpenMilestones(new Set());
+  };
+
+  const filteredCourses = courses.filter((c) => c.category === selectedCategory);
+
+  // All steps for current course
+  const steps = useMemo(() => currentCourse?.steps || [], [currentCourse]);
+  const nextFocusStep = useMemo(() => steps.find((s) => !s.isCompleted) || steps[0], [steps]);
+
+  // Counts for quick filter badges
+  const filterCounts = useMemo(() => {
+    let uncompleted = 0;
+    let lld = 0;
+    let hld = 0;
+    let triage = 0;
+    let theory = 0;
+
+    steps.forEach((s) => {
+      if (!s.isCompleted) uncompleted++;
+      if (s.coreRequirements?.lldChallengeSlug) lld++;
+      if (s.coreRequirements?.hldScenarioId) hld++;
+      if (s.coreRequirements?.triageIncidentId) triage++;
+      if (s.coreRequirements?.theoryTitle) theory++;
+    });
+
+    return { total: steps.length, uncompleted, lld, hld, triage, theory };
+  }, [steps]);
+
+  // Filtered steps based on search and active filter pill
+  const filteredSteps = useMemo(() => {
+    return steps.filter((step) => {
+      // 1. Filter Type
+      if (filterType === 'uncompleted' && step.isCompleted) return false;
+      if (filterType === 'lld' && !step.coreRequirements?.lldChallengeSlug) return false;
+      if (filterType === 'hld' && !step.coreRequirements?.hldScenarioId) return false;
+      if (filterType === 'triage' && !step.coreRequirements?.triageIncidentId) return false;
+      if (filterType === 'theory' && !step.coreRequirements?.theoryTitle) return false;
+
+      // 2. Search Query
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const numMatch = `#${step.stepNumber}` === q || String(step.stepNumber) === q;
+      const titleMatch = step.title.toLowerCase().includes(q);
+      const conceptMatch = step.seniorBarConcept.toLowerCase().includes(q);
+      const theoryMatch = step.coreRequirements?.theoryTitle?.toLowerCase().includes(q) || false;
+
+      return numMatch || titleMatch || conceptMatch || theoryMatch;
+    });
+  }, [steps, filterType, searchQuery]);
+
+  // Auto-expand all milestones when search query is active
+  useEffect(() => {
+    if (searchQuery.trim() && currentCourse?.milestones) {
+      setOpenMilestones(new Set(currentCourse.milestones.map((m) => m.id)));
+    }
+  }, [searchQuery, currentCourse]);
 
   const progress = currentCourse?.userProgress || {
     completedSteps: [],
@@ -117,11 +197,11 @@ export const AcademyStudio: React.FC = () => {
     pillars: { concurrency: 0, databases: 0, systemDesign: 0, forensics: 0 }
   };
 
-  const careerCount = courses.filter(c => c.category === 'career').length;
-  const domainCount = courses.filter(c => c.category === 'domain').length;
+  const careerCount = courses.filter((c) => c.category === 'career').length;
+  const domainCount = courses.filter((c) => c.category === 'domain').length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-8 animate-fade-in relative z-10">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8 animate-fade-in relative z-10 font-sans">
 
       {/* 1. Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-pastel-border/60">
@@ -337,134 +417,342 @@ export const AcademyStudio: React.FC = () => {
         </div>
       )}
 
-      {/* 5. Milestones Filter Bar */}
+      {/* 5. SOTA 2026 Omni-Toolbar for Academy Syllabus */}
       {currentCourse && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar">
-              <button
-                onClick={() => setActiveMilestoneId('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  activeMilestoneId === 'all'
-                    ? 'bg-pastel-text text-white shadow-xs'
-                    : 'bg-white text-pastel-muted hover:text-pastel-text border border-pastel-border'
-                }`}
-              >
-                Все шаги ({currentCourse.totalSteps})
-              </button>
-              {(currentCourse.milestones || []).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setActiveMilestoneId(m.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                    activeMilestoneId === m.id
-                      ? 'bg-pastel-accentRose text-white shadow-xs'
-                      : 'bg-white text-pastel-muted hover:text-pastel-text border border-pastel-border'
-                  }`}
-                >
-                  {m.title}
-                </button>
-              ))}
-            </div>
-
+        <div className="p-4 rounded-3xl bg-white/90 border border-pastel-border shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            
             {/* Search Input */}
-            <div className="relative min-w-[200px] sm:w-64">
-              <Search className="w-3.5 h-3.5 text-pastel-muted absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск по теме или концепту..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white rounded-xl border border-pastel-border text-pastel-text placeholder-pastel-muted focus:outline-hidden focus:border-pastel-accentRose/50"
+                placeholder="Поиск по шагам, темам и Bar-Raiser концептам (например, Virtual Threads, JMM, MVCC)..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-pastel-bg/60 rounded-xl border border-pastel-border text-pastel-text placeholder-pastel-muted focus:outline-hidden focus:border-pastel-accentRose/50 transition"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-pastel-muted hover:text-pastel-text p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Expand / Collapse All Accordions */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={expandAllMilestones}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-pastel-bg hover:bg-pastel-rose/30 text-pastel-muted hover:text-pastel-text border border-pastel-border transition cursor-pointer"
+                title="Развернуть все майлстоуны"
+              >
+                <ChevronsUpDown className="w-3.5 h-3.5 text-pastel-accentRose" />
+                <span className="hidden sm:inline">Развернуть все</span>
+              </button>
+              <button
+                onClick={collapseAllMilestones}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-pastel-bg hover:bg-pastel-rose/30 text-pastel-muted hover:text-pastel-text border border-pastel-border transition cursor-pointer"
+                title="Свернуть все майлстоуны"
+              >
+                <ChevronUp className="w-3.5 h-3.5 text-pastel-muted" />
+                <span className="hidden sm:inline">Свернуть все</span>
+              </button>
             </div>
           </div>
 
-          {/* 6. Step Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSteps.map((step) => {
-              const isCompleted = Boolean(step.isCompleted);
-              const core = step.coreRequirements || {};
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold">
+            <button
+              onClick={() => setFilterType('all')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'all'
+                  ? 'bg-pastel-text text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text border border-pastel-border/60'
+              }`}
+            >
+              <span>Все шаги ({filterCounts.total})</span>
+            </button>
 
-              return (
-                <div
-                  key={step.stepNumber}
-                  onClick={() => openAcademyStepModal(step)}
-                  className={`p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-4 relative overflow-hidden group ${
-                    isCompleted
-                      ? 'bg-white/95 border-emerald-200/80 shadow-xs hover:border-emerald-300'
-                      : 'bg-white/80 hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs hover:shadow-md'
+            <button
+              onClick={() => setFilterType('uncompleted')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'uncompleted'
+                  ? 'bg-pastel-accentRose text-white shadow-2xs'
+                  : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text border border-pastel-border/60'
+              }`}
+            >
+              <Flame className="w-3 h-3 text-amber-500" />
+              <span>В фокусе ({filterCounts.uncompleted})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterType('lld')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'lld'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+              }`}
+            >
+              <Code2 className="w-3 h-3" />
+              <span>Кодинг LLD ({filterCounts.lld})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterType('hld')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'hld'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              <span>Архитектура HLD ({filterCounts.hld})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterType('triage')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'triage'
+                  ? 'bg-rose-600 text-white shadow-2xs'
+                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              }`}
+            >
+              <Terminal className="w-3 h-3" />
+              <span>Дампы & Триаж ({filterCounts.triage})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterType('theory')}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                filterType === 'theory'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <BookOpen className="w-3 h-3" />
+              <span>Теория ({filterCounts.theory})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Structured Milestone Syllabus (Option B: Milestone-Grouped Accordions) */}
+      {currentCourse && (
+        <div className="space-y-6">
+          {(currentCourse.milestones || []).map((milestone, mIdx) => {
+            // All steps belonging to this milestone
+            const milestoneAllSteps = steps.filter((s) => s.milestoneId === milestone.id);
+            // Steps visible after search/filters
+            const milestoneVisibleSteps = filteredSteps.filter((s) => s.milestoneId === milestone.id);
+
+            // If a search or filter is active and 0 matching steps, hide this milestone
+            if ((searchQuery.trim() || filterType !== 'all') && milestoneVisibleSteps.length === 0) {
+              return null;
+            }
+
+            const totalInMilestone = milestoneAllSteps.length;
+            const completedInMilestone = milestoneAllSteps.filter((s) => s.isCompleted).length;
+            const percentage = totalInMilestone > 0 ? Math.round((completedInMilestone / totalInMilestone) * 100) : 0;
+            const isMilestoneCompleted = totalInMilestone > 0 && completedInMilestone === totalInMilestone;
+            const isOpen = openMilestones.has(milestone.id);
+
+            return (
+              <div 
+                key={milestone.id}
+                className="rounded-3xl border border-pastel-border/80 bg-white/70 backdrop-blur-md overflow-hidden shadow-2xs transition-all duration-200"
+              >
+                {/* Milestone Accordion Header */}
+                <button
+                  onClick={() => toggleMilestone(milestone.id)}
+                  className={`w-full p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left transition-colors cursor-pointer select-none ${
+                    isOpen ? 'bg-white/95 border-b border-pastel-border/60' : 'hover:bg-white/90'
                   }`}
                 >
-                  {/* Top Meta */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-                          #{step.stepNumber}
-                        </span>
-                        <span className="text-[10px] text-pastel-muted font-medium flex items-center gap-0.5">
-                          <Clock className="w-2.5 h-2.5" /> ~{step.estimatedMinutes}м
-                        </span>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                      isMilestoneCompleted
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                        : 'bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20'
+                    }`}>
+                      {isMilestoneCompleted ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <span>M{mIdx + 1}</span>
+                      )}
+                    </div>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleStep(step.stepNumber, !isCompleted);
-                        }}
-                        className="p-1 rounded-full text-pastel-muted hover:text-emerald-600 transition"
-                        title={isCompleted ? "Отменить зачёт" : "Отметить выполненным"}
-                      >
-                        {isCompleted ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
-                        ) : (
-                          <Circle className="w-5 h-5 text-pastel-muted/50 hover:text-pastel-accentRose" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-bold text-pastel-text">
+                          {milestone.title}
+                        </h3>
+                        {milestone.stepRange && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border">
+                            {milestone.stepRange}
+                          </span>
                         )}
-                      </button>
+                      </div>
+                      <p className="text-[11px] text-pastel-muted font-medium">
+                        {completedInMilestone} из {totalInMilestone} шагов освоено • {percentage}% прогресс
+                      </p>
                     </div>
-
-                    <h4 className="font-bold text-sm text-pastel-text group-hover:text-pastel-accentRose transition-colors line-clamp-1">
-                      {step.title}
-                    </h4>
-                    <p className="text-xs text-pastel-muted line-clamp-2 leading-relaxed">
-                      💡 {step.seniorBarConcept}
-                    </p>
                   </div>
 
-                  {/* Core Requirements Badges */}
-                  <div className="pt-3 border-t border-pastel-border/40 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {core.lldChallengeSlug && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                          💻 LLD
-                        </span>
-                      )}
-                      {core.hldScenarioId && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          🏛️ HLD
-                        </span>
-                      )}
-                      {core.triageIncidentId && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-                          🧵 Триаж
-                        </span>
-                      )}
-                      {core.theoryTitle && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                          📖 Теория
-                        </span>
-                      )}
+                  {/* Milestone Progress & Toggle Action */}
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    {/* Mini Progress Bar */}
+                    <div className="w-28 sm:w-36 flex flex-col gap-1">
+                      <div className="flex justify-between text-[10px] font-bold text-pastel-muted">
+                        <span>{percentage}%</span>
+                        {isMilestoneCompleted && <span className="text-emerald-600">Готово</span>}
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-pastel-border/60 overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isMilestoneCompleted
+                              ? 'bg-emerald-500'
+                              : 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet'
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
                     </div>
 
-                    <span className="text-[11px] font-bold text-pastel-accentRose opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                      Открыть <ArrowRight className="w-3 h-3" />
-                    </span>
+                    <div className="w-8 h-8 rounded-full bg-pastel-bg flex items-center justify-center text-pastel-muted hover:text-pastel-text transition shrink-0">
+                      {isOpen ? (
+                        <ChevronUp className="w-4 h-4 text-pastel-accentRose" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                </button>
+
+                {/* Milestone Steps Cards Grid (when expanded) */}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="p-4 sm:p-5 bg-pastel-bg/30"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {milestoneVisibleSteps.map((step) => {
+                          const isCompleted = Boolean(step.isCompleted);
+                          const core = step.coreRequirements || {};
+
+                          return (
+                            <div
+                              key={step.stepNumber}
+                              onClick={() => openAcademyStepModal(step)}
+                              className={`p-4 sm:p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-4 relative overflow-hidden group ${
+                                isCompleted
+                                  ? 'bg-white border-emerald-200/80 shadow-xs hover:border-emerald-300'
+                                  : 'bg-white hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs hover:shadow-md'
+                              }`}
+                            >
+                              {/* Top Meta */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20 font-mono">
+                                      #{step.stepNumber}
+                                    </span>
+                                    <span className="text-[10px] text-pastel-muted font-medium flex items-center gap-0.5">
+                                      <Clock className="w-2.5 h-2.5" /> ~{step.estimatedMinutes}м
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleStep(step.stepNumber, !isCompleted);
+                                    }}
+                                    className="p-1 rounded-full text-pastel-muted hover:text-emerald-600 transition cursor-pointer"
+                                    title={isCompleted ? "Отменить зачёт" : "Отметить выполненным"}
+                                  >
+                                    {isCompleted ? (
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
+                                    ) : (
+                                      <Circle className="w-5 h-5 text-pastel-muted/50 hover:text-pastel-accentRose" />
+                                    )}
+                                  </button>
+                                </div>
+
+                                <h4 className="font-bold text-sm text-pastel-text group-hover:text-pastel-accentRose transition-colors line-clamp-2">
+                                  {step.title}
+                                </h4>
+                                <p className="text-xs text-pastel-muted line-clamp-2 leading-relaxed">
+                                  💡 {step.seniorBarConcept}
+                                </p>
+                              </div>
+
+                              {/* Core Requirements Badges */}
+                              <div className="pt-3 border-t border-pastel-border/40 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {core.lldChallengeSlug && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                      💻 LLD
+                                    </span>
+                                  )}
+                                  {core.hldScenarioId && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      🏛️ HLD
+                                    </span>
+                                  )}
+                                  {core.triageIncidentId && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                      🧵 Триаж
+                                    </span>
+                                  )}
+                                  {core.theoryTitle && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                      📖 Теория
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span className="text-[11px] font-bold text-pastel-accentRose opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                  Открыть <ArrowRight className="w-3 h-3" />
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+
+          {/* Empty Search State */}
+          {filteredSteps.length === 0 && (
+            <div className="p-8 rounded-3xl bg-white border border-pastel-border text-center space-y-3 shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-pastel-rose/50 text-pastel-accentRose flex items-center justify-center mx-auto">
+                <Search className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-base text-pastel-text">Шаги не найдены</h3>
+              <p className="text-xs text-pastel-muted max-w-md mx-auto">
+                По запросу «{searchQuery}» с фильтром «{filterType}» ничего не найдено. Попробуйте изменить параметры поиска.
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterType('all');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-pastel-accentRose text-white hover:opacity-90 transition cursor-pointer"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+          )}
         </div>
       )}
 
