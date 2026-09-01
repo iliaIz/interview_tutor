@@ -8,7 +8,13 @@ import {
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const SystemDesignArena: React.FC = () => {
-  const { activeSystemDesignScenario, closeSystemDesignScenario, showToast } = useAppStore();
+  const { 
+    activeSystemDesignScenario, 
+    closeSystemDesignScenario, 
+    showToast,
+    academyBreadcrumbContext,
+    returnToAcademyStep
+  } = useAppStore();
   const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'staff_ai'>('spec');
   
   // Candidate Notes & Architecture State
@@ -58,17 +64,19 @@ export const SystemDesignArena: React.FC = () => {
         const data = await res.json();
         setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
       } else {
-        showToast({ type: 'error', title: 'Ошибка ИИ', message: 'Не удалось получить ответ Staff-интервьюера' });
+        showToast({ type: 'error', title: 'Ошибка AI', message: 'Не удалось получить ответ от Staff AI' });
       }
     } catch {
-      showToast({ type: 'error', title: 'Сетевая ошибка', message: 'Проверьте соединение с сервером' });
+      showToast({ type: 'error', title: 'Сетевая ошибка', message: 'Ошибка связи с сервером' });
     } finally {
       setIsSendingMessage(false);
     }
   };
 
   const handleEvaluate = async () => {
+    if (!activeSystemDesignScenario || isEvaluating) return;
     setIsEvaluating(true);
+
     try {
       const res = await fetch('/api/system-design/evaluate', {
         method: 'POST',
@@ -76,6 +84,7 @@ export const SystemDesignArena: React.FC = () => {
         credentials: 'include',
         body: JSON.stringify({
           scenarioId: activeSystemDesignScenario.id,
+          conversationHistory: chatMessages,
           architectureMermaid: mermaidCode,
           notesMarkdown: candidateNotes
         })
@@ -99,13 +108,25 @@ export const SystemDesignArena: React.FC = () => {
       {/* Top Bar */}
       <div className="h-14 border-b border-pastel-border/80 bg-white/95 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-10 shadow-2xs gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={closeSystemDesignScenario}
-            className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2.5 py-1.5 rounded-xl hover:bg-pastel-rose/40 transition cursor-pointer shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Каталог HLD</span>
-          </button>
+          {academyBreadcrumbContext ? (
+            <button
+              onClick={returnToAcademyStep}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-accentRose bg-pastel-rose hover:bg-pastel-accentRose hover:text-white px-2.5 py-1.5 rounded-xl border border-pastel-accentRose/30 transition cursor-pointer shrink-0"
+              title="Вернуться к шагу курса в Академии"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">← Назад в Академию: Шаг #{academyBreadcrumbContext.stepNumber}</span>
+              <span className="sm:hidden">← Шаг #{academyBreadcrumbContext.stepNumber}</span>
+            </button>
+          ) : (
+            <button
+              onClick={closeSystemDesignScenario}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2.5 py-1.5 rounded-xl hover:bg-pastel-rose/40 transition cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Каталог HLD</span>
+            </button>
+          )}
 
           <div className="h-4 w-px bg-pastel-border shrink-0" />
 

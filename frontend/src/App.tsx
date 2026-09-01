@@ -5,8 +5,11 @@ import { TopicSelector } from './components/TopicSelector';
 import { QuestionExplorer } from './components/QuestionExplorer';
 import { StudyDeck } from './components/StudyDeck';
 import { ExamQuiz } from './components/ExamQuiz';
+import { AcademyStudio } from './components/academy/AcademyStudio';
 import { PracticeArena } from './components/practice/PracticeArena';
 import { GuidedRoadmapStudio } from './components/roadmap/GuidedRoadmapStudio';
+
+
 import { SystemDesignCatalog } from './components/system_design/SystemDesignCatalog';
 import { SystemDesignArena } from './components/system_design/SystemDesignArena';
 import { IncidentTriageCatalog } from './components/triage/IncidentTriageCatalog';
@@ -96,9 +99,10 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {currentStudioTab === 'roadmaps' && <GuidedRoadmapStudio />}
+        {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
         
         {currentStudioTab === 'practice' && <PracticeArena />}
+
 
         {currentStudioTab === 'system_design' && (
           activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />

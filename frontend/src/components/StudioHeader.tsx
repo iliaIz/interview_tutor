@@ -3,10 +3,18 @@ import { useAppStore, StudioTab } from '../store/useAppStore';
 import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut, Edit2, KeyRound } from 'lucide-react';
 
 export const StudioHeader: React.FC = () => {
-  const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt, currentUser, logout, openProfileModal, openAdminInvitesModal } = useAppStore();
-
-
-
+  const { 
+    currentStudioTab, 
+    setStudioTab, 
+    systemHealth, 
+    openTopicBugHunt, 
+    currentUser, 
+    logout, 
+    openProfileModal, 
+    openAdminInvitesModal,
+    academyBreadcrumbContext,
+    returnToAcademyStep
+  } = useAppStore();
 
   const renderHealthBadge = () => {
     if (systemHealth.isAiReady) {
@@ -52,13 +60,14 @@ export const StudioHeader: React.FC = () => {
   };
 
   const tabs: { id: StudioTab; label: string; icon: React.ComponentType<any>; badge?: string }[] = [
-    { id: 'roadmaps', label: 'Траектории', icon: Compass, badge: '25/50/100' },
+    { id: 'academy', label: 'Академия', icon: Sparkles, badge: '6 Программ' },
     { id: 'theory', label: 'База знаний', icon: BookOpen },
     { id: 'incidents', label: 'Инциденты', icon: Bug, badge: '70 Ката' },
     { id: 'triage', label: 'Триаж Дампов', icon: Terminal, badge: '15 Дампов' },
     { id: 'practice', label: 'Machine Coding', icon: Code2, badge: '35 LLD' },
     { id: 'system_design', label: 'System Design', icon: Layers, badge: '20 HLD' }
   ];
+
 
 
   return (
@@ -118,9 +127,21 @@ export const StudioHeader: React.FC = () => {
           })}
         </nav>
 
-        {/* Health Status & User Profile Badge */}
+        {/* Breadcrumb Bridge, Health Status & User Profile Badge */}
         <div className="flex items-center gap-2 shrink-0">
+          {academyBreadcrumbContext && currentStudioTab !== 'academy' && (
+            <button
+              onClick={returnToAcademyStep}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition shadow-xs cursor-pointer animate-pulse-subtle"
+              title="Вернуться к текущему шагу в Академии"
+            >
+              <span>← Академия</span>
+              <span className="opacity-90 font-mono text-[11px]">#{academyBreadcrumbContext.stepNumber}</span>
+            </button>
+          )}
+
           {renderHealthBadge()}
+
 
           {currentUser && (
             <div className="flex items-center gap-1.5 pl-2 border-l border-pastel-border/80">

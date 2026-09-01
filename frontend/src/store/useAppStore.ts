@@ -128,11 +128,30 @@ export interface ActiveBatchSession {
   isComplete: boolean;
 }
 
-export type StudioTab = 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage';
+export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage';
+
+export interface AcademyBreadcrumbContext {
+  courseId: string;
+  courseTitle: string;
+  stepNumber: number;
+  stepTitle: string;
+}
 
 interface AppState {
   currentStudioTab: StudioTab;
   setStudioTab: (tab: StudioTab) => void;
+
+  // Academy Studio State
+  activeAcademyCourseId: string;
+  activeAcademyStepNumber: number;
+  activeAcademyStepModal: RoadmapStep | null;
+  academyBreadcrumbContext: AcademyBreadcrumbContext | null;
+  setActiveAcademyCourseId: (id: string) => void;
+  openAcademyStepModal: (step: RoadmapStep) => void;
+  closeAcademyStepModal: () => void;
+  setAcademyBreadcrumb: (ctx: AcademyBreadcrumbContext | null) => void;
+  returnToAcademyStep: () => void;
+  toggleAcademyStepProgress: (courseId: string, stepNumber: number, isCompleted: boolean) => Promise<void>;
 
   // System Design Studio State
   activeSystemDesignScenario: SystemDesignScenario | null;
@@ -144,13 +163,14 @@ interface AppState {
   openTriageIncident: (incident: ProductionIncident) => void;
   closeTriageIncident: () => void;
 
-  // Guided Non-Linear Roadmaps State
+  // Guided Non-Linear Roadmaps State (Legacy & Compatibility)
   activeRoadmapId: string;
   setActiveRoadmapId: (id: string) => void;
   activeRoadmapStep: RoadmapStep | null;
   setActiveRoadmapStep: (step: RoadmapStep | null) => void;
   completedRoadmapSteps: Record<string, number[]>;
   toggleRoadmapStepCompleted: (roadmapId: string, stepNumber: number) => void;
+
 
   currentView: 'topics' | 'questions' | 'study' | 'quiz';
   selectedTopicId: string | null;
@@ -373,9 +393,47 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      currentStudioTab: 'roadmaps',
+      currentStudioTab: 'academy',
       setStudioTab: (tab) => set({ currentStudioTab: tab }),
 
+      // Academy Studio
+      activeAcademyCourseId: 'senior-bigtech-sprint-25',
+      activeAcademyStepNumber: 1,
+      activeAcademyStepModal: null,
+      academyBreadcrumbContext: null,
+      setActiveAcademyCourseId: (id) => set({ activeAcademyCourseId: id, activeRoadmapId: id }),
+      openAcademyStepModal: (step) => set({ activeAcademyStepModal: step, activeAcademyStepNumber: step.stepNumber }),
+      closeAcademyStepModal: () => set({ activeAcademyStepModal: null }),
+      setAcademyBreadcrumb: (ctx) => set({ academyBreadcrumbContext: ctx }),
+      returnToAcademyStep: () => {
+        const ctx = get().academyBreadcrumbContext;
+        if (ctx) {
+          set({
+            currentStudioTab: 'academy',
+            activeAcademyCourseId: ctx.courseId,
+            activeAcademyStepNumber: ctx.stepNumber
+          });
+        } else {
+          set({ currentStudioTab: 'academy' });
+        }
+      },
+      toggleAcademyStepProgress: async (courseId, stepNumber, isCompleted) => {
+        try {
+          get().toggleRoadmapStepCompleted(courseId, stepNumber);
+          await fetch('/api/roadmaps/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              roadmapId: courseId,
+              completedStep: stepNumber,
+              isCompleted
+            })
+          });
+        } catch (e) {
+          console.error('Error saving academy progress:', e);
+        }
+      },
 
       // System Design
       activeSystemDesignScenario: null,
@@ -387,9 +445,9 @@ export const useAppStore = create<AppState>()(
       openTriageIncident: (incident) => set({ activeTriageIncident: incident }),
       closeTriageIncident: () => set({ activeTriageIncident: null }),
 
-      // Roadmaps
-      activeRoadmapId: 'senior-sprint-25',
-      setActiveRoadmapId: (id) => set({ activeRoadmapId: id }),
+      // Guided Roadmaps (Legacy & Compatibility)
+      activeRoadmapId: 'senior-bigtech-sprint-25',
+      setActiveRoadmapId: (id) => set({ activeRoadmapId: id, activeAcademyCourseId: id }),
       activeRoadmapStep: null,
       setActiveRoadmapStep: (step) => set({ activeRoadmapStep: step }),
       completedRoadmapSteps: {},
@@ -406,6 +464,7 @@ export const useAppStore = create<AppState>()(
           }
         };
       }),
+
 
 
       currentView: 'topics',

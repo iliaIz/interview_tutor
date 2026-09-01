@@ -66,35 +66,82 @@ export interface IncidentTriageEvaluation {
   seniorBarRating: string;
 }
 
-export interface RoadmapStep {
+export interface AcademyCoreRequirements {
+  theoryTopic?: string;
+  theoryTitle?: string;
+  taskType?: 'lld' | 'hld' | 'triage' | 'sql' | 'config';
+  taskDescription?: string;
+  lldChallengeSlug?: string;
+  hldScenarioId?: string;
+  triageIncidentId?: string;
+}
+
+export interface AcademyBonusDeepDive {
+  title: string;
+  description: string;
+}
+
+export interface AcademyStep {
   stepNumber: number;
   title: string;
   milestoneId: string;
   seniorBarConcept: string;
+  interviewTrap: string;
+  estimatedMinutes: number;
+  coreRequirements?: AcademyCoreRequirements;
+  bonusDeepDive?: AcademyBonusDeepDive;
+  masteryChecklist: string[];
+  crossCourseLinks?: string[];
+  isCompleted?: boolean;
+  entityStatus?: {
+    isManual: boolean;
+    isLldPassed: boolean;
+    isTriagePassed: boolean;
+    isHldPassed: boolean;
+  };
+  // Legacy aliases for backward compatibility
   theoryQuestionId?: string;
   incidentKataId?: string;
   lldChallengeId?: string;
   hldScenarioId?: string;
-  estimatedMinutes: number;
 }
 
-export interface RoadmapMilestone {
+export interface AcademyMilestone {
   id: string;
   title: string;
   stepRange: string;
 }
 
-export interface GuidedRoadmap {
+export interface AcademyCourse {
   id: string;
+  category: 'career' | 'domain';
   title: string;
-  totalSteps: number;
   badge: string;
+  difficulty?: 'solid_senior' | 'staff_principal';
+  estimatedDuration?: string;
   description: string;
-  milestones: RoadmapMilestone[];
-  steps: RoadmapStep[];
+  totalSteps: number;
+  milestonesCount?: number;
+  milestones?: AcademyMilestone[];
+  steps?: AcademyStep[];
   userProgress?: {
-    completedSteps: number[];
-    currentStep: number;
+    completedSteps?: number[];
+    completedCount?: number;
+    currentStep?: number;
     percentage: number;
+    rank?: string;
+    pillars?: {
+      concurrency: number;
+      databases: number;
+      systemDesign: number;
+      forensics: number;
+    };
   };
 }
+
+
+// Legacy aliases for backward compatibility
+export type RoadmapStep = AcademyStep;
+export type RoadmapMilestone = AcademyMilestone;
+export type GuidedRoadmap = AcademyCourse;
+

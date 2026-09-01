@@ -11,7 +11,9 @@ export const PracticeArena: React.FC = () => {
     activePracticeChallenge,
     closePracticeChallenge,
     activePracticeReport,
-    setActivePracticeReport
+    setActivePracticeReport,
+    academyBreadcrumbContext,
+    returnToAcademyStep
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
@@ -26,13 +28,26 @@ export const PracticeArena: React.FC = () => {
 
       <div className="h-12 border-b border-pastel-border/80 bg-white/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-10 shadow-2xs gap-2">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <button
-            onClick={closePracticeChallenge}
-            className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2 py-1.5 rounded-xl hover:bg-pastel-bg transition cursor-pointer shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Каталог</span>
-          </button>
+          {academyBreadcrumbContext ? (
+            <button
+              onClick={returnToAcademyStep}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-accentRose bg-pastel-rose hover:bg-pastel-accentRose hover:text-white px-2.5 py-1 rounded-xl border border-pastel-accentRose/30 transition cursor-pointer shrink-0"
+              title="Вернуться к шагу курса в Академии"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">← Назад в Академию: Шаг #{academyBreadcrumbContext.stepNumber}</span>
+              <span className="sm:hidden">← Шаг #{academyBreadcrumbContext.stepNumber}</span>
+            </button>
+          ) : (
+            <button
+              onClick={closePracticeChallenge}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2 py-1.5 rounded-xl hover:bg-pastel-bg transition cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Каталог</span>
+            </button>
+          )}
+
 
           <div className="h-4 w-px bg-pastel-border shrink-0" />
 

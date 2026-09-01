@@ -206,11 +206,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS guided_roadmaps (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
+    category TEXT DEFAULT 'career',
     total_steps INTEGER NOT NULL,
     manifest_json TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
 
   CREATE TABLE IF NOT EXISTS roadmap_progress (
     user_id TEXT DEFAULT 'default_user',
@@ -297,6 +299,18 @@ try {
 } catch (e) {
   console.error("Migration error for coding_challenges:", e);
 }
+
+// Migration: Ensure category column exists in guided_roadmaps table
+try {
+  const cols = db.pragma('table_info(guided_roadmaps)') as any[];
+  if (!cols.some(c => c.name === 'category')) {
+    db.exec("ALTER TABLE guided_roadmaps ADD COLUMN category TEXT DEFAULT 'career'");
+    console.log("✅ Added 'category' column to guided_roadmaps table");
+  }
+} catch (e) {
+  console.error("Migration error for guided_roadmaps:", e);
+}
+
 
 // Safe column migrations for existing SQLite databases
 try {
@@ -632,10 +646,11 @@ export function seedNextGenCatalogs() {
     if (roadmapsPath) {
       const roadmaps = JSON.parse(fs.readFileSync(roadmapsPath, 'utf-8'));
       const upsertRm = db.prepare(`
-        INSERT INTO guided_roadmaps (id, title, total_steps, manifest_json, updated_at)
-        VALUES (@id, @title, @total_steps, @manifest_json, CURRENT_TIMESTAMP)
+        INSERT INTO guided_roadmaps (id, title, category, total_steps, manifest_json, updated_at)
+        VALUES (@id, @title, @category, @total_steps, @manifest_json, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
+          category = excluded.category,
           total_steps = excluded.total_steps,
           manifest_json = excluded.manifest_json,
           updated_at = CURRENT_TIMESTAMP
@@ -645,13 +660,15 @@ export function seedNextGenCatalogs() {
           upsertRm.run({
             id: rm.id,
             title: rm.title,
+            category: rm.category || 'career',
             total_steps: rm.totalSteps || 25,
             manifest_json: JSON.stringify(rm)
           });
         }
       });
       syncRm(roadmaps);
-      console.log(`✅ Seeded ${roadmaps.length} Guided Roadmap programs (25/50/100) into SQLite`);
+      console.log(`✅ Seeded ${roadmaps.length} Master Academy Programs (Career & Domain) into SQLite`);
+
     }
   } catch (err) {
     console.error('Error seeding Next-Gen catalogs:', err);

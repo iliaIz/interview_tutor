@@ -8,7 +8,13 @@ import {
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const IncidentTriageStudio: React.FC = () => {
-  const { activeTriageIncident, closeTriageIncident, showToast } = useAppStore();
+  const { 
+    activeTriageIncident, 
+    closeTriageIncident, 
+    showToast,
+    academyBreadcrumbContext,
+    returnToAcademyStep
+  } = useAppStore();
   const [activeTab, setActiveTab] = useState<'symptoms' | 'artifact' | 'rca'>('artifact');
   
   const [rcaHypothesis, setRcaHypothesis] = useState('');
@@ -74,13 +80,25 @@ export const IncidentTriageStudio: React.FC = () => {
       {/* Top Bar */}
       <div className="h-14 border-b border-pastel-border/80 bg-white/95 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-10 shadow-2xs gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={closeTriageIncident}
-            className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2.5 py-1.5 rounded-xl hover:bg-pastel-rose/40 transition cursor-pointer shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Каталог аварий</span>
-          </button>
+          {academyBreadcrumbContext ? (
+            <button
+              onClick={returnToAcademyStep}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-accentRose bg-pastel-rose hover:bg-pastel-accentRose hover:text-white px-2.5 py-1.5 rounded-xl border border-pastel-accentRose/30 transition cursor-pointer shrink-0"
+              title="Вернуться к шагу курса в Академии"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">← Назад в Академию: Шаг #{academyBreadcrumbContext.stepNumber}</span>
+              <span className="sm:hidden">← Шаг #{academyBreadcrumbContext.stepNumber}</span>
+            </button>
+          ) : (
+            <button
+              onClick={closeTriageIncident}
+              className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2.5 py-1.5 rounded-xl hover:bg-pastel-rose/40 transition cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Каталог аварий</span>
+            </button>
+          )}
 
           <div className="h-4 w-px bg-pastel-border shrink-0" />
 
@@ -88,6 +106,7 @@ export const IncidentTriageStudio: React.FC = () => {
             {activeTriageIncident.title}
           </span>
         </div>
+
 
         {/* Tab Switcher */}
         <div className="flex items-center bg-pastel-bg p-0.5 rounded-xl border border-pastel-border shrink-0">
