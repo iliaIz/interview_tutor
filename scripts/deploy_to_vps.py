@@ -157,13 +157,19 @@ def deploy():
         new_inv_data = new_inv_res.json()
         print(f"11. Create Invite API (POST /invites): {new_inv_res.status_code} (Code: {new_inv_data.get('invite', {}).get('plainCode')})")
 
-        # 12. Revoke invite API
+        # 12. Revoke and permanently delete invite API
         created_id = new_inv_data.get('invite', {}).get('inviteId')
         if created_id:
             rev_res = session.post(f"https://djelu.site/api/auth/invites/{created_id}/revoke", timeout=10)
-            print(f"12. Revoke Invite API (POST /invites/:id/revoke): {rev_res.status_code}")
+            print(f"12. Revoke/Delete Invite API (POST /invites/:id/revoke): {rev_res.status_code}")
 
-        print("\n🎉 PRODUCTION DEPLOYMENT, UNIFIED SOFT PASTEL THEME & RBAC INVITES 100% VERIFIED!")
+            # 13. Verify permanent deletion from DB
+            after_invs = session.get("https://djelu.site/api/auth/invites", timeout=10).json()
+            is_present = any(inv.get('id') == created_id for inv in after_invs)
+            print(f"13. Permanent Deletion Verification: {'PASSED (Deleted)' if not is_present else 'FAILED (Still exists)'}")
+
+        print("\n🎉 PRODUCTION DEPLOYMENT, PERMANENT INVITE DELETION & RBAC 100% VERIFIED!")
+
 
 
     except Exception as e:

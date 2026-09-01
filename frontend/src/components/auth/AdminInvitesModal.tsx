@@ -112,7 +112,7 @@ export const AdminInvitesModal: React.FC = () => {
   };
 
   const handleRevokeInvite = async (id: string, label: string) => {
-    if (!confirm(`Отозвать инвайт «${label}»? Доступ по этому коду будет заблокирован.`)) return;
+    if (!confirm(`Удалить инвайт «${label}» из базы данных? Доступ по этому коду будет немедленно прекращен.`)) return;
 
     try {
       const res = await fetch(`/api/auth/invites/${id}/revoke`, {
@@ -123,14 +123,15 @@ export const AdminInvitesModal: React.FC = () => {
         fetchInvites();
         showToast({
           type: 'info',
-          title: 'Инвайт отозван',
-          message: `Доступ для ${label} отключен`
+          title: 'Инвайт удалён',
+          message: `Инвайт для «${label}» полностью удалён из базы данных`
         });
       }
     } catch (e) {
       console.error('Failed to revoke:', e);
     }
   };
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -330,14 +331,17 @@ export const AdminInvitesModal: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {inv.isActive && inv.id !== 'invite_master' && (
+                      {inv.id !== 'invite_master' && !inv.id.startsWith('invite_master') && (
                         <button
                           onClick={() => handleRevokeInvite(inv.id, inv.label)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                          title="Удалить инвайт из базы данных"
                         >
-                          Отозвать
+                          <Trash2 className="w-3 h-3" />
+                          <span>Удалить</span>
                         </button>
                       )}
+
                     </div>
                   </div>
                 ))

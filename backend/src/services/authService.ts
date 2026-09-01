@@ -233,16 +233,31 @@ export class AuthService {
   }
 
   /**
-   * Revokes an invite code.
+   * Permanently deletes an invite code and its associated user/sessions from SQLite.
    */
   public revokeInvite(inviteId: string): boolean {
-    const res = db.prepare(`
-      UPDATE invite_tokens
-      SET is_active = 0
-      WHERE id = ?
-    `).run(inviteId);
+    if (inviteId === 'invite_master' || inviteId.startsWith('invite_master')) {
+      return false; // Protect master access tokens from accidental deletion
+    }
+
+    const token = db.prepare('SELECT user_id FROM invite_tokens WHERE id = ?').get(inviteId) as any;
+    if (!token) return false;
+
+    // 1. Delete associated active sessions and ws tickets
+    db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(token.user_id);
+    db.prepare('DELETE FROM ws_tickets WHERE user_id = ?').run(token.user_id);
+
+    // 2. Delete the invite token
+    const res = db.prepare('DELETE FROM invite_tokens WHERE id = ?').run(inviteId);
+
+    // 3. Delete user record if not master user
+    if (token.user_id !== 'user_master') {
+      db.prepare('DELETE FROM users WHERE id = ?').run(token.user_id);
+    }
+
     return res.changes > 0;
   }
+
 
   /**
    * Periodic cleanup of expired sessions and burned tickets.
