@@ -682,7 +682,10 @@ export const useAppStore = create<AppState>()(
 
       openTopicBugHunt: (topicId, topicName) => {
         get().recordTopicAccess(topicId);
-        set({ activeTopicBugHunt: { topicId, topicName } });
+        set({ 
+          currentStudioTab: 'incidents',
+          activeTopicBugHunt: { topicId, topicName } 
+        });
       },
       closeTopicBugHunt: () => set({ activeTopicBugHunt: null }),
 

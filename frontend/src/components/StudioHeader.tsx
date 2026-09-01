@@ -176,13 +176,7 @@ export const StudioHeader: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => {
-                    if (tab.id === 'incidents') {
-                      openTopicBugHunt('core', 'Java Core & Spring Incidents');
-                    } else {
-                      setStudioTab(tab.id);
-                    }
-                  }}
+                  onClick={() => setStudioTab(tab.id)}
                   className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
                     isActive
                       ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'

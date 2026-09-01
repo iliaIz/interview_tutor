@@ -17,7 +17,8 @@ const TopicSelector = lazy(() => import('./components/TopicSelector').then(m => 
 const QuestionExplorer = lazy(() => import('./components/QuestionExplorer').then(m => ({ default: m.QuestionExplorer })));
 const StudyDeck = lazy(() => import('./components/StudyDeck').then(m => ({ default: m.StudyDeck })));
 const ExamQuiz = lazy(() => import('./components/ExamQuiz').then(m => ({ default: m.ExamQuiz })));
-const TopicBugHuntModal = lazy(() => import('./components/TopicBugHuntModal').then(m => ({ default: m.TopicBugHuntModal })));
+const BugHuntCatalog = lazy(() => import('./components/incidents/BugHuntCatalog').then(m => ({ default: m.BugHuntCatalog })));
+const BugHuntArena = lazy(() => import('./components/incidents/BugHuntArena').then(m => ({ default: m.BugHuntArena })));
 const InterviewReportModal = lazy(() => import('./components/InterviewReportModal').then(m => ({ default: m.InterviewReportModal })));
 const AudioRecapModal = lazy(() => import('./components/AudioRecapModal').then(m => ({ default: m.AudioRecapModal })));
 const ProfileEditModal = lazy(() => import('./components/auth/ProfileEditModal').then(m => ({ default: m.ProfileEditModal })));
@@ -128,6 +129,10 @@ export const App: React.FC = () => {
           
           {currentStudioTab === 'practice' && <PracticeArena />}
 
+          {currentStudioTab === 'incidents' && (
+            activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />
+          )}
+
           {currentStudioTab === 'system_design' && (
             activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />
           )}
@@ -155,12 +160,6 @@ export const App: React.FC = () => {
           onClose={closeReportModal}
           report={activeReportModal}
         />
-        <TopicBugHuntModal
-          isOpen={Boolean(activeTopicBugHunt)}
-          onClose={closeTopicBugHunt}
-          topicId={activeTopicBugHunt?.topicId || ''}
-          topicName={activeTopicBugHunt?.topicName || ''}
-        />
         <ProfileEditModal />
         <AdminInvitesModal />
       </Suspense>
@@ -169,7 +168,10 @@ export const App: React.FC = () => {
       <Toast />
 
       {/* Footer */}
-      {currentStudioTab !== 'practice' && !activeSystemDesignScenario && !activeTriageIncident && (
+      {currentStudioTab !== 'practice' && 
+       !activeSystemDesignScenario && 
+       !activeTriageIncident && 
+       !(currentStudioTab === 'incidents' && activeTopicBugHunt) && (
         <footer className="border-t border-pastel-border/60 bg-white/60 backdrop-blur-md py-4 text-center text-xs text-pastel-muted">
           <p className="flex items-center justify-center gap-1">
             Создано с заботой <Heart className="w-3.5 h-3.5 text-pastel-accentRose fill-pastel-accentRose inline" /> для комфортной и уверенной подготовки к собеседованиям.
