@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import {
   Coffee,
@@ -42,7 +42,9 @@ import {
   ArrowUpDown,
   TrendingUp,
   LayoutGrid,
-  FolderTree
+  FolderTree,
+  X,
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -72,26 +74,22 @@ const ICON_MAP: Record<string, any> = {
   'palette': Palette
 };
 
-const DOMAIN_ORDER = [
-  { id: 'Core Java & JVM', title: 'Core Java & JVM Internals', icon: Coffee, color: '#E08E89', desc: 'Синтаксис, память, ООП, Collections, Generics, Lambdas & JVM' },
-  { id: 'Architecture & Concurrency', title: 'Architecture, Concurrency & Loom', icon: Zap, color: '#8B78E6', desc: 'JMM, Threads, Locks, Virtual Threads, Patterns & I/O' },
+const DOMAIN_DEFINITIONS = [
+  { id: 'all', title: 'Все разделы', icon: FolderTree, color: '#6366F1', desc: 'Все 24 инженерные темы' },
+  { id: 'Core Java & JVM', title: 'Core Java & JVM Internals', icon: Coffee, color: '#E08E89', desc: 'Синтаксис, память, ООП, Collections, Generics & JVM' },
+  { id: 'Architecture & Concurrency', title: 'Architecture, Concurrency & Loom', icon: Zap, color: '#8B78E6', desc: 'JMM, Threads, Locks, Virtual Threads & Patterns' },
   { id: 'Data & Storage', title: 'Databases, Storage & ACID', icon: Database, color: '#5A9E96', desc: 'PostgreSQL, SQL, Hibernate, JPA, Транзакции & Redis' },
   { id: 'Web & Enterprise', title: 'Spring Enterprise & Architecture', icon: Server, color: '#4F8A8B', desc: 'Spring Boot, IoC, Spring Data, Security & Microservices' },
-  { id: 'Engineering & Tools', title: 'Engineering, Testing & Forensics', icon: Activity, color: '#D97706', desc: 'Kafka, CI/CD, Docker, Тестирование & JFR/GC Profiling' }
+  { id: 'Engineering & Tools', title: 'Engineering, Testing & Forensics', icon: Activity, color: '#D97706', desc: 'Kafka, CI/CD, Docker, Тестирование & JFR Profiling' }
 ];
 
 export const TopicSelector: React.FC = () => {
   const {
-    setView,
-    setSelectedTopic,
     startStudyWithQuestions,
     shuffleMap,
-    toggleShuffle,
     topicsProgress,
     resetTopicProgress,
-    openRecapModal,
     openTopicQuestions,
-    openTopicBugHunt,
     showToast,
     topicAccessMap
   } = useAppStore();
@@ -100,11 +98,14 @@ export const TopicSelector: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'domains' | 'grid'>('domains');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Все разделы');
+  const [selectedDomain, setSelectedDomain] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortMode, setSortMode] = useState<'mru' | 'default' | 'progress' | 'questions'>('default');
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [isGlobalShuffle, setIsGlobalShuffle] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const fetchTopics = async () => {
     try {
@@ -124,6 +125,36 @@ export const TopicSelector: React.FC = () => {
     fetchTopics();
   }, []);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcut '/' to focus search & 'Escape' to clear/close
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
+      if (document.activeElement === searchInputRef.current) {
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   const toggleDomainCollapse = (domainId: string) => {
     setCollapsedDomains(prev => ({
       ...prev,
@@ -131,55 +162,49 @@ export const TopicSelector: React.FC = () => {
     }));
   };
 
-  const categories = useMemo(() => {
-    const unique = Array.from(new Set(topics.map(t => t.category).filter(Boolean)));
-    return ['Все разделы', ...unique];
+  // Available domain list with dynamic counts
+  const domainOptions = useMemo(() => {
+    const dynamicCategories = Array.from(new Set(topics.map(t => t.category).filter(Boolean)));
+    
+    return DOMAIN_DEFINITIONS.map(def => {
+      let count = 0;
+      if (def.id === 'all') {
+        count = topics.length;
+      } else {
+        count = topics.filter(t => t.category === def.id).length;
+      }
+      return {
+        ...def,
+        count
+      };
+    }).filter(d => d.id === 'all' || d.count > 0);
   }, [topics]);
 
-  const filteredAndSortedTopics = useMemo(() => {
-    const filtered = topics.filter((t) => {
-      const matchesCategory =
-        selectedCategory === 'Все разделы' || t.category === selectedCategory;
+  const activeDomainMeta = useMemo(() => {
+    return domainOptions.find(d => d.id === selectedDomain) || domainOptions[0];
+  }, [domainOptions, selectedDomain]);
+
+  // Filtered topics
+  const filteredTopics = useMemo(() => {
+    return topics.filter((t) => {
+      const matchesDomain = selectedDomain === 'all' || t.category === selectedDomain;
       const matchesSearch =
         !searchQuery.trim() ||
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.category.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      return matchesDomain && matchesSearch;
     });
-
-    return [...filtered].sort((a, b) => {
-      if (sortMode === 'mru') {
-        const aMeta = topicAccessMap?.[a.id];
-        const bMeta = topicAccessMap?.[b.id];
-        const aTime = aMeta?.lastAccessedAt || 0;
-        const bTime = bMeta?.lastAccessedAt || 0;
-        if (aTime && bTime) return bTime - aTime;
-        if (aTime && !bTime) return -1;
-        if (!aTime && bTime) return 1;
-      }
-      if (sortMode === 'progress') {
-        const aProgress = topicsProgress[a.id]?.percentage || a.percentage || 0;
-        const bProgress = topicsProgress[b.id]?.percentage || b.percentage || 0;
-        return bProgress - aProgress;
-      }
-      if (sortMode === 'questions') {
-        const aCount = a.questionCount || a.total || 0;
-        const bCount = b.questionCount || b.total || 0;
-        return bCount - aCount;
-      }
-      return 0;
-    });
-  }, [topics, selectedCategory, searchQuery, sortMode, topicAccessMap, topicsProgress]);
+  }, [topics, selectedDomain, searchQuery]);
 
   // Group by Domain Hub
   const groupedDomains = useMemo(() => {
     const map = new Map<string, any[]>();
     
-    // Initialize standard domains
-    DOMAIN_ORDER.forEach(d => map.set(d.id, []));
+    // Ordered categories
+    DOMAIN_DEFINITIONS.filter(d => d.id !== 'all').forEach(d => map.set(d.id, []));
 
-    filteredAndSortedTopics.forEach(t => {
+    filteredTopics.forEach(t => {
       const cat = t.category || 'Other';
       if (!map.has(cat)) {
         map.set(cat, []);
@@ -189,7 +214,7 @@ export const TopicSelector: React.FC = () => {
 
     return Array.from(map.entries())
       .map(([domainId, topicList]) => {
-        const meta = DOMAIN_ORDER.find(d => d.id === domainId) || {
+        const meta = DOMAIN_DEFINITIONS.find(d => d.id === domainId) || {
           id: domainId,
           title: domainId,
           icon: FolderTree,
@@ -213,7 +238,7 @@ export const TopicSelector: React.FC = () => {
         };
       })
       .filter(d => d.topics.length > 0);
-  }, [filteredAndSortedTopics, topicsProgress]);
+  }, [filteredTopics, topicsProgress]);
 
   const handleStartTopic = async (topicId: string, topicName: string, reset: boolean = false) => {
     setStartingTopicId(topicId);
@@ -283,38 +308,160 @@ export const TopicSelector: React.FC = () => {
     );
   }
 
+  const ActiveDomainIcon = activeDomainMeta?.icon || FolderTree;
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-fade-in font-sans pb-24">
       {/* 1. Hero Header Banner */}
-      <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
+      <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-5 sm:p-6 shadow-xs relative">
         <div className="absolute top-0 right-0 w-80 h-80 bg-pastel-accentRose/10 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-                📚 База Знаний Java & Spring
-              </span>
-              <span className="text-xs text-pastel-muted font-mono font-bold">
-                {topics.length} тем • 800+ вопросов
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-pastel-text tracking-tight">
-              Инженерная Теория & Собеседования
-            </h1>
-            <p className="text-xs sm:text-sm text-pastel-muted mt-1 max-w-2xl leading-relaxed">
-              Фундаментальные концепты, скрытые ловушки JVM, транзакции, многопоточность и Spring Internals с мгновенным переходом в блиц-тренажер.
-            </p>
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
+              📚 База Знаний Java & Spring
+            </span>
+            <span className="text-xs text-pastel-muted font-mono font-bold">
+              {topics.length} тем • 800+ вопросов
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-pastel-text tracking-tight">
+            Инженерная Теория & Собеседования
+          </h1>
+          <p className="text-xs sm:text-sm text-pastel-muted mt-1 max-w-2xl leading-relaxed">
+            Фундаментальные концепты, скрытые ловушки JVM, транзакции, многопоточность и Spring Internals с мгновенным переходом в блиц-тренажер.
+          </p>
+        </div>
+
+        {/* 2. SOTA 2026 OMNI-TOOLBAR (Zero Horizontal Congestion) */}
+        <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-stretch md:items-center gap-2.5 relative z-30">
+          {/* Full-width Responsive Search Bar */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Поиск по 800+ вопросам, концептам, ловушкам JVM (нажмите /)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-14 py-2.5 bg-pastel-bg border border-pastel-border rounded-2xl text-xs text-pastel-text placeholder-pastel-muted/60 focus:outline-none focus:border-pastel-accentRose focus:bg-white transition shadow-2xs font-sans"
+            />
+            {searchQuery ? (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-pastel-muted hover:text-pastel-text p-1 cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden sm:inline-block absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-mono text-pastel-muted">
+                /
+              </kbd>
+            )}
           </div>
 
-          {/* View Switcher & Global Shuffle */}
-          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+          {/* Controls Group */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Domain Dropdown Selector */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold border transition cursor-pointer select-none shadow-2xs ${
+                  selectedDomain !== 'all'
+                    ? 'bg-purple-50 text-purple-900 border-purple-300 ring-2 ring-purple-200/50'
+                    : 'bg-pastel-bg text-pastel-text border-pastel-border hover:bg-white hover:border-pastel-border/80'
+                }`}
+                title="Фильтр по инженерным доменам"
+              >
+                <ActiveDomainIcon
+                  className="w-3.5 h-3.5 shrink-0"
+                  style={{ color: activeDomainMeta.color }}
+                />
+                <span className="max-w-[140px] sm:max-w-[180px] truncate">
+                  {activeDomainMeta.title}
+                </span>
+                <span className="text-[10px] font-mono opacity-70">
+                  ({activeDomainMeta.count})
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-pastel-muted transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-72 bg-white/95 backdrop-blur-md rounded-2xl border border-pastel-border shadow-xl p-1.5 z-50 divide-y divide-pastel-border/50"
+                  >
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-pastel-muted uppercase tracking-wider">
+                      Инженерные разделы
+                    </div>
+
+                    <div className="py-1 space-y-0.5">
+                      {domainOptions.map((opt) => {
+                        const Icon = opt.icon || FolderTree;
+                        const isSelected = selectedDomain === opt.id;
+
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setSelectedDomain(opt.id);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-pastel-rose/40 text-pastel-accentRose font-bold'
+                                : 'text-pastel-text hover:bg-pastel-bg'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                                style={{ backgroundColor: `${opt.color}15`, color: opt.color }}
+                              >
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="truncate">{opt.title}</span>
+                            </div>
+
+                            <span className="text-[11px] font-mono text-pastel-muted shrink-0 ml-2">
+                              {opt.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedDomain !== 'all' && (
+                      <div className="pt-1">
+                        <button
+                          onClick={() => {
+                            setSelectedDomain('all');
+                            setIsDropdownOpen(false);
+                          }}
+                          className="w-full text-center py-1.5 text-[11px] font-bold text-pastel-accentRose hover:bg-pastel-rose/30 rounded-xl transition cursor-pointer"
+                        >
+                          Сбросить фильтр (Все разделы)
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Random Shuffle Toggle */}
             <button
               onClick={() => setIsGlobalShuffle(!isGlobalShuffle)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold border transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
                 isGlobalShuffle
-                  ? 'bg-purple-100 text-purple-900 border-purple-300 shadow-2xs'
-                  : 'bg-pastel-bg text-pastel-muted border-pastel-border hover:text-pastel-text'
+                  ? 'bg-purple-100 text-purple-900 border-purple-300'
+                  : 'bg-pastel-bg text-pastel-muted border-pastel-border hover:text-pastel-text hover:bg-white'
               }`}
               title="Случайный порядок вопросов в блиц-опросах"
             >
@@ -322,62 +469,33 @@ export const TopicSelector: React.FC = () => {
               <span className="hidden sm:inline">Рандом</span>
             </button>
 
-            <div className="flex items-center bg-pastel-bg p-1 rounded-2xl border border-pastel-border">
+            {/* View Mode Switcher */}
+            <div className="flex items-center bg-pastel-bg p-1 rounded-2xl border border-pastel-border shadow-2xs">
               <button
                 onClick={() => setViewMode('domains')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                   viewMode === 'domains'
-                    ? 'bg-white text-pastel-accentRose shadow-xs border border-pastel-border/60'
+                    ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border/60'
                     : 'text-pastel-muted hover:text-pastel-text'
                 }`}
+                title="Сгруппировать по доменам"
               >
                 <FolderTree className="w-3.5 h-3.5" />
-                <span>Домены</span>
+                <span className="hidden sm:inline">Домены</span>
               </button>
               <button
                 onClick={() => setViewMode('grid')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                   viewMode === 'grid'
-                    ? 'bg-white text-pastel-accentRose shadow-xs border border-pastel-border/60'
+                    ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border/60'
                     : 'text-pastel-muted hover:text-pastel-text'
                 }`}
+                title="Компактная сетка"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Сетка</span>
+                <span className="hidden sm:inline">Сетка</span>
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* 2. Search & Category Filters */}
-        <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-center justify-between gap-3">
-          {/* Category Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar touch-pan-x">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-pastel-text text-white shadow-xs'
-                    : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Input */}
-          <div className="relative w-full md:w-72 shrink-0">
-            <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Поиск тем, концептов..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-pastel-bg border border-pastel-border rounded-xl text-xs text-pastel-text placeholder-pastel-muted focus:outline-none focus:border-pastel-accentRose transition"
-            />
           </div>
         </div>
       </div>
@@ -458,7 +576,6 @@ export const TopicSelector: React.FC = () => {
                     {domain.topics.map((t) => {
                       const IconComponent = ICON_MAP[t.icon] || Coffee;
                       const progress = topicsProgress[t.id];
-                      const completedCount = progress?.completedCount !== undefined ? progress.completedCount : (t.completedCount || 0);
                       const percentage = progress?.percentage !== undefined ? progress.percentage : (t.percentage || 0);
                       const isStarting = startingTopicId === t.id;
                       const isFullyMastered = percentage === 100;
@@ -547,7 +664,7 @@ export const TopicSelector: React.FC = () => {
       ) : (
         /* 4. COMPACT GRID VIEW (Alternative) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredAndSortedTopics.map((t) => {
+          {filteredTopics.map((t) => {
             const IconComponent = ICON_MAP[t.icon] || Coffee;
             const progress = topicsProgress[t.id];
             const percentage = progress?.percentage !== undefined ? progress.percentage : (t.percentage || 0);
