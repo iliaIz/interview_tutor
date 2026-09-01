@@ -768,5 +768,405 @@
     "source_pages": [
       "enhorse/java-interview:concurrency.md"
     ]
+  },
+  {
+    "id": "CONC-071",
+    "global_id": 347,
+    "num": 71,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Устранение Carrier Thread Pinning в Virtual Threads (Java 21+) (Senior / Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Устранение Carrier Thread Pinning в Virtual Threads (Java 21+)\n\n**Уровень:** Senior / Lead  \n**Домен:** Carrier Thread Pinning\n\n#### Архитектурная проблема:\nБлок synchronized вокруг блокирующего сетевого I/O зажимает Carrier Thread операционной системы. Замените его на ReentrantLock с try-finally.\n\n#### Дефектный / Наивный код:\n```java\npublic class PinnedCache {\n    private final Map<String, String> cache = new HashMap<>();\n\n    public synchronized String getOrFetch(String key) {\n        if (cache.containsKey(key)) return cache.get(key);\n        // Ошибка: блокирующий I/O внутри synchronized зажимает Carrier Thread!\n        String val = remoteHttpClient.fetch(key);\n        cache.put(key, val);\n        return val;\n    }\n}\n```\n\n#### SOTA Golden Master решение:\n```java\npublic class PinningResistantCache {\n    private final Map<String, String> cache = new ConcurrentHashMap<>();\n    private final ReentrantLock lock = new ReentrantLock();\n\n    public String getOrFetch(String key) {\n        return cache.computeIfAbsent(key, k -> {\n            lock.lock();\n            try {\n                return remoteHttpClient.fetch(k);\n            } finally {\n                lock.unlock();\n            }\n        });\n    }\n}\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testNoCarrierPinningUnderHighLoomLoad() throws Exception {\n    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {\n        List<Future<String>> futures = IntStream.range(0, 10_000)\n            .mapToObj(i -> executor.submit(() -> cache.getOrFetch(\"key_\" + (i % 10))))\n            .toList();\n        for (var f : futures) assertThat(f.get()).isNotNull();\n    }\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior / lead",
+    "code_snippet": "public class PinnedCache {\n    private final Map<String, String> cache = new HashMap<>();\n\n    public synchronized String getOrFetch(String key) {\n        if (cache.containsKey(key)) return cache.get(key);\n        // Ошибка: блокирующий I/O внутри synchronized зажимает Carrier Thread!\n        String val = remoteHttpClient.fetch(key);\n        cache.put(key, val);\n        return val;\n    }\n}",
+    "golden_master": "public class PinningResistantCache {\n    private final Map<String, String> cache = new ConcurrentHashMap<>();\n    private final ReentrantLock lock = new ReentrantLock();\n\n    public String getOrFetch(String key) {\n        return cache.computeIfAbsent(key, k -> {\n            lock.lock();\n            try {\n                return remoteHttpClient.fetch(k);\n            } finally {\n                lock.unlock();\n            }\n        });\n    }\n}",
+    "test_suite": "@Test\nvoid testNoCarrierPinningUnderHighLoomLoad() throws Exception {\n    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {\n        List<Future<String>> futures = IntStream.range(0, 10_000)\n            .mapToObj(i -> executor.submit(() -> cache.getOrFetch(\"key_\" + (i % 10))))\n            .toList();\n        for (var f : futures) assertThat(f.get()).isNotNull();\n    }\n}"
+  },
+  {
+    "id": "CONC-072",
+    "global_id": 348,
+    "num": 72,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Миграция с ThreadLocal на ScopedValue (JEP 446) для миллиона потоков (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Миграция с ThreadLocal на ScopedValue (JEP 446) для миллиона потоков\n\n**Уровень:** Senior  \n**Домен:** ScopedValue vs ThreadLocal\n\n#### Архитектурная проблема:\nThreadLocalMap создает колоссальные утечки памяти и GC overhead при создании 1 000 000 виртуальных потоков. Используйте ScopedValue с неизменяемым контекстом.\n\n#### Дефектный / Наивный код:\n```java\npublic class ContextHolder {\n    // Ошибка: ThreadLocal утекает в виртуальных потоках без явного remove()\n    private static final ThreadLocal<UserContext> CTX = new ThreadLocal<>();\n    public static void set(UserContext user) { CTX.set(user); }\n    public static UserContext get() { return CTX.get(); }\n}\n```\n\n#### SOTA Golden Master решение:\n```java\npublic class ScopedContextHolder {\n    public static final ScopedValue<UserContext> USER_CTX = ScopedValue.newInstance();\n\n    public static void runInContext(UserContext user, Runnable task) {\n        ScopedValue.where(USER_CTX, user).run(task);\n    }\n}\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testScopedValueInheritanceInLoom() {\n    UserContext user = new UserContext(\"Alice\", \"ADMIN\");\n    ScopedContextHolder.runInContext(user, () -> {\n        assertThat(ScopedContextHolder.USER_CTX.get().username()).isEqualTo(\"Alice\");\n    });\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "public class ContextHolder {\n    // Ошибка: ThreadLocal утекает в виртуальных потоках без явного remove()\n    private static final ThreadLocal<UserContext> CTX = new ThreadLocal<>();\n    public static void set(UserContext user) { CTX.set(user); }\n    public static UserContext get() { return CTX.get(); }\n}",
+    "golden_master": "public class ScopedContextHolder {\n    public static final ScopedValue<UserContext> USER_CTX = ScopedValue.newInstance();\n\n    public static void runInContext(UserContext user, Runnable task) {\n        ScopedValue.where(USER_CTX, user).run(task);\n    }\n}",
+    "test_suite": "@Test\nvoid testScopedValueInheritanceInLoom() {\n    UserContext user = new UserContext(\"Alice\", \"ADMIN\");\n    ScopedContextHolder.runInContext(user, () -> {\n        assertThat(ScopedContextHolder.USER_CTX.get().username()).isEqualTo(\"Alice\");\n    });\n}"
+  },
+  {
+    "id": "CONC-073",
+    "global_id": 349,
+    "num": 73,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Высокопроизводительный Lock-Free стек на AtomicReferenceFieldUpdater (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Высокопроизводительный Lock-Free стек на AtomicReferenceFieldUpdater\n\n**Уровень:** Lead  \n**Домен:** Lock-Free Primitives\n\n#### Архитектурная проблема:\nСоздание объектов AtomicReference на каждый узел графа создает огромное давление на сборщик мусора. Используйте AtomicReferenceFieldUpdater над volatile полем.\n\n#### Дефектный / Наивный код:\n```java\npublic class HeavyAtomicStack<T> {\n    private final AtomicReference<Node<T>> head = new AtomicReference<>();\n    // Создает лишний объект AtomicReference\n}\n```\n\n#### SOTA Golden Master решение:\n```java\npublic class LockFreeStack<T> {\n    private static class Node<T> {\n        final T item;\n        volatile Node<T> next;\n        Node(T item) { this.item = item; }\n    }\n\n    private volatile Node<T> head;\n    private static final AtomicReferenceFieldUpdater<LockFreeStack, Node> UPDATER =\n            AtomicReferenceFieldUpdater.newUpdater(LockFreeStack.class, Node.class, \"head\");\n\n    public void push(T item) {\n        Node<T> newHead = new Node<>(item);\n        Node<T> oldHead;\n        do {\n            oldHead = head;\n            newHead.next = oldHead;\n        } while (!UPDATER.compareAndSet(this, oldHead, newHead));\n    }\n\n    public T pop() {\n        Node<T> oldHead;\n        Node<T> newHead;\n        do {\n            oldHead = head;\n            if (oldHead == null) return null;\n            newHead = oldHead.next;\n        } while (!UPDATER.compareAndSet(this, oldHead, newHead));\n        return oldHead.item;\n    }\n}\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrentPushPopWithAwaitility() {\n    LockFreeStack<Integer> stack = new LockFreeStack<>();\n    // Параллельный прогон 16 потоков x 1000 элементов\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "public class HeavyAtomicStack<T> {\n    private final AtomicReference<Node<T>> head = new AtomicReference<>();\n    // Создает лишний объект AtomicReference\n}",
+    "golden_master": "public class LockFreeStack<T> {\n    private static class Node<T> {\n        final T item;\n        volatile Node<T> next;\n        Node(T item) { this.item = item; }\n    }\n\n    private volatile Node<T> head;\n    private static final AtomicReferenceFieldUpdater<LockFreeStack, Node> UPDATER =\n            AtomicReferenceFieldUpdater.newUpdater(LockFreeStack.class, Node.class, \"head\");\n\n    public void push(T item) {\n        Node<T> newHead = new Node<>(item);\n        Node<T> oldHead;\n        do {\n            oldHead = head;\n            newHead.next = oldHead;\n        } while (!UPDATER.compareAndSet(this, oldHead, newHead));\n    }\n\n    public T pop() {\n        Node<T> oldHead;\n        Node<T> newHead;\n        do {\n            oldHead = head;\n            if (oldHead == null) return null;\n            newHead = oldHead.next;\n        } while (!UPDATER.compareAndSet(this, oldHead, newHead));\n        return oldHead.item;\n    }\n}",
+    "test_suite": "@Test\nvoid testConcurrentPushPopWithAwaitility() {\n    LockFreeStack<Integer> stack = new LockFreeStack<>();\n    // Параллельный прогон 16 потоков x 1000 элементов\n}"
+  },
+  {
+    "id": "CONC-074",
+    "global_id": 350,
+    "num": 74,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Устранение CAS-бутылочного горлышка через LongAdder Cell Striping (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Устранение CAS-бутылочного горлышка через LongAdder Cell Striping\n\n**Уровень:** Senior  \n**Домен:** Lock-Free Primitives\n\n#### Архитектурная проблема:\nПри 64+ параллельных потоках записи AtomicLong.incrementAndGet() постоянно фейлится в CAS-циклах. Замените его на LongAdder со страйпингом по ячейкам процессора.\n\n#### Дефектный / Наивный код:\n```java\nprivate final AtomicLong requestCounter = new AtomicLong();\npublic void recordRequest() { requestCounter.incrementAndGet(); }\n```\n\n#### SOTA Golden Master решение:\n```java\nprivate final LongAdder requestCounter = new LongAdder();\npublic void recordRequest() { requestCounter.increment(); }\npublic long getTotal() { return requestCounter.sum(); }\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testLongAdderHighContention() {\n    // 64 потока инкрементируют счетчик\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "private final AtomicLong requestCounter = new AtomicLong();\npublic void recordRequest() { requestCounter.incrementAndGet(); }",
+    "golden_master": "private final LongAdder requestCounter = new LongAdder();\npublic void recordRequest() { requestCounter.increment(); }\npublic long getTotal() { return requestCounter.sum(); }",
+    "test_suite": "@Test\nvoid testLongAdderHighContention() {\n    // 64 потока инкрементируют счетчик\n}"
+  },
+  {
+    "id": "CONC-075",
+    "global_id": 351,
+    "num": 75,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: JMM Happens-Before и безопасная публикация с VarHandle Release/Acquire (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: JMM Happens-Before и безопасная публикация с VarHandle Release/Acquire\n\n**Уровень:** Lead  \n**Домен:** JMM & Volatile\n\n#### Архитектурная проблема:\nОтложенная инициализация без volatile ломается из-за reordering инструкций процессором. Реализуйте паттерн DCL с VarHandle setRelease и getAcquire.\n\n#### Дефектный / Наивный код:\n```java\n// Naive Broken Double-Checked Locking без барьеров памяти\n```\n\n#### SOTA Golden Master решение:\n```java\npublic class VarHandleDCL {\n    private static volatile Helper helper;\n    private static final VarHandle VH;\n    static {\n        try {\n            VH = MethodHandles.lookup().findStaticVarHandle(VarHandleDCL.class, \"helper\", Helper.class);\n        } catch (ReflectiveOperationException e) { throw new Error(e); }\n    }\n\n    public static Helper getHelper() {\n        Helper h = (Helper) VH.getAcquire();\n        if (h == null) {\n            synchronized (VarHandleDCL.class) {\n                h = (Helper) VH.getAcquire();\n                if (h == null) {\n                    h = new Helper();\n                    VH.setRelease(h);\n                }\n            }\n        }\n        return h;\n    }\n}\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testVarHandleDCL() {\n    assertThat(VarHandleDCL.getHelper()).isNotNull();\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Naive Broken Double-Checked Locking без барьеров памяти",
+    "golden_master": "public class VarHandleDCL {\n    private static volatile Helper helper;\n    private static final VarHandle VH;\n    static {\n        try {\n            VH = MethodHandles.lookup().findStaticVarHandle(VarHandleDCL.class, \"helper\", Helper.class);\n        } catch (ReflectiveOperationException e) { throw new Error(e); }\n    }\n\n    public static Helper getHelper() {\n        Helper h = (Helper) VH.getAcquire();\n        if (h == null) {\n            synchronized (VarHandleDCL.class) {\n                h = (Helper) VH.getAcquire();\n                if (h == null) {\n                    h = new Helper();\n                    VH.setRelease(h);\n                }\n            }\n        }\n        return h;\n    }\n}",
+    "test_suite": "@Test\nvoid testVarHandleDCL() {\n    assertThat(VarHandleDCL.getHelper()).isNotNull();\n}"
+  },
+  {
+    "id": "CONC-076",
+    "global_id": 352,
+    "num": 76,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Оптимистичное чтение с StampedLock tryOptimisticRead() (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Оптимистичное чтение с StampedLock tryOptimisticRead()\n\n**Уровень:** Senior  \n**Домен:** Locking\n\n#### Архитектурная проблема:\nУвеличение пропускной способности при преобладании читателей.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Оптимистичное чтение с StampedLock tryOptimisticRead()\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Оптимистичное чтение с StampedLock tryOptimisticRead()\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Оптимистичное чтение с StampedLock tryOptimisticRead()",
+    "golden_master": "// SOTA Golden Master: Оптимистичное чтение с StampedLock tryOptimisticRead()",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-077",
+    "global_id": 353,
+    "num": 77,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Изоляция нативных C-библиотек (FFM API) от Carrier Threads (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Изоляция нативных C-библиотек (FFM API) от Carrier Threads\n\n**Уровень:** Lead  \n**Домен:** Loom & FFM\n\n#### Архитектурная проблема:\nВынос native вызовов в изолированный пул платформенных потоков.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Изоляция нативных C-библиотек (FFM API) от Carrier Threads\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Изоляция нативных C-библиотек (FFM API) от Carrier Threads\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Изоляция нативных C-библиотек (FFM API) от Carrier Threads",
+    "golden_master": "// SOTA Golden Master: Изоляция нативных C-библиотек (FFM API) от Carrier Threads",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-078",
+    "global_id": 354,
+    "num": 78,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре\n\n**Уровень:** Lead  \n**Домен:** Loom Architecture\n\n#### Архитектурная проблема:\nНаправление вычислений в ForkJoinPool, I/O в Virtual Threads.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре",
+    "golden_master": "// SOTA Golden Master: Разделение CPU-bound и I/O-bound задач в Virtual Threads архитектуре",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-079",
+    "global_id": 355,
+    "num": 79,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: StructuredTaskScope для параллельной композиции подзадач (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: StructuredTaskScope для параллельной композиции подзадач\n\n**Уровень:** Senior  \n**Домен:** Loom 21+\n\n#### Архитектурная проблема:\nГарантия отмены дочерних задач при сбое одной из них.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: StructuredTaskScope для параллельной композиции подзадач\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: StructuredTaskScope для параллельной композиции подзадач\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: StructuredTaskScope для параллельной композиции подзадач",
+    "golden_master": "// SOTA Golden Master: StructuredTaskScope для параллельной композиции подзадач",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-080",
+    "global_id": 356,
+    "num": 80,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Устранение ABA проблемы с AtomicStampedReference (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Устранение ABA проблемы с AtomicStampedReference\n\n**Уровень:** Lead  \n**Домен:** Lock-Free\n\n#### Архитектурная проблема:\nКонтроль версий указателей в неблокирующих структурах данных.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Устранение ABA проблемы с AtomicStampedReference\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Устранение ABA проблемы с AtomicStampedReference\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Устранение ABA проблемы с AtomicStampedReference",
+    "golden_master": "// SOTA Golden Master: Устранение ABA проблемы с AtomicStampedReference",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-081",
+    "global_id": 357,
+    "num": 81,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Устранение Torn Reads на 64-битных long и double (Middle)",
+    "answer": "### Concurrency & Loom Ката-задача: Устранение Torn Reads на 64-битных long и double\n\n**Уровень:** Middle  \n**Домен:** JMM\n\n#### Архитектурная проблема:\nОбеспечение атомарности чтения/записи через volatile.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Устранение Torn Reads на 64-битных long и double\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Устранение Torn Reads на 64-битных long и double\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный многопоточный код: Устранение Torn Reads на 64-битных long и double",
+    "golden_master": "// SOTA Golden Master: Устранение Torn Reads на 64-битных long и double",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-082",
+    "global_id": 358,
+    "num": 82,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Атомарные массивы с MethodHandles.arrayElementVarHandle (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Атомарные массивы с MethodHandles.arrayElementVarHandle\n\n**Уровень:** Lead  \n**Домен:** Lock-Free\n\n#### Архитектурная проблема:\nCAS-модификация отдельных ячеек массива.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Атомарные массивы с MethodHandles.arrayElementVarHandle\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Атомарные массивы с MethodHandles.arrayElementVarHandle\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Атомарные массивы с MethodHandles.arrayElementVarHandle",
+    "golden_master": "// SOTA Golden Master: Атомарные массивы с MethodHandles.arrayElementVarHandle",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-083",
+    "global_id": 359,
+    "num": 83,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool() (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool()\n\n**Уровень:** Senior  \n**Домен:** Async DAG\n\n#### Архитектурная проблема:\nЯвное задание ExecutorService для сетевых запросов.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool()\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool()\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool()",
+    "golden_master": "// SOTA Golden Master: CompletableFuture: Изоляция от общего ForkJoinPool.commonPool()",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-084",
+    "global_id": 360,
+    "num": 84,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout() (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout()\n\n**Уровень:** Senior  \n**Домен:** Resilience\n\n#### Архитектурная проблема:\nТаймауты в асинхронных графах.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout()\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout()\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout()",
+    "golden_master": "// SOTA Golden Master: CompletableFuture: Защита от зависаний с .orTimeout() и .completeOnTimeout()",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-085",
+    "global_id": 361,
+    "num": 85,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally() (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally()\n\n**Уровень:** Senior  \n**Домен:** Fault Tolerance\n\n#### Архитектурная проблема:\nСбор частичных результатов при падении узлов.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally()\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally()\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally()",
+    "golden_master": "// SOTA Golden Master: CompletableFuture: Отказоустойчивый асинхронный DAG с .exceptionally()",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-086",
+    "global_id": 362,
+    "num": 86,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Backpressure Throttling для CompletableFuture на базе Semaphore (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Backpressure Throttling для CompletableFuture на базе Semaphore\n\n**Уровень:** Senior  \n**Домен:** Backpressure\n\n#### Архитектурная проблема:\nОграничение количества активных асинхронных тасок.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Backpressure Throttling для CompletableFuture на базе Semaphore\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Backpressure Throttling для CompletableFuture на базе Semaphore\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Backpressure Throttling для CompletableFuture на базе Semaphore",
+    "golden_master": "// SOTA Golden Master: Backpressure Throttling для CompletableFuture на базе Semaphore",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-087",
+    "global_id": 363,
+    "num": 87,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Каскадная отмена дерева CompletableFuture через .cancel(true) (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Каскадная отмена дерева CompletableFuture через .cancel(true)\n\n**Уровень:** Senior  \n**Домен:** Cancellation\n\n#### Архитектурная проблема:\nПредотвращение zombie-вычислений в фоне.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Каскадная отмена дерева CompletableFuture через .cancel(true)\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Каскадная отмена дерева CompletableFuture через .cancel(true)\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Каскадная отмена дерева CompletableFuture через .cancel(true)",
+    "golden_master": "// SOTA Golden Master: Каскадная отмена дерева CompletableFuture через .cancel(true)",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-088",
+    "global_id": 364,
+    "num": 88,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Кольцевой буфер LMAX Disruptor на атомарных курсорах (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Кольцевой буфер LMAX Disruptor на атомарных курсорах\n\n**Уровень:** Lead  \n**Домен:** Ring Buffer\n\n#### Архитектурная проблема:\nПередача сообщений с нулевым временем блокировки потоков.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Кольцевой буфер LMAX Disruptor на атомарных курсорах\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Кольцевой буфер LMAX Disruptor на атомарных курсорах\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Кольцевой буфер LMAX Disruptor на атомарных курсорах",
+    "golden_master": "// SOTA Golden Master: Кольцевой буфер LMAX Disruptor на атомарных курсорах",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-089",
+    "global_id": 365,
+    "num": 89,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Safe Publication через final поля по спецификации JMM (Middle)",
+    "answer": "### Concurrency & Loom Ката-задача: Safe Publication через final поля по спецификации JMM\n\n**Уровень:** Middle  \n**Домен:** JMM Immutability\n\n#### Архитектурная проблема:\nЗаморозка полей объекта при выходе из конструктора.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Safe Publication через final поля по спецификации JMM\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Safe Publication через final поля по спецификации JMM\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный многопоточный код: Safe Publication через final поля по спецификации JMM",
+    "golden_master": "// SOTA Golden Master: Safe Publication через final поля по спецификации JMM",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-090",
+    "global_id": 366,
+    "num": 90,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Piggybacking на барьерах памяти volatile переменных (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Piggybacking на барьерах памяти volatile переменных\n\n**Уровень:** Senior  \n**Домен:** JMM\n\n#### Архитектурная проблема:\nПередача видимости не-volatile переменных через Release fence.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Piggybacking на барьерах памяти volatile переменных\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Piggybacking на барьерах памяти volatile переменных\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Piggybacking на барьерах памяти volatile переменных",
+    "golden_master": "// SOTA Golden Master: Piggybacking на барьерах памяти volatile переменных",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-091",
+    "global_id": 367,
+    "num": 91,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Вложенное переопределение прав доступа через ScopedValue (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Вложенное переопределение прав доступа через ScopedValue\n\n**Уровень:** Senior  \n**Домен:** ScopedValue\n\n#### Архитектурная проблема:\nElevated privileges во вложенном блоке scope.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Вложенное переопределение прав доступа через ScopedValue\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Вложенное переопределение прав доступа через ScopedValue\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Вложенное переопределение прав доступа через ScopedValue",
+    "golden_master": "// SOTA Golden Master: Вложенное переопределение прав доступа через ScopedValue",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-092",
+    "global_id": 368,
+    "num": 92,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Детерминированное тестирование гонок данных под CMU Fray (Lead)",
+    "answer": "### Concurrency & Loom Ката-задача: Детерминированное тестирование гонок данных под CMU Fray\n\n**Уровень:** Lead  \n**Домен:** Deterministic Testing\n\n#### Архитектурная проблема:\nКонтролируемое исследование переплетений PCT.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Детерминированное тестирование гонок данных под CMU Fray\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Детерминированное тестирование гонок данных под CMU Fray\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный многопоточный код: Детерминированное тестирование гонок данных под CMU Fray",
+    "golden_master": "// SOTA Golden Master: Детерминированное тестирование гонок данных под CMU Fray",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-093",
+    "global_id": 369,
+    "num": 93,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Исключение Deadlock при многоуровневом захвате ReentrantLock (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Исключение Deadlock при многоуровневом захвате ReentrantLock\n\n**Уровень:** Senior  \n**Домен:** Deadlock Prevention\n\n#### Архитектурная проблема:\nГлобальный порядок захвата ресурсов.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Исключение Deadlock при многоуровневом захвате ReentrantLock\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Исключение Deadlock при многоуровневом захвате ReentrantLock\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Исключение Deadlock при многоуровневом захвате ReentrantLock",
+    "golden_master": "// SOTA Golden Master: Исключение Deadlock при многоуровневом захвате ReentrantLock",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-094",
+    "global_id": 370,
+    "num": 94,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Deadlock Detection через ThreadMXBean в реальном времени (Senior)",
+    "answer": "### Concurrency & Loom Ката-задача: Deadlock Detection через ThreadMXBean в реальном времени\n\n**Уровень:** Senior  \n**Домен:** Monitoring\n\n#### Архитектурная проблема:\nАвтоматический мониторинг заблокированных потоков.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Deadlock Detection через ThreadMXBean в реальном времени\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Deadlock Detection через ThreadMXBean в реальном времени\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный многопоточный код: Deadlock Detection через ThreadMXBean в реальном времени",
+    "golden_master": "// SOTA Golden Master: Deadlock Detection через ThreadMXBean в реальном времени",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
+  },
+  {
+    "id": "CONC-095",
+    "global_id": 371,
+    "num": 95,
+    "topic": "Многопоточность (Concurrency)",
+    "question": "Concurrency Ката: Потокобезопасный Singleton на Enum vs Double-Checked Locking (Middle)",
+    "answer": "### Concurrency & Loom Ката-задача: Потокобезопасный Singleton на Enum vs Double-Checked Locking\n\n**Уровень:** Middle  \n**Домен:** Patterns\n\n#### Архитектурная проблема:\nГарантии инициализации классов JVM.\n\n#### Дефектный / Наивный код:\n```java\n// Дефектный многопоточный код: Потокобезопасный Singleton на Enum vs Double-Checked Locking\n```\n\n#### SOTA Golden Master решение:\n```java\n// SOTA Golden Master: Потокобезопасный Singleton на Enum vs Double-Checked Locking\n```\n\n#### Детерминированный стресс-тест:\n```java\n@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование задач Java Concurrency.md"
+    ],
+    "kata_type": "concurrency",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный многопоточный код: Потокобезопасный Singleton на Enum vs Double-Checked Locking",
+    "golden_master": "// SOTA Golden Master: Потокобезопасный Singleton на Enum vs Double-Checked Locking",
+    "test_suite": "@Test\nvoid testConcurrencyKata() {\n    // Многопоточный тест с Awaitility\n}"
   }
 ]

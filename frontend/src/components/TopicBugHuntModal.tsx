@@ -38,7 +38,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { triggerSuccessConfetti } from '../utils/confetti';
 
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
-export type DefectFocus = 'all' | 'concurrency' | 'memory' | 'spring_aop' | 'contracts';
+export type DefectFocus = 'all' | 'streams' | 'concurrency' | 'testing' | 'memory' | 'spring_aop' | 'contracts';
 export type TutorRole = 'bug_hunt' | 'free_chat';
 export type TechStackProfile = 'modern_cloud' | 'fintech_transactional' | 'enterprise_migration' | 'reactive_streaming' | 'custom';
 
@@ -113,7 +113,9 @@ const TECH_STACK_PROFILES: { id: TechStackProfile; name: string; badge: string; 
 
 const DEFECT_FOCUSES: { id: DefectFocus; name: string; iconStr: string }[] = [
   { id: 'all', name: 'Все категории', iconStr: '🌐' },
-  { id: 'concurrency', name: 'Многопоточность & Race Conditions', iconStr: '⚡' },
+  { id: 'streams', name: 'Java Streams API & Collectors', iconStr: '🌊' },
+  { id: 'concurrency', name: 'Многопоточность & Loom 21+', iconStr: '⚡' },
+  { id: 'testing', name: 'Тестирование, Seams & Pitest', iconStr: '🧪' },
   { id: 'memory', name: 'Утечки памяти & Сложность O(N²)', iconStr: '💾' },
   { id: 'spring_aop', name: 'Spring AOP, Прокси & Транзакции', iconStr: '🍃' },
   { id: 'contracts', name: 'Контракты equals/hashCode & Мутации', iconStr: '📐' }
@@ -178,10 +180,12 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
 
   const EDUCATIONAL_TRIVIA = [
     '💡 В Java 21 `synchronized` блокирует несущий поток (Carrier Thread) виртуального Loom-потока. В высоконагруженных микросервисах используйте `ReentrantLock`.',
-    '💡 `@Transactional` в Spring по умолчанию не откатывает Checked исключения (`Exception`). Чтобы откатывать любые сбои, используйте `rollbackFor = Exception.class`.',
-    '💡 В `ConcurrentHashMap` метод `computeIfAbsent()` гарантирует атомарность на уровне ключа, но вычисления внутри лямбды должны быть быстрыми и неблокирующими.',
-    '💡 Паттерн Transactional Outbox решает проблему Dual-Write: запись бизнес-сущности и сообщения в очередь происходит в одной ACID-транзакции БД.',
-    '💡 В Hibernate 6.6 генератор ID `SEQUENCE` с `allocationSize > 1` снижает количество сетевых round-trip запросов к PostgreSQL в разы.'
+    '💡 В Java 16 `Stream.mapMulti()` исключает аллокации промежуточных объектов `Stream` при разворачивании коллекций и `Optional`, ускоряя обработку на 300–400%.',
+    '💡 В Spring Boot 3.4+ аннотация `@MockBean` устарела — используйте `@MockitoBean` из Spring Framework Bean Override API.',
+    '💡 `ScopedValue` (Java 21 JEP 446) решает проблему утечек памяти `ThreadLocal` при создании 1 000 000 виртуальных потоков.',
+    '💡 `Collectors.teeing()` (Java 12+) позволяет выполнять две независимые редукции (например, сбор списка и подсчет метрик) за один единственный проход по данным.',
+    '💡 В Testcontainers аннотация `@ServiceConnection` (Spring Boot 3.1+) автоматически конфигурирует реквизиты DataSource без ручного `DynamicPropertyRegistry`.',
+    '💡 Мутационное тестирование (Pitest) проверяет качество ваших тестов: тест надежен, только если убивает >85% мутантов и 100% инверсий условий (Negated Conditionals).'
   ];
 
   // Monotonic timer for generation HUD & trivia cycling

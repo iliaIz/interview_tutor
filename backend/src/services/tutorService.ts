@@ -91,11 +91,13 @@ export const TECH_STACK_ARCHETYPES: Record<string, { name: string; badge: string
 };
 
 const DEFECT_FOCUS_MAP: Record<string, string> = {
-  concurrency: 'ФОКУС: Многопоточность, гонки состояний (Race Condition), видимость (Visibility/Volatile), блокировки (Carrier Pinning / Deadlock / ReentrantLock), атомики и пулы потоков.',
+  streams: 'ФОКУС: Java Streams API, Collectors null/collision safety, mapMulti vs flatMap (Zero-GC), Collectors.teeing, ForkJoinPool isolation, distinct/sorted stateful traps, Spliterators, sliding window collectors.',
+  concurrency: 'ФОКУС: Многопоточность Java 21+, устранение Carrier Thread Pinning (synchronized -> ReentrantLock/StampedLock), ScopedValue vs ThreadLocal, JMM Release/Acquire fences на VarHandle, lock-free FieldUpdater, LongAdder, CompletableFuture DAGs.',
+  testing: 'ФОКУС: Практическое тестирование и рефакторинг, Legacy Seams (Subclass & Override, Overloaded Constructor), Approval / Golden Master, JUnit 5 (@MethodSource, @TestFactory, Extensions), Mockito 5 (@MockitoBean, InOrder, mockStatic), Testcontainers (@ServiceConnection), ArchUnit и Pitest Mutation Score.',
   memory: 'ФОКУС: Утечки памяти (Memory Leaks / Metaspace), удержание ссылок (ThreadLocal, static collections), декартово произведение в Hibernate 6 и перегрузка GC.',
   spring_aop: 'ФОКУС: Spring AOP прокси (Self-invocation bypass), жизненный цикл бинов (@PostConstruct / Prototype injection), распространение транзакций (@Transactional propagation / rollback on checked exceptions).',
   contracts: 'ФОКУС: Нарушение контрактов equals/hashCode, мутации неизменяемых коллекций, некорректные Comparator (compare == 0 vs equals), serialization traps.',
-  all: 'ФОКУС: Любые фундаментальные архитектурные, логические, concurrency или транзакционные ловушки.'
+  all: 'ФОКУС: Любые фундаментальные архитектурные, логические, Streams, Concurrency, Testing или транзакционные ловушки.'
 };
 
 /**

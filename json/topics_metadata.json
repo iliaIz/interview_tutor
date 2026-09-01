@@ -55,7 +55,7 @@
     "icon": "sparkles",
     "color": "#FD79A8",
     "description": "Лямбда-выражения, Stream API, Optional, функциональные интерфейсы, default методы",
-    "count": 62,
+    "count": 87,
     "json_file": "java8_questions.json",
     "md_file": "java8_interview_questions.md"
   },
@@ -67,7 +67,7 @@
     "icon": "zap",
     "color": "#FF7675",
     "description": "Threads, volatile, synchronized, JMM, java.util.concurrent, блокировки и пулы потоков",
-    "count": 70,
+    "count": 95,
     "json_file": "concurrency_questions.json",
     "md_file": "concurrency_interview_questions.md"
   },
@@ -223,7 +223,7 @@
     "icon": "check-circle-2",
     "color": "#2ECC71",
     "description": "Модульное тестирование, TDD, аннотации JUnit 5, моки, стабы, Mockito и ассерты",
-    "count": 8,
+    "count": 28,
     "json_file": "test_questions.json",
     "md_file": "test_interview_questions.md"
   },

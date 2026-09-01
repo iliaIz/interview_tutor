@@ -86,5 +86,325 @@
     "source_pages": [
       "enhorse/java-interview:test.md"
     ]
+  },
+  {
+    "id": "TEST-009",
+    "global_id": 691,
+    "num": 9,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Развязывание Legacy-зависимостей: Subclass and Override Method Seam (Middle / Senior)",
+    "answer": "### Практическая инженерная задача: Развязывание Legacy-зависимостей: Subclass and Override Method Seam\n\n**Уровень:** Middle / Senior  \n**Домен:** Legacy Seams\n\n#### Постановка задачи и контекст:\nСервис напрямую вызывает статический сокет `LegacyPaymentGateway.execute()`. Не меняя публичный API, выделите protected-шов и покройте логику unit-тестами.\n\n#### Дефектный / Исходный код:\n```java\npublic class OrderProcessingService {\n    public boolean processOrder(Order order) {\n        // Ошибка: статический вызов сокета блокирует unit-тестирование\n        PaymentResult res = LegacyPaymentGateway.executePayment(order.amount());\n        return res.isSuccess();\n    }\n}\n```\n\n#### Эталонное решение (Golden Master):\n```java\npublic class OrderProcessingService {\n    public boolean processOrder(Order order) {\n        PaymentResult res = executePayment(order);\n        return res.isSuccess();\n    }\n\n    // Шов (Seam) по Майклу Физерсу\n    protected PaymentResult executePayment(Order order) {\n        return LegacyPaymentGateway.executePayment(order.amount());\n    }\n}\n```\n\n#### Верификационный тест:\n```java\n@Test\nvoid testOrderProcessingWithTestDoubleSubclass() {\n    OrderProcessingService service = new OrderProcessingService() {\n        @Override\n        protected PaymentResult executePayment(Order order) {\n            return new PaymentResult(true);\n        }\n    };\n    assertThat(service.processOrder(new Order(100))).isTrue();\n}\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "middle / senior",
+    "code_snippet": "public class OrderProcessingService {\n    public boolean processOrder(Order order) {\n        // Ошибка: статический вызов сокета блокирует unit-тестирование\n        PaymentResult res = LegacyPaymentGateway.executePayment(order.amount());\n        return res.isSuccess();\n    }\n}",
+    "golden_master": "public class OrderProcessingService {\n    public boolean processOrder(Order order) {\n        PaymentResult res = executePayment(order);\n        return res.isSuccess();\n    }\n\n    // Шов (Seam) по Майклу Физерсу\n    protected PaymentResult executePayment(Order order) {\n        return LegacyPaymentGateway.executePayment(order.amount());\n    }\n}",
+    "test_suite": "@Test\nvoid testOrderProcessingWithTestDoubleSubclass() {\n    OrderProcessingService service = new OrderProcessingService() {\n        @Override\n        protected PaymentResult executePayment(Order order) {\n            return new PaymentResult(true);\n        }\n    };\n    assertThat(service.processOrder(new Order(100))).isTrue();\n}"
+  },
+  {
+    "id": "TEST-010",
+    "global_id": 692,
+    "num": 10,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Approval / Golden Master тестирование запутанного Legacy-кода (Gilded Rose) (Senior)",
+    "answer": "### Практическая инженерная задача: Approval / Golden Master тестирование запутанного Legacy-кода (Gilded Rose)\n\n**Уровень:** Senior  \n**Домен:** Approval Testing\n\n#### Постановка задачи и контекст:\nЗафиксируйте текущее поведение метода со 100 ветвлениями с помощью параметризованного снимка состояния (Golden Master) до начала рефакторинга.\n\n#### Дефектный / Исходный код:\n```java\n// Монолитный метод updateQuality() с десятками вложенных if-else\n```\n\n#### Эталонное решение (Golden Master):\n```java\npublic class GildedRoseGoldenMasterTest {\n    @ParameterizedTest\n    @MethodSource(\"generateCombinations\")\n    void verifySnapshotMatchesGoldenMaster(String name, int sellIn, int quality, int expectedSellIn, int expectedQuality) {\n        Item[] items = new Item[]{ new Item(name, sellIn, quality) };\n        GildedRose app = new GildedRose(items);\n        app.updateQuality();\n        assertThat(items[0].sellIn).isEqualTo(expectedSellIn);\n        assertThat(items[0].quality).isEqualTo(expectedQuality);\n    }\n}\n```\n\n#### Верификационный тест:\n```java\n// 100% Branch Coverage Approval Test\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Монолитный метод updateQuality() с десятками вложенных if-else",
+    "golden_master": "public class GildedRoseGoldenMasterTest {\n    @ParameterizedTest\n    @MethodSource(\"generateCombinations\")\n    void verifySnapshotMatchesGoldenMaster(String name, int sellIn, int quality, int expectedSellIn, int expectedQuality) {\n        Item[] items = new Item[]{ new Item(name, sellIn, quality) };\n        GildedRose app = new GildedRose(items);\n        app.updateQuality();\n        assertThat(items[0].sellIn).isEqualTo(expectedSellIn);\n        assertThat(items[0].quality).isEqualTo(expectedQuality);\n    }\n}",
+    "test_suite": "// 100% Branch Coverage Approval Test"
+  },
+  {
+    "id": "TEST-011",
+    "global_id": 693,
+    "num": 11,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Миграция на @MockitoBean в Spring Boot 3.4+ и Bean Override Framework (Senior)",
+    "answer": "### Практическая инженерная задача: Миграция на @MockitoBean в Spring Boot 3.4+ и Bean Override Framework\n\n**Уровень:** Senior  \n**Домен:** Spring Boot 3.4+\n\n#### Постановка задачи и контекст:\nАннотация org.springframework.boot.test.mock.mockito.MockBean устарела. Замените её на новую org.springframework.test.context.bean.override.mockito.MockitoBean.\n\n#### Дефектный / Исходный код:\n```java\n@SpringBootTest\nclass NotificationServiceTest {\n    @MockBean // DEPRECATED в Spring Boot 3.4+\n    private EmailClient emailClient;\n}\n```\n\n#### Эталонное решение (Golden Master):\n```java\n@SpringBootTest\nclass NotificationServiceTest {\n    @MockitoBean // Стандарт Spring Test Framework 3.4+\n    private EmailClient emailClient;\n\n    @Test\n    void testNotification() {\n        when(emailClient.send(any())).thenReturn(true);\n    }\n}\n```\n\n#### Верификационный тест:\n```java\n@Test\nvoid testBeanOverride() {\n    assertThat(emailClient).isNotNull();\n}\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "@SpringBootTest\nclass NotificationServiceTest {\n    @MockBean // DEPRECATED в Spring Boot 3.4+\n    private EmailClient emailClient;\n}",
+    "golden_master": "@SpringBootTest\nclass NotificationServiceTest {\n    @MockitoBean // Стандарт Spring Test Framework 3.4+\n    private EmailClient emailClient;\n\n    @Test\n    void testNotification() {\n        when(emailClient.send(any())).thenReturn(true);\n    }\n}",
+    "test_suite": "@Test\nvoid testBeanOverride() {\n    assertThat(emailClient).isNotNull();\n}"
+  },
+  {
+    "id": "TEST-012",
+    "global_id": 694,
+    "num": 12,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Testcontainers + @ServiceConnection для PostgreSQL и Redis без DynamicPropertyRegistry (Senior)",
+    "answer": "### Практическая инженерная задача: Testcontainers + @ServiceConnection для PostgreSQL и Redis без DynamicPropertyRegistry\n\n**Уровень:** Senior  \n**Домен:** Testcontainers\n\n#### Постановка задачи и контекст:\nИспользуйте аннотацию @ServiceConnection (Spring Boot 3.1+) для автоматического внедрения JDBC URL и реквизитов из Testcontainers.\n\n#### Дефектный / Исходный код:\n```java\n@Container\nstatic PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(\"postgres:16\");\n\n@DynamicPropertySource // Устаревший бойлерплейт\nstatic void configureProps(DynamicPropertyRegistry reg) {\n    reg.add(\"spring.datasource.url\", postgres::getJdbcUrl);\n}\n```\n\n#### Эталонное решение (Golden Master):\n```java\n@Container\n@ServiceConnection // Автоконфигурация DataSource в Spring Boot 3.1+\nstatic PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(\"postgres:16-alpine\");\n\n@Test\nvoid testDatabaseFlywayMigrations() {\n    assertThat(userRepository.count()).isZero();\n}\n```\n\n#### Верификационный тест:\n```java\n@Test\nvoid testServiceConnection() {\n    assertThat(postgres.isRunning()).isTrue();\n}\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "@Container\nstatic PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(\"postgres:16\");\n\n@DynamicPropertySource // Устаревший бойлерплейт\nstatic void configureProps(DynamicPropertyRegistry reg) {\n    reg.add(\"spring.datasource.url\", postgres::getJdbcUrl);\n}",
+    "golden_master": "@Container\n@ServiceConnection // Автоконфигурация DataSource в Spring Boot 3.1+\nstatic PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(\"postgres:16-alpine\");\n\n@Test\nvoid testDatabaseFlywayMigrations() {\n    assertThat(userRepository.count()).isZero();\n}",
+    "test_suite": "@Test\nvoid testServiceConnection() {\n    assertThat(postgres.isRunning()).isTrue();\n}"
+  },
+  {
+    "id": "TEST-013",
+    "global_id": 695,
+    "num": 13,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Архитектурный контроль слоев и циклов с помощью ArchUnit (Lead)",
+    "answer": "### Практическая инженерная задача: Архитектурный контроль слоев и циклов с помощью ArchUnit\n\n**Уровень:** Lead  \n**Домен:** ArchUnit\n\n#### Постановка задачи и контекст:\nНапишите ArchUnit тест, гарантирующий, что REST-контроллеры не инжектят JPA-репозитории напрямую в обход сервисного слоя, и отсутствуют циклические зависимости.\n\n#### Дефектный / Исходный код:\n```java\n// Контроллер напрямую вызывает UserRepository.save(user)\n```\n\n#### Эталонное решение (Golden Master):\n```java\n@Test\n@DisplayName(\"Контроллеры не должны зависеть от Repositories напрямую\")\npublic void enforceLayeredArchitecture() {\n    layeredArchitecture()\n        .consideringAllDependencies()\n        .layer(\"Controllers\").definedBy(\"..controller..\")\n        .layer(\"Services\").definedBy(\"..service..\")\n        .layer(\"Repositories\").definedBy(\"..repository..\")\n        .whereLayer(\"Controllers\").mayNotAccessLayers(\"Repositories\")\n        .check(new ClassFileImporter().importPackages(\"com.example.app\"));\n}\n```\n\n#### Верификационный тест:\n```java\n@Test\nvoid testNoPackageCycles() {\n    slices().matching(\"com.example.app.(*)..\").should().beFreeOfCycles().check(importedClasses);\n}\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "lead",
+    "code_snippet": "// Контроллер напрямую вызывает UserRepository.save(user)",
+    "golden_master": "@Test\n@DisplayName(\"Контроллеры не должны зависеть от Repositories напрямую\")\npublic void enforceLayeredArchitecture() {\n    layeredArchitecture()\n        .consideringAllDependencies()\n        .layer(\"Controllers\").definedBy(\"..controller..\")\n        .layer(\"Services\").definedBy(\"..service..\")\n        .layer(\"Repositories\").definedBy(\"..repository..\")\n        .whereLayer(\"Controllers\").mayNotAccessLayers(\"Repositories\")\n        .check(new ClassFileImporter().importPackages(\"com.example.app\"));\n}",
+    "test_suite": "@Test\nvoid testNoPackageCycles() {\n    slices().matching(\"com.example.app.(*)..\").should().beFreeOfCycles().check(importedClasses);\n}"
+  },
+  {
+    "id": "TEST-014",
+    "global_id": 696,
+    "num": 14,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Overloaded Constructor Seam для изоляции SystemClock и ФС (Middle)",
+    "answer": "### Практическая инженерная задача: Overloaded Constructor Seam для изоляции SystemClock и ФС\n\n**Уровень:** Middle  \n**Домен:** Seams\n\n#### Постановка задачи и контекст:\nPackage-private конструктор с Clock.fixed().\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Overloaded Constructor Seam для изоляции SystemClock и ФС\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Overloaded Constructor Seam для изоляции SystemClock и ФС\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "middle",
+    "code_snippet": "// Исходный тест / код: Overloaded Constructor Seam для изоляции SystemClock и ФС",
+    "golden_master": "// Эталонный тестовый артефакт: Overloaded Constructor Seam для изоляции SystemClock и ФС",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-015",
+    "global_id": 697,
+    "num": 15,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource (Middle)",
+    "answer": "### Практическая инженерная задача: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource\n\n**Уровень:** Middle  \n**Домен:** JUnit 5\n\n#### Постановка задачи и контекст:\nStream<Arguments> для сотен комбинаций DTO.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "middle",
+    "code_snippet": "// Исходный тест / код: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource",
+    "golden_master": "// Эталонный тестовый артефакт: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-016",
+    "global_id": 698,
+    "num": 16,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: JUnit 5: Динамические графы состояний через @TestFactory (Senior)",
+    "answer": "### Практическая инженерная задача: JUnit 5: Динамические графы состояний через @TestFactory\n\n**Уровень:** Senior  \n**Домен:** JUnit 5\n\n#### Постановка задачи и контекст:\nStream<DynamicNode> для матриц переходов State Machine.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: JUnit 5: Динамические графы состояний через @TestFactory\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: JUnit 5: Динамические графы состояний через @TestFactory\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: JUnit 5: Динамические графы состояний через @TestFactory",
+    "golden_master": "// Эталонный тестовый артефакт: JUnit 5: Динамические графы состояний через @TestFactory",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-017",
+    "global_id": 699,
+    "num": 17,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции (Senior)",
+    "answer": "### Практическая инженерная задача: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции\n\n**Уровень:** Senior  \n**Домен:** JUnit 5\n\n#### Постановка задачи и контекст:\nBeforeEachCallback / AfterEachCallback очистка.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции",
+    "golden_master": "// Эталонный тестовый артефакт: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-018",
+    "global_id": 700,
+    "num": 18,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName (Middle)",
+    "answer": "### Практическая инженерная задача: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName\n\n**Уровень:** Middle  \n**Домен:** JUnit 5\n\n#### Постановка задачи и контекст:\nBDD-стиль описания поведения корзины.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "middle",
+    "code_snippet": "// Исходный тест / код: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName",
+    "golden_master": "// Эталонный тестовый артефакт: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-019",
+    "global_id": 701,
+    "num": 19,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor (Senior)",
+    "answer": "### Практическая инженерная задача: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor\n\n**Уровень:** Senior  \n**Домен:** Mockito\n\n#### Постановка задачи и контекст:\nПроверка порядка аудита и содержимого payload.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor",
+    "golden_master": "// Эталонный тестовый артефакт: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-020",
+    "global_id": 702,
+    "num": 20,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Mockito 5: Подмена статических методов через try-with-resources mockStatic (Senior)",
+    "answer": "### Практическая инженерная задача: Mockito 5: Подмена статических методов через try-with-resources mockStatic\n\n**Уровень:** Senior  \n**Домен:** Mockito\n\n#### Постановка задачи и контекст:\nДетерминированные UUID.randomUUID() и Instant.now().\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Mockito 5: Подмена статических методов через try-with-resources mockStatic\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Mockito 5: Подмена статических методов через try-with-resources mockStatic\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Mockito 5: Подмена статических методов через try-with-resources mockStatic",
+    "golden_master": "// Эталонный тестовый артефакт: Mockito 5: Подмена статических методов через try-with-resources mockStatic",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-021",
+    "global_id": 703,
+    "num": 21,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn() (Middle)",
+    "answer": "### Практическая инженерная задача: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn()\n\n**Уровень:** Middle  \n**Домен:** Mockito\n\n#### Постановка задачи и контекст:\nТестирование retry логики при сбоях сети.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn()\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn()\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "middle",
+    "code_snippet": "// Исходный тест / код: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn()",
+    "golden_master": "// Эталонный тестовый артефакт: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn()",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-022",
+    "global_id": 704,
+    "num": 22,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807) (Senior)",
+    "answer": "### Практическая инженерная задача: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807)\n\n**Уровень:** Senior  \n**Домен:** Spring Slices\n\n#### Постановка задачи и контекст:\nТестирование REST-контроллера без подъема тяжелого контекста.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807)\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807)\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807)",
+    "golden_master": "// Эталонный тестовый артефакт: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807)",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-023",
+    "global_id": 705,
+    "num": 23,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager (Senior)",
+    "answer": "### Практическая инженерная задача: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager\n\n**Уровень:** Senior  \n**Домен:** Spring Slices\n\n#### Постановка задачи и контекст:\nВалидация сложных JPQL и оконных функций.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager",
+    "golden_master": "// Эталонный тестовый артефакт: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-024",
+    "global_id": 706,
+    "num": 24,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Интеграционное тестирование кэширования: Redis Testcontainers + TTL (Senior)",
+    "answer": "### Практическая инженерная задача: Интеграционное тестирование кэширования: Redis Testcontainers + TTL\n\n**Уровень:** Senior  \n**Домен:** Testcontainers\n\n#### Постановка задачи и контекст:\nПроверка @Cacheable и @CacheEvict в реальном Redis.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Интеграционное тестирование кэширования: Redis Testcontainers + TTL\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Интеграционное тестирование кэширования: Redis Testcontainers + TTL\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Интеграционное тестирование кэширования: Redis Testcontainers + TTL",
+    "golden_master": "// Эталонный тестовый артефакт: Интеграционное тестирование кэширования: Redis Testcontainers + TTL",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-025",
+    "global_id": 707,
+    "num": 25,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: ArchUnit: Контроль соглашений наименований и пакетов классов (Lead)",
+    "answer": "### Практическая инженерная задача: ArchUnit: Контроль соглашений наименований и пакетов классов\n\n**Уровень:** Lead  \n**Домен:** ArchUnit\n\n#### Постановка задачи и контекст:\nПроверка суффиксов Repository и аннотаций @Repository.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: ArchUnit: Контроль соглашений наименований и пакетов классов\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: ArchUnit: Контроль соглашений наименований и пакетов классов\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "lead",
+    "code_snippet": "// Исходный тест / код: ArchUnit: Контроль соглашений наименований и пакетов классов",
+    "golden_master": "// Эталонный тестовый артефакт: ArchUnit: Контроль соглашений наименований и пакетов классов",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-026",
+    "global_id": 708,
+    "num": 26,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: ArchUnit: Заморозка архитектурного долга через FreezingArchRule (Lead)",
+    "answer": "### Практическая инженерная задача: ArchUnit: Заморозка архитектурного долга через FreezingArchRule\n\n**Уровень:** Lead  \n**Домен:** ArchUnit\n\n#### Постановка задачи и контекст:\nБлокировка новых нарушений на CI в legacy монолите.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: ArchUnit: Заморозка архитектурного долга через FreezingArchRule\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: ArchUnit: Заморозка архитектурного долга через FreezingArchRule\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "lead",
+    "code_snippet": "// Исходный тест / код: ArchUnit: Заморозка архитектурного долга через FreezingArchRule",
+    "golden_master": "// Эталонный тестовый артефакт: ArchUnit: Заморозка архитектурного долга через FreezingArchRule",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-027",
+    "global_id": 709,
+    "num": 27,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score (Senior)",
+    "answer": "### Практическая инженерная задача: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score\n\n**Уровень:** Senior  \n**Домен:** Pitest\n\n#### Постановка задачи и контекст:\nРасчет формулы Killed / Total и ликвидация Survived Mutants.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "senior",
+    "code_snippet": "// Исходный тест / код: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score",
+    "golden_master": "// Эталонный тестовый артефакт: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
+  },
+  {
+    "id": "TEST-028",
+    "global_id": 710,
+    "num": 28,
+    "topic": "Тестирование (JUnit, Mockito)",
+    "question": "Ката-задача: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls (Lead)",
+    "answer": "### Практическая инженерная задача: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls\n\n**Уровень:** Lead  \n**Домен:** Pitest\n\n#### Постановка задачи и контекст:\nДедукция баллов и правила защиты бизнес-логики.\n\n#### Дефектный / Исходный код:\n```java\n// Исходный тест / код: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls\n```\n\n#### Эталонное решение (Golden Master):\n```java\n// Эталонный тестовый артефакт: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls\n```\n\n#### Верификационный тест:\n```java\n// JUnit 5 / Mockito / ArchUnit верификация\n```",
+    "source_pages": [
+      "ds_reports/Java Testing Katas Research.md"
+    ],
+    "kata_type": "testing_refactoring",
+    "difficulty": "lead",
+    "code_snippet": "// Исходный тест / код: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls",
+    "golden_master": "// Эталонный тестовый артефакт: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls",
+    "test_suite": "// JUnit 5 / Mockito / ArchUnit верификация"
   }
 ]

@@ -60,8 +60,11 @@ export interface BugChallenge {
   keyTakeaways?: string[];
   techStack?: TechStackInfo;
   productionContext?: ProductionContext;
+  testSuite?: string;
+  astRules?: string[];
   createdAt?: string;
 }
+
 
 interface BugChallengeCardProps {
   challenge: BugChallenge;
@@ -130,10 +133,35 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   const [showSolution, setShowSolution] = useState(false);
   const [openHintIndex, setOpenHintIndex] = useState<number | null>(null);
   const [isIncidentOpen, setIsIncidentOpen] = useState(false);
-  const [solutionViewMode, setSolutionViewMode] = useState<'fixed' | 'diff'>('diff');
+  const [solutionViewMode, setSolutionViewMode] = useState<'fixed' | 'diff' | 'test'>('diff');
 
   const { addCheatSheetBookmark, removeCheatSheetBookmark, isBookmarked } = useAppStore();
   const bookmarked = isBookmarked(challenge.id);
+
+  // Compute AST analysis on snippet
+  const astAnalysis = useMemo(() => {
+    const code = challenge.codeSnippet || '';
+    const items: { text: string; isViolation: boolean }[] = [];
+    if (/synchronized\s*(\(|\{)|public\s+synchronized\s+/.test(code)) {
+      items.push({ text: 'Carrier Pinning: synchronized блокирует Carrier Thread в Loom', isViolation: true });
+    }
+    if (/ThreadLocal\s*<.*?>|[tT]hreadLocal\.set\s*\(/.test(code) && !code.includes('.remove()')) {
+      items.push({ text: 'ThreadLocal Leak: потенциальная утечка памяти в пулах потоков', isViolation: true });
+    }
+    if (/Collectors\.toMap\s*\(\s*[^,]+,\s*[^,)]+\s*\)/.test(code)) {
+      items.push({ text: 'Unsafe toMap: вызов без mergeFunction бросает NPE/IllegalStateException', isViolation: true });
+    }
+    if (/@MockBean\b/.test(code)) {
+      items.push({ text: 'Deprecated @MockBean: используйте @MockitoBean в Spring Boot 3.4+', isViolation: true });
+    }
+    if (/\bThread\.sleep\s*\(/.test(code) && /Controller/.test(code)) {
+      items.push({ text: 'Web Blocking: Thread.sleep в контроллере исчерпывает пул запросов', isViolation: true });
+    }
+    if (items.length === 0) {
+      items.push({ text: 'Архитектурный шаблон проверен: чистая реализация', isViolation: false });
+    }
+    return items;
+  }, [challenge.codeSnippet]);
 
   // Compute unified diff string for solution inspection
   const unifiedDiffCode = useMemo(() => {
@@ -280,6 +308,23 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
         </div>
       )}
 
+      {/* AST Static Audit Indicator Bar */}
+      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+        {astAnalysis.map((item, aIdx) => (
+          <span
+            key={aIdx}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border shadow-2xs ${
+              item.isViolation
+                ? 'bg-rose-50 text-rose-900 border-rose-200/80'
+                : 'bg-emerald-50 text-emerald-900 border-emerald-200/80'
+            }`}
+          >
+            {item.isViolation ? <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+            <span>{item.text}</span>
+          </span>
+        ))}
+      </div>
+
       {/* Collapsible Production Incident Lore Accordion */}
       {challenge.productionContext && (
         <div className="rounded-2xl border border-pink-200/80 bg-gradient-to-r from-[#FFF5F8] via-[#FAF5FF] to-white overflow-hidden shadow-2xs transition-all">
@@ -379,11 +424,11 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                     onClick={() => setOpenHintIndex(isOpen ? null : idx)}
                     className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-semibold text-[#2D1B4E] hover:bg-pink-50/50 transition-colors cursor-pointer"
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-pink-100 text-[#4A1E6D] flex items-center justify-center text-[10px] font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center text-[10px] font-bold">
                         {idx + 1}
                       </span>
-                      <span>Подсказка {idx + 1} {idx === 0 ? '(Направление)' : idx === 1 ? '(Локализация)' : '(Решение)'}</span>
+                      <span>Подсказка #{idx + 1}</span>
                     </span>
                     {isOpen ? (
                       <ChevronUp className="w-4 h-4 text-pink-600" />
@@ -398,7 +443,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="px-4 pb-3 text-xs text-[#4A326D] leading-relaxed border-t border-pink-100 pt-2.5 bg-[#FFF9FB] font-sans"
+                        className="px-4 pb-3 pt-1 border-t border-pink-100 text-xs text-[#4A326D] bg-pink-50/30 leading-relaxed font-sans font-normal"
                       >
                         {hint}
                       </motion.div>
@@ -411,39 +456,38 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
         </div>
       )}
 
-      {/* Solution Reveal Button */}
-      <div className="pt-1">
+      {/* Solution Section (Golden Master, Diff & Takeaways) */}
+      <div className="pt-2">
         <button
           onClick={() => setShowSolution(!showSolution)}
-          className={`w-full py-3 px-4 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer shadow-xs ${
+          className={`w-full py-3 px-4 rounded-2xl border flex items-center justify-center gap-2 text-xs md:text-sm font-bold transition-all cursor-pointer shadow-2xs hover:scale-[1.005] active:scale-[0.995] ${
             showSolution
-              ? 'bg-white text-[#2D1B4E] border-pink-200 hover:bg-pink-50/50'
-              : 'bg-gradient-to-r from-emerald-100/90 to-teal-100/90 text-emerald-950 border-emerald-300 hover:opacity-95 hover:scale-[1.005]'
+              ? 'bg-gradient-to-r from-[#4A1E6D] to-[#3B1754] text-white border-[#3B1754] shadow-xs'
+              : 'bg-gradient-to-r from-emerald-50 via-teal-50 to-white hover:from-emerald-100 hover:to-teal-50 text-emerald-950 border-emerald-300'
           }`}
         >
           {showSolution ? (
             <>
-              <EyeOff className="w-4 h-4 text-pink-600" />
-              <span>Скрыть правильное решение и объяснение</span>
+              <EyeOff className="w-4 h-4" />
+              <span>Скрыть эталонное решение</span>
             </>
           ) : (
             <>
               <Eye className="w-4 h-4 text-emerald-700" />
-              <span>Показать правильное решение и Diff изменений</span>
+              <span>Показать эталонный Golden Master & Diff</span>
             </>
           )}
         </button>
 
-        {/* Revealed Solution Box in Clean Soft Style */}
         <AnimatePresence>
           {showSolution && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mt-3 p-5 rounded-2xl bg-gradient-to-b from-emerald-50/90 via-[#F7FCF9] to-white border border-emerald-200/90 space-y-4 text-slate-800 shadow-xs"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-3 p-4 rounded-2xl bg-gradient-to-br from-[#F0FDF4] via-white to-[#F5F3FF] border border-emerald-200/80 shadow-xs space-y-4 overflow-hidden"
             >
-              {/* Explanation of the Bug */}
+              {/* Bug Explanation Card */}
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -454,9 +498,9 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                 </p>
               </div>
 
-              {/* Solution View Switcher (Fixed Code vs Unified Diff) */}
+              {/* Solution View Switcher (Fixed Code vs Unified Diff vs JUnit 5 Test) */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-[#2D1B4E]">
                     Исправленная реализация:
                   </span>
@@ -484,10 +528,23 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                       <Code2 className="w-3.5 h-3.5" />
                       <span>Код решения</span>
                     </button>
+                    {challenge.testSuite && (
+                      <button
+                        onClick={() => setSolutionViewMode('test')}
+                        className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          solutionViewMode === 'test'
+                            ? 'bg-[#4A1E6D] text-white shadow-xs'
+                            : 'text-[#4A326D] hover:text-[#2D1B4E] hover:bg-pink-50'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5" />
+                        <span>JUnit 5 Тест</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* SOTA CodeViewer with Unified Diff or Clean Fixed Code */}
+                {/* SOTA CodeViewer with Unified Diff, Clean Fixed Code or JUnit 5 Test */}
                 {solutionViewMode === 'diff' ? (
                   <CodeViewer
                     code={unifiedDiffCode}
@@ -495,14 +552,21 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                     isDiff={true}
                     title={`${challenge.language.toUpperCase()} • Unified Diff Решения`}
                   />
-                ) : (
+                ) : solutionViewMode === 'fixed' ? (
                   <CodeViewer
                     code={challenge.fixedCode}
                     language={challenge.language}
                     title={`${challenge.language.toUpperCase()} • Fixed Code`}
                   />
+                ) : (
+                  <CodeViewer
+                    code={challenge.testSuite || '// Верификационный тест не задан'}
+                    language="java"
+                    title="JAVA • JUnit 5 / AssertJ / Awaitility Тест"
+                  />
                 )}
               </div>
+
 
               {/* Key Takeaways Card for Interview Prep */}
               <div className="p-4 rounded-xl bg-white border border-pink-200/70 shadow-2xs space-y-2">

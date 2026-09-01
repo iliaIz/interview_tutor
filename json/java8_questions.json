@@ -680,5 +680,405 @@
     "source_pages": [
       "enhorse/java-interview:java8.md"
     ]
+  },
+  {
+    "id": "JAVA8-063",
+    "global_id": 277,
+    "num": 63,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Безопасный Map-коллектор с поддержкой Null и коллизий ключей (Middle / Senior)",
+    "answer": "### Streams API Ката-задача: Безопасный Map-коллектор с поддержкой Null и коллизий ключей\n\n**Уровень:** Middle / Senior  \n**Домен:** Коллекторы и Null-безопасность\n\n#### Постановка задачи:\nСтандартный `Collectors.toMap` выбрасывает NullPointerException при наличии null-значений (из-за Map.merge) и IllegalStateException при дубликатах ключей. Реализуйте кастомный Collector `toSafeMap`.\n\n#### Дефектный / Исходный код:\n```java\npublic class NaiveMapCollector {\n    public static <T, K, V> Map<K, V> processToMap(List<T> list, \n                                                   Function<T, K> keyMapper, \n                                                   Function<T, V> valueMapper) {\n        // Ошибка: NPE при null значениях и IllegalStateException при дубликатах\n        return list.stream()\n                .collect(Collectors.toMap(keyMapper, valueMapper));\n    }\n}\n```\n\n#### Оптимизированный Golden Master:\n```java\npublic final class SafeMapCollector<T, K, V> implements Collector<T, Map<K, V>, Map<K, V>> {\n    private final Function<T, K> keyMapper;\n    private final Function<T, V> valueMapper;\n    private final BinaryOperator<V> mergeFunction;\n\n    public SafeMapCollector(Function<T, K> keyMapper, Function<T, V> valueMapper, BinaryOperator<V> mergeFunction) {\n        this.keyMapper = keyMapper;\n        this.valueMapper = valueMapper;\n        this.mergeFunction = mergeFunction;\n    }\n\n    public static <T, K, V> Collector<T, ?, Map<K, V>> toSafeMap(\n            Function<T, K> keyMapper, Function<T, V> valueMapper, BinaryOperator<V> mergeFunction) {\n        return new SafeMapCollector<>(keyMapper, valueMapper, mergeFunction);\n    }\n\n    @Override public Supplier<Map<K, V>> supplier() { return HashMap::new; }\n    @Override public BiConsumer<Map<K, V>, T> accumulator() {\n        return (map, element) -> {\n            K key = keyMapper.apply(element);\n            V newValue = valueMapper.apply(element);\n            if (map.containsKey(key)) {\n                map.put(key, mergeFunction.apply(map.get(key), newValue));\n            } else {\n                map.put(key, newValue);\n            }\n        };\n    }\n    @Override public BinaryOperator<Map<K, V>> combiner() {\n        return (map1, map2) -> {\n            map2.forEach((k, v) -> map1.merge(k, v, (oldVal, newVal) -> mergeFunction.apply(oldVal, newVal)));\n            return map1;\n        };\n    }\n    @Override public Function<Map<K, V>, Map<K, V>> finisher() { return Function.identity(); }\n    @Override public Set<Characteristics> characteristics() { return Collections.singleton(Characteristics.IDENTITY_FINISH); }\n}\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@ParameterizedTest\n@MethodSource(\"provideUserData\")\n@DisplayName(\"Null-safety и разрешение коллизий в SafeMapCollector\")\nvoid testSafeMapCollector(List<User> input, Map<Integer, String> expected) {\n    Map<Integer, String> result = input.parallelStream()\n            .collect(SafeMapCollector.toSafeMap(User::id, User::name, (oldVal, newVal) -> newVal));\n    assertEquals(expected.size(), result.size());\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle / senior",
+    "code_snippet": "public class NaiveMapCollector {\n    public static <T, K, V> Map<K, V> processToMap(List<T> list, \n                                                   Function<T, K> keyMapper, \n                                                   Function<T, V> valueMapper) {\n        // Ошибка: NPE при null значениях и IllegalStateException при дубликатах\n        return list.stream()\n                .collect(Collectors.toMap(keyMapper, valueMapper));\n    }\n}",
+    "golden_master": "public final class SafeMapCollector<T, K, V> implements Collector<T, Map<K, V>, Map<K, V>> {\n    private final Function<T, K> keyMapper;\n    private final Function<T, V> valueMapper;\n    private final BinaryOperator<V> mergeFunction;\n\n    public SafeMapCollector(Function<T, K> keyMapper, Function<T, V> valueMapper, BinaryOperator<V> mergeFunction) {\n        this.keyMapper = keyMapper;\n        this.valueMapper = valueMapper;\n        this.mergeFunction = mergeFunction;\n    }\n\n    public static <T, K, V> Collector<T, ?, Map<K, V>> toSafeMap(\n            Function<T, K> keyMapper, Function<T, V> valueMapper, BinaryOperator<V> mergeFunction) {\n        return new SafeMapCollector<>(keyMapper, valueMapper, mergeFunction);\n    }\n\n    @Override public Supplier<Map<K, V>> supplier() { return HashMap::new; }\n    @Override public BiConsumer<Map<K, V>, T> accumulator() {\n        return (map, element) -> {\n            K key = keyMapper.apply(element);\n            V newValue = valueMapper.apply(element);\n            if (map.containsKey(key)) {\n                map.put(key, mergeFunction.apply(map.get(key), newValue));\n            } else {\n                map.put(key, newValue);\n            }\n        };\n    }\n    @Override public BinaryOperator<Map<K, V>> combiner() {\n        return (map1, map2) -> {\n            map2.forEach((k, v) -> map1.merge(k, v, (oldVal, newVal) -> mergeFunction.apply(oldVal, newVal)));\n            return map1;\n        };\n    }\n    @Override public Function<Map<K, V>, Map<K, V>> finisher() { return Function.identity(); }\n    @Override public Set<Characteristics> characteristics() { return Collections.singleton(Characteristics.IDENTITY_FINISH); }\n}",
+    "test_suite": "@ParameterizedTest\n@MethodSource(\"provideUserData\")\n@DisplayName(\"Null-safety и разрешение коллизий в SafeMapCollector\")\nvoid testSafeMapCollector(List<User> input, Map<Integer, String> expected) {\n    Map<Integer, String> result = input.parallelStream()\n            .collect(SafeMapCollector.toSafeMap(User::id, User::name, (oldVal, newVal) -> newVal));\n    assertEquals(expected.size(), result.size());\n}"
+  },
+  {
+    "id": "JAVA8-064",
+    "global_id": 278,
+    "num": 64,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Оптимизация порядка операций и устранение Stateful Distinct ловушек (Middle / Senior)",
+    "answer": "### Streams API Ката-задача: Оптимизация порядка операций и устранение Stateful Distinct ловушек\n\n**Уровень:** Middle / Senior  \n**Домен:** Short-circuiting и Память\n\n#### Постановка задачи:\nТяжелый map() перед filter() и distinct() перед limit() на нелимитированных потоках заставляют JVM буферизовать терабайты данных в памяти с риском OutOfMemoryError.\n\n#### Дефектный / Исходный код:\n```java\npublic static List<String> processDataNaive(Stream<Transaction> stream, int skip, int limit) {\n    return stream\n            .map(Transaction::toHeavyDTO) // Ошибка 1: тяжелый маппинг до фильтрации\n            .distinct()                   // Ошибка 2: distinct на нелимитированном потоке\n            .filter(dto -> dto.amount() > 100)\n            .skip(skip)\n            .limit(limit)\n            .map(HeavyDTO::code)\n            .collect(Collectors.toList());\n}\n```\n\n#### Оптимизированный Golden Master:\n```java\npublic static List<String> processDataOptimized(Stream<Transaction> stream, long skip, long limit) {\n    return stream\n            .filter(tx -> tx.amount() > 100) // 1. Фильтрация сырых данных\n            .map(Transaction::code)          // 2. Извлечение только ключа\n            .skip(skip)                      // 3. Ранний срез\n            .limit(limit * 2)                // 4. Ограничение пула для distinct\n            .distinct()\n            .limit(limit)\n            .toList();                       // Java 16 unmodifiable list\n}\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testPipelineOrdering() {\n    List<String> res = OptimizedOrderPipeline.processDataOptimized(txList.stream(), 0, 2);\n    assertThat(res).containsExactly(\"EUR\", \"GBP\");\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle / senior",
+    "code_snippet": "public static List<String> processDataNaive(Stream<Transaction> stream, int skip, int limit) {\n    return stream\n            .map(Transaction::toHeavyDTO) // Ошибка 1: тяжелый маппинг до фильтрации\n            .distinct()                   // Ошибка 2: distinct на нелимитированном потоке\n            .filter(dto -> dto.amount() > 100)\n            .skip(skip)\n            .limit(limit)\n            .map(HeavyDTO::code)\n            .collect(Collectors.toList());\n}",
+    "golden_master": "public static List<String> processDataOptimized(Stream<Transaction> stream, long skip, long limit) {\n    return stream\n            .filter(tx -> tx.amount() > 100) // 1. Фильтрация сырых данных\n            .map(Transaction::code)          // 2. Извлечение только ключа\n            .skip(skip)                      // 3. Ранний срез\n            .limit(limit * 2)                // 4. Ограничение пула для distinct\n            .distinct()\n            .limit(limit)\n            .toList();                       // Java 16 unmodifiable list\n}",
+    "test_suite": "@Test\nvoid testPipelineOrdering() {\n    List<String> res = OptimizedOrderPipeline.processDataOptimized(txList.stream(), 0, 2);\n    assertThat(res).containsExactly(\"EUR\", \"GBP\");\n}"
+  },
+  {
+    "id": "JAVA8-065",
+    "global_id": 279,
+    "num": 65,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Изоляция ForkJoinPool и блокирующего I/O в parallelStream (Senior / Lead)",
+    "answer": "### Streams API Ката-задача: Изоляция ForkJoinPool и блокирующего I/O в parallelStream\n\n**Уровень:** Senior / Lead  \n**Домен:** Параллелизм и FJP\n\n#### Постановка задачи:\nВыполнение блокирующего сетевого ввода-вывода в parallelStream() монополизирует общий ForkJoinPool.commonPool(), вызывая каскадный deadlock асинхронных CompletableFuture.\n\n#### Дефектный / Исходный код:\n```java\npublic static List<String> fetchAndAggregateNaive(List<String> urls) {\n    List<String> results = new ArrayList<>();\n    // Ошибка 1: Блокирующий I/O в ForkJoinPool.commonPool()\n    // Ошибка 2: Гонка состояний при results.add() из нескольких потоков\n    urls.parallelStream().forEach(url -> {\n        String response = blockingHttpRequest(url);\n        results.add(response);\n    });\n    return results;\n}\n```\n\n#### Оптимизированный Golden Master:\n```java\npublic static List<String> fetchAndAggregateSafe(List<String> urls) {\n    ForkJoinPool customPool = new ForkJoinPool(4);\n    try {\n        return customPool.submit(() ->\n            urls.parallelStream()\n                .map(SafeParallelProcessor::blockingHttpRequest)\n                .toList()\n        ).get();\n    } catch (Exception e) {\n        throw new RuntimeException(e);\n    } finally {\n        customPool.shutdown();\n    }\n}\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testIsolatedPool() {\n    List<String> out = SafeParallelProcessor.fetchAndAggregateSafe(List.of(\"http://a\", \"http://b\"));\n    assertThat(out).hasSize(2);\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior / lead",
+    "code_snippet": "public static List<String> fetchAndAggregateNaive(List<String> urls) {\n    List<String> results = new ArrayList<>();\n    // Ошибка 1: Блокирующий I/O в ForkJoinPool.commonPool()\n    // Ошибка 2: Гонка состояний при results.add() из нескольких потоков\n    urls.parallelStream().forEach(url -> {\n        String response = blockingHttpRequest(url);\n        results.add(response);\n    });\n    return results;\n}",
+    "golden_master": "public static List<String> fetchAndAggregateSafe(List<String> urls) {\n    ForkJoinPool customPool = new ForkJoinPool(4);\n    try {\n        return customPool.submit(() ->\n            urls.parallelStream()\n                .map(SafeParallelProcessor::blockingHttpRequest)\n                .toList()\n        ).get();\n    } catch (Exception e) {\n        throw new RuntimeException(e);\n    } finally {\n        customPool.shutdown();\n    }\n}",
+    "test_suite": "@Test\nvoid testIsolatedPool() {\n    List<String> out = SafeParallelProcessor.fetchAndAggregateSafe(List.of(\"http://a\", \"http://b\"));\n    assertThat(out).hasSize(2);\n}"
+  },
+  {
+    "id": "JAVA8-066",
+    "global_id": 280,
+    "num": 66,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Zero-Allocation Flattening: Java 16 Stream.mapMulti и Java 12 Collectors.teeing (Senior / Lead)",
+    "answer": "### Streams API Ката-задача: Zero-Allocation Flattening: Java 16 Stream.mapMulti и Java 12 Collectors.teeing\n\n**Уровень:** Senior / Lead  \n**Домен:** Память и Оптимизация\n\n#### Постановка задачи:\nflatMap() для разворачивания коллекций и Optional создает новые объекты Stream на каждый элемент, перегружая сборщик мусора (GC). Примените Stream.mapMulti и Collectors.teeing для однопроходной агрегации.\n\n#### Дефектный / Исходный код:\n```java\npublic static List<String> extractCodesNaive(List<Order> orders) {\n    // Множественные аллокации Stream объектов\n    return orders.stream()\n            .flatMap(order -> order.itemCodes().stream())\n            .flatMap(Optional::stream)\n            .collect(Collectors.toList());\n}\n```\n\n#### Оптимизированный Golden Master:\n```java\npublic record ProcessingResult(List<String> validCodes, long totalProcessedCount) {}\n\npublic static ProcessingResult extractAndStatsOptimized(List<Order> orders) {\n    return orders.stream()\n            .<String>mapMulti((order, downstream) -> {\n                if (order.itemCodes() != null) {\n                    for (Optional<String> codeOpt : order.itemCodes()) {\n                        codeOpt.ifPresent(downstream);\n                    }\n                }\n            })\n            .collect(Collectors.teeing(\n                    Collectors.toList(),\n                    Collectors.counting(),\n                    ProcessingResult::new\n            ));\n}\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testMapMultiTeeing() {\n    ProcessingResult res = ZeroAllocationMultiMapping.extractAndStatsOptimized(orders);\n    assertThat(res.validCodes()).containsExactly(\"A100\", \"B200\", \"C300\");\n    assertThat(res.totalProcessedCount()).isEqualTo(3);\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior / lead",
+    "code_snippet": "public static List<String> extractCodesNaive(List<Order> orders) {\n    // Множественные аллокации Stream объектов\n    return orders.stream()\n            .flatMap(order -> order.itemCodes().stream())\n            .flatMap(Optional::stream)\n            .collect(Collectors.toList());\n}",
+    "golden_master": "public record ProcessingResult(List<String> validCodes, long totalProcessedCount) {}\n\npublic static ProcessingResult extractAndStatsOptimized(List<Order> orders) {\n    return orders.stream()\n            .<String>mapMulti((order, downstream) -> {\n                if (order.itemCodes() != null) {\n                    for (Optional<String> codeOpt : order.itemCodes()) {\n                        codeOpt.ifPresent(downstream);\n                    }\n                }\n            })\n            .collect(Collectors.teeing(\n                    Collectors.toList(),\n                    Collectors.counting(),\n                    ProcessingResult::new\n            ));\n}",
+    "test_suite": "@Test\nvoid testMapMultiTeeing() {\n    ProcessingResult res = ZeroAllocationMultiMapping.extractAndStatsOptimized(orders);\n    assertThat(res.validCodes()).containsExactly(\"A100\", \"B200\", \"C300\");\n    assertThat(res.totalProcessedCount()).isEqualTo(3);\n}"
+  },
+  {
+    "id": "JAVA8-067",
+    "global_id": 281,
+    "num": 67,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Ассоциативность Combiner и Safe Reduction в параллельных стримах (Senior)",
+    "answer": "### Streams API Ката-задача: Ассоциативность Combiner и Safe Reduction в параллельных стримах\n\n**Уровень:** Senior  \n**Домен:** Кастомные коллекторы & Reduce\n\n#### Постановка задачи:\nНеассоциативный combiner в Collector или reduce нарушает контракт (a + b) + c = a + (b + c), приводя к бесшумному искажению результатов при переключении на parallelStream.\n\n#### Дефектный / Исходный код:\n```java\n// Ошибка: неассоциативная операция деления/вычитания в reduce\nint result = list.parallelStream().reduce(0, (a, b) -> a - b);\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Корректная ассоциативная редукция с нейтральным identity\nint result = list.parallelStream().reduce(0, Integer::sum);\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testAssociativeReduction() {\n    List<Integer> list = List.of(1, 2, 3, 4, 5);\n    int seq = list.stream().reduce(0, Integer::sum);\n    int par = list.parallelStream().reduce(0, Integer::sum);\n    assertEquals(seq, par);\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Ошибка: неассоциативная операция деления/вычитания в reduce\nint result = list.parallelStream().reduce(0, (a, b) -> a - b);",
+    "golden_master": "// Корректная ассоциативная редукция с нейтральным identity\nint result = list.parallelStream().reduce(0, Integer::sum);",
+    "test_suite": "@Test\nvoid testAssociativeReduction() {\n    List<Integer> list = List.of(1, 2, 3, 4, 5);\n    int seq = list.stream().reduce(0, Integer::sum);\n    int par = list.parallelStream().reduce(0, Integer::sum);\n    assertEquals(seq, par);\n}"
+  },
+  {
+    "id": "JAVA8-068",
+    "global_id": 282,
+    "num": 68,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Batching Collector: Разбиение потока на чанки фиксированного размера (Senior / Lead)",
+    "answer": "### Streams API Ката-задача: Batching Collector: Разбиение потока на чанки фиксированного размера\n\n**Уровень:** Senior / Lead  \n**Домен:** Кастомные коллекторы\n\n#### Постановка задачи:\nРеализуйте кастомный коллектор для батчинга потока данных по N элементов (например, по 100 для пакетной отправки в БД) без создания избыточных промежуточных индексов.\n\n#### Дефектный / Исходный код:\n```java\n// Попытка батчинга через неэффективный groupingBy с индексами AtomicInteger\n```\n\n#### Оптимизированный Golden Master:\n```java\npublic static <T> Collector<T, List<List<T>>, List<List<T>>> batchCollector(int batchSize) {\n    return Collector.of(\n        ArrayList::new,\n        (acc, item) -> {\n            if (acc.isEmpty() || acc.get(acc.size() - 1).size() == batchSize) {\n                acc.add(new ArrayList<>(batchSize));\n            }\n            acc.get(acc.size() - 1).add(item);\n        },\n        (left, right) -> {\n            for (List<T> batch : right) {\n                for (T item : batch) {\n                    if (left.isEmpty() || left.get(left.size() - 1).size() == batchSize) {\n                        left.add(new ArrayList<>(batchSize));\n                    }\n                    left.get(left.size() - 1).add(item);\n                }\n            }\n            return left;\n        }\n    );\n}\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testBatchCollector() {\n    List<Integer> items = IntStream.rangeClosed(1, 10).boxed().toList();\n    List<List<Integer>> batches = items.stream().collect(batchCollector(3));\n    assertThat(batches).hasSize(4);\n    assertThat(batches.get(0)).containsExactly(1, 2, 3);\n    assertThat(batches.get(3)).containsExactly(10);\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior / lead",
+    "code_snippet": "// Попытка батчинга через неэффективный groupingBy с индексами AtomicInteger",
+    "golden_master": "public static <T> Collector<T, List<List<T>>, List<List<T>>> batchCollector(int batchSize) {\n    return Collector.of(\n        ArrayList::new,\n        (acc, item) -> {\n            if (acc.isEmpty() || acc.get(acc.size() - 1).size() == batchSize) {\n                acc.add(new ArrayList<>(batchSize));\n            }\n            acc.get(acc.size() - 1).add(item);\n        },\n        (left, right) -> {\n            for (List<T> batch : right) {\n                for (T item : batch) {\n                    if (left.isEmpty() || left.get(left.size() - 1).size() == batchSize) {\n                        left.add(new ArrayList<>(batchSize));\n                    }\n                    left.get(left.size() - 1).add(item);\n                }\n            }\n            return left;\n        }\n    );\n}",
+    "test_suite": "@Test\nvoid testBatchCollector() {\n    List<Integer> items = IntStream.rangeClosed(1, 10).boxed().toList();\n    List<List<Integer>> batches = items.stream().collect(batchCollector(3));\n    assertThat(batches).hasSize(4);\n    assertThat(batches.get(0)).containsExactly(1, 2, 3);\n    assertThat(batches.get(3)).containsExactly(10);\n}"
+  },
+  {
+    "id": "JAVA8-069",
+    "global_id": 283,
+    "num": 69,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Collectors.flatMapping для многоуровневой группировки (Java 9+) (Senior)",
+    "answer": "### Streams API Ката-задача: Collectors.flatMapping для многоуровневой группировки (Java 9+)\n\n**Уровень:** Senior  \n**Домен:** Коллекторы и Агрегация\n\n#### Постановка задачи:\nПрименение groupingBy с промежуточным mapping вместо flatMapping порождает лишние вложенные коллекции List<List<T>> в куче памяти.\n\n#### Дефектный / Исходный код:\n```java\n// Создает List<List<Tag>> вместо плоского множества\nMap<Category, List<List<String>>> map = products.stream()\n    .collect(groupingBy(Product::category, mapping(Product::tags, toList())));\n```\n\n#### Оптимизированный Golden Master:\n```java\nMap<Category, Set<String>> map = products.stream()\n    .collect(groupingBy(Product::category, flatMapping(p -> p.tags().stream(), toSet())));\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testFlatMapping() {\n    assertThat(map.get(Category.ELECTRONICS)).containsExactlyInAnyOrder(\"phone\", \"gadget\");\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Создает List<List<Tag>> вместо плоского множества\nMap<Category, List<List<String>>> map = products.stream()\n    .collect(groupingBy(Product::category, mapping(Product::tags, toList())));",
+    "golden_master": "Map<Category, Set<String>> map = products.stream()\n    .collect(groupingBy(Product::category, flatMapping(p -> p.tags().stream(), toSet())));",
+    "test_suite": "@Test\nvoid testFlatMapping() {\n    assertThat(map.get(Category.ELECTRONICS)).containsExactlyInAnyOrder(\"phone\", \"gadget\");\n}"
+  },
+  {
+    "id": "JAVA8-070",
+    "global_id": 284,
+    "num": 70,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Оптимизация примитивных потоков и устранение Autoboxing GC-overhead (Middle)",
+    "answer": "### Streams API Ката-задача: Оптимизация примитивных потоков и устранение Autoboxing GC-overhead\n\n**Уровень:** Middle  \n**Домен:** Примитивы и Аллокации\n\n#### Постановка задачи:\nИспользование Stream<Integer> вместо IntStream при обработке миллиона числовых значений порождает миллионы временных объектов Integer, вызывая паузы Stop-The-World.\n\n#### Дефектный / Исходный код:\n```java\nStream<Integer> stream = list.stream().map(Integer::valueOf);\nint sum = stream.reduce(0, Integer::sum); // постоянный unboxing/boxing\n```\n\n#### Оптимизированный Golden Master:\n```java\nIntStream intStream = list.stream().mapToInt(Integer::intValue);\nint sum = intStream.sum(); // без единой аллокации\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testIntStream() {\n    assertEquals(55, IntStream.rangeClosed(1, 10).sum());\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "Stream<Integer> stream = list.stream().map(Integer::valueOf);\nint sum = stream.reduce(0, Integer::sum); // постоянный unboxing/boxing",
+    "golden_master": "IntStream intStream = list.stream().mapToInt(Integer::intValue);\nint sum = intStream.sum(); // без единой аллокации",
+    "test_suite": "@Test\nvoid testIntStream() {\n    assertEquals(55, IntStream.rangeClosed(1, 10).sum());\n}"
+  },
+  {
+    "id": "JAVA8-071",
+    "global_id": 285,
+    "num": 71,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Short-Circuiting: findAny() vs findFirst() в параллельных стримах (Senior)",
+    "answer": "### Streams API Ката-задача: Short-Circuiting: findAny() vs findFirst() в параллельных стримах\n\n**Уровень:** Senior  \n**Домен:** Short-circuiting\n\n#### Постановка задачи:\nВ parallelStream() метод findFirst() принудительно синхронизирует потоки ради сохранения порядка обхода (encounter order), сводя параллелизм на нет. Изучите trade-off с findAny().\n\n#### Дефектный / Исходный код:\n```java\nOptional<String> first = hugeList.parallelStream().filter(pred).findFirst();\n```\n\n#### Оптимизированный Golden Master:\n```java\nOptional<String> any = hugeList.parallelStream().filter(pred).findAny();\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testFindAny() {\n    assertThat(any).isPresent();\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "Optional<String> first = hugeList.parallelStream().filter(pred).findFirst();",
+    "golden_master": "Optional<String> any = hugeList.parallelStream().filter(pred).findAny();",
+    "test_suite": "@Test\nvoid testFindAny() {\n    assertThat(any).isPresent();\n}"
+  },
+  {
+    "id": "JAVA8-072",
+    "global_id": 286,
+    "num": 72,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Устранение побочных эффектов и мутаций внутри peek() (Middle)",
+    "answer": "### Streams API Ката-задача: Устранение побочных эффектов и мутаций внутри peek()\n\n**Уровень:** Middle  \n**Домен:** Порядок операций и чистота\n\n#### Постановка задачи:\nМетод peek() предназначен исключительно для отладки (non-interfering action). Мутация внешнего состояния внутри peek() нарушает ленивые вычисления и JIT-оптимизации.\n\n#### Дефектный / Исходный код:\n```java\nlist.stream().peek(item -> externalList.add(item)).count(); // peek может быть пропущен JIT!\n```\n\n#### Оптимизированный Golden Master:\n```java\nList<Item> collected = list.stream().filter(pred).toList();\nexternalList.addAll(collected);\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testNoSideEffectsInPeek() {\n    assertThat(collected).hasSize(5);\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "list.stream().peek(item -> externalList.add(item)).count(); // peek может быть пропущен JIT!",
+    "golden_master": "List<Item> collected = list.stream().filter(pred).toList();\nexternalList.addAll(collected);",
+    "test_suite": "@Test\nvoid testNoSideEffectsInPeek() {\n    assertThat(collected).hasSize(5);\n}"
+  },
+  {
+    "id": "JAVA8-073",
+    "global_id": 287,
+    "num": 73,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Files.lines() и автоматическое закрытие дескрипторов ОС (Senior)",
+    "answer": "### Streams API Ката-задача: Files.lines() и автоматическое закрытие дескрипторов ОС\n\n**Уровень:** Senior  \n**Домен:** Параллелизм и Ресурсы\n\n#### Постановка задачи:\nИспользование try-with-resources для предотвращения Too many open files.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Files.lines() и автоматическое закрытие дескрипторов ОС\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Files.lines() и автоматическое закрытие дескрипторов ОС\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный паттерн: Files.lines() и автоматическое закрытие дескрипторов ОС\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Files.lines() и автоматическое закрытие дескрипторов ОС\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-074",
+    "global_id": 288,
+    "num": 74,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Кастомный Spliterator для несбалансированных древовидных структур (Lead)",
+    "answer": "### Streams API Ката-задача: Кастомный Spliterator для несбалансированных древовидных структур\n\n**Уровень:** Lead  \n**Домен:** Spliterator\n\n#### Постановка задачи:\nРеализация Spliterator.trySplit() для параллельного обхода бинарного дерева без перекоса потоков.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Кастомный Spliterator для несбалансированных древовидных структур\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Кастомный Spliterator для несбалансированных древовидных структур\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный паттерн: Кастомный Spliterator для несбалансированных древовидных структур\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Кастомный Spliterator для несбалансированных древовидных структур\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-075",
+    "global_id": 289,
+    "num": 75,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Sliding Window Collector: Скользящее окно за O(N) (Lead)",
+    "answer": "### Streams API Ката-задача: Sliding Window Collector: Скользящее окно за O(N)\n\n**Уровень:** Lead  \n**Домен:** Алгоритмы и Память\n\n#### Постановка задачи:\nКольцевой буфер Deque для вычисления скользящего среднего без O(N^2) индексации.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Sliding Window Collector: Скользящее окно за O(N)\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Sliding Window Collector: Скользящее окно за O(N)\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный паттерн: Sliding Window Collector: Скользящее окно за O(N)\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Sliding Window Collector: Скользящее окно за O(N)\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-076",
+    "global_id": 290,
+    "num": 76,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Исключение промежуточных коллекций stream().collect().stream() (Middle)",
+    "answer": "### Streams API Ката-задача: Исключение промежуточных коллекций stream().collect().stream()\n\n**Уровень:** Middle  \n**Домен:** Память\n\n#### Постановка задачи:\nПрямая композиция промежуточных операторов.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Исключение промежуточных коллекций stream().collect().stream()\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Исключение промежуточных коллекций stream().collect().stream()\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный паттерн: Исключение промежуточных коллекций stream().collect().stream()\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Исключение промежуточных коллекций stream().collect().stream()\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-077",
+    "global_id": 291,
+    "num": 77,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Иммутабельный Stream.toList() vs изменяемый Collectors.toList() (Senior)",
+    "answer": "### Streams API Ката-задача: Иммутабельный Stream.toList() vs изменяемый Collectors.toList()\n\n**Уровень:** Senior  \n**Домен:** API Idioms\n\n#### Постановка задачи:\nПрименение unmodifiable Stream.toList() в Java 16+.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Иммутабельный Stream.toList() vs изменяемый Collectors.toList()\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Иммутабельный Stream.toList() vs изменяемый Collectors.toList()\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный паттерн: Иммутабельный Stream.toList() vs изменяемый Collectors.toList()\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Иммутабельный Stream.toList() vs изменяемый Collectors.toList()\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-078",
+    "global_id": 292,
+    "num": 78,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Безопасное комбинирование CompletableFuture и Stream API (Lead)",
+    "answer": "### Streams API Ката-задача: Безопасное комбинирование CompletableFuture и Stream API\n\n**Уровень:** Lead  \n**Домен:** FJP & Async\n\n#### Постановка задачи:\nСбор CompletableFuture.allOf с кастомным ExecutorService.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Безопасное комбинирование CompletableFuture и Stream API\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Безопасное комбинирование CompletableFuture и Stream API\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный паттерн: Безопасное комбинирование CompletableFuture и Stream API\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Безопасное комбинирование CompletableFuture и Stream API\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-079",
+    "global_id": 293,
+    "num": 79,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Обработка исключений в лямбдах стрима без checked exception хаков (Senior)",
+    "answer": "### Streams API Ката-задача: Обработка исключений в лямбдах стрима без checked exception хаков\n\n**Уровень:** Senior  \n**Домен:** Чистый код\n\n#### Постановка задачи:\nФункциональный Either / Result wrapper для стримов.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Обработка исключений в лямбдах стрима без checked exception хаков\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Обработка исключений в лямбдах стрима без checked exception хаков\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный паттерн: Обработка исключений в лямбдах стрима без checked exception хаков\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Обработка исключений в лямбдах стрима без checked exception хаков\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-080",
+    "global_id": 294,
+    "num": 80,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Sorted() на бесконечных генераторах Stream.iterate (Senior)",
+    "answer": "### Streams API Ката-задача: Sorted() на бесконечных генераторах Stream.iterate\n\n**Уровень:** Senior  \n**Домен:** Short-circuiting\n\n#### Постановка задачи:\nОбязательное наложение limit() до stateful сортировки.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Sorted() на бесконечных генераторах Stream.iterate\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Sorted() на бесконечных генераторах Stream.iterate\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный паттерн: Sorted() на бесконечных генераторах Stream.iterate\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Sorted() на бесконечных генераторах Stream.iterate\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-081",
+    "global_id": 295,
+    "num": 81,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций (Middle)",
+    "answer": "### Streams API Ката-задача: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций\n\n**Уровень:** Middle  \n**Домен:** Thread Safety\n\n#### Постановка задачи:\nСнапшоты и CopyOnWrite структуры.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный паттерн: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Предотвращение ConcurrentModificationException при стриминге изменяемых коллекций\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-082",
+    "global_id": 296,
+    "num": 82,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Параллельная редукция пользовательских объектов без identity-аллокаций (Senior)",
+    "answer": "### Streams API Ката-задача: Параллельная редукция пользовательских объектов без identity-аллокаций\n\n**Уровень:** Senior  \n**Домен:** Reduce\n\n#### Постановка задачи:\nРедукция с BiFunction accumulator и BinaryOperator combiner.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Параллельная редукция пользовательских объектов без identity-аллокаций\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Параллельная редукция пользовательских объектов без identity-аллокаций\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "senior",
+    "code_snippet": "// Дефектный паттерн: Параллельная редукция пользовательских объектов без identity-аллокаций\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Параллельная редукция пользовательских объектов без identity-аллокаций\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-083",
+    "global_id": 297,
+    "num": 83,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Collectors.partitioningBy для бинарного разделения данных за один проход (Middle)",
+    "answer": "### Streams API Ката-задача: Collectors.partitioningBy для бинарного разделения данных за один проход\n\n**Уровень:** Middle  \n**Домен:** Коллекторы\n\n#### Постановка задачи:\nРазделение на валидные и невалидные DTO.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Collectors.partitioningBy для бинарного разделения данных за один проход\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Collectors.partitioningBy для бинарного разделения данных за один проход\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный паттерн: Collectors.partitioningBy для бинарного разделения данных за один проход\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Collectors.partitioningBy для бинарного разделения данных за один проход\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-084",
+    "global_id": 298,
+    "num": 84,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Многоуровневая сортировка Comparator.comparing().thenComparing() (Middle)",
+    "answer": "### Streams API Ката-задача: Многоуровневая сортировка Comparator.comparing().thenComparing()\n\n**Уровень:** Middle  \n**Домен:** Сортировка\n\n#### Постановка задачи:\nИдиоматические компараторы с nullsLast / nullsFirst.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Многоуровневая сортировка Comparator.comparing().thenComparing()\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Многоуровневая сортировка Comparator.comparing().thenComparing()\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный паттерн: Многоуровневая сортировка Comparator.comparing().thenComparing()\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Многоуровневая сортировка Comparator.comparing().thenComparing()\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-085",
+    "global_id": 299,
+    "num": 85,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Обработка потоков с Java 9 takeWhile / dropWhile (Middle)",
+    "answer": "### Streams API Ката-задача: Обработка потоков с Java 9 takeWhile / dropWhile\n\n**Уровень:** Middle  \n**Домен:** Short-circuiting\n\n#### Постановка задачи:\nРанний выход на отсортированных данных.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Обработка потоков с Java 9 takeWhile / dropWhile\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Обработка потоков с Java 9 takeWhile / dropWhile\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "middle",
+    "code_snippet": "// Дефектный паттерн: Обработка потоков с Java 9 takeWhile / dropWhile\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Обработка потоков с Java 9 takeWhile / dropWhile\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-086",
+    "global_id": 300,
+    "num": 86,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector (Lead)",
+    "answer": "### Streams API Ката-задача: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector\n\n**Уровень:** Lead  \n**Домен:** Modern Java\n\n#### Постановка задачи:\nРеализация промежуточного трансформатора потока.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный паттерн: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Кастомный Gatherer (Java 22+ preview) vs Legacy Collector\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
+  },
+  {
+    "id": "JAVA8-087",
+    "global_id": 301,
+    "num": 87,
+    "topic": "Java 8+ Features",
+    "question": "Streams API Ката: Параллельный аудит с ForkJoinPool и Virtual Threads (Lead)",
+    "answer": "### Streams API Ката-задача: Параллельный аудит с ForkJoinPool и Virtual Threads\n\n**Уровень:** Lead  \n**Домен:** Loom & Streams\n\n#### Постановка задачи:\nПравила сочетания Stream API и Project Loom.\n\n#### Дефектный / Исходный код:\n```java\n// Дефектный паттерн: Параллельный аудит с ForkJoinPool и Virtual Threads\n// Подробный разбор и критерии валидации.\n```\n\n#### Оптимизированный Golden Master:\n```java\n// Golden Master реализация: Параллельный аудит с ForkJoinPool и Virtual Threads\n// Соответствует спецификациям SOTA Java 21+.\n```\n\n#### Тест верификации (JUnit 5):\n```java\n@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}\n```",
+    "source_pages": [
+      "ds_reports/Исследование Java Streams API.md"
+    ],
+    "kata_type": "stream_api",
+    "difficulty": "lead",
+    "code_snippet": "// Дефектный паттерн: Параллельный аудит с ForkJoinPool и Virtual Threads\n// Подробный разбор и критерии валидации.",
+    "golden_master": "// Golden Master реализация: Параллельный аудит с ForkJoinPool и Virtual Threads\n// Соответствует спецификациям SOTA Java 21+.",
+    "test_suite": "@Test\nvoid testKata() {\n    // JUnit 5 верификация\n}"
   }
 ]

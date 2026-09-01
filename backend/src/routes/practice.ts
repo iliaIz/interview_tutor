@@ -214,4 +214,30 @@ router.post('/reset/:challengeId', (req, res) => {
   }
 });
 
+// POST /api/practice/audit - Run deterministic AST static audit on Java code
+router.post('/audit', (req, res) => {
+  try {
+    const { code } = req.body;
+    const { AstAuditService } = require('../services/astAuditService');
+    const result = AstAuditService.audit(code || '');
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error in AST audit endpoint:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/practice/generate-task - Generate a dynamic SOTA Java kata on the fly
+router.post('/generate-task', async (req, res) => {
+  try {
+    const { DynamicTaskGenerator } = require('../services/dynamicTaskGenerator');
+    const task = await DynamicTaskGenerator.generateTask(req.body || {});
+    res.json(task);
+  } catch (err: any) {
+    console.error('Error generating dynamic task:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
