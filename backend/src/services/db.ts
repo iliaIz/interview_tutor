@@ -320,12 +320,13 @@ try {
   db.exec(`
     DELETE FROM user_sessions WHERE user_id IN (SELECT user_id FROM invite_tokens WHERE is_active = 0);
     DELETE FROM ws_tickets WHERE user_id IN (SELECT user_id FROM invite_tokens WHERE is_active = 0);
-    DELETE FROM users WHERE id IN (SELECT user_id FROM invite_tokens WHERE is_active = 0) AND id != 'user_master';
     DELETE FROM invite_tokens WHERE is_active = 0;
+    DELETE FROM users WHERE id NOT IN (SELECT user_id FROM invite_tokens) AND id != 'user_master';
   `);
 } catch (e) {
   console.error('Error purging inactive invite tokens:', e);
 }
+
 
 
 
