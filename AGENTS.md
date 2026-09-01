@@ -47,10 +47,35 @@
 ---
 
 ## 3. UI/UX Standard, Health & Resilience Invariants
-- Target Audience: Soft luxury pastel aesthetics (`#FFF0F5`, lavender, rose, gentle mesh glow auras).
-- Audio Session: 3-Stage flow (Lobby -> Active Session -> Verdict with 1-click retry).
-- Health Monitoring: `/api/health` validates liveness AND checks the presence of all 4 required models (`GEMINI_TEXT_MODEL`, `GEMINI_LIVE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_EMBEDDING_MODEL`) in the LiteLLM registry with latency metrics.
+- **Target Audience & Aesthetic:** Soft luxury pastel aesthetics (`#FFF0F5`, lavender, rose, gentle mesh glow auras).
+- **Audio Session Flow:** 3-Stage flow (Lobby -> Active Session -> Verdict with 1-click retry).
+- **Health Monitoring:** `/api/health` validates liveness AND checks the presence of all 4 required models (`GEMINI_TEXT_MODEL`, `GEMINI_LIVE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_EMBEDDING_MODEL`) in the LiteLLM registry with latency metrics.
 - **Turbo-Prefetching:** Speculative background prefetching is controlled by an explicit toggle in the Lobby (default: off).
-- **AbortSignal & Recovery:** Closing modal or clicking "Прервать" propagates `AbortController.abort()` to LiteLLM Proxy. Persistent errors render structured Recovery Cards with 3 actionable paths (Retry, Open Bank, Lobby), completely eliminating white blank screens.
+- **AbortSignal & Cancellation:** Closing modal or clicking "Прервать" propagates `AbortController.abort()` to LiteLLM Proxy.
 
+---
 
+## 4. Deterministic Time & Financial Invariants in Machine Coding (Java 21)
+- **Time Virtualization Invariant:**
+  - In all LLD & Machine Coding challenges, business services MUST NEVER call `System.currentTimeMillis()`, `Instant.now()`, or `LocalDate.now()` directly.
+  - Time MUST be constructor-injected via `java.time.Clock`. Unit tests MUST use `Clock.fixed(instant, zone)` or `Clock.offset` to test arbitrary sliding time windows deterministically in 0ms without `Thread.sleep()`.
+  - Enforced statically via AST rule `enforce-clock-injection`.
+- **Financial Precision Invariant:**
+  - All monetary amounts, balances, and exchange rates MUST use `java.math.BigDecimal` with explicit scale and `RoundingMode.HALF_EVEN` (Banker's rounding).
+  - Use of `double` or `float` in financial domains is strictly blocked via AST rule `no-double-in-money`.
+- **Deadlock-Free Transfer Invariant:**
+  - In double-entry ledgers and multi-account transfers, lock acquisition MUST follow strict global ID ordering: `lock(min(id1, id2)) -> lock(max(id1, id2))`.
+
+---
+
+## 5. Zero-Phantom-Fallback & Full-Jitter Backoff Invariant
+- **No Fabricated Fallbacks:** Under no circumstances does the backend return hardcoded static challenges disguised as dynamic AI generation.
+- **Full Jitter Backoff:** Upstream rate limits (429/503) trigger Full-Jitter Exponential Backoff ($T = \text{random}(0, \min(2500, 800 \times 1.8^{\text{attempt}}))$) up to 2 retries.
+- **Actionable Recovery Cards:** Persistent failures return structured HTTP 503 payloads rendering `TaskRecoveryCard` with live countdown, auto-retry pause, inline health diagnostics, and direct access to the 70-kata catalog.
+
+---
+
+## 6. Multi-Modal Reference-Counted Scroll Lock & 100dvh Invariant
+- **Reference-Counted Scroll Lock:** `useBodyScrollLock` tracks `activeLocksCount`. Nested modals or drawers (e.g. Memory Radar over Bug Hunt Modal) never prematurely unlock `document.body` when child components unmount.
+- **100dvh Viewport Standard:** All full-screen arenas and modals use `100dvh` (`h-[calc(100dvh-4rem)]`) to prevent viewport jumping when mobile virtual keyboards activate.
+- **120 FPS Virtualization:** Catalogs of 800+ items use CSS `content-visibility: auto` with `contain-intrinsic-size: 0 90px`.

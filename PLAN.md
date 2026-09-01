@@ -1,87 +1,45 @@
-# 📋 План реализации: Полнофункциональная Сервис-Платформа Подготовки к Собеседованиям
+# 📋 Дорожная Карта & Этапы Реализации: InterviewPrep AI (SOTA Сентябрь 2026)
 
-Этот документ определяет детальную архитектуру, этапы реализации и техническую спецификацию интерактивной платформы для подготовки к техническим собеседованиям с поддержкой текстового и голосового ИИ на базе моделей **Gemini 3.5 Flash Lite** и **Gemini 3 Flash Live**.
-
----
-
-## 🎨 Дизайн и Эстетика UI/UX ("Пастельный Премиум")
-
-* **Цветовые токены (CSS Variables + Tailwind)**:
-  * `--bg-app`: `#FAF8F5` (Warm Alabaster / Cream)
-  * `--card-bg`: `#FFFFFF` (Pure Pearl)
-  * `--card-subtle`: `#FFF6F4` (Soft Blush) / `#F2F6F3` (Soft Sage) / `#F4F1F9` (Soft Lavender)
-  * `--text-main`: `#2C303E` (Deep Charcoal Slate)
-  * `--accent-rose`: `#E08E89` (Muted Rose Gold)
-  * `--accent-violet`: `#8B78E6` (Soft Lavender Violet)
-* **Типографика**: `Plus Jakarta Sans` (Google Fonts)
-* **Анимации**: `Framer Motion` (плавное появление карточек, свайпы, пульсирующие звуковые волны).
+Комплексный план реализации, эволюции и текущего статуса платформы для подготовки к техническим собеседованиям.
 
 ---
 
-## 🏗 Архитектура и Проектные Компоненты
+## 🎯 Статус Реализации Проекта: 100% Завершено (All Phases Shipped & Live)
 
-### 1. Бэкенд (`/backend`)
-* **Технологии**: Node.js + Express + TypeScript + SQLite (`better-sqlite3`) + `ws` (WebSockets).
-* **Порт**: `5000` в контейнере ➔ **`8091`** на хосте (`http://localhost:8091`).
-* **Модули**:
-  - `sqlite.ts`: База данных для сохранения прогресса по темам (`user_progress`, `topic_stats`, `question_history`).
-  - `routes/topics.ts`: REST API для выдачи тем и порций из N карточек (`GET /api/topics`, `GET /api/topics/:id/batch?size=5&shuffle=true`).
-  - `routes/eval.ts`: REST API для текстовой оценки ответов через **`Gemini 3.5 Flash Lite`**.
-  - `websocket/liveProxy.ts`: WebSocket прокси-сервер для связи фронтенда с **`Gemini 3 Flash Live`** (двусторонний поток PCM-аудио и текста).
-
-### 2. Фронтенд (`/frontend`)
-* **Технологии**: React 18 + Vite + TypeScript + TailwindCSS + Zustand + Framer Motion + Lucide React.
-* **Порт**: `80` в контейнере ➔ **`8090`** на хосте (`http://localhost:8090`).
-* **Модули**:
-  - `components/TopicSelector.tsx`: Карточки выбора тем с кольцевым прогрессом (Java Core 240, Spring 75, Hibernate 60, Docker 30), кнопками «Продолжить», «Сначала», тумблером «Шафл».
-  - `components/StudyDeck.tsx`: Экран изучения порции из N карточек с подробным ответом и кодом.
-  - `components/ExamQuiz.tsx`: Экран проверки знаний:
-    - **Текстовый режим**: окно ввода ответа + мгновенный ИИ-фидбек от `Gemini 3.5 Flash Lite` (процент совпадения, что отвечено верно, что упущено).
-    - **Голосовой режим**: анимированная звуковая волна + устное собеседование через `Gemini 3 Flash Live`.
-  - `hooks/useAudioWorklet.ts`: Кастомный хук для захвата PCM 16kHz микрофона через Web Audio API.
-
-### 3. Docker Infrastructure (`docker-compose.yml`)
-* Поднятие двух сервисов (`backend` на 8091, `frontend` на 8090) одной командой `docker compose up -d --build`.
+| Этап / Фаза | Фокус | Ключевые Фичи | Статус |
+| :--- | :--- | :--- | :---: |
+| **Фаза 1: Базовая Платформа** | Backend + Frontend + SQLite | 816 вопросов, 24 темы, карточки, Zustand Store, Dark Luxury Pastel UI | ✅ `Done` |
+| **Фаза 2: Multimodal Live Voice** | Gemini Live WebSocket + Audio | 24kHz PCM capture, Dual-Sided Handshake, First-Turn Lockdown, Tactile Barge-In | ✅ `Done` |
+| **Фаза 3: SOTA Incident Simulator** | Bug Hunt Katas | 70 production-grade ката (Streams, Concurrency, Loom Pinning, `@MockitoBean`) | ✅ `Done` |
+| **Фаза 4: Resilience & Recovery** | Zero-Phantom-Fallback & Jitter | Full-Jitter Exponential Backoff, `TaskRecoveryCard`, `useBodyScrollLock` singleton | ✅ `Done` |
+| **Фаза 5: Machine Coding & LLD Arena** | 35 SOTA LLD Challenges | BigTech, FinTech Ledger, Concurrency, `Clock.fixed` Time Virtualization, 8 AST Rules | ✅ `Done` |
+| **Фаза 6: Full Scaffolding & Mobile UX** | Multi-File DX & 100dvh | Полные каркасы (Records, Services, Tests) для 35 задач, `100dvh` на Android | ✅ `Done` |
+| **Фаза 7: VPS Production Deployment** | Caddy SSL + Docker Compose | Автодеплой на `https://djelu.site`, 4-модельный шлюз LiteLLM | ✅ `Done` |
 
 ---
 
-## 🛠 Поэтапный План Реализации
+## 🏛️ Ключевые Архитектурные Модули
 
-### Этап 1: Структура проекта и Бэкенд Сервис
-1. Создание структуры директорий `/backend` и `/frontend`.
-2. Инициализация Node.js TypeScript проекта в `/backend`.
-3. Подключение базы данных SQLite и перенос вопросов из `json/` в базу данных или сервисный слой.
-4. Написание REST API эндпоинтов для получения тем, вопросов и текстовой оценки `Gemini 3.5 Flash Lite`.
-5. Написание WebSocket прокси для `Gemini 3 Flash Live`.
-6. Фиксация коммитом: `feat(backend): init express, sqlite persistence and gemini services`.
-
-### Этап 2: Фронтенд на React + Vite с Пастельным UI
-1. Инициализация Vite React TypeScript проекта в `/frontend`.
-2. Настройка TailwindCSS, пастельной дизайн-системы, шрифта `Plus Jakarta Sans`.
-3. Создание Zustand-стора с синхронизацией сохраненного прогресса с бэкендом.
-4. Реализация главного экрана с карточками тем, кольцевым прогресс-баром, кнопками «Продолжить», «Сначала», тумблером «Шафл».
-5. Фиксация коммитом: `feat(frontend): pastel theme, topic selector and progress tracking UI`.
-
-### Этап 3: Режим Изучения (Study Deck) и Режим Проверки (Quiz)
-1. Реализация экрана изучений N карточек с пастельными анимациями `Framer Motion`.
-2. Реализация текстового режима проверки знания с ИИ-оценкой от `Gemini 3.5 Flash Lite`.
-3. Реализация голосового режима проверки с интеграцией Web Audio API PCM capture и WebSocket подключением к `Gemini 3 Flash Live`.
-4. Фиксация коммитом: `feat(app): add study deck, text ai quiz and voice live interview mode`.
-
-### Этап 4: Docker Compose и Интеграционное Тестирование
-1. Создание `backend/Dockerfile` и `frontend/Dockerfile` (Nginx).
-2. Создание `docker-compose.yml` с портами `8090` и `8091`.
-3. Запуск контейнеров, проверка работы веб-интерфейса и голосового режима.
-4. Фиксация коммитом: `feat(docker): add docker-compose configuration for port 8090 and 8091`.
+1. **База Знаний & Тьютор ([`backend/src/routes/topics.ts`](file:///d:/projects/interview_projects/spring/backend/src/routes/topics.ts)):**
+   - 816 вопросов из `enhorse/java-interview` и авторских банков.
+   - Генерация аудио-рекапов и подкастов через `Gemini 3.1 Flash TTS`.
+2. **Симулятор Инцидентов ([`backend/src/services/dynamicTaskGenerator.ts`](file:///d:/projects/interview_projects/spring/backend/src/services/dynamicTaskGenerator.ts)):**
+   - 70 ката с детерминированным AST-анализом.
+   - Устранение фантомных фолбеков, Full-Jitter Backoff при 429/503.
+3. **Machine Coding Arena ([`backend/src/routes/practice.ts`](file:///d:/projects/interview_projects/spring/backend/src/routes/practice.ts)):**
+   - 35 сквозных задач LLD по 3 трекам (*BigTech*, *FinTech*, *Concurrency*).
+   - Автоматический аудит 8 AST-правил (включая `enforce-clock-injection` и `no-double-in-money`).
+   - 5-факторная формула оценки:
+     $$\text{FinalScore} = 0.40 \cdot S_{\text{correctness}} + 0.20 \cdot S_{\text{concurrency}} + 0.20 \cdot S_{\text{architecture}} + 0.10 \cdot S_{\text{time\_testability}} + 0.10 \cdot S_{\text{java21\_idioms}}$$
+4. **Мобильная Адаптивность ([`PracticeArena.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/practice/PracticeArena.tsx)):**
+   - Динамический вьюпорт `100dvh`, исключающий смещение панелей клавиатурой.
+   - Свайп вкладок `touch-pan-x` и 120 FPS виртуализация `content-visibility: auto`.
 
 ---
 
-## 🔍 План Проверки и Тестирования
+## 🔍 Инструкция по Развертыванию
 
-### Автоматизированные и Ручные тесты:
-1. **Проверка REST API**: `curl http://localhost:8091/api/topics` и `curl http://localhost:8091/api/topics/java/batch?size=5`.
-2. **Проверка сохранения прогресса**: Продвинуться по теме Java ➔ перезагрузить страницу / перезапустить сервис ➔ убедиться, что % прогресса и позиция сохранились.
-3. **Проверка «Сначала» и «Шафл»**: Нажать «Сначала» ➔ убедиться, что прогресс темы обнулился; включить «Шафл» ➔ проверить случайную выборку вопросов.
-4. **Проверка Текстового ИИ**: Ввести ответ ➔ получить оценку и анализ от `Gemini 3.5 Flash Lite`.
-5. **Проверка Голосового Live режима**: Включить голосовой режим ➔ сказать ответ в микрофон ➔ проверить аудио-ответ от `Gemini 3 Flash Live`.
-6. **Проверка Docker**: Выполнить `docker compose up -d --build` ➔ открыть `http://localhost:8090`.
+```bash
+# Автоматический деплой и проверка здоровья на https://djelu.site
+python scripts/deploy_to_vps.py
+```
