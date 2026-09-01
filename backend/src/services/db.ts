@@ -142,6 +142,7 @@ db.exec(`
     slug TEXT NOT NULL,
     title TEXT NOT NULL,
     category TEXT NOT NULL,
+    track TEXT DEFAULT 'lld_bigtech',
     badge TEXT NOT NULL,
     difficulty TEXT NOT NULL,
     target_stack TEXT NOT NULL,
@@ -177,6 +178,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_code_chall_cat ON coding_challenges(category);
   CREATE INDEX IF NOT EXISTS idx_code_sub_chall ON coding_submissions(challenge_id);
 `);
+
+// Migration: Ensure track column exists in coding_challenges table
+try {
+  const cols = db.pragma('table_info(coding_challenges)') as any[];
+  if (!cols.some(c => c.name === 'track')) {
+    db.exec("ALTER TABLE coding_challenges ADD COLUMN track TEXT DEFAULT 'lld_bigtech'");
+    console.log("✅ Added 'track' column to coding_challenges table");
+  }
+} catch (e) {
+  console.error("Migration error for coding_challenges:", e);
+}
+
 
 // Safe column migrations for existing SQLite databases
 try {
@@ -353,16 +366,17 @@ export function seedCodingChallenges() {
     const { SEEDED_CHALLENGES } = require('./challengeSeedData');
     const upsertStmt = db.prepare(`
       INSERT INTO coding_challenges (
-        id, slug, title, category, badge, difficulty, target_stack,
+        id, slug, title, category, track, badge, difficulty, target_stack,
         time_limit_minutes, short_description, instructions_markdown, manifest_json, updated_at
       ) VALUES (
-        @id, @slug, @title, @category, @badge, @difficulty, @target_stack,
+        @id, @slug, @title, @category, @track, @badge, @difficulty, @target_stack,
         @time_limit_minutes, @short_description, @instructions_markdown, @manifest_json, CURRENT_TIMESTAMP
       )
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
         category = excluded.category,
+        track = excluded.track,
         badge = excluded.badge,
         difficulty = excluded.difficulty,
         target_stack = excluded.target_stack,
@@ -380,6 +394,7 @@ export function seedCodingChallenges() {
           slug: ch.slug || ch.id,
           title: ch.title,
           category: ch.category || 'machine_coding',
+          track: ch.track || 'lld_bigtech',
           badge: ch.badge || (ch.track === 'lld_fintech' ? '💳 FinTech' : ch.track === 'lld_concurrency' ? '⚡ Concurrency' : '🏛️ LLD'),
           difficulty: ch.difficulty,
           target_stack: ch.targetStack || ch.techStack || 'Java 21 LTS',
@@ -390,6 +405,7 @@ export function seedCodingChallenges() {
         });
       }
     });
+
 
     syncAll(SEEDED_CHALLENGES);
 

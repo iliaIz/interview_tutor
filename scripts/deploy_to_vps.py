@@ -37,11 +37,17 @@ def create_tarball():
             if os.path.exists(fp):
                 tar.add(fp, arcname=f"backend/{f}")
 
+        # JSON data files (Questions, 70 Katas, 35 LLD challenges)
+        json_dir = os.path.join(root_dir, "json")
+        if os.path.exists(json_dir):
+            tar.add(json_dir, arcname="json")
+
         # Root files
         for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml"]:
             fp = os.path.join(root_dir, f)
             if os.path.exists(fp):
                 tar.add(fp, arcname=f)
+
 
     size_mb = os.path.getsize(tar_path) / (1024 * 1024)
     print(f"Archive created: {tar_path} ({size_mb:.2f} MB)")
