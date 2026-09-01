@@ -8,13 +8,22 @@ const router = Router();
 // GET /api/practice/challenges - List all challenges with category filter & submission status
 router.get('/challenges', (req, res) => {
   try {
-    const { category } = req.query;
-    let query = 'SELECT id, slug, title, category, badge, difficulty, target_stack, time_limit_minutes, short_description, updated_at FROM coding_challenges';
+    const { category, track } = req.query;
+    let query = 'SELECT id, slug, title, category, track, badge, difficulty, target_stack, time_limit_minutes, short_description, updated_at FROM coding_challenges';
     const params: any[] = [];
+    const whereClauses: string[] = [];
 
     if (category && category !== 'all') {
-      query += ' WHERE category = ?';
+      whereClauses.push('category = ?');
       params.push(category);
+    }
+    if (track && track !== 'all') {
+      whereClauses.push('track = ?');
+      params.push(track);
+    }
+
+    if (whereClauses.length > 0) {
+      query += ' WHERE ' + whereClauses.join(' AND ');
     }
     query += ' ORDER BY created_at ASC';
 
@@ -29,6 +38,7 @@ router.get('/challenges', (req, res) => {
       const sub = subMap.get(r.id);
       return {
         ...r,
+        track: r.track || 'lld_bigtech',
         timeLimitMinutes: r.time_limit_minutes,
         targetStack: r.target_stack,
         shortDescription: r.short_description,
@@ -44,6 +54,7 @@ router.get('/challenges', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // GET /api/practice/challenges/:id - Get full challenge manifest
 router.get('/challenges/:id', (req, res) => {

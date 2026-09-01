@@ -377,9 +377,11 @@ export const useAppStore = create<AppState>()(
       practiceElapsedSeconds: 0,
 
       openPracticeChallenge: (challenge, draftFiles) => {
-        const filesToUse = draftFiles && draftFiles.length > 0
+        const filesToUse = (draftFiles && draftFiles.length > 0)
           ? draftFiles
-          : (challenge.workspaceFiles || []);
+          : (challenge.workspaceFiles && challenge.workspaceFiles.length > 0)
+            ? challenge.workspaceFiles
+            : (challenge.phases?.[0]?.addedFiles || []);
         
         const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
         set({
@@ -392,6 +394,7 @@ export const useAppStore = create<AppState>()(
           practiceElapsedSeconds: 0
         });
       },
+
 
       closePracticeChallenge: () => set({
         activePracticeChallenge: null,

@@ -165,9 +165,11 @@ export const WorkspaceEditor: React.FC = () => {
 
     try {
       await fetch(`/api/practice/reset/${activePracticeChallenge.id}`, { method: 'POST' });
-      activePracticeChallenge.workspaceFiles.forEach((file, idx) => {
+      const initialFiles = activePracticeChallenge.workspaceFiles || activePracticeChallenge.phases?.[0]?.addedFiles || [];
+      initialFiles.forEach((file, idx) => {
         updateWorkspaceFileContent(idx, file.content);
       });
+
       showToast({
         type: 'info',
         title: 'Воркспейс сброшен',
@@ -182,9 +184,9 @@ export const WorkspaceEditor: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 relative">
-      {/* File Tabs Header */}
+      {/* File Tabs Header with smooth mobile touch pan */}
       <div className="flex items-center justify-between bg-slate-900 border-b border-slate-800 px-3 py-1.5 gap-2 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x py-0.5">
           {practiceWorkspaceFiles.map((file, idx) => {
             const isActive = activeWorkspaceFileIndex === idx;
             const fileName = file.path.split('/').pop() || file.path;
@@ -193,16 +195,16 @@ export const WorkspaceEditor: React.FC = () => {
               <button
                 key={file.path}
                 onClick={() => setActiveWorkspaceFileIndex(idx)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
                   isActive
-                    ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40 font-bold'
+                    ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40 font-bold shadow-2xs'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`}
               >
                 <FileCode className={`w-3.5 h-3.5 ${isActive ? 'text-pastel-accentRose' : 'text-slate-500'}`} />
                 <span>{fileName}</span>
                 {file.readOnly && (
-                  <span title="Read-only contract">
+                  <span title="Read-only test contract" className="ml-0.5">
                     <Lock className="w-3 h-3 text-slate-500" />
                   </span>
                 )}
@@ -210,6 +212,7 @@ export const WorkspaceEditor: React.FC = () => {
             );
           })}
         </div>
+
 
         {/* Timer & Status in Header */}
         <div className="flex items-center gap-3 shrink-0 text-xs">

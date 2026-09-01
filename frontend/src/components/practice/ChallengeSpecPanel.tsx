@@ -128,24 +128,26 @@ export const ChallengeSpecPanel: React.FC = () => {
         {activeTab === 'spec' && (
           <div className="space-y-4">
             <div className="prose prose-xs max-w-none text-pastel-text prose-headings:text-pastel-text prose-strong:text-pastel-text prose-code:text-pastel-accentViolet prose-code:bg-pastel-bg prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
-              <ReactMarkdown>{challenge.instructionsMarkdown}</ReactMarkdown>
+              <ReactMarkdown>{challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''}</ReactMarkdown>
             </div>
 
             {/* Invariants and Scoring Rules */}
             <div className="p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border space-y-2">
               <h4 className="font-bold text-xs text-pastel-text flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Критерии оценки решения (Веса):</span>
+                <span>Критерии оценки решения (Веса SOTA 2026):</span>
               </h4>
               <ul className="space-y-1 text-[11px] text-pastel-muted">
-                <li>• Функциональная корректность: <strong>{Math.round(challenge.scoringWeights.functionalCorrectness * 100)}%</strong></li>
-                <li>• Потокобезопасность & JMM / Loom: <strong>{Math.round(challenge.scoringWeights.concurrencySafety * 100)}%</strong></li>
-                <li>• Архитектура, SOLID & Clean Code: <strong>{Math.round(challenge.scoringWeights.architectureAndCleanCode * 100)}%</strong></li>
-                <li>• Идиомы Java 21 (Records / Pattern Matching): <strong>{Math.round(challenge.scoringWeights.modernIdioms * 100)}%</strong></li>
+                <li>• Функциональная корректность & Бизнес-логика: <strong>{Math.round((challenge.scoringWeights?.functionalCorrectness ?? 0.4) * 100)}%</strong></li>
+                <li>• Потокобезопасность & Ресурсы: <strong>{Math.round((challenge.scoringWeights?.concurrencySafety ?? 0.2) * 100)}%</strong></li>
+                <li>• Архитектура, SOLID & Clean Code (OCP): <strong>{Math.round((challenge.scoringWeights?.architectureAndCleanCode ?? 0.2) * 100)}%</strong></li>
+                <li>• Детерминированность & Тестируемость (Clock): <strong>{Math.round((challenge.scoringWeights?.modernIdioms ?? 0.1) * 100)}%</strong></li>
+                <li>• Идиомы Java 21 (Records / Sealed): <strong>10%</strong></li>
               </ul>
             </div>
           </div>
         )}
+
 
         {activeTab === 'phase2' && isPhase2Available && phasedReq && (
           <div className="space-y-4">

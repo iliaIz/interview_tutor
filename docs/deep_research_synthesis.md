@@ -239,3 +239,59 @@ To generate unlimited fresh task variants on demand, the generator adheres to th
   }
 }
 ```
+
+---
+
+## 7. Каталог 35 SOTA Machine Coding & LLD Задач (Яндекс, Т-Банк, Озон, Авито 2025–2026)
+
+### Кластер 1: BigTech Core LLD (15 Задач)
+1. **Notification Filtering & 24h Deduplication Engine** (Яндекс) — Черный список, разрешенные каналы, 24h скользящая дедупликация через `Clock`, защита от OOM.
+2. **In-Memory Rate Limiter** (Т-Банк / Озон) — Token Bucket и Sliding Window Counter без глобальных блокировок.
+3. **In-Memory Cache с TTL и LRU/LFU** (Авито) — $O(1)$ чтение и запись, двусвязный список, вытеснение по TTL и емкости.
+4. **Dynamic Discount & Promo Code Engine** (Озон E-Commerce) — Цепочка скидок (Composite Strategy), расчет в `BigDecimal HALF_EVEN`.
+5. **Task Scheduler с Cron и Приоритетами** — Очередь `DelayQueue` / `PriorityQueue`, отложенный запуск, виртуальные потоки.
+6. **Parking Lot / Storage Locker Manager** (Сбер) — Аллокация мест, тарифные сетки, расчет стоимости через `Clock`.
+7. **Order State Machine** (ВК) — Конечный автомат заказа (`CREATED -> PAID -> DELIVERED / CANCELLED`) с компенсациями.
+8. **URL Shortener с Base62 и TTL** — Генератор Base62, кастомные алиасы, аналитика переходов, TTL очистка.
+9. **Tagged Metric Aggregator (p50, p95, p99)** — Кольцевой буфер корзин, `LongAdder`, расчет перцентилей без блокировок.
+10. **Circuit Breaker Engine** — Состояния `CLOSED`, `OPEN`, `HALF_OPEN`, failure rate threshold, кулдаун через `Clock`.
+11. **In-Memory Thread-Safe Event Bus** — Топики с wildcard, асинхронная доставка через Virtual Threads, Dead Letter Queue.
+12. **Inventory Reservation Engine** — Бронирование остатков склада с 15-минутным TTL и автоматическим сбросом брони.
+13. **Concurrent Leaderboard Engine** — `ConcurrentSkipListSet`, $O(\log N)$ ранжирование игроков в реальном времени.
+14. **Elevator Control System** — Диспетчер группы лифтов, алгоритм LOOK/SCAN, оптимизация очередей.
+15. **Expense Sharing & Debt Simplification (Splitwise)** — Балансы участников, жадное сведение графа взаимных долгов.
+
+### Кластер 2: FinTech & Ledger LLD (10 Задач)
+16. **Double-Entry Accounting Ledger** (Т-Банк / Stripe) — Атомарный перевод между счетами, упорядоченный захват локов по `AccountId` (Deadlock-Free), `BigDecimal`.
+17. **Idempotency Key Processor** (Stripe) — Хэширование тела SHA-256, in-flight блокировки, кэширование ответа с TTL.
+18. **Transactional Outbox Simulator** — Атомарная запись в БД и outbox, фоновый поллер с `SKIP LOCKED`.
+19. **Multi-Currency Wallet (Hold/Capture/Release)** — Двухфазный коммит баланса, динамические курсы валют.
+20. **Fraud Detection Sliding Window Rules** — Композитные правила антифрода (Velocity, суммы, географические аномалии).
+21. **Payment Routing & Fallback Engine** — Весовая маршрутизация между шлюзами, Fast-Failover.
+22. **Subscription Billing Engine** — Календарный биллинг через `Clock`, Grace-период, Dunning Policy ретраев.
+23. **Bank Account Limit & Velocity Tracker** — Суточные/месячные лимиты с авто-сбросом в полночь через `Clock`.
+24. **Highload Counter (Striped Cells / LongAdder)** — Устранение False Sharing с Cache Line Padding при 100 000 RPS.
+25. **Split Payment & Escrow Resolver** — Расщепление чека маркетплейса с защитой от ошибки потерянной копейки.
+
+### Кластер 3: Concurrent & System LLD (10 Задач)
+26. **Multi-threaded Elevator Dispatcher** (Loom) — Параллельная обработка вызовов на Virtual Threads, `ReentrantLock` и `Condition`.
+27. **Custom ThreadPoolExecutor** — Управление пулом воркеров, блокирующая очередь, 4 политики Rejected Execution.
+28. **Connection Pool Manager (HikariCP mini)** — `borrowConnection` с таймаутом, Leak Detection детектор, eviction.
+29. **Asynchronous Batch Event Flusher** — Сброс по размеру $N$ ИЛИ по таймауту $T$ мс, graceful shutdown без потерь.
+30. **Multi-tier Cache Stampede Protection** — Защита от шквала запросов в БД через SingleFlight (Mutex per Key).
+31. **Read-Write Lock с приоритетом писателей** — Исключение голодания писателей (No Writer Starvation).
+32. **In-Memory Fenced Lock & Heartbeat** — Монотонный fencing token, фоновое продление аренды.
+33. **Blocking Priority Queue** — Ограниченный буфер на `ReentrantLock` с `notFull`/`notEmpty` Conditions.
+34. **Producer-Consumer Ring Buffer (LMAX Disruptor)** — Кольцевой буфер $2^N$, `VarHandle` Acquire/Release, Lock-Free.
+35. **Rate Limiting Gateway с приоритетом VIP** — Weighted Fair Queuing для защиты от голодания стандартного трафика.
+
+---
+
+## 8. SOTA Методология автоматизированной оценки (Virtual Clock & 5-факторный скоринг)
+
+1. **Детерминированное виртуализированное время:**
+   - Полный запрет `System.currentTimeMillis()` и `Instant.now()` внутри бизнес-кода.
+   - Тесты мгновенно перемещают виртуальное время на $+24\text{ч}$, $+15\text{мин}$, $+1\text{сек}$ за 0 миллисекунд через `Clock.fixed` и `VirtualTimeClock`.
+2. **Формула 5-факторного скоринга (0–100 баллов):**
+   $$\text{FinalScore} = 0.40 \cdot S_{\text{correctness}} + 0.20 \cdot S_{\text{concurrency}} + 0.20 \cdot S_{\text{architecture}} + 0.10 \cdot S_{\text{time\_testability}} + 0.10 \cdot S_{\text{java21\_idioms}}$$
+

@@ -1,4 +1,4 @@
-export type ChallengeCategory = 'all' | 'machine_coding' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
 
 export interface FileNode {
   path: string;
@@ -60,21 +60,28 @@ export interface CodingChallenge {
   id: string;
   slug: string;
   title: string;
-  category: 'machine_coding' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+  category: string;
+  track?: string;
   badge: string;
-  difficulty: 'Junior' | 'Middle' | 'Senior' | 'Lead';
+  difficulty: 'Junior' | 'Middle' | 'Senior' | 'Lead' | 'middle' | 'senior' | 'lead';
   targetStack: string;
+  techStack?: string;
+  architecturePattern?: string;
   timeLimitMinutes: number;
   shortDescription: string;
   instructionsMarkdown: string;
-  workspaceFiles: FileNode[];
+  scenarioMarkdown?: string;
+  workspaceFiles?: FileNode[];
+  phases?: PhasedRequirement[];
   phasedRequirements?: PhasedRequirement[];
   goldenMasterConfig?: GoldenMasterConfig;
   enforceSeamValidation?: boolean;
   allowedPublicSignatureChanges?: number;
   concurrencyConfig?: ConcurrencyHarnessConfig;
   idiomRequirements?: JavaIdiomRequirements;
-  scoringWeights: {
+  astRules?: string[];
+  hints?: string[];
+  scoringWeights?: {
     functionalCorrectness: number;
     concurrencySafety: number;
     architectureAndCleanCode: number;
@@ -84,6 +91,7 @@ export interface CodingChallenge {
   lastScore?: number;
   lastStatus?: string;
 }
+
 
 export interface TestCaseResult {
   testName: string;

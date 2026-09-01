@@ -19,11 +19,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any> }[] = [
+const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
-  { id: 'machine_coding', name: 'Machine Coding (LLD)', icon: Layers },
+  { id: 'lld_bigtech', name: 'BigTech LLD (15)', icon: Layers, badge: 'Яндекс/Озон' },
+  { id: 'lld_fintech', name: 'FinTech & Ledger (10)', icon: Crown, badge: 'Т-Банк/Stripe' },
+  { id: 'lld_concurrency', name: 'Concurrency Lab (10)', icon: Zap, badge: 'Loom/Threads' },
   { id: 'refactoring_kata', name: 'Refactoring Katas', icon: Shield },
-  { id: 'concurrency_lab', name: 'Concurrency Lab', icon: Zap },
   { id: 'java21_idioms', name: 'Java 21 Idioms', icon: Sparkles }
 ];
 
@@ -55,14 +56,19 @@ export const PracticeCatalog: React.FC = () => {
 
   const filteredChallenges = useMemo(() => {
     return challenges.filter((c) => {
-      const matchesCategory = selectedCategory === 'all' || c.category === selectedCategory;
+      const matchesCategory =
+        selectedCategory === 'all' ||
+        c.category === selectedCategory ||
+        c.track === selectedCategory ||
+        (selectedCategory === 'machine_coding' && (c.category === 'machine_coding' || c.track?.startsWith('lld')));
       const matchesSearch =
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.targetStack.toLowerCase().includes(searchQuery.toLowerCase());
+        (c.shortDescription && c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.targetStack && c.targetStack.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCategory && matchesSearch;
     });
   }, [challenges, selectedCategory, searchQuery]);
+
 
   const handleStartChallenge = async (challengeId: string) => {
     setOpeningId(challengeId);

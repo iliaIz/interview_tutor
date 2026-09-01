@@ -226,6 +226,27 @@ export function analyzeJavaSource(filePath: string, sanitizedCode: string): AstA
     });
   }
 
+  // Deterministic Time injection check: Direct Instant.now / System.currentTimeMillis
+  const isTestFile = /Test\.java$/i.test(filePath) || /@Test\b/.test(sanitizedCode);
+  if (!isTestFile && /\b(System\.currentTimeMillis|Instant\.now|LocalDate\.now|LocalDateTime\.now|ZonedDateTime\.now)\s*\(\s*\)/.test(sanitizedCode)) {
+    signals.push({
+      category: 'ARCHITECTURE',
+      type: 'SYSTEM_TIME_IN_BUSINESS_LOGIC',
+      location: filePath,
+      description: 'Direct Instant.now() or System.currentTimeMillis() call in business service violates test determinism. java.time.Clock must be injected.'
+    });
+  }
+
+  // Floating point for financial calculations
+  if (/\b(double|float)\s+(amount|balance|price|fee|money|cost)\b/i.test(sanitizedCode)) {
+    signals.push({
+      category: 'ARCHITECTURE',
+      type: 'FLOAT_DOUBLE_MONEY',
+      location: filePath,
+      description: 'Primitive double or float used for monetary values. BigDecimal with RoundingMode.HALF_EVEN is required.'
+    });
+  }
+
   // Modern Java 21 Idioms: Records, Pattern Matching, Sealed Classes
   if (/\brecord\s+\w+\s*\(/.test(sanitizedCode)) {
     signals.push({
@@ -256,6 +277,7 @@ export function analyzeJavaSource(filePath: string, sanitizedCode: string): AstA
     hasSeamMethod,
     hasDirectRepoAccessInController
   };
+
 }
 
 /**

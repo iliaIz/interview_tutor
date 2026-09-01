@@ -194,6 +194,59 @@ export class AstAuditService {
       passedRules.push('Pure non-interfering Stream operations');
     }
 
+    // Rule 7: Direct System Time in Business Logic
+    let hasSystemTime = false;
+    let timeLine: number | undefined;
+    const isTestFile = /@Test\b/i.test(code) || /class\s+\w+Test\b/.test(code);
+    if (!isTestFile) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/\b(System\.currentTimeMillis|Instant\.now|LocalDate\.now|LocalDateTime\.now|ZonedDateTime\.now)\s*\(\s*\)/.test(line)) {
+          hasSystemTime = true;
+          timeLine = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (hasSystemTime) {
+      violations.push({
+        id: 'enforce-clock-injection',
+        name: 'Прямой вызов системного времени',
+        severity: 'high',
+        line: timeLine,
+        message: 'Вызов `Instant.now()` или `System.currentTimeMillis()` в бизнес-сервисе нарушает детерминированность модульных тестов.',
+        remediation: 'Внедряйте `java.time.Clock` в конструктор класса и вызывайте `clock.instant()`.'
+      });
+    } else if (!isTestFile) {
+      passedRules.push('Deterministic time injection compliance');
+    }
+
+    // Rule 8: Primitive double/float for Money
+    let hasDoubleMoney = false;
+    let moneyLine: number | undefined;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/\b(double|float)\s+(amount|balance|price|fee|money|cost)\b/i.test(line)) {
+        hasDoubleMoney = true;
+        moneyLine = i + 1;
+        break;
+      }
+    }
+
+    if (hasDoubleMoney) {
+      violations.push({
+        id: 'no-double-in-money',
+        name: 'Плавающая точка в финансовых расчетах',
+        severity: 'critical',
+        line: moneyLine,
+        message: 'Использование типов `double` или `float` для денежных сумм приводит к накоплению ошибок округления центов/копеек.',
+        remediation: 'Используйте `BigDecimal` со `Scale = 2..4` и явным `RoundingMode.HALF_EVEN` (Banker\'s rounding).'
+      });
+    } else {
+      passedRules.push('Financial precision compliance with BigDecimal');
+    }
+
     // Calculate score deductions
     let totalDeduction = 0;
     for (const v of violations) {
@@ -217,3 +270,4 @@ export class AstAuditService {
     };
   }
 }
+

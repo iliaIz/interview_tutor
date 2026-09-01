@@ -61,8 +61,25 @@ export const AST_RULES_DEFINITIONS: Omit<AstRuleItem, 'isViolation'>[] = [
     text: 'Side-effects in peek: мутация состояния внутри peek() нарушает чистоту стрима',
     remediation: 'Используйте map() для чистых трансформаций или forEach() для терминальных эффектов.',
     regex: /\.peek\s*\(\s*[^)]*(=|\.set|\.add|\.put)/
+  },
+  {
+    id: 'enforce-clock-injection',
+    name: 'Direct System Time Call',
+    severity: 'high',
+    text: 'Direct System Time: вызов Instant.now() или System.currentTimeMillis() нарушает детерминированность тестов',
+    remediation: 'Внедряйте java.time.Clock через конструктор и вызывайте clock.instant().',
+    regex: /\b(System\.currentTimeMillis|Instant\.now|LocalDate\.now|LocalDateTime\.now|ZonedDateTime\.now)\s*\(\s*\)/
+  },
+  {
+    id: 'no-double-in-money',
+    name: 'Primitive double/float for Currency',
+    severity: 'critical',
+    text: 'Floating Point Money: использование double/float для баланса/валют приводит к потере точности',
+    remediation: 'Используйте BigDecimal с RoundingMode.HALF_EVEN (Banker\'s rounding).',
+    regex: /\b(double|float)\s+(amount|balance|price|fee|money|cost)\b/i
   }
 ];
+
 
 /**
  * Deterministically evaluates code against unified AST rules.
@@ -84,6 +101,11 @@ export function evaluateAstRules(code: string): { text: string; isViolation: boo
       if (rule.id === 'blocking-call-in-controller' && !/Controller/i.test(code)) {
         continue;
       }
+      // Special check for Clock injection: ignore test classes
+      if (rule.id === 'enforce-clock-injection' && (/@Test\b/i.test(code) || /class\s+\w+Test\b/.test(code))) {
+        continue;
+      }
+
 
       results.push({
         id: rule.id,
