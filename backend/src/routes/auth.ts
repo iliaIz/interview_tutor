@@ -147,11 +147,12 @@ authRouter.post('/invites', requireAuth, requireRole('owner'), (req: Authenticat
 
     const created = authService.createInvite({
       name: name.trim(),
-      role: role === 'owner' || role === 'mentor' ? role : 'candidate',
+      role: role === 'owner' ? 'owner' : 'user',
       code: typeof code === 'string' && code.trim() ? code.trim() : undefined,
       maxUses: typeof maxUses === 'number' ? maxUses : 0,
       label: typeof label === 'string' && label.trim() ? label.trim() : undefined
     });
+
 
     res.json({
       success: true,

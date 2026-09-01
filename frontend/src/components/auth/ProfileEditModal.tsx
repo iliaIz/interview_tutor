@@ -37,9 +37,9 @@ export const ProfileEditModal: React.FC = () => {
 
   const getRoleBadge = (role: string) => {
     if (role === 'owner') return { title: '👑 Владелец (Owner)', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-    if (role === 'mentor') return { title: '💡 Ментор / Интервьюер', color: 'bg-purple-50 text-pastel-accentViolet border-purple-200' };
-    return { title: '🛡️ Кандидат (Candidate)', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return { title: '🛡️ Пользователь (User)', color: 'bg-blue-50 text-blue-700 border-blue-200' };
   };
+
 
   const roleInfo = getRoleBadge(currentUser.role);
 

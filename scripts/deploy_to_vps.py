@@ -149,10 +149,11 @@ def deploy():
 
         # 11. Create new invite from UI API
         new_inv_res = session.post("https://djelu.site/api/auth/invites", json={
-            "name": "Auto-Test Candidate",
-            "role": "candidate",
+            "name": "Auto-Test User",
+            "role": "user",
             "maxUses": 1
         }, timeout=10)
+
         new_inv_data = new_inv_res.json()
         print(f"11. Create Invite API (POST /invites): {new_inv_res.status_code} (Code: {new_inv_data.get('invite', {}).get('plainCode')})")
 

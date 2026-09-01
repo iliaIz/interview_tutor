@@ -6,7 +6,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 export interface InviteItem {
   id: string;
   label: string;
-  role: 'owner' | 'mentor' | 'candidate';
+  role: 'owner' | 'user';
   isActive: boolean;
   maxUses: number;
   useCount: number;
@@ -27,7 +27,8 @@ export const AdminInvitesModal: React.FC = () => {
 
   // Form State
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'candidate' | 'mentor' | 'owner'>('candidate');
+  const [role, setRole] = useState<'user' | 'owner'>('user');
+
   const [maxUses, setMaxUses] = useState<number>(0);
   const [customCode, setCustomCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -230,11 +231,11 @@ export const AdminInvitesModal: React.FC = () => {
                   onChange={(e: any) => setRole(e.target.value)}
                   className="w-full bg-white border border-pastel-border focus:border-pastel-accentRose/80 rounded-xl px-3 py-2 text-xs text-pastel-text focus:outline-none transition shadow-2xs"
                 >
-                  <option value="candidate">🛡️ Кандидат (Полный доступ к студии)</option>
-                  <option value="mentor">💡 Ментор (Интервьюер / Коуч)</option>
-                  <option value="owner">👑 Владелец (Администратор)</option>
+                  <option value="user">🛡️ Пользователь (Полный доступ ко всей Студии)</option>
+                  <option value="owner">👑 Владелец (Администратор с управлением инвайтами)</option>
                 </select>
               </div>
+
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-pastel-muted">Лимит использований:</label>
@@ -311,12 +312,11 @@ export const AdminInvitesModal: React.FC = () => {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
                           inv.role === 'owner' 
                             ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                            : inv.role === 'mentor'
-                            ? 'bg-purple-50 text-pastel-accentViolet border-purple-200'
                             : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}>
-                          {inv.role === 'owner' ? '👑 Владелец' : inv.role === 'mentor' ? '💡 Ментор' : '🛡️ Кандидат'}
+                          {inv.role === 'owner' ? '👑 Владелец' : '🛡️ Пользователь'}
                         </span>
+
                         {!inv.isActive && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200">
                             Отозван

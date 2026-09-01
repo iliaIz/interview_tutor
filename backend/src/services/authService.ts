@@ -4,10 +4,11 @@ import { db } from './db';
 export interface User {
   id: string;
   name: string;
-  role: 'owner' | 'candidate' | 'mentor';
+  role: 'owner' | 'user';
   created_at: string;
   last_login_at?: string;
 }
+
 
 export class AuthService {
   /**
@@ -57,9 +58,10 @@ export class AuthService {
     const user: User = {
       id: tokenRecord.user_id,
       name: tokenRecord.user_name || tokenRecord.label,
-      role: tokenRecord.user_role || tokenRecord.role || 'candidate',
+      role: tokenRecord.user_role === 'owner' || tokenRecord.role === 'owner' ? 'owner' : 'user',
       created_at: tokenRecord.user_created_at
     };
+
 
     return { user, tokenRecord };
   }
@@ -97,7 +99,7 @@ export class AuthService {
     const user: User = {
       id: row.user_id,
       name: row.user_name,
-      role: row.user_role,
+      role: row.user_role === 'owner' ? 'owner' : 'user',
       created_at: row.user_created_at
     };
 
@@ -149,11 +151,12 @@ export class AuthService {
       user: {
         id: row.user_id,
         name: row.user_name,
-        role: row.user_role,
+        role: row.user_role === 'owner' ? 'owner' : 'user',
         created_at: row.user_created_at
       }
     };
   }
+
 
   /**
    * Lists all invites with stats (for Owner).
@@ -187,16 +190,16 @@ export class AuthService {
    */
   public createInvite(params: {
     name: string;
-    role?: 'candidate' | 'mentor' | 'owner';
+    role?: 'owner' | 'user';
     code?: string;
     maxUses?: number;
     label?: string;
   }): { inviteId: string; plainCode: string; user: User } {
-    const cleanName = (params.name || 'Кандидат').trim();
-    const role = params.role || 'candidate';
+    const cleanName = (params.name || 'Пользователь').trim();
+    const role: 'owner' | 'user' = params.role === 'owner' ? 'owner' : 'user';
     const maxUses = typeof params.maxUses === 'number' ? params.maxUses : 0;
     
-    // Generate human-friendly code if omitted, e.g. JAVA-CANDIDATE-A8B9
+    // Generate human-friendly code if omitted, e.g. JAVA-USER-A8B9
     const plainCode = params.code && params.code.trim() 
       ? params.code.trim().toUpperCase() 
       : `JAVA-${role.toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
@@ -224,6 +227,7 @@ export class AuthService {
       role,
       created_at: new Date().toISOString()
     };
+
 
     return { inviteId, plainCode, user };
   }
