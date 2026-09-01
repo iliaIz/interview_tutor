@@ -1,7 +1,7 @@
 /**
  * dynamicTaskGenerator.ts - AI-driven Dynamic Java 8-21 Coding Task & Kata Generator
- * Synthesizes fresh, realistic production challenges, buggy code, Golden Masters,
- * and JUnit 5 / Awaitility test suites based on the 70 SOTA archetypes.
+ * Synthesizes fresh, realistic production challenges via LiteLLM Proxy.
+ * Features SOTA Full-Jitter Exponential Backoff retries and structured Gateway Error propagation.
  */
 
 import { envConfig } from '../config/env';
@@ -38,9 +38,50 @@ export interface DynamicTaskResult {
   evaluationCriteria: string[];
 }
 
+export type GatewayUnavailableReason = 
+  | 'rate_limit_exceeded' 
+  | 'proxy_unreachable' 
+  | 'upstream_timeout' 
+  | 'schema_parse_error';
+
+export class LlmGatewayUnavailableError extends Error {
+  public readonly category = 'transient';
+  public readonly reason: GatewayUnavailableReason;
+  public readonly retryAfterSeconds: number;
+  public readonly userMessage: string;
+  public readonly healthEndpoint = '/api/health';
+  public readonly availableBankCount = 70;
+
+  constructor(reason: GatewayUnavailableReason, technicalDetail?: string) {
+    let userMsg = 'ИИ-модель перегружена или шлюз временно недоступен. Мы автоматически восстанавливаем связь.';
+    let retryAfter = 5;
+
+    if (reason === 'rate_limit_exceeded') {
+      userMsg = 'Достигнут кратковременный лимит запросов к ИИ-модели (Rate Limit). Автоматический повтор через несколько секунд.';
+      retryAfter = 6;
+    } else if (reason === 'proxy_unreachable') {
+      userMsg = 'Локальный шлюз LiteLLM временно недоступен (Docker контейнер перезапускается или обновляет сетевой маршрут).';
+      retryAfter = 4;
+    } else if (reason === 'upstream_timeout') {
+      userMsg = 'Время ожидания ответа ИИ-модели превысило допустимый лимит (сетевой таймаут).';
+      retryAfter = 5;
+    } else if (reason === 'schema_parse_error') {
+      userMsg = 'ИИ-модель вернула неполный ответ. Повторный запрос восстановит корректную генерацию.';
+      retryAfter = 3;
+    }
+
+    super(technicalDetail ? `${userMsg} (${technicalDetail})` : userMsg);
+    this.name = 'LlmGatewayUnavailableError';
+    this.reason = reason;
+    this.retryAfterSeconds = retryAfter;
+    this.userMessage = userMsg;
+  }
+}
+
 export class DynamicTaskGenerator {
   /**
-   * Generates a fresh dynamic task via LiteLLM Proxy or returns curated fallback.
+   * Generates a fresh dynamic task via LiteLLM Proxy with automatic Full-Jitter Backoff retries.
+   * If all retries fail, throws LlmGatewayUnavailableError (Zero Phantom Fallback).
    */
   public static async generateTask(params: DynamicTaskRequest): Promise<DynamicTaskResult> {
     const {
@@ -81,167 +122,90 @@ export class DynamicTaskGenerator {
   "evaluationCriteria": ["Исключение блокировок", "Zero-allocation", "Потокобезопасность"]
 }`;
 
-    try {
-      const endpointUrl = envConfig.proxy.chatUrl;
-      const proxyApiKey = envConfig.proxy.apiKey;
-      const modelName = envConfig.models.fast;
+    const endpointUrl = envConfig.proxy.chatUrl;
+    const proxyApiKey = envConfig.proxy.apiKey;
+    const modelName = envConfig.models.fast;
 
-      const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${proxyApiKey}`
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.4
-        })
-      });
+    const maxRetries = 2; // 3 total attempts
+    let lastError: any = null;
 
-      if (response.ok) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        // Full Jitter Exponential Backoff: random(0, min(2500, base * 1.8^attempt))
+        const backoffCapMs = 2500;
+        const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
+        const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
+        console.log(`⏱️ LLM Transient retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
+        await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s circuit timeout
+
+        const response = await fetch(endpointUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${proxyApiKey}`
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.4
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429) {
+          lastError = new LlmGatewayUnavailableError('rate_limit_exceeded', `HTTP 429 from ${endpointUrl}`);
+          continue; // retry
+        }
+
+        if (response.status >= 500) {
+          lastError = new LlmGatewayUnavailableError('upstream_timeout', `HTTP ${response.status} from ${endpointUrl}`);
+          continue; // retry
+        }
+
+        if (!response.ok) {
+          throw new Error(`Proxy returned HTTP ${response.status}: ${await response.text()}`);
+        }
+
         const data = await response.json();
         const rawContent = data.choices?.[0]?.message?.content?.trim() || '';
-        const cleanedJson = rawContent.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
-        const parsed = JSON.parse(cleanedJson);
+        const cleanedJson = rawContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
 
-        return {
-          id: taskId,
-          title: parsed.title || 'Dynamic Production Incident Kata',
-          domain,
-          difficulty,
-          archetype: archetype || 'CustomIncident',
-          scenario: parsed.scenario || 'Real-world production performance kata',
-          naiveCode: parsed.naiveCode || '// Naive implementation',
-          goldenMaster: parsed.goldenMaster || '// Golden Master solution',
-          testSuite: parsed.testSuite || '// Verification test',
-          astRules: parsed.astRules || ['no-antipatterns'],
-          evaluationCriteria: parsed.evaluationCriteria || ['Correctness', 'Performance']
-        };
-      }
-    } catch (err) {
-      console.warn('DynamicTaskGenerator proxy generation fallback:', err);
-    }
-
-    // Fallback template based on domain
-    return this.getFallbackTask(taskId, domain, difficulty, archetype);
-  }
-
-  private static getFallbackTask(
-    id: string,
-    domain: TaskDomain,
-    difficulty: TaskDifficulty,
-    archetype: TaskArchetype
-  ): DynamicTaskResult {
-    if (domain === 'concurrency') {
-      return {
-        id,
-        title: 'Устранение Carrier Thread Pinning в платежном шлюзе',
-        domain: 'concurrency',
-        difficulty: 'senior',
-        archetype: 'CarrierThreadPinning',
-        scenario: 'При переходе на Virtual Threads (Java 21) метод `sendNotification` использует `synchronized` вокруг вызова HTTP клиента, что вызывает привязку Carrier Thread и отказ сервиса при 50 000 RPS.',
-        naiveCode: `public class PaymentNotificationService {
-    private final HttpClient client = HttpClient.newHttpClient();
-
-    public synchronized void sendNotification(String url, String payload) throws Exception {
-        // ОШИБКА: synchronized блокирует Carrier Thread во время сетевого вызова
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).POST(BodyPublishers.ofString(payload)).build();
-        client.send(req, BodyHandlers.discarding());
-    }
-}`,
-        goldenMaster: `public class PaymentNotificationService {
-    private final HttpClient client = HttpClient.newHttpClient();
-    private final ReentrantLock lock = new ReentrantLock();
-
-    public void sendNotification(String url, String payload) throws Exception {
-        lock.lock();
         try {
-            HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).POST(BodyPublishers.ofString(payload)).build();
-            client.send(req, BodyHandlers.discarding());
-        } finally {
-            lock.unlock();
+          const parsed = JSON.parse(cleanedJson);
+          return {
+            id: taskId,
+            title: parsed.title || 'Dynamic Production Incident Kata',
+            domain,
+            difficulty,
+            archetype: archetype || 'CustomIncident',
+            scenario: parsed.scenario || 'Real-world production performance kata',
+            naiveCode: parsed.naiveCode || '// Naive implementation',
+            goldenMaster: parsed.goldenMaster || '// Golden Master solution',
+            testSuite: parsed.testSuite || '// Verification test',
+            astRules: parsed.astRules || ['no-antipatterns'],
+            evaluationCriteria: parsed.evaluationCriteria || ['Correctness', 'Performance']
+          };
+        } catch (jsonErr: any) {
+          lastError = new LlmGatewayUnavailableError('schema_parse_error', jsonErr.message);
+          continue; // retry
         }
-    }
-}`,
-        testSuite: `@Test
-void testVirtualThreadsNoPinning() throws Exception {
-    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-        for (int i = 0; i < 1000; i++) {
-            executor.submit(() -> service.sendNotification("http://mock", "ping"));
+      } catch (fetchErr: any) {
+        if (fetchErr.name === 'AbortError') {
+          lastError = new LlmGatewayUnavailableError('upstream_timeout', 'Request timed out after 12s');
+        } else {
+          lastError = new LlmGatewayUnavailableError('proxy_unreachable', fetchErr.message || 'Connection refused');
         }
-    }
-}`,
-        astRules: ['carrier-thread-pinning', 'lock-try-finally'],
-        evaluationCriteria: ['Замена synchronized на ReentrantLock', 'Блок try-finally для unlock', 'Отсутствие блокировок Carrier Threads']
-      };
+      }
     }
 
-    if (domain === 'testing') {
-      return {
-        id,
-        title: 'Развязка Legacy-зависимостей через Subclass & Override Seam',
-        domain: 'testing',
-        difficulty: 'middle',
-        archetype: 'LegacySeamRefactoring',
-        scenario: 'Метод `processOrder` вызывает статический `LegacyBankSocket.charge()`. Необходимо изолировать сетевой вызов для unit-тестирования без изменения сигнатуры публичного метода.',
-        naiveCode: `public class OrderService {
-    public boolean processOrder(Order order) {
-        // Статический сокет ломает unit-тесты
-        return LegacyBankSocket.charge(order.userId(), order.amount());
-    }
-}`,
-        goldenMaster: `public class OrderService {
-    public boolean processOrder(Order order) {
-        return executeCharge(order.userId(), order.amount());
-    }
-
-    protected boolean executeCharge(String userId, double amount) {
-        return LegacyBankSocket.charge(userId, amount);
-    }
-}`,
-        testSuite: `@Test
-void testOrderServiceWithSeam() {
-    OrderService service = new OrderService() {
-        @Override
-        protected boolean executeCharge(String userId, double amount) {
-            return true;
-        }
-    };
-    assertThat(service.processOrder(new Order("u1", 100))).isTrue();
-}`,
-        astRules: ['protected-seam-extraction', 'no-public-api-break'],
-        evaluationCriteria: ['Выделение protected метода', 'Создание test-double подкласса в тесте', 'Сохранение сигнатуры публичного API']
-      };
-    }
-
-    // Default: Streams domain
-    return {
-      id,
-      title: 'Безопасный Map-коллектор с null-значениями и слиянием коллизий',
-      domain: 'streams',
-      difficulty: 'senior',
-      archetype: 'StreamsBottleneck',
-      scenario: 'Коллектор `Collectors.toMap` падает с NullPointerException при наличии null-значений в DTO из-за Map.merge. Напишите безопасный кастомный коллектор.',
-      naiveCode: `public static Map<String, String> collectToMap(List<UserDTO> users) {
-    // NPE при users с name == null!
-    return users.stream().collect(Collectors.toMap(UserDTO::id, UserDTO::name));
-}`,
-      goldenMaster: `public static Map<String, String> collectToSafeMap(List<UserDTO> users) {
-    return users.stream().collect(
-        HashMap::new,
-        (map, user) -> map.put(user.id(), user.name()),
-        HashMap::putAll
-    );
-}`,
-      testSuite: `@Test
-void testSafeMapWithNulls() {
-    List<UserDTO> list = List.of(new UserDTO("1", "Alice"), new UserDTO("2", null));
-    Map<String, String> map = collectToSafeMap(list);
-    assertThat(map).containsEntry("1", "Alice").containsEntry("2", null);
-}`,
-      astRules: ['safe-tomap-collision', 'null-safety'],
-      evaluationCriteria: ['Поддержка null-значений', 'Корректная обработка коллизий ключей', 'Идемпотентный combiner']
-    };
+    // If all retries exhausted, throw structured error (No silent fake fallback)
+    throw lastError || new LlmGatewayUnavailableError('proxy_unreachable', 'All generation retries failed');
   }
 }

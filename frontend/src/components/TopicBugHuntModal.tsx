@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useLiveAudioSession } from '../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from './BugChallengeCard';
+import { TaskRecoveryCard } from './TaskRecoveryCard';
 import { CandidatePersonaHUD } from './CandidatePersonaHUD';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -165,6 +166,8 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
   const [isExhausted, setIsExhausted] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [recoveryPayload, setRecoveryPayload] = useState<any | null>(null);
+
   
   // Honest Monotonic Elapsed Timer & Cognitive Stepper
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -436,8 +439,24 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
       });
 
       if (!res.ok) {
+        try {
+          const errData = await res.json();
+          if (errData.error === 'LLM_GATEWAY_TEMPORARILY_UNAVAILABLE' || res.status === 503) {
+            setRecoveryPayload(errData);
+            setStatusMessage(errData.userMessage || 'Шлюз ИИ временно недоступен.');
+            return;
+          }
+        } catch {}
+
         const errorText = await res.text().catch(() => '');
-        throw new Error(`Ошибка сервера (${res.status}): ${errorText || 'Не удалось получить инцидент'}`);
+        setRecoveryPayload({
+          reason: 'proxy_unreachable',
+          userMessage: 'Сервис ИИ временно недоступен. Попробуйте повторить или откройте банк задач.',
+          retryAfterSeconds: 5,
+          technicalDetails: errorText || `HTTP ${res.status}`
+        });
+        setStatusMessage('Ошибка подключения к шлюзу.');
+        return;
       }
       const data: BugChallenge = await res.json();
 
@@ -466,13 +485,18 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
         return;
       }
       console.error('Error fetching challenge:', error);
-      const msg = error?.message || 'Шлюз нейросети испытывает повышенную нагрузку. Попробуйте еще раз.';
-      setGenerationError(msg);
-      setStatusMessage('Ошибка загрузки задачи. Попробуйте еще раз.');
+      setRecoveryPayload({
+        reason: 'proxy_unreachable',
+        userMessage: 'Не удалось связаться с локальным шлюзом LiteLLM. Проверьте статус контейнера.',
+        retryAfterSeconds: 5,
+        technicalDetails: error?.message || 'Connection refused'
+      });
+      setStatusMessage('Ошибка загрузки задачи.');
     } finally {
       setIsLoadingChallenge(false);
     }
   };
+
 
   // Generate another variation of the SAME subtopic
   const handleGenerateVariation = async () => {
@@ -1287,54 +1311,26 @@ export const TopicBugHuntModal: React.FC<TopicBugHuntModalProps> = ({
                   </div>
                 </div>
               ) : (
-                /* Explicit Recovery State Card - Zero Blank Screen Invariant */
-                <div className="py-12 px-6 max-w-lg mx-auto text-center space-y-5 bg-white/95 rounded-3xl border border-rose-200/80 shadow-md backdrop-blur-md">
-                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-rose-100 to-amber-100 text-rose-600 mx-auto flex items-center justify-center shadow-xs border border-rose-200">
-                    <AlertTriangle className="w-8 h-8" />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <h3 className="text-lg font-bold text-[#2D1B4E]">
-                      Не удалось загрузить инцидент
-                    </h3>
-                    <p className="text-xs text-[#7E699B] leading-relaxed font-sans">
-                      {generationError || 'Нейросеть испытывает повышенную нагрузку при генерации комплексного кейса для выбранного стека.'}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => fetchNewChallenge()}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-[#D94680] to-[#9333EA] text-white shadow-xs hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Повторить генерацию</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSourceMode('bank');
-                        fetchNewChallenge();
-                      }}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs bg-pink-50 hover:bg-pink-100/80 border border-pink-200 text-[#4A1E6D] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>Взять задачу из базы</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setStage('lobby')}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-200 text-[#4A1E6D] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <Settings className="w-4 h-4" />
-                      <span>В лобби</span>
-                    </button>
-                  </div>
+                /* SOTA 2026 Actionable Recovery State Card - Zero Blank Screen & Honest UX */
+                <div className="max-w-2xl mx-auto py-4">
+                  <TaskRecoveryCard
+                    reason={recoveryPayload?.reason}
+                    userMessage={recoveryPayload?.userMessage || generationError || 'Нейросеть испытывает повышенную нагрузку при генерации комплексного кейса для выбранного стека.'}
+                    retryAfterSeconds={recoveryPayload?.retryAfterSeconds || 5}
+                    availableBankCount={filteredBank.length > 0 ? filteredBank.length : 70}
+                    technicalDetails={recoveryPayload?.technicalDetails}
+                    onRetry={() => fetchNewChallenge()}
+                    onSwitchToBank={() => {
+                      setSourceMode('bank');
+                      setRecoveryPayload(null);
+                      setGenerationError(null);
+                      fetchNewChallenge();
+                    }}
+                    isRetrying={isLoadingChallenge}
+                  />
                 </div>
               )}
+
             </>
           )}
         </div>

@@ -537,12 +537,13 @@ export const QuestionExplorer: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ duration: 0.15, delay: Math.min(idx * 0.015, 0.2) }}
-                className={`rounded-2xl border transition-all duration-200 bg-white ${
+                className={`card-content-visibility rounded-2xl border transition-all duration-200 bg-white ${
                   isSelected
                     ? 'border-pastel-accentRose/70 ring-2 ring-pastel-accentRose/20 shadow-md'
                     : 'border-pastel-border hover:border-pastel-muted/40 shadow-xs'
                 }`}
               >
+
                 <div className="p-4 flex items-start gap-3">
                   {/* Row Checkbox (with Shift-click handler) */}
                   <button

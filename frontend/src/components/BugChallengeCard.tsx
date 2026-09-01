@@ -21,6 +21,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { CodeViewer } from './CodeViewer';
 import { useAppStore } from '../store/useAppStore';
+import { evaluateAstRules } from '../utils/astRules';
+
 
 export interface TechStackInfo {
   language: string;
@@ -138,30 +140,11 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   const { addCheatSheetBookmark, removeCheatSheetBookmark, isBookmarked } = useAppStore();
   const bookmarked = isBookmarked(challenge.id);
 
-  // Compute AST analysis on snippet
+  // Compute AST analysis on snippet using unified rules
   const astAnalysis = useMemo(() => {
-    const code = challenge.codeSnippet || '';
-    const items: { text: string; isViolation: boolean }[] = [];
-    if (/synchronized\s*(\(|\{)|public\s+synchronized\s+/.test(code)) {
-      items.push({ text: 'Carrier Pinning: synchronized блокирует Carrier Thread в Loom', isViolation: true });
-    }
-    if (/ThreadLocal\s*<.*?>|[tT]hreadLocal\.set\s*\(/.test(code) && !code.includes('.remove()')) {
-      items.push({ text: 'ThreadLocal Leak: потенциальная утечка памяти в пулах потоков', isViolation: true });
-    }
-    if (/Collectors\.toMap\s*\(\s*[^,]+,\s*[^,)]+\s*\)/.test(code)) {
-      items.push({ text: 'Unsafe toMap: вызов без mergeFunction бросает NPE/IllegalStateException', isViolation: true });
-    }
-    if (/@MockBean\b/.test(code)) {
-      items.push({ text: 'Deprecated @MockBean: используйте @MockitoBean в Spring Boot 3.4+', isViolation: true });
-    }
-    if (/\bThread\.sleep\s*\(/.test(code) && /Controller/.test(code)) {
-      items.push({ text: 'Web Blocking: Thread.sleep в контроллере исчерпывает пул запросов', isViolation: true });
-    }
-    if (items.length === 0) {
-      items.push({ text: 'Архитектурный шаблон проверен: чистая реализация', isViolation: false });
-    }
-    return items;
+    return evaluateAstRules(challenge.codeSnippet || '');
   }, [challenge.codeSnippet]);
+
 
   // Compute unified diff string for solution inspection
   const unifiedDiffCode = useMemo(() => {

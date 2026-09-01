@@ -235,9 +235,22 @@ router.post('/generate-task', async (req, res) => {
     res.json(task);
   } catch (err: any) {
     console.error('Error generating dynamic task:', err);
+    if (err.name === 'LlmGatewayUnavailableError') {
+      return res.status(503).json({
+        error: 'LLM_GATEWAY_TEMPORARILY_UNAVAILABLE',
+        category: err.category || 'transient',
+        reason: err.reason || 'proxy_unreachable',
+        userMessage: err.userMessage || 'ИИ-модель перегружена или шлюз временно недоступен.',
+        retryAfterSeconds: err.retryAfterSeconds || 5,
+        healthEndpoint: err.healthEndpoint || '/api/health',
+        availableBankCount: err.availableBankCount || 70,
+        technicalDetails: err.message
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });
+
 
 export default router;
 

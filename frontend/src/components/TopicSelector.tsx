@@ -367,12 +367,13 @@ export const TopicSelector: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.3) }}
-                className={`rounded-3xl p-5 border transition-all duration-300 flex flex-col justify-between relative overflow-hidden group ${
+                className={`card-content-visibility-lg rounded-3xl p-5 border transition-all duration-300 flex flex-col justify-between relative overflow-hidden group ${
                   isFullyMastered
                     ? 'bg-gradient-to-br from-white via-amber-50/20 to-pastel-rose/25 ring-2 ring-amber-300/60 shadow-md shadow-amber-200/20 border-amber-200/80'
                     : 'bg-white/95 backdrop-blur-sm border-pastel-border shadow-xs hover:shadow-md'
                 }`}
               >
+
                 <div>
                   {/* Top Row: Category tag + Recency badge + Progress badge */}
                   <div className="flex items-start justify-between mb-3 gap-1.5">

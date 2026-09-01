@@ -96,3 +96,14 @@
   touch-action: manipulation !important;
 }
 
+/* SOTA 2026 CSS Virtualization for 120 FPS Scrolling (816 Questions Catalog) */
+.card-content-visibility {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 90px;
+}
+
+.card-content-visibility-lg {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 160px;
+}
+
