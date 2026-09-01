@@ -67,7 +67,7 @@ export const StudioHeader: React.FC = () => {
 
   return (
     <header className="border-b border-pastel-border/70 bg-white/85 backdrop-blur-xl sticky top-0 z-40 shadow-xs font-sans">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3">
+      <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-sm shadow-pastel-accentRose/20">
@@ -82,8 +82,7 @@ export const StudioHeader: React.FC = () => {
           </div>
         </div>
 
-        {/* Studio Mode Segmented Switcher (Flexible Full Width, Zero Truncation) */}
-        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative">
+        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative flex justify-center">
           <nav className="flex items-center bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs overflow-x-auto no-scrollbar scroll-smooth">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -99,15 +98,14 @@ export const StudioHeader: React.FC = () => {
                       setStudioTab(tab.id);
                     }
                   }}
-                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation ${
                     isActive
                       ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
                       : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pastel-accentRose' : 'text-pastel-muted'}`} />
-                  <span className="hidden 2xl:inline">{tab.label}</span>
-                  <span className="2xl:hidden">{tab.shortLabel}</span>
+                  <span>{tab.shortLabel}</span>
 
                   {tab.badge && (
                     <span className={`text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
