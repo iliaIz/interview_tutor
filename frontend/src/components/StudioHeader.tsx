@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore, StudioTab } from '../store/useAppStore';
-import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut } from 'lucide-react';
+import { Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, Code2, Compass, Terminal, Layers, User, LogOut, Edit2 } from 'lucide-react';
+import { ProfileEditModal } from './auth/ProfileEditModal';
 
 export const StudioHeader: React.FC = () => {
   const { currentStudioTab, setStudioTab, systemHealth, openTopicBugHunt, currentUser, logout } = useAppStore();
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
 
 
   const renderHealthBadge = () => {
@@ -122,13 +125,15 @@ export const StudioHeader: React.FC = () => {
 
           {currentUser && (
             <div className="flex items-center gap-1.5 pl-2 border-l border-pastel-border/80">
-              <div 
-                title={`Авторизован: ${currentUser.name} (${currentUser.role})`}
-                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-slate-900 text-slate-100 border border-slate-800 shadow-2xs"
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                title={`Настройки профиля: ${currentUser.name} (${currentUser.role})`}
+                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-100 border border-slate-800 hover:border-slate-700 shadow-2xs transition cursor-pointer group"
               >
                 <User className="w-3.5 h-3.5 text-pastel-accentRose" />
-                <span className="max-w-[110px] truncate hidden sm:inline">{currentUser.name}</span>
-              </div>
+                <span className="max-w-[120px] truncate hidden sm:inline">{currentUser.name}</span>
+                <Edit2 className="w-3 h-3 text-slate-500 group-hover:text-pastel-accentRose transition hidden sm:inline" />
+              </button>
 
               <button
                 onClick={() => logout()}
@@ -141,7 +146,14 @@ export const StudioHeader: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* User Profile Edit Modal */}
+      <ProfileEditModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 };
+
 

@@ -257,8 +257,10 @@ interface AppState {
   currentUser: { id: string; name: string; role: string } | null;
   isAuthChecking: boolean;
   loginWithInviteCode: (inviteCode: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserName: (newName: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuthSession: () => Promise<void>;
+
 
   // Audio Recap Actions
   openRecapModal: (target: RecapTarget) => void;
@@ -299,7 +301,34 @@ export const useAppStore = create<AppState>()(
         }
       },
 
+
+      updateUserName: async (newName: string) => {
+        try {
+          const res = await fetch('/api/auth/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: newName })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            set({ currentUser: data.user });
+            get().showToast({
+              type: 'success',
+              title: 'Профиль обновлен',
+              message: `Ваше имя изменено на: ${data.user.name}`
+            });
+            return { success: true };
+          } else {
+            return { success: false, error: data.message || data.error || 'Ошибка обновления имени' };
+          }
+        } catch (err: any) {
+          return { success: false, error: 'Сетевая ошибка при обновлении профиля' };
+        }
+      },
+
       logout: async () => {
+
         try {
           await fetch('/api/auth/logout', {
             method: 'POST',

@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { authService } from '../services/authService';
 import { requireAuth, AuthenticatedRequest, extractSessionToken } from '../middleware/auth';
+import { db } from '../services/db';
 
 export const authRouter = Router();
+
 
 // POST /api/auth/login
 authRouter.post('/login', (req: Request, res: Response) => {
@@ -89,3 +91,37 @@ authRouter.post('/ws-ticket', requireAuth, (req: AuthenticatedRequest, res: Resp
     res.status(500).json({ error: 'Failed to create WS ticket', message: err.message });
   }
 });
+
+// PUT /api/auth/profile (Update display name)
+authRouter.put('/profile', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Имя не может быть пустым' });
+    }
+
+    const cleanName = name.trim().slice(0, 60);
+    const userId = req.user!.id;
+
+    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(cleanName, userId);
+
+
+    try {
+      db.prepare('UPDATE user_profile_settings SET candidate_name = ? WHERE id = ? OR id = "default_user"').run(cleanName, userId);
+    } catch {}
+
+    const updatedUser = {
+      ...req.user!,
+      name: cleanName
+    };
+
+    res.json({
+      success: true,
+      user: updatedUser
+    });
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Failed to update profile', message: err.message });
+  }
+});
+
