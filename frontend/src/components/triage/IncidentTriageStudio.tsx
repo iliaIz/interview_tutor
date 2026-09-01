@@ -145,10 +145,11 @@ export const IncidentTriageStudio: React.FC = () => {
         <button
           onClick={handleEvaluate}
           disabled={isEvaluating}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white transition shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white transition shadow-sm cursor-pointer disabled:opacity-50 shrink-0 active:scale-95 touch-manipulation"
         >
           {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
           <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать RCA'}</span>
+          <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
         </button>
       </div>
 

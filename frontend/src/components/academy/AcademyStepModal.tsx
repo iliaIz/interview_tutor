@@ -222,21 +222,21 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
           )}
 
           {/* 4. Gemini Live Verbal Probe */}
-          <div className="p-4 rounded-2xl bg-white/80 border border-pastel-border/80 flex items-center justify-between gap-3">
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-white/90 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
-                <Headphones className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Headphones className="w-4 h-4 animate-pulse" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-pastel-text">Голосовой блиц с ИИ (Gemini Live)</h4>
-                <p className="text-[11px] text-pastel-muted">2-минутный экспресс-опрос по теме шага в режиме диалога</p>
+                <h4 className="text-xs font-bold text-emerald-950">Голосовой блиц с ИИ (Gemini Live)</h4>
+                <p className="text-[11px] text-emerald-800/80">2-минутный экспресс-опрос по теме шага в режиме диалога</p>
               </div>
             </div>
             <button
               onClick={handleLaunchVoice}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shrink-0 shadow-xs"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition shadow-xs hover:shadow-sm cursor-pointer shrink-0 text-center active:scale-95 touch-manipulation"
             >
-              Сдать голосом
+              Сдать голосом →
             </button>
           </div>
 
@@ -249,8 +249,8 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
               </h4>
               <ul className="space-y-1.5">
                 {step.masteryChecklist.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-xs text-pastel-text/85 bg-pastel-bg/50 p-2 rounded-xl border border-pastel-border/40">
-                    <CheckCircle2 className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${isCompleted ? 'text-emerald-500' : 'text-pastel-muted'}`} />
+                  <li key={idx} className="flex items-start gap-2 text-xs text-pastel-text/90 bg-pastel-bg/60 p-2.5 rounded-xl border border-pastel-border/60">
+                    <CheckCircle2 className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${isCompleted ? 'text-emerald-600' : 'text-slate-400'}`} />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -261,23 +261,23 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
         </div>
 
         {/* Modal Footer with Completion Toggle */}
-        <div className="p-4 sm:p-5 border-t border-pastel-border/60 bg-white/80 backdrop-blur-md flex items-center justify-between gap-3 relative z-10">
+        <div className="p-3.5 sm:p-5 border-t border-pastel-border/60 bg-white/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 relative z-10">
           <button
             onClick={() => onToggleCompleted(step.stepNumber, !isCompleted)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 touch-manipulation ${
               isCompleted
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                : 'bg-white text-pastel-text border border-pastel-border hover:bg-pastel-bg shadow-xs'
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs hover:bg-emerald-200/80'
+                : 'bg-white text-pastel-text border border-pastel-border hover:bg-pastel-rose/40 hover:border-pastel-accentRose/40 shadow-xs'
             }`}
           >
             {isCompleted ? (
               <>
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Шаг выполнен (Снять отметку)</span>
+                <span>Шаг выполнен (Снять зачёт)</span>
               </>
             ) : (
               <>
-                <Circle className="w-4 h-4 text-pastel-muted" />
+                <Circle className="w-4 h-4 text-slate-400" />
                 <span>Отметить шаг как завершенный</span>
               </>
             )}
@@ -285,7 +285,7 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
 
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-pastel-text text-white hover:bg-pastel-text/90 transition cursor-pointer shadow-xs"
+            className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-pastel-text text-white hover:bg-pastel-text/90 transition cursor-pointer shadow-xs active:scale-95 touch-manipulation ml-auto"
           >
             Закрыть
           </button>

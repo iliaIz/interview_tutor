@@ -117,6 +117,9 @@ export const AcademyStudio: React.FC = () => {
     pillars: { concurrency: 0, databases: 0, systemDesign: 0, forensics: 0 }
   };
 
+  const careerCount = courses.filter(c => c.category === 'career').length;
+  const domainCount = courses.filter(c => c.category === 'domain').length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-8 animate-fade-in relative z-10">
 
@@ -131,7 +134,7 @@ export const AcademyStudio: React.FC = () => {
               Академия Мастерства
             </h1>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-              6 Программ 2026
+              {courses.length || 6} Программ 2026
             </span>
           </div>
           <p className="text-xs sm:text-sm text-pastel-muted font-medium">
@@ -150,7 +153,7 @@ export const AcademyStudio: React.FC = () => {
             }`}
           >
             <Target className="w-3.5 h-3.5" />
-            <span>Карьерные Спринты (2)</span>
+            <span>Карьерные Спринты ({careerCount})</span>
           </button>
           <button
             onClick={() => setSelectedCategory('domain')}
@@ -161,7 +164,7 @@ export const AcademyStudio: React.FC = () => {
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span>Доменные Треки (4)</span>
+            <span>Доменные Треки ({domainCount})</span>
           </button>
         </div>
       </div>

@@ -7,6 +7,79 @@ import {
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
+const cleanScenarioText = (text?: string): string => {
+  if (!text) return '';
+  return text
+    .replace(/\\?\[cite:\s*[^\]]+\]/g, '')
+    .replace(/\\cite:\s*\d+\\?/g, '')
+    .replace(/\\_/g, '_')
+    .replace(/merchant_id\d+/g, 'merchant_id')
+    .replace(/Circuit Breaker\d+/g, 'Circuit Breaker')
+    .trim();
+};
+
+const renderCalculationsBlock = (rawText?: string) => {
+  if (!rawText) return null;
+  const cleaned = cleanScenarioText(rawText);
+
+  // Check if it's markdown table
+  const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+  const tableLines = lines.filter(l => l.startsWith('|') && l.endsWith('|'));
+
+  if (tableLines.length >= 2) {
+    const parseRow = (line: string) =>
+      line
+        .split('|')
+        .slice(1, -1)
+        .map(cell => cell.trim().replace(/\*\*/g, ''));
+
+    const header = parseRow(tableLines[0]);
+    const bodyRows = tableLines.slice(2).map(parseRow);
+
+    return (
+      <div className="overflow-x-auto rounded-xl border border-pastel-border bg-white shadow-2xs mt-2">
+        <table className="w-full text-xs text-left">
+          <thead className="bg-pastel-bg text-pastel-text uppercase text-[10px] font-bold tracking-wider border-b border-pastel-border">
+            <tr>
+              {header.map((col, idx) => (
+                <th key={idx} className="px-3.5 py-2.5 font-bold">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-pastel-border/60">
+            {bodyRows.map((row, rIdx) => (
+              <tr key={rIdx} className="hover:bg-pastel-rose/20 transition">
+                {row.map((cell, cIdx) => (
+                  <td
+                    key={cIdx}
+                    className={`px-3.5 py-2.5 ${
+                      cIdx === 0
+                        ? 'font-bold text-pastel-text'
+                        : cIdx === row.length - 1
+                        ? 'font-mono font-bold text-purple-700 bg-purple-50/40'
+                        : 'font-mono text-slate-600'
+                    }`}
+                  >
+                    {cell || '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-mono bg-pastel-bg p-4 rounded-xl border border-pastel-border mt-2">
+      {cleaned}
+    </div>
+  );
+};
+
 export const SystemDesignArena: React.FC = () => {
   const { 
     activeSystemDesignScenario, 
@@ -215,17 +288,20 @@ export const SystemDesignArena: React.FC = () => {
             <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
               <h3 className="text-sm font-bold text-pastel-text">Контекст и Архитектурный поток данных</h3>
               <p className="text-xs text-pastel-muted leading-relaxed whitespace-pre-line">
-                {activeSystemDesignScenario.contextMarkdown}
+                {cleanScenarioText(activeSystemDesignScenario.contextMarkdown)}
               </p>
             </div>
 
-            {/* Calculations & Topo */}
+            {/* Calculations & Topo with Structured Table Renderer */}
             {activeSystemDesignScenario.calculationsMarkdown && (
               <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
-                <h3 className="text-sm font-bold text-pastel-text">Нагрузочные расчеты (Back-of-the-Envelope)</h3>
-                <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line font-mono bg-slate-950 p-4 rounded-xl border border-slate-800">
-                  {activeSystemDesignScenario.calculationsMarkdown}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-pastel-text">Нагрузочные расчеты (Back-of-the-Envelope)</h3>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    SLA & Throughput
+                  </span>
                 </div>
+                {renderCalculationsBlock(activeSystemDesignScenario.calculationsMarkdown)}
               </div>
             )}
 
@@ -237,7 +313,7 @@ export const SystemDesignArena: React.FC = () => {
                   <span>Анализ узких мест и системных сбоев (SPOF, Dual-Write, Split-Brain)</span>
                 </h3>
                 <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                  {activeSystemDesignScenario.bottlenecksMarkdown}
+                  {cleanScenarioText(activeSystemDesignScenario.bottlenecksMarkdown)}
                 </p>
               </div>
             )}

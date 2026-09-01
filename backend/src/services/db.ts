@@ -656,6 +656,13 @@ export function seedNextGenCatalogs() {
           updated_at = CURRENT_TIMESTAMP
       `);
       const syncRm = db.transaction((items: any[]) => {
+        // Prune stale/legacy roadmap IDs no longer in json
+        const activeIds = items.map((r: any) => r.id);
+        if (activeIds.length > 0) {
+          const placeholders = activeIds.map(() => '?').join(',');
+          db.prepare(`DELETE FROM guided_roadmaps WHERE id NOT IN (${placeholders})`).run(...activeIds);
+        }
+
         for (const rm of items) {
           upsertRm.run({
             id: rm.id,
