@@ -21,11 +21,11 @@ export const StudioHeader: React.FC = () => {
       return (
         <div
           title={systemHealth.message || "AI Шлюз активен. Модель Gemini 3.7 Flash проверена в LiteLLM."}
-          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-full bg-emerald-50/90 text-emerald-700 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-default shrink-0"
+          className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-emerald-50/90 text-emerald-700 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-default shrink-0"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <Headphones className="w-3.5 h-3.5 text-emerald-600 hidden md:inline" />
-          <span className="hidden md:inline">AI Шлюз</span>
+          <Headphones className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden xl:inline text-[11px]">AI Шлюз</span>
           {systemHealth.latencyMs && (
             <span className="text-[10px] opacity-70 hidden sm:inline">({systemHealth.latencyMs}мс)</span>
           )}
@@ -37,10 +37,10 @@ export const StudioHeader: React.FC = () => {
       return (
         <div
           title={systemHealth.error || "Проверка моделей в LiteLLM-Proxy..."}
-          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs animate-pulse cursor-help shrink-0"
+          className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs animate-pulse cursor-help shrink-0"
         >
           <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-          <span className="hidden sm:inline">{systemHealth.error ? 'Синхронизация...' : 'Запуск AI...'}</span>
+          <span className="hidden xl:inline text-[11px]">{systemHealth.error ? 'Синхронизация...' : 'Запуск AI...'}</span>
         </div>
       );
     }
@@ -48,10 +48,10 @@ export const StudioHeader: React.FC = () => {
     return (
       <div
         title={systemHealth.error || 'Проверьте запуск LiteLLM_Proxy'}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs cursor-help shrink-0"
+        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs cursor-help shrink-0"
       >
         <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-        <span className="hidden sm:inline">AI Офлайн</span>
+        <span className="hidden xl:inline text-[11px]">AI Офлайн</span>
       </div>
     );
   };
@@ -66,7 +66,7 @@ export const StudioHeader: React.FC = () => {
   ];
 
   return (
-    <header className="border-b border-pastel-border/70 bg-white/85 backdrop-blur-xl sticky top-0 z-40 shadow-xs">
+    <header className="border-b border-pastel-border/70 bg-white/85 backdrop-blur-xl sticky top-0 z-40 shadow-xs font-sans">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-2 shrink-0">
@@ -78,12 +78,12 @@ export const StudioHeader: React.FC = () => {
               <h1 className="font-bold text-xs sm:text-base tracking-tight text-pastel-text">InterviewPrep</h1>
               <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">AI</span>
             </div>
-            <p className="text-[10px] text-pastel-muted font-medium hidden lg:block">Твой личный ИИ-ментор по Java & Spring</p>
+            <p className="text-[10px] text-pastel-muted font-medium hidden 2xl:block">Твой личный ИИ-ментор по Java & Spring</p>
           </div>
         </div>
 
-        {/* Studio Mode Segmented Switcher with Mobile Horizontal Scroll & Edge Fade */}
-        <div className="flex-1 max-w-2xl mx-1 sm:mx-2 overflow-hidden relative">
+        {/* Studio Mode Segmented Switcher (Flexible Full Width, Zero Truncation) */}
+        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative">
           <nav className="flex items-center bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs overflow-x-auto no-scrollbar scroll-smooth">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -106,8 +106,8 @@ export const StudioHeader: React.FC = () => {
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pastel-accentRose' : 'text-pastel-muted'}`} />
-                  <span className="hidden md:inline">{tab.label}</span>
-                  <span className="md:hidden">{tab.shortLabel}</span>
+                  <span className="hidden 2xl:inline">{tab.label}</span>
+                  <span className="2xl:hidden">{tab.shortLabel}</span>
 
                   {tab.badge && (
                     <span className={`text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
@@ -146,10 +146,10 @@ export const StudioHeader: React.FC = () => {
                 <button
                   onClick={openAdminInvitesModal}
                   title="Генератор инвайт-кодов (Владелец)"
-                  className="hidden xl:flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-200/80 shadow-2xs transition cursor-pointer"
+                  className="flex items-center gap-1 text-xs font-bold px-2 sm:px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-200/80 shadow-2xs transition cursor-pointer"
                 >
                   <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Инвайты</span>
+                  <span className="hidden xl:inline text-[11px]">Инвайты</span>
                 </button>
               )}
 
@@ -159,7 +159,7 @@ export const StudioHeader: React.FC = () => {
                 className="flex items-center gap-1 sm:gap-1.5 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-pastel-card hover:bg-pastel-rose/50 text-pastel-text border border-pastel-border hover:border-pastel-accentRose/50 shadow-2xs transition cursor-pointer group shrink-0"
               >
                 <User className="w-3.5 h-3.5 text-pastel-accentRose" />
-                <span className="max-w-[100px] truncate hidden sm:inline">{currentUser.name}</span>
+                <span className="max-w-[90px] truncate hidden sm:inline text-[11px]">{currentUser.name}</span>
                 <Edit2 className="w-3 h-3 text-pastel-muted group-hover:text-pastel-accentRose transition hidden sm:inline" />
               </button>
 
@@ -177,6 +177,3 @@ export const StudioHeader: React.FC = () => {
     </header>
   );
 };
-
-
-

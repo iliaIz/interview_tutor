@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAppStore, Question } from '../store/useAppStore';
 import {
   ArrowLeft,
@@ -101,13 +101,27 @@ export const QuestionExplorer: React.FC = () => {
     lastSelectedIndexRef.current = null;
   }, [selectedTopicId]);
 
+  // Helper to compute effective question status from progress and evaluationsMap
+  const getEffectiveStatus = useCallback((q: QuestionWithStatus) => {
+    const evalItem = evaluationsMap[q.id];
+    const evalScore = evalItem?.score !== undefined ? evalItem.score : -1;
+    const isEvalPassed = evalItem?.isPassed || evalScore >= 70;
+
+    const isMastered = q.isMastered || evalScore >= 90;
+    const isCompleted = q.isCompleted || isEvalPassed || isMastered;
+
+    return { isMastered, isCompleted, evalItem };
+  }, [evaluationsMap]);
+
   // Filtered list
   const filteredQuestions = useMemo(() => {
     return questions.filter((q) => {
+      const { isMastered, isCompleted } = getEffectiveStatus(q);
+
       // Status filter
-      if (statusFilter === 'uncompleted' && q.isCompleted) return false;
-      if (statusFilter === 'completed' && (!q.isCompleted || q.isMastered)) return false;
-      if (statusFilter === 'mastered' && !q.isMastered) return false;
+      if (statusFilter === 'uncompleted' && isCompleted) return false;
+      if (statusFilter === 'completed' && (!isCompleted || isMastered)) return false;
+      if (statusFilter === 'mastered' && !isMastered) return false;
 
       // Search filter
       if (!searchQuery.trim()) return true;
@@ -119,17 +133,24 @@ export const QuestionExplorer: React.FC = () => {
 
       return matchNum || matchText || matchId;
     });
-  }, [questions, statusFilter, searchQuery]);
+  }, [questions, statusFilter, searchQuery, getEffectiveStatus]);
 
   // Stats calculation
   const stats = useMemo(() => {
     const total = questions.length;
-    const completed = questions.filter((q) => q.isCompleted).length;
-    const mastered = questions.filter((q) => q.isMastered).length;
+    let completed = 0;
+    let mastered = 0;
+
+    questions.forEach((q) => {
+      const { isMastered, isCompleted } = getEffectiveStatus(q);
+      if (isCompleted) completed++;
+      if (isMastered) mastered++;
+    });
+
     const uncompleted = total - completed;
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
     return { total, completed, mastered, uncompleted, percentage };
-  }, [questions]);
+  }, [questions, getEffectiveStatus]);
 
   // Selection Handlers with Shift + Click
   const handleItemSelect = (qId: string, index: number, event: React.MouseEvent) => {
@@ -199,7 +220,7 @@ export const QuestionExplorer: React.FC = () => {
     } else if (preset === 'first10') {
       filteredQuestions.slice(0, 10).forEach((q) => next.add(q.id));
     } else if (preset === 'uncompleted') {
-      questions.filter((q) => !q.isCompleted).forEach((q) => next.add(q.id));
+      questions.filter((q) => !getEffectiveStatus(q).isCompleted).forEach((q) => next.add(q.id));
     } else if (preset === 'all') {
       questions.forEach((q) => next.add(q.id));
     }
@@ -569,19 +590,28 @@ export const QuestionExplorer: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
                       {/* Status Badges */}
-                      {q.isMastered ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3" /> Освоен
-                        </span>
-                      ) : q.isCompleted ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-50 text-pastel-accentViolet text-[10px] font-bold border border-pastel-accentViolet/20">
-                          <Clock className="w-3 h-3" /> Изучен
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 text-gray-500 text-[10px] font-medium border border-gray-200">
-                          Не начат
-                        </span>
-                      )}
+                      {(() => {
+                        const { isMastered, isCompleted } = getEffectiveStatus(q);
+                        if (isMastered) {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" /> Освоен
+                            </span>
+                          );
+                        }
+                        if (isCompleted) {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-50 text-pastel-accentViolet text-[10px] font-bold border border-pastel-accentViolet/20">
+                              <Clock className="w-3 h-3" /> Изучен
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 text-gray-500 text-[10px] font-medium border border-gray-200">
+                            Не начат
+                          </span>
+                        );
+                      })()}
 
                       <span className="text-[10px] text-pastel-muted font-mono">
                         {q.id}

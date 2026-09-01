@@ -8,9 +8,16 @@ const router = Router();
 router.get('/', (req, res) => {
   const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?');
+  const evalStmt = db.prepare(`
+    SELECT question_id, MAX(score) as max_score, MAX(is_passed) as any_passed
+    FROM question_evaluations
+    WHERE topic = ? OR topic = ?
+    GROUP BY question_id
+  `);
 
   const result = TOPIC_DEFINITIONS.map(t => {
     const dbTopicName = t.name;
+    const topicId = t.id;
     const row = progressStmt.get(dbTopicName) as any;
     const countRow = countStmt.get(dbTopicName) as any;
     const total = countRow ? countRow.count : 0;
@@ -26,6 +33,22 @@ router.get('/', (req, res) => {
       shuffle = Boolean(row.shuffle);
       batchSize = row.batch_size || 5;
     }
+
+    // Self-healing merge with question_evaluations
+    try {
+      const evalRows = evalStmt.all(dbTopicName, topicId) as any[];
+      evalRows.forEach(e => {
+        const isPassed = e.any_passed === 1 || e.max_score >= 70;
+        const isMastered = e.max_score >= 90;
+
+        if (isPassed && !completedIds.includes(e.question_id)) {
+          completedIds.push(e.question_id);
+        }
+        if (isMastered && !masteredIds.includes(e.question_id)) {
+          masteredIds.push(e.question_id);
+        }
+      });
+    } catch {}
 
     const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
@@ -94,14 +117,19 @@ router.post('/:topicId/progress', (req, res) => {
 
   const { completedIds = [], masteredIds = [], reviewIds = [], lastQuestionId, shuffle = false, batchSize = 5 } = req.body;
 
+  const countRow = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?').get(dbTopicName) as any;
+  const total = countRow ? countRow.count : 100;
+  const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
+
   const stmt = db.prepare(`
-    INSERT INTO user_progress (topic, completed_ids, mastered_ids, review_ids, last_question_id, shuffle, batch_size, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO user_progress (topic, completed_ids, mastered_ids, review_ids, last_question_id, percentage, shuffle, batch_size, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(topic) DO UPDATE SET
       completed_ids = excluded.completed_ids,
       mastered_ids = excluded.mastered_ids,
       review_ids = excluded.review_ids,
       last_question_id = excluded.last_question_id,
+      percentage = excluded.percentage,
       shuffle = excluded.shuffle,
       batch_size = excluded.batch_size,
       updated_at = CURRENT_TIMESTAMP
@@ -113,6 +141,7 @@ router.post('/:topicId/progress', (req, res) => {
     JSON.stringify(masteredIds),
     JSON.stringify(reviewIds),
     lastQuestionId || null,
+    percentage,
     shuffle ? 1 : 0,
     batchSize
   );
@@ -133,8 +162,60 @@ router.get('/:topicId/questions', (req, res) => {
   const progressStmt = db.prepare('SELECT * FROM user_progress WHERE topic = ?');
   const progressRow = progressStmt.get(dbTopicName) as any;
 
-  const completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
-  const masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+  let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
+  let masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+
+  // Self-healing merge with question_evaluations
+  try {
+    const evalStmt = db.prepare(`
+      SELECT question_id, MAX(score) as max_score, MAX(is_passed) as any_passed
+      FROM question_evaluations
+      WHERE topic = ? OR topic = ?
+      GROUP BY question_id
+    `);
+    const evalRows = evalStmt.all(dbTopicName, topicId) as any[];
+    let changed = false;
+
+    evalRows.forEach(e => {
+      const isPassed = e.any_passed === 1 || e.max_score >= 70;
+      const isMastered = e.max_score >= 90;
+
+      if (isPassed && !completedIds.includes(e.question_id)) {
+        completedIds.push(e.question_id);
+        changed = true;
+      }
+      if (isMastered && !masteredIds.includes(e.question_id)) {
+        masteredIds.push(e.question_id);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      const countRow = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?').get(dbTopicName) as any;
+      const total = countRow ? countRow.count : 100;
+      const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
+
+      db.prepare(`
+        INSERT INTO user_progress (topic, completed_ids, mastered_ids, percentage, shuffle, batch_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(topic) DO UPDATE SET
+          completed_ids = excluded.completed_ids,
+          mastered_ids = excluded.mastered_ids,
+          percentage = excluded.percentage,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(
+        dbTopicName,
+        JSON.stringify(completedIds),
+        JSON.stringify(masteredIds),
+        percentage,
+        progressRow ? (progressRow.shuffle || 0) : 0,
+        progressRow ? (progressRow.batch_size || 5) : 5
+      );
+    }
+  } catch (err) {
+    console.warn('Error during self-healing progress merge:', err);
+  }
+
   const completedSet = new Set(completedIds);
   const masteredSet = new Set(masteredIds);
 
@@ -172,17 +253,12 @@ router.post('/questions/by-ids', (req, res) => {
   const stmt = db.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`);
   const rows = stmt.all(...ids) as any[];
 
-  // Map to retain requested order
-  const rowMap = new Map(rows.map(r => [r.id, r]));
-  const ordered = ids
-    .map(id => rowMap.get(id))
-    .filter(Boolean)
-    .map(q => ({
-      ...q,
-      source_pages: JSON.parse(q.source_pages || '[]')
-    }));
+  const formatted = rows.map(q => ({
+    ...q,
+    source_pages: JSON.parse(q.source_pages || '[]')
+  }));
 
-  res.json({ questions: ordered });
+  res.json({ questions: formatted });
 });
 
 // POST /api/topics/:topicId/reset - Reset progress ("Сначала")
@@ -192,19 +268,19 @@ router.post('/:topicId/reset', (req, res) => {
   if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
 
   const stmt = db.prepare(`
-    INSERT INTO user_progress (topic, completed_ids, mastered_ids, review_ids, last_question_id, updated_at)
-    VALUES (?, '[]', '[]', '[]', NULL, CURRENT_TIMESTAMP)
-    ON CONFLICT(topic) DO UPDATE SET
-      completed_ids = '[]',
-      mastered_ids = '[]',
-      review_ids = '[]',
-      last_question_id = NULL,
-      updated_at = CURRENT_TIMESTAMP
+    UPDATE user_progress
+    SET completed_ids = '[]',
+        mastered_ids = '[]',
+        review_ids = '[]',
+        last_question_id = NULL,
+        percentage = 0,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE topic = ?
   `);
 
   stmt.run(dbTopicName);
 
-  res.json({ success: true, message: `Progress for ${dbTopicName} reset to 0%` });
+  res.json({ success: true, topic: dbTopicName });
 });
 
 export default router;
