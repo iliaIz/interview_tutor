@@ -1,4 +1,49 @@
-export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation';
+
+export interface MutantDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  mutatorType?: string;
+  file: string;
+  line: number;
+  mutatedContent?: string;
+}
+
+export interface MutantResult {
+  id?: string;
+  mutantId: string;
+  name: string;
+  file: string;
+  line: number;
+  status: 'KILLED' | 'SURVIVED';
+  killedBy?: string;
+  failureReason?: string;
+}
+
+export interface TestQualityViolation {
+  rule: string;
+  file: string;
+  lineNumber: number;
+  snippet: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface MutationExecutionResponse {
+  isMutationRun: true;
+  baselinePassed: boolean;
+  totalMutants: number;
+  killedCount: number;
+  survivedCount: number;
+  mutationScore: number;
+  passedThreshold: boolean;
+  requiredScore: number;
+  executionTimeMs: number;
+  mutantResults: MutantResult[];
+  qualityViolations?: TestQualityViolation[];
+  error?: string;
+}
 
 export interface FileNode {
   path: string;
@@ -79,6 +124,9 @@ export interface CodingChallenge {
   allowedPublicSignatureChanges?: number;
   concurrencyConfig?: ConcurrencyHarnessConfig;
   idiomRequirements?: JavaIdiomRequirements;
+  challengeMode?: 'machine_coding' | 'write_the_tests';
+  requiredMutationScore?: number;
+  mutants?: MutantDefinition[];
   astRules?: string[];
   hints?: string[];
   scoringWeights?: {

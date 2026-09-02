@@ -14,10 +14,12 @@ import {
   Shield,
   Clock,
   Terminal,
-  Cpu
+  Cpu,
+  Bug
 } from 'lucide-react';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
 import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConsole';
+import { MutationExecutionResponse } from '../../types/practice';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -185,43 +187,88 @@ export const WorkspaceEditor: React.FC = () => {
     }
   };
 
+  const [mutationResult, setMutationResult] = useState<MutationExecutionResponse | null>(null);
+
+  const isWriteTheTestsMode = Boolean(
+    activePracticeChallenge?.challengeMode === 'write_the_tests' ||
+    activePracticeChallenge?.track === 'testing_mutation' ||
+    (activePracticeChallenge?.mutants && activePracticeChallenge.mutants.length > 0)
+  );
+
   const handleRunSandbox = async () => {
     if (!activePracticeChallenge || isSandboxRunning) return;
     setIsSandboxRunning(true);
     setSandboxResult(null);
+    setMutationResult(null);
 
     try {
-      const res = await fetch('/api/sandbox/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          challengeId: activePracticeChallenge.id,
-          files: practiceWorkspaceFiles,
-          activePhase: activePracticePhase
-        })
-      });
-
-      const data: SandboxExecutionResponse = await res.json();
-      setSandboxResult(data);
-
-      if (data.success) {
-        showToast({
-          type: 'success',
-          title: 'Тесты пройдены!',
-          message: `Все тесты (${data.passedCount}/${data.testResults.length}) выполнены за ${data.executionTimeMs}мс`
+      if (isWriteTheTestsMode) {
+        const res = await fetch('/api/sandbox/execute-mutation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challengeId: activePracticeChallenge.id,
+            files: practiceWorkspaceFiles,
+            mutants: activePracticeChallenge.mutants || [],
+            requiredScore: activePracticeChallenge.requiredMutationScore || 85
+          })
         });
-      } else if (!data.isCompilable) {
-        showToast({
-          type: 'error',
-          title: 'Ошибка компиляции',
-          message: data.syntaxErrors?.[0]?.errorMessage || 'Проверьте синтаксис кода'
-        });
+
+        const data: MutationExecutionResponse = await res.json();
+        setMutationResult(data);
+
+        if (data.passedThreshold) {
+          showToast({
+            type: 'success',
+            title: 'Мутанты уничтожены! 🧬',
+            message: `Mutation Score ${data.mutationScore.toFixed(1)}% (убито ${data.killedCount}/${data.totalMutants})`
+          });
+        } else if (!data.baselinePassed) {
+          showToast({
+            type: 'error',
+            title: 'Baseline не пройден',
+            message: data.error || 'Тесты кандидата упали на эталонном сервисе'
+          });
+        } else {
+          showToast({
+            type: 'warning',
+            title: 'Мутанты выжили!',
+            message: `Mutation Score ${data.mutationScore.toFixed(1)}% (требуется >= ${data.requiredScore}%)`
+          });
+        }
       } else {
-        showToast({
-          type: 'warning',
-          title: 'Тесты не пройдены',
-          message: `Провалено ${data.failedCount} из ${data.testResults.length} тестов`
+        const res = await fetch('/api/sandbox/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challengeId: activePracticeChallenge.id,
+            files: practiceWorkspaceFiles,
+            activePhase: activePracticePhase
+          })
         });
+
+        const data: SandboxExecutionResponse = await res.json();
+        setSandboxResult(data);
+
+        if (data.success) {
+          showToast({
+            type: 'success',
+            title: 'Тесты пройдены!',
+            message: `Все тесты (${data.passedCount}/${data.testResults.length}) выполнены за ${data.executionTimeMs}мс`
+          });
+        } else if (!data.isCompilable) {
+          showToast({
+            type: 'error',
+            title: 'Ошибка компиляции',
+            message: data.syntaxErrors?.[0]?.errorMessage || 'Проверьте синтаксис кода'
+          });
+        } else {
+          showToast({
+            type: 'warning',
+            title: 'Тесты не пройдены',
+            message: `Провалено ${data.failedCount} из ${data.testResults.length} тестов`
+          });
+        }
       }
     } catch (err: any) {
       console.error('Sandbox execution error:', err);
@@ -344,8 +391,13 @@ export const WorkspaceEditor: React.FC = () => {
       {/* Slide-Up In-Memory Sandbox Test Console (< 80ms) */}
       <SandboxTestConsole
         result={sandboxResult}
+        mutationResult={mutationResult}
         isRunning={isSandboxRunning}
-        onClose={() => setSandboxResult(null)}
+        onClose={() => {
+          setSandboxResult(null);
+          setMutationResult(null);
+        }}
+        requiredMutationScore={activePracticeChallenge.requiredMutationScore || 85}
       />
 
       {/* Action Footer Bar */}
@@ -383,20 +435,30 @@ export const WorkspaceEditor: React.FC = () => {
 
         {/* Action Run Buttons (Sandbox & AI Review) */}
         <div className="flex items-center gap-2">
-          {/* Fast In-Memory Java 21 Sandbox Run Button (< 80ms) */}
+          {/* Fast In-Memory Java 21 Sandbox / Mutation Run Button */}
           <button
             type="button"
             onClick={handleRunSandbox}
             disabled={isSandboxRunning || isPracticeEvaluating}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-md shadow-emerald-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Быстрый прогон JUnit 5 тестов в Java 21 Sandbox (Ctrl+Enter)"
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl font-bold text-xs transition shadow-md active:scale-95 cursor-pointer disabled:opacity-50 ${
+              isWriteTheTestsMode
+                ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white shadow-rose-600/25'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25'
+            }`}
+            title={isWriteTheTestsMode ? 'Прогон тестов кандидата против мутантов байткода (Ctrl+Enter)' : 'Быстрый прогон JUnit 5 тестов в Java 21 Sandbox (Ctrl+Enter)'}
           >
             {isSandboxRunning ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : isWriteTheTestsMode ? (
+              <Bug className="w-3.5 h-3.5" />
             ) : (
               <Play className="w-3.5 h-3.5 fill-current" />
             )}
-            <span>{isSandboxRunning ? 'Запуск тестов...' : '▶ Тесты (Java 21)'}</span>
+            <span>
+              {isSandboxRunning
+                ? (isWriteTheTestsMode ? 'Анализ мутаций...' : 'Запуск тестов...')
+                : (isWriteTheTestsMode ? '▶ Проверить на мутантах' : '▶ Тесты (Java 21)')}
+            </span>
             <span className="hidden sm:inline text-[10px] opacity-75 font-mono">(Ctrl+↵)</span>
           </button>
 

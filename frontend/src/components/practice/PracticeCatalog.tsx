@@ -22,12 +22,14 @@ import {
   Award,
   Filter,
   Terminal,
-  Play
+  Play,
+  Bug
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
+  { id: 'testing_mutation', name: 'Testing & Mutation', icon: Bug, badge: 'Kill Mutants' },
   { id: 'lld_bigtech', name: 'BigTech LLD', icon: Layers, badge: 'Яндекс/Озон' },
   { id: 'lld_fintech', name: 'FinTech & Ledger', icon: Crown, badge: 'Т-Банк/Stripe' },
   { id: 'lld_concurrency', name: 'Concurrency Lab', icon: Zap, badge: 'Loom/Threads' },
@@ -73,6 +75,7 @@ export const PracticeCatalog: React.FC = () => {
         selectedCategory === 'all' ||
         c.category === selectedCategory ||
         c.track === selectedCategory ||
+        (selectedCategory === 'testing_mutation' && (c.track === 'testing_mutation' || c.challengeMode === 'write_the_tests' || (c.mutants && c.mutants.length > 0))) ||
         (selectedCategory === 'machine_coding' && (c.category === 'machine_coding' || c.track?.startsWith('lld')));
       const matchesSearch =
         !searchQuery.trim() ||

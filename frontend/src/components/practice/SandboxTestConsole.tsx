@@ -42,20 +42,46 @@ export interface SandboxExecutionResponse {
   error?: string;
 }
 
+import { MutationExecutionResponse } from '../../types/practice';
+import { MutationRadarWidget } from './MutationRadarWidget';
+
 interface SandboxTestConsoleProps {
   result: SandboxExecutionResponse | null;
+  mutationResult?: MutationExecutionResponse | null;
   isRunning: boolean;
   onClose: () => void;
+  requiredMutationScore?: number;
 }
 
 export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
   result,
+  mutationResult,
   isRunning,
-  onClose
+  onClose,
+  requiredMutationScore = 85
 }) => {
   const [expandedTest, setExpandedTest] = useState<string | null>(null);
 
-  if (!result && !isRunning) return null;
+  if (!result && !mutationResult && !isRunning) return null;
+
+  if (mutationResult) {
+    return (
+      <div className="border-t border-slate-800 bg-slate-950 text-slate-100 flex flex-col max-h-96 overflow-y-auto select-none shadow-2xl transition-all duration-300">
+        <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-xs sticky top-0 z-10">
+          <div className="flex items-center gap-2.5">
+            <Terminal className="w-3.5 h-3.5 text-pink-400" />
+            <span className="font-semibold text-slate-200">MUTATION TESTING ARENA (Java 21 & Defect Injection)</span>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-3">
+          <MutationRadarWidget report={mutationResult} requiredScore={requiredMutationScore} />
+        </div>
+      </div>
+    );
+  }
 
   const isSuccess = result?.success && result?.isCompilable;
   const hasSyntaxError = result && !result.isCompilable;
