@@ -109,65 +109,85 @@ export const IncidentTriageCatalog: React.FC = () => {
         ))}
       </div>
 
-      {/* Incidents Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredIncidents.map((incident) => {
-          const isCrit = incident.severity === 'CRITICAL';
-          const isHigh = incident.severity === 'HIGH';
-
-          return (
-            <div
-              key={incident.id}
-              onClick={() => openTriageIncident(incident)}
-              className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/50 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+      {/* Incidents Grid or Empty State */}
+      {filteredIncidents.length === 0 ? (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+          <Terminal className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+          <h3 className="text-base font-bold text-pastel-text">Инциденты не найдены</h3>
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto leading-relaxed">
+            По вашему запросу «<strong className="text-pastel-text">{searchQuery || selectedSeverity}</strong>» не найдено сценариев расследования.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedSeverity('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
             >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                    isCrit 
-                      ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                      : isHigh 
-                      ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}>
-                    {incident.severity}
-                  </span>
-                  
-                  <span className="text-[10px] font-mono text-pastel-muted font-bold flex items-center gap-1">
-                    <Terminal className="w-3 h-3 text-slate-500" />
-                    <span>{incident.category}</span>
-                  </span>
+              Сбросить фильтры
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredIncidents.map((incident) => {
+            const isCrit = incident.severity === 'CRITICAL';
+            const isHigh = incident.severity === 'HIGH';
+
+            return (
+              <div
+                key={incident.id}
+                onClick={() => openTriageIncident(incident)}
+                className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/50 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      isCrit 
+                        ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                        : isHigh 
+                        ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                    }`}>
+                      {incident.severity}
+                    </span>
+                    
+                    <span className="text-[10px] font-mono text-pastel-muted font-bold flex items-center gap-1">
+                      <Terminal className="w-3 h-3 text-slate-500" />
+                      <span>{incident.category}</span>
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-pastel-text group-hover:text-pastel-accentRoseText transition-colors">
+                      {incident.title}
+                    </h3>
+                    <p className="text-xs text-pastel-muted mt-1 line-clamp-2 leading-relaxed">
+                      {incident.symptomsMarkdown}
+                    </p>
+                  </div>
+
+                  {/* Subsystem & Environment Tags */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-50 text-purple-700 border border-purple-200">
+                      Триггер: {incident.keyMetricTrigger}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-pastel-bg text-pastel-muted border border-pastel-border">
+                      {incident.category}
+                    </span>
+                  </div>
                 </div>
 
-                <div>
-                  <h3 className="font-bold text-base text-pastel-text group-hover:text-pastel-accentRose transition-colors">
-                    {incident.title}
-                  </h3>
-                  <p className="text-xs text-pastel-muted mt-1 line-clamp-2 leading-relaxed">
-                    {incident.symptomsMarkdown}
-                  </p>
-                </div>
-
-                {/* Subsystem & Environment Tags */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-50 text-purple-700 border border-purple-200">
-                    Триггер: {incident.keyMetricTrigger}
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-pastel-bg text-pastel-muted border border-pastel-border">
-                    {incident.category}
-                  </span>
+                <div className="mt-5 pt-3 border-t border-pastel-border/60 flex items-center justify-between text-xs font-bold text-pastel-muted group-hover:text-pastel-accentRoseText transition-colors">
+                  <span>Начать расследование аварии</span>
+                  <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
-
-
-              <div className="mt-5 pt-3 border-t border-pastel-border/60 flex items-center justify-between text-xs font-bold text-pastel-muted group-hover:text-pastel-accentRose transition-colors">
-                <span>Начать расследование аварии</span>
-                <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

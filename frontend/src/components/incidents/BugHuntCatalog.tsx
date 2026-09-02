@@ -237,51 +237,72 @@ export const BugHuntCatalog: React.FC = () => {
         ))}
       </div>
 
-      {/* Grid of 70 Katas Topic Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredTopics.map((topic) => (
-          <div
-            key={topic.id}
-            onClick={() => openTopicBugHunt(topic.id, topic.name)}
-            className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/60 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between group"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-xl">{topic.iconStr}</span>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-                  {topic.count} кейсов
-                </span>
-              </div>
-
-              <h2 className="text-base font-bold text-pastel-text group-hover:text-pastel-accentRose transition">
-                {topic.name}
-              </h2>
-
-              <p className="text-xs text-pastel-muted mt-2 leading-relaxed line-clamp-3">
-                {topic.description}
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-pastel-border/60">
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {topic.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-pastel-bg text-pastel-text/80 border border-pastel-border"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between text-xs font-bold text-pastel-accentRose group-hover:translate-x-0.5 transition">
-                <span>Войти в Арену</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </div>
+      {/* Grid of 70 Katas Topic Cards or Empty State */}
+      {filteredTopics.length === 0 ? (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+          <Bug className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+          <h3 className="text-base font-bold text-pastel-text">Кейсы не найдены</h3>
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto leading-relaxed">
+            По запросу «<strong className="text-pastel-text">{searchQuery || selectedCategory}</strong>» ничего не найдено в каталоге 70 аварий.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
+            >
+              Сбросить фильтры
+            </button>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTopics.map((topic) => (
+            <div
+              key={topic.id}
+              onClick={() => openTopicBugHunt(topic.id, topic.name)}
+              className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/60 rounded-3xl p-5 shadow-2xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-xl">{topic.iconStr}</span>
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/20">
+                    {topic.count} кейсов
+                  </span>
+                </div>
+
+                <h2 className="text-base font-bold text-pastel-text group-hover:text-pastel-accentRoseText transition">
+                  {topic.name}
+                </h2>
+
+                <p className="text-xs text-pastel-muted mt-2 leading-relaxed line-clamp-3">
+                  {topic.description}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-pastel-border/60">
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {topic.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-pastel-bg text-pastel-text/80 border border-pastel-border"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between text-xs font-bold text-pastel-accentRoseText group-hover:translate-x-0.5 transition">
+                  <span>Войти в Арену</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Memory Radar Drawer */}
       <MemoryRadarDrawer

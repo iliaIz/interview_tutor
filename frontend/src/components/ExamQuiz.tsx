@@ -451,7 +451,7 @@ export const ExamQuiz: React.FC = () => {
           </button>
         </div>
 
-        <span className="text-xs font-bold px-3 py-1 bg-pastel-rose text-pastel-accentRose rounded-full border border-pastel-accentRose/20">
+        <span className="text-xs font-bold px-3 py-1 bg-pastel-rose text-pastel-accentRoseText rounded-full border border-pastel-accentRose/20">
           {selectedTopicName} — Проверка знания (ИИ)
         </span>
 
@@ -511,9 +511,17 @@ export const ExamQuiz: React.FC = () => {
           <textarea
             value={userAnswer}
             onChange={(e) => setUserAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (userAnswer.trim() && !loadingEval && systemHealth.isAiReady) {
+                  handleEvaluate();
+                }
+              }
+            }}
             disabled={loadingEval || !!evalResult}
             rows={5}
-            placeholder="Напишите всё, что вы помните по этой теме..."
+            placeholder="Напишите всё, что вы помните по этой теме... (Ctrl+Enter для быстрой отправки)"
             className="w-full p-4 rounded-2xl border border-pastel-border bg-pastel-bg/50 focus:bg-white focus:ring-2 focus:ring-pastel-accentViolet/30 focus:border-pastel-accentViolet outline-none text-sm transition resize-none"
           />
         </div>
@@ -530,9 +538,12 @@ export const ExamQuiz: React.FC = () => {
               <span>🎙️ Ответить устно / Пройти собеседование</span>
             </button>
 
-            <span className="text-[11px] text-pastel-sub">
-              {userAnswer.length} символов
-            </span>
+            <div className="flex items-center gap-2 text-[11px] text-pastel-muted font-mono">
+              <span className="hidden sm:inline">
+                <kbd className="px-1.5 py-0.5 rounded bg-pastel-bg border border-pastel-border text-[10px] text-pastel-text">Ctrl+Enter</kbd>
+              </span>
+              <span>{userAnswer.length} символов</span>
+            </div>
           </div>
         )}
 

@@ -404,16 +404,16 @@ export const BugHuntArena: React.FC = () => {
             </div>
           </div>
         ) : generationError ? (
-          <div className="p-6 bg-rose-50 border border-rose-200 rounded-3xl text-center space-y-3">
-            <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
-            <h3 className="text-sm font-bold text-rose-900">Не удалось сгенерировать кейс</h3>
-            <p className="text-xs text-rose-700">{generationError}</p>
-            <button
-              onClick={() => fetchChallenge()}
-              className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition cursor-pointer"
-            >
-              Попробовать снова
-            </button>
+          <div className="max-w-2xl mx-auto py-8">
+            <TaskRecoveryCard
+              reason="challenge_generation_failed"
+              userMessage={generationError}
+              retryAfterSeconds={5}
+              availableBankCount={70}
+              onRetry={() => fetchChallenge()}
+              onSwitchToBank={() => closeTopicBugHunt()}
+              isRetrying={isLoadingChallenge}
+            />
           </div>
         ) : challenge ? (
           <div className="space-y-6">

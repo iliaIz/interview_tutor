@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Sparkles, Shield, KeyRound, ArrowRight, Loader2, Lock, CheckCircle2 } from 'lucide-react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const AuthGateModal: React.FC = () => {
+  useBodyScrollLock(true);
   const { loginWithInviteCode } = useAppStore();
   const [inviteCode, setInviteCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +49,7 @@ export const AuthGateModal: React.FC = () => {
           </div>
 
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 mb-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30 mb-2">
               <Lock className="w-3 h-3" />
               <span>Закрытый доступ SOTA 2026</span>
             </div>

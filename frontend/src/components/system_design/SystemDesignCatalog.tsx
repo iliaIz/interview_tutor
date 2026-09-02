@@ -169,9 +169,29 @@ export const SystemDesignCatalog: React.FC = () => {
       </div>
 
       {/* 3. MASTER-DETAIL SPLIT STUDIO (SOTA 2026) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Master Scenarios List (5 cols / 42%) */}
-        <div className="lg:col-span-5 space-y-2.5 max-h-[750px] overflow-y-auto pr-1 no-scrollbar">
+      {filteredScenarios.length === 0 ? (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+          <Layers className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+          <h3 className="text-base font-bold text-pastel-text">Сценарии не найдены</h3>
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto leading-relaxed">
+            По запросу «<strong className="text-pastel-text">{searchQuery || selectedCategory}</strong>» ничего не найдено в каталоге архитектурных кейсов.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Master Scenarios List (5 cols / 42%) */}
+          <div className="lg:col-span-5 space-y-2.5 max-h-[750px] overflow-y-auto pr-1 no-scrollbar">
           {filteredScenarios.map((scenario) => {
             const isSelected = selectedScenarioId === scenario.id;
 
@@ -312,6 +332,7 @@ export const SystemDesignCatalog: React.FC = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

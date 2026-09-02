@@ -9,6 +9,7 @@ import {
   KnowledgeRadarDTO, UserProfileDTO, CandidateGapDTO,
   fetchKnowledgeRadar, fetchUserProfile, saveUserProfile, resetGapForPractice 
 } from '../services/memoryApi';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface MemoryRadarDrawerProps {
   isOpen: boolean;
@@ -21,6 +22,19 @@ export const MemoryRadarDrawer: React.FC<MemoryRadarDrawerProps> = ({
   onClose,
   onSelectTopicForPractice
 }) => {
+  useBodyScrollLock(isOpen);
+
+  // Close on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
   const [activeTab, setActiveTab] = useState<'active' | 'verifying' | 'mastered' | 'profile'>('active');
   const [radar, setRadar] = useState<KnowledgeRadarDTO>({
     activeDeficits: [],

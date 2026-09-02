@@ -319,7 +319,7 @@ export const TopicSelector: React.FC = () => {
         
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
+            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/20">
               📚 База Знаний Java & Spring
             </span>
             <span className="text-xs text-pastel-muted font-mono font-bold">
@@ -501,8 +501,31 @@ export const TopicSelector: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. DOMAIN HUB VIEW (Standard SOTA 2026) */}
-      {viewMode === 'domains' ? (
+      {/* Empty Search State */}
+      {filteredTopics.length === 0 ? (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+          <Search className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+          <h3 className="text-base font-bold text-pastel-text">Темы не найдены</h3>
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto leading-relaxed">
+            {searchQuery ? (
+              <>По запросу «<strong className="text-pastel-text">{searchQuery}</strong>» ничего не найдено в разделе «{activeDomainMeta.title}».</>
+            ) : (
+              <>В выбранном разделе пока нет тем.</>
+            )}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedDomain('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
+            >
+              Сбросить фильтры (Esc)
+            </button>
+          </div>
+        </div>
+      ) : viewMode === 'domains' ? (
         <div className="space-y-5">
           {groupedDomains.map((domain) => {
             const isCollapsed = Boolean(collapsedDomains[domain.id]);

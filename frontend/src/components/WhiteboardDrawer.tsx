@@ -15,6 +15,7 @@ import {
 import { CodeViewer } from './CodeViewer';
 import { CodeArtifactTimeline } from './CodeArtifactTimeline';
 import { WhiteboardState, useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export interface WhiteboardDrawerProps {
   isOpen: boolean;
@@ -27,8 +28,19 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
   onClose,
   state
 }) => {
+  useBodyScrollLock(isOpen);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+
+  // Close on Escape key press
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!state || !state.code) return null;
 
@@ -56,12 +68,12 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 100 }}
           transition={{ type: 'spring', damping: 26, stiffness: 240 }}
-          className={`fixed top-4 bottom-4 right-4 z-50 rounded-3xl bg-[#0B0C10]/95 backdrop-blur-2xl border border-pastel-accentViolet/30 shadow-2xl flex flex-col overflow-hidden text-slate-200 ${
+          className={`fixed top-4 bottom-4 right-4 z-50 rounded-3xl bg-[#121622]/95 backdrop-blur-2xl border border-pastel-accentViolet/30 shadow-2xl flex flex-col overflow-hidden text-slate-200 ${
             isExpanded ? 'w-[calc(100vw-2rem)] max-w-4xl' : 'w-full max-w-lg'
           }`}
         >
           {/* Header Bar */}
-          <div className="flex items-center justify-between px-5 py-3.5 bg-[#141220]/90 border-b border-[#2A243E] select-none">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-[#181E2E]/90 border-b border-[#2A344E] select-none">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs shrink-0">
                 <Code2 className="w-4 h-4" />

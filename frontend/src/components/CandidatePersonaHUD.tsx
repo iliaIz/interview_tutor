@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Shield, Brain, ChevronDown, Award, Target, BookOpen } from 'lucide-react';
 import { CandidateGapDTO, UserProfileDTO, fetchUserProfile, fetchRelevantGaps } from '../services/memoryApi';
@@ -21,6 +21,7 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
   const [profile, setProfile] = useState<UserProfileDTO | null>(null);
   const [relevantGaps, setRelevantGaps] = useState<CandidateGapDTO[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchUserProfile().then(setProfile);
@@ -31,6 +32,30 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
       fetchRelevantGaps(questionText, topic, questionId).then(setRelevantGaps);
     }
   }, [questionText, topic, questionId]);
+
+  // Dismiss tooltip on click outside or Escape key
+  useEffect(() => {
+    if (!isExpanded) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isExpanded]);
 
   const seniorityLabels: Record<string, { label: string; badge: string; color: string }> = {
     junior: { label: 'Junior Engineer', badge: '🌱 Junior', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
@@ -44,7 +69,7 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
   const hasActiveGaps = relevantGaps.length > 0;
 
   return (
-    <div className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className}`}>
       <div className="flex items-center gap-1 sm:gap-2">
         {/* Seniority Pill */}
         <button
@@ -88,7 +113,7 @@ export const CandidatePersonaHUD: React.FC<CandidatePersonaHUDProps> = ({
             initial={{ opacity: 0, y: -6, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.96 }}
-            className="absolute left-0 top-full mt-2 z-30 w-80 sm:w-96 bg-white/95 backdrop-blur-xl p-4 rounded-2xl shadow-xl border border-rose-200/70 text-left"
+            className="absolute left-0 top-full mt-2 z-30 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl p-4 rounded-2xl shadow-xl border border-rose-200/70 text-left"
           >
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-rose-100">
               <div className="flex items-center gap-2">

@@ -737,12 +737,29 @@ export const QuestionExplorer: React.FC = () => {
       </div>
 
       {filteredQuestions.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl border border-pastel-border mt-4">
+        <div className="text-center py-16 bg-white rounded-2xl border border-pastel-border mt-4 space-y-2">
           <BookOpen className="w-10 h-10 text-pastel-muted mx-auto mb-3 opacity-40" />
           <h3 className="text-base font-semibold text-pastel-text mb-1">Вопросы не найдены</h3>
-          <p className="text-xs text-pastel-muted">
-            Попробуйте сбросить поисковый фильтр или выбрать другую категорию статуса
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto">
+            {searchQuery ? (
+              <>По запросу «<strong className="text-pastel-text">{searchQuery}</strong>» ничего не найдено в этой категории.</>
+            ) : (
+              <>Попробуйте выбрать другую категорию статуса или сбросить фильтры.</>
+            )}
           </p>
+          {(searchQuery || statusFilter !== 'all') && (
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+                className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+          )}
         </div>
       )}
 

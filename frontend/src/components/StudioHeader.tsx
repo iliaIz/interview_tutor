@@ -159,7 +159,7 @@ export const StudioHeader: React.FC = () => {
           <div>
             <div className="flex items-center gap-1">
               <h1 className="font-bold text-xs sm:text-base tracking-tight text-pastel-text">InterviewPrep</h1>
-              <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">AI</span>
+              <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/20">AI</span>
             </div>
             <p className="text-[10px] text-pastel-muted font-medium hidden 2xl:block">Твой личный ИИ-ментор по Java & Spring</p>
           </div>

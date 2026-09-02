@@ -177,7 +177,7 @@ export const PracticeCatalog: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
+              <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/20">
                 ⚡ Machine Coding Studio
               </span>
               <span className="text-xs text-pastel-muted font-mono font-bold">
@@ -240,9 +240,29 @@ export const PracticeCatalog: React.FC = () => {
       </div>
 
       {/* 3. MASTER-DETAIL SPLIT STUDIO LAYOUT (SOTA 2026) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Master Challenges List (5 cols / 42%) */}
-        <div className="lg:col-span-5 space-y-2.5 max-h-[750px] overflow-y-auto pr-1 no-scrollbar">
+      {filteredChallenges.length === 0 ? (
+        <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+          <Code2 className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+          <h3 className="text-base font-bold text-pastel-text">Задачи не найдены</h3>
+          <p className="text-xs text-pastel-muted max-w-sm mx-auto leading-relaxed">
+            По запросу «<strong className="text-pastel-text">{searchQuery || selectedCategory}</strong>» ничего не найдено в каталоге задач.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRoseText text-xs font-bold border border-pastel-border transition cursor-pointer"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Master Challenges List (5 cols / 42%) */}
+          <div className="lg:col-span-5 space-y-2.5 max-h-[750px] overflow-y-auto pr-1 no-scrollbar">
           {filteredChallenges.map((ch) => {
             const isSelected = selectedId === ch.id;
             const isCompleted = ch.isCompleted;
@@ -415,6 +435,7 @@ export const PracticeCatalog: React.FC = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };
