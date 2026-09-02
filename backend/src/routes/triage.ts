@@ -99,6 +99,7 @@ ${preventionPlan || 'Не заполнено'}
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${proxyApiKey}`
       },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
@@ -112,8 +113,32 @@ ${preventionPlan || 'Не заполнено'}
     }
 
     const data: any = await response.json();
-    const content = data.choices?.[0]?.message?.content || '{}';
+    let content = (data.choices?.[0]?.message?.content || '{}').trim();
+    if (content.startsWith('```')) {
+      content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    }
     const parsed = JSON.parse(content);
+
+    // Persist triage evaluation attempt
+    try {
+      const userId = (req as any).user?.id || 'default_user';
+      const challengeId = incidentId || req.body.challengeId || 'incident';
+      const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.verdict === 'RESOLVED' ? 100 : parsed.verdict === 'PARTIALLY_RESOLVED' ? 60 : 20);
+      db.prepare(`
+        INSERT INTO evaluations (id, user_id, question_id, score, answer, feedback, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        `triage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        userId,
+        `triage_${challengeId}`,
+        score,
+        JSON.stringify({ rcaHypothesis, preventionPlan }),
+        JSON.stringify(parsed)
+      );
+    } catch (persistErr) {
+      console.warn('Could not persist triage evaluation:', persistErr);
+    }
+
     res.json(parsed);
   } catch (err: any) {
     console.error('Triage eval error:', err);
