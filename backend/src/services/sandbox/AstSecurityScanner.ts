@@ -62,6 +62,16 @@ const FORBIDDEN_PATTERNS: ForbiddenPattern[] = [
     rule: 'NO_THREAD_PRIORITY_HIJACK',
     regex: /\.setPriority\s*\(\s*(Thread\s*\.\s*MAX_PRIORITY|10)\s*\)/,
     message: 'Повышение приоритета потоков до MAX_PRIORITY запрещено.'
+  },
+  {
+    rule: 'NO_DYNAMIC_REFLECTION',
+    regex: /\b(Class\s*\.\s*forName|MethodHandles|VarHandle|\.(getMethod|getDeclaredMethod|getDeclaredConstructor|getConstructor|getDeclaredField|getField|invoke)\s*\()/,
+    message: 'Динамическая рефлексия (Class.forName, MethodHandles, .invoke) запрещена в песочнице.'
+  },
+  {
+    rule: 'NO_THREAD_BOMB',
+    regex: /\b(new\s+Thread\s*\(|Thread\s*\.\s*(ofVirtual|ofPlatform)\s*\()/,
+    message: 'Прямое создание неуправляемых системных потоков (Thread Bomb) запрещено. Используйте пулы ExecutorService.'
   }
 ];
 

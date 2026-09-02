@@ -16,7 +16,7 @@ export interface MutantResult {
   name: string;
   file: string;
   line: number;
-  status: 'KILLED' | 'SURVIVED';
+  status: 'KILLED' | 'SURVIVED' | 'STILLBORN';
   killedBy?: string;
   failureReason?: string;
 }
@@ -34,8 +34,10 @@ export interface MutationExecutionResponse {
   isMutationRun: true;
   baselinePassed: boolean;
   totalMutants: number;
+  validMutants?: number;
   killedCount: number;
   survivedCount: number;
+  stillbornCount?: number;
   mutationScore: number;
   passedThreshold: boolean;
   requiredScore: number;

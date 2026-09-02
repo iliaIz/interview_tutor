@@ -281,6 +281,10 @@ public class CompilerService {
                                 reportViolation("NO_REFLECTION_ACCESS_BYPASS", "Рефлексивный обход инкапсуляции (.setAccessible(true)) запрещен.", cut, node, sp, securityViolations);
                             } else if (select.startsWith("System.load") || select.contains(".loadLibrary")) {
                                 reportViolation("NO_NATIVE_LIBRARY_LOAD", "Загрузка нативных библиотек запрещена.", cut, node, sp, securityViolations);
+                            } else if (select.equals("Class.forName") || select.endsWith(".Class.forName") || select.contains("MethodHandles") || select.contains("VarHandle")) {
+                                reportViolation("NO_DYNAMIC_REFLECTION", "Динамическая рефлексия (Class.forName, MethodHandles) запрещена в песочнице.", cut, node, sp, securityViolations);
+                            } else if (select.endsWith(".getMethod") || select.endsWith(".getDeclaredMethod") || select.endsWith(".getDeclaredConstructor") || select.endsWith(".invoke")) {
+                                reportViolation("NO_DYNAMIC_REFLECTION", "Динамический вызов методов через рефлексию (.invoke/.getMethod) запрещен.", cut, node, sp, securityViolations);
                             }
                             return super.visitMethodInvocation(node, p);
                         }
@@ -292,6 +296,8 @@ public class CompilerService {
                                 reportViolation("NO_NETWORK_SOCKETS", "Создание сетевых сокетов и HTTP соединений запрещено.", cut, node, sp, securityViolations);
                             } else if (ident.contains("ProcessBuilder")) {
                                 reportViolation("NO_PROCESS_EXEC", "Создание ProcessBuilder запрещено.", cut, node, sp, securityViolations);
+                            } else if (ident.equals("Thread") || ident.endsWith(".Thread")) {
+                                reportViolation("NO_THREAD_BOMB", "Прямое создание неуправляемых системных потоков (new Thread()) запрещено. Используйте пулы потоков ExecutorService.", cut, node, sp, securityViolations);
                             } else if (ident.equals("FileOutputStream") || ident.endsWith(".FileOutputStream") ||
                                        ident.equals("FileWriter") || ident.endsWith(".FileWriter") ||
                                        ident.equals("RandomAccessFile") || ident.endsWith(".RandomAccessFile")) {
@@ -303,8 +309,8 @@ public class CompilerService {
                         @Override
                         public Void visitIdentifier(IdentifierTree node, Void p) {
                             String name = node.getName().toString();
-                            if ("Unsafe".equals(name)) {
-                                reportViolation("NO_UNSAFE", "Использование Unsafe памяти запрещено политикой безопасности.", cut, node, sp, securityViolations);
+                            if ("Unsafe".equals(name) || "MethodHandles".equals(name) || "VarHandle".equals(name)) {
+                                reportViolation("NO_UNSAFE_REFLECTION", "Использование низкоуровневых API рефлексии (" + name + ") запрещено.", cut, node, sp, securityViolations);
                             }
                             return super.visitIdentifier(node, p);
                         }
@@ -496,6 +502,7 @@ public class CompilerService {
 
         // Step 2: Evaluate Mutants
         int killedCount = 0;
+        int stillbornCount = 0;
         StringBuilder mutantResultsJson = new StringBuilder();
 
         for (int i = 0; i < mutants.size(); i++) {
@@ -529,13 +536,13 @@ public class CompilerService {
 
             ExecutionResult mutantRun = runCompilationAndTests(mutatedSources);
             boolean killed = false;
+            boolean stillborn = false;
             String killedBy = null;
             String failureReason = null;
 
             if (!mutantRun.isCompilable) {
-                killed = true;
-                killedBy = "CompilerDefectCatcher";
-                failureReason = "Мутация сломала валидность типов/компиляцию";
+                stillborn = true;
+                failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)";
             } else if (mutantRun.failedCount > 0) {
                 killed = true;
                 for (Map<String, Object> tr : mutantRun.testResults) {
@@ -549,7 +556,11 @@ public class CompilerService {
 
             if (killed) {
                 killedCount++;
+            } else if (stillborn) {
+                stillbornCount++;
             }
+
+            String status = stillborn ? "STILLBORN" : (killed ? "KILLED" : "SURVIVED");
 
             if (i > 0) mutantResultsJson.append(",");
             mutantResultsJson.append("{");
@@ -558,7 +569,7 @@ public class CompilerService {
             mutantResultsJson.append("\"name\":\"").append(m.name != null ? m.name : "Mutator").append("\",");
             mutantResultsJson.append("\"file\":\"").append(m.file != null ? m.file.replace('\\', '/') : "").append("\",");
             mutantResultsJson.append("\"line\":").append(m.line).append(",");
-            mutantResultsJson.append("\"status\":\"").append(killed ? "KILLED" : "SURVIVED").append("\"");
+            mutantResultsJson.append("\"status\":\"").append(status).append("\"");
             if (killedBy != null) {
                 mutantResultsJson.append(",\"killedBy\":\"").append(killedBy).append("\"");
             }
@@ -568,8 +579,9 @@ public class CompilerService {
             mutantResultsJson.append("}");
         }
 
-        int survivedCount = mutants.size() - killedCount;
-        double score = mutants.size() > 0 ? ((double) killedCount / mutants.size()) * 100.0 : 0.0;
+        int validMutants = mutants.size() - stillbornCount;
+        int survivedCount = Math.max(0, validMutants - killedCount);
+        double score = validMutants > 0 ? ((double) killedCount / validMutants) * 100.0 : 0.0;
         long totalTimeMs = System.currentTimeMillis() - startTime;
 
         StringBuilder finalJson = new StringBuilder();
@@ -577,8 +589,10 @@ public class CompilerService {
         finalJson.append("\"isMutationRun\":true,");
         finalJson.append("\"baselinePassed\":true,");
         finalJson.append("\"totalMutants\":").append(mutants.size()).append(",");
+        finalJson.append("\"validMutants\":").append(validMutants).append(",");
         finalJson.append("\"killedCount\":").append(killedCount).append(",");
         finalJson.append("\"survivedCount\":").append(survivedCount).append(",");
+        finalJson.append("\"stillbornCount\":").append(stillbornCount).append(",");
         finalJson.append("\"mutationScore\":").append(String.format(Locale.US, "%.1f", score)).append(",");
         finalJson.append("\"executionTimeMs\":").append(totalTimeMs).append(",");
         finalJson.append("\"mutantResults\":[").append(mutantResultsJson).append("]");

@@ -158,6 +158,7 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
         <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
           {report.mutantResults?.map((mutant) => {
             const isKilled = mutant.status === 'KILLED';
+            const isStillborn = mutant.status === 'STILLBORN';
             const isExpanded = expandedMutantId === (mutant.id || mutant.mutantId);
 
             return (
@@ -167,6 +168,8 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                 className={`flex flex-col rounded-xl border transition-all cursor-pointer p-3 ${
                   isKilled
                     ? 'bg-emerald-950/15 border-emerald-500/25 hover:border-emerald-500/40'
+                    : isStillborn
+                    ? 'bg-slate-900/30 border-slate-800 hover:border-slate-700 opacity-80'
                     : 'bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50'
                 }`}
               >
@@ -175,6 +178,10 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                     {isKilled ? (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                         KILLED
+                      </span>
+                    ) : isStillborn ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/40 text-slate-400 border border-slate-600/40" title="Не скомпилировался (Stillborn Mutant) - исключен из скора">
+                        STILLBORN
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse">
