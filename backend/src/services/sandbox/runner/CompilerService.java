@@ -404,47 +404,84 @@ public class CompilerService {
 
                         method.setAccessible(true);
                         long mStart = System.currentTimeMillis();
-                        Map<String, Object> testRes = new HashMap<>();
-                        testRes.put("testName", method.getName());
 
-                        if (method.getName().toLowerCase().contains("concurrent") ||
-                            method.getName().toLowerCase().contains("stress") ||
-                            method.getName().toLowerCase().contains("parallel") ||
-                            method.getName().toLowerCase().contains("race")) {
-                            runConcurrencyHarness(testInstance, method, beforeMethods, afterMethods, deadlockDetected, raceConditionDetected, concurrentThreadsRan);
-                            testRes.put("status", deadlockDetected.get() || raceConditionDetected.get() ? "FAILED" : "PASSED");
-                            if (deadlockDetected.get()) {
-                                testRes.put("failureReason", "Обнаружен взаимный дедлок (Deadlock) между потоками!");
-                                res.failedCount++;
-                            } else if (raceConditionDetected.get()) {
-                                testRes.put("failureReason", "Обнаружена гонка данных (Race Condition) при 100 параллельных потоках!");
-                                res.failedCount++;
-                            } else {
-                                res.passedCount++;
+                        List<Object[]> paramSets = extractParameterSets(method);
+                        if (!paramSets.isEmpty()) {
+                            for (int pIdx = 0; pIdx < paramSets.size(); pIdx++) {
+                                Object[] pArgs = paramSets.get(pIdx);
+                                Map<String, Object> pTestRes = new HashMap<>();
+                                String argSummary = Arrays.toString(pArgs);
+                                pTestRes.put("testName", method.getName() + "[" + (pIdx + 1) + ": " + argSummary + "]");
+                                long pStart = System.currentTimeMillis();
+                                try {
+                                    for (Method bm : beforeMethods) {
+                                        bm.invoke(testInstance);
+                                    }
+                                    method.invoke(testInstance, pArgs);
+                                    pTestRes.put("status", "PASSED");
+                                    res.passedCount++;
+                                } catch (Throwable t) {
+                                    Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                    pTestRes.put("status", "FAILED");
+                                    String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                                    pTestRes.put("failureReason", msg);
+                                    res.failedCount++;
+                                } finally {
+                                    for (Method am : afterMethods) {
+                                        try { am.invoke(testInstance); } catch (Throwable ignored) {}
+                                    }
+                                }
+                                pTestRes.put("durationMs", System.currentTimeMillis() - pStart);
+                                res.testResults.add(pTestRes);
                             }
                         } else {
-                            try {
-                                for (Method bm : beforeMethods) {
-                                    bm.invoke(testInstance);
+                            Map<String, Object> testRes = new HashMap<>();
+                            testRes.put("testName", method.getName());
+                            String mLower = method.getName().toLowerCase();
+                            boolean isConcurrent = mLower.contains("concurrent") ||
+                                mLower.contains("stress") ||
+                                mLower.contains("parallel") ||
+                                mLower.contains("race") ||
+                                mLower.contains("multithread") ||
+                                mLower.contains("highload") ||
+                                mLower.contains("throughput");
+
+                            if (isConcurrent) {
+                                runConcurrencyHarness(testInstance, method, beforeMethods, afterMethods, deadlockDetected, raceConditionDetected, concurrentThreadsRan);
+                                testRes.put("status", deadlockDetected.get() || raceConditionDetected.get() ? "FAILED" : "PASSED");
+                                if (deadlockDetected.get()) {
+                                    testRes.put("failureReason", "Обнаружен взаимный дедлок (Deadlock) между потоками!");
+                                    res.failedCount++;
+                                } else if (raceConditionDetected.get()) {
+                                    testRes.put("failureReason", "Обнаружена гонка данных (Race Condition) при 100 параллельных потоках!");
+                                    res.failedCount++;
+                                } else {
+                                    res.passedCount++;
                                 }
-                                method.invoke(testInstance);
-                                testRes.put("status", "PASSED");
-                                res.passedCount++;
-                            } catch (Throwable t) {
-                                Throwable cause = t.getCause() != null ? t.getCause() : t;
-                                testRes.put("status", "FAILED");
-                                String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-                                testRes.put("failureReason", msg);
-                                res.failedCount++;
-                            } finally {
-                                for (Method am : afterMethods) {
-                                    try { am.invoke(testInstance); } catch (Throwable ignored) {}
+                            } else {
+                                try {
+                                    for (Method bm : beforeMethods) {
+                                        bm.invoke(testInstance);
+                                    }
+                                    method.invoke(testInstance);
+                                    testRes.put("status", "PASSED");
+                                    res.passedCount++;
+                                } catch (Throwable t) {
+                                    Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                    testRes.put("status", "FAILED");
+                                    String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                                    testRes.put("failureReason", msg);
+                                    res.failedCount++;
+                                } finally {
+                                    for (Method am : afterMethods) {
+                                        try { am.invoke(testInstance); } catch (Throwable ignored) {}
+                                    }
                                 }
                             }
-                        }
 
-                        testRes.put("durationMs", System.currentTimeMillis() - mStart);
-                        res.testResults.add(testRes);
+                            testRes.put("durationMs", System.currentTimeMillis() - mStart);
+                            res.testResults.add(testRes);
+                        }
                     }
                 } catch (Exception ignored) {
                 }
@@ -860,5 +897,88 @@ public class CompilerService {
             }
         }
         return sb.toString();
+    }
+
+    private static List<Object[]> extractParameterSets(Method method) {
+        List<Object[]> paramSets = new ArrayList<>();
+        Class<?>[] paramTypes = method.getParameterTypes();
+        if (paramTypes.length == 0) return paramSets;
+
+        for (java.lang.annotation.Annotation ann : method.getAnnotations()) {
+            String annName = ann.annotationType().getSimpleName();
+            if ("ValueSource".equals(annName)) {
+                try {
+                    Method stringsM = ann.annotationType().getMethod("strings");
+                    String[] strings = (String[]) stringsM.invoke(ann);
+                    if (strings != null && strings.length > 0) {
+                        for (String s : strings) paramSets.add(new Object[]{ convertArg(s, paramTypes[0]) });
+                    }
+                    Method intsM = ann.annotationType().getMethod("ints");
+                    int[] ints = (int[]) intsM.invoke(ann);
+                    if (ints != null && ints.length > 0) {
+                        for (int i : ints) paramSets.add(new Object[]{ i });
+                    }
+                    Method doublesM = ann.annotationType().getMethod("doubles");
+                    double[] doubles = (double[]) doublesM.invoke(ann);
+                    if (doubles != null && doubles.length > 0) {
+                        for (double d : doubles) paramSets.add(new Object[]{ d });
+                    }
+                    Method longsM = ann.annotationType().getMethod("longs");
+                    long[] longs = (long[]) longsM.invoke(ann);
+                    if (longs != null && longs.length > 0) {
+                        for (long l : longs) paramSets.add(new Object[]{ l });
+                    }
+                    Method booleansM = ann.annotationType().getMethod("booleans");
+                    boolean[] booleans = (boolean[]) booleansM.invoke(ann);
+                    if (booleans != null && booleans.length > 0) {
+                        for (boolean b : booleans) paramSets.add(new Object[]{ b });
+                    }
+                } catch (Throwable ignored) {}
+            } else if ("CsvSource".equals(annName)) {
+                try {
+                    Method valM = ann.annotationType().getMethod("value");
+                    String[] rows = (String[]) valM.invoke(ann);
+                    Method delimM = ann.annotationType().getMethod("delimiter");
+                    char delim = (char) delimM.invoke(ann);
+                    String delimRegex = String.valueOf(delim);
+
+                    if (rows != null) {
+                        for (String row : rows) {
+                            String[] tokens = row.split(delimRegex);
+                            Object[] args = new Object[paramTypes.length];
+                            for (int i = 0; i < paramTypes.length; i++) {
+                                String tok = i < tokens.length ? tokens[i].trim().replaceAll("^['\"]|['\"]$", "") : "";
+                                args[i] = convertArg(tok, paramTypes[i]);
+                            }
+                            paramSets.add(args);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return paramSets;
+    }
+
+    private static Object convertArg(String val, Class<?> targetType) {
+        if (targetType == String.class) return val;
+        if (targetType == int.class || targetType == Integer.class) {
+            try { return Integer.parseInt(val); } catch (Exception e) { return 0; }
+        }
+        if (targetType == long.class || targetType == Long.class) {
+            try { return Long.parseLong(val); } catch (Exception e) { return 0L; }
+        }
+        if (targetType == double.class || targetType == Double.class) {
+            try { return Double.parseDouble(val); } catch (Exception e) { return 0.0; }
+        }
+        if (targetType == float.class || targetType == Float.class) {
+            try { return Float.parseFloat(val); } catch (Exception e) { return 0.0f; }
+        }
+        if (targetType == boolean.class || targetType == Boolean.class) {
+            return Boolean.parseBoolean(val);
+        }
+        if (targetType.getName().equals("java.math.BigDecimal")) {
+            try { return new java.math.BigDecimal(val); } catch (Exception e) { return java.math.BigDecimal.ZERO; }
+        }
+        return val;
     }
 }

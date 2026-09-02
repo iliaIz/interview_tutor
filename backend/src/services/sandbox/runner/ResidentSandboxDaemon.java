@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * High-performance Hot Resident JVM Sandbox Daemon.
@@ -12,6 +13,7 @@ import java.util.concurrent.*;
  */
 public class ResidentSandboxDaemon {
     public static final int DEFAULT_PORT = 8099;
+    private static final AtomicInteger executionCount = new AtomicInteger(0);
 
     public static void main(String[] args) {
         int port = DEFAULT_PORT;
@@ -80,6 +82,11 @@ public class ResidentSandboxDaemon {
             out.writeInt(responseBytes.length);
             out.write(responseBytes);
             out.flush();
+
+            int count = executionCount.incrementAndGet();
+            if (count % 200 == 0) {
+                System.gc();
+            }
         } catch (IOException ignored) {
         }
     }
