@@ -255,8 +255,48 @@ export function calculateRbfKernel(distance: number, sigma: number = 0.125): num
 }
 
 /**
- * Propagates deficit to semantically related questions via Gaussian RBF diffusion.
- * When a candidate lapses (Again / Hard), related concepts receive:
+ * In-memory embedding cache for question vectors to eliminate Event Loop blocking.
+ */
+interface CachedQuestionEmbedding {
+  questionId: string;
+  topic: string;
+  vec: Float32Array;
+}
+
+let cachedQuestionEmbeddings: CachedQuestionEmbedding[] | null = null;
+let lastCacheRefreshMs = 0;
+const EMBEDDING_CACHE_TTL_MS = 60_000;
+
+export function getCachedQuestionEmbeddings(): CachedQuestionEmbedding[] {
+  const now = Date.now();
+  if (cachedQuestionEmbeddings && now - lastCacheRefreshMs < EMBEDDING_CACHE_TTL_MS) {
+    return cachedQuestionEmbeddings;
+  }
+  const rows = db.prepare('SELECT question_id, topic, embedding FROM question_embeddings').all() as any[];
+  const list: CachedQuestionEmbedding[] = [];
+  for (const r of rows) {
+    if (!r.embedding) continue;
+    const b = r.embedding as Buffer;
+    const vec = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    list.push({
+      questionId: r.question_id,
+      topic: r.topic || '',
+      vec
+    });
+  }
+  cachedQuestionEmbeddings = list;
+  lastCacheRefreshMs = now;
+  return list;
+}
+
+export function invalidateQuestionEmbeddingCache(): void {
+  cachedQuestionEmbeddings = null;
+  lastCacheRefreshMs = 0;
+}
+
+/**
+ * Propagates deficit from a failed question to semantically close neighbor questions (RBF Kernel).
+ * Uses in-memory typed float array scan to protect Node.js Event Loop from blocking I/O.
  * 1. Difficulty infiltration: D'_k = min(10, D_k + alpha * K * (10 - D_k)), alpha = 0.20
  * 2. Stability degradation: S'_k = max(w0, S_k * (1 - beta * K)), beta = 0.35
  * 3. Schedule adjustment: recalculated due_at; if <= now, marked as immediately due.
@@ -267,15 +307,37 @@ export async function propagateDeficitCluster(
   now: Date = new Date()
 ): Promise<{ count: number; neighbors: NeighborPropagationResult[] }> {
   try {
-    const sourceRow = db.prepare('SELECT embedding, topic FROM question_embeddings WHERE question_id = ?').get(questionId) as any;
-    if (!sourceRow?.embedding) return { count: 0, neighbors: [] };
+    const allEmbeddings = getCachedQuestionEmbeddings();
+    const source = allEmbeddings.find(e => e.questionId === questionId);
+    if (!source) return { count: 0, neighbors: [] };
+    const sourceVec = source.vec;
 
-    const sourceBuf = sourceRow.embedding as Buffer;
-    const sourceVec = new Float32Array(sourceBuf.buffer.slice(sourceBuf.byteOffset, sourceBuf.byteOffset + sourceBuf.byteLength));
+    // Fast in-memory typed vector scan (O(N) in memory, < 1ms, non-blocking)
+    const matchedCandidates: Array<{
+      questionId: string;
+      dist: number;
+      kernelWeight: number;
+    }> = [];
 
-    const otherRows = db.prepare('SELECT question_id, embedding FROM question_embeddings WHERE question_id != ?').all(questionId) as any[];
+    for (const item of allEmbeddings) {
+      if (item.questionId === questionId) continue;
+      const sim = cosineSimilarity(sourceVec, item.vec);
+      const dist = Math.max(0, 1.0 - sim);
+
+      // Radius cut-off d <= 0.25 (cosine similarity >= 0.75)
+      if (dist <= 0.25) {
+        const kernelWeight = calculateRbfKernel(dist, 0.125);
+        if (kernelWeight > 0) {
+          matchedCandidates.push({ questionId: item.questionId, dist, kernelWeight });
+        }
+      }
+    }
+
+    if (matchedCandidates.length === 0) {
+      return { count: 0, neighbors: [] };
+    }
+
     const neighbors: NeighborPropagationResult[] = [];
-
     const fetchCardStmt = db.prepare('SELECT * FROM fsrs_card_states WHERE user_id = ? AND question_id = ?');
     const updateNeighborStmt = db.prepare(`
       INSERT INTO fsrs_card_states (
@@ -297,55 +359,44 @@ export async function propagateDeficitCluster(
     const targetR = REQUEST_RETENTION; // 0.90
     const nowMs = now.getTime();
 
+    // Transaction only writes to the few matched neighbors (minimal lock time)
     const tx = db.transaction(() => {
-      for (const r of otherRows) {
-        if (!r.embedding) continue;
-        const b = r.embedding as Buffer;
-        const vec = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-        const sim = cosineSimilarity(sourceVec, vec);
-        const dist = Math.max(0, 1.0 - sim);
+      for (const candidate of matchedCandidates) {
+        const neighborCardRaw = fetchCardStmt.get(userId, candidate.questionId) as any;
+        const oldS = neighborCardRaw ? neighborCardRaw.stability : 1.0;
+        const oldD = neighborCardRaw ? neighborCardRaw.difficulty : 5.0;
 
-        // Radius cut-off d <= 0.25 (cosine similarity >= 0.75)
-        if (dist <= 0.25) {
-          const kernelWeight = calculateRbfKernel(dist, 0.125);
-          if (kernelWeight <= 0) continue;
+        // 1. Difficulty Infiltration
+        const newD = Math.min(10.0, oldD + alpha * candidate.kernelWeight * (10.0 - oldD));
+        // 2. Stability Degradation
+        const newS = Math.max(w0, oldS * (1.0 - beta * candidate.kernelWeight));
 
-          const neighborCardRaw = fetchCardStmt.get(userId, r.question_id) as any;
-          const oldS = neighborCardRaw ? neighborCardRaw.stability : 1.0;
-          const oldD = neighborCardRaw ? neighborCardRaw.difficulty : 5.0;
+        // 3. New interval: at R=0.90, intervalDays = S
+        const intervalDays = (81 * newS / 19) * (Math.pow(targetR, -2) - 1);
+        const lastRevMs = neighborCardRaw?.last_review_at ? new Date(neighborCardRaw.last_review_at).getTime() : nowMs;
+        const newDueMs = Math.round(lastRevMs + intervalDays * 86400 * 1000);
+        const immediatelyDue = newDueMs <= nowMs;
+        const newDueDate = new Date(newDueMs).toISOString();
 
-          // 1. Difficulty Infiltration
-          const newD = Math.min(10.0, oldD + alpha * kernelWeight * (10.0 - oldD));
-          // 2. Stability Degradation
-          const newS = Math.max(w0, oldS * (1.0 - beta * kernelWeight));
+        updateNeighborStmt.run({
+          userId,
+          questionId: candidate.questionId,
+          stability: parseFloat(newS.toFixed(2)),
+          difficulty: parseFloat(newD.toFixed(2)),
+          scheduledDays: Math.max(1, Math.round(intervalDays)),
+          dueAt: newDueDate
+        });
 
-          // 3. New interval: at R=0.90, intervalDays = S
-          const intervalDays = (81 * newS / 19) * (Math.pow(targetR, -2) - 1);
-          const lastRevMs = neighborCardRaw?.last_review_at ? new Date(neighborCardRaw.last_review_at).getTime() : nowMs;
-          const newDueMs = Math.round(lastRevMs + intervalDays * 86400 * 1000);
-          const immediatelyDue = newDueMs <= nowMs;
-          const newDueDate = new Date(newDueMs).toISOString();
-
-          updateNeighborStmt.run({
-            userId,
-            questionId: r.question_id,
-            stability: parseFloat(newS.toFixed(2)),
-            difficulty: parseFloat(newD.toFixed(2)),
-            scheduledDays: Math.max(1, Math.round(intervalDays)),
-            dueAt: newDueDate
-          });
-
-          neighbors.push({
-            neighborQuestionId: r.question_id,
-            oldStability: parseFloat(oldS.toFixed(2)),
-            newStability: parseFloat(newS.toFixed(2)),
-            oldDifficulty: parseFloat(oldD.toFixed(2)),
-            newDifficulty: parseFloat(newD.toFixed(2)),
-            distance: parseFloat(dist.toFixed(4)),
-            newDueAt: newDueDate,
-            immediatelyDue
-          });
-        }
+        neighbors.push({
+          neighborQuestionId: candidate.questionId,
+          oldStability: parseFloat(oldS.toFixed(2)),
+          newStability: parseFloat(newS.toFixed(2)),
+          oldDifficulty: parseFloat(oldD.toFixed(2)),
+          newDifficulty: parseFloat(newD.toFixed(2)),
+          distance: parseFloat(candidate.dist.toFixed(4)),
+          newDueAt: newDueDate,
+          immediatelyDue
+        });
       }
     });
 
