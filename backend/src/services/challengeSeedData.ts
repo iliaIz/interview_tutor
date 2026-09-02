@@ -63,7 +63,8 @@ export interface CodingChallenge {
   id: string;
   slug: string;
   title: string;
-  category: 'machine_coding' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms';
+  category: string;
+  track?: string;
   badge: string;
   difficulty: 'Junior' | 'Middle' | 'Senior' | 'Lead';
   targetStack: string;
@@ -77,7 +78,18 @@ export interface CodingChallenge {
   allowedPublicSignatureChanges?: number;
   concurrencyConfig?: ConcurrencyHarnessConfig;
   idiomRequirements?: JavaIdiomRequirements;
-  scoringWeights: {
+  challengeMode?: 'machine_coding' | 'write_the_tests';
+  requiredMutationScore?: number;
+  mutants?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    mutatorType?: string;
+    file: string;
+    line: number;
+    mutatedContent: string;
+  }>;
+  scoringWeights?: {
     functionalCorrectness: number;
     concurrencySafety: number;
     architectureAndCleanCode: number;
@@ -911,8 +923,12 @@ public class EventProcessor {
 ];
 
 import { ADDITIONAL_LLD_CHALLENGES } from './additionalChallenges';
+import { MUTATION_TESTING_CHALLENGES } from './mutationChallenges';
+import { ADDITIONAL_MUTATION_CHALLENGES } from './additionalMutationChallenges';
 
 export const SEEDED_CHALLENGES: CodingChallenge[] = [
   ...BASE_CHALLENGES,
-  ...ADDITIONAL_LLD_CHALLENGES
+  ...ADDITIONAL_LLD_CHALLENGES,
+  ...MUTATION_TESTING_CHALLENGES,
+  ...ADDITIONAL_MUTATION_CHALLENGES
 ];

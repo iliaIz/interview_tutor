@@ -241,6 +241,13 @@ Generate ONLY valid JSON adhering strictly to this JSON format:
   const phaseInfo = challenge.phasedRequirements?.find(p => p.phase === activePhase);
   const phaseText = phaseInfo ? `Phase ${activePhase} Objective: ${phaseInfo.title}\n${phaseInfo.descriptionMarkdown}` : '';
 
+  const weights = challenge.scoringWeights || {
+    functionalCorrectness: 0.40,
+    concurrencySafety: 0.20,
+    architectureAndCleanCode: 0.20,
+    modernIdioms: 0.20
+  };
+
   const userPrompt = `<evaluation_request>
 <task_specification>
 Title: ${challenge.title}
@@ -249,7 +256,7 @@ Target Stack: ${challenge.targetStack}
 Active Phase: ${activePhase}
 Summary: ${challenge.shortDescription}
 ${phaseText}
-Scoring Weights: Correctness ${challenge.scoringWeights.functionalCorrectness * 100}%, Concurrency ${challenge.scoringWeights.concurrencySafety * 100}%, Architecture ${challenge.scoringWeights.architectureAndCleanCode * 100}%, Modern Idioms ${challenge.scoringWeights.modernIdioms * 100}%
+Scoring Weights: Correctness ${weights.functionalCorrectness * 100}%, Concurrency ${weights.concurrencySafety * 100}%, Architecture ${weights.architectureAndCleanCode * 100}%, Modern Idioms ${weights.modernIdioms * 100}%
 </task_specification>
 
 ${preProcess.summaryFactsXml}
