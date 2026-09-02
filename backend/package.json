@@ -4,7 +4,7 @@
   "description": "Backend API and Gemini Live WebSocket Proxy for Interview Prep Platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && javac -d bin src/services/sandbox/runner/CompilerService.java",
+    "build": "tsc && javac -d bin src/services/sandbox/runner/CompilerService.java src/services/sandbox/runner/stubs/org/junit/jupiter/api/*.java src/services/sandbox/runner/stubs/org/junit/jupiter/api/function/*.java src/services/sandbox/runner/stubs/org/assertj/core/api/*.java",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
   },
