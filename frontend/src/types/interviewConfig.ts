@@ -50,6 +50,7 @@ export const AVAILABLE_VOICES: VoiceOption[] = [
 export type UserGender = 'female' | 'male' | 'neutral';
 export type TurnMode = 'manual' | 'auto';
 export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3';
+export type InterviewLanguage = 'ru' | 'en';
 
 import { InterviewPersonaId, TargetGrade } from './personas';
 
@@ -57,6 +58,7 @@ export interface InterviewConfig {
   strategy: InterviewStrategy;
   voice: GeminiVoiceName;
   maxProbes: number; // 1..5
+  language?: InterviewLanguage; // 🌐 'ru' (по умолчанию) | 'en' (для зарубежных мок-интервью)
   persona?: InterviewPersonaId; // 👔 Персона интервьюера (FAANG Bar-Raiser, Staff Architect, Yandex Core)
   targetGrade?: TargetGrade; // 🎯 Целевой грейд (L4 Middle+, L5 Senior, L6 Staff)
   userGender?: UserGender; // 👩/👨/⚪ Пол кандидата для согласования грамматики в диалоге
