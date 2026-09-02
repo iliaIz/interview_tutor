@@ -82,6 +82,16 @@ export const AST_RULES_DEFINITIONS: Omit<AstRuleItem, 'isViolation'>[] = [
 
 
 /**
+ * Strips comments and string literals to eliminate false-positive AST violations.
+ */
+function sanitizeCodeForAst(raw: string): string {
+  return raw
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/.*$/gm, ' ')
+    .replace(/"(?:\\.|[^"\\])*"/g, '""');
+}
+
+/**
  * Deterministically evaluates code against unified AST rules.
  */
 export function evaluateAstRules(code: string): { text: string; isViolation: boolean; id: string }[] {
@@ -89,10 +99,11 @@ export function evaluateAstRules(code: string): { text: string; isViolation: boo
     return [{ text: 'Архитектурный шаблон проверен: чистая реализация', isViolation: false, id: 'clean' }];
   }
 
+  const sanitized = sanitizeCodeForAst(code);
   const results: { text: string; isViolation: boolean; id: string }[] = [];
 
   for (const rule of AST_RULES_DEFINITIONS) {
-    if (rule.regex.test(code)) {
+    if (rule.regex.test(sanitized)) {
       // Special check for ThreadLocal: if .remove() is present in the code, it's not an unbounded leak
       if (rule.id === 'unbounded-threadlocal-leak' && code.includes('.remove()')) {
         continue;

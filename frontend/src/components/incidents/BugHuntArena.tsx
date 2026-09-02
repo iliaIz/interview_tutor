@@ -217,8 +217,11 @@ export const BugHuntArena: React.FC = () => {
       }
 
       const newChallenge: BugChallenge = await res.json();
-      setHistory(prev => [...prev, newChallenge]);
-      setCurrentIndex(prev => prev + 1);
+      setHistory(prev => {
+        const nextHistory = [...prev, newChallenge];
+        setCurrentIndex(nextHistory.length - 1);
+        return nextHistory;
+      });
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         setGenerationError(err.message || 'Ошибка генерации кейса');

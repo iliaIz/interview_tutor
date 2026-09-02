@@ -6,7 +6,7 @@ export async function fetchFsrsQueue(limit: number = 10): Promise<{
   estimatedMinutes: number;
 }> {
   try {
-    const res = await fetch(`/api/memory/fsrs/queue?limit=${limit}`);
+    const res = await fetch(`/api/memory/fsrs/queue?limit=${limit}`, { credentials: 'include' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -17,7 +17,7 @@ export async function fetchFsrsQueue(limit: number = 10): Promise<{
 
 export async function fetchFsrsStats(): Promise<FsrsStatsDTO> {
   try {
-    const res = await fetch('/api/memory/fsrs/stats');
+    const res = await fetch('/api/memory/fsrs/stats', { credentials: 'include' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -38,6 +38,7 @@ export async function submitFsrsReview(questionId: string, score: number, isPass
     const res = await fetch('/api/memory/fsrs/review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ questionId, score, isPassed })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

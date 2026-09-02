@@ -233,9 +233,19 @@ systemDesignRouter.get('/submissions/:scenarioId', (req: Request, res: Response)
     }
 
     let parsedTopology = null;
+    let architectureMermaid = null;
     try {
-      if (row.architecture_mermaid) parsedTopology = JSON.parse(row.architecture_mermaid);
-    } catch (_) {}
+      if (row.architecture_mermaid) {
+        const parsed = JSON.parse(row.architecture_mermaid);
+        if (parsed && typeof parsed === 'object' && (parsed.nodes || parsed.edges)) {
+          parsedTopology = parsed;
+        } else {
+          architectureMermaid = row.architecture_mermaid;
+        }
+      }
+    } catch (_) {
+      architectureMermaid = row.architecture_mermaid;
+    }
 
     let parsedEvaluation = null;
     try {
@@ -247,8 +257,11 @@ systemDesignRouter.get('/submissions/:scenarioId', (req: Request, res: Response)
         id: row.id,
         scenarioId: row.scenario_id,
         canvasTopology: parsedTopology,
+        architectureMermaid: architectureMermaid,
         architectureNotes: row.notes_markdown,
+        candidateNotes: row.notes_markdown,
         evaluation: parsedEvaluation,
+        evaluationJson: row.evaluation_json,
         createdAt: row.created_at
       }
     });

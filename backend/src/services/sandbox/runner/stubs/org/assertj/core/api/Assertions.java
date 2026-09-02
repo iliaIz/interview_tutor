@@ -4,6 +4,11 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 public class Assertions {
     public static <T> ObjectAssert<T> assertThat(T actual) {
@@ -23,6 +28,10 @@ public class Assertions {
     }
 
     public static <E> CollectionAssert<E> assertThat(Collection<E> actual) {
+        return new CollectionAssert<>(actual);
+    }
+
+    public static <E> CollectionAssert<E> assertThat(List<E> actual) {
         return new CollectionAssert<>(actual);
     }
 
@@ -87,6 +96,41 @@ public class Assertions {
             if (actual == other) {
                 String prefix = description != null ? "[" + description + "] " : "";
                 throw new AssertionError(prefix + "expected not same instance: <" + other + ">");
+            }
+            return this;
+        }
+
+        public ObjectAssert<T> isIn(Object... values) {
+            isNotNull();
+            for (Object v : values) {
+                if (Objects.equals(actual, v)) return this;
+            }
+            String prefix = description != null ? "[" + description + "] " : "";
+            throw new AssertionError(prefix + "expected <" + actual + "> to be in: " + java.util.Arrays.toString(values));
+        }
+
+        public ObjectAssert<T> isNotIn(Object... values) {
+            isNotNull();
+            for (Object v : values) {
+                if (Objects.equals(actual, v)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "expected <" + actual + "> not to be in: " + java.util.Arrays.toString(values));
+                }
+            }
+            return this;
+        }
+
+        public ObjectAssert<T> satisfies(Consumer<? super T> requirements) {
+            isNotNull();
+            requirements.accept(actual);
+            return this;
+        }
+
+        public ObjectAssert<T> matches(Predicate<? super T> predicate) {
+            isNotNull();
+            if (!predicate.test(actual)) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected <" + actual + "> to match predicate");
             }
             return this;
         }
@@ -300,6 +344,76 @@ public class Assertions {
             if (actual.isEmpty()) {
                 String prefix = description != null ? "[" + description + "] " : "";
                 throw new AssertionError(prefix + "expected collection to not be empty");
+            }
+            return this;
+        }
+
+        public CollectionAssert<E> containsExactly(Object... elements) {
+            hasSize(elements.length);
+            int idx = 0;
+            for (E item : actual) {
+                if (!Objects.equals(item, elements[idx])) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "at index " + idx + " expected <" + elements[idx] + "> but was <" + item + ">");
+                }
+                idx++;
+            }
+            return this;
+        }
+
+        public CollectionAssert<E> containsExactlyInAnyOrder(Object... elements) {
+            hasSize(elements.length);
+            contains(elements);
+            return this;
+        }
+
+        public <R> CollectionAssert<R> extracting(Function<? super E, R> extractor) {
+            isNotNull();
+            List<R> extracted = new ArrayList<>();
+            for (E item : actual) {
+                extracted.add(extractor.apply(item));
+            }
+            return new CollectionAssert<>(extracted);
+        }
+
+        public CollectionAssert<E> filteredOn(Predicate<? super E> filter) {
+            isNotNull();
+            List<E> filtered = new ArrayList<>();
+            for (E item : actual) {
+                if (filter.test(item)) {
+                    filtered.add(item);
+                }
+            }
+            return new CollectionAssert<>(filtered);
+        }
+
+        public CollectionAssert<E> allMatch(Predicate<? super E> predicate) {
+            isNotNull();
+            for (E item : actual) {
+                if (!predicate.test(item)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "element <" + item + "> does not match predicate");
+                }
+            }
+            return this;
+        }
+
+        public CollectionAssert<E> anyMatch(Predicate<? super E> predicate) {
+            isNotNull();
+            for (E item : actual) {
+                if (predicate.test(item)) return this;
+            }
+            String prefix = description != null ? "[" + description + "] " : "";
+            throw new AssertionError(prefix + "no element matches predicate in collection");
+        }
+
+        public CollectionAssert<E> noneMatch(Predicate<? super E> predicate) {
+            isNotNull();
+            for (E item : actual) {
+                if (predicate.test(item)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "element <" + item + "> unexpectedly matched predicate");
+                }
             }
             return this;
         }

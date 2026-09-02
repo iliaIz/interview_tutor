@@ -142,7 +142,11 @@ ${preventionPlan || 'Не заполнено'}
     try {
       const userId = (req as any).user?.id || 'default_user';
       const challengeId = incidentId || req.body.challengeId || 'incident';
-      const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.verdict === 'RESOLVED' ? 100 : parsed.verdict === 'PARTIALLY_RESOLVED' ? 60 : 20);
+      const score = typeof parsed.score === 'number'
+        ? parsed.score
+        : (typeof parsed.totalScore === 'number'
+          ? parsed.totalScore
+          : (parsed.verdict === 'RESOLVED' ? 100 : parsed.verdict === 'PARTIALLY_RESOLVED' ? 60 : 20));
       db.prepare(`
         INSERT INTO triage_submissions (id, incident_id, user_id, rca_hypothesis, prevention_plan, evaluation_json, score, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)

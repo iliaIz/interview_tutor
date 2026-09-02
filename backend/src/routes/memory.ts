@@ -5,7 +5,8 @@ import {
   getUserProfile,
   updateUserProfile,
   recordNewErrorGap,
-  findRelevantCandidateGaps
+  findRelevantCandidateGaps,
+  applyKnowledgeDecay
 } from '../services/vectorMemoryService';
 import { getAuthUserId } from '../middleware/auth';
 import { getFsrsQueue, getFsrsStats, updateFsrsCardState } from '../services/fsrsEngine';
@@ -141,6 +142,15 @@ router.post('/fsrs/review', async (req, res) => {
       score: Number(score),
       isPassed: Boolean(isPassed)
     });
+
+    if (Boolean(isPassed) || Number(score) >= 70) {
+      void applyKnowledgeDecay({
+        questionId,
+        topic: '',
+        assistanceLevel: 'solo'
+      }).catch(() => {});
+    }
+
     res.json(result);
   } catch (err: any) {
     console.error('Error recording FSRS review:', err);

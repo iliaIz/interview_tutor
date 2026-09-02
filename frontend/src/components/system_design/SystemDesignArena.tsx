@@ -85,9 +85,19 @@ export const SystemDesignArena: React.FC = () => {
       .then(data => {
         if (isCancelled || !data?.submission) return;
         const sub = data.submission;
-        if (sub.mermaid_diagram) setMermaidCode(sub.mermaid_diagram);
-        if (sub.candidate_notes) setCandidateNotes(sub.candidate_notes);
-        if (sub.evaluation_json) {
+        if (sub.canvasTopology) {
+          setCanvasPayload(sub.canvasTopology);
+          setArchitectureMode('canvas');
+        } else if (sub.architectureMermaid || sub.mermaid_diagram) {
+          setMermaidCode(sub.architectureMermaid || sub.mermaid_diagram);
+          setArchitectureMode('mermaid');
+        }
+        if (sub.candidateNotes || sub.candidate_notes || sub.architectureNotes) {
+          setCandidateNotes(sub.candidateNotes || sub.candidate_notes || sub.architectureNotes);
+        }
+        if (sub.evaluation) {
+          setEvaluationResult(sub.evaluation);
+        } else if (sub.evaluation_json) {
           try {
             setEvaluationResult(JSON.parse(sub.evaluation_json));
           } catch {}
