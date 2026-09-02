@@ -17,6 +17,12 @@ import { authService } from './authService';
 import { parseCookies } from '../middleware/auth';
 import { recordEvaluationAndSyncProgress } from './progressService';
 
+import {
+  InterviewPersonaId,
+  TargetGrade,
+  getPersonaPromptDirectives,
+  calculateFaangScorecard
+} from '../prompts/personas';
 
 dotenv.config();
 
@@ -79,6 +85,8 @@ interface ProxySession {
   nudgeWatchdog?: NodeJS.Timeout | null;
   greetingWatchdog?: NodeJS.Timeout | null;
   currentAiTurnText?: string;
+  persona?: InterviewPersonaId;
+  targetGrade?: TargetGrade;
 }
 
 /**
@@ -142,6 +150,8 @@ export function buildSystemPrompt(params: {
   candidateGaps?: CandidateGap[];
   activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string; };
   codeRevisionsSummary?: Array<{ id: string; title: string; }>;
+  persona?: InterviewPersonaId;
+  targetGrade?: TargetGrade;
 }): string {
   const {
     topic,
@@ -168,7 +178,9 @@ export function buildSystemPrompt(params: {
     primaryStack = 'Java 21, Spring Boot 3.3',
     candidateGaps = [],
     activeCodeArtifact,
-    codeRevisionsSummary
+    codeRevisionsSummary,
+    persona = 'mentor',
+    targetGrade = 'L5_SENIOR'
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -421,22 +433,33 @@ ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
 По окончании собеседования обязательно скажи краткое устное резюме и вызови функцию submit_interview_evaluation.`;
   }
 
+  const personaDirectives = getPersonaPromptDirectives({
+    persona,
+    targetGrade,
+    topic
+  });
+
   const anchorsFormatted = anchors.map((a, i) => `  [Критерий ${i + 1}] ${a}`).join('\n');
 
   const candidateContextSection = candidateGaps && candidateGaps.length > 0
     ? `=== 0. ПРОФИЛЬ И СМЕЖНЫЕ ЗОНЫ ВНИМАНИЯ (EPISODIC VECTOR MEMORY) ===
-ЦЕЛЕВОЙ ГРЕЙД: ${targetSeniority.toUpperCase()} | СТЕК: ${primaryStack}
+ИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}
+${personaDirectives.gradeExpectationDirective}
+СТЕК: ${primaryStack}
 ИЗВЕСТНЫЕ ПРОБЕЛЫ КАНДИДАТА ИЗ СМЕЖНЫХ ТЕМ:
 ${candidateGaps.map((g, i) => `  [Пробел ${i + 1}] "${g.errorConcept}" (Степень дефицита: ${g.deficitWeight.toFixed(1)}, Сходство: ${Math.round((g.similarity ?? 0.8) * 100)}%)`).join('\n')}
 ДИРЕКТИВА: Если кандидат в ответе касается этой темы, обрати особое внимание. Если раскрыл сам и без ошибок — зафиксируй самостоятельное освоение. Если затрудняется — мягко направь наводящим вопросом.`
     : `=== 0. ПРОФИЛЬ КАНДИДАТА ===
-ЦЕЛЕВОЙ ГРЕЙД: ${targetSeniority.toUpperCase()} | СТЕК: ${primaryStack}`;
+ИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}
+${personaDirectives.gradeExpectationDirective}
+СТЕК: ${primaryStack}`;
 
-  if (strategy === 'socratic_tutoring') {
+  if (strategy === 'socratic_tutoring' && persona === 'mentor') {
     return `${candidateContextSection}
 
 === 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по теме «${topic}».
+${personaDirectives.roleDirective}
 ${genderRule}
 
 ${batchContext}
@@ -470,14 +493,16 @@ ${anchorsFormatted}
 5. ФИНАЛИЗАЦИЯ И ОЦЕНКА:
    - По завершении ответа кандидата (или после того, как дан ответ на уточняющий вопрос):
      а) ОБЯЗАТЕЛЬНО сначала произнеси вслух теплое устное резюме (2-3 предложения): похвали за верные мысли, отметь зоны роста и скажи «Сейчас зафиксирую результаты и сформирую оценку».
-     б) И затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
+     б) И затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback, faangScorecard).`;
   }
 
-  // Default: adaptive_probing (FAANG Standard Technical Assessment)
+  // Adaptive Probing with Selected FAANG Persona (Amazon Bar-Raiser, Google Staff, Yandex Core, or Mentor)
   return `${candidateContextSection}
 
 === 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
-Ты профессиональный, объективный и доброжелательный Senior/Lead технический ${isFemale ? 'интервьюер (женщина)' : 'интервьюер (мужчина)'} по теме «${topic}».
+Ты ${personaDirectives.personaTitle} (${isFemale ? 'женщина' : 'мужчина'}) по теме «${topic}».
+${personaDirectives.roleDirective}
+${personaDirectives.evaluationRubricDirective}
 ${genderRule}
 
 ${batchContext}
@@ -502,18 +527,26 @@ ${anchorsFormatted}
 === 3. ОПЕРАЦИОННЫЙ СЦЕНАРИЙ ДИАЛОГА (EXECUTION RULES) ===
 1. ПРИВЕТСТВИЕ: В начале сессии кратко и вежливо поприветствуй кандидата и четко озвучь вопрос темы.
 2. ЗОНДИРОВАНИЕ И FOLLOW-UP:
-   - Внимательно сопоставляй ответ кандидата с критериями темы.
+   - Внимательно сопоставляй ответ кандидата с критериями темы и ожиданиями твоей персоны (${personaDirectives.personaTitle}).
    - Задавай точечные вопросы по недостающим пунктам или углубляйся под капот (лимит раундов: до ${maxProbes}). ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
    - Если кандидат ответил на вопрос или говорит «Не знаю / не помню / объясни / сдаюсь» — переходи к финализации (шаг 3).
-3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ:
+3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ КОМИТЕТА НАЙМА:
    - Когда ключевые вопросы обсуждены, дан ответ на уточнение или кандидат завершил ответ:
-     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и выставлю оценку».
+     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа в манере своей персоны и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и подготовлю пакет комитета найма».
      б) И затем вызови функцию \`submit_interview_evaluation\` со следующими параметрами:
         - score (0-100), isPassed (score >= 70), positivePoints, missingPoints, spokenFeedback.
         - questionType: 'definitional' (теория, механизмы, JMM), 'tradeoff' (архитектурный выбор/сравнение технологий), или 'behavioral' (личный опыт, баги, аварии).
         - speechCoaching:
           * structureType: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED'.
-          * rephrasedExample: ЕСЛИ вопрос был поведенческим ('behavioral') или компромиссным ('tradeoff'), сформулируй краткий (2-4 предложения) пример того, как кандидат мог бы идеально перефразировать свой опыт по структуре STAR или PREP на уровне Staff-инженера. Если вопрос чисто теоретический — оставь пустым или дай лаконичный тезис по Rule of 3.`;
+          * rephrasedExample: ЕСЛИ вопрос был поведенческим ('behavioral') или компромиссным ('tradeoff'), сформулируй краткий (2-4 предложения) пример того, как кандидат мог бы идеально перефразировать свой опыт по структуре STAR или PREP на уровне Staff-инженера. Если вопрос чисто теоретический — оставь пустым или дай лаконичный тезис по Rule of 3.
+        - faangScorecard:
+          * verdict: 'STRONG_HIRE' | 'HIRE' | 'LEANING_HIRE' | 'LEANING_NO_HIRE' | 'STRONG_NO_HIRE'.
+          * calibratedGrade: фактически подтвержденный грейд ('L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF').
+          * percentile: число от 0 до 100 (рыночный персентиль кандидата относительно претендентов на целевой грейд).
+          * dimensionScores: { domainDepth: 0-100, systemArchitecture: 0-100, communicationStar: 0-100, operationalExcellence: 0-100 }.
+          * strengths: список из 1-3 ключевых преимуществ ответа с цитатами или конкретными тезисами кандидата.
+          * redFlags: список из 1-3 критических недочетов или упущенных компромиссов.
+          * hiringRecommendation: 1-2 развернутых предложения с официальной рекомендацией для Hiring Committee.`;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -576,6 +609,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const userGender = ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral';
     const turnMode = ((query.turnMode as string) === 'auto' ? 'auto' : 'manual') as 'manual' | 'auto';
     const strategy = ((query.strategy as string) === 'socratic_tutoring' ? 'socratic_tutoring' : 'adaptive_probing') as 'adaptive_probing' | 'socratic_tutoring';
+    const persona = ((query.persona as string) || 'mentor') as InterviewPersonaId;
+    const targetGrade = ((query.targetGrade as string) || 'L5_SENIOR') as TargetGrade;
     const maxProbes = Math.max(1, Math.min(5, parseInt((query.maxProbes as string) || '3', 10) || 3));
     const deepDive = query.deepDive === 'true';
     const liveCoaching = query.liveCoaching === 'true';
@@ -660,7 +695,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       heartbeatInterval: null,
       nudgeWatchdog: null,
       greetingWatchdog: null,
-      currentAiTurnText: ''
+      currentAiTurnText: '',
+      persona,
+      targetGrade
     };
 
     // WebSocket Keepalive Heartbeat (every 15s)
@@ -701,7 +738,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       primaryStack: userProfile.primaryStack,
       candidateGaps,
       activeCodeArtifact,
-      codeRevisionsSummary
+      codeRevisionsSummary,
+      persona,
+      targetGrade
     });
 
 
@@ -772,6 +811,49 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                 rephrasedExample: {
                   type: 'STRING',
                   description: 'Педагогический пример перефразирования опыта кандидата по STAR или PREP'
+                }
+              }
+            },
+            faangScorecard: {
+              type: 'OBJECT',
+              description: 'Официальный калибровочный пакет комитета найма BigTech',
+              properties: {
+                verdict: {
+                  type: 'STRING',
+                  enum: ['STRONG_HIRE', 'HIRE', 'LEANING_HIRE', 'LEANING_NO_HIRE', 'STRONG_NO_HIRE'],
+                  description: 'Итоговый вердикт Hiring Committee'
+                },
+                calibratedGrade: {
+                  type: 'STRING',
+                  enum: ['L4_MIDDLE', 'L5_SENIOR', 'L6_STAFF'],
+                  description: 'Фактически подтвержденный грейд кандидата'
+                },
+                percentile: {
+                  type: 'NUMBER',
+                  description: 'Рыночный персентиль кандидата (0-100)'
+                },
+                dimensionScores: {
+                  type: 'OBJECT',
+                  properties: {
+                    domainDepth: { type: 'NUMBER' },
+                    systemArchitecture: { type: 'NUMBER' },
+                    communicationStar: { type: 'NUMBER' },
+                    operationalExcellence: { type: 'NUMBER' }
+                  }
+                },
+                strengths: {
+                  type: 'ARRAY',
+                  items: { type: 'STRING' },
+                  description: 'Ключевые сильные стороны ответа с цитатами'
+                },
+                redFlags: {
+                  type: 'ARRAY',
+                  items: { type: 'STRING' },
+                  description: 'Критические недочеты или упущенные компромиссы'
+                },
+                hiringRecommendation: {
+                  type: 'STRING',
+                  description: 'Рекомендация для комитета найма'
                 }
               }
             }
@@ -1226,6 +1308,25 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               const questionType = args.questionType || 'definitional';
               const speechCoaching = args.speechCoaching || null;
 
+              // Phase 2: Compute or merge FAANG Calibration Scorecard
+              const calculatedScorecard = calculateFaangScorecard({
+                score,
+                persona: session.persona || 'mentor',
+                targetGrade: session.targetGrade || 'L5_SENIOR',
+                positivePoints,
+                missingPoints,
+                questionType
+              });
+
+              const faangScorecard = args.faangScorecard ? {
+                ...calculatedScorecard,
+                ...args.faangScorecard,
+                dimensionScores: {
+                  ...calculatedScorecard.dimensionScores,
+                  ...(args.faangScorecard.dimensionScores || {})
+                }
+              } : calculatedScorecard;
+
               let savedEvalId = '';
               if (session.questionId) {
                 try {
@@ -1239,7 +1340,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     positivePoints,
                     missingPoints,
                     feedback,
-                    speechCoaching: speechCoaching ? { ...speechCoaching, questionType } : null,
+                    speechCoaching: speechCoaching ? { ...speechCoaching, questionType, faangScorecard } : { faangScorecard },
                     userAnswer: 'Устный ответ в Gemini Live'
                   });
                   savedEvalId = syncResult.evalId;
@@ -1328,6 +1429,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     spokenFeedback: feedback,
                     questionType,
                     speechCoaching,
+                    faangScorecard,
                     assistanceLevel,
                     knowledgeUpdate: decayResult
                   }

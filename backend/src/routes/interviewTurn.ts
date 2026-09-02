@@ -8,6 +8,12 @@ import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemory
 import { getOrCreateSessionMemory } from '../services/geminiLiveProxy';
 import { getAuthUserId } from '../middleware/auth';
 import { recordEvaluationAndSyncProgress } from '../services/progressService';
+import {
+  InterviewPersonaId,
+  TargetGrade,
+  getPersonaPromptDirectives,
+  calculateFaangScorecard
+} from '../prompts/personas';
 
 const router = Router();
 
@@ -101,7 +107,9 @@ router.post('/turn', async (req: Request, res: Response) => {
       liveCoaching = true,
       voice = 'Kore',
       userGender = 'female',
-      activeCodeArtifact
+      activeCodeArtifact,
+      persona = 'mentor',
+      targetGrade = 'L5_SENIOR'
     } = req.body;
 
     if (!questionText) {
@@ -139,6 +147,12 @@ router.post('/turn', async (req: Request, res: Response) => {
     // Use gemini-fast for sub-500ms deterministic Socratic reasoning
     const modelName = envConfig.models.fast;
 
+    const personaDirectives = getPersonaPromptDirectives({
+      persona: persona as InterviewPersonaId,
+      targetGrade: targetGrade as TargetGrade,
+      topic
+    });
+
     const genderDirective = userGender === 'female'
       ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В feedback и репликах строго используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично раскрыла», «Ты верно отметила», «Ты упустила»).'
       : userGender === 'male'
@@ -149,7 +163,10 @@ router.post('/turn', async (req: Request, res: Response) => {
       ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
       : '';
 
-    const systemPrompt = `Ты Senior/Lead технический интервьюер и ментор по теме «${topic}».
+    const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
+${personaDirectives.roleDirective}
+${personaDirectives.gradeExpectationDirective}
+${personaDirectives.evaluationRubricDirective}
 ${genderDirective}
 
 КОНТЕКСТ ВОПРОСА:
@@ -158,7 +175,7 @@ ${genderDirective}
 """${referenceAnswer}"""
 ${activeCodeSection}
 РЕЖИМ РАБОТЫ:
-Стратегия: ${strategy} (Сократический диалог).
+Стратегия: ${strategy}.
 Deep Dive: ${deepDive ? 'Включен (углубляйся во внутреннее устройство, JVM, байткод, пограничные случаи)' : 'Выключен'}.
 Текущий раунд уточнений: ${turnCount} из ${maxProbes}.
 
@@ -166,7 +183,7 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
 1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
    -> Выбери action: "evaluate".
 2. Если ответ кандидата раскрывает только часть критериев, есть неточности или включен Deep Dive, и раундов ${turnCount} < ${maxProbes}:
-   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему.
+   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).
 
 ФОРМАТ ВЫХОДА — СТРОГО JSON БЕЗ КАВЫЧЕК MARKDOWN:
 Если action == "probe":
@@ -246,6 +263,18 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
     // 4. Persistence (if evaluate)
     let decayResult = null;
     let progressSummary = null;
+    let faangScorecard = null;
+
+    if (reasoningResult.action === 'evaluate') {
+      faangScorecard = calculateFaangScorecard({
+        score: reasoningResult.score || 0,
+        persona: (persona as InterviewPersonaId) || 'mentor',
+        targetGrade: (targetGrade as TargetGrade) || 'L5_SENIOR',
+        positivePoints: reasoningResult.positivePoints || [],
+        missingPoints: reasoningResult.missingPoints || []
+      });
+    }
+
     if (reasoningResult.action === 'evaluate' && questionId && topic) {
       try {
         const questionExists = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId);
@@ -261,9 +290,10 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
             positivePoints: reasoningResult.positivePoints || [],
             missingPoints: reasoningResult.missingPoints || [],
             feedback: reasoningResult.feedback || '',
+            speechCoaching: { faangScorecard },
             userAnswer: candidateText,
             transcript: candidateText,
-            audioMetrics: { strategy, voice, cascaded: true }
+            audioMetrics: { strategy, voice, cascaded: true, persona, targetGrade }
           });
           progressSummary = syncResult.progress;
 
@@ -301,7 +331,8 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
         positivePoints: reasoningResult.positivePoints || [],
         missingPoints: reasoningResult.missingPoints || [],
         feedback: reasoningResult.feedback || '',
-        spokenFeedback: reasoningResult.spokenFeedback || ''
+        spokenFeedback: reasoningResult.spokenFeedback || '',
+        faangScorecard
       } : null,
       audioBase64: audioBase64Out,
       knowledgeUpdate: decayResult,

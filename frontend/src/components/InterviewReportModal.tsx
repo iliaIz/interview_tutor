@@ -9,6 +9,8 @@ import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { triggerSuccessConfetti } from '../utils/confetti';
+import { HiringCommitteeCard } from './HiringCommitteeCard';
+import { FaangScorecardData, InterviewPersonaId } from '../types/personas';
 
 export interface InterviewReportData {
   id?: string;
@@ -30,7 +32,11 @@ export interface InterviewReportData {
   speechCoaching?: {
     structureType?: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED';
     rephrasedExample?: string;
+    faangScorecard?: FaangScorecardData;
   };
+  faangScorecard?: FaangScorecardData;
+  persona?: InterviewPersonaId;
+  targetGrade?: string;
   createdAt?: string;
 }
 
@@ -388,6 +394,14 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
               </div>
             );
           })()}
+
+          {/* FAANG Hiring Committee Packet (Phase 2) */}
+          {(report.faangScorecard || report.speechCoaching?.faangScorecard) && (
+            <HiringCommitteeCard
+              scorecard={report.faangScorecard || report.speechCoaching!.faangScorecard!}
+              personaId={report.persona || 'mentor'}
+            />
+          )}
 
           {/* Supportive Feedback Section */}
           <div className="p-4 rounded-2xl bg-pastel-lavender/60 border border-pastel-accentViolet/20 space-y-1.5">

@@ -58,6 +58,15 @@ import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { Question, useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import {
+  InterviewPersonaId,
+  TargetGrade,
+  FaangScorecardData,
+  FAANG_PERSONAS,
+  TARGET_GRADES
+} from '../types/personas';
+import { PersonaSelector } from './PersonaSelector';
+import { HiringCommitteeCard } from './HiringCommitteeCard';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -67,7 +76,7 @@ interface VoiceModalProps {
   topic?: string;
   currentQuestionText?: string;
   referenceAnswer?: string;
-  // Multi-question batch mode
+  // Batch series mode (hands-free sequence)
   questionsBatch?: Question[];
   initialQuestionIndex?: number;
   initialSessionType?: 'interview' | 'tutor';
@@ -94,6 +103,7 @@ export interface EvaluationResult {
     structureType?: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED';
     rephrasedExample?: string;
   };
+  faangScorecard?: FaangScorecardData;
   userAnswer?: string;
   transcript?: string;
 }
@@ -629,6 +639,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       userGender: interviewConfig.userGender || (localStorage.getItem('interview_user_gender') as any) || 'female',
       turnMode: interviewConfig.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual',
       strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+      persona: interviewConfig.persona || 'mentor',
+      targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
       maxProbes: String(interviewConfig.maxProbes),
       deepDive: String(!!interviewConfig.deepDive || (sessionType === 'tutor' && tutorMode === 'deep_dive')),
       liveCoaching: String(!!interviewConfig.liveCoaching || sessionType === 'tutor'),
@@ -2530,7 +2542,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet p-1 shadow-xl flex items-center justify-center animate-pulse">
                     <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl">
-                      {interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻'}
+                      {interviewConfig.persona === 'amazon_bar_raiser' 
+                        ? '📦' 
+                        : interviewConfig.persona === 'google_staff' 
+                        ? '🔍' 
+                        : interviewConfig.persona === 'yandex_core' 
+                        ? '🔴' 
+                        : (interviewConfig.strategy === 'socratic_tutoring' ? '🌸' : '👩‍💻')}
                     </div>
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white shadow-xs">
@@ -2542,13 +2560,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   <h4 className="font-bold text-pastel-text text-base">
                     {isBatchMode
                       ? `Готовы пройти серию из ${totalQuestions} вопросов?`
-                      : interviewConfig.strategy === 'socratic_tutoring' 
-                      ? 'Сократический ИИ-ментор готов' 
-                      : 'ИИ-интервьюер готов к диалогу'}
+                      : `${FAANG_PERSONAS[interviewConfig.persona || 'mentor']?.name || 'ИИ-интервьюер'} готов к диалогу`}
                   </h4>
                   <p className="text-xs text-pastel-muted leading-relaxed">
                     {isBatchMode
                       ? 'Режим "Без рук" (Hands-Free): ИИ последовательно задаст каждый вопрос темы, оценит ваши ответы и сам переведет к следующему.'
+                      : (interviewConfig.persona && interviewConfig.persona !== 'mentor')
+                      ? `Официальная симуляция найма BigTech (${FAANG_PERSONAS[interviewConfig.persona].company}). Оценивает грейд ${TARGET_GRADES[interviewConfig.targetGrade || 'L5_SENIOR']?.badge}.`
                       : 'Интервьюер поздоровается голосом и зачитает вопрос. Вы можете отвечать своими словами и уточнять детали.'}
                   </p>
 
@@ -2560,7 +2578,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         <ShieldCheck className="w-3.5 h-3.5 text-pastel-accentViolet" />
                       )}
                       <span>
-                        {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократ' : 'Адаптивный'} • {interviewConfig.voice}
+                        {FAANG_PERSONAS[interviewConfig.persona || 'mentor']?.badge || 'Ментор'} • {interviewConfig.voice}
                       </span>
                     </span>
 
@@ -2637,6 +2655,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* FAANG Persona & Grade Calibration Selector (Phase 2) */}
+                <PersonaSelector
+                  selectedPersona={interviewConfig.persona || 'mentor'}
+                  selectedGrade={interviewConfig.targetGrade || 'L5_SENIOR'}
+                  selectedVoice={interviewConfig.voice}
+                  onSelectPersona={(p, recommendedVoice) => {
+                    handleConfigChange({
+                      ...interviewConfig,
+                      persona: p,
+                      voice: recommendedVoice || interviewConfig.voice
+                    });
+                  }}
+                  onSelectGrade={(g) => {
+                    handleConfigChange({
+                      ...interviewConfig,
+                      targetGrade: g
+                    });
+                  }}
+                />
 
                 {/* Resume Session Card (if unfinished session exists) */}
                 {canResumeSession && activeBatchSession && (
@@ -3373,6 +3411,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* FAANG Hiring Committee Packet (Phase 2) */}
+            {evaluation.faangScorecard && (
+              <HiringCommitteeCard
+                scorecard={evaluation.faangScorecard}
+                personaId={interviewConfig.persona || 'mentor'}
+              />
+            )}
 
             {/* Vocal Coaching & Acoustic Profile */}
             {evaluation.audioMetrics && (() => {

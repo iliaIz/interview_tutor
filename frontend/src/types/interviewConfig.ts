@@ -51,10 +51,14 @@ export type UserGender = 'female' | 'male' | 'neutral';
 export type TurnMode = 'manual' | 'auto';
 export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3';
 
+import { InterviewPersonaId, TargetGrade } from './personas';
+
 export interface InterviewConfig {
   strategy: InterviewStrategy;
   voice: GeminiVoiceName;
   maxProbes: number; // 1..5
+  persona?: InterviewPersonaId; // 👔 Персона интервьюера (FAANG Bar-Raiser, Staff Architect, Yandex Core)
+  targetGrade?: TargetGrade; // 🎯 Целевой грейд (L4 Middle+, L5 Senior, L6 Staff)
   userGender?: UserGender; // 👩/👨/⚪ Пол кандидата для согласования грамматики в диалоге
   turnMode?: TurnMode; // 🛑 'manual' (по кнопке «Закончить ответ») | 🎙️ 'auto' (авто-VAD)
   liveModel?: LiveModelChoice; // ⚡ 'gemini-live-v2' (Стабильный, SOTA) | 'gemini-live-v3' (Preview)
