@@ -3,12 +3,14 @@ import { CodingChallenge } from './challengeSeedData';
 import { recordNewErrorGap } from './vectorMemoryService';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
+import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 
 export interface EvaluationRequest {
   challenge: CodingChallenge;
   files: { path: string; content: string }[];
   activePhase: number;
   timeSpentSeconds?: number;
+  sandboxResult?: SandboxExecutionResponse;
 }
 
 export interface TestCaseResult {
@@ -174,10 +176,53 @@ const EVALUATION_JSON_SCHEMA = {
 };
 
 export async function evaluateChallengeSubmission(req: EvaluationRequest): Promise<EvaluationResult> {
-  const { challenge, files, activePhase } = req;
+  const { challenge, files, activePhase, sandboxResult } = req;
 
   // 1. Phase 1: Static AST Analysis and Fact Extraction
   const preProcess = preProcessWorkspaceFiles(files);
+
+  // If real JVM Sandbox execution failed compilation, return immediately with authoritative compiler diagnostics
+  if (sandboxResult && !sandboxResult.isCompilable) {
+    return {
+      compilationStatus: {
+        isCompilable: false,
+        syntaxErrors: sandboxResult.syntaxErrors || []
+      },
+      virtualExecutionResult: {
+        passCount: 0,
+        failCount: 1,
+        testCases: [{
+          testName: 'CompilationCheck',
+          status: 'EXECUTION_ERROR',
+          inputData: 'javac src/**/*.java',
+          expectedOutput: 'Clean javac compilation',
+          actualVirtualOutput: sandboxResult.error || 'Compiler syntax errors detected',
+          failureReason: sandboxResult.error || 'Код содержит синтаксические ошибки компиляции'
+        }]
+      },
+      concurrencyAnalysis: {
+        hasRaceConditions: false,
+        hasJmmVisibilityIssues: false,
+        hasCarrierThreadPinning: false,
+        findings: []
+      },
+      architecturalCompliance: {
+        isSolidCompliant: false,
+        springBootBestPracticesViolations: ['Код не компилируется в песочнице Java 21'],
+        modernJava21IdiomAdoption: []
+      },
+      scoreBreakdown: {
+        correctnessScore: 0,
+        concurrencyScore: 0,
+        architectureScore: 0,
+        modernIdiomsScore: 0,
+        overallScore: 0,
+        summaryReview: 'Решение не может быть принято: обнаружены ошибки компиляции в песочнице Java 21. Исправьте синтаксические ошибки и повторите сдачу.'
+      },
+      evaluationTimestamp: new Date().toISOString(),
+      astSignalsSummary: preProcess.allSignals.map(s => `[${s.category}] ${s.description}`)
+    };
+  }
 
   // Build candidate code blocks wrapped in CDATA
   let codeXml = '<candidate_workspace>\n';
@@ -186,12 +231,25 @@ export async function evaluateChallengeSubmission(req: EvaluationRequest): Promi
   }
   codeXml += '</candidate_workspace>';
 
+  const sandboxProofXml = sandboxResult ? `
+<real_sandbox_execution_proof>
+  <is_compilable>${sandboxResult.isCompilable}</is_compilable>
+  <passed_tests_count>${sandboxResult.passedCount}</passed_tests_count>
+  <failed_tests_count>${sandboxResult.failedCount}</failed_tests_count>
+  <deadlock_detected>${sandboxResult.concurrencyHarness?.deadlockDetected ?? false}</deadlock_detected>
+  <race_condition_detected>${sandboxResult.concurrencyHarness?.raceConditionDetected ?? false}</race_condition_detected>
+  <test_runs>
+${sandboxResult.testResults.map(t => `    <test name="${t.testName}" status="${t.status}" durationMs="${t.durationMs}" ${t.failureReason ? `failure="${t.failureReason}"` : ''} />`).join('\n')}
+  </test_runs>
+</real_sandbox_execution_proof>
+NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, and Concurrency.` : '';
+
   // System instruction for Gemini 3.7 Flash
   const systemInstruction = `You are a Principal Java 21 & Spring Architect, Lead Concurrency Specialist, and Technical Interview Judge.
 Your task is to evaluate the candidate's Java code workspace submission against the task specification, acceptance criteria, and static AST signals.
 
 EVALUATION RULES:
-1. Virtual Execution Tracing: Evaluate the candidate's code step-by-step against functional requirements and edge cases. Check loops, null handling, and state mutation.
+1. Virtual Execution Tracing: The candidate's tests have already been executed in the real sandbox if proof is present. Respect the real pass/fail counts.
 2. Concurrency & Java Memory Model (JMM):
    - Check for non-atomic compound mutations on shared state (e.g. count++ without Atomic/Lock).
    - Check for memory visibility defects (missing volatile or memory barriers).
@@ -212,29 +270,27 @@ Generate ONLY valid JSON adhering strictly to this JSON format:
   "virtualExecutionResult": {
     "passCount": 2, "failCount": 0,
     "testCases": [
-      { "testName": "TC1", "status": "PASSED", "inputData": "Input", "expectedOutput": "Expected", "actualVirtualOutput": "Actual", "failureReason": "" }
+      { "testName": "test_name", "status": "PASSED", "inputData": "input", "expectedOutput": "expected", "actualVirtualOutput": "actual" }
     ]
   },
   "concurrencyAnalysis": {
     "hasRaceConditions": false,
     "hasJmmVisibilityIssues": false,
     "hasCarrierThreadPinning": false,
-    "findings": [
-      { "category": "CARRIER_THREAD_PINNING", "location": "Service.java:Line 42", "description": "synchronized block wraps I/O", "remediation": "Replace with ReentrantLock" }
-    ]
+    "findings": []
   },
   "architecturalCompliance": {
     "isSolidCompliant": true,
     "springBootBestPracticesViolations": [],
-    "modernJava21IdiomAdoption": ["Records"]
+    "modernJava21IdiomAdoption": []
   },
   "scoreBreakdown": {
-    "correctnessScore": 90,
-    "concurrencyScore": 85,
-    "architectureScore": 90,
-    "modernIdiomsScore": 80,
-    "overallScore": 87,
-    "summaryReview": "Concise review of the solution in Russian language."
+    "correctnessScore": 95,
+    "concurrencyScore": 90,
+    "architectureScore": 85,
+    "modernIdiomsScore": 90,
+    "overallScore": 90,
+    "summaryReview": "Review"
   }
 }`;
 
@@ -260,6 +316,8 @@ Scoring Weights: Correctness ${weights.functionalCorrectness * 100}%, Concurrenc
 </task_specification>
 
 ${preProcess.summaryFactsXml}
+
+${sandboxProofXml}
 
 ${codeXml}
 </evaluation_request>`;
@@ -314,18 +372,49 @@ ${codeXml}
     throw new Error(`Invalid JSON evaluation response from AI Gateway: ${err.message}`);
   }
 
+  const realTestCases: TestCaseResult[] = sandboxResult && sandboxResult.testResults.length > 0
+    ? sandboxResult.testResults.map(tr => ({
+        testName: tr.testName,
+        status: (tr.status === 'PASSED' ? 'PASSED' : tr.status === 'FAILED' ? 'FAILED' : 'EXECUTION_ERROR') as any,
+        inputData: 'Unit test execution',
+        expectedOutput: 'PASSED',
+        actualVirtualOutput: tr.status === 'PASSED' ? 'PASSED' : (tr.failureReason || 'FAILED'),
+        failureReason: tr.failureReason
+      }))
+    : (Array.isArray(evalData.virtualExecutionResult?.testCases) ? evalData.virtualExecutionResult.testCases : []);
+
+  const passCount = sandboxResult ? sandboxResult.passedCount : Number(evalData.virtualExecutionResult?.passCount || 0);
+  const failCount = sandboxResult ? sandboxResult.failedCount : Number(evalData.virtualExecutionResult?.failCount || 0);
+
+  const realCorrectnessScore = sandboxResult
+    ? (passCount + failCount > 0 ? Math.round((passCount / (passCount + failCount)) * 100) : (sandboxResult.isCompilable ? 75 : 0))
+    : Number(evalData.scoreBreakdown?.correctnessScore || 0);
+
+  const concurrencyScore = Number(evalData.scoreBreakdown?.concurrencyScore || 0);
+  const architectureScore = Number(evalData.scoreBreakdown?.architectureScore || 0);
+  const modernIdiomsScore = Number(evalData.scoreBreakdown?.modernIdiomsScore || 0);
+
+  const overallScore = Math.round(
+    realCorrectnessScore * weights.functionalCorrectness +
+    concurrencyScore * weights.concurrencySafety +
+    architectureScore * weights.architectureAndCleanCode +
+    modernIdiomsScore * weights.modernIdioms
+  );
+
   const result: EvaluationResult = {
     compilationStatus: {
-      isCompilable: Boolean(evalData.compilationStatus?.isCompilable ?? true),
-      syntaxErrors: Array.isArray(evalData.compilationStatus?.syntaxErrors) ? evalData.compilationStatus.syntaxErrors : []
+      isCompilable: sandboxResult ? sandboxResult.isCompilable : Boolean(evalData.compilationStatus?.isCompilable ?? true),
+      syntaxErrors: sandboxResult?.syntaxErrors && sandboxResult.syntaxErrors.length > 0
+        ? sandboxResult.syntaxErrors
+        : (Array.isArray(evalData.compilationStatus?.syntaxErrors) ? evalData.compilationStatus.syntaxErrors : [])
     },
     virtualExecutionResult: {
-      passCount: Number(evalData.virtualExecutionResult?.passCount || 0),
-      failCount: Number(evalData.virtualExecutionResult?.failCount || 0),
-      testCases: Array.isArray(evalData.virtualExecutionResult?.testCases) ? evalData.virtualExecutionResult.testCases : []
+      passCount,
+      failCount,
+      testCases: realTestCases
     },
     concurrencyAnalysis: {
-      hasRaceConditions: Boolean(evalData.concurrencyAnalysis?.hasRaceConditions),
+      hasRaceConditions: Boolean(evalData.concurrencyAnalysis?.hasRaceConditions) || Boolean(sandboxResult?.concurrencyHarness?.raceConditionDetected),
       hasJmmVisibilityIssues: Boolean(evalData.concurrencyAnalysis?.hasJmmVisibilityIssues),
       hasCarrierThreadPinning: Boolean(evalData.concurrencyAnalysis?.hasCarrierThreadPinning),
       findings: Array.isArray(evalData.concurrencyAnalysis?.findings) ? evalData.concurrencyAnalysis.findings : []
@@ -340,11 +429,11 @@ ${codeXml}
         : []
     },
     scoreBreakdown: {
-      correctnessScore: Number(evalData.scoreBreakdown?.correctnessScore || 0),
-      concurrencyScore: Number(evalData.scoreBreakdown?.concurrencyScore || 0),
-      architectureScore: Number(evalData.scoreBreakdown?.architectureScore || 0),
-      modernIdiomsScore: Number(evalData.scoreBreakdown?.modernIdiomsScore || 0),
-      overallScore: Number(evalData.scoreBreakdown?.overallScore || 0),
+      correctnessScore: realCorrectnessScore,
+      concurrencyScore,
+      architectureScore,
+      modernIdiomsScore,
+      overallScore,
       summaryReview: String(evalData.scoreBreakdown?.summaryReview || 'Оценка решения завершена.')
     },
     evaluationTimestamp: new Date().toISOString(),

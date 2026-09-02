@@ -3,6 +3,7 @@ import { db } from '../services/db';
 import { evaluateChallengeSubmission } from '../services/codeEvaluator';
 import { CodingChallenge } from '../services/challengeSeedData';
 import { getAuthUserId } from '../middleware/auth';
+import { JvmExecutionService } from '../services/sandbox/JvmExecutionService';
 
 const router = Router();
 
@@ -130,12 +131,20 @@ router.post('/evaluate', async (req, res) => {
 
     const challenge: CodingChallenge = JSON.parse(row.manifest_json);
 
-    // Run Hybrid Evaluation
+    // 1. Authoritative Real JVM 21 In-Memory Sandbox Execution (< 80ms)
+    const sandboxResult = await JvmExecutionService.execute({
+      challengeId,
+      files,
+      activePhase
+    });
+
+    // 2. Enriched Architectural & Concurrency Evaluation
     const evaluation = await evaluateChallengeSubmission({
       challenge,
       files,
       activePhase,
-      timeSpentSeconds
+      timeSpentSeconds,
+      sandboxResult
     });
 
     const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;
