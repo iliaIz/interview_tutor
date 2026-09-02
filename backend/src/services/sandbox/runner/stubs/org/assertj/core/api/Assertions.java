@@ -2,6 +2,7 @@ package org.assertj.core.api;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 
 public class Assertions {
@@ -23,6 +24,10 @@ public class Assertions {
 
     public static <E> CollectionAssert<E> assertThat(Collection<E> actual) {
         return new CollectionAssert<>(actual);
+    }
+
+    public static <K, V> MapAssert<K, V> assertThat(Map<K, V> actual) {
+        return new MapAssert<>(actual);
     }
 
     public static class ObjectAssert<T> {
@@ -69,11 +74,33 @@ public class Assertions {
             }
             return this;
         }
+
+        public ObjectAssert<T> isSameAs(Object expected) {
+            if (actual != expected) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected same instance: <" + expected + "> but was: <" + actual + ">");
+            }
+            return this;
+        }
+
+        public ObjectAssert<T> isNotSameAs(Object other) {
+            if (actual == other) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected not same instance: <" + other + ">");
+            }
+            return this;
+        }
     }
 
     public static class BigDecimalAssert extends ObjectAssert<BigDecimal> {
         public BigDecimalAssert(BigDecimal actual) {
             super(actual);
+        }
+
+        @Override
+        public BigDecimalAssert as(String description, Object... args) {
+            super.as(description, args);
+            return this;
         }
 
         public BigDecimalAssert isEqualByComparingTo(BigDecimal expected) {
@@ -97,6 +124,24 @@ public class Assertions {
             }
             return this;
         }
+
+        public BigDecimalAssert isGreaterThanOrEqualTo(BigDecimal other) {
+            isNotNull();
+            if (actual.compareTo(other) < 0) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected >= <" + other + "> but was: <" + actual + ">");
+            }
+            return this;
+        }
+
+        public BigDecimalAssert isLessThan(BigDecimal other) {
+            isNotNull();
+            if (actual.compareTo(other) >= 0) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected < <" + other + "> but was: <" + actual + ">");
+            }
+            return this;
+        }
     }
 
     public static class BooleanAssert extends ObjectAssert<Boolean> {
@@ -104,18 +149,26 @@ public class Assertions {
             super(actual);
         }
 
+        @Override
+        public BooleanAssert as(String description, Object... args) {
+            super.as(description, args);
+            return this;
+        }
+
         public BooleanAssert isTrue() {
+            isNotNull();
             if (!Boolean.TRUE.equals(actual)) {
                 String prefix = description != null ? "[" + description + "] " : "";
-                throw new AssertionError(prefix + "expected true, but was false/null");
+                throw new AssertionError(prefix + "expected true");
             }
             return this;
         }
 
         public BooleanAssert isFalse() {
+            isNotNull();
             if (!Boolean.FALSE.equals(actual)) {
                 String prefix = description != null ? "[" + description + "] " : "";
-                throw new AssertionError(prefix + "expected false, but was true/null");
+                throw new AssertionError(prefix + "expected false");
             }
             return this;
         }
@@ -126,13 +179,57 @@ public class Assertions {
             super(actual);
         }
 
+        @Override
+        public StringAssert as(String description, Object... args) {
+            super.as(description, args);
+            return this;
+        }
+
         public StringAssert contains(CharSequence... values) {
             isNotNull();
-            for (CharSequence v : values) {
-                if (!actual.contains(v)) {
+            for (CharSequence val : values) {
+                if (!actual.contains(val)) {
                     String prefix = description != null ? "[" + description + "] " : "";
-                    throw new AssertionError(prefix + "expected string to contain <" + v + "> but was: <" + actual + ">");
+                    throw new AssertionError(prefix + "expected string to contain <" + val + "> but was: <" + actual + ">");
                 }
+            }
+            return this;
+        }
+
+        public StringAssert doesNotContain(CharSequence... values) {
+            isNotNull();
+            for (CharSequence val : values) {
+                if (actual.contains(val)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "expected string not to contain <" + val + ">");
+                }
+            }
+            return this;
+        }
+
+        public StringAssert startsWith(CharSequence prefix) {
+            isNotNull();
+            if (!actual.startsWith(prefix.toString())) {
+                String p = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(p + "expected string to start with <" + prefix + "> but was: <" + actual + ">");
+            }
+            return this;
+        }
+
+        public StringAssert endsWith(CharSequence suffix) {
+            isNotNull();
+            if (!actual.endsWith(suffix.toString())) {
+                String p = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(p + "expected string to end with <" + suffix + "> but was: <" + actual + ">");
+            }
+            return this;
+        }
+
+        public StringAssert isEmpty() {
+            isNotNull();
+            if (!actual.isEmpty()) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected string to be empty");
             }
             return this;
         }
@@ -152,11 +249,39 @@ public class Assertions {
             super(actual);
         }
 
+        @Override
+        public CollectionAssert<E> as(String description, Object... args) {
+            super.as(description, args);
+            return this;
+        }
+
         public CollectionAssert<E> hasSize(int expectedSize) {
             isNotNull();
             if (actual.size() != expectedSize) {
                 String prefix = description != null ? "[" + description + "] " : "";
                 throw new AssertionError(prefix + "expected size <" + expectedSize + "> but was: <" + actual.size() + ">");
+            }
+            return this;
+        }
+
+        public CollectionAssert<E> contains(Object... elements) {
+            isNotNull();
+            for (Object el : elements) {
+                if (!actual.contains(el)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "expected collection to contain: <" + el + "> but was: <" + actual + ">");
+                }
+            }
+            return this;
+        }
+
+        public CollectionAssert<E> doesNotContain(Object... elements) {
+            isNotNull();
+            for (Object el : elements) {
+                if (actual.contains(el)) {
+                    String prefix = description != null ? "[" + description + "] " : "";
+                    throw new AssertionError(prefix + "expected collection not to contain: <" + el + ">");
+                }
             }
             return this;
         }
@@ -175,6 +300,63 @@ public class Assertions {
             if (actual.isEmpty()) {
                 String prefix = description != null ? "[" + description + "] " : "";
                 throw new AssertionError(prefix + "expected collection to not be empty");
+            }
+            return this;
+        }
+    }
+
+    public static class MapAssert<K, V> extends ObjectAssert<Map<K, V>> {
+        public MapAssert(Map<K, V> actual) {
+            super(actual);
+        }
+
+        @Override
+        public MapAssert<K, V> as(String description, Object... args) {
+            super.as(description, args);
+            return this;
+        }
+
+        public MapAssert<K, V> hasSize(int expectedSize) {
+            isNotNull();
+            if (actual.size() != expectedSize) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected map size <" + expectedSize + "> but was: <" + actual.size() + ">");
+            }
+            return this;
+        }
+
+        public MapAssert<K, V> containsKey(K key) {
+            isNotNull();
+            if (!actual.containsKey(key)) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected map to contain key: <" + key + ">");
+            }
+            return this;
+        }
+
+        public MapAssert<K, V> containsEntry(K key, V value) {
+            isNotNull();
+            if (!actual.containsKey(key) || !Objects.equals(actual.get(key), value)) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected map to contain entry <" + key + "=" + value + "> but was: <" + actual.get(key) + ">");
+            }
+            return this;
+        }
+
+        public MapAssert<K, V> isEmpty() {
+            isNotNull();
+            if (!actual.isEmpty()) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected map to be empty");
+            }
+            return this;
+        }
+
+        public MapAssert<K, V> isNotEmpty() {
+            isNotNull();
+            if (actual.isEmpty()) {
+                String prefix = description != null ? "[" + description + "] " : "";
+                throw new AssertionError(prefix + "expected map not to be empty");
             }
             return this;
         }

@@ -95,6 +95,55 @@ public class Assertions {
             "Expected " + expectedType.getName() + " to be thrown, but nothing was thrown.");
     }
 
+    public static void assertSame(Object expected, Object actual) {
+        assertSame(expected, actual, null);
+    }
+
+    public static void assertSame(Object expected, Object actual, String message) {
+        if (expected != actual) {
+            String prefix = (message != null && !message.isEmpty()) ? message + " ==> " : "";
+            throw new AssertionError(prefix + "expected: same <" + expected + "> was not: <" + actual + ">");
+        }
+    }
+
+    public static void assertNotSame(Object unexpected, Object actual) {
+        assertNotSame(unexpected, actual, null);
+    }
+
+    public static void assertNotSame(Object unexpected, Object actual, String message) {
+        if (unexpected == actual) {
+            String prefix = (message != null && !message.isEmpty()) ? message + " ==> " : "";
+            throw new AssertionError(prefix + "expected not same: <" + actual + ">");
+        }
+    }
+
+    public static void assertAll(Executable... executables) {
+        assertAll(null, executables);
+    }
+
+    public static void assertAll(String heading, Executable... executables) {
+        java.util.List<Throwable> failures = new java.util.ArrayList<>();
+        for (Executable executable : executables) {
+            try {
+                executable.execute();
+            } catch (Throwable t) {
+                failures.add(t);
+            }
+        }
+        if (!failures.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            if (heading != null && !heading.isEmpty()) {
+                sb.append(heading).append(" (").append(failures.size()).append(" failures):\n");
+            } else {
+                sb.append("Multiple Failures (").append(failures.size()).append(" failures):\n");
+            }
+            for (Throwable f : failures) {
+                sb.append("\t").append(f.getMessage()).append("\n");
+            }
+            throw new AssertionError(sb.toString(), failures.get(0));
+        }
+    }
+
     public static void fail(String message) {
         throw new AssertionError(message != null ? message : "Test failed");
     }

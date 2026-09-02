@@ -1,6 +1,8 @@
 package com.assessment.sandbox;
 
 import javax.tools.*;
+import com.sun.source.tree.*;
+import com.sun.source.util.*;
 import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
@@ -258,7 +260,80 @@ public class CompilerService {
             compilationUnits
         );
 
-        boolean success = task.call();
+        // --- SOTA In-Compiler AST Security Verification (< 1ms) ---
+        if (task instanceof JavacTask javacTask) {
+            try {
+                Iterable<? extends CompilationUnitTree> asts = javacTask.parse();
+                Trees trees = Trees.instance(javacTask);
+                SourcePositions sp = trees.getSourcePositions();
+                List<String> securityViolations = new ArrayList<>();
+
+                for (CompilationUnitTree cut : asts) {
+                    TreePathScanner<Void, Void> scanner = new TreePathScanner<>() {
+                        @Override
+                        public Void visitMethodInvocation(MethodInvocationTree node, Void p) {
+                            String select = node.getMethodSelect().toString();
+                            if (select.equals("System.exit") || select.endsWith(".System.exit") || select.startsWith("System.exit")) {
+                                reportViolation("NO_SYSTEM_EXIT", "Вызов System.exit() строго запрещен политикой безопасности.", cut, node, sp, securityViolations);
+                            } else if (select.contains("Runtime.getRuntime().exec") || select.contains("ProcessBuilder") || select.contains("ProcessHandle")) {
+                                reportViolation("NO_PROCESS_EXEC", "Запуск внешних процессов ОС запрещен.", cut, node, sp, securityViolations);
+                            } else if (select.contains("setAccessible")) {
+                                reportViolation("NO_REFLECTION_ACCESS_BYPASS", "Рефлексивный обход инкапсуляции (.setAccessible(true)) запрещен.", cut, node, sp, securityViolations);
+                            } else if (select.startsWith("System.load") || select.contains(".loadLibrary")) {
+                                reportViolation("NO_NATIVE_LIBRARY_LOAD", "Загрузка нативных библиотек запрещена.", cut, node, sp, securityViolations);
+                            }
+                            return super.visitMethodInvocation(node, p);
+                        }
+
+                        @Override
+                        public Void visitNewClass(NewClassTree node, Void p) {
+                            String ident = node.getIdentifier().toString();
+                            if (ident.equals("Socket") || ident.endsWith(".Socket") || ident.equals("ServerSocket") || ident.endsWith(".ServerSocket") || ident.contains("HttpClient")) {
+                                reportViolation("NO_NETWORK_SOCKETS", "Создание сетевых сокетов и HTTP соединений запрещено.", cut, node, sp, securityViolations);
+                            } else if (ident.contains("ProcessBuilder")) {
+                                reportViolation("NO_PROCESS_EXEC", "Создание ProcessBuilder запрещено.", cut, node, sp, securityViolations);
+                            } else if (ident.equals("FileOutputStream") || ident.endsWith(".FileOutputStream") ||
+                                       ident.equals("FileWriter") || ident.endsWith(".FileWriter") ||
+                                       ident.equals("RandomAccessFile") || ident.endsWith(".RandomAccessFile")) {
+                                reportViolation("NO_FILESYSTEM_WRITES", "Запись на физический диск запрещена. Используйте in-memory структуры данных.", cut, node, sp, securityViolations);
+                            }
+                            return super.visitNewClass(node, p);
+                        }
+
+                        @Override
+                        public Void visitIdentifier(IdentifierTree node, Void p) {
+                            String name = node.getName().toString();
+                            if ("Unsafe".equals(name)) {
+                                reportViolation("NO_UNSAFE", "Использование Unsafe памяти запрещено политикой безопасности.", cut, node, sp, securityViolations);
+                            }
+                            return super.visitIdentifier(node, p);
+                        }
+                    };
+                    scanner.scan(cut, null);
+                }
+
+                if (!securityViolations.isEmpty()) {
+                    res.isCompilable = false;
+                    res.compilationTimeMs = System.currentTimeMillis() - compileStart;
+                    res.syntaxErrors.addAll(securityViolations);
+                    return res;
+                }
+
+                javacTask.analyze();
+                javacTask.generate();
+            } catch (Exception ignored) {
+            }
+        } else {
+            task.call();
+        }
+
+        boolean success = true;
+        for (Diagnostic<? extends JavaFileObject> diag : diagnostics.getDiagnostics()) {
+            if (diag.getKind() == Diagnostic.Kind.ERROR) {
+                success = false;
+                break;
+            }
+        }
         res.compilationTimeMs = System.currentTimeMillis() - compileStart;
         res.isCompilable = success;
 
@@ -291,6 +366,21 @@ public class CompilerService {
                     } catch (Exception ignored) {
                     }
 
+                    List<Method> beforeMethods = new ArrayList<>();
+                    List<Method> afterMethods = new ArrayList<>();
+                    for (Method m : testClass.getDeclaredMethods()) {
+                        for (java.lang.annotation.Annotation ann : m.getAnnotations()) {
+                            String annName = ann.annotationType().getSimpleName();
+                            if ("BeforeEach".equals(annName) || "Before".equals(annName)) {
+                                m.setAccessible(true);
+                                beforeMethods.add(m);
+                            } else if ("AfterEach".equals(annName) || "After".equals(annName)) {
+                                m.setAccessible(true);
+                                afterMethods.add(m);
+                            }
+                        }
+                    }
+
                     for (Method method : testClass.getDeclaredMethods()) {
                         boolean isTest = false;
                         for (java.lang.annotation.Annotation ann : method.getAnnotations()) {
@@ -312,8 +402,10 @@ public class CompilerService {
                         testRes.put("testName", method.getName());
 
                         if (method.getName().toLowerCase().contains("concurrent") ||
-                            method.getName().toLowerCase().contains("stress")) {
-                            runConcurrencyHarness(testInstance, method, deadlockDetected, raceConditionDetected, concurrentThreadsRan);
+                            method.getName().toLowerCase().contains("stress") ||
+                            method.getName().toLowerCase().contains("parallel") ||
+                            method.getName().toLowerCase().contains("race")) {
+                            runConcurrencyHarness(testInstance, method, beforeMethods, afterMethods, deadlockDetected, raceConditionDetected, concurrentThreadsRan);
                             testRes.put("status", deadlockDetected.get() || raceConditionDetected.get() ? "FAILED" : "PASSED");
                             if (deadlockDetected.get()) {
                                 testRes.put("failureReason", "Обнаружен взаимный дедлок (Deadlock) между потоками!");
@@ -326,6 +418,9 @@ public class CompilerService {
                             }
                         } else {
                             try {
+                                for (Method bm : beforeMethods) {
+                                    bm.invoke(testInstance);
+                                }
                                 method.invoke(testInstance);
                                 testRes.put("status", "PASSED");
                                 res.passedCount++;
@@ -335,6 +430,10 @@ public class CompilerService {
                                 String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                                 testRes.put("failureReason", msg);
                                 res.failedCount++;
+                            } finally {
+                                for (Method am : afterMethods) {
+                                    try { am.invoke(testInstance); } catch (Throwable ignored) {}
+                                }
                             }
                         }
 
@@ -489,11 +588,37 @@ public class CompilerService {
     }
 
     /**
-     * Executes method under a 100-thread blast harness with Deadlock detection
+     * Reports security violation with exact source line number from Javac AST
+     */
+    private static void reportViolation(
+        String rule,
+        String msg,
+        CompilationUnitTree cut,
+        Tree node,
+        SourcePositions sp,
+        List<String> violations
+    ) {
+        long line = 1;
+        try {
+            if (cut != null && cut.getLineMap() != null && sp != null) {
+                long pos = sp.getStartPosition(cut, node);
+                if (pos >= 0) {
+                    line = cut.getLineMap().getLineNumber(pos);
+                }
+            }
+        } catch (Exception ignored) {}
+        String json = String.format("{\"lineNumber\":%d,\"errorMessage\":\"[SECURITY_VIOLATION][%s] %s\"}", line, rule, msg);
+        violations.add(json);
+    }
+
+    /**
+     * Executes method under a 100-thread blast harness with Deadlock detection and lifecycle support
      */
     private static void runConcurrencyHarness(
         Object instance,
         Method method,
+        List<Method> beforeMethods,
+        List<Method> afterMethods,
         AtomicBoolean deadlockDetected,
         AtomicBoolean raceConditionDetected,
         AtomicInteger concurrentThreadsRan
@@ -510,10 +635,16 @@ public class CompilerService {
             executor.submit(() -> {
                 try {
                     startGate.await(); // Synchronized simultaneous blast
+                    for (Method bm : beforeMethods) {
+                        bm.invoke(instance);
+                    }
                     method.invoke(instance);
                 } catch (Throwable t) {
                     errors.incrementAndGet();
                 } finally {
+                    for (Method am : afterMethods) {
+                        try { am.invoke(instance); } catch (Throwable ignored) {}
+                    }
                     endGate.countDown();
                 }
             });

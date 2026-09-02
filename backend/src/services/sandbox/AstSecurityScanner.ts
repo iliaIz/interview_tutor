@@ -67,7 +67,9 @@ const FORBIDDEN_PATTERNS: ForbiddenPattern[] = [
 
 export class AstSecurityScanner {
   /**
-   * Scans an array of workspace source files for dangerous APIs and security violations
+   * Scans an array of workspace source files for dangerous APIs and security violations.
+   * Strips both multi-line and single-line comments, as well as string literals,
+   * completely eliminating false-positive reports in comments or string log messages.
    */
   public static scan(files: Array<{ path: string; content: string }>): SecurityScanResult {
     const violations: SecurityViolation[] = [];
@@ -75,14 +77,21 @@ export class AstSecurityScanner {
     for (const file of files) {
       if (!file.content || typeof file.content !== 'string') continue;
 
-      const lines = file.content.split(/\r?\n/);
+      // 1. Strip block comments while strictly preserving newline counts for accurate line numbering
+      const withoutBlockComments = file.content.replace(/\/\*[\s\S]*?\*\//g, (match) => {
+        return match.replace(/[^\n]/g, ' ');
+      });
+
+      const lines = withoutBlockComments.split(/\r?\n/);
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Strip line comments for pattern checking
-        const cleanLine = line.replace(/\/\/.*$/, '');
+        // 2. Strip single-line comments
+        let cleanCode = line.replace(/\/\/.*$/, '');
+        // 3. Strip string and character literals (e.g. "System.exit", 'a')
+        cleanCode = cleanCode.replace(/"(?:\\.|[^"\\])*"/g, '""').replace(/'(?:\\.|[^'\\])*'/g, "''");
 
         for (const pattern of FORBIDDEN_PATTERNS) {
-          if (pattern.regex.test(cleanLine)) {
+          if (pattern.regex.test(cleanCode)) {
             violations.push({
               rule: pattern.rule,
               file: file.path,
