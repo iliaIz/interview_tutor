@@ -51,6 +51,25 @@ triageRouter.get('/challenges/:id', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/triage/submissions/:incidentId - Fetch latest saved triage submission for user
+triageRouter.get('/submissions/:incidentId', (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id || 'default_user';
+    const row = db.prepare(`
+      SELECT id, incident_id, rca_hypothesis, prevention_plan, evaluation_json, score, created_at
+      FROM triage_submissions
+      WHERE incident_id = ? AND user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(req.params.incidentId, userId) as any;
+
+    res.json({ submission: row || null });
+  } catch (err: any) {
+    console.error('Error fetching triage submission:', err);
+    res.status(500).json({ error: 'Failed to fetch triage submission', message: err.message });
+  }
+});
+
 // POST /api/triage/evaluate
 triageRouter.post('/evaluate', async (req: Request, res: Response) => {
   try {

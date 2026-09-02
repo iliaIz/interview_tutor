@@ -10,6 +10,7 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -537,81 +538,119 @@ public class CompilerService {
             );
         }
 
-        // Step 2: Evaluate Mutants
+        // Step 2: Concurrent Mutation Evaluation using Java 21 Virtual Threads
+        class EvaluatedMutant {
+            int index;
+            MutantSpec spec;
+            boolean killed;
+            boolean stillborn;
+            String killedBy;
+            String failureReason;
+        }
+
+        int parallelism = Math.min(Runtime.getRuntime().availableProcessors() * 2, 8);
+        Semaphore compilerThrottle = new Semaphore(Math.max(2, parallelism));
+        List<Future<EvaluatedMutant>> futures = new ArrayList<>();
+
+        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (int i = 0; i < mutants.size(); i++) {
+                final int idx = i;
+                final MutantSpec m = mutants.get(i);
+
+                futures.add(pool.submit(() -> {
+                    compilerThrottle.acquire();
+                    try {
+                        Map<String, String> mutatedSources = new HashMap<>(sources);
+
+                        // Match class name for m.file
+                        String targetKey = null;
+                        if (m.file != null) {
+                            String cleanFile = m.file.replace('\\', '/').replace(".java", "");
+                            for (String k : sources.keySet()) {
+                                if (cleanFile.endsWith(k) || k.endsWith(cleanFile) || cleanFile.contains(k)) {
+                                    targetKey = k;
+                                    break;
+                                }
+                            }
+                        }
+                        if (targetKey == null) {
+                            // Default to first non-test class
+                            for (String k : sources.keySet()) {
+                                if (!k.endsWith("Test") && !k.contains("Test")) {
+                                    targetKey = k;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (targetKey != null && m.mutatedContent != null) {
+                            mutatedSources.put(targetKey, m.mutatedContent);
+                        }
+
+                        ExecutionResult mutantRun = runCompilationAndTests(mutatedSources);
+
+                        EvaluatedMutant em = new EvaluatedMutant();
+                        em.index = idx;
+                        em.spec = m;
+
+                        if (!mutantRun.isCompilable) {
+                            em.stillborn = true;
+                            em.failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)";
+                        } else if (mutantRun.failedCount > 0) {
+                            em.killed = true;
+                            for (Map<String, Object> tr : mutantRun.testResults) {
+                                if ("FAILED".equals(tr.get("status"))) {
+                                    em.killedBy = String.valueOf(tr.get("testName"));
+                                    em.failureReason = String.valueOf(tr.get("failureReason"));
+                                    break;
+                                }
+                            }
+                        }
+                        return em;
+                    } finally {
+                        compilerThrottle.release();
+                    }
+                }));
+            }
+        } catch (Exception e) {
+            // Virtual thread executor auto-closed
+        }
+
+        List<EvaluatedMutant> evaluatedList = new ArrayList<>();
+        for (Future<EvaluatedMutant> f : futures) {
+            try {
+                evaluatedList.add(f.get());
+            } catch (Exception ignored) {}
+        }
+        evaluatedList.sort(Comparator.comparingInt(a -> a.index));
+
         int killedCount = 0;
         int stillbornCount = 0;
         StringBuilder mutantResultsJson = new StringBuilder();
 
-        for (int i = 0; i < mutants.size(); i++) {
-            MutantSpec m = mutants.get(i);
-            Map<String, String> mutatedSources = new HashMap<>(sources);
-
-            // Match class name for m.file
-            String targetKey = null;
-            if (m.file != null) {
-                String cleanFile = m.file.replace('\\', '/').replace(".java", "");
-                for (String k : sources.keySet()) {
-                    if (cleanFile.endsWith(k) || k.endsWith(cleanFile) || cleanFile.contains(k)) {
-                        targetKey = k;
-                        break;
-                    }
-                }
-            }
-            if (targetKey == null) {
-                // Default to first non-test class
-                for (String k : sources.keySet()) {
-                    if (!k.endsWith("Test") && !k.contains("Test")) {
-                        targetKey = k;
-                        break;
-                    }
-                }
-            }
-
-            if (targetKey != null && m.mutatedContent != null) {
-                mutatedSources.put(targetKey, m.mutatedContent);
-            }
-
-            ExecutionResult mutantRun = runCompilationAndTests(mutatedSources);
-            boolean killed = false;
-            boolean stillborn = false;
-            String killedBy = null;
-            String failureReason = null;
-
-            if (!mutantRun.isCompilable) {
-                stillborn = true;
-                failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)";
-            } else if (mutantRun.failedCount > 0) {
-                killed = true;
-                for (Map<String, Object> tr : mutantRun.testResults) {
-                    if ("FAILED".equals(tr.get("status"))) {
-                        killedBy = String.valueOf(tr.get("testName"));
-                        failureReason = String.valueOf(tr.get("failureReason"));
-                        break;
-                    }
-                }
-            }
-
-            if (killed) {
+        for (int i = 0; i < evaluatedList.size(); i++) {
+            EvaluatedMutant em = evaluatedList.get(i);
+            if (em.killed) {
                 killedCount++;
-            } else if (stillborn) {
+            } else if (em.stillborn) {
                 stillbornCount++;
             }
 
-            String status = stillborn ? "STILLBORN" : (killed ? "KILLED" : "SURVIVED");
+            String status = em.stillborn ? "STILLBORN" : (em.killed ? "KILLED" : "SURVIVED");
 
             if (i > 0) mutantResultsJson.append(",");
             mutantResultsJson.append("{");
-            mutantResultsJson.append("\"id\":\"").append(m.id != null ? m.id : ("m" + (i + 1))).append("\",");
-            mutantResultsJson.append("\"mutantId\":\"").append(m.id != null ? m.id : ("m" + (i + 1))).append("\",");
-            mutantResultsJson.append("\"name\":\"").append(m.name != null ? m.name : "Mutator").append("\",");
-            mutantResultsJson.append("\"file\":\"").append(m.file != null ? m.file.replace('\\', '/') : "").append("\",");
-            mutantResultsJson.append("\"line\":").append(m.line).append(",");
+            mutantResultsJson.append("\"id\":\"").append(em.spec.id != null ? em.spec.id : ("m" + (i + 1))).append("\",");
+            mutantResultsJson.append("\"mutantId\":\"").append(em.spec.id != null ? em.spec.id : ("m" + (i + 1))).append("\",");
+            mutantResultsJson.append("\"name\":\"").append(em.spec.name != null ? em.spec.name : "Mutator").append("\",");
+            mutantResultsJson.append("\"file\":\"").append(em.spec.file != null ? em.spec.file.replace('\\', '/') : "").append("\",");
+            mutantResultsJson.append("\"line\":").append(em.spec.line).append(",");
             mutantResultsJson.append("\"status\":\"").append(status).append("\"");
-            if (killedBy != null) {
-                mutantResultsJson.append(",\"killedBy\":\"").append(killedBy).append("\"");
+            if (em.killedBy != null) {
+                mutantResultsJson.append(",\"killedBy\":\"").append(em.killedBy).append("\"");
             }
-            if (failureReason != null) {
-                mutantResultsJson.append(",\"failureReason\":\"").append(failureReason.replace("\"", "\\\"").replace("\n", " ")).append("\"");
+            if (em.failureReason != null) {
+                mutantResultsJson.append(",\"failureReason\":\"").append(em.failureReason.replace("\"", "\\\"").replace("\n", " ")).append("\"");
             }
             mutantResultsJson.append("}");
         }
@@ -845,33 +884,14 @@ public class CompilerService {
     }
 
     private static String extractJsonValue(String json, String key) {
-        String pattern = "\"" + key + "\"\\s*:\\s*\"";
-        int start = json.indexOf(pattern);
-        if (start == -1) {
-            pattern = "\"" + key + "\":\"";
-            start = json.indexOf(pattern);
+        Pattern p = Pattern.compile(
+            "\"" + Pattern.quote(key) + "\"\\s*:\\s*(?:\"((?:\\\\.|[^\"\\\\])*)\"|([0-9]+|true|false|null))"
+        );
+        Matcher m = p.matcher(json);
+        if (m.find()) {
+            return m.group(1) != null ? m.group(1) : m.group(2);
         }
-        if (start == -1) return null;
-
-        start += pattern.length();
-        StringBuilder sb = new StringBuilder();
-        boolean escaped = false;
-
-        for (int i = start; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (escaped) {
-                sb.append(c);
-                escaped = false;
-            } else if (c == '\\') {
-                escaped = true;
-                sb.append(c);
-            } else if (c == '"') {
-                break;
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
+        return null;
     }
 
     private static String unescapeJson(String s) {
@@ -887,6 +907,20 @@ public class CompilerService {
                     case '"': sb.append('"'); break;
                     case '\\': sb.append('\\'); break;
                     case '/': sb.append('/'); break;
+                    case 'u':
+                        if (i + 4 < s.length()) {
+                            try {
+                                String hex = s.substring(i + 1, i + 5);
+                                int code = Integer.parseInt(hex, 16);
+                                sb.append((char) code);
+                                i += 4;
+                            } catch (Exception e) {
+                                sb.append('u');
+                            }
+                        } else {
+                            sb.append('u');
+                        }
+                        break;
                     default: sb.append(c); break;
                 }
                 escaped = false;

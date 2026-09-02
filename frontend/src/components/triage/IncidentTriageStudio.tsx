@@ -38,9 +38,12 @@ export const IncidentTriageStudio: React.FC = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<IncidentTriageEvaluation | null>(null);
 
-  // Autosave RCA Hypothesis & Prevention Plan to localStorage
+  // Autosave & Server Hydration for RCA Hypothesis & Prevention Plan
   useEffect(() => {
-    if (!activeTriageIncident) return;
+    if (!activeTriageIncident?.id) return;
+    let isCancelled = false;
+
+    // 1. Instant local fallback
     const savedDraft = localStorage.getItem(`triage_draft_${activeTriageIncident.id}`);
     if (savedDraft) {
       try {
@@ -49,6 +52,26 @@ export const IncidentTriageStudio: React.FC = () => {
         if (plan) setPreventionPlan(plan);
       } catch {}
     }
+
+    // 2. Fetch ground-truth submission from backend SQLite
+    fetch(`/api/triage/submissions/${activeTriageIncident.id}`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isCancelled || !data?.submission) return;
+        const sub = data.submission;
+        if (sub.rca_hypothesis) setRcaHypothesis(sub.rca_hypothesis);
+        if (sub.prevention_plan) setPreventionPlan(sub.prevention_plan);
+        if (sub.evaluation_json) {
+          try {
+            setEvaluationResult(JSON.parse(sub.evaluation_json));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
   }, [activeTriageIncident?.id]);
 
   const updateRcaHypothesis = (val: string) => {

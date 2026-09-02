@@ -73,6 +73,33 @@ export const SystemDesignArena: React.FC = () => {
   // Evaluation State
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<SystemDesignEvaluation | null>(null);
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
+
+  // Auto-restore saved draft and architecture from database
+  React.useEffect(() => {
+    if (!activeSystemDesignScenario?.id) return;
+    let isCancelled = false;
+
+    fetch(`/api/system-design/submissions/${activeSystemDesignScenario.id}`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isCancelled || !data?.submission) return;
+        const sub = data.submission;
+        if (sub.mermaid_diagram) setMermaidCode(sub.mermaid_diagram);
+        if (sub.candidate_notes) setCandidateNotes(sub.candidate_notes);
+        if (sub.evaluation_json) {
+          try {
+            setEvaluationResult(JSON.parse(sub.evaluation_json));
+          } catch {}
+        }
+        setIsDraftRestored(true);
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeSystemDesignScenario?.id]);
 
   useBodyScrollLock(Boolean(evaluationResult));
 
@@ -180,6 +207,12 @@ export const SystemDesignArena: React.FC = () => {
           <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-md">
             {activeSystemDesignScenario.title}
           </span>
+
+          {isDraftRestored && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              💾 Черновик восстановлен
+            </span>
+          )}
         </div>
 
         {/* Tab Switcher */}

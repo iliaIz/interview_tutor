@@ -21,7 +21,7 @@ setInterval(() => {
       liveSessionRegistry.delete(key);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
 
 export function getOrCreateSessionMemory(sessionId: string, questionId: string): LiveSessionMemory {
   let mem = liveSessionRegistry.get(sessionId);

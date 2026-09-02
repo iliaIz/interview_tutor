@@ -201,7 +201,17 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
   "positivePoints": [список из 1-3 пунктов того, что отвечено верно],
   "missingPoints": [список из 1-3 упущенных нюансов или терминов],
   "feedback": "Подробный текстовый фидбек на 2-3 предложения",
-  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)"
+  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)",
+  "faangScorecard": {
+    "verdict": "STRONG_HIRE | HIRE | LEANING_HIRE | LEANING_NO_HIRE | STRONG_NO_HIRE",
+    "calibratedGrade": "L4_MIDDLE | L5_SENIOR | L6_STAFF",
+    "dimensionScores": {
+      "domainDepth": number (0-100),
+      "systemArchitecture": number (0-100),
+      "communicationStar": number (0-100),
+      "operationalExcellence": number (0-100)
+    }
+  }
 }`;
 
     const conversationTurns = [
@@ -268,13 +278,26 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
     let faangScorecard = null;
 
     if (reasoningResult.action === 'evaluate') {
-      faangScorecard = calculateFaangScorecard({
+      const calculatedScorecard = calculateFaangScorecard({
         score: reasoningResult.score || 0,
         persona: (persona as InterviewPersonaId) || 'mentor',
         targetGrade: (targetGrade as TargetGrade) || 'L5_SENIOR',
         positivePoints: reasoningResult.positivePoints || [],
         missingPoints: reasoningResult.missingPoints || []
       });
+
+      if (reasoningResult.faangScorecard && reasoningResult.faangScorecard.dimensionScores) {
+        faangScorecard = {
+          ...calculatedScorecard,
+          ...reasoningResult.faangScorecard,
+          dimensionScores: {
+            ...calculatedScorecard.dimensionScores,
+            ...reasoningResult.faangScorecard.dimensionScores
+          }
+        };
+      } else {
+        faangScorecard = calculatedScorecard;
+      }
     }
 
     if (reasoningResult.action === 'evaluate' && questionId && topic) {

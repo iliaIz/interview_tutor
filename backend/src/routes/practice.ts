@@ -4,6 +4,8 @@ import { evaluateChallengeSubmission } from '../services/codeEvaluator';
 import { CodingChallenge } from '../services/challengeSeedData';
 import { getAuthUserId } from '../middleware/auth';
 import { JvmExecutionService } from '../services/sandbox/JvmExecutionService';
+import { AstAuditService } from '../services/astAuditService';
+import { DynamicTaskGenerator, LlmGatewayUnavailableError } from '../services/dynamicTaskGenerator';
 
 const router = Router();
 
@@ -243,7 +245,6 @@ router.post('/reset/:challengeId', (req, res) => {
 router.post('/audit', (req, res) => {
   try {
     const { code } = req.body;
-    const { AstAuditService } = require('../services/astAuditService');
     const result = AstAuditService.audit(code || '');
     res.json(result);
   } catch (err: any) {
@@ -255,7 +256,6 @@ router.post('/audit', (req, res) => {
 // POST /api/practice/generate-task - Generate a dynamic SOTA Java kata on the fly
 router.post('/generate-task', async (req, res) => {
   try {
-    const { DynamicTaskGenerator } = require('../services/dynamicTaskGenerator');
     const task = await DynamicTaskGenerator.generateTask(req.body || {});
     res.json(task);
   } catch (err: any) {

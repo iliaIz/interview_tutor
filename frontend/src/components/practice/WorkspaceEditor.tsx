@@ -15,11 +15,14 @@ import {
   Clock,
   Terminal,
   Cpu,
-  Bug
+  Bug,
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
 import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConsole';
 import { MutationExecutionResponse } from '../../types/practice';
+import { evaluateAstRules } from '../../utils/astRules';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -73,6 +76,11 @@ export const WorkspaceEditor: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
+
+  const liveAstViolations = useMemo(() => {
+    if (!currentFile?.content) return [];
+    return evaluateAstRules(currentFile.content).filter(r => r.isViolation);
+  }, [currentFile?.content]);
 
   // Timer effect
   useEffect(() => {
@@ -431,6 +439,29 @@ export const WorkspaceEditor: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        {/* Live AST Invariant Indicator */}
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs">
+          {liveAstViolations.length === 0 ? (
+            <span className="text-emerald-400 font-medium flex items-center gap-1.5 text-[11px]">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Инварианты соблюдены (Clock, BigDecimal)</span>
+            </span>
+          ) : (
+            <span
+              className="text-amber-300 font-medium flex items-center gap-1.5 text-[11px]"
+              title={liveAstViolations.map(v => v.text).join('\n')}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="max-w-[240px] truncate">{liveAstViolations[0].text}</span>
+              {liveAstViolations.length > 1 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-400/20 text-[10px]">
+                  +{liveAstViolations.length - 1}
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
         {/* Action Run Buttons (Sandbox & AI Review) */}
