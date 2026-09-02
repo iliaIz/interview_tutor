@@ -85,7 +85,7 @@ export interface CodingChallenge {
   };
 }
 
-export const SEEDED_CHALLENGES: CodingChallenge[] = [
+const BASE_CHALLENGES: CodingChallenge[] = [
   // 1. In-Memory Thread-Safe Rate Limiter (Machine Coding / LLD)
   {
     id: 'mc_rate_limiter_token_bucket',
@@ -200,6 +200,28 @@ public class TokenBucketStrategy implements RateLimiterStrategy {
         readOnly: false,
         hidden: false,
         isMainEntryPoint: true
+      },
+      {
+        path: 'src/test/java/com/assessment/ratelimiter/TokenBucketStrategyTest.java',
+        content: `package com.assessment.ratelimiter;
+
+import com.assessment.ratelimiter.service.TokenBucketStrategy;
+
+public class TokenBucketStrategyTest {
+    public void testBasicAcquire() {
+        TokenBucketStrategy strategy = new TokenBucketStrategy(10, 5);
+        if (!strategy.tryAcquire("client-1", 1)) {
+            throw new AssertionError("Should allow initial request");
+        }
+    }
+
+    public void testConcurrentAcquireStress() {
+        TokenBucketStrategy strategy = new TokenBucketStrategy(1000, 100);
+        strategy.tryAcquire("stress-client", 1);
+    }
+}`,
+        readOnly: true,
+        hidden: false
       }
     ],
     phasedRequirements: [
@@ -664,6 +686,36 @@ public class FlashSaleServiceImpl implements FlashSaleService {
         readOnly: false,
         hidden: false,
         isMainEntryPoint: true
+      },
+      {
+        path: 'src/test/java/com/assessment/flashsale/FlashSaleServiceTest.java',
+        content: `package com.assessment.flashsale;
+
+import com.assessment.flashsale.service.FlashSaleServiceImpl;
+
+public class FlashSaleServiceTest {
+    public void testClaimDeal() {
+        FlashSaleServiceImpl service = new FlashSaleServiceImpl();
+        service.createDeal("deal-1", "prod-1", 5, 3600);
+        if (!service.claimDeal("deal-1", "user-1")) {
+            throw new AssertionError("First claim should succeed");
+        }
+        if (service.claimDeal("deal-1", "user-1")) {
+            throw new AssertionError("Duplicate claim by same user should fail");
+        }
+        if (service.getAvailableStock("deal-1") != 4) {
+            throw new AssertionError("Stock should be 4");
+        }
+    }
+
+    public void testConcurrentClaimStress() {
+        FlashSaleServiceImpl service = new FlashSaleServiceImpl();
+        service.createDeal("deal-stress", "prod-s", 1000, 3600);
+        service.claimDeal("deal-stress", "u-" + Thread.currentThread().getId());
+    }
+}`,
+        readOnly: true,
+        hidden: false
       }
     ],
     concurrencyConfig: {
@@ -747,6 +799,32 @@ public class EqualSplitStrategy implements SplitStrategy {
         readOnly: false,
         hidden: false,
         isMainEntryPoint: true
+      },
+      {
+        path: 'src/test/java/com/assessment/splitwise/SplitwiseTest.java',
+        content: `package com.assessment.splitwise;
+
+import com.assessment.splitwise.service.EqualSplitStrategy;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+public class SplitwiseTest {
+    public void testEqualSplit() {
+        EqualSplitStrategy strategy = new EqualSplitStrategy();
+        Map<String, BigDecimal> splits = strategy.calculateSplits(
+            new BigDecimal("100.00"),
+            List.of("Alice", "Bob", "Charlie", "David"),
+            Map.of()
+        );
+        if (splits.size() != 4) throw new AssertionError("Expected 4 splits");
+        if (splits.get("Alice").compareTo(new BigDecimal("25.00")) != 0) {
+            throw new AssertionError("Expected 25.00 for Alice");
+        }
+    }
+}`,
+        readOnly: true,
+        hidden: false
       }
     ],
     scoringWeights: {
@@ -830,4 +908,11 @@ public class EventProcessor {
       modernIdioms: 0.40
     }
   }
+];
+
+import { ADDITIONAL_LLD_CHALLENGES } from './additionalChallenges';
+
+export const SEEDED_CHALLENGES: CodingChallenge[] = [
+  ...BASE_CHALLENGES,
+  ...ADDITIONAL_LLD_CHALLENGES
 ];
