@@ -9,6 +9,8 @@ import {
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { MermaidPreview } from './MermaidPreview';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { ArchitectureCanvas } from './canvas/ArchitectureCanvas';
+import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
 
 const cleanScenarioText = (text?: string): string => {
   if (!text) return '';
@@ -40,6 +42,8 @@ export const SystemDesignArena: React.FC = () => {
     returnToAcademyStep
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'staff_ai'>('spec');
+  const [architectureMode, setArchitectureMode] = useState<'canvas' | 'mermaid'>('canvas');
+  const [canvasPayload, setCanvasPayload] = useState<ArchitectureGraphPayload | null>(null);
   
   // Interactive Diagram & Candidate Solution State
   const [mermaidCode, setMermaidCode] = useState<string>(
@@ -121,7 +125,8 @@ export const SystemDesignArena: React.FC = () => {
           scenarioId: activeSystemDesignScenario.id,
           conversationHistory: chatMessages,
           architectureMermaid: mermaidCode,
-          notesMarkdown: candidateNotes
+          notesMarkdown: candidateNotes,
+          canvasTopology: canvasPayload
         })
       });
 
@@ -291,9 +296,52 @@ export const SystemDesignArena: React.FC = () => {
         )}
 
         {activeTab === 'architecture' && (
-          <div className="max-w-7xl 2xl:max-w-[2200px] mx-auto space-y-6">
-            {/* Split Arena: Left Code & Notes Editor, Right Live Mermaid Canvas */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
+          <div className="max-w-7xl 2xl:max-w-[2200px] mx-auto space-y-4">
+            {/* Mode Switcher Header */}
+            <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/95 border border-pastel-border/80 rounded-2xl p-2.5 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-pastel-text">Режим архитектора:</span>
+                <div className="flex items-center bg-pastel-bg p-0.5 rounded-xl border border-pastel-border">
+                  <button
+                    type="button"
+                    onClick={() => setArchitectureMode('canvas')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      architectureMode === 'canvas' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Интерактивный холст (SOTA 2026)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArchitectureMode('mermaid')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      architectureMode === 'mermaid' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
+                    }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5" />
+                    <span>Mermaid редактор</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-pastel-muted font-mono hidden sm:block">
+                {architectureMode === 'canvas'
+                  ? '⚡ 60 FPS Web Worker DES Engine • Drag & Drop • Chaos Monkey'
+                  : '📜 Ручной ввод кода Mermaid'}
+              </div>
+            </div>
+
+            {architectureMode === 'canvas' ? (
+              <div className="h-[calc(100vh-14rem)] min-h-[640px] w-full rounded-2xl overflow-hidden border border-pastel-border/80 shadow-2xs relative">
+                <ArchitectureCanvas 
+                  scenarioTitle={activeSystemDesignScenario.title}
+                  onExportPayload={setCanvasPayload}
+                />
+              </div>
+            ) : (
+              /* Split Arena: Left Code & Notes Editor, Right Live Mermaid Canvas */
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
               
               {/* Left Column (5 cols): Mermaid Code & Candidate Notes */}
               <div className="lg:col-span-6 flex flex-col gap-4">
@@ -371,6 +419,7 @@ export const SystemDesignArena: React.FC = () => {
               </div>
 
             </div>
+            )}
           </div>
         )}
 

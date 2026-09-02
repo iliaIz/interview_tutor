@@ -112,16 +112,31 @@ ${context}`;
 // POST /api/system-design/evaluate
 systemDesignRouter.post('/evaluate', async (req: Request, res: Response) => {
   try {
-    const { scenarioId, architectureMermaid, notesMarkdown } = req.body;
+    const { scenarioId, architectureMermaid, notesMarkdown, canvasTopology } = req.body;
     const row = db.prepare('SELECT manifest_json FROM system_design_challenges WHERE id = ?').get(scenarioId) as any;
     const scenario = row ? JSON.parse(row.manifest_json) : {};
+
+    let topologySection = architectureMermaid || 'Не предоставлена';
+    if (canvasTopology) {
+      topologySection = `
+Интерактивная топология холста:
+Узлы (${canvasTopology.nodes?.length || 0}): ${JSON.stringify(canvasTopology.nodes?.map((n: any) => ({ id: n.id, label: n.label, type: n.type, tech: n.config?.technology, replicas: n.config?.replicas })))}
+Связи: ${JSON.stringify(canvasTopology.edges?.map((e: any) => ({ from: e.source, to: e.target, protocol: e.config?.protocol, isAsync: e.config?.isAsync })))}
+Результаты DES симуляции нагрузки:
+- Входящий RPS: ${canvasTopology.simulationMetrics?.globalInputRps || 'N/A'}
+- Пропускная способность: ${canvasTopology.simulationMetrics?.globalProcessedRps || 'N/A'} RPS
+- p99 задержка: ${canvasTopology.simulationMetrics?.globalP99LatencyMs || 'N/A'} мс
+- Ошибки (Error Rate): ${((canvasTopology.simulationMetrics?.globalErrorRate || 0) * 100).toFixed(1)}%
+- Выявленные симулятором антипаттерны: ${JSON.stringify(canvasTopology.simulationMetrics?.antiPatterns?.map((ap: any) => ap.title) || [])}
+`;
+    }
 
     const prompt = `Ты — комитет оценки System Design собеседований (Staff Bar-Raiser).
 Оцени архитектурное решение кандидата для задачи: ${scenario.title || scenarioId}.
 
 ТЗ и профиль: ${JSON.stringify(scenario.trafficProfile || {})}
-Предложенная кандидатом архитектура (Mermaid):
-${architectureMermaid || 'Не предоставлена'}
+Предложенная архитектура:
+${topologySection}
 
 Пояснительная записка кандидата:
 ${notesMarkdown || 'Не предоставлена'}
