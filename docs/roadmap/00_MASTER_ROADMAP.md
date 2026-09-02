@@ -29,7 +29,7 @@ flowchart TD
     Current["🏁 ТЕКУЩЕЕ СОСТОЯНИЕ\n(LiteLLM Proxy, Live Gemini Audio, 70 Багов, 15 Триажей, SSOT Progress)"]
 
     subgraph Wave1 ["⚡ Волна 1: Немедленный импакт (Zero New Infrastructure)"]
-        Phase1["🎙️ ЭТАП 1: Speech & Behavioral AI Coach\n(WPM, слова-паразиты, паузы сомнения, STAR-структурирование)"]
+        Phase1["✅ ЭТАП 1: Speech & Behavioral AI Coach\n(WPM, слова-паразиты, паузы, адаптивный STAR/PREP) [ГОТОВО]"]
         Phase2["👔 ЭТАП 2: FAANG Personas & Calibration Scorecards\n(Amazon Bar-Raiser, Google Staff, Yandex Core + L5/L6 матрицы)"]
     end
 
@@ -38,8 +38,8 @@ flowchart TD
     end
 
     subgraph Wave3 ["🚀 Волна 3: Интерактивные инженерные среды (Deep Interactive Studios)"]
-        Phase4["📐 ЭТАП 4: Interactive Architecture Canvas\n(React Flow Drag&Drop вместо Mermaid + Live Load Simulator)"]
-        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(Микро-песочница JUnit 5, потоковые стресс-тесты)"]
+        Phase4["📐 ЭТАП 4: Interactive Architecture Canvas & DES\n(React Flow Drag&Drop + Web Worker симулятор Erlang-C + Chaos Monkey)"]
+        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(In-memory компилятор < 80мс, 100 потоков, 15 эталонных LLD-задач)"]
     end
 
     Current --> Phase1
@@ -54,8 +54,8 @@ flowchart TD
     classDef w2 fill:#fdf4ff,stroke:#c026d3,stroke-width:2px;
     classDef w3 fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
 
-    class Current done;
-    class Phase1,Phase2 w1;
+    class Current,Phase1 done;
+    class Phase2 w1;
     class Phase3 w2;
     class Phase4,Phase5 w3;
 ```
@@ -64,13 +64,15 @@ flowchart TD
 
 ## 3. Сводная матрица этапов
 
+> Полный научный и архитектурный синтез исследований: см. [00_MASTER_DEEP_RESEARCH_SYNTHESIS.md](file:///d:/projects/interview_projects/spring/docs/roadmap/reports/00_MASTER_DEEP_RESEARCH_SYNTHESIS.md).
+
 | Этап | Документ спецификации | Главная ценность для кандидата | Сложность | Внешние зависимости |
 | :--- | :--- | :--- | :--- | :--- |
-| **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | Объективная оценка речи: темп (WPM), паразиты, заминки, метод STAR | Средняя | Web Audio API, Web Speech / Gemini Audio |
+| **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | ✅ **ГОТОВО:** WPM-темп, детекция паразитов, адаптивный STAR/PREP/Rule of 3 | Завершено | Web Audio API, Web Speech API |
 | **Этап 2** | [phase_02_faang_personas_and_scorecards.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_02_faang_personas_and_scorecards.md) | Калибровка уровня (L5 vs L6), симуляция Amazon/Google/Yandex | Средняя | LiteLLM Prompt Profiles |
-| **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания без зубрёжки | Средняя | SQLite, векторные эмбеддинги |
-| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + симуляция 100k RPS | Высокая | `@xyflow/react` (React Flow) |
-| **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | Настоящий запуск Java 21, потоковые стресс-тесты за < 300мс | Высокая | Docker / Firecracker / WASM JVM |
+| **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания FSRS-5 без зубрёжки | Средняя | SQLite, векторные эмбеддинги |
+| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Высокая | `@xyflow/react` (React Flow) |
+| **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | In-memory запуск Java 21 (< 80мс), 100 потоков стресс-теста + 15 LLD-задач BigTech | Высокая | Docker Zero-Trust / In-memory Compiler |
 
 ---
 

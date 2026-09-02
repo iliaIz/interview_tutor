@@ -1,9 +1,9 @@
 # 📐 Этап 4: Interactive Architecture Canvas & Load Simulator (System Design Studio)
 
-> **Статус:** Спецификация готова к реализации  
-> **Цель:** Заменить текстовый редактор Mermaid на полноценный визуальный интерактивный холст (Drag & Drop на `@xyflow/react`) с палитрой компонентов Spring/Cloud и **живой симуляцией нагрузки (100k RPS)**.  
+> **Статус:** Актуализировано на основе Deep Research (Сентябрь 2026)  
+> **Цель:** Заменить текстовый редактор Mermaid на полноценный визуальный интерактивный холст (Drag & Drop на `@xyflow/react`) с палитрой компонентов Spring/Cloud, **браузерным Web Worker симулятором дискретных событий (DES)** на базе формул теории очередей ($M/M/c$, $M/G/1$, Закон Литтла), детектором антипаттернов (SPOF, циклические зависимости через алгоритм Кана) и **инжектором хаоса (Chaos Monkey)**.  
 > **Трудозатраты:** 6–8 дней | **Влияние на продукт:** Вау-эффект мирового уровня (Top-10 Feature)  
-> **Инфраструктурные требования:** Клиентская библиотека `@xyflow/react` (бывший React Flow) + легковесный симулятор потоков данных.
+> **Инфраструктурные требования:** Клиентская библиотека `@xyflow/react` (React Flow v12+) + Web Worker DES Engine.
 
 ---
 
@@ -14,31 +14,41 @@
 graph TD
   Client --> LB --> Gateway --> Service --> DB
 ```
-- **Это медленно и неестественно:** На реальных собеседованиях в FAANG никто не пишет код диаграммы — все рисуют на виртуальной доске (Excalidraw, Miro, Figma).
-- **Диаграмма статична и нема:* Нельзя наглядно проверить, выдержит ли схема заявленные 50,000 RPS, хватит ли соединений в пуле HikariCP и не упадет ли Kafka при репликации.
+- **Это неестественно:** На реальных собеседованиях в FAANG/BigTech архитектуру проектируют на интерактивной доске (Excalidraw, Miro, Figma).
+- **Диаграмма статична и нема:** Нельзя проверить, выдержит ли схема заявленные 50,000 RPS, хватит ли соединений в пуле HikariCP, не возникнет ли каскадный таймаут и не упадет ли Kafka при репликации.
+- **Отсутствие валидации:** Кандидат не видит узких мест (bottlenecks), пока интервьюер сам не укажет на них.
 
 ---
 
-## 2. Архитектура интерактивного холста
+## 2. Архитектура интерактивного холста (React 19 + @xyflow/react)
 
 ```mermaid
-flowchart LR
-    Palette["📦 Палитра Enterprise-компонентов\n(Gateway, Kafka, Redis, PostgreSQL, Patroni)"]
-    Canvas["🎨 Интерактивный Canvas (@xyflow/react)\n(Drag & Drop, авто-линковка, порты)"]
-    SimEngine["⚡ Live Load Simulator\n(Расчет RPS, латентности, пулов соединений)"]
-    StaffAI["🧠 Staff AI Interviewer\n(Анализ архитектуры и узких мест)"]
+flowchart TD
+    subgraph BrowserUI ["🖥️ Browser Main Thread (React 19)"]
+        Palette["📦 Enterprise Node Palette\n(Spring Gateway, Kafka, Redis, PostgreSQL, Patroni)"]
+        Canvas["🎨 @xyflow/react Canvas\n(Custom HTML Nodes + SVG Particle Edges)"]
+        ChaosPanel["⚡ Chaos Monkey Panel\n(Node Kill, Partition, Latency Spike)"]
+    end
+
+    subgraph Worker ["⚙️ Dedicated Web Worker (DES Engine)"]
+        Topology["🔍 Graph Parser & Kahn's Algo\n(Cycle Detection & Flow Ordering)"]
+        DES["⏱️ Discrete Event Simulation Loop\n(Priority Queue + Traffic Generator)"]
+        QueueMath["📊 Queuing Theory Engine\n(Erlang-C, M/G/1 Pollaczek-Khinchine)"]
+        Heuristics["🚨 Anti-Pattern Analyzer\n(SPOF, Cascading Timeouts, Unbuffered Writes)"]
+    end
 
     Palette -->|Drag & Drop| Canvas
-    Canvas -->|Топология графа| SimEngine
-    SimEngine -->|Анимация пакетов & Алерты| Canvas
-    Canvas -->|Экспорт графа| StaffAI
+    Canvas <-->|Topology JSON / Telemetry Frames| Worker
+    ChaosPanel -->|Fault Injection Event| DES
+    DES --> QueueMath
+    QueueMath --> Heuristics
 ```
 
 ### Библиотека готовых компонентов (Enterprise Palette):
 1. **Edge & Compute:**
    - Client (Web/Mobile), Cloudflare CDN, AWS ALB / NGINX, Spring Cloud Gateway, Core Spring Boot Service, Worker Node.
 2. **Data & Cache:**
-   - PostgreSQL (Master/Replica), Redis Sentinel/Cluster, MongoDB Sharded, ClickHouse OLAP, MinIO/S3 Bucket.
+   - PostgreSQL (Master/Replica с Patroni), Redis Sentinel/Cluster, MongoDB Sharded, ClickHouse OLAP, MinIO/S3 Bucket.
 3. **Messaging & Streaming:**
    - Apache Kafka (Topics, Partitions, Consumer Groups), RabbitMQ, Debezium CDC.
 4. **Resilience & Governance:**
@@ -46,54 +56,100 @@ flowchart LR
 
 ---
 
-## 3. Симулятор нагрузки (Live Load & Chaos Engine)
+## 3. Математический движок симуляции нагрузки (Queuing Theory & DES)
 
-Кандидат проектирует систему для сценария (например, «Платежный шлюз 20,000 TPS») и нажимает кнопку **«Запустить симуляцию нагрузки»**:
+Симуляция вынесена в отдельный Web Worker (`LoadSimulationWorker.ts`) для поддержания стабильных 60 FPS на основном потоке:
 
-1. **Расчет потоков в реальном времени:**
-   - Пользователь выставляет бегунок: `Трафик: 25,000 RPS (90% чтение / 10% запись)`.
-   - По соединительным линиям холста начинают бежать анимированные частицы (SVG Flow Particles).
-2. **Детектор перегрузок (Bottleneck Detection):**
-   - Если между Gateway и реляционной БД нет слоя кэширования:
-     - Узел PostgreSQL пульсирует красным:  
-       `⚠️ HikariCP Pool Exhausted: 25,000 RPS превышает лимит одиночной БД (макс. 3,500 RPS). Необходим Redis Cache или шардирование!`
-   - Если в Kafka не хватает партиций для консьюмеров:
-     - Узел Kafka выдает алерт: `⚠️ Consumer Lag растет (+1,200 msg/sec). Увеличьте число партиций!`
-3. **Кнопка «Chaos Monkey» (Стресс-тестирование отказа узла):**
-   - Нажатие кнопки случайным образом убивает один из экземпляров сервиса или мастера БД.
-   - Кандидат видит, переключается ли репликация (failover) без потери 500-х ошибок.
+### 3.1. Формулы теории очередей:
+1. **Сетевые пулы и многопоточные воркеры ($M/M/c$ / Erlang-C):**
+   $$P_c = \frac{\frac{(c\rho)^c}{c!(1-\rho)}}{\sum_{k=0}^{c-1}\frac{(c\rho)^k}{k!} + \frac{(c\rho)^c}{c!(1-\rho)}}, \quad W_q = \frac{P_c}{c\mu - \lambda}$$
+   - Используется для моделирования пула коннектов HikariCP, тредов Tomcat и воркеров Spring.
+2. **Дисковые БД и хранилища ($M/G/1$ / Pollaczek-Khinchine):**
+   $$W_q = \frac{\lambda (\sigma^2 + 1/\mu^2)}{2(1 - \lambda/\mu)}$$
+   - Учитывает дисперсию дискового I/O при тяжелых запросах на запись.
+3. **Закон Литтла для очередей брокеров (Kafka, RabbitMQ):**
+   $$L = \lambda \cdot W$$
+   - Рассчитывает динамический рост consumer lag и требуемое число партиций.
+4. **Хвостовая латентность ($p95, p99, p99.9$):**
+   - Моделируется через Log-Normal распределение для визуализации всплесков GC и сетевых ретрансмитов.
 
----
-
-## 4. UI/UX Спецификация
-
-- **Левая панель:** Аккордеон с готовыми пастельными блоками (иконки, бейджи протоколов: gRPC, REST, Kafka).
-- **Центр:** Бесконечный холст с панорамированием (pan & zoom), сеткой и красивыми скругленными стрелками.
-- **Верхняя панель управления:**
-  - Ползунок нагрузки: `[ 1,000 RPS ──────●────── 100,000 RPS ]`.
-  - Кнопка: `▶ Симулировать нагрузку` | `⚡ Chaos Monkey`.
-  - Метрики системы: `Общая латентность: p99 = 42ms`, `Доступность: 99.99%`.
-- **Правая панель:** Чат с Staff AI интервьюером (ИИ видит конфигурацию холста и задает точечные вопросы по соединениям и репликации).
+### 3.2. Автоматическое обнаружение антипаттернов:
+1. **SPOF (Single Point of Failure):** Узел без реплик с входящим трафиком $> 500$ RPS при отсутствии fallback-маршрута.
+2. **Синхронные циклические зависимости:** Алгоритм Кана (Kahn's algorithm) выявляет циклы между микросервисами, грозящие дедлоком при масштабировании.
+3. **Unbuffered Database Writes:** Прямая синхронная запись из Gateway в БД при $\lambda > 3500$ RPS без буферизации в Kafka/RabbitMQ.
+4. **Cascading Timeouts:** Таймаут родительского сервиса меньше суммарного таймаута дочерних зависимостей ($T_{parent} < \sum T_{child}$).
 
 ---
 
-## 5. Изменения в кодовой базе
+## 4. Инжектор хаоса (Chaos Monkey & Fault Injection)
+
+Интерактивная панель позволяет кандидату протестировать отказоустойчивость:
+1. **Убийство лидера БД (Kill Primary):**
+   - Падение мастера PostgreSQL с Patroni. Симулятор задерживает запись на 10–14 секунд, моделируя перевыборы лидера через etcd/Raft. Если в схеме нет retry или очереди — фиксируются 500 ошибки.
+2. **Разделение сети (Network Partition):**
+   - Разрыв связи между датацентрами для проверки кворума и предотвращения Split-Brain.
+3. **Всплеск задержки (Latency Injection) и Circuit Breaker:**
+   - Имитация падения downstream-партнера (задержка 5000 мс). Демонстрация перехода Circuit Breaker: `CLOSED` $\rightarrow$ `OPEN` $\rightarrow$ `HALF_OPEN`.
+
+---
+
+## 5. Схема сериализации канваса (JSON Contract для LLM)
+
+Топология холста сериализуется в структурированный JSON, совместимый с LiteLLM proxy и Gemini Live:
+
+```typescript
+export interface ArchitectureCanvasPayload {
+  nodes: Array<{
+    id: string;
+    type: 'gateway' | 'service' | 'database' | 'cache' | 'queue' | 'loadbalancer';
+    label: string;
+    config: {
+      replicas?: number;
+      maxRpsCapacity?: number;
+      poolSize?: number;
+      readWriteRatio?: number;
+      partitions?: number;
+    };
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    protocol: 'REST' | 'gRPC' | 'Kafka' | 'JDBC';
+    isAsync: boolean;
+    timeoutMs: number;
+  }>;
+  simulationMetrics?: {
+    inputRps: number;
+    p99LatencyMs: number;
+    errorRatePercent: number;
+    detectedBottlenecks: string[];
+    spofNodes: string[];
+  };
+}
+```
+
+---
+
+## 6. Изменения в кодовой базе
 
 ### Frontend
-- **Установка зависимости:** `npm install @xyflow/react` (легковесный современный форк React Flow).
+- **Установка зависимости:** `npm install @xyflow/react`
 - **[NEW] `frontend/src/components/system_design/canvas/ArchitectureCanvas.tsx`**:
-  - Интерактивный канвас с поддержкой drag-and-drop узлов.
+  - Интерактивный холст с pan, zoom, minimap, drag & drop палитрой и SVG Flow Particles.
 - **[NEW] `frontend/src/components/system_design/canvas/nodes/EnterpriseServiceNode.tsx`**:
-  - Кастомные стилизованные узлы компонентов (Spring, Kafka, Postgres).
-- **[NEW] `frontend/src/components/system_design/simulation/LoadSimulationEngine.ts`**:
-  - Клиентский математический симулятор распределения трафика по графу.
+  - Кастомные ноды с цветовой индикацией загрузки (зеленый $\rightarrow$ желтый $\rightarrow$ красный пульс) и бейджами метрик.
+- **[NEW] `frontend/src/components/system_design/simulation/LoadSimulationWorker.ts`**:
+  - Web Worker с математическим DES-движком (Erlang-C, M/G/1, Kahn's cycle detector, Chaos Monkey).
 - **[MODIFY] `frontend/src/components/system_design/SystemDesignArena.tsx`**:
-  - Замена Mermaid на переключатель `[ Визуальный Canvas | Mermaid Код ]`.
+  - Двухрежимный переключатель `[ 🎨 Интерактивный холст | 📜 Mermaid код ]`.
+  - Кнопка отправки архитектурного графа на ревью Staff AI.
 
 ---
 
-## 6. Критерии приемки (Definition of Done)
-- [ ] Перетаскивание и связывание компонентов работает плавно на 60 FPS.
-- [ ] Симулятор нагрузки корректно находит элементарные ошибки (отсутствие кэша, узкое горлышко базы).
-- [ ] Топология холста сериализуется в JSON и корректно передается в Staff AI для оценки.
-- [ ] Возможность экспорта схемы в PNG / SVG / Mermaid в 1 клик.
+## 7. Критерии приемки (Definition of Done)
+- [ ] Drag-and-Drop нод из палитры и соединение стрелками с выбором протокола (gRPC, REST, Kafka, JDBC).
+- [ ] Плавный 60 FPS рендеринг даже при симуляции 100k RPS за счет выноса DES в Web Worker.
+- [ ] Алгоритмическое детектирование SPOF и циклических зависимостей с отображением предупреждающих бейджей.
+- [ ] Работа Chaos Monkey: наглядное переключение состояний Circuit Breaker и демонстрация перевыборов мастера Patroni.
+- [ ] Бесшовная передача схемы в Gemini Live/Text через LiteLLM Proxy для архитектурного разбора.
