@@ -15,6 +15,7 @@ import { systemDesignRouter } from './routes/systemDesign';
 import { triageRouter } from './routes/triage';
 import { roadmapsRouter } from './routes/roadmaps';
 import { authRouter } from './routes/auth';
+import { sandboxRouter } from './routes/sandbox';
 import { requireAuth } from './middleware/auth';
 import { 
   seedQuestionsFromJSON, 
@@ -54,6 +55,7 @@ app.use('/api/tutor', requireAuth, tutorRouter);
 app.use('/api/memory', requireAuth, memoryRouter);
 app.use('/api/interview', requireAuth, interviewTurnRouter);
 app.use('/api/practice', requireAuth, practiceRouter);
+app.use('/api/sandbox', requireAuth, sandboxRouter);
 app.use('/api/system-design', requireAuth, systemDesignRouter);
 app.use('/api/triage', requireAuth, triageRouter);
 app.use('/api/roadmaps', requireAuth, roadmapsRouter);

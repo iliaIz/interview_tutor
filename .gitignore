@@ -7,6 +7,8 @@ dist/
 **/dist/
 build/
 **/build/
+bin/
+**/bin/
 
 # Audio & generated storage / databases
 storage/
