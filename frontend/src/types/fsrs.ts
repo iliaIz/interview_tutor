@@ -1,3 +1,14 @@
+export interface NeighborPropagationResult {
+  neighborQuestionId: string;
+  oldStability: number;
+  newStability: number;
+  oldDifficulty: number;
+  newDifficulty: number;
+  distance: number;
+  newDueAt: string;
+  immediatelyDue: boolean;
+}
+
 export interface FsrsQueueItemDTO {
   questionId: string;
   topic: string;
@@ -8,6 +19,7 @@ export interface FsrsQueueItemDTO {
   difficulty: number;     // D (1.0 .. 10.0)
   reps: number;
   lapses: number;
+  state?: number;
   dueAt: string;
   isOverdue: boolean;
 }
@@ -40,4 +52,6 @@ export interface FsrsReviewResponse {
     due_at: string;
   };
   propagatedCount: number;
+  propagatedNeighbors?: NeighborPropagationResult[];
 }
+

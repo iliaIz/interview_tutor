@@ -139,6 +139,21 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_card_states(user_id, due_at);
   CREATE INDEX IF NOT EXISTS idx_fsrs_state ON fsrs_card_states(user_id, state);
+  CREATE INDEX IF NOT EXISTS idx_fsrs_due_queue ON fsrs_card_states(user_id, state, due_at);
+
+  CREATE TABLE IF NOT EXISTS fsrs_review_logs (
+    log_id TEXT PRIMARY KEY,
+    question_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    state INTEGER NOT NULL,
+    due_at DATETIME NOT NULL,
+    stability REAL NOT NULL,
+    difficulty REAL NOT NULL,
+    review_time DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_fsrs_logs_history ON fsrs_review_logs(user_id, question_id, review_time DESC);
 
   CREATE TABLE IF NOT EXISTS bug_challenges (
     id TEXT PRIMARY KEY,

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { db } from './db';
 import { cosineSimilarity } from './vectorMemoryService';
 
@@ -31,6 +32,17 @@ export interface FsrsCardRecord {
   updated_at?: string;
 }
 
+export interface NeighborPropagationResult {
+  neighborQuestionId: string;
+  oldStability: number;
+  newStability: number;
+  oldDifficulty: number;
+  newDifficulty: number;
+  distance: number;
+  newDueAt: string;
+  immediatelyDue: boolean;
+}
+
 export interface FsrsQueueItem {
   questionId: string;
   topic: string;
@@ -41,6 +53,7 @@ export interface FsrsQueueItem {
   difficulty: number;
   reps: number;
   lapses: number;
+  state: number;
   dueAt: string;
   isOverdue: boolean;
 }
@@ -67,12 +80,17 @@ export const FSRS_5_WEIGHTS = [
   2.9898, 0.51655, 0.6621
 ];
 
-export const DECAY_FACTOR = 0.19;
+/**
+ * Analytical factor for R(t=S) = 0.90:
+ * (1 + factor)^(-0.5) = 0.90 <=> factor = 0.90^(-2) - 1 = 19 / 81 ~= 0.2345679
+ */
+export const DECAY_FACTOR = 19 / 81;
 export const REQUEST_RETENTION = 0.90;
 
 /**
  * Retrievability formula R(t, S)
  * Probability of recalling the card after t days given stability S
+ * Invariant: R(S, S) strictly equals 0.9000
  */
 export function calculateRetrievability(elapsedDays: number, stability: number): number {
   const s = Math.max(0.1, stability);
@@ -83,6 +101,7 @@ export function calculateRetrievability(elapsedDays: number, stability: number):
 
 /**
  * Calculates optimal interval (in days) to achieve target retention
+ * At targetRetention = 0.90: (0.90^(-2) - 1) / (19/81) = 1.0 => days = Math.round(stability)
  */
 export function nextInterval(stability: number, targetRetention: number = REQUEST_RETENTION): number {
   const s = Math.max(0.1, stability);
@@ -163,8 +182,19 @@ export function calculateNextState(
     } else {
       newState = FsrsState.Review;
     }
+  } else if (card.elapsedDays < 1) {
+    // SOTA Intra-day Same-Day Consolidation using w[17] and w[18]
+    newDifficulty = nextDifficulty(card.difficulty, rating);
+    if (rating === FsrsRating.Again) {
+      newState = FsrsState.Relearning;
+      newLapses += 1;
+    } else {
+      newState = FsrsState.Review;
+    }
+    const sSameDay = card.stability * (1 + Math.exp(w[17]) * (rating - 3 + w[18]));
+    newStability = Math.max(w[0], sSameDay);
   } else {
-    // Repeated Review
+    // Repeated Review (Inter-day)
     const r = calculateRetrievability(card.elapsedDays, card.stability);
     newDifficulty = nextDifficulty(card.difficulty, rating);
 
@@ -176,7 +206,7 @@ export function calculateNextState(
         Math.pow(newDifficulty, -w[12]) *
         (Math.pow(card.stability + 1, w[13]) - 1) *
         Math.exp(w[14] * (1 - r));
-      newStability = Math.min(card.stability, Math.max(0.1, sForget));
+      newStability = Math.min(card.stability, Math.max(w[0], sForget));
     } else {
       // Successful Recall
       newState = FsrsState.Review;
@@ -195,7 +225,7 @@ export function calculateNextState(
     }
   }
 
-  newStability = parseFloat(newStability.toFixed(2));
+  newStability = parseFloat(newStability.toFixed(4));
   newDifficulty = parseFloat(newDifficulty.toFixed(2));
 
   const scheduledDays = rating === FsrsRating.Again ? 1 : nextInterval(newStability, REQUEST_RETENTION);
@@ -215,45 +245,115 @@ export function calculateNextState(
 }
 
 /**
- * Propagates deficit to semantically related questions via cosine similarity of embeddings.
- * When a candidate lapses (Again/Hard), related concepts have their review schedule tightened by 30%.
+ * Continuous Gaussian RBF Kernel for Vector Deficit Diffusion
+ * K(v_A, v_k) = exp(- d^2 / (2 * sigma^2)), sigma = 0.125
+ * Truncated at d > 0.25 (equivalent to cosine similarity < 0.75)
  */
-export async function propagateDeficitCluster(questionId: string, userId: string = 'default_user'): Promise<number> {
+export function calculateRbfKernel(distance: number, sigma: number = 0.125): number {
+  if (distance > 0.25) return 0;
+  return Math.exp(-Math.pow(distance, 2) / (2 * Math.pow(sigma, 2)));
+}
+
+/**
+ * Propagates deficit to semantically related questions via Gaussian RBF diffusion.
+ * When a candidate lapses (Again / Hard), related concepts receive:
+ * 1. Difficulty infiltration: D'_k = min(10, D_k + alpha * K * (10 - D_k)), alpha = 0.20
+ * 2. Stability degradation: S'_k = max(w0, S_k * (1 - beta * K)), beta = 0.35
+ * 3. Schedule adjustment: recalculated due_at; if <= now, marked as immediately due.
+ */
+export async function propagateDeficitCluster(
+  questionId: string,
+  userId: string = 'default_user',
+  now: Date = new Date()
+): Promise<{ count: number; neighbors: NeighborPropagationResult[] }> {
   try {
     const sourceRow = db.prepare('SELECT embedding, topic FROM question_embeddings WHERE question_id = ?').get(questionId) as any;
-    if (!sourceRow?.embedding) return 0;
+    if (!sourceRow?.embedding) return { count: 0, neighbors: [] };
 
     const sourceBuf = sourceRow.embedding as Buffer;
     const sourceVec = new Float32Array(sourceBuf.buffer.slice(sourceBuf.byteOffset, sourceBuf.byteOffset + sourceBuf.byteLength));
 
     const otherRows = db.prepare('SELECT question_id, embedding FROM question_embeddings WHERE question_id != ?').all(questionId) as any[];
-    let propagatedCount = 0;
+    const neighbors: NeighborPropagationResult[] = [];
 
-    const updateStmt = db.prepare(`
-      UPDATE fsrs_card_states
-      SET scheduled_days = MAX(1, CAST(scheduled_days * 0.7 AS INTEGER)),
-          due_at = DATETIME('now', '+' || MAX(1, CAST(scheduled_days * 0.7 AS INTEGER)) || ' days'),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = ? AND question_id = ? AND due_at > CURRENT_TIMESTAMP
+    const fetchCardStmt = db.prepare('SELECT * FROM fsrs_card_states WHERE user_id = ? AND question_id = ?');
+    const updateNeighborStmt = db.prepare(`
+      INSERT INTO fsrs_card_states (
+        user_id, question_id, stability, difficulty, elapsed_days, scheduled_days, reps, lapses, state, last_review_at, due_at, updated_at
+      ) VALUES (
+        @userId, @questionId, @stability, @difficulty, 0, @scheduledDays, 0, 0, 0, null, @dueAt, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(user_id, question_id) DO UPDATE SET
+        stability = @stability,
+        difficulty = @difficulty,
+        scheduled_days = @scheduledDays,
+        due_at = @dueAt,
+        updated_at = CURRENT_TIMESTAMP
     `);
 
-    for (const r of otherRows) {
-      if (!r.embedding) continue;
-      const b = r.embedding as Buffer;
-      const vec = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-      const sim = cosineSimilarity(sourceVec, vec);
+    const w0 = FSRS_5_WEIGHTS[0]; // 0.40255
+    const alpha = 0.20;
+    const beta = 0.35;
+    const targetR = REQUEST_RETENTION; // 0.90
+    const nowMs = now.getTime();
 
-      // Semantic proximity threshold: 0.78
-      if (sim >= 0.78) {
-        const changes = updateStmt.run(userId, r.question_id).changes;
-        if (changes > 0) propagatedCount++;
+    const tx = db.transaction(() => {
+      for (const r of otherRows) {
+        if (!r.embedding) continue;
+        const b = r.embedding as Buffer;
+        const vec = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+        const sim = cosineSimilarity(sourceVec, vec);
+        const dist = Math.max(0, 1.0 - sim);
+
+        // Radius cut-off d <= 0.25 (cosine similarity >= 0.75)
+        if (dist <= 0.25) {
+          const kernelWeight = calculateRbfKernel(dist, 0.125);
+          if (kernelWeight <= 0) continue;
+
+          const neighborCardRaw = fetchCardStmt.get(userId, r.question_id) as any;
+          const oldS = neighborCardRaw ? neighborCardRaw.stability : 1.0;
+          const oldD = neighborCardRaw ? neighborCardRaw.difficulty : 5.0;
+
+          // 1. Difficulty Infiltration
+          const newD = Math.min(10.0, oldD + alpha * kernelWeight * (10.0 - oldD));
+          // 2. Stability Degradation
+          const newS = Math.max(w0, oldS * (1.0 - beta * kernelWeight));
+
+          // 3. New interval: at R=0.90, intervalDays = S
+          const intervalDays = (81 * newS / 19) * (Math.pow(targetR, -2) - 1);
+          const lastRevMs = neighborCardRaw?.last_review_at ? new Date(neighborCardRaw.last_review_at).getTime() : nowMs;
+          const newDueMs = Math.round(lastRevMs + intervalDays * 86400 * 1000);
+          const immediatelyDue = newDueMs <= nowMs;
+          const newDueDate = new Date(newDueMs).toISOString();
+
+          updateNeighborStmt.run({
+            userId,
+            questionId: r.question_id,
+            stability: parseFloat(newS.toFixed(2)),
+            difficulty: parseFloat(newD.toFixed(2)),
+            scheduledDays: Math.max(1, Math.round(intervalDays)),
+            dueAt: newDueDate
+          });
+
+          neighbors.push({
+            neighborQuestionId: r.question_id,
+            oldStability: parseFloat(oldS.toFixed(2)),
+            newStability: parseFloat(newS.toFixed(2)),
+            oldDifficulty: parseFloat(oldD.toFixed(2)),
+            newDifficulty: parseFloat(newD.toFixed(2)),
+            distance: parseFloat(dist.toFixed(4)),
+            newDueAt: newDueDate,
+            immediatelyDue
+          });
+        }
       }
-    }
+    });
 
-    return propagatedCount;
+    tx();
+    return { count: neighbors.length, neighbors };
   } catch (err) {
     console.warn('Deficit propagation warning:', err);
-    return 0;
+    return { count: 0, neighbors: [] };
   }
 }
 
@@ -265,7 +365,7 @@ export async function updateFsrsCardState(params: {
   questionId: string;
   score: number;
   isPassed?: boolean;
-}): Promise<{ card: FsrsCardRecord; propagatedCount: number }> {
+}): Promise<{ card: FsrsCardRecord; propagatedCount: number; propagatedNeighbors: NeighborPropagationResult[] }> {
   const { userId = 'default_user', questionId, score, isPassed } = params;
   const rating = mapScoreToRating(score, isPassed);
   const now = new Date();
@@ -324,22 +424,48 @@ export async function updateFsrsCardState(params: {
     dueAt: next.dueAt
   });
 
-  // 4. Propagate deficit if failed / struggled
+  // 4. Record audit log
+  try {
+    db.prepare(`
+      INSERT INTO fsrs_review_logs (
+        log_id, question_id, user_id, rating, state, due_at, stability, difficulty, review_time, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      crypto.randomUUID(),
+      questionId,
+      userId,
+      rating,
+      next.state,
+      next.dueAt,
+      next.stability,
+      next.difficulty,
+      now.toISOString()
+    );
+  } catch (logErr) {
+    console.warn('Failed to insert fsrs_review_log:', logErr);
+  }
+
+  // 5. Propagate deficit if failed / struggled
   let propagatedCount = 0;
+  let propagatedNeighbors: NeighborPropagationResult[] = [];
   if (rating === FsrsRating.Again || rating === FsrsRating.Hard) {
-    propagatedCount = await propagateDeficitCluster(questionId, userId);
+    const prop = await propagateDeficitCluster(questionId, userId, now);
+    propagatedCount = prop.count;
+    propagatedNeighbors = prop.neighbors;
   }
 
   const updatedCard = db.prepare('SELECT * FROM fsrs_card_states WHERE user_id = ? AND question_id = ?').get(userId, questionId) as FsrsCardRecord;
 
   return {
     card: updatedCard,
-    propagatedCount
+    propagatedCount,
+    propagatedNeighbors
   };
 }
 
 /**
  * Returns prioritized queue of questions due today or with R < 0.80
+ * Orders by State urgency (Relearning=3, Learning=1 first) and then Due Date
  */
 export function getFsrsQueue(userId: string = 'default_user', limit: number = 10): FsrsQueueItem[] {
   const rows = db.prepare(`
@@ -350,6 +476,7 @@ export function getFsrsQueue(userId: string = 'default_user', limit: number = 10
       f.elapsed_days,
       f.reps,
       f.lapses,
+      f.state,
       f.last_review_at,
       f.due_at,
       q.topic,
@@ -358,6 +485,7 @@ export function getFsrsQueue(userId: string = 'default_user', limit: number = 10
     FROM fsrs_card_states f
     JOIN questions q ON f.question_id = q.id
     WHERE f.user_id = ?
+    ORDER BY f.state DESC, f.due_at ASC
   `).all(userId) as any[];
 
   const now = Date.now();
@@ -384,14 +512,23 @@ export function getFsrsQueue(userId: string = 'default_user', limit: number = 10
         difficulty: row.difficulty,
         reps: row.reps,
         lapses: row.lapses,
+        state: row.state,
         dueAt: row.due_at,
         isOverdue
       });
     }
   }
 
-  // Sort by lowest retrievability first (most urgent deficits first)
-  queueItems.sort((a, b) => a.retrievability - b.retrievability);
+  // Primary sort: Relearning (state 3) / Learning (state 1) first, then lowest retrievability
+  queueItems.sort((a, b) => {
+    const aUrgentState = a.state === FsrsState.Relearning || a.state === FsrsState.Learning ? 1 : 0;
+    const bUrgentState = b.state === FsrsState.Relearning || b.state === FsrsState.Learning ? 1 : 0;
+    if (aUrgentState !== bUrgentState) {
+      return bUrgentState - aUrgentState;
+    }
+    return a.retrievability - b.retrievability;
+  });
+
   return queueItems.slice(0, limit);
 }
 
