@@ -65,6 +65,7 @@ db.exec(`
     user_answer TEXT,
     transcript TEXT,
     audio_metrics TEXT,
+    speech_coaching_json TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (question_id) REFERENCES questions(id)
@@ -352,12 +353,16 @@ try {
   console.error("Migration error for guided_roadmaps:", e);
 }
 
-// Migration: Ensure user_id column exists in question_evaluations table
+// Migration: Ensure user_id and speech_coaching_json exist in question_evaluations table
 try {
   const cols = db.pragma('table_info(question_evaluations)') as any[];
   if (!cols.some(c => c.name === 'user_id')) {
     db.exec("ALTER TABLE question_evaluations ADD COLUMN user_id TEXT DEFAULT 'default_user'");
     console.log("✅ Added 'user_id' column to question_evaluations table");
+  }
+  if (!cols.some(c => c.name === 'speech_coaching_json')) {
+    db.exec("ALTER TABLE question_evaluations ADD COLUMN speech_coaching_json TEXT");
+    console.log("✅ Added 'speech_coaching_json' column to question_evaluations table");
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON question_evaluations(user_id);");
 } catch (e) {

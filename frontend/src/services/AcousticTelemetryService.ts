@@ -18,6 +18,7 @@ export interface AcousticMetrics {
   energyVector30: number[];
 }
 
+
 export interface MetricCardInfo {
   title: string;
   description: string;
@@ -27,10 +28,30 @@ export interface MetricCardInfo {
   iconEmoji: string;
 }
 
+export type QuestionCategoryType = 'definitional' | 'tradeoff' | 'behavioral';
+
+export interface QuestionStructureFormat {
+  category: QuestionCategoryType;
+  title: string;
+  recommendedFramework: 'STAR' | 'PREP' | 'RULE_OF_3';
+  description: string;
+  badgeStyle: string;
+}
+
+export interface SpeechClarityMetrics {
+  totalWords: number;
+  fillerWordsCount: number;
+  detectedFillers: Array<{ word: string; count: number }>;
+  clarityScorePercent: number;
+  pacingState: 'optimal' | 'rushed' | 'slow';
+  wpm: number;
+}
+
 export interface HumanizedAcousticProfile {
   volume: MetricCardInfo;
   pace: MetricCardInfo;
   structure: MetricCardInfo;
+  clarity?: MetricCardInfo;
   mentorPraise: string;
 }
 
@@ -42,7 +63,10 @@ export class AcousticTelemetryService {
    * Transforms raw acoustic telemetry into human-readable, executive coaching insights
    * tailored with soft-luxury aesthetics for candidates and female tech professionals.
    */
-  public static getHumanizedProfile(metrics: AcousticMetrics): HumanizedAcousticProfile {
+  public static getHumanizedProfile(
+    metrics: AcousticMetrics,
+    clarityMetrics?: SpeechClarityMetrics
+  ): HumanizedAcousticProfile {
     const { rmsDb, grossWpm, pauseRatioPercent } = metrics;
 
     // 1. Подача и громкость голоса
@@ -138,7 +162,44 @@ export class AcousticTelemetryService {
       };
     }
 
-    // 4. Персональный комплимент ментора по подаче
+    // 4. Чистота речи и слова-паразиты (если переданы)
+    let clarity: MetricCardInfo | undefined = undefined;
+    if (clarityMetrics) {
+      if (clarityMetrics.clarityScorePercent >= 90) {
+        clarity = {
+          title: 'Кристальная чистота речи',
+          description: clarityMetrics.fillerWordsCount === 0
+            ? 'Речь звучит уверенно, без междометий и слов-паразитов'
+            : `Минимум пауз-паразитов (${clarityMetrics.fillerWordsCount} за ответ)`,
+          badge: '💎 Высокая четкость',
+          badgeStyle: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+          techValue: `${clarityMetrics.clarityScorePercent}% чистоты`,
+          iconEmoji: '💎'
+        };
+      } else if (clarityMetrics.clarityScorePercent >= 75) {
+        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map(f => `«${f.word}»`).join(', ');
+        clarity = {
+          title: 'Умеренная чистота',
+          description: `Зафиксировано ${clarityMetrics.fillerWordsCount} слов-паразитов (${topFillers}). Попробуйте заменять их короткой паузой.`,
+          badge: '🌿 Естественная речь',
+          badgeStyle: 'bg-amber-50 text-amber-800 border-amber-200/80',
+          techValue: `${clarityMetrics.clarityScorePercent}% чистоты`,
+          iconEmoji: '🌿'
+        };
+      } else {
+        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map(f => `«${f.word}»`).join(', ');
+        clarity = {
+          title: 'Частые слова-паразиты',
+          description: `Обнаружено ${clarityMetrics.fillerWordsCount} слов-паразитов (${topFillers}). Делайте вдох вместо «эээ/ну» — пауза звучит солидно!`,
+          badge: '💡 Зона роста',
+          badgeStyle: 'bg-rose-50 text-rose-700 border-rose-200/80',
+          techValue: `${clarityMetrics.clarityScorePercent}% чистоты`,
+          iconEmoji: '💡'
+        };
+      }
+    }
+
+    // 5. Персональный комплимент ментора по подаче
     let mentorPraise = '✨ Ваша манера речи звучит профессионально и располагает к приятному, доверительному диалогу.';
     if (rmsDb >= -36 && pauseRatioPercent <= 45) {
       mentorPraise = '🌸 У вас гармоничный баланс громкости и уверенный тон: вы звучите спокойно и экспертно, что производит отличное впечатление на интервьюера!';
@@ -152,6 +213,7 @@ export class AcousticTelemetryService {
       volume,
       pace,
       structure,
+      clarity,
       mentorPraise
     };
   }
@@ -373,5 +435,129 @@ export class AcousticTelemetryService {
     }
 
     return normalized;
+  }
+
+  // Canonical lexicon of speech disfluencies and filler words
+  private static readonly RUSSIAN_FILLERS = [
+    'эээ', 'ээ', 'ммм', 'мм', 'как бы', 'типа', 'ну', 'в общем-то',
+    'в общем', 'короче', 'так сказать', 'значит', 'собственно',
+    'в принципе', 'вот', 'слушай'
+  ];
+
+  private static readonly ENGLISH_FILLERS = [
+    'um', 'uh', 'er', 'ah', 'like', 'you know', 'basically',
+    'sort of', 'kind of', 'actually', 'literally', 'i mean', 'right'
+  ];
+
+  /**
+   * Evaluates verbal fluency, disfluencies, and speech clarity percentage
+   */
+  public static analyzeSpeechClarity(transcriptText: string, grossWpm: number = 0): SpeechClarityMetrics {
+    const text = (transcriptText || '').trim();
+    if (!text) {
+      return {
+        totalWords: 0,
+        fillerWordsCount: 0,
+        detectedFillers: [],
+        clarityScorePercent: 100,
+        pacingState: 'optimal',
+        wpm: grossWpm
+      };
+    }
+
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    const totalWords = words.length;
+    const lowerText = text.toLowerCase();
+
+    const fillerMap = new Map<string, number>();
+    let totalFillers = 0;
+
+    const allFillers = [...this.RUSSIAN_FILLERS, ...this.ENGLISH_FILLERS];
+    for (const filler of allFillers) {
+      const escaped = filler.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?:^|[\\s,.;:!?"'«»(—–-])${escaped}(?=[\\s,.;:!?"'«»)—–-]|$|\\n)`, 'gi');
+      const matches = lowerText.match(regex);
+      if (matches && matches.length > 0) {
+        fillerMap.set(filler, (fillerMap.get(filler) || 0) + matches.length);
+        totalFillers += matches.length;
+      }
+    }
+
+    const detectedFillers = Array.from(fillerMap.entries())
+      .map(([word, count]) => ({ word, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Score: 100% minus penalty for filler density
+    const clarityScorePercent = totalWords > 0
+      ? Math.max(0, Math.min(100, Math.round(100 - (totalFillers / totalWords) * 150)))
+      : 100;
+
+    let pacingState: 'optimal' | 'rushed' | 'slow' = 'optimal';
+    if (grossWpm > 170) pacingState = 'rushed';
+    else if (grossWpm > 0 && grossWpm < 100) pacingState = 'slow';
+
+    return {
+      totalWords,
+      fillerWordsCount: totalFillers,
+      detectedFillers,
+      clarityScorePercent,
+      pacingState,
+      wpm: grossWpm
+    };
+  }
+
+  /**
+   * Adaptive Question Classifier:
+   * Categorizes technical questions into Definitional (Rule of 3), Trade-off (PREP), or Behavioral (STAR).
+   */
+  public static classifyQuestionStructure(questionText: string, topic?: string): QuestionStructureFormat {
+    const qLower = (questionText || '').toLowerCase();
+    const tLower = (topic || '').toLowerCase();
+
+    // 1. Behavioral & Incident questions (Experience, failures, war stories) -> STAR
+    const behavioralKeywords = [
+      'инцидент', 'авари', 'опыт', 'расскажите о', 'случай', 'баг', 'проблем',
+      'утечк', 'падени', 'дедлок', 'сбой', 'поломк', 'сложный баг', 'ошибк',
+      'incident', 'outage', 'failure', 'tell me about', 'experience', 'situation',
+      'debugged', 'debug', 'post-mortem', 'rca', 'root cause'
+    ];
+
+    const isBehavioral = behavioralKeywords.some(kw => qLower.includes(kw) || tLower.includes(kw));
+    if (isBehavioral) {
+      return {
+        category: 'behavioral',
+        title: 'Опыт / Инцидент (STAR)',
+        recommendedFramework: 'STAR',
+        description: 'Рекомендуется структура STAR: Situation (Контекст) -> Task (Задача) -> Action (Ваши действия) -> Result (Измеримый итог).',
+        badgeStyle: 'bg-rose-50 text-pastel-accentRoseText border-pastel-accentRose/30'
+      };
+    }
+
+    // 2. Trade-off & Architectural choice questions -> PREP
+    const tradeoffKeywords = [
+      ' vs ', 'или', 'разниц', 'сравните', 'почему', 'выбрать', 'компромисс',
+      'когда использовать', 'в чем отличие', 'плюсы и минусы', 'trade-off',
+      'difference between', 'compare', 'prefer', 'pros and cons', 'when to use'
+    ];
+
+    const isTradeoff = tradeoffKeywords.some(kw => qLower.includes(kw));
+    if (isTradeoff) {
+      return {
+        category: 'tradeoff',
+        title: 'Архитектурный выбор (PREP)',
+        recommendedFramework: 'PREP',
+        description: 'Рекомендуется структура PREP: Point (Тезис) -> Reason (Причина) -> Example (Пример из практики) -> Point (Итоговый вывод).',
+        badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200/80'
+      };
+    }
+
+    // 3. Definitional & Under-the-Hood questions -> Rule of 3
+    return {
+      category: 'definitional',
+      title: 'Теория и кишки (Rule of 3)',
+      recommendedFramework: 'RULE_OF_3',
+      description: 'Рекомендуется структура Rule of 3: 1) Определение -> 2) Механика под капотом (JMM/Spring) -> 3) Подводный камень / Best practice.',
+      badgeStyle: 'bg-blue-50 text-blue-700 border-blue-200/80'
+    };
   }
 }

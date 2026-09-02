@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -48,6 +48,9 @@ import { WhiteboardDrawer } from './WhiteboardDrawer';
 import {
   AcousticMetrics,
   AcousticTelemetryService,
+  SpeechClarityMetrics,
+  QuestionCategoryType,
+  QuestionStructureFormat
 } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
@@ -85,6 +88,12 @@ export interface EvaluationResult {
   feedback?: string;
   spokenFeedback?: string;
   audioMetrics?: AcousticMetrics;
+  clarityMetrics?: SpeechClarityMetrics;
+  questionType?: 'definitional' | 'tradeoff' | 'behavioral';
+  speechCoaching?: {
+    structureType?: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED';
+    rephrasedExample?: string;
+  };
   userAnswer?: string;
   transcript?: string;
 }
@@ -192,6 +201,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Accordion expansion in Grand Finale
   const [expandedSummaryIds, setExpandedSummaryIds] = useState<Set<string>>(new Set());
 
+  // Speech & Behavioral AI Coaching State (STAR / PREP / Pacing)
+  const [speechCoachingMode, setSpeechCoachingMode] = useState<'adaptive' | 'always' | 'off'>(() => {
+    return (localStorage.getItem('interview_speech_coaching_mode') as any) || 'adaptive';
+  });
+  const [liveClarityMetrics, setLiveClarityMetrics] = useState<SpeechClarityMetrics | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const speechRecognitionRef = useRef<any>(null);
+  const turnStartTimeRef = useRef<number>(Date.now());
+
+  const questionStructure: QuestionStructureFormat = useMemo(() => {
+    return AcousticTelemetryService.classifyQuestionStructure(activeQuestionText, activeTopic);
+  }, [activeQuestionText, activeTopic]);
+
+  const updateSpeechCoachingMode = (mode: 'adaptive' | 'always' | 'off') => {
+    setSpeechCoachingMode(mode);
+    try {
+      localStorage.setItem('interview_speech_coaching_mode', mode);
+    } catch {}
+  };
+
   // Multimodal Text Input & Earphone/Silent Mute Mode
   const [inputText, setInputText] = useState('');
   const [isMuted, setIsMuted] = useState(false);
@@ -286,6 +315,60 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       void releaseWakeLock();
     };
   }, [isOpen, stage]);
+
+  // Live Speech Recognition for Real-time Acoustic & Clarity HUD
+  useEffect(() => {
+    if (!isRecording || speechCoachingMode === 'off') {
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch {}
+        speechRecognitionRef.current = null;
+      }
+      return;
+    }
+
+    turnStartTimeRef.current = Date.now();
+    setLiveTranscript('');
+    setLiveClarityMetrics(null);
+
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) return;
+
+    try {
+      const recognition = new SpeechRecognitionClass();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'ru-RU';
+
+      recognition.onresult = (event: any) => {
+        let fullInterim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          fullInterim += event.results[i][0].transcript + ' ';
+        }
+        const trimmed = fullInterim.trim();
+        setLiveTranscript(trimmed);
+
+        const elapsedSec = Math.max(1, (Date.now() - turnStartTimeRef.current) / 1000);
+        const words = trimmed.split(/\s+/).filter(Boolean).length;
+        const liveWpm = Math.round((words / elapsedSec) * 60);
+
+        const metrics = AcousticTelemetryService.analyzeSpeechClarity(trimmed, liveWpm);
+        setLiveClarityMetrics(metrics);
+      };
+
+      recognition.onerror = () => {};
+      recognition.start();
+      speechRecognitionRef.current = recognition;
+    } catch (e) {
+      console.warn('SpeechRecognition not available or failed to start:', e);
+    }
+
+    return () => {
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch {}
+        speechRecognitionRef.current = null;
+      }
+    };
+  }, [isRecording, speechCoachingMode]);
 
   // Turn Watchdog Management
   const clearAllTurnWatchdogs = () => {
@@ -1627,11 +1710,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     playoutManagerRef.current?.clearQueue();
 
     const acousticsLocal = computeLocalAcoustics();
+    const initialClarity = liveClarityMetrics || AcousticTelemetryService.analyzeSpeechClarity(transcriptRef.current, acousticsLocal.grossWpm);
     const finalResult: EvaluationResult = {
       ...evalData,
       id: evalData.id || evaluatedQuestionId,
       questionId: evaluatedQuestionId,
-      audioMetrics: acousticsLocal
+      audioMetrics: acousticsLocal,
+      clarityMetrics: initialClarity,
+      questionType: evalData.questionType || questionStructure.category,
+      speechCoaching: evalData.speechCoaching
     };
     setEvaluation(finalResult);
 
@@ -1701,9 +1788,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         ? computeLocalAcoustics(realWordCount, wordTimestamps)
         : acousticsLocal;
 
+      const clarityFinal = deepgramText
+        ? AcousticTelemetryService.analyzeSpeechClarity(deepgramText, acousticsFinal.grossWpm)
+        : initialClarity;
+
       const enrichedResult: EvaluationResult = {
         ...finalResult,
         audioMetrics: acousticsFinal,
+        clarityMetrics: clarityFinal,
         userAnswer: deepgramText || 'Устный ответ через Gemini Live'
       };
 
@@ -2414,11 +2506,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             {/* Question Context Banner */}
             {stage !== 'grand_finale' && activeQuestionText && (
               <div className="mt-3.5 p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/70 text-xs shadow-2xs shrink-0">
-                <span className="font-bold text-pastel-accentViolet block mb-1 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
-                  {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос темы:'}
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-pastel-accentViolet flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-pastel-accentRose" />
+                    {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос темы:'}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-bold shadow-2xs ${questionStructure.badgeStyle}`}>
+                    {questionStructure.title}
+                  </span>
+                </div>
                 <p className="text-pastel-text leading-relaxed font-bold">{activeQuestionText}</p>
+                {questionStructure.description && (
+                  <p className="text-[10px] text-pastel-muted mt-1 leading-snug">
+                    {questionStructure.description}
+                  </p>
+                )}
               </div>
             )}
 
@@ -2489,6 +2591,50 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       <GraduationCap className="w-3.5 h-3.5" />
                       <span>🎓 Обучение</span>
                     </button>
+
+                    {/* Speech Coach Mode Selector */}
+                    <div className="flex items-center gap-1 bg-white/90 p-1 rounded-2xl border border-pastel-border shadow-2xs">
+                      <span className="text-[10px] font-bold text-pastel-muted pl-2 pr-1 flex items-center gap-1">
+                        <Activity className="w-3 h-3 text-pastel-accentRose" />
+                        Речевой коучинг:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateSpeechCoachingMode('adaptive')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                          speechCoachingMode === 'adaptive'
+                            ? 'bg-pastel-accentViolet text-white shadow-2xs'
+                            : 'text-pastel-muted hover:text-pastel-text'
+                        }`}
+                        title="Умный режим: STAR для опыта/аварий, PREP для компромиссов, Rule of 3 для теории"
+                      >
+                        ✨ Адаптивный
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSpeechCoachingMode('always')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                          speechCoachingMode === 'always'
+                            ? 'bg-pastel-accentRose text-white shadow-2xs'
+                            : 'text-pastel-muted hover:text-pastel-text'
+                        }`}
+                        title="Принудительный STAR/PREP тренажер на всех вопросах"
+                      >
+                        🎯 Всегда STAR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSpeechCoachingMode('off')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                          speechCoachingMode === 'off'
+                            ? 'bg-slate-300 text-slate-700'
+                            : 'text-pastel-muted hover:text-pastel-text'
+                        }`}
+                        title="Отключить речевой анализ"
+                      >
+                        Выкл
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2791,6 +2937,66 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       <span className="px-3 py-1 rounded-full bg-pastel-card text-pastel-muted text-xs border border-pastel-border">
                         Микрофон на паузе (нажмите на кружок)
                       </span>
+                    )}
+
+                    {/* Live Speech Coaching Telemetry HUD */}
+                    {isRecording && speechCoachingMode !== 'off' && (
+                      <div className="w-full max-w-sm mx-auto mt-2 p-2.5 rounded-2xl bg-white/95 backdrop-blur-md border border-pastel-border/80 shadow-2xs space-y-1.5 animate-fadeIn">
+                        <div className="flex items-center justify-between text-[11px]">
+                          {/* Live WPM Chip */}
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <Activity className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                            <span className="text-pastel-muted">Темп:</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-lg border text-[10px] transition-colors ${
+                                !liveClarityMetrics || liveClarityMetrics.wpm === 0
+                                  ? 'bg-slate-50 text-slate-500 border-slate-200'
+                                  : liveClarityMetrics.wpm >= 115 && liveClarityMetrics.wpm <= 165
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
+                                  : liveClarityMetrics.wpm > 165
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                              }`}
+                            >
+                              {liveClarityMetrics && liveClarityMetrics.wpm > 0
+                                ? `${liveClarityMetrics.wpm} WPM`
+                                : 'Замер темпа...'}
+                            </span>
+                          </div>
+
+                          {/* Live Filler Words Disfluency Chip */}
+                          <div className="flex items-center gap-1 font-bold">
+                            <Sparkles className="w-3 h-3 text-pastel-accentRose" />
+                            <span className="text-pastel-muted">Паразиты:</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-lg border text-[10px] transition-colors ${
+                                !liveClarityMetrics || liveClarityMetrics.fillerWordsCount === 0
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
+                              }`}
+                            >
+                              {liveClarityMetrics
+                                ? liveClarityMetrics.fillerWordsCount === 0
+                                  ? '0 (Чисто)'
+                                  : `${liveClarityMetrics.fillerWordsCount} (${liveClarityMetrics.detectedFillers[0]?.word})`
+                                : '0 (Чисто)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expected Question Structure Pill */}
+                        <div className="pt-1 border-t border-pastel-border/40 flex items-center justify-between text-[10px]">
+                          <span className="text-pastel-muted font-medium flex items-center gap-1">
+                            <span>💡 Формат:</span>
+                            <span className="font-bold text-pastel-text">
+                              {speechCoachingMode === 'always' ? 'STAR (Принудительно)' : questionStructure.title}
+                            </span>
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold ${questionStructure.badgeStyle}`}>
+                            {speechCoachingMode === 'always' ? 'STAR' : questionStructure.recommendedFramework}
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3170,7 +3376,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             {/* Vocal Coaching & Acoustic Profile */}
             {evaluation.audioMetrics && (() => {
-              const humanProfile = AcousticTelemetryService.getHumanizedProfile(evaluation.audioMetrics);
+              const humanProfile = AcousticTelemetryService.getHumanizedProfile(
+                evaluation.audioMetrics,
+                evaluation.clarityMetrics
+              );
               return (
                 <div className="p-4 rounded-3xl bg-gradient-to-br from-pastel-rose/40 via-white to-pastel-lavender/40 border border-pastel-border/80 shadow-xs space-y-3.5">
                   <div className="flex items-center justify-between">
@@ -3180,7 +3389,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       </div>
                       <div>
                         <h4 className="font-bold text-xs text-pastel-text">Голосовой коучинг и манера речи</h4>
-                        <p className="text-[10px] text-pastel-muted">Анализ интонаций, темпа и уверенности ответа</p>
+                        <p className="text-[10px] text-pastel-muted">Анализ интонаций, темпа, чистоты и структуры ответа</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/90 border border-pastel-border text-pastel-accentViolet shadow-2xs">
@@ -3207,7 +3416,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 ${humanProfile.clarity ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-2 text-left`}>
+                    {/* Volume Card */}
                     <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
@@ -3224,6 +3434,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       </span>
                     </div>
 
+                    {/* Pace Card */}
                     <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
@@ -3240,6 +3451,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       </span>
                     </div>
 
+                    {/* Structure Card */}
                     <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
@@ -3252,15 +3464,53 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">{humanProfile.structure.description}</p>
                       </div>
                       <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
-                        Структура: {humanProfile.structure.techValue}
+                        Паузы: {humanProfile.structure.techValue}
                       </span>
                     </div>
+
+                    {/* Clarity & Filler Words Card */}
+                    {humanProfile.clarity && (
+                      <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs">{humanProfile.clarity.iconEmoji}</span>
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.clarity.badgeStyle}`}>
+                              {humanProfile.clarity.badge}
+                            </span>
+                          </div>
+                          <span className="font-bold text-xs text-pastel-text block">{humanProfile.clarity.title}</span>
+                          <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">{humanProfile.clarity.description}</p>
+                        </div>
+                        <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                          Чистота: {humanProfile.clarity.techValue}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Mentor Praise Badge */}
                   <div className="p-2.5 rounded-2xl bg-white/95 border border-pastel-rose/80 text-[11px] text-pastel-text leading-relaxed flex items-center gap-2 shadow-2xs">
                     <span className="text-sm shrink-0">🌸</span>
                     <p className="font-medium text-pastel-text/90">{humanProfile.mentorPraise}</p>
                   </div>
+
+                  {/* Pedagogical STAR / PREP Rephrased Example */}
+                  {evaluation.speechCoaching?.rephrasedExample && (
+                    <div className="p-3.5 bg-gradient-to-r from-pastel-accentViolet/10 via-white to-pastel-accentRose/10 rounded-2xl border border-pastel-accentViolet/35 shadow-2xs space-y-2 text-left animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-pastel-accentViolet">
+                          <GraduationCap className="w-4 h-4 text-pastel-accentRose" />
+                          <span>Совет тренера: Эталонный ответ по {evaluation.speechCoaching.structureType || 'структуре'}</span>
+                        </div>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-pastel-accentViolet/15 text-pastel-accentViolet">
+                          Staff Engineer Style
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-pastel-text leading-relaxed italic bg-white/70 p-2.5 rounded-xl border border-pastel-border/50">
+                        «{evaluation.speechCoaching.rephrasedExample}»
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })()}

@@ -508,7 +508,12 @@ ${anchorsFormatted}
 3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ:
    - Когда ключевые вопросы обсуждены, дан ответ на уточнение или кандидат завершил ответ:
      а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и выставлю оценку».
-     б) И затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback).`;
+     б) И затем вызови функцию \`submit_interview_evaluation\` со следующими параметрами:
+        - score (0-100), isPassed (score >= 70), positivePoints, missingPoints, spokenFeedback.
+        - questionType: 'definitional' (теория, механизмы, JMM), 'tradeoff' (архитектурный выбор/сравнение технологий), или 'behavioral' (личный опыт, баги, аварии).
+        - speechCoaching:
+          * structureType: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED'.
+          * rephrasedExample: ЕСЛИ вопрос был поведенческим ('behavioral') или компромиссным ('tradeoff'), сформулируй краткий (2-4 предложения) пример того, как кандидат мог бы идеально перефразировать свой опыт по структуре STAR или PREP на уровне Staff-инженера. Если вопрос чисто теоретический — оставь пустым или дай лаконичный тезис по Rule of 3.`;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -750,6 +755,25 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             spokenFeedback: {
               type: 'STRING',
               description: 'Краткое текстовое резюме для озвучивания и карточки отчета'
+            },
+            questionType: {
+              type: 'STRING',
+              enum: ['definitional', 'tradeoff', 'behavioral'],
+              description: 'Классификация вопроса: definitional (теория), tradeoff (выбор), behavioral (опыт/аварии)'
+            },
+            speechCoaching: {
+              type: 'OBJECT',
+              properties: {
+                structureType: {
+                  type: 'STRING',
+                  enum: ['STAR', 'PREP', 'RULE_OF_3', 'UNSTRUCTURED'],
+                  description: 'Фактическая структура ответа'
+                },
+                rephrasedExample: {
+                  type: 'STRING',
+                  description: 'Педагогический пример перефразирования опыта кандидата по STAR или PREP'
+                }
+              }
             }
           },
           required: ['score', 'isPassed', 'positivePoints', 'missingPoints', 'spokenFeedback']
@@ -1199,6 +1223,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               const positivePoints = Array.isArray(args.positivePoints) ? args.positivePoints : [];
               const missingPoints = Array.isArray(args.missingPoints) ? args.missingPoints : [];
               const feedback = args.spokenFeedback || args.feedback || 'Ответ принят.';
+              const questionType = args.questionType || 'definitional';
+              const speechCoaching = args.speechCoaching || null;
 
               let savedEvalId = '';
               if (session.questionId) {
@@ -1213,6 +1239,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     positivePoints,
                     missingPoints,
                     feedback,
+                    speechCoaching: speechCoaching ? { ...speechCoaching, questionType } : null,
                     userAnswer: 'Устный ответ в Gemini Live'
                   });
                   savedEvalId = syncResult.evalId;
@@ -1299,6 +1326,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
                     missingPoints,
                     feedback,
                     spokenFeedback: feedback,
+                    questionType,
+                    speechCoaching,
                     assistanceLevel,
                     knowledgeUpdate: decayResult
                   }

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Award, Activity, CheckCircle2, AlertTriangle, 
-  MessageSquare, ChevronDown, ChevronUp, BookOpen, Mic, Keyboard, Sparkles, Heart, Brain 
+  MessageSquare, ChevronDown, ChevronUp, BookOpen, Mic, Keyboard, Sparkles, Heart, Brain, GraduationCap 
 } from 'lucide-react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
-import { AcousticTelemetryService, AcousticMetrics } from '../services/AcousticTelemetryService';
+import { AcousticTelemetryService, AcousticMetrics, SpeechClarityMetrics } from '../services/AcousticTelemetryService';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -25,6 +25,12 @@ export interface InterviewReportData {
   userAnswer?: string;
   transcript?: string;
   audioMetrics?: AcousticMetrics | null;
+  clarityMetrics?: SpeechClarityMetrics | null;
+  questionType?: 'definitional' | 'tradeoff' | 'behavioral';
+  speechCoaching?: {
+    structureType?: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED';
+    rephrasedExample?: string;
+  };
   createdAt?: string;
 }
 
@@ -216,7 +222,12 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
 
           {/* Acoustic Voice Telemetry Profile (If Voice Mode) */}
           {report.audioMetrics && (() => {
-            const humanProfile = AcousticTelemetryService.getHumanizedProfile(report.audioMetrics);
+            const calculatedClarity = report.clarityMetrics || (
+              report.transcript
+                ? AcousticTelemetryService.analyzeSpeechClarity(report.transcript, report.audioMetrics.grossWpm)
+                : undefined
+            );
+            const humanProfile = AcousticTelemetryService.getHumanizedProfile(report.audioMetrics, calculatedClarity);
             return (
               <div className="p-4 md:p-5 rounded-3xl bg-gradient-to-br from-pastel-rose/40 via-white to-pastel-lavender/40 border border-pastel-border/80 shadow-xs space-y-3.5">
                 <div className="flex items-center justify-between">
@@ -229,7 +240,7 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
                         Голосовой коучинг и манера речи
                       </h4>
                       <p className="text-[10px] text-pastel-muted">
-                        Анализ интонаций, темпа и уверенности ответа
+                        Анализ интонаций, темпа, чистоты и структуры ответа
                       </p>
                     </div>
                   </div>
@@ -260,8 +271,8 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
                   </div>
                 )}
 
-                {/* 3 Coaching Metric Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+                {/* Coaching Metric Cards */}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 ${humanProfile.clarity ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-2.5 text-left`}>
                   {/* Volume & Delivery */}
                   <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
                     <div>
@@ -321,9 +332,32 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
                       </p>
                     </div>
                     <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
-                      Структура: {humanProfile.structure.techValue}
+                      Паузы: {humanProfile.structure.techValue}
                     </span>
                   </div>
+
+                  {/* Clarity & Filler Words */}
+                  {humanProfile.clarity && (
+                    <div className="p-3 bg-white/90 rounded-2xl border border-pastel-border/60 flex flex-col justify-between shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs">{humanProfile.clarity.iconEmoji}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${humanProfile.clarity.badgeStyle}`}>
+                            {humanProfile.clarity.badge}
+                          </span>
+                        </div>
+                        <span className="font-bold text-xs text-pastel-text block">
+                          {humanProfile.clarity.title}
+                        </span>
+                        <p className="text-[10px] text-pastel-muted leading-tight mt-0.5">
+                          {humanProfile.clarity.description}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-medium text-pastel-sub/70 mt-2 block border-t border-pastel-border/30 pt-1">
+                        Чистота: {humanProfile.clarity.techValue}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Mentor Coaching Praise Banner */}
@@ -333,6 +367,24 @@ export const InterviewReportModal: React.FC<InterviewReportModalProps> = ({
                     {humanProfile.mentorPraise}
                   </p>
                 </div>
+
+                {/* Pedagogical STAR / PREP Rephrased Example */}
+                {report.speechCoaching?.rephrasedExample && (
+                  <div className="p-4 bg-gradient-to-r from-pastel-accentViolet/10 via-white to-pastel-accentRose/10 rounded-2xl border border-pastel-accentViolet/35 shadow-2xs space-y-2 text-left animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-bold text-xs text-pastel-accentViolet">
+                        <GraduationCap className="w-4 h-4 text-pastel-accentRose" />
+                        <span>Совет тренера: Эталонный ответ по {report.speechCoaching.structureType || 'структуре'}</span>
+                      </div>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-pastel-accentViolet/15 text-pastel-accentViolet">
+                        Staff Engineer Style
+                      </span>
+                    </div>
+                    <p className="text-xs text-pastel-text leading-relaxed italic bg-white/75 p-3 rounded-xl border border-pastel-border/50">
+                      «{report.speechCoaching.rephrasedExample}»
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })()}

@@ -16,6 +16,7 @@ export interface RecordEvaluationParams {
   userAnswer?: string;
   transcript?: string;
   audioMetrics?: any;
+  speechCoaching?: any;
 }
 
 export interface TopicProgressSummary {
@@ -84,11 +85,11 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     INSERT INTO question_evaluations (
       id, user_id, question_id, topic, mode, score, is_passed,
       positive_points, missing_points, feedback, user_answer,
-      transcript, audio_metrics, created_at, updated_at
+      transcript, audio_metrics, speech_coaching_json, created_at, updated_at
     ) VALUES (
       @id, @user_id, @question_id, @topic, @mode, @score, @is_passed,
       @positive_points, @missing_points, @feedback, @user_answer,
-      @transcript, @audio_metrics, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      @transcript, @audio_metrics, @speech_coaching_json, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `);
 
@@ -105,7 +106,8 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     feedback: params.feedback || '',
     user_answer: params.userAnswer || '',
     transcript: params.transcript || null,
-    audio_metrics: params.audioMetrics ? JSON.stringify(params.audioMetrics) : null
+    audio_metrics: params.audioMetrics ? JSON.stringify(params.audioMetrics) : null,
+    speech_coaching_json: params.speechCoaching ? JSON.stringify(params.speechCoaching) : null
   });
 
   // 2. Fetch existing user_progress
