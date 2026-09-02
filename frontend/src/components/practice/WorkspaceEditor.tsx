@@ -12,9 +12,12 @@ import {
   Lock,
   Loader2,
   Shield,
-  Clock
+  Clock,
+  Terminal,
+  Cpu
 } from 'lucide-react';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
+import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConsole';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -63,6 +66,8 @@ export const WorkspaceEditor: React.FC = () => {
   const [isDiffOpen, setIsDiffOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSandboxRunning, setIsSandboxRunning] = useState(false);
+  const [sandboxResult, setSandboxResult] = useState<SandboxExecutionResponse | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
@@ -180,6 +185,56 @@ export const WorkspaceEditor: React.FC = () => {
     }
   };
 
+  const handleRunSandbox = async () => {
+    if (!activePracticeChallenge || isSandboxRunning) return;
+    setIsSandboxRunning(true);
+    setSandboxResult(null);
+
+    try {
+      const res = await fetch('/api/sandbox/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: activePracticeChallenge.id,
+          files: practiceWorkspaceFiles,
+          activePhase: activePracticePhase
+        })
+      });
+
+      const data: SandboxExecutionResponse = await res.json();
+      setSandboxResult(data);
+
+      if (data.success) {
+        showToast({
+          type: 'success',
+          title: 'Тесты пройдены!',
+          message: `Все тесты (${data.passedCount}/${data.testResults.length}) выполнены за ${data.executionTimeMs}мс`
+        });
+      } else if (!data.isCompilable) {
+        showToast({
+          type: 'error',
+          title: 'Ошибка компиляции',
+          message: data.syntaxErrors?.[0]?.errorMessage || 'Проверьте синтаксис кода'
+        });
+      } else {
+        showToast({
+          type: 'warning',
+          title: 'Тесты не пройдены',
+          message: `Провалено ${data.failedCount} из ${data.testResults.length} тестов`
+        });
+      }
+    } catch (err: any) {
+      console.error('Sandbox execution error:', err);
+      showToast({
+        type: 'error',
+        title: 'Сетевая ошибка',
+        message: err.message || 'Не удалось связаться с песочницей Java'
+      });
+    } finally {
+      setIsSandboxRunning(false);
+    }
+  };
+
   if (!currentFile || !activePracticeChallenge) return null;
 
   return (
@@ -229,8 +284,16 @@ export const WorkspaceEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* CodeMirror 6 Editor Body */}
-      <div className="flex-1 flex overflow-hidden relative font-mono text-xs">
+      {/* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */}
+      <div 
+        className="flex-1 flex overflow-hidden relative font-mono text-xs"
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            void handleRunSandbox();
+          }
+        }}
+      >
         <CodeMirror
           value={currentFile.content}
           height="100%"
@@ -278,6 +341,13 @@ export const WorkspaceEditor: React.FC = () => {
         )}
       </div>
 
+      {/* Slide-Up In-Memory Sandbox Test Console (< 80ms) */}
+      <SandboxTestConsole
+        result={sandboxResult}
+        isRunning={isSandboxRunning}
+        onClose={() => setSandboxResult(null)}
+      />
+
       {/* Action Footer Bar */}
       <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
@@ -293,7 +363,7 @@ export const WorkspaceEditor: React.FC = () => {
 
           <button
             onClick={handleSaveDraft}
-            disabled={isSavingDraft || isPracticeEvaluating}
+            disabled={isSavingDraft || isPracticeEvaluating || isSandboxRunning}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700 cursor-pointer"
             title="Сохранить черновик"
           >
@@ -303,7 +373,7 @@ export const WorkspaceEditor: React.FC = () => {
 
           <button
             onClick={handleResetWorkspace}
-            disabled={isPracticeEvaluating}
+            disabled={isPracticeEvaluating || isSandboxRunning}
             className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer"
             title="Сбросить воркспейс к начальному состоянию"
           >
@@ -311,29 +381,50 @@ export const WorkspaceEditor: React.FC = () => {
           </button>
         </div>
 
-        {/* Run / Cancel Evaluation Button */}
-        {isPracticeEvaluating ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCancelEvaluation}
-              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold transition border border-rose-500/30 cursor-pointer"
-            >
-              Отменить
-            </button>
-            <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose" />
-              <span>Анализ Gemini 3.7 Flash...</span>
-            </div>
-          </div>
-        ) : (
+        {/* Action Run Buttons (Sandbox & AI Review) */}
+        <div className="flex items-center gap-2">
+          {/* Fast In-Memory Java 21 Sandbox Run Button (< 80ms) */}
           <button
-            onClick={handleRunEvaluation}
-            className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-md active:scale-95 cursor-pointer"
+            type="button"
+            onClick={handleRunSandbox}
+            disabled={isSandboxRunning || isPracticeEvaluating}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-md shadow-emerald-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Быстрый прогон JUnit 5 тестов в Java 21 Sandbox (Ctrl+Enter)"
           >
-            <Play className="w-4 h-4 fill-current" />
-            <span>Запустить проверку (Senior AI Review)</span>
+            {isSandboxRunning ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Play className="w-3.5 h-3.5 fill-current" />
+            )}
+            <span>{isSandboxRunning ? 'Запуск тестов...' : '▶ Тесты (Java 21)'}</span>
+            <span className="hidden sm:inline text-[10px] opacity-75 font-mono">(Ctrl+↵)</span>
           </button>
-        )}
+
+          {/* Senior AI Review Button */}
+          {isPracticeEvaluating ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancelEvaluation}
+                className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold transition border border-rose-500/30 cursor-pointer"
+              >
+                Отменить
+              </button>
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose" />
+                <span>Анализ Gemini 3.7...</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleRunEvaluation}
+              disabled={isSandboxRunning}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Senior AI Review</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Golden Master Diff Modal */}
