@@ -43,6 +43,7 @@ export const ExamQuiz: React.FC = () => {
     selectedTopicName,
     selectedTopicId,
     updateTopicProgress,
+    syncTopicProgress,
     showToast,
     systemHealth,
     openTopicQuestions,
@@ -145,7 +146,16 @@ export const ExamQuiz: React.FC = () => {
 
         // Update progress in Zustand and server
         if (selectedTopicId) {
-          updateTopicProgress(selectedTopicId, currentQ.id, data.isPassed);
+          if (data.progress) {
+            syncTopicProgress(
+              selectedTopicId,
+              data.progress.completedCount,
+              data.progress.percentage,
+              data.progress.total
+            );
+          } else {
+            updateTopicProgress(selectedTopicId, currentQ.id, data.isPassed, currentBatch.length);
+          }
 
           await fetch(`/api/topics/${selectedTopicId}/progress`, {
             method: 'POST',
@@ -696,7 +706,7 @@ export const ExamQuiz: React.FC = () => {
           }));
 
           if (selectedTopicId) {
-            updateTopicProgress(selectedTopicId, evalQId, !!evalData.isPassed);
+            updateTopicProgress(selectedTopicId, evalQId, !!evalData.isPassed, currentBatch.length);
 
             await fetch(`/api/topics/${selectedTopicId}/progress`, {
               method: 'POST',

@@ -15,6 +15,7 @@ import {
 } from './vectorMemoryService';
 import { authService } from './authService';
 import { parseCookies } from '../middleware/auth';
+import { recordEvaluationAndSyncProgress } from './progressService';
 
 
 dotenv.config();
@@ -66,6 +67,7 @@ interface ProxySession {
   frameQueue: Buffer[];
   sessionId?: string;
   questionId?: string;
+  userId?: string;
   topic?: string;
   referenceAnswer?: string;
   relevantGapIds?: string[];
@@ -642,6 +644,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       frameQueue: [],
       sessionId,
       questionId,
+      userId: authenticatedUser.id || 'default_user',
       topic,
       referenceAnswer,
       relevantGapIds,
@@ -1200,34 +1203,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               let savedEvalId = '';
               if (session.questionId) {
                 try {
-                  savedEvalId = crypto.randomBytes(16).toString('hex');
-                  const stmt = db.prepare(`
-                    INSERT INTO question_evaluations (
-                      id, question_id, topic, mode, score, is_passed,
-                      positive_points, missing_points, feedback, user_answer,
-                      transcript, audio_metrics, created_at, updated_at
-                    ) VALUES (
-                      @id, @question_id, @topic, @mode, @score, @is_passed,
-                      @positive_points, @missing_points, @feedback, @user_answer,
-                      @transcript, @audio_metrics, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                    )
-                  `);
-
-                  stmt.run({
-                    id: savedEvalId,
-                    question_id: session.questionId,
+                  const syncResult = recordEvaluationAndSyncProgress({
+                    userId: session.userId || 'default_user',
+                    questionId: session.questionId,
                     topic: session.topic || 'General',
                     mode: 'voice',
                     score,
-                    is_passed: isPassed ? 1 : 0,
-                    positive_points: JSON.stringify(positivePoints),
-                    missing_points: JSON.stringify(missingPoints),
+                    isPassed,
+                    positivePoints,
+                    missingPoints,
                     feedback,
-                    user_answer: 'Устный ответ в Gemini Live',
-                    transcript: '',
-                    audio_metrics: null
+                    userAnswer: 'Устный ответ в Gemini Live'
                   });
-                  console.log(`💾 Live evaluation saved to DB: ${savedEvalId} (Score: ${score})`);
+                  savedEvalId = syncResult.evalId;
+                  console.log(`💾 Live evaluation saved & progress synced to DB: ${savedEvalId} (Score: ${score}, Topic: ${syncResult.progress.topic}, Percentage: ${syncResult.progress.percentage}%)`);
                 } catch (dbErr) {
                   console.error('Error saving Live evaluation to DB:', dbErr);
                 }

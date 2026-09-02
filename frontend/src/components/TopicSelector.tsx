@@ -89,6 +89,7 @@ export const TopicSelector: React.FC = () => {
     startStudyWithQuestions,
     shuffleMap,
     topicsProgress,
+    syncTopicProgress,
     resetTopicProgress,
     openTopicQuestions,
     showToast,
@@ -114,6 +115,11 @@ export const TopicSelector: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setTopics(data);
+        if (Array.isArray(data)) {
+          data.forEach((t: any) => {
+            syncTopicProgress(t.id, t.completedCount || 0, t.percentage || 0, t.total || 0);
+          });
+        }
       }
     } catch (e) {
       console.error('Error fetching topics:', e);

@@ -53,6 +53,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS question_evaluations (
     id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'default_user',
     question_id TEXT NOT NULL,
     topic TEXT NOT NULL,
     mode TEXT NOT NULL,
@@ -184,8 +185,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_code_sub_chall ON coding_submissions(challenge_id);
   CREATE INDEX IF NOT EXISTS idx_code_sub_user ON coding_submissions(user_id);
   CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic);
-  CREATE INDEX IF NOT EXISTS idx_sd_user_scenario ON system_design_submissions(user_id, scenario_id);
-  CREATE INDEX IF NOT EXISTS idx_triage_user_inc ON triage_submissions(user_id, incident_id);
   CREATE TABLE IF NOT EXISTS system_design_challenges (
     id TEXT PRIMARY KEY,
     scenario_number INTEGER,
@@ -250,6 +249,9 @@ db.exec(`
     score INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE INDEX IF NOT EXISTS idx_sd_user_scenario ON system_design_submissions(user_id, scenario_id);
+  CREATE INDEX IF NOT EXISTS idx_triage_user_inc ON triage_submissions(user_id, incident_id);
 
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -348,6 +350,18 @@ try {
   }
 } catch (e) {
   console.error("Migration error for guided_roadmaps:", e);
+}
+
+// Migration: Ensure user_id column exists in question_evaluations table
+try {
+  const cols = db.pragma('table_info(question_evaluations)') as any[];
+  if (!cols.some(c => c.name === 'user_id')) {
+    db.exec("ALTER TABLE question_evaluations ADD COLUMN user_id TEXT DEFAULT 'default_user'");
+    console.log("✅ Added 'user_id' column to question_evaluations table");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON question_evaluations(user_id);");
+} catch (e) {
+  console.error("Migration error for question_evaluations:", e);
 }
 
 

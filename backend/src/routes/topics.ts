@@ -2,64 +2,36 @@ import { Router } from 'express';
 import { db } from '../services/db';
 import { TOPIC_DEFINITIONS, TOPIC_MAP } from '../services/topics';
 import { getAuthUserId } from '../middleware/auth';
+import { getTopicProgress, resetTopicProgress } from '../services/progressService';
 
 const router = Router();
 
-// GET /api/topics - List all topics with progress summary for authenticated user
+// GET /api/topics - List all topics with authoritative progress summary for authenticated user
 router.get('/', (req, res) => {
   const userId = getAuthUserId(req);
-  const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
-  const countStmt = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?');
-  const evalStmt = db.prepare(`
-    SELECT question_id, MAX(score) as max_score, MAX(is_passed) as any_passed
-    FROM question_evaluations
-    WHERE topic = ? OR topic = ?
-    GROUP BY question_id
-  `);
 
   const result = TOPIC_DEFINITIONS.map(t => {
-    const dbTopicName = t.name;
-    const topicId = t.id;
-    const row = progressStmt.get(userId, dbTopicName) as any;
-    const countRow = countStmt.get(dbTopicName) as any;
-    const total = countRow ? countRow.count : 0;
-    
-    let completedIds: string[] = [];
-    let masteredIds: string[] = [];
+    const progress = getTopicProgress(userId, t.id);
+
+    // Retrieve topic-specific preferences (shuffle, batch_size)
     let shuffle = false;
     let batchSize = 5;
-
-    if (row) {
-      completedIds = JSON.parse(row.completed_ids || '[]');
-      masteredIds = JSON.parse(row.mastered_ids || '[]');
-      shuffle = Boolean(row.shuffle);
-      batchSize = row.batch_size || 5;
-    }
-
-    // Self-healing merge with question_evaluations
     try {
-      const evalRows = evalStmt.all(dbTopicName, topicId) as any[];
-      evalRows.forEach(e => {
-        const isPassed = e.any_passed === 1 || e.max_score >= 70;
-        const isMastered = e.max_score >= 90;
-
-        if (isPassed && !completedIds.includes(e.question_id)) {
-          completedIds.push(e.question_id);
-        }
-        if (isMastered && !masteredIds.includes(e.question_id)) {
-          masteredIds.push(e.question_id);
-        }
-      });
+      const row = db.prepare('SELECT shuffle, batch_size FROM user_progress WHERE user_id = ? AND topic = ?').get(userId, progress.topic) as any;
+      if (row) {
+        shuffle = Boolean(row.shuffle);
+        batchSize = row.batch_size || 5;
+      }
     } catch {}
-
-    const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
     return {
       ...t,
-      total,
-      completedCount: completedIds.length,
-      masteredCount: masteredIds.length,
-      percentage,
+      total: progress.total,
+      completedCount: progress.completedCount,
+      masteredCount: progress.masteredCount,
+      percentage: progress.percentage,
+      completedIds: progress.completedIds,
+      masteredIds: progress.masteredIds,
       shuffle,
       batchSize
     };
@@ -176,10 +148,10 @@ router.get('/:topicId/questions', (req, res) => {
     const evalStmt = db.prepare(`
       SELECT question_id, MAX(score) as max_score, MAX(is_passed) as any_passed
       FROM question_evaluations
-      WHERE topic = ? OR topic = ?
+      WHERE (user_id = ? OR user_id = 'default_user') AND (topic = ? OR topic = ?)
       GROUP BY question_id
     `);
-    const evalRows = evalStmt.all(dbTopicName, topicId) as any[];
+    const evalRows = evalStmt.all(userId, dbTopicName, topicId) as any[];
     let changed = false;
 
     evalRows.forEach(e => {
@@ -198,7 +170,7 @@ router.get('/:topicId/questions', (req, res) => {
 
     if (changed) {
       const countRow = db.prepare('SELECT COUNT(*) as count FROM questions WHERE topic = ?').get(dbTopicName) as any;
-      const total = countRow ? countRow.count : 100;
+      const total = countRow ? countRow.count : 27;
       const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
       db.prepare(`
@@ -275,20 +247,8 @@ router.post('/:topicId/reset', (req, res) => {
   const dbTopicName = TOPIC_MAP[topicId];
   if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
 
-  const stmt = db.prepare(`
-    UPDATE user_progress
-    SET completed_ids = '[]',
-        mastered_ids = '[]',
-        review_ids = '[]',
-        last_question_id = NULL,
-        percentage = 0,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE user_id = ? AND topic = ?
-  `);
-
-  stmt.run(userId, dbTopicName);
-
-  res.json({ success: true, topic: dbTopicName });
+  const result = resetTopicProgress(userId, topicId);
+  res.json(result);
 });
 
 export default router;

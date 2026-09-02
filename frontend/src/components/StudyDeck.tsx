@@ -438,7 +438,7 @@ export const StudyDeck: React.FC = () => {
             const isMastered = evalData.isPassed && numScore >= 8;
             setQuestionEvaluation(qId, evalData);
             if (selectedTopicId) {
-              updateTopicProgress(selectedTopicId, qId, isMastered);
+              updateTopicProgress(selectedTopicId, qId, isMastered, currentBatch.length);
             }
           });
         }}

@@ -6,6 +6,8 @@ import { transcribeWithDeepgram } from '../services/deepgramService';
 import { synthesizeTTSBuffer } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
 import { getOrCreateSessionMemory } from '../services/geminiLiveProxy';
+import { getAuthUserId } from '../middleware/auth';
+import { recordEvaluationAndSyncProgress } from '../services/progressService';
 
 const router = Router();
 
@@ -243,37 +245,27 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
 
     // 4. Persistence (if evaluate)
     let decayResult = null;
+    let progressSummary = null;
     if (reasoningResult.action === 'evaluate' && questionId && topic) {
       try {
         const questionExists = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId);
         if (questionExists) {
-          const evalId = crypto.randomBytes(16).toString('hex');
-          const stmt = db.prepare(`
-            INSERT INTO question_evaluations (
-              id, question_id, topic, mode, score, is_passed,
-              positive_points, missing_points, feedback, user_answer,
-              transcript, audio_metrics, created_at, updated_at
-            ) VALUES (
-              @id, @question_id, @topic, @mode, @score, @is_passed,
-              @positive_points, @missing_points, @feedback, @user_answer,
-              @transcript, @audio_metrics, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-            )
-          `);
-
-          stmt.run({
-            id: evalId,
-            question_id: questionId,
+          const userId = getAuthUserId(req);
+          const syncResult = recordEvaluationAndSyncProgress({
+            userId,
+            questionId,
             topic,
             mode: 'voice',
             score: reasoningResult.score || 0,
-            is_passed: reasoningResult.isPassed ? 1 : 0,
-            positive_points: JSON.stringify(reasoningResult.positivePoints || []),
-            missing_points: JSON.stringify(reasoningResult.missingPoints || []),
+            isPassed: !!reasoningResult.isPassed,
+            positivePoints: reasoningResult.positivePoints || [],
+            missingPoints: reasoningResult.missingPoints || [],
             feedback: reasoningResult.feedback || '',
-            user_answer: candidateText,
+            userAnswer: candidateText,
             transcript: candidateText,
-            audio_metrics: JSON.stringify({ strategy, voice, cascaded: true })
+            audioMetrics: { strategy, voice, cascaded: true }
           });
+          progressSummary = syncResult.progress;
 
           try {
             decayResult = await applyKnowledgeDecay({
@@ -312,7 +304,8 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
         spokenFeedback: reasoningResult.spokenFeedback || ''
       } : null,
       audioBase64: audioBase64Out,
-      knowledgeUpdate: decayResult
+      knowledgeUpdate: decayResult,
+      progress: progressSummary
     });
   } catch (err: any) {
     console.error('Error in /api/interview/turn:', err);

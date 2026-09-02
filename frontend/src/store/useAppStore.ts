@@ -252,7 +252,8 @@ interface AppState {
   setQuestionIndex: (idx: number) => void;
   toggleShuffle: (topicId: string) => void;
   setBatchSize: (topicId: string, size: number) => void;
-  updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean) => void;
+  updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean, totalQuestions?: number) => void;
+  syncTopicProgress: (topicId: string, completedCount: number, percentage: number, total?: number) => void;
   resetTopicProgress: (topicId: string) => void;
 
   // Granular Navigation Actions
@@ -814,9 +815,9 @@ export const useAppStore = create<AppState>()(
       },
       hideToast: () => set({ activeToast: null }),
 
-      updateTopicProgress: (topicId, completedId, isMastered) => set((state) => {
+      updateTopicProgress: (topicId, completedId, isMastered, totalQuestions) => set((state) => {
         const prev = state.topicsProgress[topicId] || {
-          topicId, name: topicId, total: 100, completedCount: 0, masteredCount: 0,
+          topicId, name: topicId, total: totalQuestions || 27, completedCount: 0, masteredCount: 0,
           percentage: 0, shuffle: false, batchSize: 5, completedIds: [], masteredIds: []
         };
         const completedIds = Array.from(new Set([...prev.completedIds, completedId]));
@@ -824,18 +825,38 @@ export const useAppStore = create<AppState>()(
           ? Array.from(new Set([...prev.masteredIds, completedId]))
           : prev.masteredIds;
 
-        const percentage = Math.round((completedIds.length / (prev.total || 100)) * 100);
+        const effectiveTotal = totalQuestions || prev.total || 27;
+        const percentage = Math.round((completedIds.length / effectiveTotal) * 100);
 
         return {
           topicsProgress: {
             ...state.topicsProgress,
             [topicId]: {
               ...prev,
+              total: effectiveTotal,
               completedIds,
               masteredIds,
               completedCount: completedIds.length,
               masteredCount: masteredIds.length,
               percentage
+            }
+          }
+        };
+      }),
+
+      syncTopicProgress: (topicId, completedCount, percentage, total) => set((state) => {
+        const prev = state.topicsProgress[topicId] || {
+          topicId, name: topicId, total: total || 27, completedCount: 0, masteredCount: 0,
+          percentage: 0, shuffle: false, batchSize: 5, completedIds: [], masteredIds: []
+        };
+        return {
+          topicsProgress: {
+            ...state.topicsProgress,
+            [topicId]: {
+              ...prev,
+              completedCount,
+              percentage,
+              total: total || prev.total || 27
             }
           }
         };
@@ -879,12 +900,18 @@ export const useAppStore = create<AppState>()(
         activeAcademyCourseId: state.activeAcademyCourseId,
         shuffleMap: state.shuffleMap,
         batchSizeMap: state.batchSizeMap,
-        topicsProgress: state.topicsProgress,
+        // SSOT 2026: topicsProgress removed from persistent localStorage to avoid stale cache shadowing
         evaluationsMap: state.evaluationsMap,
         cheatSheetBookmarks: state.cheatSheetBookmarks,
         topicAccessMap: state.topicAccessMap,
         codeRevisions: state.codeRevisions,
-      })
+      }),
+      onRehydrateStorage: () => (state) => {
+        // Sanitize legacy corrupted localStorage topicsProgress
+        if (state) {
+          state.topicsProgress = {};
+        }
+      }
     }
   )
 );

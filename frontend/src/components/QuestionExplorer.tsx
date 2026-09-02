@@ -42,6 +42,7 @@ export const QuestionExplorer: React.FC = () => {
     evaluationsMap,
     openReportModal,
     fetchTopicEvaluations,
+    syncTopicProgress,
     activeAudioJob
   } = useAppStore();
 
@@ -152,6 +153,13 @@ export const QuestionExplorer: React.FC = () => {
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
     return { total, completed, mastered, uncompleted, percentage };
   }, [questions, getEffectiveStatus]);
+
+  // Synchronize dynamic topic progress into store for instant consistency on main catalog
+  useEffect(() => {
+    if (selectedTopicId && stats.total > 0) {
+      syncTopicProgress(selectedTopicId, stats.completed, stats.percentage, stats.total);
+    }
+  }, [selectedTopicId, stats.completed, stats.percentage, stats.total, syncTopicProgress]);
 
   // Selection Handlers with Shift + Click
   const handleItemSelect = (qId: string, index: number, event: React.MouseEvent) => {
