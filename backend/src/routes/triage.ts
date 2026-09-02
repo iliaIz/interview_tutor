@@ -125,15 +125,16 @@ ${preventionPlan || 'Не заполнено'}
       const challengeId = incidentId || req.body.challengeId || 'incident';
       const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.verdict === 'RESOLVED' ? 100 : parsed.verdict === 'PARTIALLY_RESOLVED' ? 60 : 20);
       db.prepare(`
-        INSERT INTO evaluations (id, user_id, question_id, score, answer, feedback, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO triage_submissions (id, incident_id, user_id, rca_hypothesis, prevention_plan, evaluation_json, score, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).run(
         `triage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        challengeId,
         userId,
-        `triage_${challengeId}`,
-        score,
-        JSON.stringify({ rcaHypothesis, preventionPlan }),
-        JSON.stringify(parsed)
+        rcaHypothesis || '',
+        preventionPlan || '',
+        JSON.stringify(parsed),
+        score
       );
     } catch (persistErr) {
       console.warn('Could not persist triage evaluation:', persistErr);

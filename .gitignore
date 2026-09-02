@@ -13,6 +13,8 @@ bin/
 # Audio & generated storage / databases
 storage/
 **/storage/
+data/
+**/data/
 data/*.sqlite
 data/*.db
 *.sqlite

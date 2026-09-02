@@ -16,6 +16,7 @@ db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 5000');
 db.pragma('synchronous = NORMAL');
 db.pragma('cache_size = -64000');
+db.pragma('foreign_keys = ON');
 
 // Initialize Tables
 db.exec(`

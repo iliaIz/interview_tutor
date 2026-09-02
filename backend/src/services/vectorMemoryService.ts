@@ -93,9 +93,6 @@ export async function embedText(text: string): Promise<Float32Array> {
   const embeddingModel = envConfig.models.embedding;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000); // 4s timeout
-
     const res = await fetch(`${cleanProxyBase}/v1/embeddings`, {
       method: 'POST',
       headers: {
@@ -106,19 +103,18 @@ export async function embedText(text: string): Promise<Float32Array> {
         model: embeddingModel,
         input: normalized
       }),
-      signal: controller.signal
+      signal: AbortSignal.timeout(4000)
     });
-
-    clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
       const rawVector = data?.data?.[0]?.embedding;
       if (Array.isArray(rawVector) && rawVector.length > 0) {
         const floatArray = new Float32Array(rawVector);
-        if (embeddingCache.size > 500) {
+        while (embeddingCache.size >= 500) {
           const firstKey = embeddingCache.keys().next().value;
           if (firstKey) embeddingCache.delete(firstKey);
+          else break;
         }
         embeddingCache.set(normalized, floatArray);
         return floatArray;
@@ -279,6 +275,27 @@ export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams): Pr
 
     const oldWeight = row.deficit_weight;
     let newWeight = oldWeight + delta;
+
+    // Continuous FSRS-5 retrievability alignment
+    if (row.question_id) {
+      try {
+        const fsrsCard: any = db.prepare('SELECT stability, last_review_at FROM fsrs_card_states WHERE question_id = ?').get(row.question_id);
+        if (fsrsCard && typeof fsrsCard.stability === 'number' && fsrsCard.stability > 0) {
+          const lastRev = fsrsCard.last_review_at ? new Date(fsrsCard.last_review_at).getTime() : Date.now();
+          const elapsedDays = Math.max(0, (Date.now() - lastRev) / (1000 * 60 * 60 * 24));
+          const s = Math.max(0.1, fsrsCard.stability);
+          const r = Math.pow(1 + (19 / 81) * (elapsedDays / s), -0.5);
+          const retrievability = Math.max(0.01, Math.min(1.0, r));
+
+          if (assistanceLevel === 'solo') {
+            newWeight = Math.min(newWeight, parseFloat((1.0 - retrievability).toFixed(2)));
+          } else if (assistanceLevel === 'relapse') {
+            newWeight = Math.max(newWeight, parseFloat((1.0 - retrievability * 0.4).toFixed(2)));
+          }
+        }
+      } catch (_) {}
+    }
+
     newWeight = Math.max(0.0, Math.min(1.0, parseFloat(newWeight.toFixed(2))));
 
     let newStatus = row.status;

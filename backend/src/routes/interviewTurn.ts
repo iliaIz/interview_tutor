@@ -59,6 +59,7 @@ ${genderDirective}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${proxyApiKey}`
       },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model: modelName,
         messages: [{ role: 'user', content: greetingPrompt }],
@@ -218,6 +219,7 @@ Deep Dive: ${deepDive ? 'Включен (углубляйся во внутре�
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${proxyApiKey}`
       },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model: modelName,
         messages: conversationTurns,

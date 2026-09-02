@@ -168,6 +168,7 @@ ${notesMarkdown || 'Не предоставлена'}
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${proxyApiKey}`
       },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
@@ -181,11 +182,78 @@ ${notesMarkdown || 'Не предоставлена'}
     }
 
     const data: any = await response.json();
-    const content = data.choices?.[0]?.message?.content || '{}';
+    let content = data.choices?.[0]?.message?.content || '{}';
+    if (typeof content === 'string') {
+      content = content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    }
     const parsed = JSON.parse(content);
+
+    // Persist into system_design_submissions table
+    try {
+      const userId = (req as any).user?.id || 'default_user';
+      const submissionId = `sd_${scenarioId}_${userId}_${Date.now()}`;
+      db.prepare(`
+        INSERT INTO system_design_submissions (
+          id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        submissionId,
+        scenarioId,
+        userId,
+        canvasTopology ? JSON.stringify(canvasTopology) : (architectureMermaid || ''),
+        notesMarkdown || '',
+        JSON.stringify(parsed)
+      );
+    } catch (persistErr) {
+      console.warn('Could not persist system design submission:', persistErr);
+    }
+
     res.json(parsed);
   } catch (err: any) {
     console.error('System design eval error:', err);
     res.status(500).json({ error: 'Evaluation failed', message: err.message });
+  }
+});
+
+// GET /api/system-design/submissions/:scenarioId - Retrieve latest evaluation and submission for current user
+systemDesignRouter.get('/submissions/:scenarioId', (req: Request, res: Response) => {
+  try {
+    const { scenarioId } = req.params;
+    const userId = (req as any).user?.id || 'default_user';
+    const row: any = db.prepare(`
+      SELECT id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
+      FROM system_design_submissions
+      WHERE scenario_id = ? AND user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(scenarioId, userId);
+
+    if (!row) {
+      return res.json({ submission: null });
+    }
+
+    let parsedTopology = null;
+    try {
+      if (row.architecture_mermaid) parsedTopology = JSON.parse(row.architecture_mermaid);
+    } catch (_) {}
+
+    let parsedEvaluation = null;
+    try {
+      if (row.evaluation_json) parsedEvaluation = JSON.parse(row.evaluation_json);
+    } catch (_) {}
+
+    res.json({
+      submission: {
+        id: row.id,
+        scenarioId: row.scenario_id,
+        canvasTopology: parsedTopology,
+        architectureNotes: row.notes_markdown,
+        evaluation: parsedEvaluation,
+        createdAt: row.created_at
+      }
+    });
+  } catch (err: any) {
+    console.error('Fetch submission error:', err);
+    res.status(500).json({ error: 'Failed to fetch submission' });
   }
 });
