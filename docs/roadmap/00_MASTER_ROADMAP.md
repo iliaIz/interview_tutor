@@ -51,8 +51,7 @@ flowchart TD
     classDef currentPhase fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
     classDef queued fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
 
-    class Current,Phase1,Phase2,Phase3,Phase4,Phase5 done;
-    class Phase6 currentPhase;
+    class Current,Phase1,Phase2,Phase3,Phase4,Phase5,Phase6 done;
 ```
 
 ---
@@ -68,7 +67,7 @@ flowchart TD
 | **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания FSRS-5, 3 зоны памяти, интерактивный слайдер | Завершено | SQLite, векторные эмбеддинги | ✅ **Завершено** |
 | **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Высокая | `@xyflow/react` (React Flow v12+) | ✅ **Завершено** |
 | **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | In-memory запуск Java 21 (< 80мс), 100 потоков стресс-теста + 15 LLD-задач BigTech | Завершено | Docker Zero-Trust / In-memory Compiler | ✅ **Завершено** |
-| **Этап 6** | [phase_06_testing_and_mutation_arena.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_06_testing_and_mutation_arena.md) | Режим Write-the-Tests, 35+ кат (Kill the Mutants, Seams, Testcontainers), Mutation Score $\ge 85\%$ | Высокая | Песочница Этапа 5, Defect Injection | 🚀 **Следующий в очереди** |
+| **Этап 6** | [phase_06_testing_and_mutation_arena.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_06_testing_and_mutation_arena.md) | Режим Write-the-Tests, 35+ кат (Kill the Mutants, Seams, Testcontainers), Mutation Score $\ge 85\%$ | Завершено | Песочница Этапа 5, Defect Injection | ✅ **Завершено** |
 
 ---
 
