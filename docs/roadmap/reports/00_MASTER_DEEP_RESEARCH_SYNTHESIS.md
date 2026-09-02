@@ -152,6 +152,52 @@ flowchart TD
 
 ---
 
+## 4. Домен D: Testing & Mutation Arena (Katas, Seams, Testcontainers, Pitest & BigTech Hiring Standards)
+
+> **Источники:** [Evaluating Testing in Technical Interviews.md](file:///d:/projects/interview_projects/spring/ds_reports/Evaluating%20Testing%20in%20Technical%20Interviews.md), [Java Testing Katas and Benchmarks.md](file:///d:/projects/interview_projects/spring/ds_reports/Java%20Testing%20Katas%20and%20Benchmarks.md), [Java Testing Katas Research.md](file:///d:/projects/interview_projects/spring/ds_reports/Java%20Testing%20Katas%20Research.md).
+
+```mermaid
+flowchart TD
+    CandidateTest["✍️ Тестовый класс кандидата (*Test.java)\n(JUnit 5, AssertJ, Mockito 5, Awaitility)"] --> DualPass["🛡️ Dual-Pass Verification Pipeline"]
+    
+    subgraph Engine1 ["Pass 1: Физический мутационный раннер (Sandbox JVM)"]
+        MutantGen["🧬 Defect Injection / Pitest Bytecode Mutators\n(ConditionalsBoundary, NegateConditionals, MathMutator)"]
+        RunKilled["⚡ Прогон тестов против мутантов (< 120мс)\nKilled: Тест упал ✅ | Survived: Тест остался зеленым ❌"]
+        ScoreCalc["📊 Mutation Score = Killed / Total (Порог >= 85%)"]
+    end
+
+    subgraph Engine2 ["Pass 2: AI Code Quality & Anti-Pattern Reviewer"]
+        ASTScan["🔍 Tree-Sitter & Prompt Review (Gemini 3.7 Flash)"]
+        RedFlags["🚨 Детекция смертных грехов:\n- Over-Mocking (тавтологический мокинг)\n- Assertion-Free Tests (дутое JaCoCo покрытие)\n- Flaky Thread.sleep (вместо Clock / Awaitility)\n- Context Bloat (@SpringBootTest на домен)"]
+    end
+
+    DualPass --> Engine1
+    DualPass --> Engine2
+    Engine1 --> VerdictCard["📋 Вердикт качества тест-дизайна (Mutation Radar + Feedback)"]
+    Engine2 --> VerdictCard
+```
+
+### 4.1. Смерть Line Coverage и переход на Mutation Score
+В эру GenAI кандидаты легко генерируют код, создающий 100% строковое покрытие (Line Coverage в JaCoCo), но содержащий ноль содержательных ассертов.
+- **Стандарт BigTech 2025–2026:**
+  $$MS = \frac{\text{Killed Mutants}}{\text{Total Mutants}} \times 100\% \ge 85\%$$
+- **Инжекция дефектов (5 операторов мутаций):**
+  1. *ConditionalsBoundaryMutator:* Замена `>` на `>=`, `<` на `<=`.
+  2. *NegateConditionalsMutator:* Инверсия `==` в `!=`.
+  3. *MathMutator:* Замена `*` на `/`, `+` на `-`.
+  4. *VoidMethodCallMutator:* Удаление вызова метода аудита или списания.
+  5. *ReturnValsMutator:* Замена возвращаемого объекта на `null` или `Optional.empty()`.
+
+### 4.2. 6 Канонических архетипов и 35 эталонных задач
+1. **Legacy Seams & Decoupling (5 кат):** Развязка статических синглтонов без изменения публичного API (`Subclass & Override`, `Overloaded Constructor`, `Static Wrapper`, `Approval / Golden Master` Gilded Rose и TripService).
+2. **Advanced JUnit 5 (7 кат):** `@ParameterizedTest` + `@MethodSource`, `@TestFactory` (динамические тесты графов), Extensions (`@WithTenantContext`), `@Nested` BDD.
+3. **Modern Mockito 5 (6 кат):** `@MockitoBean` (Spring Boot 3.4+), `InOrder` аудит, `mockStatic` (UUID v7), `ArgumentCaptor` (Kafka Event).
+4. **Testcontainers & Infrastructure (6 кат):** `@ServiceConnection` PostgreSQL (Flyway, pessimistic locking), Redis TTL кэширование, Kafka Consumer идемпотентность.
+5. **Spring Boot Slices (5 кат):** `@WebMvcTest` + MockMvc + Problem Details (RFC 7807), `@DataJpaTest` (N+1 query detection).
+6. **Concurrency & Failure Injection (6 кат):** `Awaitility` vs `Thread.sleep`, Deadlock-детекторы, Virtual Thread Pinning под `synchronized`, CircuitBreaker (Resilience4j).
+
+---
+
 ## 5. Сравнительный анализ (Gap Analysis) с текущей кодовой базой
 
 | Домен / Требование Deep Research | Текущее состояние в проекте | Уровень гэпа | Предлагаемое решение |
@@ -161,13 +207,18 @@ flowchart TD
 | **System Design: Chaos Injection** | Отсутствует | 🟡 **Высокий** | Chaos Monkey панель со сценариями отказа Patroni и Circuit Breaker |
 | **Machine Coding: Запуск кода** | Только эмуляция через LLM и AST-regex проверки | 🔴 **Критический** | Интеграция Zero-Trust Docker песочницы с in-memory `CompilerService.java` (< 80 мс) |
 | **Machine Coding: Проверка гонок данных** | Отсутствует | 🟡 **Высокий** | Внедрение Concurrency Racer (100 потоков + `findDeadlockedThreads`) |
-| **Каталог задач LLD** | Базовые заготовки в коде | 🟢 **Средний** | Расширение базы до 15 эталонных задач из отчета с тестами JUnit 5 |
+| **Тестирование: Режим «Write-the-Tests»** | Кандидат пишет только сервис-код, тесты скрыты | 🔴 **Критический** | Режим `write_tests` в `PracticeArena`: сервис `readOnly`, кандидат пишет `*Test.java` |
+| **Тестирование: Мутационный анализ (Pitest)** | Отсутствует | 🔴 **Критический** | Запуск тестов кандидата против байткод-мутантов с расчетом Mutation Score |
+| **Тестирование: AI-ревью антипаттернов** | Базовый промпт код-ревью | 🟡 **Высокий** | Детектор *Over-Mocking*, *Flaky sleep*, *Assertion-Free tests* |
 
 ---
 
 ## 6. Актуализированный план действий (Actionable Roadmap)
 
-1. **Этап 2 (Текущий спринт):** Реализация персон FAANG (Amazon Bar-Raiser, Google Staff, Yandex Core) и официального бланка Hiring Committee.
-2. **Этап 3:** Внедрение FSRS-5 математической модели интервального повторения и векторного Memory Radar.
-3. **Этап 4 (Актуализированный):** Разработка **System Design Studio** на базе `@xyflow/react` и DES Web Worker движка по спецификациям Домена A.
-4. **Этап 5 (Актуализированный):** Развертывание **Isolated Java 21 Sandbox** на базе теплого resident-демона `CompilerService.java` и каталога из 15 задач Домена C.
+1. **Этап 1 (Завершено):** Speech & Behavioral Coach (WPM, слова-паразиты, паузы, адаптивный STAR/PREP/Rule of 3).
+2. **Этап 2 (Завершено):** FAANG Personas & Calibration Scorecards (Amazon Bar-Raiser, Google Staff, Yandex Core + бланки Hiring Committee).
+3. **Этап 3 (Завершено):** FSRS-5 Adaptive Memory Radar (интервальное повторение, кривая Эббингауза, векторный дефицит).
+4. **Этап 4 (В разработке):** **Interactive Architecture Canvas & DES** на базе `@xyflow/react` и Web Worker симулятора ($M/M/c$, $M/G/1$) по спецификациям Домена A.
+5. **Этап 5:** **Isolated Java 21 Execution Sandbox** на базе resident-демона `CompilerService.java` (< 80 мс) и 15 LLD-задач Домена B & C.
+6. **Этап 6 (Новый):** **Testing & Mutation Arena** — запуск 35+ канонических кат на написание тестов (Write-the-Tests, Seams, Testcontainers, Slices) с реальным подсчетом Mutation Score и детекцией антипаттернов на базе песочницы Этапа 5.
+

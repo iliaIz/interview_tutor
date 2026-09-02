@@ -26,38 +26,34 @@
 
 ```mermaid
 flowchart TD
-    Current["🏁 ТЕКУЩЕЕ СОСТОЯНИЕ\n(LiteLLM Proxy, Live Gemini Audio, 70 Багов, 15 Триажей, SSOT Progress)"]
+    Current["🏁 ТЕКУЩЕЕ СОСТОЯНИЕ\n(LiteLLM, Live Audio, FAANG Scorecards, FSRS-5 Radar)"]
 
-    subgraph Wave1 ["⚡ Волна 1: Немедленный импакт (Zero New Infrastructure)"]
+    subgraph Wave1 ["⚡ Волна 1: Оценка и персонализация [ЗАВЕРШЕНО]"]
         Phase1["✅ ЭТАП 1: Speech & Behavioral AI Coach\n(WPM, слова-паразиты, паузы, адаптивный STAR/PREP) [ГОТОВО]"]
-        Phase2["👔 ЭТАП 2: FAANG Personas & Calibration Scorecards\n(Amazon Bar-Raiser, Google Staff, Yandex Core + L5/L6 матрицы)"]
+        Phase2["✅ ЭТАП 2: FAANG Personas & Calibration Scorecards\n(Amazon Bar-Raiser, Google Staff, Yandex Core + L5/L6 матрицы) [ГОТОВО]"]
+        Phase3["✅ ЭТАП 3: FSRS-5 Adaptive Memory Radar\n(Интервальное повторение, кривая Эббингауза, векторные дефициты) [ГОТОВО]"]
     end
 
-    subgraph Wave2 ["🧠 Волна 2: Персонализация и память (Smart Learning Loop)"]
-        Phase3["📊 ЭТАП 3: FSRS-5 Adaptive Memory Radar\n(Интервальное повторение на векторных расстояниях дефицитов)"]
-    end
-
-    subgraph Wave3 ["🚀 Волна 3: Интерактивные инженерные среды (Deep Interactive Studios)"]
+    subgraph Wave2 ["📐 Волна 2: Архитектурные симуляции"]
         Phase4["📐 ЭТАП 4: Interactive Architecture Canvas & DES\n(React Flow Drag&Drop + Web Worker симулятор Erlang-C + Chaos Monkey)"]
-        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(In-memory компилятор < 80мс, 100 потоков, 15 эталонных LLD-задач)"]
     end
 
-    Current --> Phase1
-    Phase1 --> Phase2
-    Current --> Phase3
-    Phase2 --> Phase4
-    Phase3 --> Phase4
+    subgraph Wave3 ["☕ Волна 3: Практический JVM-код и верификация качества"]
+        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(In-memory компилятор < 80мс, 100 потоков, 15 эталонных LLD-задач)"]
+        Phase6["🧪 ЭТАП 6: Testing & Mutation Arena\n(35+ Katas: Kill the Mutants, Seams, Testcontainers, Slices, Mutation Score >= 85%)"]
+    end
+
+    Current --> Phase4
     Phase4 --> Phase5
+    Phase5 --> Phase6
 
     classDef done fill:#e2fbe8,stroke:#22c55e,stroke-width:2px;
-    classDef w1 fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
-    classDef w2 fill:#fdf4ff,stroke:#c026d3,stroke-width:2px;
-    classDef w3 fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
+    classDef currentPhase fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
+    classDef queued fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
 
-    class Current,Phase1 done;
-    class Phase2 w1;
-    class Phase3 w2;
-    class Phase4,Phase5 w3;
+    class Current,Phase1,Phase2,Phase3 done;
+    class Phase4 currentPhase;
+    class Phase5,Phase6 queued;
 ```
 
 ---
@@ -66,13 +62,14 @@ flowchart TD
 
 > Полный научный и архитектурный синтез исследований: см. [00_MASTER_DEEP_RESEARCH_SYNTHESIS.md](file:///d:/projects/interview_projects/spring/docs/roadmap/reports/00_MASTER_DEEP_RESEARCH_SYNTHESIS.md).
 
-| Этап | Документ спецификации | Главная ценность для кандидата | Сложность | Внешние зависимости |
-| :--- | :--- | :--- | :--- | :--- |
-| **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | ✅ **ГОТОВО:** WPM-темп, детекция паразитов, адаптивный STAR/PREP/Rule of 3 | Завершено | Web Audio API, Web Speech API |
-| **Этап 2** | [phase_02_faang_personas_and_scorecards.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_02_faang_personas_and_scorecards.md) | Калибровка уровня (L5 vs L6), симуляция Amazon/Google/Yandex | Средняя | LiteLLM Prompt Profiles |
-| **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания FSRS-5 без зубрёжки | Средняя | SQLite, векторные эмбеддинги |
-| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Высокая | `@xyflow/react` (React Flow) |
-| **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | In-memory запуск Java 21 (< 80мс), 100 потоков стресс-теста + 15 LLD-задач BigTech | Высокая | Docker Zero-Trust / In-memory Compiler |
+| Этап | Документ спецификации | Главная ценность для кандидата | Сложность | Внешние зависимости | Статус |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | WPM-темп, детекция паразитов, адаптивный STAR/PREP/Rule of 3 | Завершено | Web Audio API, Web Speech API | ✅ **Завершено** |
+| **Этап 2** | [phase_02_faang_personas_and_scorecards.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_02_faang_personas_and_scorecards.md) | Калибровка грейда (L4/L5/L6), симуляция Amazon Bar-Raiser/Google Staff, официальный бланк | Завершено | LiteLLM Prompt Profiles | ✅ **Завершено** |
+| **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания FSRS-5, 3 зоны памяти, интерактивный слайдер | Завершено | SQLite, векторные эмбеддинги | ✅ **Завершено** |
+| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Высокая | `@xyflow/react` (React Flow v12+) | 🚀 **Следующий в очереди** |
+| **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | In-memory запуск Java 21 (< 80мс), 100 потоков стресс-теста + 15 LLD-задач BigTech | Высокая | Docker Zero-Trust / In-memory Compiler | ⏳ Запланирован |
+| **Этап 6** | [phase_06_testing_and_mutation_arena.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_06_testing_and_mutation_arena.md) | Режим Write-the-Tests, 35+ кат (Kill the Mutants, Seams, Testcontainers), Mutation Score $\ge 85\%$ | Высокая | Песочница Этапа 5, Defect Injection | ⏳ Запланирован |
 
 ---
 
