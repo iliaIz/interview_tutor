@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import {
   ArrowLeft,
@@ -13,7 +13,8 @@ import {
   Mic,
   Eye,
   EyeOff,
-  Code2
+  Code2,
+  Keyboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -52,6 +53,23 @@ export const StudyDeck: React.FC = () => {
     setIsVoiceOpen(true);
     setQuickQuestionText('');
   };
+
+  // Global Keyboard Arrow Navigation (← Previous / Next →)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (isVoiceOpen) return;
+      if (e.key === 'ArrowRight' && currentBatch && currentQuestionIndex < currentBatch.length - 1) {
+        e.preventDefault();
+        setQuestionIndex(currentQuestionIndex + 1);
+      } else if (e.key === 'ArrowLeft' && currentQuestionIndex > 0) {
+        e.preventDefault();
+        setQuestionIndex(currentQuestionIndex - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentQuestionIndex, currentBatch, isVoiceOpen, setQuestionIndex]);
 
   if (!currentBatch || currentBatch.length === 0) {
     return (
@@ -331,8 +349,51 @@ export const StudyDeck: React.FC = () => {
         </motion.div>
       </AnimatePresence>
 
+      {/* Sticky Reader Bar with Keyboard Hints for continuous reading */}
+      <div className="sticky bottom-4 z-30 flex items-center justify-between bg-white/95 backdrop-blur-xl px-4 py-2.5 rounded-2xl border border-pastel-border shadow-lg">
+        <div className="flex items-center gap-2">
+          <button
+            disabled={currentQuestionIndex === 0}
+            onClick={() => setQuestionIndex(currentQuestionIndex - 1)}
+            className="px-3 py-1.5 rounded-xl border border-pastel-border text-xs font-bold text-pastel-muted hover:text-pastel-text disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center gap-1.5 bg-pastel-bg/80 cursor-pointer active:scale-95"
+            title="Предыдущая карточка (клавиша ←)"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Назад</span>
+            <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] bg-white rounded border border-pastel-border font-mono">←</kbd>
+          </button>
+
+          <span className="text-xs font-bold text-pastel-text font-mono px-2">
+            #{currentQ.num} ({currentQuestionIndex + 1}/{currentBatch.length})
+          </span>
+
+          <button
+            disabled={isLast}
+            onClick={() => setQuestionIndex(currentQuestionIndex + 1)}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold hover:opacity-95 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            title="Следующая карточка (клавиша →)"
+          >
+            <span className="hidden sm:inline">Вперед</span>
+            <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] bg-white/20 rounded border border-white/30 font-mono text-white">→</kbd>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <button
+          onClick={() => {
+            setVoiceModalSessionType('interview');
+            setIsVoiceOpen(true);
+          }}
+          className="px-3.5 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/40 hover:bg-pastel-accentRose hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+          title="Сдать этот вопрос устно голосовому AI-интервьюеру"
+        >
+          <Mic className="w-3.5 h-3.5" />
+          <span>Сдать устно ИИ</span>
+        </button>
+      </div>
+
       {/* Footer Controls */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pt-2">
         <button
           disabled={currentQuestionIndex === 0}
           onClick={() => setQuestionIndex(currentQuestionIndex - 1)}

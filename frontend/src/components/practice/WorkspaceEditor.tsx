@@ -20,16 +20,16 @@ import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
 const luxuryPastelTheme = createTheme({
   theme: 'dark',
   settings: {
-    background: '#020617', // Slate-950
+    background: '#121622', // Soft Velvet Dark (not harsh #020617)
     backgroundImage: '',
     foreground: '#e2e8f0', // Slate-200
     caret: '#f472b6', // Pastel Rose
-    selection: '#334155', // Slate-700
-    selectionMatch: '#1e293b',
-    lineHighlight: 'rgba(244, 114, 182, 0.06)',
-    gutterBackground: '#020617',
-    gutterForeground: '#475569',
-    gutterBorder: '#0f172a'
+    selection: '#26334d', // Soft Slate selection
+    selectionMatch: '#1a233a',
+    lineHighlight: 'rgba(244, 114, 182, 0.05)',
+    gutterBackground: '#121622',
+    gutterForeground: '#64748b',
+    gutterBorder: '#1e2638'
   },
   styles: [
     { tag: t.comment, color: '#64748b', fontStyle: 'italic' },

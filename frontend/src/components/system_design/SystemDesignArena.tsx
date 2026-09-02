@@ -24,53 +24,10 @@ const cleanScenarioText = (text?: string): string => {
 const renderCalculationsBlock = (rawText?: string) => {
   if (!rawText) return null;
   const cleaned = cleanScenarioText(rawText);
-
-  // Check if it's markdown table
-  const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
-  const tableLines = lines.filter(l => l.startsWith('|') && l.endsWith('|'));
-
-  if (tableLines.length >= 2) {
-    const parseRow = (line: string) =>
-      line
-        .split('|')
-        .slice(1, -1)
-        .map(cell => cell.trim().replace(/\*\*/g, ''));
-
-    const header = parseRow(tableLines[0]);
-    const bodyRows = tableLines.slice(2).map(parseRow);
-
-    return (
-      <div className="overflow-x-auto rounded-xl border border-pastel-border bg-white shadow-2xs mt-2">
-        <table className="w-full text-xs text-left">
-          <thead className="bg-pastel-bg text-pastel-text uppercase text-[10px] font-bold tracking-wider border-b border-pastel-border">
-            <tr>
-              {header.map((col, idx) => (
-                <th key={idx} className="px-3.5 py-2.5 font-bold">
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-pastel-border/60 font-mono">
-            {bodyRows.map((row, rowIdx) => (
-              <tr key={rowIdx} className="hover:bg-pastel-bg/40 transition">
-                {row.map((cell, cellIdx) => (
-                  <td key={cellIdx} className="px-3.5 py-2.5 text-pastel-text">
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
   return (
-    <p className="text-xs text-pastel-muted leading-relaxed whitespace-pre-line">
-      {cleaned}
-    </p>
+    <div className="text-xs text-pastel-text leading-relaxed">
+      <MarkdownRenderer content={cleaned} />
+    </div>
   );
 };
 

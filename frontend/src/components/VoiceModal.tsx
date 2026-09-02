@@ -151,6 +151,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRadarOpen, setIsRadarOpen] = useState(false);
 
+  // Pause ambient audio (e.g. AudioPlayerBar) upon opening VoiceModal to prevent crosstalk
+  useEffect(() => {
+    if (isOpen) {
+      document.querySelectorAll('audio').forEach((el) => {
+        try { el.pause(); } catch {}
+      });
+    }
+  }, [isOpen]);
+
   // Live WebSocket & Audio Nodes
   const wsRef = useRef<WebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -422,7 +431,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
 
-    const isAutoAdvanceActive = interviewConfig.autoAdvance !== false && (interviewConfig.transitionDelay ?? 5) > 0;
+    const isAutoAdvanceActive = interviewConfig.autoAdvance === true && (interviewConfig.transitionDelay ?? 5) > 0;
 
     if (!isAutoAdvanceActive || isTransitionPaused) {
       if (countdownIntervalRef.current) {
@@ -2917,7 +2926,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         {/* STAGE 2.5: INTER-QUESTION TRANSITION (Supports Auto-Timer & Manual Mode)  */}
         {/* ========================================================================= */}
         {stage === 'transition' && evaluation && (() => {
-          const isAutoAdvance = interviewConfig.autoAdvance !== false && (interviewConfig.transitionDelay ?? 5) > 0;
+          const isAutoAdvance = interviewConfig.autoAdvance === true && (interviewConfig.transitionDelay ?? 5) > 0;
           const nextQuestionNum = questionsBatch?.[activeBatchIndex + 1]?.num ?? (activeBatchIndex + 2);
           const totalDelay = interviewConfig.transitionDelay ?? 5;
 

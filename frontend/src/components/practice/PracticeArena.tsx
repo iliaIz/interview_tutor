@@ -4,7 +4,7 @@ import { PracticeCatalog } from './PracticeCatalog';
 import { ChallengeSpecPanel } from './ChallengeSpecPanel';
 import { WorkspaceEditor } from './WorkspaceEditor';
 import { PracticeEvaluationModal } from './PracticeEvaluationModal';
-import { ArrowLeft, BookOpen, Code, Trophy } from 'lucide-react';
+import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2 } from 'lucide-react';
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -17,6 +17,7 @@ export const PracticeArena: React.FC = () => {
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
+  const [isFocusMode, setIsFocusMode] = useState(false);
 
   if (!activePracticeChallenge) {
     return <PracticeCatalog />;
@@ -87,8 +88,21 @@ export const PracticeArena: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: Score or Status Badge */}
+        {/* Right: Score, Status Badge & Desktop Focus Mode */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsFocusMode(!isFocusMode)}
+            title={isFocusMode ? "Показать спецификацию" : "Развернуть редактор на 100% ширины (Focus Mode)"}
+            className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+              isFocusMode
+                ? 'bg-pastel-rose text-pastel-accentRoseText border-pastel-accentRose/40 shadow-2xs'
+                : 'bg-white text-pastel-text border-pastel-border hover:bg-pastel-bg'
+            }`}
+          >
+            {isFocusMode ? <Minimize2 className="w-3.5 h-3.5 text-pastel-accentRoseText" /> : <Maximize2 className="w-3.5 h-3.5 text-pastel-muted" />}
+            <span>{isFocusMode ? 'Показать спеку' : 'Focus Mode'}</span>
+          </button>
+
           {activePracticeReport && (
             <button
               onClick={() => {}}
@@ -103,11 +117,13 @@ export const PracticeArena: React.FC = () => {
 
       {/* Main Split Workspace: Left = Spec Panel, Right = Multi-File Editor */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Specification Sidebar (38% on desktop, max 780px on 2xl Ultrawide) */}
+        {/* Left Specification Sidebar */}
         <div
-          className={`w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px] h-full overflow-hidden shrink-0 border-r border-pastel-border ${
-            mobileTab === 'spec' ? 'flex flex-col' : 'hidden md:flex flex-col'
-          }`}
+          className={`h-full overflow-hidden shrink-0 border-r border-pastel-border transition-all duration-200 ${
+            isFocusMode
+              ? 'hidden'
+              : 'w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
+          } ${mobileTab === 'spec' ? 'flex flex-col' : 'hidden md:flex flex-col'}`}
         >
           <ChallengeSpecPanel />
         </div>

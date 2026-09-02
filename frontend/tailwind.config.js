@@ -15,11 +15,14 @@ export default {
           lavender: '#F4F1F9',
           peach: '#FFF6EE',
           text: '#2C303E',
-          muted: '#6C727F',
+          muted: '#525866',
           accentRose: '#E08E89',
+          accentRoseText: '#BA5D57',
           accentViolet: '#8B78E6',
           accentTeal: '#5A9E96',
-          border: '#EFECE6'
+          border: '#EFECE6',
+          arenaDark: '#121622',
+          arenaEditorGutter: '#181E2E'
         }
       },
       fontFamily: {

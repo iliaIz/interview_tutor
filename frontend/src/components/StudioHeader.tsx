@@ -165,8 +165,8 @@ export const StudioHeader: React.FC = () => {
           </div>
         </div>
 
-        {/* Nav Tabs Bar with Scroll Affordance Mask */}
-        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative flex justify-center">
+        {/* Nav Tabs Bar with Scroll Affordance Mask on Mobile */}
+        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative flex justify-center mask-fade-horizontal sm:mask-none">
           {/* Scroll container */}
           <nav className="flex items-center bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs overflow-x-auto no-scrollbar scroll-smooth touch-pan-x">
             {tabs.map((tab) => {
@@ -183,14 +183,14 @@ export const StudioHeader: React.FC = () => {
                       : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pastel-accentRose' : 'text-pastel-muted'}`} />
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pastel-accentRoseText' : 'text-pastel-muted'}`} />
                   <span>{tab.shortLabel}</span>
 
                   {tab.badge && (
-                    <span className={`text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
                       tab.id === 'practice'
                         ? 'bg-gradient-to-r from-amber-200 to-rose-200 text-amber-900 border border-amber-300/60'
-                        : 'bg-pastel-rose text-pastel-accentRose'
+                        : 'bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30'
                     }`}>
                       {tab.badge}
                     </span>
@@ -206,12 +206,11 @@ export const StudioHeader: React.FC = () => {
           {academyBreadcrumbContext && currentStudioTab !== 'academy' && (
             <button
               onClick={returnToAcademyStep}
-              className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition shadow-xs cursor-pointer animate-pulse-subtle shrink-0"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/40 hover:bg-pastel-accentRose hover:text-white transition shadow-xs cursor-pointer shrink-0"
               title="Вернуться к текущему шагу в Академии"
             >
-              <span className="hidden sm:inline">← Академия</span>
-              <span className="sm:hidden">← #</span>
-              <span className="opacity-90 font-mono text-[11px]">{academyBreadcrumbContext.stepNumber}</span>
+              <span className="hidden sm:inline">← Академия: Шаг #{academyBreadcrumbContext.stepNumber}</span>
+              <span className="sm:hidden">← #{academyBreadcrumbContext.stepNumber}</span>
             </button>
           )}
 

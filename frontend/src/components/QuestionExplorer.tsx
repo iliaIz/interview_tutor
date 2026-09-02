@@ -41,7 +41,8 @@ export const QuestionExplorer: React.FC = () => {
     showToast,
     evaluationsMap,
     openReportModal,
-    fetchTopicEvaluations
+    fetchTopicEvaluations,
+    activeAudioJob
   } = useAppStore();
 
   const [questions, setQuestions] = useState<QuestionWithStatus[]>([]);
@@ -338,12 +339,18 @@ export const QuestionExplorer: React.FC = () => {
     <div className="max-w-5xl mx-auto px-4 py-8 pb-32">
       {/* Top Breadcrumb & Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <button
-          onClick={() => setView('topics')}
-          className="flex items-center gap-2 text-xs font-semibold text-pastel-muted hover:text-pastel-text transition bg-white px-3 py-1.5 rounded-xl border border-pastel-border shadow-xs cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /> Назад к темам
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setView('topics')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-pastel-muted hover:text-pastel-text transition bg-white px-3 py-1.5 rounded-xl border border-pastel-border shadow-xs cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" /> Разделы
+          </button>
+          <span className="text-xs text-pastel-muted">/</span>
+          <span className="text-xs font-bold text-pastel-text max-w-[200px] sm:max-w-md truncate">
+            {selectedTopicName}
+          </span>
+        </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold px-3 py-1 bg-pastel-lavender text-pastel-accentViolet rounded-full border border-pastel-accentViolet/20">
@@ -359,7 +366,7 @@ export const QuestionExplorer: React.FC = () => {
       <div className="bg-white rounded-3xl p-6 border border-pastel-border shadow-sm mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-pastel-accentRose mb-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-pastel-accentRoseText mb-1">
               <Sparkles className="w-4 h-4" /> База вопросов темы
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-pastel-text">
@@ -496,7 +503,7 @@ export const QuestionExplorer: React.FC = () => {
             </button>
 
             {selectedIds.size > 0 && (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-pastel-accentRose/10 text-pastel-accentRose border border-pastel-accentRose/20">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-pastel-accentRose/10 text-pastel-accentRoseText border border-pastel-accentRose/30">
                 Выбрано: {selectedIds.size}
               </span>
             )}
@@ -747,14 +754,14 @@ export const QuestionExplorer: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 inset-x-0 mx-auto max-w-2xl px-4 z-40"
+            className={`fixed ${activeAudioJob ? 'bottom-24' : 'bottom-6'} inset-x-0 mx-auto max-w-2xl px-4 z-40 transition-all duration-300`}
           >
             <div className="pastel-glass rounded-2xl p-3 shadow-2xl border border-white/80 flex flex-wrap items-center justify-between gap-3 backdrop-blur-xl bg-white/95">
               {/* Selected Count Indicator */}
               <div className="flex items-center gap-2 pl-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-pastel-accentRose animate-pulse"></span>
                 <span className="text-xs font-bold text-pastel-text">
-                  Выбрано: <strong className="text-pastel-accentRose text-sm">{selectedIds.size}</strong> вопр.
+                  Выбрано: <strong className="text-pastel-accentRoseText text-sm">{selectedIds.size}</strong> вопр.
                 </span>
               </div>
 
@@ -776,7 +783,7 @@ export const QuestionExplorer: React.FC = () => {
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-pastel-border text-pastel-text rounded-xl text-xs font-bold shadow-xs hover:bg-pastel-card transition transform hover:scale-105 cursor-pointer"
                   title="Начать изучение выбранных карточек"
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-pastel-accentRose" />
+                  <BookOpen className="w-3.5 h-3.5 text-pastel-accentRoseText" />
                   <span>Изучать ({selectedIds.size})</span>
                 </button>
 
@@ -793,7 +800,7 @@ export const QuestionExplorer: React.FC = () => {
                 {/* Audio Podcast Selected */}
                 <button
                   onClick={() => handleStartRecap()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 rounded-xl text-xs font-bold hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/40 rounded-xl text-xs font-bold hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
                   title="Сгенерировать аудиоподкаст по выбранным вопросам"
                 >
                   <Headphones className="w-3.5 h-3.5" />

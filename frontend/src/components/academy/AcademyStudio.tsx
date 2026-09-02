@@ -33,6 +33,7 @@ export const AcademyStudio: React.FC = () => {
   const { 
     activeAcademyCourseId, 
     setActiveAcademyCourseId,
+    activeAcademyStepNumber,
     activeAcademyStepModal,
     openAcademyStepModal,
     closeAcademyStepModal,
@@ -73,14 +74,21 @@ export const AcademyStudio: React.FC = () => {
         const data = await res.json();
         setCurrentCourse(data);
 
-        // Auto-expand milestones: expand all or active milestone by default
+        // Auto-expand milestones: prioritize active step, then first uncompleted
         if (data.milestones && data.milestones.length > 0) {
-          const firstUncompleted = (data.steps || []).find((s: AcademyStep) => !s.isCompleted);
-          const activeMid = firstUncompleted ? firstUncompleted.milestoneId : data.milestones[0].id;
+          let activeMid = data.milestones[0].id;
+          if (activeAcademyStepNumber) {
+            const step = (data.steps || []).find((s: AcademyStep) => s.stepNumber === activeAcademyStepNumber);
+            if (step?.milestoneId) activeMid = step.milestoneId;
+          } else {
+            const firstUncompleted = (data.steps || []).find((s: AcademyStep) => !s.isCompleted);
+            if (firstUncompleted) activeMid = firstUncompleted.milestoneId;
+          }
           
           setOpenMilestones((prev) => {
-            if (prev.size > 0) return prev; // Preserve user's manual toggles
-            return new Set([activeMid || data.milestones[0].id]);
+            const next = new Set(prev);
+            next.add(activeMid);
+            return next;
           });
         }
       }
@@ -98,6 +106,19 @@ export const AcademyStudio: React.FC = () => {
       fetchActiveCourseDetails(activeAcademyCourseId);
     }
   }, [activeAcademyCourseId]);
+
+  // Smooth scroll to active step when returning from practice
+  useEffect(() => {
+    if (!isLoading && activeAcademyStepNumber && currentCourse) {
+      const el = document.getElementById(`academy-step-${activeAcademyStepNumber}`);
+      if (el) {
+        const timer = setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 180);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isLoading, activeAcademyStepNumber, currentCourse, openMilestones]);
 
   const handleCourseChange = (id: string) => {
     setActiveAcademyCourseId(id);
@@ -649,9 +670,12 @@ export const AcademyStudio: React.FC = () => {
                           return (
                             <div
                               key={step.stepNumber}
+                              id={`academy-step-${step.stepNumber}`}
                               onClick={() => openAcademyStepModal(step)}
                               className={`card-content-visibility p-4 sm:p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-4 relative overflow-hidden group ${
-                                isCompleted
+                                activeAcademyStepNumber === step.stepNumber
+                                  ? 'ring-2 ring-pastel-accentRose shadow-md bg-white border-pastel-accentRose/60'
+                                  : isCompleted
                                   ? 'bg-white border-emerald-200/80 shadow-xs hover:border-emerald-300'
                                   : 'bg-white hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs hover:shadow-md'
                               }`}
@@ -660,7 +684,7 @@ export const AcademyStudio: React.FC = () => {
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20 font-mono">
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/20 font-mono">
                                       #{step.stepNumber}
                                     </span>
                                     <span className="text-[10px] text-pastel-muted font-medium flex items-center gap-0.5">
@@ -684,7 +708,7 @@ export const AcademyStudio: React.FC = () => {
                                   </button>
                                 </div>
 
-                                <h4 className="font-bold text-sm text-pastel-text group-hover:text-pastel-accentRose transition-colors line-clamp-2">
+                                <h4 className="font-bold text-sm text-pastel-text group-hover:text-pastel-accentRoseText transition-colors line-clamp-2">
                                   {step.title}
                                 </h4>
                                 <p className="text-xs text-pastel-muted line-clamp-2 leading-relaxed">
@@ -717,7 +741,7 @@ export const AcademyStudio: React.FC = () => {
                                   )}
                                 </div>
 
-                                <span className="text-[11px] font-bold text-pastel-accentRose opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                <span className="text-[11px] font-bold text-pastel-accentRoseText opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                                   Открыть <ArrowRight className="w-3 h-3" />
                                 </span>
                               </div>
