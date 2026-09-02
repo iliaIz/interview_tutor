@@ -1,0 +1,97 @@
+# 🗺️ Master Strategic Roadmap: InterviewPrep AI (Top-10 Global Standard, 2026–2027)
+
+> **Статус:** Canonical Living Roadmap & Architectural Blueprint  
+> **Целевой уровень:** Top-10 World-Class AI Interview Platform for Senior / Staff / Principal Engineers  
+> **Методология:** Progressive Elaboration (Постепенное уточнение) & Vertical Slice Delivery  
+> **Версия:** 1.0 (Сентябрь 2026)
+
+---
+
+## 1. Миссия и North Star Метрики
+
+### Миссия
+Трансформировать InterviewPrep AI из сильного нишевого тренажера по Spring/Java в **мировой эталон комплексной технической подготовки инженеров уровня Senior (L5), Staff (L6) и Principal (L7)**, объединяющий глубокую инженерию JVM с поведенческим речевым коучингом и интерактивным системным проектированием.
+
+### North Star Метрики (Критерии мирового ТОП-10):
+1. **Interview Realism Fidelity (IRF) > 95%:** Кандидат ощущает стресс, темп, структуру и вопросы на уровне реального раунда в Google, Amazon, Meta или Яндекс.
+2. **First-Response Speech Latency (TTFB) < 350 мс:** Мгновенный отклик голосового агента без ощущения телефонной задержки.
+3. **Knowledge Retention Rate (30 дней) > 85%:** Благодаря математической модели интервального повторения FSRS-5 дефициты закрываются на долгий срок, а не забываются через 48 часов.
+4. **Zero-Ambiguity Code Execution:** Переход от статического анализа к реальному безопасному выполнению Java 21 тестов в песочнице за < 300 мс.
+
+---
+
+## 2. Граф Зависимостей Этапов (DAG)
+
+Каждый этап представляет собой **законченный вертикальный срез (Vertical Slice)**, приносящий прямую ценность пользователю сразу после деплоя.
+
+```mermaid
+flowchart TD
+    Current["🏁 ТЕКУЩЕЕ СОСТОЯНИЕ\n(LiteLLM Proxy, Live Gemini Audio, 70 Багов, 15 Триажей, SSOT Progress)"]
+
+    subgraph Wave1 ["⚡ Волна 1: Немедленный импакт (Zero New Infrastructure)"]
+        Phase1["🎙️ ЭТАП 1: Speech & Behavioral AI Coach\n(WPM, слова-паразиты, паузы сомнения, STAR-структурирование)"]
+        Phase2["👔 ЭТАП 2: FAANG Personas & Calibration Scorecards\n(Amazon Bar-Raiser, Google Staff, Yandex Core + L5/L6 матрицы)"]
+    end
+
+    subgraph Wave2 ["🧠 Волна 2: Персонализация и память (Smart Learning Loop)"]
+        Phase3["📊 ЭТАП 3: FSRS-5 Adaptive Memory Radar\n(Интервальное повторение на векторных расстояниях дефицитов)"]
+    end
+
+    subgraph Wave3 ["🚀 Волна 3: Интерактивные инженерные среды (Deep Interactive Studios)"]
+        Phase4["📐 ЭТАП 4: Interactive Architecture Canvas\n(React Flow Drag&Drop вместо Mermaid + Live Load Simulator)"]
+        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(Микро-песочница JUnit 5, потоковые стресс-тесты)"]
+    end
+
+    Current --> Phase1
+    Phase1 --> Phase2
+    Current --> Phase3
+    Phase2 --> Phase4
+    Phase3 --> Phase4
+    Phase4 --> Phase5
+
+    classDef done fill:#e2fbe8,stroke:#22c55e,stroke-width:2px;
+    classDef w1 fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
+    classDef w2 fill:#fdf4ff,stroke:#c026d3,stroke-width:2px;
+    classDef w3 fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
+
+    class Current done;
+    class Phase1,Phase2 w1;
+    class Phase3 w2;
+    class Phase4,Phase5 w3;
+```
+
+---
+
+## 3. Сводная матрица этапов
+
+| Этап | Документ спецификации | Главная ценность для кандидата | Сложность | Внешние зависимости |
+| :--- | :--- | :--- | :--- | :--- |
+| **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | Объективная оценка речи: темп (WPM), паразиты, заминки, метод STAR | Средняя | Web Audio API, Web Speech / Gemini Audio |
+| **Этап 2** | [phase_02_faang_personas_and_scorecards.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_02_faang_personas_and_scorecards.md) | Калибровка уровня (L5 vs L6), симуляция Amazon/Google/Yandex | Средняя | LiteLLM Prompt Profiles |
+| **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания без зубрёжки | Средняя | SQLite, векторные эмбеддинги |
+| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + симуляция 100k RPS | Высокая | `@xyflow/react` (React Flow) |
+| **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | Настоящий запуск Java 21, потоковые стресс-тесты за < 300мс | Высокая | Docker / Firecracker / WASM JVM |
+
+---
+
+## 4. Незыблемые архитектурные инварианты (Hard Invariants)
+
+Каждый этап обязан беспрекословно соблюдать правила, зафиксированные в [AGENTS.md](file:///d:/projects/interview_projects/spring/AGENTS.md):
+
+1. **LiteLLM Proxy Invariant:** Никаких прямых вызовов API провайдеров (OpenAI, Google) из кода приложения. Все вызовы строго через `LiteLLM_Proxy` с ротацией ключей и Circuit Breaker.
+2. **Dual-Sided Handshake & Audio Lockdown:** В голосовых сессиях микрофон разблокируется только после полного физического дренажа звука в наушниках (`onPlaybackFinished`) И события `turnComplete`. На 0-м шаге вызов оценочных тулов заблокирован.
+3. **Zero-Phantom-Fallback Invariant:** Запрещено возвращать фейковые или захардкоженные статические ответы под видом генерации. При сбоях — `TaskRecoveryCard` с честным таймером и паузой.
+4. **Deterministic Time & Money Invariant:** В задачах LLD запрещены прямые вызовы `System.currentTimeMillis()` и `Instant.now()`. Только `Clock`. Все деньги — `BigDecimal` с `RoundingMode.HALF_EVEN`.
+5. **Multi-Modal Reference-Counted Scroll Lock & 100dvh:** Вложенные дроверы и модалки используют `useBodyScrollLock`. Все экраны вписываются в `100dvh` без прыжков мобильной клавиатуры.
+6. **Single Source of Truth (SSOT) Progress:** Прогресс рассчитывается на бэкенде от реального количества вопросов в БД (`27`, а не `100`). `localStorage` никогда не перекрывает серверный стейт.
+
+---
+
+## 5. Процесс выполнения и перехода между этапами (Definition of Done)
+
+Переход к следующему этапу разрешен **только** после соблюдения чек-листа:
+- [ ] Полная реализация вертикального среза (Frontend + Backend + Database).
+- [ ] 0 ошибок компиляции `tsc && vite build` (Frontend) и `tsc` (Backend).
+- [ ] Автоматизированный интеграционный тест, покрывающий сценарий.
+- [ ] Соответствие дизайн-системе пастельной роскоши (WCAG AA контраст, темная/светлая гармония).
+- [ ] Фиксация изменений в чистом git-коммите с понятным описанием.
