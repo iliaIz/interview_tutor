@@ -27,45 +27,65 @@ interface WorkerEdgeData {
   trafficWeight?: number;
 }
 
-// Factorial helper with caching
-const factorialCache: number[] = [1, 1];
-function factorial(n: number): number {
-  if (n < 0) return 1;
-  if (factorialCache[n] !== undefined) return factorialCache[n];
-  let res = factorialCache[factorialCache.length - 1];
-  for (let i = factorialCache.length; i <= n; i++) {
-    res *= i;
-    factorialCache[i] = res;
+/**
+ * Numerically stable Erlang-B recurrence relation:
+ * B(0, A) = 1.0
+ * B(k, A) = (A * B(k-1, A)) / (k + A * B(k-1, A))
+ * Guarantees zero floating-point overflow for any c up to 10,000+ servers.
+ */
+export function erlangB(c: number, A: number): number {
+  if (c <= 0) return 1.0;
+  if (A <= 0) return 0.0;
+  let b = 1.0;
+  for (let k = 1; k <= c; k++) {
+    b = (A * b) / (k + A * b);
   }
-  return res;
+  return Math.max(0, Math.min(1.0, b));
 }
 
 /**
- * Erlang-C formula for M/M/c queueing systems
- * Calculates the probability that an arriving request must wait in queue
+ * Erlang-C formula for M/M/c queueing systems via stable Erlang-B recurrence.
+ * Calculates probability that an arriving request is delayed in queue.
+ * C(c, A) = B(c, A) / (1 - rho + rho * B(c, A)), where rho = A / c
  */
-function erlangC(c: number, rho: number): number {
+export function erlangC(c: number, rho: number): number {
   if (rho >= 1.0) return 1.0;
-  if (c <= 0) return 1.0;
-  const cRho = c * rho;
-  
-  // Sum term: sum_{k=0}^{c-1} (c*rho)^k / k!
-  let sum = 0;
-  for (let k = 0; k < c; k++) {
-    sum += Math.pow(cRho, k) / factorial(k);
-  }
-  
-  // Erlang numerator: (c*rho)^c / (c! * (1 - rho))
-  const numerator = Math.pow(cRho, c) / (factorial(c) * (1 - rho));
-  const pC = numerator / (sum + numerator);
-  return Math.max(0, Math.min(1.0, isNaN(pC) ? 1.0 : pC));
+  if (rho <= 0.001 || c <= 0) return 0.0;
+  const A = c * rho;
+  const b = erlangB(c, A);
+  const denom = 1.0 - rho + rho * b;
+  if (denom <= 0) return 1.0;
+  const cProb = b / denom;
+  return Math.max(0, Math.min(1.0, isNaN(cProb) ? 1.0 : cProb));
+}
+
+/**
+ * Allen-Cunneen / Kingman Heavy-Traffic queueing approximation for G/G/c systems.
+ * Accounts for variance in arrival intervals (Ca^2) and service times (Cs^2),
+ * realistically modeling cloud tail latencies (p95/p99) for databases and microservices.
+ */
+export function allenCunneenQueueWaitMs(
+  c: number,
+  lambda: number,
+  mu: number,
+  ca2: number = 1.0,
+  cs2: number = 1.0
+): number {
+  const capacity = c * mu;
+  if (capacity <= 0 || lambda <= 0) return 0;
+  const rho = lambda / capacity;
+  if (rho >= 1.0) return 5000; // Saturated queue bound
+
+  const pc = erlangC(c, rho);
+  const wqSec = (pc / (capacity * (1.0 - rho))) * ((ca2 + cs2) / 2.0);
+  return Math.max(0, Math.min(10000, wqSec * 1000));
 }
 
 /**
  * Pollaczek-Khinchine formula for M/G/1 database queues
  * Accounts for variance of service times (e.g. disk I/O, heavy joins)
  */
-function pollaczekKhinchine(lambda: number, mu: number, variance: number): number {
+export function pollaczekKhinchine(lambda: number, mu: number, variance: number): number {
   const rho = lambda / mu;
   if (rho >= 1.0) return 5000; // Saturated: high latency bound
   const wQ = (lambda * (variance + 1 / (mu * mu))) / (2 * (1 - rho));
@@ -312,20 +332,16 @@ class SimulationEngine {
           p50Ms = baseLatMs + 800 * (utilization - 0.9);
         } else if (utilization >= 0.80) {
           health = 'warning';
-          const pC = erlangC(c, utilization);
-          const wQ = (pC / (capacity - incomingRps)) * 1000; // ms
+          // Heavy-tail variance: databases & persistent stores have higher variance (disk I/O, lock contention)
+          const cs2 = node.type === 'database' ? 2.5 : node.type === 'cache' ? 0.8 : 1.2;
+          const wQ = allenCunneenQueueWaitMs(c, incomingRps, mu, 1.0, cs2);
           p50Ms = baseLatMs + wQ;
           queueLength = Math.round(incomingRps * (wQ / 1000));
         } else {
           health = 'healthy';
-          if (node.type === 'database') {
-            const variance = Math.pow(1 / mu, 2) * 1.5;
-            const wQ = pollaczekKhinchine(incomingRps, mu, variance) * 1000;
-            p50Ms = baseLatMs + wQ;
-          } else {
-            const pC = erlangC(c, Math.max(0.05, utilization));
-            p50Ms = baseLatMs + (pC * 5);
-          }
+          const cs2 = node.type === 'database' ? 2.0 : 1.0;
+          const wQ = allenCunneenQueueWaitMs(c, incomingRps, mu, 1.0, cs2);
+          p50Ms = baseLatMs + wQ;
           queueLength = Math.max(0, Math.round(incomingRps * 0.02 * utilization));
         }
       }
