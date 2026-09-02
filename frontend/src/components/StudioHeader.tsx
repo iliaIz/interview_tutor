@@ -3,8 +3,10 @@ import { useAppStore, StudioTab } from '../store/useAppStore';
 import { 
   Sparkles, Headphones, Loader2, AlertCircle, BookOpen, Bug, 
   Code2, Terminal, Layers, User, LogOut, Edit2, KeyRound, 
-  CheckCircle2, X, Activity, Server, Cpu
+  CheckCircle2, X, Activity, Server, Cpu, Brain
 } from 'lucide-react';
+import { MemoryRadarDrawer } from './MemoryRadarDrawer';
+import { fetchFsrsQueue } from '../services/fsrsApi';
 
 export const StudioHeader: React.FC = () => {
   const { 
@@ -21,7 +23,15 @@ export const StudioHeader: React.FC = () => {
   } = useAppStore();
 
   const [isHealthPopoverOpen, setIsHealthPopoverOpen] = useState(false);
+  const [isRadarOpen, setIsRadarOpen] = useState(false);
+  const [dueCount, setDueCount] = useState<number>(0);
   const healthPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void fetchFsrsQueue(5).then((data) => {
+      setDueCount(data.count || 0);
+    }).catch(() => {});
+  }, []);
 
   // Close health popover on outside click
   useEffect(() => {
@@ -214,6 +224,21 @@ export const StudioHeader: React.FC = () => {
             </button>
           )}
 
+          {/* FSRS-5 Memory Radar Quick Action */}
+          <button
+            onClick={() => setIsRadarOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-pastel-card hover:bg-pastel-rose/60 text-pastel-text border border-pastel-border shadow-2xs cursor-pointer transition active:scale-95 shrink-0"
+            title="Открыть Радар Памяти FSRS-5"
+          >
+            <Brain className="w-3.5 h-3.5 text-pastel-accentViolet" />
+            <span className="hidden xl:inline text-[11px]">Память</span>
+            {dueCount > 0 && (
+              <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-500 text-white animate-pulse">
+                {dueCount}
+              </span>
+            )}
+          </button>
+
           {renderHealthBadge()}
 
           {currentUser && (
@@ -250,6 +275,12 @@ export const StudioHeader: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Memory Radar Drawer */}
+      <MemoryRadarDrawer
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
+      />
     </header>
   );
 };

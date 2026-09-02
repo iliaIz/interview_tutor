@@ -120,6 +120,26 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS fsrs_card_states (
+    user_id TEXT NOT NULL DEFAULT 'default_user',
+    question_id TEXT NOT NULL,
+    stability REAL DEFAULT 1.0,
+    difficulty REAL DEFAULT 5.0,
+    elapsed_days REAL DEFAULT 0.0,
+    scheduled_days INTEGER DEFAULT 1,
+    reps INTEGER DEFAULT 0,
+    lapses INTEGER DEFAULT 0,
+    state INTEGER DEFAULT 0,
+    last_review_at DATETIME,
+    due_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, question_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_card_states(user_id, due_at);
+  CREATE INDEX IF NOT EXISTS idx_fsrs_state ON fsrs_card_states(user_id, state);
+
   CREATE TABLE IF NOT EXISTS bug_challenges (
     id TEXT PRIMARY KEY,
     topic_id TEXT NOT NULL,

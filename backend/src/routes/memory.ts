@@ -7,6 +7,8 @@ import {
   recordNewErrorGap,
   findRelevantCandidateGaps
 } from '../services/vectorMemoryService';
+import { getAuthUserId } from '../middleware/auth';
+import { getFsrsQueue, getFsrsStats, updateFsrsCardState } from '../services/fsrsEngine';
 
 const router = Router();
 
@@ -93,6 +95,56 @@ router.post('/record-gap', async (req, res) => {
   } catch (err: any) {
     console.error('Error recording gap:', err);
     res.status(500).json({ error: 'Failed to record gap' });
+  }
+});
+
+// GET /api/memory/fsrs/queue - Fetch questions requiring review (due_at <= now or R < 0.80)
+router.get('/fsrs/queue', (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const limit = parseInt(req.query.limit as string) || 10;
+    const queue = getFsrsQueue(userId, limit);
+    res.json({
+      queue,
+      count: queue.length,
+      estimatedMinutes: Math.max(1, Math.round(queue.length * 1.5))
+    });
+  } catch (err: any) {
+    console.error('Error fetching FSRS queue:', err);
+    res.status(500).json({ error: 'Failed to fetch FSRS queue' });
+  }
+});
+
+// GET /api/memory/fsrs/stats - Fetch FSRS memory health stats and 30-day Ebbinghaus curve
+router.get('/fsrs/stats', (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const stats = getFsrsStats(userId);
+    res.json(stats);
+  } catch (err: any) {
+    console.error('Error fetching FSRS stats:', err);
+    res.status(500).json({ error: 'Failed to fetch FSRS stats' });
+  }
+});
+
+// POST /api/memory/fsrs/review - Explicitly review a question with score/pass
+router.post('/fsrs/review', async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const { questionId, score, isPassed } = req.body;
+    if (!questionId || score === undefined) {
+      return res.status(400).json({ error: 'questionId and score are required' });
+    }
+    const result = await updateFsrsCardState({
+      userId,
+      questionId,
+      score: Number(score),
+      isPassed: Boolean(isPassed)
+    });
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error recording FSRS review:', err);
+    res.status(500).json({ error: 'Failed to record FSRS review' });
   }
 });
 

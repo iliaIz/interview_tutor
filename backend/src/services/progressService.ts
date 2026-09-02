@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { db } from './db';
 import { TOPIC_DEFINITIONS, TOPIC_MAP } from './topics';
+import { updateFsrsCardState } from './fsrsEngine';
 
 export interface RecordEvaluationParams {
   id?: string;
@@ -109,6 +110,14 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     audio_metrics: params.audioMetrics ? JSON.stringify(params.audioMetrics) : null,
     speech_coaching_json: params.speechCoaching ? JSON.stringify(params.speechCoaching) : null
   });
+
+  // 1.1 Update FSRS-5 memory state asynchronously
+  void updateFsrsCardState({
+    userId,
+    questionId: params.questionId,
+    score: params.score,
+    isPassed: params.isPassed
+  }).catch((err) => console.warn('FSRS state update warning:', err));
 
   // 2. Fetch existing user_progress
   const progressRow = db.prepare(

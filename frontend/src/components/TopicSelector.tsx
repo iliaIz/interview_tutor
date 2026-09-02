@@ -47,6 +47,9 @@ import {
   Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { DailySmartReviewBanner } from './DailySmartReviewBanner';
+import { MemoryRadarDrawer } from './MemoryRadarDrawer';
+import { FsrsQueueItemDTO } from '../types/fsrs';
 
 const ICON_MAP: Record<string, any> = {
   'coffee': Coffee,
@@ -105,6 +108,7 @@ export const TopicSelector: React.FC = () => {
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [isGlobalShuffle, setIsGlobalShuffle] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isRadarOpen, setIsRadarOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -306,6 +310,18 @@ export const TopicSelector: React.FC = () => {
     }
   };
 
+  const handleStartBlitzReview = (queueItems: FsrsQueueItemDTO[]) => {
+    if (!queueItems || queueItems.length === 0) return;
+    const questionsForStudy = queueItems.map((q, idx) => ({
+      id: q.questionId,
+      topic: q.topic,
+      question: q.question,
+      answer: q.answer,
+      num: idx + 1
+    }));
+    startStudyWithQuestions('fsrs_blitz', '⚡ Блиц-повторение (FSRS-5)', questionsForStudy as any);
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-20 text-center font-sans">
@@ -319,6 +335,12 @@ export const TopicSelector: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-fade-in font-sans pb-24">
+      {/* 0. Daily Smart Review Banner (FSRS-5 SOTA) */}
+      <DailySmartReviewBanner
+        onStartBlitz={handleStartBlitzReview}
+        onOpenRadar={() => setIsRadarOpen(true)}
+      />
+
       {/* 1. Hero Header Banner */}
       <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-5 sm:p-6 shadow-xs relative">
         <div className="absolute top-0 right-0 w-80 h-80 bg-pastel-accentRose/10 rounded-full blur-3xl pointer-events-none" />
@@ -755,6 +777,17 @@ export const TopicSelector: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Memory Radar Drawer (FSRS-5 SOTA) */}
+      <MemoryRadarDrawer
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
+        onSelectTopicForPractice={(topic) => {
+          setSelectedDomain('all');
+          setSearchQuery(topic);
+        }}
+        onStartBlitzWithQuestions={handleStartBlitzReview}
+      />
     </div>
   );
 };
