@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { fetchFsrsQueue } from '../services/fsrsApi';
+import { GlobalAudioControlPill } from './voice/GlobalAudioControlPill';
 
 export const StudioHeader: React.FC = () => {
   const { 
@@ -238,6 +239,9 @@ export const StudioHeader: React.FC = () => {
               </span>
             )}
           </button>
+ 
+          {/* SOTA 2026 Global Audio Control & Ambient Status */}
+          <GlobalAudioControlPill />
 
           {renderHealthBadge()}
 

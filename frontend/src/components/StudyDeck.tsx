@@ -37,19 +37,39 @@ export const StudyDeck: React.FC = () => {
     setQuestionEvaluation,
     updateTopicProgress
   } = useAppStore();
+const TUTOR_MODES = [
+  { id: 'deep_dive' as const, label: 'Под капотом', icon: '🔬', desc: 'Глубокий разбор JVM, байткода, concurrency и edge cases' },
+  { id: 'socratic' as const, label: 'Сократ', icon: '💡', desc: 'Наводящие вопросы и совместный поиск решения' },
+  { id: 'eli5' as const, label: 'На пальцах', icon: '👶', desc: 'Простые жизненные аналогии без сложного академического жаргона' },
+  { id: 'free_chat' as const, label: 'Свободный', icon: '💬', desc: 'Ответы на любые ваши вопросы без рамок' }
+];
+
+const getTutorModeLabel = (mode: string) => {
+  const found = TUTOR_MODES.find(m => m.id === mode);
+  return found ? found.label : 'Под капотом';
+};
+
   const [copied, setCopied] = React.useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [voiceModalSessionType, setVoiceModalSessionType] = useState<'interview' | 'tutor'>('interview');
-  const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>('deep_dive');
+  const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>(() => {
+    return (localStorage.getItem('interview_tutor_mode') as any) || 'deep_dive';
+  });
   const [showAnswer, setShowAnswer] = useState(true);
   const [quickQuestionText, setQuickQuestionText] = useState('');
   const [customPromptForTutor, setCustomPromptForTutor] = useState('');
+
+  const handleSelectTutorMode = (mode: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat') => {
+    setVoiceModalTutorMode(mode);
+    try {
+      localStorage.setItem('interview_tutor_mode', mode);
+    } catch {}
+  };
 
   const handleLaunchTutorWithPrompt = (prompt?: string) => {
     const text = (prompt !== undefined ? prompt : quickQuestionText).trim();
     setCustomPromptForTutor(text);
     setVoiceModalSessionType('tutor');
-    setVoiceModalTutorMode('deep_dive');
     setIsVoiceOpen(true);
     setQuickQuestionText('');
   };
@@ -183,13 +203,12 @@ export const StudyDeck: React.FC = () => {
                 <button
                   onClick={() => {
                     setVoiceModalSessionType('tutor');
-                    setVoiceModalTutorMode('deep_dive');
                     setIsVoiceOpen(true);
                   }}
                   className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95"
-                  title="Обсудить устройство под капотом голосом с AI-тьютором"
+                  title="Обсудить вопрос голосом с AI-тьютором в выбранном режиме"
                 >
-                  <Brain className="w-3.5 h-3.5" /> Тьютор (Deep Dive)
+                  <Brain className="w-3.5 h-3.5" /> Тьютор ({getTutorModeLabel(voiceModalTutorMode)})
                 </button>
 
                 {activeEvaluation && (
@@ -310,8 +329,32 @@ export const StudyDeck: React.FC = () => {
                 )}
               </AnimatePresence>
 
-              {/* Quick Ask AI Tutor Bar */}
-              <div className="mt-5 pt-4 border-t border-pastel-border/60">
+              {/* Quick Ask AI Tutor Bar with Visible Mode Chips */}
+              <div className="mt-5 pt-4 border-t border-pastel-border/60 space-y-2">
+                {/* Contextual Mode Micro-Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  <span className="text-[10px] font-bold text-pastel-muted uppercase tracking-wider shrink-0 mr-1">Режим:</span>
+                  {TUTOR_MODES.map((m) => {
+                    const isSelected = voiceModalTutorMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleSelectTutorMode(m.id)}
+                        title={m.desc}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shrink-0 active:scale-95 ${
+                          isSelected
+                            ? 'bg-pastel-accentViolet text-white shadow-xs border border-pastel-accentViolet'
+                            : 'bg-white/80 hover:bg-white text-pastel-muted hover:text-pastel-text border border-pastel-border'
+                        }`}
+                      >
+                        <span>{m.icon}</span>
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-pastel-lavender/30 border border-pastel-accentViolet/20 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/30 focus-within:border-pastel-accentViolet/50 transition-all">
                   <Brain className="w-4 h-4 text-pastel-accentViolet ml-2 shrink-0" />
                   <input
@@ -323,7 +366,7 @@ export const StudyDeck: React.FC = () => {
                         handleLaunchTutorWithPrompt(quickQuestionText.trim());
                       }
                     }}
-                    placeholder="💬 Спросить Тьютора по этой карточке (текстом или в наушники)..."
+                    placeholder={`💬 Спросить Тьютора [${getTutorModeLabel(voiceModalTutorMode)}] текстом или в наушники...`}
                     className="flex-1 px-2 py-1 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none"
                   />
                   <button
@@ -333,14 +376,13 @@ export const StudyDeck: React.FC = () => {
                         handleLaunchTutorWithPrompt(quickQuestionText.trim());
                       } else {
                         setVoiceModalSessionType('tutor');
-                        setVoiceModalTutorMode('deep_dive');
                         setIsVoiceOpen(true);
                       }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Спросить</span>
+                    <span>Спросить ({getTutorModeLabel(voiceModalTutorMode)})</span>
                   </button>
                 </div>
               </div>

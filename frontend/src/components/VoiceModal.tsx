@@ -514,6 +514,20 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
   }, [isOpen]);
 
+  // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled
+  const hasAutoLaunchedRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      hasAutoLaunchedRef.current = false;
+      return;
+    }
+    const currentConfig = getActiveConfig();
+    if (stage === 'lobby' && !currentConfig.alwaysShowPreflight && !hasAutoLaunchedRef.current) {
+      hasAutoLaunchedRef.current = true;
+      void startLiveInterviewWithIndex(activeBatchIndex);
+    }
+  }, [isOpen, stage, activeBatchIndex]);
+
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {
     dialogueTurnsRef.current = dialogueTurns;
@@ -1477,6 +1491,53 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   /**
+   * SOTA 2026 In-Flight Steering: Dynamically change Tutor Mode mid-flight without breaking audio session
+   */
+  const handleSteerTutorMode = (newMode: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat') => {
+    setTutorMode(newMode);
+    try {
+      localStorage.setItem('interview_tutor_mode', newMode);
+    } catch {}
+
+    const modeDirectives: Record<string, string> = {
+      socratic: 'Теперь не объясняй сам подробно, а задавай мне наводящие вопросы и веди сократический диалог.',
+      eli5: 'Объясняй на простых жизненных аналогиях, без сложного академического жаргона, максимально доходчиво.',
+      deep_dive: 'Веди глубокий технический разбор под капотом: устройство JVM, байткод, структуры данных, concurrency и крайние случаи.',
+      free_chat: 'Свободный диалог: отвечай на любые вопросы кандидата в естественной манере.'
+    };
+
+    const labelMap: Record<string, string> = {
+      deep_dive: '🔬 Под капотом',
+      socratic: '💡 Сократ',
+      eli5: '👶 На пальцах',
+      free_chat: '💬 Свободный'
+    };
+
+    const directive = `[СИСТЕМНАЯ ДИРЕКТИВА: СМЕНА РЕЖИМА]: Смени стиль ведения диалога на режим "${newMode}". ${modeDirectives[newMode] || ''}`;
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: 'user',
+              parts: [{ text: directive }]
+            }],
+            turnComplete: true
+          }
+        }));
+      } catch (e) {
+        console.warn('Failed to send in-flight steering directive:', e);
+      }
+    }
+
+    setDialogueTurns((prev) => [
+      ...prev,
+      { role: 'system', text: `🔄 Стиль наставника изменён на: ${labelMap[newMode] || newMode}` }
+    ]);
+  };
+
+  /**
    * Advance to the next question in the batch seamlessly (Hands-Free Reconnect)
    */
   const advanceToNextQuestion = (nextIndex: number) => {
@@ -2162,7 +2223,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             activeQuestionText={activeQuestionText}
             activeReferenceAnswer={activeReferenceAnswer}
             tutorMode={tutorMode}
-            setTutorMode={setTutorMode}
+            setTutorMode={handleSteerTutorMode}
             startLiveInterview={startLiveInterview}
             systemHealth={systemHealth}
             setIsSettingsOpen={setIsSettingsOpen}

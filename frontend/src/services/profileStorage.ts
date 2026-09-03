@@ -168,6 +168,7 @@ export async function deleteUserProfile(profileId: string): Promise<void> {
 export function getActiveConfig(): InterviewConfig {
   const userGender = (localStorage.getItem('interview_user_gender') as any) || 'female';
   const turnMode = (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+  const alwaysShowPreflight = localStorage.getItem('interview_always_show_preflight') === 'true';
 
   try {
     const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
@@ -176,14 +177,16 @@ export function getActiveConfig(): InterviewConfig {
       return {
         ...parsed,
         userGender: parsed.userGender || userGender,
-        turnMode: parsed.turnMode || turnMode
+        turnMode: parsed.turnMode || turnMode,
+        alwaysShowPreflight: typeof parsed.alwaysShowPreflight === 'boolean' ? parsed.alwaysShowPreflight : alwaysShowPreflight
       };
     }
   } catch {}
   return {
     ...BUILT_IN_PROFILES[0].config,
     userGender,
-    turnMode
+    turnMode,
+    alwaysShowPreflight
   };
 }
 
@@ -195,7 +198,13 @@ export function saveActiveConfig(config: InterviewConfig): void {
     if (config.turnMode) {
       localStorage.setItem('interview_turn_mode', config.turnMode);
     }
+    if (typeof config.alwaysShowPreflight === 'boolean') {
+      localStorage.setItem('interview_always_show_preflight', String(config.alwaysShowPreflight));
+    }
     localStorage.setItem(ACTIVE_CONFIG_KEY, JSON.stringify(config));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('interview_config_updated', { detail: config }));
+    }
   } catch (err) {
     console.error('Error saving active config:', err);
   }

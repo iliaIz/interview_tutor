@@ -234,11 +234,32 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
         {stage === 'active' && (
           <div className="flex-1 flex flex-col min-h-0 justify-between">
             <div>
-              <div className="px-3 py-1.5 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[10px] text-pastel-text/85 flex items-center justify-between shrink-0 mb-2">
-                <span className="flex items-center gap-1 font-semibold">
-                  🧠 {tutorMode === 'deep_dive' ? 'Разбор под капотом' : tutorMode === 'socratic' ? 'Сократический наставник' : tutorMode === 'eli5' ? 'Простыми словами' : 'Свободный диалог'}
-                </span>
-                <span className="text-[10px] text-pastel-accentViolet font-bold">
+              <div className="px-2.5 py-1.5 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[10px] text-pastel-text/85 flex items-center justify-between shrink-0 mb-2 gap-1 flex-wrap">
+                <div className="flex items-center gap-1 font-semibold">
+                  <span className="shrink-0">🧠 Режим:</span>
+                  <div className="flex items-center gap-0.5 bg-white/80 p-0.5 rounded-lg border border-pastel-border/60">
+                    {[
+                      { id: 'deep_dive' as const, label: '🔬 Под капотом' },
+                      { id: 'socratic' as const, label: '💡 Сократ' },
+                      { id: 'eli5' as const, label: '👶 На пальцах' },
+                      { id: 'free_chat' as const, label: '💬 Свободный' }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setTutorMode(m.id)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                          tutorMode === m.id
+                            ? 'bg-pastel-accentViolet text-white shadow-2xs'
+                            : 'text-pastel-muted hover:text-pastel-text hover:bg-white'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[10px] text-pastel-accentViolet font-bold shrink-0">
                   {interviewConfig.voice}
                 </span>
               </div>
