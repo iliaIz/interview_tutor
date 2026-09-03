@@ -31,7 +31,8 @@ export class AudioPlayoutManager {
     if (this.masterGain && this.context && this.context.state !== 'closed') {
       const now = this.context.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(muted ? 0.0 : 1.5, now);
+      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.linearRampToValueAtTime(muted ? 0.0 : 1.5, now + 0.005);
     }
   }
 
@@ -324,10 +325,13 @@ export class AudioPlayoutManager {
         source.disconnect();
       } catch {}
       this.activeSources.delete(source);
+      if (!this.context || this.context.state === 'closed') {
+        return;
+      }
       if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
         if (this.drainTimer) clearTimeout(this.drainTimer);
         this.drainTimer = setTimeout(() => {
-          if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+          if (this.context && this.context.state !== 'closed' && this.activeSources.size === 0 && this.pendingSamples.length === 0) {
             this.onPlaybackFinished?.();
           }
         }, 150);
@@ -430,11 +434,14 @@ export class AudioPlayoutManager {
         source.disconnect();
       } catch {}
       this.activeSources.delete(source);
+      if (!this.context || this.context.state === 'closed') {
+        return;
+      }
       if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
         if (this.drainTimer) clearTimeout(this.drainTimer);
         // SOTA 2026: 600ms inter-chunk buffer prevents premature mic activation during network jitter
         this.drainTimer = setTimeout(() => {
-          if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
+          if (this.context && this.context.state !== 'closed' && this.activeSources.size === 0 && this.pendingSamples.length === 0) {
             this.onPlaybackFinished?.();
           }
         }, 600);
@@ -543,6 +550,11 @@ export class AudioPlayoutManager {
   }
 
   public async teardown(): Promise<void> {
+    this.onPlaybackFinished = undefined;
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
     this.handleInterruption();
     if (this.interruptionTimer) {
       clearTimeout(this.interruptionTimer);

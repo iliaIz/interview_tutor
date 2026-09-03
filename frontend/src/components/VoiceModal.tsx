@@ -72,6 +72,16 @@ import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceTutorView } from './voice/VoiceTutorView';
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
 interface VoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -196,6 +206,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const isMountedRef = useRef<boolean>(true);
   const activeAbortControllersRef = useRef<Set<AbortController>>(new Set());
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      abortAllInFlightRequests();
+    };
+  }, []);
+
   const createManagedAbortSignal = () => {
     const controller = new AbortController();
     activeAbortControllersRef.current.add(controller);
@@ -297,6 +315,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const userPcmChunksRef = useRef<Float32Array[]>([]);
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const turnWatchdogRef = useRef<NodeJS.Timeout[]>([]);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const isEvaluationFinalizedRef = useRef(false);
@@ -541,11 +560,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Synchronize initialQuestionIndex & Checkpoint when opened
   useEffect(() => {
     if (!isOpen) {
+      abortAllInFlightRequests();
       teardownFullAudio();
       setStage('lobby');
       return;
     }
 
+    isMountedRef.current = true;
     setSessionType(initialSessionType || 'interview');
     setTutorMode(initialTutorMode || 'deep_dive');
 
@@ -583,7 +604,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isSessionPausedRef.current = false;
 
     return () => {
-      isMountedRef.current = false;
       abortAllInFlightRequests();
       teardownFullAudio();
     };
@@ -665,6 +685,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;
+    }
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
     if (wsRef.current) {
       wsRef.current.onopen = null;
@@ -754,10 +778,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     });
 
     // SOTA 2026: Prefetch One-Time WS Ticket for Zero-Trust Gemini Live Handshake
+    const { signal: ticketSignal, cleanup: ticketCleanup } = createManagedAbortSignal();
     try {
       const ticketRes = await fetch('/api/auth/ws-ticket', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        signal: ticketSignal
       });
       if (ticketRes.ok) {
         const ticketData = await ticketRes.json();
@@ -767,6 +793,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
     } catch (e) {
       console.warn('Could not prefetch WS ticket, relying on cookie auth fallback:', e);
+    } finally {
+      ticketCleanup();
+    }
+
+    if (!isMountedRef.current || !isOpen) {
+      console.log('Modal unmounted/closed while prefetching ticket. Aborting connection.');
+      return;
     }
 
     const wsUrl = `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
@@ -1064,8 +1097,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             { role: 'system', text: '🔄 Соединение обновлено, контекст сохранен. Продолжаем...' }
           ]);
 
-          setTimeout(() => {
-            if (!isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+          if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+          }
+          reconnectTimerRef.current = setTimeout(() => {
+            reconnectTimerRef.current = null;
+            if (isMountedRef.current && !isEvaluationFinalizedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
               connectLiveWebSocket(activeBatchIndex, targetQ, false, true);
             }
           }, 500);
@@ -1379,11 +1416,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         }
       }
       const bytes = new Uint8Array(mergedInt16.buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Pcm = btoa(binary);
+      const base64Pcm = uint8ArrayToBase64(bytes);
 
       turnCountRef.current++;
 
@@ -1764,14 +1797,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   };
 
-  // Spacebar toggle listener for Voice Hold state
+  // Keyboard shortcuts: Spacebar toggle for Voice Hold & Escape for Barge-In
   useEffect(() => {
     if (!isOpen || stage !== 'active') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'Space' && isSessionPaused) {
+      if (e.code === 'Space') {
         e.preventDefault();
         void toggleSessionPause();
+      } else if (e.code === 'Escape') {
+        e.preventDefault();
+        if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+          handleClientBargeIn();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1852,6 +1890,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         },
         video: false,
       });
+
+      // TECH-03 Guard: If modal was closed while browser prompt was active, release hardware tracks immediately
+      if (!isMountedRef.current || !isOpen) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       mediaStreamRef.current = stream;
 
       const audioCtx =
@@ -1864,6 +1909,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
 
       await audioCtx.audioWorklet.addModule('/worklets/audio-capture-processor.js');
+
+      if (!isMountedRef.current || !isOpen) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
 
       const sourceNode = audioCtx.createMediaStreamSource(stream);
       mediaStreamSourceRef.current = sourceNode;
@@ -1937,12 +1987,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             !isSessionPausedRef.current;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            const bytes = new Uint8Array(pcmBuffer);
-            let binary = '';
-            for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const base64Audio = btoa(binary);
+            const base64Audio = uint8ArrayToBase64(new Uint8Array(pcmBuffer));
 
             const realtimeInput = {
               realtime_input: {
@@ -2072,9 +2117,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       int16[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
     }
     const bytes = new Uint8Array(int16.buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
+    return uint8ArrayToBase64(bytes);
   };
 
   const computeLocalAcoustics = (
@@ -2292,12 +2335,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     // Safety fallback watchdog (6.5s as mandated by AGENTS.md)
     if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
     fallbackTimeoutRef.current = setTimeout(async () => {
-      if (isEvaluationFinalizedRef.current) return;
+      fallbackTimeoutRef.current = null;
+      if (isEvaluationFinalizedRef.current || !isMountedRef.current) return;
       console.warn('Live toolCall timeout (6.5s). Executing instant fallback evaluation...');
+      const { signal: fallbackSignal, cleanup: fallbackCleanup } = createManagedAbortSignal();
       try {
         const res = await fetch('/api/eval', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: fallbackSignal,
           body: JSON.stringify({
             questionId: activeQuestionId,
             topic: activeTopic,
@@ -2306,15 +2352,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             userAnswer: transcriptRef.current || 'Устный ответ кандидата в Gemini Live'
           })
         });
-        if (res.ok) {
+        if (res.ok && isMountedRef.current) {
           const fallbackData = await res.json();
-          finalizeEvaluation(fallbackData, activeQuestionId, activeBatchIndex);
-        } else {
+          if (isMountedRef.current) {
+            finalizeEvaluation(fallbackData, activeQuestionId, activeBatchIndex);
+          }
+        } else if (isMountedRef.current) {
           setIsSubmitting(false);
         }
       } catch (err) {
         console.error('Fallback eval error:', err);
-        setIsSubmitting(false);
+        if (isMountedRef.current) {
+          setIsSubmitting(false);
+        }
+      } finally {
+        fallbackCleanup();
       }
     }, 6500);
   };

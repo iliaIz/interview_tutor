@@ -50,6 +50,12 @@ export {
 
 dotenv.config();
 
+function toRawBuffer(data: RawData): Buffer {
+  if (Buffer.isBuffer(data)) return data;
+  if (Array.isArray(data)) return Buffer.concat(data);
+  return Buffer.from(data);
+}
+
 interface ProxySession {
   clientSocket: WebSocket;
   geminiSocket: WebSocket;
@@ -303,7 +309,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     });
 
     geminiSocket.on('message', async (data: RawData) => {
-      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      const buffer = toRawBuffer(data);
       const str = buffer.toString('utf8');
       let isToolCallProcessed = false;
 
@@ -557,7 +563,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     clientSocket.on('message', (data: RawData) => {
       session.lastActivityAt = Date.now();
-      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      const buffer = toRawBuffer(data);
       let payloadBuffer = buffer;
 
       try {
@@ -595,6 +601,21 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             mem.lastSpeaker = mem.turns[mem.turns.length - 1]?.role || 'none';
             mem.updatedAt = Date.now();
             console.log(`📥 Seeded session memory from client resume_sync frame: ${mem.turns.length} turns for session ${session.sessionId}`);
+
+            // If setupComplete already arrived before resume_sync, replay history upstream now!
+            if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
+              const replayTurns = mem.turns.map((t) => ({
+                role: t.role,
+                parts: [{ text: t.text }]
+              }));
+              console.log(`🔄 Replaying ${replayTurns.length} turns to upstream Live model after resume_sync...`);
+              geminiSocket.send(JSON.stringify({
+                clientContent: {
+                  turns: replayTurns,
+                  turnComplete: false
+                }
+              }));
+            }
           }
           return;
         }
@@ -700,6 +721,13 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       if (session.nudgeWatchdog) {
         clearTimeout(session.nudgeWatchdog);
         session.nudgeWatchdog = null;
+      }
+      if (session.currentAiTurnText && session.sessionId) {
+        const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+        mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+        mem.lastSpeaker = 'model';
+        mem.updatedAt = Date.now();
+        session.currentAiTurnText = '';
       }
       session.frameQueue = [];
       if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {

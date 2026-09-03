@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
 import { transcribeWithDeepgram } from '../services/deepgramService';
-import { synthesizeTTSBuffer } from '../services/podcast';
+import { synthesizeTTSBuffer, synthesizeTTSWithRetry } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
 import { getOrCreateSessionMemory } from '../services/geminiLiveProxy';
 import { getAuthUserId } from '../middleware/auth';
@@ -19,6 +19,45 @@ const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
 
 function sanitizeVoice(v: any): string {
   return VALID_VOICES.includes(v) ? v : 'Kore';
+}
+
+/**
+ * Full-Jitter Exponential Backoff (AGENTS.md Invariant 5):
+ * T = random(0, min(2500, 800 * 1.8^attempt))
+ */
+async function fetchWithFullJitterRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 2
+): Promise<globalThis.Response> {
+  let lastError: any = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const backoffCapMs = 2500;
+      const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
+      const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
+      console.log(`⏱️ LiteLLM retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
+      await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
+    }
+
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) {
+        return res;
+      }
+      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        const errTxt = await res.text();
+        lastError = new Error(`LiteLLM transient error (${res.status}): ${errTxt}`);
+        console.warn(`[LiteLLM Transient ${res.status}] Attempt ${attempt}/${maxRetries}:`, errTxt.slice(0, 100));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[LiteLLM Network Error] Attempt ${attempt}/${maxRetries}:`, err);
+    }
+  }
+  throw lastError || new Error(`LiteLLM request failed after ${maxRetries} retries`);
 }
 
 function parseReasoningJson(raw: string, isTutorMode: boolean): any {
@@ -126,7 +165,7 @@ ${genderDirective}
     const proxyApiKey = envConfig.proxy.apiKey;
     const modelName = envConfig.models.fast;
 
-    const chatResponse = await fetch(endpointUrl, {
+    const chatResponse = await fetchWithFullJitterRetry(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -147,8 +186,8 @@ ${genderDirective}
     const chatData = await chatResponse.json();
     const greetingText = chatData.choices?.[0]?.message?.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
 
-    // Synthesize TTS
-    const ttsBuf = await synthesizeTTSBuffer(greetingText, voice);
+    // Synthesize TTS with retry
+    const { buffer: ttsBuf } = await synthesizeTTSWithRetry(greetingText, voice);
     const audioBase64 = ttsBuf.toString('base64');
 
     return res.json({
@@ -311,7 +350,7 @@ ${decisionRules}
       { role: 'user', content: candidateText }
     ];
 
-    const proxyRes = await fetch(endpointUrl, {
+    const proxyRes = await fetchWithFullJitterRetry(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -336,7 +375,7 @@ ${decisionRules}
     const rawContent = proxyData.choices?.[0]?.message?.content || '{}';
     const reasoningResult = parseReasoningJson(rawContent, isTutorMode);
 
-    // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3
+    // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3 with retry
     let textToVoice = '';
     if (reasoningResult.action === 'probe') {
       textToVoice = reasoningResult.replyText || 'Расскажи подробнее об этой части.';
@@ -344,7 +383,7 @@ ${decisionRules}
       textToVoice = reasoningResult.spokenFeedback || reasoningResult.feedback || 'Спасибо за ответ! Оценка сформирована.';
     }
 
-    const ttsBuf = await synthesizeTTSBuffer(textToVoice, voice);
+    const { buffer: ttsBuf } = await synthesizeTTSWithRetry(textToVoice, voice);
     const audioBase64Out = ttsBuf.toString('base64');
 
     if (sessionId && textToVoice) {
