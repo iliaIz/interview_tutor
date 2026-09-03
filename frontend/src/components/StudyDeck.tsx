@@ -35,7 +35,8 @@ export const StudyDeck: React.FC = () => {
     evaluationsMap,
     openReportModal,
     setQuestionEvaluation,
-    updateTopicProgress
+    updateTopicProgress,
+    openTransactionLab
   } = useAppStore();
 const TUTOR_MODES = [
   { id: 'deep_dive' as const, label: 'Под капотом', icon: '🔬', desc: 'Глубокий разбор JVM, байткода, concurrency и edge cases' },
@@ -234,6 +235,33 @@ const getTutorModeLabel = (mode: string) => {
             <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-5 leading-snug">
               {currentQ.question}
             </h2>
+
+            {/* Direct Bridge to Spring Transaction Playground (SOTA 2026 Workbench) */}
+            {(currentQ.question.toLowerCase().includes('транзакц') || currentQ.question.includes('@Transactional')) && (
+              <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-700 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl shrink-0">
+                    ⚡
+                  </div>
+                  <div>
+                    <div className="font-black text-xs sm:text-sm tracking-tight">
+                      Интерактивный симулятор: Spring Transaction Playground (SOTA 2026)
+                    </div>
+                    <div className="text-[11px] text-violet-100 leading-snug">
+                      Исследуйте физику @Transactional, дедлоки HikariCP и теорему Вулдриджа на живом верстаке.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openTransactionLab('self_invocation_bypass')}
+                  className="py-2 px-4 rounded-xl bg-white text-violet-900 font-extrabold text-xs shadow hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <span>🎯 Закрепить на практике</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Reference Answer Section with Collapsible Toggle for Self-Testing */}
             <div className="border-t border-pastel-border/60 pt-5">

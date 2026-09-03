@@ -23,12 +23,15 @@ import {
   Filter,
   Terminal,
   Play,
-  Bug
+  Bug,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 
 const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
+  { id: 'spring_transactions', name: 'Spring Transactions Lab', icon: Database, badge: 'SOTA 2026' },
   { id: 'testing_mutation', name: 'Testing & Mutation', icon: Bug, badge: 'Kill Mutants' },
   { id: 'lld_bigtech', name: 'BigTech LLD', icon: Layers, badge: 'Яндекс/Озон' },
   { id: 'lld_fintech', name: 'FinTech & Ledger', icon: Crown, badge: 'Т-Банк/Stripe' },
@@ -38,7 +41,7 @@ const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentTy
 ];
 
 export const PracticeCatalog: React.FC = () => {
-  const { openPracticeChallenge, showToast } = useAppStore();
+  const { openPracticeChallenge, openTransactionLab, showToast } = useAppStore();
   const [challenges, setChallenges] = useState<CodingChallenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory>('all');
@@ -243,7 +246,70 @@ export const PracticeCatalog: React.FC = () => {
       </div>
 
       {/* 3. MASTER-DETAIL SPLIT STUDIO LAYOUT (SOTA 2026) */}
-      {filteredChallenges.length === 0 ? (
+      {selectedCategory === 'spring_transactions' ? (
+        <div className="space-y-4 animate-fade-in">
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-700 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 border border-white/30">
+                  Explorable Systems Workbench
+                </span>
+                <span className="text-[10px] text-violet-200 font-mono">11 Канонических Сценариев</span>
+              </div>
+              <h3 className="text-lg font-black tracking-tight">
+                Spring Transaction Playground (@Transactional Lab)
+              </h3>
+              <p className="text-xs text-violet-100 leading-relaxed">
+                Интерактивный симулятор физики транзакций Spring Framework: двухконтурный Flame Chart (AOP vs JDBC), обойма слотов HikariCP, теорема Вулдриджа под нагрузкой и Сократическая защита с ИИ.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openTransactionLab()}
+              className="py-2.5 px-5 rounded-2xl bg-white text-violet-900 font-extrabold text-xs shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2 shrink-0"
+            >
+              <Zap className="w-4 h-4 text-violet-600" />
+              <span>Запустить лабораторию</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {TRANSACTION_LAB_SCENARIOS.map((sc, idx) => (
+              <div
+                key={sc.id}
+                className="p-5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-violet-300 transition-all flex flex-col justify-between space-y-3 group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                      #{idx + 1} &bull; {sc.difficulty}
+                    </span>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                      {sc.badge}
+                    </span>
+                  </div>
+                  <h4 className="font-extrabold text-sm text-slate-900 group-hover:text-violet-700 transition">
+                    {sc.title}
+                  </h4>
+                  <div className="text-[11px] font-medium text-slate-500">{sc.domain}</div>
+                  <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                    {sc.problemStatement}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openTransactionLab(sc.id)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-violet-600 hover:text-white text-slate-800 font-bold text-xs border border-slate-200 group-hover:border-violet-600 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <span>Исследовать кейс</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : filteredChallenges.length === 0 ? (
         <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
           <Code2 className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
           <h3 className="text-base font-bold text-pastel-text">Задачи не найдены</h3>

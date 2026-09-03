@@ -4,6 +4,7 @@ import { PracticeCatalog } from './PracticeCatalog';
 import { ChallengeSpecPanel } from './ChallengeSpecPanel';
 import { WorkspaceEditor } from './WorkspaceEditor';
 import { PracticeEvaluationModal } from './PracticeEvaluationModal';
+import { TransactionLabArena } from './TransactionLabArena';
 import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2 } from 'lucide-react';
 
 export const PracticeArena: React.FC = () => {
@@ -13,11 +14,24 @@ export const PracticeArena: React.FC = () => {
     activePracticeReport,
     setActivePracticeReport,
     academyBreadcrumbContext,
-    returnToAcademyStep
+    returnToAcademyStep,
+    activeTransactionLabScenarioId,
+    closeTransactionLab
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
   const [isFocusMode, setIsFocusMode] = useState(false);
+
+  if (activeTransactionLabScenarioId !== null) {
+    return (
+      <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
+        <TransactionLabArena
+          initialScenarioId={activeTransactionLabScenarioId}
+          onBack={closeTransactionLab}
+        />
+      </div>
+    );
+  }
 
   if (!activePracticeChallenge) {
     return <PracticeCatalog />;

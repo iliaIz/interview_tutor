@@ -82,6 +82,52 @@ export class AudioPlayoutManager {
     }
   }
 
+  /**
+   * Procedural Voice Hold & Resume Chimes (220Hz low warm hold tone, 440-660Hz major resume chime)
+   */
+  public playHoldChime(isHold: boolean): void {
+    if (this.isMuted) return;
+    try {
+      const { context, masterGain } = this.ensureContext();
+      if (context.state !== 'running') return;
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      const now = context.currentTime;
+      osc.type = 'sine';
+      if (isHold) {
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(180, now + 0.15);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.07, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+      } else {
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+      }
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 0.20);
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch {}
+      };
+    } catch {}
+  }
+
+  public async suspend(): Promise<void> {
+    if (this.context && this.context.state === 'running') {
+      try {
+        await this.context.suspend();
+      } catch {}
+    }
+  }
+
   public getContext(): AudioContext {
     return this.ensureContext().context;
   }

@@ -199,6 +199,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [thinkingStage, setThinkingStage] = useState<'idle' | 'processing' | 'delayed' | 'critical'>('idle');
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [isPauseHolding, setIsPauseHolding] = useState<boolean>(false);
+  const [isSessionPaused, setIsSessionPaused] = useState<boolean>(false);
+  const isSessionPausedRef = useRef<boolean>(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isConnectionLost, setIsConnectionLost] = useState(false);
   const [rmsDb, setRmsDb] = useState<number>(-60);
@@ -508,6 +510,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     transcriptRef.current = '';
     isEvaluationFinalizedRef.current = false;
     setIsSubmitting(false);
+    setIsSessionPaused(false);
+    isSessionPausedRef.current = false;
 
     return () => {
       teardownFullAudio();
@@ -1538,6 +1542,58 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   /**
+   * SOTA 2026 Voice Hold State: Coffee Break / Technical Pause without evaluation
+   */
+  const toggleSessionPause = async () => {
+    if (stage !== 'active') return;
+    const nextState = !isSessionPaused;
+    setIsSessionPaused(nextState);
+    isSessionPausedRef.current = nextState;
+
+    if (nextState) {
+      // Pausing session:
+      playoutManagerRef.current?.playHoldChime(true);
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      setIsPauseHolding(false);
+      setIsUserSpeaking(false);
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      await playoutManagerRef.current?.suspend();
+      setDialogueTurns((prev) => [
+        ...prev,
+        { role: 'system', text: '⏸️ Диалог временно приостановлен. Оценка не начисляется.' }
+      ]);
+    } else {
+      // Resuming session:
+      await playoutManagerRef.current?.resume();
+      playoutManagerRef.current?.playHoldChime(false);
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      setDialogueTurns((prev) => [
+        ...prev,
+        { role: 'system', text: '▶️ Диалог возобновлен.' }
+      ]);
+    }
+  };
+
+  // Spacebar toggle listener for Voice Hold state
+  useEffect(() => {
+    if (!isOpen || stage !== 'active') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space' && isSessionPaused) {
+        e.preventDefault();
+        void toggleSessionPause();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, stage, isSessionPaused]);
+
+  /**
    * Advance to the next question in the batch seamlessly (Hands-Free Reconnect)
    */
   const advanceToNextQuestion = (nextIndex: number) => {
@@ -2260,6 +2316,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               void startLiveInterview();
             }}
             textInputRef={textInputRef}
+            isSessionPaused={isSessionPaused}
+            onToggleSessionPause={toggleSessionPause}
           />
         ) : (
           /* ========================================================================= */
@@ -2309,6 +2367,31 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             {/* STAGE 2: ACTIVE LIVE SESSION */}
             {stage === 'active' && (
               <>
+                {/* SOTA 2026 Voice Hold Overlay (Amber Frosted Glow) */}
+                {isSessionPaused && (
+                  <div className="absolute inset-0 z-50 bg-amber-950/40 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center rounded-3xl animate-fade-in">
+                    <div className="bg-white/95 rounded-3xl p-6 sm:p-8 max-w-md shadow-2xl border border-amber-200/90 flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-amber-100/90 text-amber-700 flex items-center justify-center text-3xl shadow-inner animate-pulse">
+                        ⏸️
+                      </div>
+                      <h3 className="text-lg font-extrabold text-slate-800">
+                        Диалог на паузе
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Оценка не начисляется, сокет не разрывается. Сделайте глоток воды, соберитесь с мыслями и нажмите кнопку ниже, когда будете готовы продолжить.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void toggleSessionPause()}
+                        className="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-rose-500 text-white font-bold text-sm shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <span>▶️ Продолжить диалог</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 font-mono font-normal">Space</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[11px] text-pastel-text/85 flex flex-wrap items-center justify-between gap-2 shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="text-pastel-accentRose text-sm">
@@ -2683,7 +2766,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     title="Сбросить историю реплик и попробовать ответить заново с чистого листа"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>🔄 Ответить заново с нуля</span>
+                    <span>🔄 С чистого листа</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void toggleSessionPause()}
+                    disabled={isSubmitting}
+                    className="px-3 py-1.5 rounded-xl bg-amber-100/90 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Поставить диалог на паузу без оценки и без потери контекста (Space)"
+                  >
+                    <Pause className="w-3.5 h-3.5 text-amber-700" />
+                    <span>⏸️ Пауза</span>
                   </button>
                 </div>
 

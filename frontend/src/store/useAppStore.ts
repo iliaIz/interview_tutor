@@ -219,6 +219,11 @@ interface AppState {
   setActivePracticeReport: (report: EvaluationResult | null) => void;
   setPracticeElapsedSeconds: (sec: number | ((prev: number) => number)) => void;
 
+  // Spring Transaction Playground (@Transactional Lab)
+  activeTransactionLabScenarioId: string | null;
+  openTransactionLab: (scenarioId?: string) => void;
+  closeTransactionLab: () => void;
+
   // Cheat Sheet Bookmarks
   cheatSheetBookmarks: CheatSheetBookmark[];
   addCheatSheetBookmark: (bookmark: Omit<CheatSheetBookmark, 'id' | 'createdAt'> & { id?: string }) => void;
@@ -623,6 +628,14 @@ export const useAppStore = create<AppState>()(
         activeWorkspaceFileIndex: 0,
         activePracticeReport: null
       }),
+
+      // Spring Transaction Playground (@Transactional Lab)
+      activeTransactionLabScenarioId: null,
+      openTransactionLab: (scenarioId) => set({
+        activeTransactionLabScenarioId: scenarioId || 'self_invocation_bypass',
+        currentStudioTab: 'practice'
+      }),
+      closeTransactionLab: () => set({ activeTransactionLabScenarioId: null }),
 
       updateWorkspaceFileContent: (index, content) => set((state) => {
         const updated = [...state.practiceWorkspaceFiles];

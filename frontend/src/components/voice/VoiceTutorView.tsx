@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
-  BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, 
+  BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause,
   Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2 
 } from 'lucide-react';
 import { CodeViewer } from '../CodeViewer';
@@ -45,6 +45,8 @@ export interface VoiceTutorViewProps {
   onClose: () => void;
   onSwitchToInterview: () => void;
   textInputRef: React.RefObject<HTMLInputElement>;
+  isSessionPaused?: boolean;
+  onToggleSessionPause?: () => void;
 }
 
 export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
@@ -82,7 +84,9 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
   retryCurrentQuestionCleanly,
   onClose,
   onSwitchToInterview,
-  textInputRef
+  textInputRef,
+  isSessionPaused,
+  onToggleSessionPause
 }) => {
   return (
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden my-3">
@@ -232,7 +236,31 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
         )}
 
         {stage === 'active' && (
-          <div className="flex-1 flex flex-col min-h-0 justify-between">
+          <div className="flex-1 flex flex-col min-h-0 justify-between relative">
+            {/* SOTA 2026 Voice Hold Overlay (Amber Frosted Glow) */}
+            {isSessionPaused && (
+              <div className="absolute inset-0 z-40 bg-amber-950/40 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center rounded-3xl animate-fade-in">
+                <div className="bg-white/95 rounded-2xl p-5 max-w-xs shadow-2xl border border-amber-200/90 flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl shadow-inner animate-pulse">
+                    ⏸️
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-800">
+                    Диалог на паузе
+                  </h3>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Оценка не начисляется, соединение активно. Сделайте перерыв или подумайте над вопросом.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onToggleSessionPause}
+                    className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-white font-bold text-xs shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>▶️ Продолжить</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">Space</span>
+                  </button>
+                </div>
+              </div>
+            )}
             <div>
               <div className="px-2.5 py-1.5 rounded-xl bg-pastel-rose/50 border border-pastel-rose/80 text-[10px] text-pastel-text/85 flex items-center justify-between shrink-0 mb-2 gap-1 flex-wrap">
                 <div className="flex items-center gap-1 font-semibold">
@@ -500,6 +528,18 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   >
                     <span>👶 ELI5</span>
                   </button>
+
+                  {onToggleSessionPause && (
+                    <button
+                      type="button"
+                      onClick={onToggleSessionPause}
+                      className="px-2 py-1 rounded-lg bg-amber-100/90 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                      title="Приостановить диалог (Space)"
+                    >
+                      <Pause className="w-3 h-3 text-amber-700" />
+                      <span>Пауза</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
