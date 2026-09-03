@@ -11,14 +11,14 @@ bin/
 **/bin/
 
 # Audio & generated storage / databases
-storage/
-**/storage/
-data/
-**/data/
+/storage/
+/data/
+backend/data/
 data/*.sqlite
 data/*.db
 *.sqlite
 *.db
+!frontend/src/data/
 
 # Environment variables
 .env
