@@ -64,6 +64,7 @@ interface ProxySession {
   probesCount?: number;
   isRetry?: boolean;
   hasCandidateResponded?: boolean;
+  isOnHold?: boolean;
   lastActivityAt: number;
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
@@ -215,6 +216,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       probesCount: isResumed ? initialProbesCount : 0,
       isRetry,
       hasCandidateResponded: isResumed, // Resumed session already has previous candidate speech
+      isOnHold: false,
       lastActivityAt: Date.now(),
       heartbeatInterval: null,
       nudgeWatchdog: null,
@@ -229,8 +231,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       if (clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
       }
-      // Adaptive Keepalive: In manual mode candidate might reflect/pause for up to 3 minutes (180s)
-      const inactivityLimitMs = turnMode === 'manual' ? 180000 : 60000;
+      // Adaptive Keepalive: In Hold mode or manual mode allow reflection up to 30 min (1800s); in auto-vad 180s (3 min)
+      const inactivityLimitMs = (session.isOnHold || turnMode === 'manual') ? 1800000 : 180000;
       if (Date.now() - session.lastActivityAt > inactivityLimitMs) {
         console.warn(`⚠️ Session inactive for >${inactivityLimitMs / 1000}s. Terminating keepalive expired socket.`);
         terminate('KeepaliveTimeout');
@@ -442,41 +444,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
               geminiSocket.send(JSON.stringify(initialGreetingTurn));
             }
 
-            // Watchdog (only for synthetic greetings, never for user queries)
-            if (greetingWatchdog) clearTimeout(greetingWatchdog);
-            if (!initialUserMessage) {
-              greetingWatchdog = setTimeout(() => {
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  console.log(`⏱️ Watchdog triggered: sending greeting nudge...`);
-                  const nudgeTurn = {
-                    clientContent: {
-                      turns: [
-                        {
-                          role: 'user',
-                          parts: [
-                            {
-                              text: sessionType === 'tutor'
-                                ? (tutorMode === 'bug_hunt'
-                                  ? 'Начни устное код-ревью в 1 короткой фразе.'
-                                  : tutorMode === 'free_chat'
-                                  ? 'Поприветствуй пользователя и начни свободный диалог тьютора в 1 короткой фразе.'
-                                  : 'Начни диалог тьютора в 1 короткой фразе.')
-                                : `Пожалуйста, начни диалог прямо сейчас: поприветствуй кандидата и четко зачитай вопрос: "${questionText || 'Вопрос темы'}"`
-                            }
-                          ]
-                        }
-                      ],
-                      turnComplete: true
-                    }
-                  };
-                  try {
-                    geminiSocket.send(JSON.stringify(nudgeTurn));
-                  } catch (nudgeErr) {
-                    console.warn('Watchdog nudge send warning:', nudgeErr);
-                  }
-                }
-              }, 3500);
-            }
+            // SOTA 2026: Destructive 3.5s greetingWatchdog removed to eliminate turn collisions and false Barge-in.
 
             // Notify client
             if (clientSocket.readyState === WebSocket.OPEN) {
@@ -617,6 +585,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             mem.updatedAt = Date.now();
             console.log(`📥 Seeded session memory from client resume_sync frame: ${mem.turns.length} turns for session ${session.sessionId}`);
           }
+          return;
+        }
+
+        // Protocol-Level Session Hold state from client (Coffee Break / Pause)
+        if (parsed.type === 'session_hold') {
+          session.isOnHold = Boolean(parsed.paused);
+          session.lastActivityAt = Date.now();
+          console.log(`⏸️ Client toggled session_hold: ${session.isOnHold ? 'HOLD (Timer Frozen)' : 'ACTIVE'}`);
           return;
         }
 

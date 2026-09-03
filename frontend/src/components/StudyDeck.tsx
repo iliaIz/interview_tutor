@@ -403,6 +403,7 @@ const getTutorModeLabel = (mode: string) => {
                       if (quickQuestionText.trim()) {
                         handleLaunchTutorWithPrompt(quickQuestionText.trim());
                       } else {
+                        setCustomPromptForTutor('');
                         setVoiceModalSessionType('tutor');
                         setIsVoiceOpen(true);
                       }

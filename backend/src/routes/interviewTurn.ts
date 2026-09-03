@@ -25,7 +25,10 @@ router.post('/greeting', async (req: Request, res: Response) => {
       questionText,
       voice = 'Kore',
       userGender = 'female',
-      strategy = 'socratic_tutoring'
+      strategy = 'socratic_tutoring',
+      sessionType = 'interview',
+      tutorMode = 'deep_dive',
+      initialUserMessage = ''
     } = req.body;
 
     if (!questionText) {
@@ -38,7 +41,29 @@ router.post('/greeting', async (req: Request, res: Response) => {
       ? 'Кандидат — МУЖЧИНА. Обращайся вежливо и поддерживающе, используя МУЖСКИЕ окончания («Ты готов», «Ты выбрал»).'
       : 'Обращайся уважительно на «Вы».';
 
-    const greetingPrompt = `Ты профессиональный и доброжелательный технический интервьюер.
+    let greetingPrompt = '';
+    if (sessionType === 'tutor') {
+      if (initialUserMessage) {
+        greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
+${genderDirective}
+Кандидат обратился к тебе с конкретным вопросом:
+"${initialUserMessage}"
+
+Ответь кандидату прямо, дружелюбно и емко (2-3 предложения), раскрывая суть вопроса под капотом.
+Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
+      } else {
+        const modeLabel = tutorMode === 'deep_dive' ? 'под капотом (JVM, байткод, структуры данных)'
+          : tutorMode === 'socratic' ? 'через наводящие вопросы'
+          : tutorMode === 'eli5' ? 'на простых аналогиях'
+          : 'в свободном диалоге';
+        greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
+${genderDirective}
+Твоя задача — поприветствовать кандидата одной короткой, естественной фразой (1-2 предложения) и предложить разобрать вопрос темы «${topic}» ${modeLabel}.
+Вопрос: "${questionText}"
+Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
+      }
+    } else {
+      greetingPrompt = `Ты профессиональный и доброжелательный технический интервьюер.
 ${genderDirective}
 Твоя задача — поприветствовать кандидата одной короткой, естественной живой фразой (максимум 1 предложение) и четко зачитать технический вопрос по теме «${topic}».
 
@@ -48,6 +73,7 @@ ${genderDirective}
 ВАЖНО:
 - НЕ давай подсказок и не отвечай на вопрос.
 - Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
+    }
 
     const endpointUrl = envConfig.proxy.chatUrl;
     const proxyApiKey = envConfig.proxy.apiKey;
@@ -110,7 +136,8 @@ router.post('/turn', async (req: Request, res: Response) => {
       userGender = 'female',
       activeCodeArtifact,
       persona = 'mentor',
-      targetGrade = 'L5_SENIOR'
+      targetGrade = 'L5_SENIOR',
+      sessionType = 'interview'
     } = req.body;
 
     if (!questionText) {
@@ -164,6 +191,20 @@ router.post('/turn', async (req: Request, res: Response) => {
       ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
       : '';
 
+    const isTutorMode = sessionType === 'tutor';
+
+    const decisionRules = isTutorMode
+      ? `РЕЖИМ: ОБУЧАЮЩИЙ ТЬЮТОР (TUTOR MODE).
+Ты доброжелательный Senior наставник по теме «${topic}».
+Кандидат задает вопросы, разбирается в тонкостях темы или просит подсказку.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку или завершать сессию (action: "evaluate").
+ВСЕГДА выбирай action: "probe" и давай прямой, емкий, полезный ответ или наводящую подсказку кандидату голосом (2-3 предложения).`
+      : `ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ (СОБЕСЕДОВАНИЕ):
+1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
+   -> Выбери action: "evaluate".
+2. Если ответ кандидата раскрывает только часть критериев, есть неточности или включен Deep Dive, и раундов ${turnCount} < ${maxProbes}:
+   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).`;
+
     const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
 ${personaDirectives.roleDirective}
 ${personaDirectives.gradeExpectationDirective}
@@ -178,19 +219,15 @@ ${activeCodeSection}
 РЕЖИМ РАБОТЫ:
 Стратегия: ${strategy}.
 Deep Dive: ${deepDive ? 'Включен (углубляйся во внутреннее устройство, JVM, байткод, пограничные случаи)' : 'Выключен'}.
-Текущий раунд уточнений: ${turnCount} из ${maxProbes}.
+Текущий раунд: ${turnCount}${isTutorMode ? ' (без лимита)' : ` из ${maxProbes}`}.
 
-ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ:
-1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
-   -> Выбери action: "evaluate".
-2. Если ответ кандидата раскрывает только часть критериев, есть неточности или включен Deep Dive, и раундов ${turnCount} < ${maxProbes}:
-   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).
+${decisionRules}
 
 ФОРМАТ ВЫХОДА — СТРОГО JSON БЕЗ КАВЫЧЕК MARKDOWN:
 Если action == "probe":
 {
   "action": "probe",
-  "replyText": "Короткий наводящий вопрос кандидату голосом (2-3 предложения)"
+  "replyText": "Короткий полезный ответ или наводящий вопрос кандидату голосом (2-3 предложения)"
 }
 
 Если action == "evaluate":

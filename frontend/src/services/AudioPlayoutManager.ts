@@ -120,7 +120,10 @@ export class AudioPlayoutManager {
     } catch {}
   }
 
+  private isExplicitlyPaused: boolean = false;
+
   public async suspend(): Promise<void> {
+    this.isExplicitlyPaused = true;
     if (this.context && this.context.state === 'running') {
       try {
         await this.context.suspend();
@@ -197,6 +200,7 @@ export class AudioPlayoutManager {
   }
 
   public async resume(): Promise<void> {
+    this.isExplicitlyPaused = false;
     const { context } = this.ensureContext();
 
     // 1. One-sample silent buffer trigger to unlock mobile hardware audio HAL during user gesture
@@ -328,6 +332,12 @@ export class AudioPlayoutManager {
       float32Samples[i] = int16 < 0 ? int16 / 32768.0 : int16 / 32767.0;
     }
 
+    if (this.isExplicitlyPaused) {
+      // Session is explicitly on Hold/Pause: buffer samples without auto-resuming!
+      this.pendingSamples.push(float32Samples);
+      return;
+    }
+
     if (context.state === 'suspended') {
       this.pendingSamples.push(float32Samples);
       void this.resume();
@@ -340,6 +350,11 @@ export class AudioPlayoutManager {
   private scheduleBufferOnTimeline(samples: Float32Array): void {
     if (samples.length === 0) return;
     const { context, masterGain } = this.ensureContext();
+
+    if (this.isExplicitlyPaused) {
+      this.pendingSamples.push(samples);
+      return;
+    }
 
     if (context.state === 'suspended') {
       this.pendingSamples.push(samples);
@@ -378,11 +393,12 @@ export class AudioPlayoutManager {
       this.activeSources.delete(source);
       if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
         if (this.drainTimer) clearTimeout(this.drainTimer);
+        // SOTA 2026: 600ms inter-chunk buffer prevents premature mic activation during network jitter
         this.drainTimer = setTimeout(() => {
           if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
             this.onPlaybackFinished?.();
           }
-        }, 300);
+        }, 600);
       }
     };
   }
@@ -420,6 +436,10 @@ export class AudioPlayoutManager {
    * Instantly stops playback with a 5ms de-click ramp on serverContent.interrupted (Barge-in)
    */
   public handleInterruption(): void {
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
     this.pendingSamples = [];
     if (!this.context || !this.masterGain) return;
     const now = this.context.currentTime;

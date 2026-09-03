@@ -417,9 +417,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
     }, 6500);
 
-    // Tier 3: 10.0s - auto-fallback to REST /api/eval
+    // Tier 3: 10.0s - auto-fallback to REST /api/eval (Only for interview scoring, NEVER in tutor mode!)
     const t3 = setTimeout(() => {
-      if (isThinkingRef.current && !isEvaluationFinalizedRef.current) {
+      if (isThinkingRef.current && !isEvaluationFinalizedRef.current && sessionType !== 'tutor') {
         console.warn('⏱️ 10s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
         void executeInstantRestEvalFallback();
       }
@@ -518,7 +518,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
   }, [isOpen]);
 
-  // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled
+  // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled (shows Lobby if Tutor opened without text)
   const hasAutoLaunchedRef = useRef(false);
   useEffect(() => {
     if (!isOpen) {
@@ -526,11 +526,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
     const currentConfig = getActiveConfig();
-    if (stage === 'lobby' && !currentConfig.alwaysShowPreflight && !hasAutoLaunchedRef.current) {
+    const isExplicitTextLaunch = Boolean(customPromptOverride && customPromptOverride.trim().length > 0);
+    const shouldFastLaunch = !currentConfig.alwaysShowPreflight && (sessionType !== 'tutor' || isExplicitTextLaunch);
+
+    if (stage === 'lobby' && shouldFastLaunch && !hasAutoLaunchedRef.current) {
       hasAutoLaunchedRef.current = true;
       void startLiveInterviewWithIndex(activeBatchIndex);
     }
-  }, [isOpen, stage, activeBatchIndex]);
+  }, [isOpen, stage, activeBatchIndex, customPromptOverride, sessionType]);
 
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {
@@ -669,6 +672,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       liveCoaching: String(!!interviewConfig.liveCoaching || sessionType === 'tutor'),
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: customPromptOverride || interviewConfig.customPromptOverride || '',
+      initialUserMessage: customPromptOverride || '',
       liveModel: interviewConfig.liveModel || 'gemini-live-v2',
       questionIndex: String(qIndex),
       totalQuestions: String(totalQuestions),
@@ -1121,10 +1125,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   /**
-   * Sends explicit text prompt turn to Live WebSocket (for prompt chips, typed questions, or earphone commute chat)
+   * Sends explicit text prompt turn to Live WebSocket or Manual Turn Engine (for prompt chips, typed questions, or earphone commute chat)
    */
-  const sendTextMessage = (text: string, displayText?: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  const sendTextMessage = async (text: string, displayText?: string) => {
+    // 1. Tactile Barge-in: If AI is actively speaking, interrupt audio immediately
+    if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+      playoutManagerRef.current?.handleInterruption();
+      setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+    }
 
     // Reset VAD timer and speech flags on manual text turn
     if (silenceTimerRef.current) {
@@ -1140,20 +1149,94 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isServerTurnCompleteRef.current = false;
     startTurnWatchdog();
 
-    const turnFrame = {
-      clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts: [{ text }]
-          }
-        ],
-        turnComplete: true
-      }
-    };
-    wsRef.current.send(JSON.stringify(turnFrame));
     if (displayText) {
       setDialogueTurns((prev) => [...prev, { role: 'user', text: displayText }]);
+    }
+
+    // 2. Full-Duplex WebSocket Path
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const turnFrame = {
+        clientContent: {
+          turns: [
+            {
+              role: 'user',
+              parts: [{ text }]
+            }
+          ],
+          turnComplete: true
+        }
+      };
+      wsRef.current.send(JSON.stringify(turnFrame));
+      return;
+    }
+
+    // 3. Manual Mode REST Fallback (/api/interview/turn)
+    try {
+      const targetQ = questionsBatch?.[activeBatchIndex] || {
+        id: activeQuestionId,
+        topic: activeTopic,
+        question: activeQuestionText,
+        answer: activeReferenceAnswer
+      };
+      turnCountRef.current++;
+      const res = await fetch('/api/interview/turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          questionId: targetQ.id,
+          topic: targetQ.topic,
+          questionText: targetQ.question,
+          referenceAnswer: targetQ.answer,
+          userTranscript: text,
+          history: dialogueTurnsRef.current.filter((t) => t.role !== 'system'),
+          turnCount: turnCountRef.current,
+          maxProbes: interviewConfig.maxProbes || 2,
+          strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+          sessionType,
+          deepDive: !!interviewConfig.deepDive,
+          liveCoaching: !!interviewConfig.liveCoaching,
+          voice: interviewConfig.voice,
+          userGender: interviewConfig.userGender || 'female'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        clearAllTurnWatchdogs();
+        setIsThinking(false);
+        isThinkingRef.current = false;
+        if (data.replyText) {
+          setDialogueTurns((prev) => [...prev, { role: 'ai', text: data.replyText }]);
+        }
+        if (data.audioBase64 && playoutManagerRef.current) {
+          setIsAiSpeaking(true);
+          isAiSpeakingRef.current = true;
+          playoutManagerRef.current.onPlaybackFinished = () => {
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsRecording(true);
+            isRecordingRef.current = true;
+          };
+          void playoutManagerRef.current.playBase64Audio(data.audioBase64);
+        } else {
+          setIsRecording(true);
+          isRecordingRef.current = true;
+        }
+      } else {
+        clearAllTurnWatchdogs();
+        setIsThinking(false);
+        isThinkingRef.current = false;
+        setIsRecording(true);
+        isRecordingRef.current = true;
+      }
+    } catch (manualErr) {
+      console.error('Manual turn error in sendTextMessage:', manualErr);
+      clearAllTurnWatchdogs();
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      setIsRecording(true);
+      isRecordingRef.current = true;
     }
   };
 
@@ -1439,7 +1522,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             questionText: targetQ.question,
             voice: interviewConfig.voice,
             userGender: interviewConfig.userGender || 'female',
-            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy
+            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+            sessionType,
+            tutorMode: sessionType === 'tutor' ? tutorMode : '',
+            initialUserMessage: customPromptOverride || ''
           })
         });
 
@@ -1562,6 +1648,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setIsRecording(false);
       isRecordingRef.current = false;
       await playoutManagerRef.current?.suspend();
+
+      // Protocol-Level Session Hold frame to backend
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({ type: 'session_hold', paused: true }));
+        } catch {}
+      }
+
       setDialogueTurns((prev) => [
         ...prev,
         { role: 'system', text: '⏸️ Диалог временно приостановлен. Оценка не начисляется.' }
@@ -1572,6 +1666,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       playoutManagerRef.current?.playHoldChime(false);
       setIsRecording(true);
       isRecordingRef.current = true;
+
+      // Protocol-Level Session Resume frame to backend
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({ type: 'session_hold', paused: false }));
+        } catch {}
+      }
+
       setDialogueTurns((prev) => [
         ...prev,
         { role: 'system', text: '▶️ Диалог возобновлен.' }
@@ -1687,13 +1789,20 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       workletNode.port.onmessage = (event: MessageEvent) => {
         const { type, pcmBuffer, metrics } = event.data;
         if (type === 'AUDIO_FRAME') {
-          if (metrics) {
+          const isAiCurrentlySpeaking =
+            isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+          const isReverbCooldownActive =
+            Date.now() - lastAiSpeechEndedAtRef.current < 450;
+          const isSessionMutedOrPaused =
+            isSessionPausedRef.current || !isRecordingRef.current;
+
+          if (metrics && !isAiCurrentlySpeaking && !isReverbCooldownActive && !isSessionMutedOrPaused) {
             setRmsDb(metrics.rmsDb);
 
             // Dynamic VAD: respects adaptive noise floor from worklet or fallback -42dB
             const isSpeech = metrics.speechDetected || metrics.rmsDb > (metrics.noiseFloorDb ? metrics.noiseFloorDb + 7.5 : -42);
 
-            if (isRecordingRef.current && !isAiSpeakingRef.current && !isThinkingRef.current) {
+            if (!isThinkingRef.current) {
               if (isSpeech) {
                 hasSpokenInTurnRef.current = true;
                 setIsUserSpeaking(true);
@@ -1718,14 +1827,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 }
               }
             }
+          } else if (isAiCurrentlySpeaking) {
+            if (isUserSpeaking) setIsUserSpeaking(false);
           }
 
-          const isAiCurrentlySpeaking =
-            isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
-          const isReverbCooldownActive =
-            Date.now() - lastAiSpeechEndedAtRef.current < 450;
-
-          if (isRecordingRef.current && !isAiCurrentlySpeaking && !isReverbCooldownActive) {
+          if (isRecordingRef.current && !isAiCurrentlySpeaking && !isReverbCooldownActive && !isSessionPausedRef.current) {
             const int16 = new Int16Array(pcmBuffer);
             const float32 = new Float32Array(int16.length);
             for (let i = 0; i < int16.length; i++) {
@@ -1742,7 +1848,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
             !isAiCurrentlySpeaking &&
-            !isReverbCooldownActive;
+            !isReverbCooldownActive &&
+            !isSessionPausedRef.current;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);

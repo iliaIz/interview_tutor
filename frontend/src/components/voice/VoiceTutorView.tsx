@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
-  BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause,
+  BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause, Square,
   Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2 
 } from 'lucide-react';
 import { CodeViewer } from '../CodeViewer';
@@ -292,63 +292,107 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                 </span>
               </div>
 
-              {/* Mic Pulse Sphere & Dynamic VAD VU-Meter */}
+              {/* Unified Media Control Cluster (SOTA 2026 Ergonomics): [ ⏸️ Пауза ] - ( 🎙️ Сфера ) - [ ⏹️ Стоп ] */}
               <div className="my-2 flex flex-col items-center justify-center shrink-0">
-                <div className="relative flex items-center justify-center">
-                  {/* Dynamic Acoustic Ripple when user is actively speaking */}
-                  {isRecording && isUserSpeaking && (
-                    <div
-                      className="absolute rounded-full bg-emerald-400/30 animate-ping pointer-events-none"
-                      style={{
-                        width: `${84 + Math.min(36, Math.max(0, (rmsDb + 50) * 1.5))}px`,
-                        height: `${84 + Math.min(36, Math.max(0, (rmsDb + 50) * 1.5))}px`
-                      }}
-                    />
-                  )}
-                  <div
-                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-                      isAiSpeaking
-                        ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
-                        : isThinking
-                        ? 'bg-gradient-to-tr from-amber-300 via-orange-400 to-amber-500 shadow-xl ring-4 ring-amber-200'
-                        : isRecording
-                        ? isUserSpeaking
-                          ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-300 scale-105'
-                          : 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
-                        : 'bg-slate-100 border border-slate-300'
-                    }`}
-                  >
+                <div className="flex items-center justify-center gap-3 sm:gap-5">
+                  
+                  {/* Left: Pause / Resume Button */}
+                  {onToggleSessionPause && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isAiSpeaking) {
-                          onInterruption();
-                        } else if (isRecording) {
-                          triggerEndTurn();
-                        } else {
-                          toggleMic();
-                        }
-                      }}
-                      className="w-16 h-16 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer"
-                      title={
-                        isAiSpeaking
-                          ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
-                          : isRecording
-                          ? 'Нажмите, чтобы передать вопрос/реплику тьютору'
-                          : 'Нажмите, чтобы включить микрофон'
-                      }
+                      onClick={onToggleSessionPause}
+                      title={isSessionPaused ? "Продолжить диалог (Пробел)" : "Пауза в диалоге (Пробел)"}
+                      className={`flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 touch-manipulation ${
+                        isSessionPaused
+                          ? 'bg-amber-500 text-white border-amber-600 ring-4 ring-amber-200 shadow-md animate-pulse'
+                          : 'bg-white hover:bg-amber-50/60 text-slate-700 border-pastel-border hover:border-amber-300'
+                      }`}
                     >
-                      {isAiSpeaking ? (
-                        <Volume2 className="w-6 h-6 text-pastel-accentRose animate-bounce" />
-                      ) : isThinking ? (
-                        <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
-                      ) : isRecording ? (
-                        <Mic className={`w-6 h-6 ${isUserSpeaking ? 'text-emerald-500 scale-110' : 'text-emerald-600 animate-pulse'} transition-transform`} />
+                      {isSessionPaused ? (
+                        <Play className="w-5 h-5 fill-white text-white ml-0.5" />
                       ) : (
-                        <MicOff className="w-6 h-6 text-slate-400" />
+                        <Pause className="w-5 h-5 text-slate-600" />
                       )}
+                      <span className={`text-[9px] font-bold mt-0.5 ${isSessionPaused ? 'text-white' : 'text-slate-600'}`}>
+                        {isSessionPaused ? 'Пуск' : 'Пауза'}
+                      </span>
                     </button>
+                  )}
+
+                  {/* Center: Mic Pulse Sphere & Dynamic VAD VU-Meter */}
+                  <div className="relative flex items-center justify-center">
+                    {/* Dynamic Acoustic Ripple when user is actively speaking */}
+                    {isRecording && isUserSpeaking && (
+                      <div
+                        className="absolute rounded-full bg-emerald-400/30 animate-ping pointer-events-none"
+                        style={{
+                          width: `${84 + Math.min(36, Math.max(0, (rmsDb + 50) * 1.5))}px`,
+                          height: `${84 + Math.min(36, Math.max(0, (rmsDb + 50) * 1.5))}px`
+                        }}
+                      />
+                    )}
+                    <div
+                      className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isAiSpeaking
+                          ? 'bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet shadow-xl ring-4 ring-pink-200'
+                          : isThinking
+                          ? 'bg-gradient-to-tr from-amber-300 via-orange-400 to-amber-500 shadow-xl ring-4 ring-amber-200'
+                          : isRecording
+                          ? isUserSpeaking
+                            ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-300 scale-105'
+                            : 'bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-xl ring-4 ring-emerald-200'
+                          : 'bg-slate-100 border border-slate-300'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isAiSpeaking) {
+                            onInterruption();
+                          } else if (isRecording) {
+                            triggerEndTurn();
+                          } else {
+                            toggleMic();
+                          }
+                        }}
+                        className="w-16 h-16 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer touch-manipulation"
+                        title={
+                          isAiSpeaking
+                            ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
+                            : isRecording
+                            ? 'Нажмите, чтобы передать вопрос/реплику тьютору'
+                            : 'Нажмите, чтобы включить микрофон'
+                        }
+                      >
+                        {isAiSpeaking ? (
+                          <Volume2 className="w-6 h-6 text-pastel-accentRose animate-bounce" />
+                        ) : isThinking ? (
+                          <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                        ) : isRecording ? (
+                          <Mic className={`w-6 h-6 ${isUserSpeaking ? 'text-emerald-500 scale-110' : 'text-emerald-600 animate-pulse'} transition-transform`} />
+                        ) : (
+                          <MicOff className="w-6 h-6 text-slate-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Right: Stop / Barge-in Button */}
+                  <button
+                    type="button"
+                    onClick={onInterruption}
+                    disabled={!isAiSpeaking && !isThinking}
+                    title={isAiSpeaking ? "Прервать ответ ИИ (Esc)" : isThinking ? "Остановить генерацию" : "ИИ не говорит"}
+                    className={`flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border transition-all duration-200 shadow-2xs touch-manipulation ${
+                      isAiSpeaking || isThinking
+                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-300 ring-2 ring-rose-200 cursor-pointer active:scale-95'
+                        : 'bg-slate-50 text-slate-300 border-slate-200 opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <Square className={`w-4 h-4 sm:w-5 sm:h-5 ${isAiSpeaking ? 'fill-rose-500 text-rose-500 animate-pulse' : ''}`} />
+                    <span className="text-[9px] font-bold mt-0.5">Стоп</span>
+                  </button>
+
                 </div>
 
                 <div className="mt-1.5 text-center flex flex-col items-center gap-1">
@@ -460,16 +504,15 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleInputKeyDown}
-                    disabled={isAiSpeaking && !isMuted}
-                    placeholder={isAiSpeaking ? 'ИИ говорит в наушники...' : '💬 Напишите вопрос или мысль (Enter)...'}
-                    className="flex-1 px-3 py-1.5 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none disabled:opacity-50"
+                    placeholder="💬 Напишите вопрос или мысль (Enter)..."
+                    className="flex-1 px-3 py-1.5 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none"
                   />
 
                   {/* Send Text Button */}
                   <button
                     type="button"
                     onClick={() => handleSendCustomText()}
-                    disabled={!inputText.trim() || (isAiSpeaking && !isMuted)}
+                    disabled={!inputText.trim()}
                     className="p-2 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 active:scale-95 transition-all shadow-xs disabled:opacity-40 disabled:scale-100 cursor-pointer"
                     title="Отправить вопрос в диалог (Enter)"
                   >
@@ -491,13 +534,12 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   </button>
                 </div>
 
-                {/* Dynamic Contextual Chips */}
+                {/* Dynamic Contextual Chips (Always Active with Immediate Barge-in) */}
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
                   <button
                     type="button"
                     onClick={() => handleSendCustomText('Расскажи подробно, как это устроено в памяти JVM и какие структуры задействованы.')}
-                    disabled={isAiSpeaking && !isMuted}
-                    className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                   >
                     <span>💡 В памяти JVM</span>
                   </button>
@@ -505,8 +547,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSendCustomText('Объясни, как это работает под капотом в Spring Framework.')}
-                    disabled={isAiSpeaking && !isMuted}
-                    className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                   >
                     <span>⚙️ В Spring</span>
                   </button>
@@ -514,8 +555,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSendCustomText('Какие главные ошибки и подводные камни допускают на практике по этой теме?')}
-                    disabled={isAiSpeaking && !isMuted}
-                    className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                   >
                     <span>⚠️ Ошибки</span>
                   </button>
@@ -523,28 +563,15 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSendCustomText('Объясни эту концепцию максимально просто, как для начинающего (ELI5).')}
-                    disabled={isAiSpeaking && !isMuted}
-                    className="px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                   >
                     <span>👶 ELI5</span>
                   </button>
 
-                  {onToggleSessionPause && (
-                    <button
-                      type="button"
-                      onClick={onToggleSessionPause}
-                      className="px-2 py-1 rounded-lg bg-amber-100/90 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                      title="Приостановить диалог (Space)"
-                    >
-                      <Pause className="w-3 h-3 text-amber-700" />
-                      <span>Пауза</span>
-                    </button>
-                  )}
-
                   <button
                     type="button"
                     onClick={retryCurrentQuestionCleanly}
-                    className="px-2 py-1 rounded-lg bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                    className="px-2 py-1 rounded-lg bg-pastel-card hover:bg-pastel-card/80 border border-pastel-border text-pastel-muted text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                     title="Сбросить историю и начать сначала"
                   >
                     <RotateCcw className="w-3 h-3" />
