@@ -190,21 +190,26 @@ roadmapsRouter.get('/:id', (req: Request, res: Response) => {
     let sdTotal = 0, sdDone = 0;
     let triageTotal = 0, triageDone = 0;
 
+    const CONCURRENCY_REGEX = /\b(jmm|thread|loom|lock|concur|mutex|volatile|atomic|phaser|barrier)\b/i;
+    const DATABASE_REGEX = /\b(postgres|postgresql|sql|tx|transact|transaction|mvcc|hikari|acid|isolation|index|wal)\b/i;
+    const SYSTEM_DESIGN_REGEX = /\b(design|system|sharding|kafka|raft|cache|redis|load|balancer|cap|pacelc|event-driven)\b/i;
+    const FORENSICS_REGEX = /\b(dump|leak|gc|triage|forensic|profil|oom|crash|deadlock|flamegraph)\b/i;
+
     for (const st of stepsWithStatus) {
-      const titleLower = (st.title + ' ' + st.seniorBarConcept).toLowerCase();
-      if (titleLower.includes('jmm') || titleLower.includes('thread') || titleLower.includes('loom') || titleLower.includes('lock') || titleLower.includes('concur')) {
+      const text = `${st.title} ${st.seniorBarConcept}`;
+      if (CONCURRENCY_REGEX.test(text)) {
         concTotal++;
         if (st.isCompleted) concDone++;
       }
-      if (titleLower.includes('postgres') || titleLower.includes('sql') || titleLower.includes('tx') || titleLower.includes('transact') || titleLower.includes('mvcc') || titleLower.includes('hikari')) {
+      if (DATABASE_REGEX.test(text)) {
         dbTotal++;
         if (st.isCompleted) dbDone++;
       }
-      if (titleLower.includes('design') || titleLower.includes('system') || titleLower.includes('sharding') || titleLower.includes('kafka') || titleLower.includes('raft') || titleLower.includes('cache')) {
+      if (SYSTEM_DESIGN_REGEX.test(text)) {
         sdTotal++;
         if (st.isCompleted) sdDone++;
       }
-      if (titleLower.includes('dump') || titleLower.includes('leak') || titleLower.includes('gc') || titleLower.includes('triage') || titleLower.includes('forensic') || titleLower.includes('profil')) {
+      if (FORENSICS_REGEX.test(text)) {
         triageTotal++;
         if (st.isCompleted) triageDone++;
       }
@@ -267,7 +272,10 @@ roadmapsRouter.post('/progress', (req: Request, res: Response) => {
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id, roadmap_id) DO UPDATE SET
         completed_steps_json = excluded.completed_steps_json,
-        current_step = excluded.current_step,
+        current_step = CASE
+          WHEN excluded.current_step > roadmap_progress.current_step THEN excluded.current_step
+          ELSE roadmap_progress.current_step
+        END,
         updated_at = CURRENT_TIMESTAMP
     `).run(userId, roadmapId, JSON.stringify(completedSteps), completedStep);
 

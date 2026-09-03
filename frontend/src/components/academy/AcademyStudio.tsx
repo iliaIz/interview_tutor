@@ -90,6 +90,8 @@ export const AcademyStudio: React.FC = () => {
             next.add(activeMid);
             return next;
           });
+        } else {
+          setOpenMilestones(new Set(['default_milestone']));
         }
       }
     } catch (e) {
@@ -579,11 +581,18 @@ export const AcademyStudio: React.FC = () => {
       {/* 6. Structured Milestone Syllabus (Option B: Milestone-Grouped Accordions) */}
       {currentCourse && (
         <div className="space-y-6">
-          {(currentCourse.milestones || []).map((milestone, mIdx) => {
+          {((currentCourse.milestones && currentCourse.milestones.length > 0)
+            ? currentCourse.milestones
+            : [{ id: 'default_milestone', title: 'Программа курса', stepRange: `Шаги 1–${steps.length}` }]
+          ).map((milestone, mIdx) => {
             // All steps belonging to this milestone
-            const milestoneAllSteps = steps.filter((s) => s.milestoneId === milestone.id);
+            const milestoneAllSteps = (currentCourse.milestones && currentCourse.milestones.length > 0)
+              ? steps.filter((s) => s.milestoneId === milestone.id)
+              : steps;
             // Steps visible after search/filters
-            const milestoneVisibleSteps = filteredSteps.filter((s) => s.milestoneId === milestone.id);
+            const milestoneVisibleSteps = (currentCourse.milestones && currentCourse.milestones.length > 0)
+              ? filteredSteps.filter((s) => s.milestoneId === milestone.id)
+              : filteredSteps;
 
             // If a search or filter is active and 0 matching steps, hide this milestone
             if ((searchQuery.trim() || filterType !== 'all') && milestoneVisibleSteps.length === 0) {

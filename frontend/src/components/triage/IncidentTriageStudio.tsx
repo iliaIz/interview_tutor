@@ -16,7 +16,8 @@ export const IncidentTriageStudio: React.FC = () => {
     closeTriageIncident, 
     showToast,
     academyBreadcrumbContext,
-    returnToAcademyStep
+    returnToAcademyStep,
+    toggleAcademyStepProgress
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<'symptoms' | 'artifact' | 'rca'>('artifact');
   
@@ -194,6 +195,13 @@ export const IncidentTriageStudio: React.FC = () => {
       if (res.ok) {
         const result: IncidentTriageEvaluation = await res.json();
         setEvaluationResult(result);
+        if (result.verdict !== 'INCORRECT' && academyBreadcrumbContext) {
+          void toggleAcademyStepProgress(
+            academyBreadcrumbContext.courseId,
+            academyBreadcrumbContext.stepNumber,
+            true
+          );
+        }
       } else {
         showToast({ type: 'error', title: 'Ошибка оценки', message: 'Не удалось получить оценку RCA' });
       }

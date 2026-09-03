@@ -70,8 +70,8 @@ const FORBIDDEN_PATTERNS: ForbiddenPattern[] = [
   },
   {
     rule: 'NO_THREAD_BOMB',
-    regex: /\b(new\s+Thread\s*\(|Thread\s*\.\s*(ofVirtual|ofPlatform)\s*\()/,
-    message: 'Прямое создание неуправляемых системных потоков (Thread Bomb) запрещено. Используйте пулы ExecutorService.'
+    regex: /\b(new\s+Thread\s*\(|Thread\s*\.\s*ofPlatform\s*\()/,
+    message: 'Прямое создание неуправляемых системных потоков ОС (Thread Bomb) запрещено. Используйте пулы ExecutorService или виртуальные потоки.'
   }
 ];
 

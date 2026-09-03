@@ -691,7 +691,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       } catch {}
 
       if (!session.isSetupComplete) {
-        // Buffer audio or turns while waiting for setupComplete
+        // Buffer audio or turns while waiting for setupComplete (bounded queue against memory leak)
+        const MAX_FRAME_QUEUE = 200;
+        if (session.frameQueue.length >= MAX_FRAME_QUEUE) {
+          session.frameQueue.shift();
+        }
         session.frameQueue.push(payloadBuffer);
       } else {
         if (geminiSocket.readyState === WebSocket.OPEN) {

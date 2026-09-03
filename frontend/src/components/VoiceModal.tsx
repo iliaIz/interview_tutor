@@ -1004,7 +1004,81 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   /**
    * White Flag Action: Explicitly surrender and ask the AI interviewer for an under-the-hood explanation
    */
-  const handleSurrenderAndExplain = () => {
+  const handleSurrenderAndExplain = async () => {
+    const surrenderText = 'Я пока не знаю ответа на этот вопрос. Пожалуйста, зафиксируй это и объясни мне подробно, как это устроено под капотом и как правильно отвечать на собеседовании.';
+    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+
+    if (isManual) {
+      setDialogueTurns((prev) => [
+        ...prev,
+        { role: 'user', text: '💡 [Запрос разбора]: Я пока не знаю этого. Объясни, пожалуйста, как это устроено под капотом и как правильно отвечать.' }
+      ]);
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      setIsThinking(true);
+      isThinkingRef.current = true;
+      startTurnWatchdog();
+
+      try {
+        turnCountRef.current++;
+        const res = await fetch('/api/interview/turn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: sessionIdRef.current,
+            questionId: activeQuestionId,
+            topic: activeTopic,
+            questionText: activeQuestionText,
+            referenceAnswer: activeReferenceAnswer,
+            history: [
+              ...dialogueTurns.filter((t) => t.role !== 'system'),
+              { role: 'user', text: surrenderText }
+            ],
+            turnCount: turnCountRef.current,
+            maxProbes: interviewConfig.maxProbes || 2,
+            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+            deepDive: !!interviewConfig.deepDive,
+            liveCoaching: !!interviewConfig.liveCoaching,
+            voice: interviewConfig.voice,
+            userGender: interviewConfig.userGender || 'female'
+          })
+        });
+
+        if (!res.ok) throw new Error(`Turn API returned ${res.status}`);
+        const data = await res.json();
+        clearAllTurnWatchdogs();
+
+        if (data.replyText) {
+          setDialogueTurns((prev) => [...prev, { role: 'ai', text: data.replyText }]);
+        }
+        setIsThinking(false);
+        isThinkingRef.current = false;
+
+        if (playoutManagerRef.current && data.audioBase64) {
+          setIsAiSpeaking(true);
+          isAiSpeakingRef.current = true;
+          playoutManagerRef.current.onPlaybackFinished = () => {
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsRecording(true);
+            isRecordingRef.current = true;
+          };
+          void playoutManagerRef.current.playBase64Audio(data.audioBase64);
+        } else {
+          setIsRecording(true);
+          isRecordingRef.current = true;
+        }
+      } catch (err) {
+        console.error('Manual surrender error:', err);
+        clearAllTurnWatchdogs();
+        setIsThinking(false);
+        isThinkingRef.current = false;
+        setIsRecording(true);
+        isRecordingRef.current = true;
+      }
+      return;
+    }
+
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const explainFrame = {
       clientContent: {
@@ -1013,7 +1087,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             role: 'user',
             parts: [
               {
-                text: 'Я пока не знаю ответа на этот вопрос. Пожалуйста, зафиксируй это и объясни мне подробно, как это устроено под капотом и как правильно отвечать на собеседовании.'
+                text: surrenderText
               }
             ]
           }

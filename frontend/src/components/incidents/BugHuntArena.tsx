@@ -233,6 +233,7 @@ export const BugHuntArena: React.FC = () => {
   };
 
   const handleNextChallenge = () => {
+    if (isConnected) disconnectSession();
     if (currentIndex < history.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsSolved(Boolean(history[currentIndex + 1].isSolved));
@@ -242,6 +243,7 @@ export const BugHuntArena: React.FC = () => {
   };
 
   const handlePreviousChallenge = () => {
+    if (isConnected) disconnectSession();
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setIsSolved(Boolean(history[currentIndex - 1].isSolved));

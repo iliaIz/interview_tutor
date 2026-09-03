@@ -38,7 +38,21 @@ export class AstAuditService {
 
     const violations: AstViolation[] = [];
     const passedRules: string[] = [];
-    const lines = code.split('\n');
+
+    // 1. Strip block comments while strictly preserving newline counts for accurate line numbering
+    const withoutBlockComments = code.replace(/\/\*[\s\S]*?\*\//g, (match) => {
+      return match.replace(/[^\n]/g, ' ');
+    });
+
+    const rawLines = withoutBlockComments.split(/\r?\n/);
+    const lines = rawLines.map((line) => {
+      // 2. Strip single-line comments
+      let cleanCode = line.replace(/\/\/.*$/, '');
+      // 3. Strip string and character literals (e.g. "double amount", 'c')
+      cleanCode = cleanCode.replace(/"(?:\\.|[^"\\])*"/g, '""').replace(/'(?:\\.|[^'\\])*'/g, "''");
+      return cleanCode;
+    });
+    const cleanFullCode = lines.join('\n');
 
     // Rule 1: Carrier Thread Pinning (synchronized in Loom / Virtual Thread contexts)
     let hasSynchronized = false;
@@ -77,7 +91,7 @@ export class AstAuditService {
       }
     }
 
-    if (hasThreadLocalSet && !code.includes('.remove()')) {
+    if (hasThreadLocalSet && !cleanFullCode.includes('.remove()')) {
       violations.push({
         id: 'unbounded-threadlocal-leak',
         name: 'Риск утечки памяти ThreadLocal',
@@ -146,7 +160,7 @@ export class AstAuditService {
     // Rule 5: Blocking calls in Controllers
     let hasControllerSleep = false;
     let sleepLine: number | undefined;
-    const isController = /@RestController|@Controller|class\s+\w+Controller/.test(code);
+    const isController = /@RestController|@Controller|class\s+\w+Controller/.test(cleanFullCode);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (/\bThread\.sleep\s*\(/.test(line) && isController) {
@@ -197,7 +211,7 @@ export class AstAuditService {
     // Rule 7: Direct System Time in Business Logic
     let hasSystemTime = false;
     let timeLine: number | undefined;
-    const isTestFile = /@Test\b/i.test(code) || /class\s+\w+Test\b/.test(code);
+    const isTestFile = /@Test\b/i.test(cleanFullCode) || /class\s+\w+Test\b/.test(cleanFullCode);
     if (!isTestFile) {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];

@@ -69,6 +69,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const isCleaningUpRef = useRef(false);
   const wakeLockRef = useRef<any>(null);
   const currentParamsRef = useRef<LiveAudioSessionParams>({});
+  const isServerTurnCompleteRef = useRef(false);
+  const pendingTextMessageRef = useRef<string | null>(null);
 
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
@@ -259,11 +261,14 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       playoutManager.setMuted(isMutedRef.current);
       playoutManager.onPlaybackFinished = () => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isCleaningUpRef.current) {
-          setIsAiSpeaking(false);
-          isAiSpeakingRef.current = false;
-          setIsRecording(true);
-          isRecordingRef.current = true;
-          setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+          // Dual-Sided Handshake: only transition to recording when server turnComplete has arrived
+          if (isServerTurnCompleteRef.current) {
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+          }
         }
       };
       await playoutManager.resume();
@@ -272,6 +277,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       isAiSpeakingRef.current = true;
       setIsRecording(false);
       isRecordingRef.current = false;
+      isServerTurnCompleteRef.current = false;
 
       if (params.initialUserMessage) {
         setDialogueTurns([{ role: 'user', text: params.initialUserMessage }]);
@@ -288,6 +294,24 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       ws.onopen = () => {
         setIsConnected(true);
         setStatusMessage('AI готовится к ответу...');
+
+        // Drain pending text message queued while WebSocket was connecting
+        if (pendingTextMessageRef.current) {
+          const queued = pendingTextMessageRef.current;
+          pendingTextMessageRef.current = null;
+          const turnFrame = {
+            clientContent: {
+              turns: [
+                {
+                  role: 'user',
+                  parts: [{ text: queued }]
+                }
+              ],
+              turnComplete: true
+            }
+          };
+          ws.send(JSON.stringify(turnFrame));
+        }
       };
 
       ws.onmessage = async (event) => {
@@ -359,6 +383,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               playoutManagerRef.current?.handleInterruption();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;
+              isServerTurnCompleteRef.current = false;
               lastAiSpeechEndedAtRef.current = Date.now();
               setDialogueTurns((prev) => [
                 ...prev,
@@ -368,6 +393,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Model Speech turn
             if (data.serverContent.modelTurn?.parts) {
+              isServerTurnCompleteRef.current = false;
               // SOTA Protection: If user is in manual mode and has not finished turn, suppress unprompted modelTurn
               const isManualMode = (currentParamsRef.current.turnMode || 'manual') !== 'auto';
               if (isManualMode && isRecordingRef.current) {
@@ -401,6 +427,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately
             if (data.serverContent.turnComplete) {
+              isServerTurnCompleteRef.current = true;
               lastAiSpeechEndedAtRef.current = Date.now();
               console.log('AI turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
 
@@ -452,7 +479,14 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
    * Send text message or breakpoint directive into the live turn stream
    */
   const sendTextMessage = useCallback((text: string, displayText?: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.log('Live Audio WS is connecting, queueing pending text message...');
+      pendingTextMessageRef.current = text;
+      if (displayText) {
+        setDialogueTurns((prev) => [...prev, { role: 'user', text: displayText }]);
+      }
+      return;
+    }
     const turnFrame = {
       clientContent: {
         turns: [

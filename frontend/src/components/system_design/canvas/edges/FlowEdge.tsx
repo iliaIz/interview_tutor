@@ -31,7 +31,9 @@ export const FlowEdge: React.FC<EdgeProps> = memo(({
   const isCongested = metrics?.isCongested ?? false;
 
   // Particle speed based on current RPS: higher RPS -> faster animation
-  const speedSec = Math.max(0.6, Math.min(3.0, 3.0 - (currentRps / 2000)));
+  // SOTA: Quantize speedSec to 0.4s steps so SVG SMIL animateMotion does not reset on trivial 100ms traffic jitter
+  const rawSpeed = Math.max(0.6, Math.min(3.0, 3.0 - (currentRps / 2000)));
+  const speedSec = (Math.round(rawSpeed / 0.4) * 0.4).toFixed(1);
 
   // Protocol badge colors
   let protocolColor = 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';

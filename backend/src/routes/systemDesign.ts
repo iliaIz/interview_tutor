@@ -82,20 +82,32 @@ ${context}`;
     const proxyApiKey = envConfig.proxy.apiKey;
     const modelName = envConfig.models.text;
 
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`
-      },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: modelName,
-        messages,
-        temperature: 0.7,
-        max_tokens: 800
-      })
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
+    req.on('close', () => {
+      clearTimeout(timeoutId);
+      abortController.abort();
     });
+
+    let response: Response | any;
+    try {
+      response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${proxyApiKey}`
+        },
+        signal: abortController.signal,
+        body: JSON.stringify({
+          model: modelName,
+          messages,
+          temperature: 0.7,
+          max_tokens: 800
+        })
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
@@ -162,20 +174,32 @@ ${notesMarkdown || 'Не предоставлена'}
     const proxyApiKey = envConfig.proxy.apiKey;
     const modelName = envConfig.models.text;
 
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`
-      },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.2
-      })
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
+    req.on('close', () => {
+      clearTimeout(timeoutId);
+      abortController.abort();
     });
+
+    let response: Response | any;
+    try {
+      response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${proxyApiKey}`
+        },
+        signal: abortController.signal,
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          temperature: 0.2
+        })
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
