@@ -43,11 +43,15 @@ def create_tarball():
             tar.add(json_dir, arcname="json")
 
         # Root files
-        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml"]:
+        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml", "Dockerfile.caddy"]:
             fp = os.path.join(root_dir, f)
             if os.path.exists(fp):
                 tar.add(fp, arcname=f)
 
+        # Isolated Sandbox
+        sandbox_dir = os.path.join(root_dir, "sandbox")
+        if os.path.exists(sandbox_dir):
+            tar.add(sandbox_dir, arcname="sandbox")
 
     size_mb = os.path.getsize(tar_path) / (1024 * 1024)
     print(f"Archive created: {tar_path} ({size_mb:.2f} MB)")
@@ -77,11 +81,14 @@ def deploy():
     tar -xzf {remote_tar} -C {REMOTE_PATH}
     rm -f {remote_tar}
     
+    echo "Building sandbox container..."
+    docker compose -f docker-compose.prod.yml build sandbox || true
+
     echo "Building backend container..."
     docker compose -f docker-compose.prod.yml build backend
     
-    echo "Recreating backend service..."
-    docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend
+    echo "Recreating backend & sandbox services..."
+    docker compose -f docker-compose.prod.yml up -d --remove-orphans
     
     echo "Reloading Caddy reverse proxy..."
     docker exec interview-caddy-ssl caddy reload || docker compose -f docker-compose.prod.yml restart caddy

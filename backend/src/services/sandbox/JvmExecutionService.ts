@@ -89,9 +89,13 @@ export interface MutationExecutionResponse {
 export class JvmExecutionService {
   private static binPath = path.resolve(__dirname, '../../../bin');
   private static daemonPort = parseInt(process.env.SANDBOX_DAEMON_PORT || '8099', 10);
+  private static daemonHost = process.env.SANDBOX_DAEMON_HOST || '127.0.0.1';
   private static isDaemonStarting = false;
 
   private static ensureCompiled(): void {
+    if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+      return;
+    }
     const classFile = path.join(this.binPath, 'com/assessment/sandbox/CompilerService.class');
     if (!fs.existsSync(classFile)) {
       const sourceFile = path.resolve(__dirname, 'runner/CompilerService.java');
@@ -107,17 +111,20 @@ export class JvmExecutionService {
   }
 
   /**
-   * Ensures the resident hot JVM daemon is running on 127.0.0.1
+   * Ensures the resident hot JVM daemon is running on daemonHost:daemonPort
    */
   private static async ensureDaemonRunning(): Promise<boolean> {
     return new Promise((resolve) => {
-      const client = net.connect({ host: '127.0.0.1', port: this.daemonPort }, () => {
+      const client = net.connect({ host: this.daemonHost, port: this.daemonPort }, () => {
         client.destroy();
         resolve(true);
       });
 
       client.on('error', () => {
         client.destroy();
+        if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+          return resolve(false);
+        }
         if (!this.isDaemonStarting) {
           this.isDaemonStarting = true;
           try {
@@ -145,7 +152,7 @@ export class JvmExecutionService {
   private static async sendToDaemon(payloadJson: string, timeoutMs = 4000): Promise<string> {
     return new Promise((resolve, reject) => {
       let isDone = false;
-      const client = net.connect({ host: '127.0.0.1', port: this.daemonPort });
+      const client = net.connect({ host: this.daemonHost, port: this.daemonPort });
 
       const timer = setTimeout(() => {
         if (!isDone) {
@@ -236,8 +243,14 @@ export class JvmExecutionService {
     try {
       const output = await this.sendToDaemon(payloadJson, timeoutMs);
       return { output };
-    } catch {
-      // Transparent fallback to isolated CLI process
+    } catch (err: any) {
+      if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+        return {
+          output: '',
+          error: `Sandbox daemon (${this.daemonHost}:${this.daemonPort}) недоступен: ${err?.message || 'Connection refused'}`
+        };
+      }
+      // Transparent fallback to isolated CLI process on local dev
       return this.executeViaCli(payloadJson, timeoutMs);
     }
   }

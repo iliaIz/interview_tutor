@@ -35,8 +35,13 @@ public class ResidentSandboxDaemon {
 
         ExecutorService pool = Executors.newFixedThreadPool(16);
 
-        try (ServerSocket serverSocket = new ServerSocket(port, 50, InetAddress.getByName("127.0.0.1"))) {
-            System.out.println("[DAEMON_READY] Listening on 127.0.0.1:" + port);
+        String host = System.getenv("SANDBOX_BIND_HOST");
+        if (host == null || host.trim().isEmpty()) {
+            host = System.getProperty("sandbox.bind.host", "0.0.0.0");
+        }
+
+        try (ServerSocket serverSocket = new ServerSocket(port, 50, InetAddress.getByName(host))) {
+            System.out.println("[DAEMON_READY] Listening on " + host + ":" + port);
             System.out.flush();
 
             while (!serverSocket.isClosed()) {

@@ -1,6 +1,9 @@
 services:
   caddy:
-    image: caddy:2.8-alpine
+    image: ${CADDY_IMAGE:-ghcr.io/iliaiz/interview_tutor-caddy:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     container_name: interview-caddy-ssl
     restart: unless-stopped
     ports:
@@ -8,7 +11,6 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend/dist:/srv/frontend:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
@@ -25,6 +27,7 @@ services:
       - backend
 
   backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/iliaiz/interview_tutor-backend:latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -38,6 +41,8 @@ services:
       - NODE_ENV=production
       - PORT=5000
       - LITELLM_BASE_URL=http://litellm-gateway:4000/v1
+      - SANDBOX_DAEMON_HOST=interview-sandbox
+      - SANDBOX_DAEMON_PORT=8099
       - GEMINI_TEXT_MODEL=${GEMINI_TEXT_MODEL:-gemini-smart}
       - GEMINI_FAST_MODEL=${GEMINI_FAST_MODEL:-gemini-fast}
       - GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-gemini-live-v2}
@@ -52,16 +57,48 @@ services:
     networks:
       - app_internal_net
       - litellm_net
+      - sandbox_internal_net
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     mem_limit: 256m
+    depends_on:
+      - sandbox
+
+  sandbox:
+    image: ${SANDBOX_IMAGE:-ghcr.io/iliaiz/interview_tutor-sandbox:latest}
+    build:
+      context: .
+      dockerfile: sandbox/Dockerfile
+    container_name: interview-sandbox
+    restart: unless-stopped
+    expose:
+      - "8099"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:exec,size=32M
+    mem_limit: 128m
+    pids_limit: 64
+    networks:
+      - sandbox_internal_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app_internal_net:
     driver: bridge
+  sandbox_internal_net:
+    driver: bridge
+    internal: true
   litellm_net:
     name: litellm_shared_network
     external: true
