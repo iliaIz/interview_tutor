@@ -39,7 +39,8 @@ export const SystemDesignArena: React.FC = () => {
     closeSystemDesignScenario, 
     showToast,
     academyBreadcrumbContext,
-    returnToAcademyStep
+    returnToAcademyStep,
+    toggleAcademyStepProgress
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'staff_ai'>('spec');
   const [architectureMode, setArchitectureMode] = useState<'canvas' | 'mermaid'>('canvas');
@@ -170,6 +171,13 @@ export const SystemDesignArena: React.FC = () => {
       if (res.ok) {
         const result: SystemDesignEvaluation = await res.json();
         setEvaluationResult(result);
+        if (result.totalScore >= 70 && academyBreadcrumbContext) {
+          toggleAcademyStepProgress(
+            academyBreadcrumbContext.courseId,
+            academyBreadcrumbContext.stepNumber,
+            true
+          );
+        }
       } else {
         showToast({ type: 'error', title: 'Ошибка оценки', message: 'Не удалось получить оценку архитектуры' });
       }

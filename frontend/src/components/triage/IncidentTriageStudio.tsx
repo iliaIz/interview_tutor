@@ -106,7 +106,8 @@ export const IncidentTriageStudio: React.FC = () => {
         deadlockSnippet = match ? match[0] : '';
       }
 
-      const threadRegex = /"([^"]+)"\s+(?:#\d+\s+)?(?:daemon\s+)?prio=\d+\s+os_prio=\d+\s+tid=([0-9a-fx]+)\s+nid=([0-9a-fx]+)\s+([^\[\n]+)(?:\[([^\]]+)\])?\s+java\.lang\.Thread\.State:\s+([A-Z_]+)([\s\S]*?)(?=(?:\n"[^"]+"|\nJNI|\nFound|\n\n\n|$))/g;
+      // Resilient thread regex supporting HotSpot, OpenJDK 21, and Virtual Threads
+      const threadRegex = /"([^"]+)"[^\n]*?\n\s+java\.lang\.Thread\.State:\s+([A-Z_]+)([\s\S]*?)(?=(?:\n"[^"]+"|\n#\d+|\nJNI|\nFound|\n\n\n|$))/g;
       
       const threads: Array<{
         name: string;
@@ -120,7 +121,11 @@ export const IncidentTriageStudio: React.FC = () => {
 
       let match;
       while ((match = threadRegex.exec(raw)) !== null) {
-        const [, name, tid, nid, , , state, body] = match;
+        const [, name, state, body] = match;
+        const tidMatch = match[0].match(/tid=([0-9a-fx]+)/i);
+        const nidMatch = match[0].match(/nid=([0-9a-fx]+)/i);
+        const tid = tidMatch ? tidMatch[1] : '';
+        const nid = nidMatch ? nidMatch[1] : '';
         const lines = body.trim().split('\n').map(l => l.trim()).filter(Boolean);
         const lockWaiting = lines.find(l => l.includes('- waiting to lock') || l.includes('- waiting on'));
         const lockHolding = lines.find(l => l.includes('- locked'));
@@ -459,6 +464,23 @@ export const IncidentTriageStudio: React.FC = () => {
                             {parsedDump.deadlockSnippet}
                           </pre>
                         )}
+                      </div>
+                    )}
+
+                    {parsedDump.threads.length === 0 && (
+                      <div className="p-6 bg-amber-50/70 border border-amber-200 rounded-2xl text-center space-y-3">
+                        <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto" />
+                        <h4 className="text-xs font-bold text-amber-900">Нестандартный формат дампа потоков</h4>
+                        <p className="text-xs text-amber-800 max-w-md mx-auto">
+                          Структурированный парсер не смог выделить отдельные потоки. Вы можете просмотреть полный текст дампа в режиме сырой консоли.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setArtifactViewMode('raw')}
+                          className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-amber-800 border border-amber-300 shadow-2xs hover:bg-amber-100 transition cursor-pointer"
+                        >
+                          Переключиться в Raw Terminal
+                        </button>
                       </div>
                     )}
 

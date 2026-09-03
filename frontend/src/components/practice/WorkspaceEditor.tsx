@@ -65,7 +65,9 @@ export const WorkspaceEditor: React.FC = () => {
     setActivePracticeReport,
     practiceElapsedSeconds,
     setPracticeElapsedSeconds,
-    showToast
+    showToast,
+    academyBreadcrumbContext,
+    toggleAcademyStepProgress
   } = useAppStore();
 
   const [isDiffOpen, setIsDiffOpen] = useState(false);
@@ -104,6 +106,7 @@ export const WorkspaceEditor: React.FC = () => {
       const res = await fetch('/api/practice/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           challengeId: activePracticeChallenge.id,
           files: practiceWorkspaceFiles,
@@ -139,6 +142,7 @@ export const WorkspaceEditor: React.FC = () => {
       const res = await fetch('/api/practice/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         signal: controller.signal,
         body: JSON.stringify({
           challengeId: activePracticeChallenge.id,
@@ -155,6 +159,13 @@ export const WorkspaceEditor: React.FC = () => {
 
       const data = await res.json();
       setActivePracticeReport(data.evaluation);
+      if (data.isPassed && academyBreadcrumbContext) {
+        toggleAcademyStepProgress(
+          academyBreadcrumbContext.courseId,
+          academyBreadcrumbContext.stepNumber,
+          true
+        );
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('Evaluation cancelled by user.');
@@ -214,6 +225,7 @@ export const WorkspaceEditor: React.FC = () => {
         const res = await fetch('/api/sandbox/execute-mutation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             challengeId: activePracticeChallenge.id,
             files: practiceWorkspaceFiles,
@@ -248,6 +260,7 @@ export const WorkspaceEditor: React.FC = () => {
         const res = await fetch('/api/sandbox/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             challengeId: activePracticeChallenge.id,
             files: practiceWorkspaceFiles,

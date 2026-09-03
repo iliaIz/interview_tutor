@@ -187,21 +187,22 @@ export async function findRelevantCandidateGaps(
   questionText: string,
   topic: string,
   questionId?: string,
-  threshold = 0.70
+  threshold = 0.70,
+  userId = 'default_user'
 ): Promise<CandidateGap[]> {
   try {
     const questionVec = questionId
       ? await getOrCacheQuestionEmbedding(questionId, questionText, topic)
       : await embedText(`${topic}: ${questionText}`);
 
-    // Query active and verifying candidate gaps
+    // Query active and verifying candidate gaps for this user
     const rows = db.prepare(`
       SELECT id, question_id, topic, subtopic, error_concept, embedding, deficit_weight, status, solo_streak
       FROM candidate_error_vectors
-      WHERE status IN ('ACTIVE_DEFICIT', 'VERIFYING')
+      WHERE user_id = ? AND status IN ('ACTIVE_DEFICIT', 'VERIFYING')
       ORDER BY updated_at DESC
       LIMIT 100
-    `).all() as any[];
+    `).all(userId) as any[];
 
     if (!rows || rows.length === 0) {
       return [];
@@ -247,7 +248,7 @@ export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams): Pr
   updatedGaps: { id: string; oldWeight: number; newWeight: number; newStatus: string; delta: number }[];
   masteredCount: number;
 }> {
-  const { questionId, topic, assistanceLevel, resolvedGapIds = [] } = params;
+  const { questionId, topic, assistanceLevel, resolvedGapIds = [], userId = 'default_user' } = params;
   const results: { id: string; oldWeight: number; newWeight: number; newStatus: string; delta: number }[] = [];
   let masteredCount = 0;
 
@@ -260,17 +261,17 @@ export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams): Pr
   // 1. If specific gap IDs were resolved / tested
   const targetIds = [...resolvedGapIds];
 
-  // If none specified, find gaps matching question_id or topic
+  // If none specified, find gaps matching question_id or topic for this user
   if (targetIds.length === 0 && questionId) {
     const matchingRows = db.prepare(`
       SELECT id FROM candidate_error_vectors
-      WHERE question_id = ? AND status IN ('ACTIVE_DEFICIT', 'VERIFYING')
-    `).all(questionId) as any[];
+      WHERE user_id = ? AND question_id = ? AND status IN ('ACTIVE_DEFICIT', 'VERIFYING')
+    `).all(userId, questionId) as any[];
     matchingRows.forEach((r) => targetIds.push(r.id));
   }
 
   for (const gapId of targetIds) {
-    const row = db.prepare('SELECT * FROM candidate_error_vectors WHERE id = ?').get(gapId) as any;
+    const row = db.prepare('SELECT * FROM candidate_error_vectors WHERE id = ? AND user_id = ?').get(gapId, userId) as any;
     if (!row) continue;
 
     const oldWeight = row.deficit_weight;
@@ -279,7 +280,7 @@ export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams): Pr
     // Continuous FSRS-5 retrievability alignment
     if (row.question_id) {
       try {
-        const fsrsCard: any = db.prepare('SELECT stability, last_review_at FROM fsrs_card_states WHERE question_id = ?').get(row.question_id);
+        const fsrsCard: any = db.prepare('SELECT stability, last_review_at FROM fsrs_card_states WHERE user_id = ? AND question_id = ?').get(userId, row.question_id);
         if (fsrsCard && typeof fsrsCard.stability === 'number' && fsrsCard.stability > 0) {
           const lastRev = fsrsCard.last_review_at ? new Date(fsrsCard.last_review_at).getTime() : Date.now();
           const elapsedDays = Math.max(0, (Date.now() - lastRev) / (1000 * 60 * 60 * 24));
@@ -357,6 +358,7 @@ export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams): Pr
 }
 
 export interface KnowledgeDecayEventParams {
+  userId?: string;
   questionId?: string;
   topic: string;
   assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse';
@@ -392,8 +394,8 @@ export async function recordNewErrorGap(params: {
           solo_streak = 0,
           last_tested_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(existing.id);
+      WHERE id = ? AND user_id = ?
+    `).run(existing.id, userId);
     return existing.id;
   }
 
@@ -427,7 +429,7 @@ export async function recordNewErrorGap(params: {
 /**
  * Fetches analytics and gap list for Knowledge Radar UI
  */
-export function getKnowledgeRadarData(): {
+export function getKnowledgeRadarData(userId: string = 'default_user'): {
   activeDeficits: CandidateGap[];
   verifyingGaps: CandidateGap[];
   masteredGaps: CandidateGap[];
@@ -436,8 +438,9 @@ export function getKnowledgeRadarData(): {
   const rows = db.prepare(`
     SELECT id, question_id, topic, subtopic, error_concept, deficit_weight, status, solo_streak, last_tested_at
     FROM candidate_error_vectors
+    WHERE user_id = ?
     ORDER BY updated_at DESC
-  `).all() as any[];
+  `).all(userId) as any[];
 
   const activeDeficits: CandidateGap[] = [];
   const verifyingGaps: CandidateGap[] = [];
@@ -480,26 +483,26 @@ export function getKnowledgeRadarData(): {
 /**
  * Resets a gap status back to ACTIVE_DEFICIT for intentional re-practice
  */
-export function resetGapForPractice(gapId: string): boolean {
+export function resetGapForPractice(gapId: string, userId: string = 'default_user'): boolean {
   const info = db.prepare(`
     UPDATE candidate_error_vectors
     SET deficit_weight = 1.0,
         status = 'ACTIVE_DEFICIT',
         solo_streak = 0,
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(gapId);
+    WHERE id = ? AND user_id = ?
+  `).run(gapId, userId);
   return info.changes > 0;
 }
 
 /**
  * Fetches user profile settings
  */
-export function getUserProfile(): UserProfileData {
-  const row = db.prepare('SELECT * FROM user_profile_settings WHERE id = ?').get('default_user') as any;
+export function getUserProfile(userId: string = 'default_user'): UserProfileData {
+  const row = db.prepare('SELECT * FROM user_profile_settings WHERE id = ?').get(userId) as any;
   if (!row) {
     return {
-      id: 'default_user',
+      id: userId,
       candidateName: 'Кандидат',
       targetSeniority: 'senior',
       primaryStack: 'Java 21, Spring Boot 3.3, PostgreSQL, Kafka',
@@ -526,11 +529,19 @@ export function getUserProfile(): UserProfileData {
 /**
  * Updates user profile settings
  */
-export function updateUserProfile(profile: Partial<UserProfileData>): UserProfileData {
-  const current = getUserProfile();
+export function updateUserProfile(profile: Partial<UserProfileData>): UserProfileData;
+export function updateUserProfile(userId: string, profile: Partial<UserProfileData>): UserProfileData;
+export function updateUserProfile(
+  userIdOrProfile: string | Partial<UserProfileData>,
+  maybeProfile?: Partial<UserProfileData>
+): UserProfileData {
+  const userId = typeof userIdOrProfile === 'string' ? userIdOrProfile : 'default_user';
+  const profile = typeof userIdOrProfile === 'string' ? (maybeProfile || {}) : userIdOrProfile;
+  const current = getUserProfile(userId);
   const updated: UserProfileData = {
     ...current,
     ...profile,
+    id: userId,
     focusAreas: profile.focusAreas || current.focusAreas
   };
 

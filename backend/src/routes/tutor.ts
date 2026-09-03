@@ -43,6 +43,15 @@ router.post('/bug-challenge', async (req, res) => {
     res.json(challenge);
   } catch (error: any) {
     console.error('API Error in /api/tutor/bug-challenge:', error);
+    if (error.name === 'LlmGatewayUnavailableError' || error.reason) {
+      return res.status(503).json({
+        error: error.userMessage || error.message || 'AI Gateway временно недоступен',
+        isGatewayUnavailable: true,
+        retryAfterSeconds: error.retryAfterSeconds || 5,
+        reason: error.reason || 'proxy_unreachable',
+        availableBankCount: 70
+      });
+    }
     res.status(500).json({ error: error.message || 'Failed to generate bug challenge' });
   }
 });

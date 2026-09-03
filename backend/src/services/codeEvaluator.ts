@@ -11,6 +11,7 @@ export interface EvaluationRequest {
   activePhase: number;
   timeSpentSeconds?: number;
   sandboxResult?: SandboxExecutionResponse;
+  abortSignal?: AbortSignal;
 }
 
 export interface TestCaseResult {
@@ -176,7 +177,7 @@ const EVALUATION_JSON_SCHEMA = {
 };
 
 export async function evaluateChallengeSubmission(req: EvaluationRequest): Promise<EvaluationResult> {
-  const { challenge, files, activePhase, sandboxResult } = req;
+  const { challenge, files, activePhase, sandboxResult, abortSignal } = req;
 
   // 1. Phase 1: Static AST Analysis and Fact Extraction
   const preProcess = preProcessWorkspaceFiles(files);
@@ -334,7 +335,9 @@ ${codeXml}
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    signal: AbortSignal.timeout(90_000),
+    signal: abortSignal 
+      ? AbortSignal.any([abortSignal, AbortSignal.timeout(90_000)]) 
+      : AbortSignal.timeout(90_000),
     body: JSON.stringify({
       model,
       temperature: REASONING_PRESETS.codeAudit.temperature,

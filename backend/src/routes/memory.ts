@@ -16,7 +16,8 @@ const router = Router();
 // GET /api/memory/radar - Fetch full knowledge radar (Active, Verifying, Mastered)
 router.get('/radar', (req, res) => {
   try {
-    const data = getKnowledgeRadarData();
+    const userId = getAuthUserId(req);
+    const data = getKnowledgeRadarData(userId);
     res.json(data);
   } catch (err: any) {
     console.error('Error fetching knowledge radar:', err);
@@ -27,11 +28,12 @@ router.get('/radar', (req, res) => {
 // POST /api/memory/reset-gap - Reset a gap back to active deficit for re-practice
 router.post('/reset-gap', (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const { gapId } = req.body;
     if (!gapId) {
       return res.status(400).json({ error: 'gapId is required' });
     }
-    const success = resetGapForPractice(gapId);
+    const success = resetGapForPractice(gapId, userId);
     res.json({ success });
   } catch (err: any) {
     console.error('Error resetting gap:', err);
@@ -42,7 +44,8 @@ router.post('/reset-gap', (req, res) => {
 // GET /api/memory/profile - Get candidate profile settings
 router.get('/profile', (req, res) => {
   try {
-    const profile = getUserProfile();
+    const userId = getAuthUserId(req);
+    const profile = getUserProfile(userId);
     res.json(profile);
   } catch (err: any) {
     console.error('Error fetching profile:', err);
@@ -53,7 +56,8 @@ router.get('/profile', (req, res) => {
 // POST /api/memory/profile - Update candidate profile settings
 router.post('/profile', (req, res) => {
   try {
-    const updated = updateUserProfile(req.body);
+    const userId = getAuthUserId(req);
+    const updated = updateUserProfile(userId, req.body);
     res.json(updated);
   } catch (err: any) {
     console.error('Error updating profile:', err);
@@ -64,11 +68,12 @@ router.post('/profile', (req, res) => {
 // GET /api/memory/relevant - Test / fetch relevant gaps for a specific question
 router.get('/relevant', async (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const questionText = (req.query.questionText as string) || '';
     const topic = (req.query.topic as string) || '';
     const questionId = (req.query.questionId as string) || undefined;
 
-    const gaps = await findRelevantCandidateGaps(questionText, topic, questionId);
+    const gaps = await findRelevantCandidateGaps(questionText, topic, questionId, 0.70, userId);
     res.json({ gaps });
   } catch (err: any) {
     console.error('Error fetching relevant gaps:', err);
@@ -79,12 +84,14 @@ router.get('/relevant', async (req, res) => {
 // POST /api/memory/record-gap - Record a new gap
 router.post('/record-gap', async (req, res) => {
   try {
+    const userId = getAuthUserId(req);
     const { questionId, topic, subtopic, errorConcept, initialDeficit } = req.body;
     if (!topic || !errorConcept) {
       return res.status(400).json({ error: 'topic and errorConcept are required' });
     }
 
     const id = await recordNewErrorGap({
+      userId,
       questionId,
       topic,
       subtopic,
@@ -145,6 +152,7 @@ router.post('/fsrs/review', async (req, res) => {
 
     if (Boolean(isPassed) || Number(score) >= 70) {
       void applyKnowledgeDecay({
+        userId,
         questionId,
         topic: '',
         assistanceLevel: 'solo'

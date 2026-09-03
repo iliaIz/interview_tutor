@@ -396,10 +396,10 @@ export class AudioPlayoutManager {
         this.activeSources.clear();
         this.playheadCursor = 0;
 
-        // 3. Reset gain back to unity (1.5) for future speech
+        // 3. Reset gain back to unmuted unity (1.5) or keep muted (0.0) for future speech
         if (this.context && this.masterGain && this.context.state !== 'closed') {
           this.masterGain.gain.cancelScheduledValues(this.context.currentTime);
-          this.masterGain.gain.setValueAtTime(1.5, this.context.currentTime);
+          this.masterGain.gain.setValueAtTime(this.isMuted ? 0.0 : 1.5, this.context.currentTime);
         }
       }, fadeDurationSec * 1000 + 2);
     } catch (err) {

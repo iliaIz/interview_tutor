@@ -92,7 +92,8 @@ export const BugHuntArena: React.FC = () => {
     activeTopicBugHunt, 
     closeTopicBugHunt,
     academyBreadcrumbContext,
-    returnToAcademyStep
+    returnToAcademyStep,
+    toggleAcademyStepProgress
   } = useAppStore();
 
   const topicId = activeTopicBugHunt?.topicId || 'core';
@@ -155,6 +156,13 @@ export const BugHuntArena: React.FC = () => {
       setSessionSolvedCount((prev) => prev + 1);
       setHistory((prev) => prev.map((c, i) => (i === currentIndex ? { ...c, isSolved: true } : c)));
       triggerSuccessConfetti();
+      if (academyBreadcrumbContext) {
+        toggleAcademyStepProgress(
+          academyBreadcrumbContext.courseId,
+          academyBreadcrumbContext.stepNumber,
+          true
+        );
+      }
     }
   });
 
@@ -214,7 +222,8 @@ export const BugHuntArena: React.FC = () => {
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `HTTP ${res.status}`);
       }
 
       const newChallenge: BugChallenge = await res.json();

@@ -133,6 +133,11 @@ router.post('/evaluate', async (req, res) => {
 
     const challenge: CodingChallenge = JSON.parse(row.manifest_json);
 
+    const abortController = new AbortController();
+    req.on('close', () => {
+      abortController.abort();
+    });
+
     // 1. Authoritative Real JVM 21 In-Memory Sandbox Execution (< 80ms)
     const sandboxResult = await JvmExecutionService.execute({
       challengeId,
@@ -146,8 +151,14 @@ router.post('/evaluate', async (req, res) => {
       files,
       activePhase,
       timeSpentSeconds,
-      sandboxResult
+      sandboxResult,
+      abortSignal: abortController.signal
     });
+
+    if (req.destroyed || abortController.signal.aborted) {
+      console.log(`⏹️ Client disconnected from practice evaluation: challenge ${challengeId}`);
+      return;
+    }
 
     const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;
     const status = isPassed ? 'PASSED' : 'FAILED';
@@ -191,6 +202,10 @@ router.post('/evaluate', async (req, res) => {
       evaluation
     });
   } catch (err: any) {
+    if (req.destroyed || err.name === 'AbortError') {
+      console.log(`⏹️ Practice evaluation aborted by client: ${err.message}`);
+      return;
+    }
     console.error('Error during practice evaluation:', err);
     res.status(500).json({ error: err.message || 'Evaluation failed' });
   }
