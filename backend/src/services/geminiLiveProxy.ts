@@ -712,7 +712,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       }
     });
 
+    let isTerminated = false;
     const terminate = (source: string, code?: number, reason?: Buffer) => {
+      if (isTerminated) return;
+      isTerminated = true;
+
       console.log(`🔌 Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
       if (session.heartbeatInterval) {
         clearInterval(session.heartbeatInterval);
@@ -730,11 +734,19 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         session.currentAiTurnText = '';
       }
       session.frameQueue = [];
-      if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {
-        geminiSocket.close();
+      try {
+        if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {
+          geminiSocket.close();
+        }
+      } catch (err) {
+        console.warn('Error closing geminiSocket:', err);
       }
-      if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
-        clientSocket.close();
+      try {
+        if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
+          clientSocket.close();
+        }
+      } catch (err) {
+        console.warn('Error closing clientSocket:', err);
       }
     };
 
@@ -748,7 +760,11 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     geminiSocket.on('error', (err) => {
       console.error('Gemini Live upstream WS error:', err.message);
       if (clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ error: `Ошибка голосового шлюза: ${err.message}` }));
+        try {
+          clientSocket.send(JSON.stringify({ error: `Ошибка голосового шлюза: ${err.message}` }));
+        } catch (sendErr) {
+          console.warn('Failed to forward error message to clientSocket:', sendErr);
+        }
       }
       terminate('GeminiUpstreamError');
     });

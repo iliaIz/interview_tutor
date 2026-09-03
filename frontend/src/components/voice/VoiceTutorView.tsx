@@ -125,8 +125,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                 h3: ({ node, ...props }) => <h3 className="text-xs font-bold text-pastel-accentViolet mt-3 mb-1" {...props} />,
                 p: ({ node, ...props }) => <p className="mb-2 text-xs text-pastel-text/90 leading-relaxed" {...props} />,
                 ul: ({ node, ...props }) => <ul className="list-disc list-inside my-2 space-y-1 text-xs text-pastel-text/90 pl-1" {...props} />,
-                ol: ({ node, ...props }) => <ol className="list-decimal list-inside my-2 space-y-1 text-xs text-pastel-text/90 pl-1" {...props} />,
-                code: ({ node, inline, className, children, ...props }: any) => {
+                code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode } & React.HTMLAttributes<HTMLElement>) => {
                   const codeStr = String(children).replace(/\n$/, '');
                   const match = /language-(\w+)/.exec(className || '');
                   const lang = match ? match[1] : 'java';

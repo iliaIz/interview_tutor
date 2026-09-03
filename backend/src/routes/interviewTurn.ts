@@ -17,31 +17,63 @@ import {
 
 const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
 
-function sanitizeVoice(v: any): string {
-  return VALID_VOICES.includes(v) ? v : 'Kore';
+function sanitizeVoice(v: unknown): string {
+  return typeof v === 'string' && VALID_VOICES.includes(v as any) ? v : 'Kore';
+}
+
+export interface TurnReasoningResult {
+  action: 'probe' | 'evaluate';
+  replyText?: string;
+  score?: number;
+  isPassed?: boolean;
+  positivePoints?: string[];
+  missingPoints?: string[];
+  feedback?: string;
+  spokenFeedback?: string;
+  faangScorecard?: any;
 }
 
 /**
  * Full-Jitter Exponential Backoff (AGENTS.md Invariant 5):
  * T = random(0, min(2500, 800 * 1.8^attempt))
+ * Generates a fresh AbortSignal per attempt and respects client parentSignal cancellation.
  */
 async function fetchWithFullJitterRetry(
   url: string,
   options: RequestInit,
-  maxRetries = 2
+  maxRetries = 2,
+  parentSignal?: AbortSignal,
+  timeoutMs = 45_000
 ): Promise<globalThis.Response> {
-  let lastError: any = null;
+  let lastError: unknown = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (parentSignal?.aborted) {
+      throw new Error('Request aborted by client');
+    }
+
     if (attempt > 0) {
       const backoffCapMs = 2500;
       const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
       const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
       console.log(`⏱️ LiteLLM retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
       await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
+      if (parentSignal?.aborted) {
+        throw new Error('Request aborted by client');
+      }
     }
 
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const combinedSignal = parentSignal
+      ? AbortSignal.any([parentSignal, timeoutSignal])
+      : timeoutSignal;
+
+    const perAttemptOptions: RequestInit = {
+      ...options,
+      signal: combinedSignal
+    };
+
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, perAttemptOptions);
       if (res.ok) {
         return res;
       }
@@ -52,15 +84,18 @@ async function fetchWithFullJitterRetry(
         continue;
       }
       return res;
-    } catch (err) {
+    } catch (err: any) {
+      if (parentSignal?.aborted) {
+        throw new Error('Request aborted by client');
+      }
       lastError = err;
       console.warn(`[LiteLLM Network Error] Attempt ${attempt}/${maxRetries}:`, err);
     }
   }
-  throw lastError || new Error(`LiteLLM request failed after ${maxRetries} retries`);
+  throw (lastError instanceof Error ? lastError : new Error(`LiteLLM request failed after ${maxRetries} retries`));
 }
 
-function parseReasoningJson(raw: string, isTutorMode: boolean): any {
+function parseReasoningJson(raw: string, isTutorMode: boolean): TurnReasoningResult {
   if (!raw || !raw.trim()) {
     return {
       action: isTutorMode ? 'probe' : 'evaluate',
@@ -165,19 +200,27 @@ ${genderDirective}
     const proxyApiKey = envConfig.proxy.apiKey;
     const modelName = envConfig.models.fast;
 
-    const chatResponse = await fetchWithFullJitterRetry(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${proxyApiKey}`
+    const chatResponse = await fetchWithFullJitterRetry(
+      endpointUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${proxyApiKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: 'user', content: greetingPrompt }],
+          temperature: 0.3
+        })
       },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: 'user', content: greetingPrompt }],
-        temperature: 0.3
-      })
-    });
+      2,
+      (req as any).signal
+    );
+
+    if ((req as any).signal?.aborted) {
+      return res.status(499).end();
+    }
 
     if (!chatResponse.ok) {
       throw new Error(`Proxy returned ${chatResponse.status}: ${await chatResponse.text()}`);
@@ -185,6 +228,10 @@ ${genderDirective}
 
     const chatData = await chatResponse.json();
     const greetingText = chatData.choices?.[0]?.message?.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
+
+    if ((req as any).signal?.aborted) {
+      return res.status(499).end();
+    }
 
     // Synthesize TTS with retry
     const { buffer: ttsBuf } = await synthesizeTTSWithRetry(greetingText, voice);
@@ -195,6 +242,9 @@ ${genderDirective}
       audioBase64
     });
   } catch (err: any) {
+    if ((req as any).signal?.aborted || err?.message === 'Request aborted by client') {
+      return res.status(499).end();
+    }
     console.error('Error in /api/interview/greeting:', err);
     return res.status(500).json({ error: err.message || 'Greeting synthesis failed' });
   }
@@ -350,21 +400,29 @@ ${decisionRules}
       { role: 'user', content: candidateText }
     ];
 
-    const proxyRes = await fetchWithFullJitterRetry(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`
+    const proxyRes = await fetchWithFullJitterRetry(
+      endpointUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${proxyApiKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: conversationTurns,
+          temperature: 0.3,
+          max_tokens: 800,
+          response_format: { type: 'json_object' }
+        })
       },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: modelName,
-        messages: conversationTurns,
-        temperature: 0.3,
-        max_tokens: 800,
-        response_format: { type: 'json_object' }
-      })
-    });
+      2,
+      (req as any).signal
+    );
+
+    if ((req as any).signal?.aborted) {
+      return res.status(499).end();
+    }
 
     if (!proxyRes.ok) {
       const errTxt = await proxyRes.text();
@@ -374,6 +432,10 @@ ${decisionRules}
     const proxyData = await proxyRes.json();
     const rawContent = proxyData.choices?.[0]?.message?.content || '{}';
     const reasoningResult = parseReasoningJson(rawContent, isTutorMode);
+
+    if ((req as any).signal?.aborted) {
+      return res.status(499).end();
+    }
 
     // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3 with retry
     let textToVoice = '';
@@ -447,11 +509,11 @@ ${decisionRules}
             decayResult = await applyKnowledgeDecay({
               questionId,
               topic,
-              assistanceLevel: reasoningResult.isPassed ? (reasoningResult.score >= 85 ? 'solo' : 'guided') : 'relapse'
+              assistanceLevel: reasoningResult.isPassed ? ((reasoningResult.score ?? 0) >= 85 ? 'solo' : 'guided') : 'relapse'
             });
           } catch {}
 
-          if (!reasoningResult.isPassed && reasoningResult.missingPoints?.length > 0) {
+          if (!reasoningResult.isPassed && reasoningResult.missingPoints && reasoningResult.missingPoints.length > 0) {
             try {
               void recordNewErrorGap({
                 questionId,
@@ -485,6 +547,9 @@ ${decisionRules}
       progress: progressSummary
     });
   } catch (err: any) {
+    if ((req as any).signal?.aborted || err?.message === 'Request aborted by client') {
+      return res.status(499).end();
+    }
     console.error('Error in /api/interview/turn:', err);
     res.status(500).json({ error: err.message || 'Interview turn processing failed' });
   }

@@ -120,15 +120,13 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
       }
 
       try {
-        void applyKnowledgeDecay({
+        decayResult = await applyKnowledgeDecay({
           questionId: session.questionId,
           topic: session.topic || 'General',
           assistanceLevel: isSolved ? (parsedHints.length > 0 ? 'assisted' : 'solo') : 'relapse',
           resolvedGapIds: session.relevantGapIds
-        }).then((res) => {
-          decayResult = res;
-          console.log(`🧠 Bug challenge decay applied:`, res);
         });
+        console.log(`🧠 Bug challenge decay applied:`, decayResult);
       } catch (decayErr) {
         console.warn('Bug challenge decay error:', decayErr);
       }
@@ -238,15 +236,13 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
     // Apply knowledge decay & record new gap if failed
     let decayResult: any = null;
     try {
-      void applyKnowledgeDecay({
+      decayResult = await applyKnowledgeDecay({
         questionId: session.questionId,
         topic: session.topic || 'General',
         assistanceLevel,
         resolvedGapIds: session.relevantGapIds
-      }).then((res) => {
-        decayResult = res;
-        console.log(`🧠 Knowledge decay applied (${assistanceLevel}):`, JSON.stringify(res));
       });
+      console.log(`🧠 Knowledge decay applied (${assistanceLevel}):`, JSON.stringify(decayResult));
     } catch (decayErr) {
       console.error('Error applying knowledge decay:', decayErr);
     }

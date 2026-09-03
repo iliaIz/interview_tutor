@@ -261,11 +261,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   // Speech & Behavioral AI Coaching State (STAR / PREP / Pacing)
   const [speechCoachingMode, setSpeechCoachingMode] = useState<'adaptive' | 'always' | 'off'>(() => {
-    return (localStorage.getItem('interview_speech_coaching_mode') as any) || 'adaptive';
+    const saved = localStorage.getItem('interview_speech_coaching_mode');
+    if (saved === 'adaptive' || saved === 'always' || saved === 'off') {
+      return saved;
+    }
+    return 'adaptive';
   });
   const [liveClarityMetrics, setLiveClarityMetrics] = useState<SpeechClarityMetrics | null>(null);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
-  const speechRecognitionRef = useRef<any>(null);
+  const speechRecognitionRef = useRef<{
+    start(): void;
+    stop(): void;
+    abort(): void;
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((event: any) => void) | null;
+    onerror: ((event: any) => void) | null;
+    onend: (() => void) | null;
+  } | null>(null);
   const turnStartTimeRef = useRef<number>(Date.now());
 
   const questionStructure: QuestionStructureFormat = useMemo(() => {
@@ -416,6 +430,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       };
 
       recognition.onerror = () => {};
+      recognition.onend = () => {
+        if (speechRecognitionRef.current === recognition) {
+          speechRecognitionRef.current = null;
+        }
+      };
       recognition.start();
       speechRecognitionRef.current = recognition;
     } catch (e) {
@@ -715,6 +734,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setIsUserSpeaking(false);
     setIsRecording(false);
     isRecordingRef.current = false;
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch {}
+      speechRecognitionRef.current = null;
+    }
     if (playoutManagerRef.current) {
       playoutManagerRef.current.clearQueue();
     }
@@ -962,6 +985,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         } else if (data.error) {
           clearAllTurnWatchdogs();
           setDialogueTurns((prev) => [...prev, { role: 'system', text: `❌ Ошибка: ${data.error}` }]);
+          setIsThinking(false);
+          isThinkingRef.current = false;
+          setThinkingStage('idle');
+          setIsAiSpeaking(false);
+          isAiSpeakingRef.current = false;
+          setIsSubmitting(false);
+          setIsRecording(true);
+          isRecordingRef.current = true;
         } else if (data.serverContent) {
           // Barge-in interruption
           if (data.serverContent.interrupted) {

@@ -49,6 +49,7 @@ pnpm-debug.log*
 # Temporary files & Local credentials
 .tmp/
 scratch/
+scratch*/
 _temp_enhorse/
 .playwright-mcp/
 *_raw.txt

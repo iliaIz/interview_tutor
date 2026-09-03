@@ -25,6 +25,7 @@ export class AudioPlayoutManager {
   public isMuted: boolean = false;
   private drainTimer: ReturnType<typeof setTimeout> | null = null;
   private interruptionTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingInterruptionSources: Set<AudioBufferSourceNode> = new Set();
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
@@ -465,6 +466,14 @@ export class AudioPlayoutManager {
       clearTimeout(this.interruptionTimer);
       this.interruptionTimer = null;
     }
+    for (const source of this.pendingInterruptionSources) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch {}
+    }
+    this.pendingInterruptionSources.clear();
+
     for (const chime of this.activeChimes) {
       try {
         chime.osc.stop();
@@ -524,14 +533,22 @@ export class AudioPlayoutManager {
       const sourcesToStop = new Set(this.activeSources);
       this.activeSources.clear();
 
+      for (const source of sourcesToStop) {
+        this.pendingInterruptionSources.add(source);
+        try {
+          // Native timeline stop in audio thread at conclusion of gain ramp
+          source.stop(now + fadeDurationSec);
+        } catch {}
+      }
+
       // 2. Tear down active nodes after ramp completes
       this.interruptionTimer = setTimeout(() => {
         this.interruptionTimer = null;
         for (const source of sourcesToStop) {
           try {
-            source.stop();
             source.disconnect();
           } catch {}
+          this.pendingInterruptionSources.delete(source);
         }
 
         if (this.activeSources.size === 0) {
@@ -555,20 +572,7 @@ export class AudioPlayoutManager {
       clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
-    this.handleInterruption();
-    if (this.interruptionTimer) {
-      clearTimeout(this.interruptionTimer);
-      this.interruptionTimer = null;
-    }
-    for (const chime of this.activeChimes) {
-      try {
-        chime.osc.stop();
-        chime.osc.disconnect();
-        chime.gain.disconnect();
-      } catch {}
-    }
-    this.activeChimes.clear();
-    this.pendingSamples = [];
+    this.clearQueue();
     if (this.speakerphoneElement) {
       try {
         this.speakerphoneElement.pause();
@@ -589,7 +593,6 @@ export class AudioPlayoutManager {
     }
     this.context = null;
     this.masterGain = null;
-    this.activeSources.clear();
     this.playheadCursor = 0;
   }
 }

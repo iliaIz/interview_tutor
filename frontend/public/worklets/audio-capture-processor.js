@@ -67,12 +67,12 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
         }
       }
     } else {
-      // High-precision linear interpolation resampling (e.g. 48kHz / 44.1kHz -> 16kHz)
-      while (this.resamplePos < inputLength) {
+      // Continuous quantum boundary linear interpolation resampling (e.g. 48kHz / 44.1kHz -> 16kHz)
+      while (this.resamplePos < inputLength - 1) {
         const i0 = Math.floor(this.resamplePos);
         const frac = this.resamplePos - i0;
         const s0 = i0 >= 0 ? inputChannel[i0] : this.prevSample;
-        const s1 = i0 + 1 < inputLength ? inputChannel[i0 + 1] : inputChannel[inputLength - 1];
+        const s1 = i0 + 1 >= 0 ? inputChannel[i0 + 1] : this.prevSample;
 
         const sample = s0 + frac * (s1 - s0);
         const clamped = Math.max(-1.0, Math.min(1.0, sample));
