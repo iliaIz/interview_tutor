@@ -82,30 +82,20 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Sync Production Compose & Caddyfile to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
-          port: 22
-          source: "docker-compose.prod.yml,Caddyfile"
-          target: "/home/djelu/spring"
-          overwrite: true
-
       - name: Deploy to VPS over SSH
         uses: appleboy/ssh-action@v1.2.0
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           port: 22
-          envs: GITHUB_ACTOR,GITHUB_TOKEN
+          envs: GITHUB_ACTOR,GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA
           script: |
             set -e
             echo "[1/4] Authenticating with GHCR on VPS..."
@@ -113,13 +103,16 @@ jobs:
 
             cd /home/djelu/spring
 
-            echo "[2/4] Pulling latest production images from GHCR..."
+            echo "[2/4] Syncing production docker-compose.prod.yml..."
+            curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/spring/docker-compose.prod.yml || true
+
+            echo "[3/4] Pulling latest production images from GHCR..."
             docker compose -f docker-compose.prod.yml pull
 
-            echo "[3/4] Recreating containers with zero downtime..."
+            echo "[4/4] Recreating containers with zero downtime..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            echo "[4/4] Housekeeping dangling image layers..."
+            echo "[Clean] Housekeeping dangling image layers..."
             docker image prune -af --filter "until=72h" || true
             docker logout ghcr.io || true
 
