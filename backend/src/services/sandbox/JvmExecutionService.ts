@@ -231,7 +231,7 @@ export class JvmExecutionService {
   /**
    * Dual-mode compiler runner: tries fast Hot Resident Daemon, falls back to CLI
    */
-  private static async runCompiler(payloadJson: string, timeoutMs = 4000): Promise<{ output: string; error?: string }> {
+  private static async runCompiler(payloadJson: string, timeoutMs = 6000): Promise<{ output: string; error?: string }> {
     await this.ensureDaemonRunning();
     try {
       const output = await this.sendToDaemon(payloadJson, timeoutMs);
@@ -269,7 +269,7 @@ export class JvmExecutionService {
 
     // 2. Run Compiler (Hot Daemon -> Fallback CLI)
     const payloadJson = JSON.stringify({ files: request.files });
-    const timeoutMs = request.timeoutMs || 4000;
+    const timeoutMs = request.timeoutMs || 6000;
     const { output, error } = await this.runCompiler(payloadJson, timeoutMs);
 
     if (error) {

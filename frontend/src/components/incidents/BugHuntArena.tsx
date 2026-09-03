@@ -153,6 +153,7 @@ export const BugHuntArena: React.FC = () => {
     onBugSolved: () => {
       setIsSolved(true);
       setSessionSolvedCount((prev) => prev + 1);
+      setHistory((prev) => prev.map((c, i) => (i === currentIndex ? { ...c, isSolved: true } : c)));
       triggerSuccessConfetti();
     }
   });
@@ -266,8 +267,11 @@ export const BugHuntArena: React.FC = () => {
       });
       if (res.ok) {
         const variation: BugChallenge = await res.json();
-        setHistory(prev => [...prev, variation]);
-        setCurrentIndex(history.length);
+        setHistory((prev) => {
+          const nextHistory = [...prev, variation];
+          setCurrentIndex(nextHistory.length - 1);
+          return nextHistory;
+        });
         setIsSolved(false);
       }
     } catch (e) {

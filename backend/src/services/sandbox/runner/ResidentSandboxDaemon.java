@@ -75,7 +75,8 @@ public class ResidentSandboxDaemon {
             try {
                 responseJson = CompilerService.execute(requestJson);
             } catch (Throwable t) {
-                responseJson = "{\"isCompilable\":false,\"error\":\"" + t.getMessage() + "\"}";
+                String msg = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+                responseJson = "{\"isCompilable\":false,\"error\":\"" + msg.replace("\"", "\\\"").replace("\r", "").replace("\n", " ") + "\"}";
             }
 
             byte[] responseBytes = responseJson.getBytes(StandardCharsets.UTF_8);

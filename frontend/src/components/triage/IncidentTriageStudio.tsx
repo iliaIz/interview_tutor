@@ -74,25 +74,22 @@ export const IncidentTriageStudio: React.FC = () => {
     };
   }, [activeTriageIncident?.id]);
 
-  const updateRcaHypothesis = (val: string) => {
-    setRcaHypothesis(val);
-    if (activeTriageIncident) {
-      localStorage.setItem(`triage_draft_${activeTriageIncident.id}`, JSON.stringify({
-        rca: val,
-        plan: preventionPlan
-      }));
-    }
-  };
+  // 3. Debounced autosave to localStorage (400ms)
+  useEffect(() => {
+    if (!activeTriageIncident?.id) return;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          `triage_draft_${activeTriageIncident.id}`,
+          JSON.stringify({ rca: rcaHypothesis, plan: preventionPlan })
+        );
+      } catch {}
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [activeTriageIncident?.id, rcaHypothesis, preventionPlan]);
 
-  const updatePreventionPlan = (val: string) => {
-    setPreventionPlan(val);
-    if (activeTriageIncident) {
-      localStorage.setItem(`triage_draft_${activeTriageIncident.id}`, JSON.stringify({
-        rca: rcaHypothesis,
-        plan: val
-      }));
-    }
-  };
+  const updateRcaHypothesis = (val: string) => setRcaHypothesis(val);
+  const updatePreventionPlan = (val: string) => setPreventionPlan(val);
 
   // Structured Java Profiler Parser (Thread Dump & Heap Histogram)
   const parsedDump = useMemo(() => {
@@ -696,6 +693,7 @@ export const IncidentTriageStudio: React.FC = () => {
                 <textarea
                   value={rcaHypothesis}
                   onChange={(e) => updateRcaHypothesis(e.target.value)}
+                  maxLength={20000}
                   placeholder="Опишите, что именно вызвало сбой на уровне JVM, блокировок, потоков или СУБД (поддерживается Markdown)..."
                   className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-amber-500 resize-none shadow-2xs"
                 />
@@ -744,6 +742,7 @@ export const IncidentTriageStudio: React.FC = () => {
                 <textarea
                   value={preventionPlan}
                   onChange={(e) => updatePreventionPlan(e.target.value)}
+                  maxLength={20000}
                   placeholder="Опишите, как перепроектировать код или конфигурацию (ReentrantLock, таймауты, индексы, ScopedValue), чтобы исключить рецидив..."
                   className="w-full h-36 bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-amber-500 resize-none shadow-2xs"
                 />

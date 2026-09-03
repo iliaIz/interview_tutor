@@ -7,6 +7,7 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -14,6 +15,7 @@ import java.util.regex.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * High-performance In-Memory Java 21 Sandbox Runner & Mutation Testing Harness
@@ -39,8 +41,10 @@ public class CompilerService {
             }
             String result = execute(json);
             System.out.println(result);
+            System.exit(0);
         } catch (Exception e) {
             System.out.println("{\"isCompilable\":false,\"error\":\"" + e.getMessage() + "\"}");
+            System.exit(1);
         }
     }
 
@@ -364,6 +368,7 @@ public class CompilerService {
         AtomicInteger concurrentThreadsRan = new AtomicInteger(0);
 
         for (String className : byteCodes.keySet()) {
+            if (className.contains("$")) continue;
             if (className.endsWith("Test") || className.contains("Test")) {
                 try {
                     Class<?> testClass = classLoader.loadClass(className);
@@ -414,23 +419,52 @@ public class CompilerService {
                                 String argSummary = Arrays.toString(pArgs);
                                 pTestRes.put("testName", method.getName() + "[" + (pIdx + 1) + ": " + argSummary + "]");
                                 long pStart = System.currentTimeMillis();
-                                try {
-                                    for (Method bm : beforeMethods) {
-                                        bm.invoke(testInstance);
+                                AtomicBoolean pCompleted = new AtomicBoolean(false);
+                                AtomicReference<Throwable> pError = new AtomicReference<>(null);
+                                final Object inst = testInstance;
+                                final Object[] callArgs = pArgs;
+
+                                Thread vThread = Thread.ofVirtual().name("param-test-runner").start(() -> {
+                                    try {
+                                        for (Method bm : beforeMethods) {
+                                            bm.invoke(inst);
+                                        }
+                                        method.invoke(inst, callArgs);
+                                        pCompleted.set(true);
+                                    } catch (Throwable t) {
+                                        Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                        pError.set(cause);
+                                    } finally {
+                                        for (Method am : afterMethods) {
+                                            try { am.invoke(inst); } catch (Throwable ignored) {}
+                                        }
                                     }
-                                    method.invoke(testInstance, pArgs);
-                                    pTestRes.put("status", "PASSED");
-                                    res.passedCount++;
-                                } catch (Throwable t) {
-                                    Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                });
+
+                                try {
+                                    vThread.join(java.time.Duration.ofMillis(2500));
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+
+                                if (vThread.isAlive()) {
+                                    vThread.interrupt();
+                                    pTestRes.put("status", "FAILED");
+                                    pTestRes.put("failureReason", "Превышен лимит времени выполнения (2500ms) / Execution timeout (2500ms)");
+                                    res.failedCount++;
+                                } else if (pError.get() != null) {
+                                    Throwable cause = pError.get();
                                     pTestRes.put("status", "FAILED");
                                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                                     pTestRes.put("failureReason", msg);
                                     res.failedCount++;
-                                } finally {
-                                    for (Method am : afterMethods) {
-                                        try { am.invoke(testInstance); } catch (Throwable ignored) {}
-                                    }
+                                } else if (pCompleted.get()) {
+                                    pTestRes.put("status", "PASSED");
+                                    res.passedCount++;
+                                } else {
+                                    pTestRes.put("status", "FAILED");
+                                    pTestRes.put("failureReason", "Тест не завершился успешно.");
+                                    res.failedCount++;
                                 }
                                 pTestRes.put("durationMs", System.currentTimeMillis() - pStart);
                                 res.testResults.add(pTestRes);
@@ -442,7 +476,7 @@ public class CompilerService {
                             boolean isConcurrent = mLower.contains("concurrent") ||
                                 mLower.contains("stress") ||
                                 mLower.contains("parallel") ||
-                                mLower.contains("race") ||
+                                (mLower.contains("race") && !mLower.contains("grace") && !mLower.contains("trace")) ||
                                 mLower.contains("multithread") ||
                                 mLower.contains("highload") ||
                                 mLower.contains("throughput");
@@ -460,23 +494,51 @@ public class CompilerService {
                                     res.passedCount++;
                                 }
                             } else {
-                                try {
-                                    for (Method bm : beforeMethods) {
-                                        bm.invoke(testInstance);
+                                AtomicBoolean testCompleted = new AtomicBoolean(false);
+                                AtomicReference<Throwable> testError = new AtomicReference<>(null);
+                                final Object inst = testInstance;
+
+                                Thread vThread = Thread.ofVirtual().name("test-runner").start(() -> {
+                                    try {
+                                        for (Method bm : beforeMethods) {
+                                            bm.invoke(inst);
+                                        }
+                                        method.invoke(inst);
+                                        testCompleted.set(true);
+                                    } catch (Throwable t) {
+                                        Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                        testError.set(cause);
+                                    } finally {
+                                        for (Method am : afterMethods) {
+                                            try { am.invoke(inst); } catch (Throwable ignored) {}
+                                        }
                                     }
-                                    method.invoke(testInstance);
-                                    testRes.put("status", "PASSED");
-                                    res.passedCount++;
-                                } catch (Throwable t) {
-                                    Throwable cause = t.getCause() != null ? t.getCause() : t;
+                                });
+
+                                try {
+                                    vThread.join(java.time.Duration.ofMillis(2500));
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+
+                                if (vThread.isAlive()) {
+                                    vThread.interrupt();
+                                    testRes.put("status", "FAILED");
+                                    testRes.put("failureReason", "Превышен лимит времени выполнения (2500ms) / Execution timeout (2500ms)");
+                                    res.failedCount++;
+                                } else if (testError.get() != null) {
+                                    Throwable cause = testError.get();
                                     testRes.put("status", "FAILED");
                                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                                     testRes.put("failureReason", msg);
                                     res.failedCount++;
-                                } finally {
-                                    for (Method am : afterMethods) {
-                                        try { am.invoke(testInstance); } catch (Throwable ignored) {}
-                                    }
+                                } else if (testCompleted.get()) {
+                                    testRes.put("status", "PASSED");
+                                    res.passedCount++;
+                                } else {
+                                    testRes.put("status", "FAILED");
+                                    testRes.put("failureReason", "Тест не завершился успешно.");
+                                    res.failedCount++;
                                 }
                             }
 
@@ -619,7 +681,7 @@ public class CompilerService {
         List<EvaluatedMutant> evaluatedList = new ArrayList<>();
         for (Future<EvaluatedMutant> f : futures) {
             try {
-                evaluatedList.add(f.get());
+                evaluatedList.add(f.get(3000, TimeUnit.MILLISECONDS));
             } catch (Exception ignored) {}
         }
         evaluatedList.sort(Comparator.comparingInt(a -> a.index));

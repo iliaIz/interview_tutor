@@ -129,10 +129,26 @@ export const AcademyStudio: React.FC = () => {
 
   const handleToggleStep = async (stepNumber: number, isCompleted: boolean) => {
     if (!currentCourse) return;
-    await toggleAcademyStepProgress(currentCourse.id, stepNumber, isCompleted);
-    // Refresh course details to recalculate reactive knowledge graph
-    fetchActiveCourseDetails(currentCourse.id);
-    fetchCourses();
+    // Optimistic UI update
+    setCurrentCourse((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        steps: (prev.steps || []).map((s) =>
+          s.stepNumber === stepNumber ? { ...s, isCompleted } : s
+        )
+      };
+    });
+
+    try {
+      await toggleAcademyStepProgress(currentCourse.id, stepNumber, isCompleted);
+      // Refresh course details to recalculate reactive knowledge graph
+      fetchActiveCourseDetails(currentCourse.id);
+      fetchCourses();
+    } catch (e) {
+      console.error('Failed to toggle academy step:', e);
+      fetchActiveCourseDetails(currentCourse.id);
+    }
   };
 
   const toggleMilestone = (mid: string) => {

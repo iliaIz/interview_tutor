@@ -249,14 +249,29 @@ class SimulationEngine {
 
     // Check for Cyclic Dependency Anti-pattern
     if (hasCycle) {
+      const cyclicNodeIds = Array.from(this.nodes.keys()).filter(id => !sortedOrder.includes(id));
       antiPatterns.push({
         id: 'cyclic_dep',
         type: 'cyclic_dependency',
         severity: 'critical',
         title: 'Обнаружена циклическая зависимость (Deadlock Risk)',
         description: 'В топологии обнаружен синхронный цикл вызовов. Взаимные блокировки при масштабировании неизбежны.',
-        affectedNodeIds: Array.from(this.nodes.keys()).filter(id => !sortedOrder.includes(id))
+        affectedNodeIds: cyclicNodeIds
       });
+
+      // Explicitly populate nodeMetrics for cyclic nodes so ReactFlow canvas doesn't render undefined/empty stats
+      for (const cyclicId of cyclicNodeIds) {
+        nodeMetrics[cyclicId] = {
+          currentRps: 0,
+          p50Ms: 5000,
+          p95Ms: 5000,
+          p99Ms: 5000,
+          errorRate: 1.0,
+          queueLength: 9999,
+          utilization: 1.0,
+          health: 'failed'
+        };
+      }
     }
 
     // Seed input traffic from client / entry nodes
@@ -419,6 +434,18 @@ class SimulationEngine {
             isCongested: utilization > 0.85
           };
         }
+      }
+    }
+
+    // Ensure all edges have baseline metrics even if in cyclic deadlock
+    for (const edge of this.edges) {
+      if (!edgeMetrics[edge.id]) {
+        edgeMetrics[edge.id] = {
+          currentRps: 0,
+          latencyMs: 5000,
+          particleSpeed: 0.5,
+          isCongested: true
+        };
       }
     }
 

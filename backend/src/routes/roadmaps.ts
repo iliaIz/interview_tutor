@@ -6,6 +6,8 @@ import { extractSessionToken } from '../middleware/auth';
 export const roadmapsRouter = Router();
 
 function getRequestUserId(req: Request): string {
+  const user = (req as any).user;
+  if (user?.id) return user.id;
   try {
     const token = extractSessionToken(req);
     if (token) {
@@ -13,7 +15,7 @@ function getRequestUserId(req: Request): string {
       if (auth?.user?.id) return auth.user.id;
     }
   } catch {}
-  return (req.query.userId as string) || (req.body?.userId as string) || 'default_user';
+  return 'default_user';
 }
 
 
