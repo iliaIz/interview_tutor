@@ -28,6 +28,22 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     this.noiseFloorDb = -55.0; // Running noise floor tracker
     this.VAD_ASSERT_DB = -42;
     this.VAD_DEASSERT_DB = -50;
+
+    // Message port listener for clean turn boundaries and buffer flush
+    this.port.onmessage = (event) => {
+      const data = event.data;
+      if (data && (data.type === 'RESET' || data.type === 'FLUSH')) {
+        if (data.type === 'FLUSH' && this.outputBufferIndex > 0) {
+          this.emitBufferChunk();
+        } else {
+          this.outputBufferIndex = 0;
+          this.resamplePos = 0;
+          this.prevSample = 0;
+          this.isSpeechActive = false;
+          this.hangoverCounter = 0;
+        }
+      }
+    };
   }
 
   process(inputs, _outputs, _parameters) {

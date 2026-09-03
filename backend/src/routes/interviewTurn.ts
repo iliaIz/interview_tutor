@@ -15,6 +15,48 @@ import {
   calculateFaangScorecard
 } from '../prompts/personas';
 
+const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
+
+function sanitizeVoice(v: any): string {
+  return VALID_VOICES.includes(v) ? v : 'Kore';
+}
+
+function parseReasoningJson(raw: string, isTutorMode: boolean): any {
+  if (!raw || !raw.trim()) {
+    return {
+      action: isTutorMode ? 'probe' : 'evaluate',
+      replyText: 'Давайте продолжим обсуждение.',
+      feedback: 'Ответ принят.'
+    };
+  }
+
+  // 1. Direct parse attempt
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  // 2. Strip markdown fences
+  try {
+    const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    return JSON.parse(clean);
+  } catch {}
+
+  // 3. Regex extract first JSON object {...}
+  try {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+  } catch {}
+
+  // 4. Fallback structured response without crashing
+  console.warn('Could not parse model reasoning output as JSON, using structured fallback:', raw.slice(0, 100));
+  return {
+    action: 'probe',
+    replyText: raw.replace(/[{}"[\]]/g, '').trim() || 'Расскажите подробнее об этой части.'
+  };
+}
+
 const router = Router();
 
 // POST /api/interview/greeting - Synthesizes the initial greeting and question
@@ -23,13 +65,18 @@ router.post('/greeting', async (req: Request, res: Response) => {
     const {
       topic = 'Java Core',
       questionText,
-      voice = 'Kore',
-      userGender = 'female',
+      voice: rawVoice = 'Kore',
+      userGender: rawUserGender = 'female',
       strategy = 'socratic_tutoring',
-      sessionType = 'interview',
-      tutorMode = 'deep_dive',
+      sessionType: rawSessionType = 'interview',
+      tutorMode: rawTutorMode = 'deep_dive',
       initialUserMessage = ''
     } = req.body;
+
+    const voice = sanitizeVoice(rawVoice);
+    const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
+    const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
+    const tutorMode = ['deep_dive', 'socratic', 'eli5', 'free_chat'].includes(rawTutorMode) ? rawTutorMode : 'deep_dive';
 
     if (!questionText) {
       return res.status(400).json({ error: 'questionText is required' });
@@ -132,13 +179,17 @@ router.post('/turn', async (req: Request, res: Response) => {
       strategy = 'socratic_tutoring',
       deepDive = true,
       liveCoaching = true,
-      voice = 'Kore',
-      userGender = 'female',
+      voice: rawVoice = 'Kore',
+      userGender: rawUserGender = 'female',
       activeCodeArtifact,
       persona = 'mentor',
       targetGrade = 'L5_SENIOR',
-      sessionType = 'interview'
+      sessionType: rawSessionType = 'interview'
     } = req.body;
+
+    const voice = sanitizeVoice(rawVoice);
+    const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
+    const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
 
     if (!questionText) {
       return res.status(400).json({ error: 'questionText is required' });
@@ -283,13 +334,7 @@ ${decisionRules}
 
     const proxyData = await proxyRes.json();
     const rawContent = proxyData.choices?.[0]?.message?.content || '{}';
-    let reasoningResult: any = {};
-    try {
-      reasoningResult = JSON.parse(rawContent);
-    } catch {
-      const clean = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-      reasoningResult = JSON.parse(clean);
-    }
+    const reasoningResult = parseReasoningJson(rawContent, isTutorMode);
 
     // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3
     let textToVoice = '';

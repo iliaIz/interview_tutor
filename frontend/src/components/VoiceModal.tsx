@@ -186,10 +186,34 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Live WebSocket & Audio Nodes
   const wsRef = useRef<WebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const inputAudioCtxRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const gainAnchorRef = useRef<GainNode | null>(null);
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
+
+  // Mount tracking & In-flight request cancellation (SOTA 2026 Resilience)
+  const isMountedRef = useRef<boolean>(true);
+  const activeAbortControllersRef = useRef<Set<AbortController>>(new Set());
+
+  const createManagedAbortSignal = () => {
+    const controller = new AbortController();
+    activeAbortControllersRef.current.add(controller);
+    return {
+      controller,
+      signal: controller.signal,
+      cleanup: () => {
+        activeAbortControllersRef.current.delete(controller);
+      }
+    };
+  };
+
+  const abortAllInFlightRequests = () => {
+    for (const controller of activeAbortControllersRef.current) {
+      try { controller.abort(); } catch {}
+    }
+    activeAbortControllersRef.current.clear();
+  };
 
   // Real-time Session State
   const [isConnected, setIsConnected] = useState(false);
@@ -274,7 +298,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const transcriptRef = useRef<string>('');
   const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const turnWatchdogRef = useRef<NodeJS.Timeout[]>([]);
-  const wakeLockRef = useRef<any>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const isEvaluationFinalizedRef = useRef(false);
   const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
   const turnCountRef = useRef(0);
@@ -288,8 +312,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
     try {
-      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && (navigator as any).wakeLock) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
         console.log('📱 Screen WakeLock acquired (preventing Android sleep)');
       }
     } catch (e) {
@@ -428,6 +452,41 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     turnWatchdogRef.current = [t1, t2, t3];
   };
 
+  const handleClientBargeIn = (customPrompt?: string) => {
+    if (playoutManagerRef.current?.isPlaying() || isAiSpeakingRef.current) {
+      playoutManagerRef.current?.handleInterruption();
+      setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+      lastAiSpeechEndedAtRef.current = Date.now();
+      clearAllTurnWatchdogs();
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      hasSpokenInTurnRef.current = false;
+
+      // Clean worklet state on Barge-In
+      workletNodeRef.current?.port.postMessage({ type: 'RESET' });
+
+      // Signal upstream Gemini Live Proxy to abort the monologue
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({
+            clientContent: {
+              turns: [
+                {
+                  role: 'user',
+                  parts: [{ text: customPrompt || '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]: Передай слово кандидату.' }]
+                }
+              ],
+              turnComplete: false
+            }
+          }));
+        } catch (e) {
+          console.warn('Failed to dispatch upstream barge-in frame:', e);
+        }
+      }
+    }
+  };
+
   const executeInstantRestEvalFallback = async () => {
     clearAllTurnWatchdogs();
     setIsThinking(false);
@@ -438,6 +497,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       { role: 'system', text: '⚡ Сеть голосового шлюза перегружена. Запущена мгновенная REST-оценка...' }
     ]);
 
+    const { signal, cleanup } = createManagedAbortSignal();
     try {
       const targetQ = questionsBatch?.[activeBatchIndex] || {
         id: activeQuestionId,
@@ -449,6 +509,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       const res = await fetch('/api/eval', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           questionId: targetQ.id || activeQuestionId,
           topic: targetQ.topic,
@@ -457,15 +518,23 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           userAnswer: transcriptRef.current || 'Устный ответ кандидата в голосовом режиме'
         })
       });
-      if (res.ok) {
+      if (res.ok && isMountedRef.current) {
         const fallbackData = await res.json();
-        finalizeEvaluation(fallbackData, targetQ.id || activeQuestionId, activeBatchIndex);
-      } else {
+        if (isMountedRef.current) {
+          finalizeEvaluation(fallbackData, targetQ.id || activeQuestionId, activeBatchIndex);
+        }
+      } else if (isMountedRef.current) {
         setIsSubmitting(false);
       }
-    } catch (e) {
-      console.error('Fallback eval error:', e);
-      setIsSubmitting(false);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') {
+        console.error('Fallback eval error:', e);
+      }
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    } finally {
+      cleanup();
     }
   };
 
@@ -514,6 +583,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isSessionPausedRef.current = false;
 
     return () => {
+      isMountedRef.current = false;
+      abortAllInFlightRequests();
       teardownFullAudio();
     };
   }, [isOpen]);
@@ -587,6 +658,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
    * Keeps AudioContext and mic hardware alive for smooth hands-free transition.
    */
   const teardownWsAndBuffersOnly = () => {
+    abortAllInFlightRequests();
     isEvaluationFinalizedRef.current = false;
     clearAllTurnWatchdogs();
     setIsPauseHolding(false);
@@ -1041,11 +1113,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isThinkingRef.current = true;
       startTurnWatchdog();
 
+      const { signal, cleanup } = createManagedAbortSignal();
       try {
         turnCountRef.current++;
         const res = await fetch('/api/interview/turn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal,
           body: JSON.stringify({
             sessionId: sessionIdRef.current,
             questionId: activeQuestionId,
@@ -1068,6 +1142,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         if (!res.ok) throw new Error(`Turn API returned ${res.status}`);
         const data = await res.json();
+        if (!isMountedRef.current) return;
         clearAllTurnWatchdogs();
 
         if (data.replyText) {
@@ -1171,6 +1246,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
 
     // 3. Manual Mode REST Fallback (/api/interview/turn)
+    const { signal, cleanup } = createManagedAbortSignal();
     try {
       const targetQ = questionsBatch?.[activeBatchIndex] || {
         id: activeQuestionId,
@@ -1182,6 +1258,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       const res = await fetch('/api/interview/turn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           sessionId: sessionIdRef.current,
           questionId: targetQ.id,
@@ -1201,7 +1278,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         })
       });
 
-      if (res.ok) {
+      if (res.ok && isMountedRef.current) {
         const data = await res.json();
         clearAllTurnWatchdogs();
         setIsThinking(false);
@@ -1310,11 +1387,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
       turnCountRef.current++;
 
+      const { signal, cleanup } = createManagedAbortSignal();
       try {
         console.log(`📡 Sending candidate turn ${turnCountRef.current} to /api/interview/turn...`);
         const res = await fetch('/api/interview/turn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal,
           body: JSON.stringify({
             sessionId: sessionIdRef.current,
             questionId: activeQuestionId,
@@ -1338,6 +1417,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         }
 
         const data = await res.json();
+        if (!isMountedRef.current) return;
         clearAllTurnWatchdogs();
 
         if (data.transcript) {
@@ -1512,11 +1592,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       turnCountRef.current = 0;
       setIsConnected(true);
 
+      const { signal, cleanup } = createManagedAbortSignal();
       try {
         console.log(`🎙️ Synthesizing greeting with Gemini TTS v3 via LiteLLM Proxy...`);
         const res = await fetch('/api/interview/greeting', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal,
           body: JSON.stringify({
             topic: targetQ.topic,
             questionText: targetQ.question,
@@ -1531,6 +1613,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
         if (!res.ok) throw new Error(`Greeting API failed with ${res.status}`);
         const data = await res.json();
+        if (!isMountedRef.current) return;
         const greeting = data.greetingText || data.text;
 
         if (greeting) {
@@ -1783,8 +1866,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       await audioCtx.audioWorklet.addModule('/worklets/audio-capture-processor.js');
 
       const sourceNode = audioCtx.createMediaStreamSource(stream);
+      mediaStreamSourceRef.current = sourceNode;
       const workletNode = new AudioWorkletNode(audioCtx, 'audio-capture-processor');
       workletNodeRef.current = workletNode;
+      workletNode.port.postMessage({ type: 'RESET' });
 
       workletNode.port.onmessage = (event: MessageEvent) => {
         const { type, pcmBuffer, metrics } = event.data;
@@ -1889,8 +1974,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
+    if (mediaStreamSourceRef.current) {
+      try {
+        mediaStreamSourceRef.current.disconnect();
+      } catch {}
+      mediaStreamSourceRef.current = null;
+    }
     if (workletNodeRef.current) {
       try {
+        workletNodeRef.current.port.postMessage({ type: 'RESET' });
         workletNodeRef.current.disconnect();
       } catch {}
       workletNodeRef.current = null;
@@ -1939,10 +2031,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     // 2. If AI is currently speaking, clicking the mic allows the candidate to barge-in immediately
     if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
-      playoutManagerRef.current?.handleInterruption();
-      setIsAiSpeaking(false);
-      isAiSpeakingRef.current = false;
-      lastAiSpeechEndedAtRef.current = 0;
+      handleClientBargeIn();
     }
 
     if (isRecording) {
@@ -2082,24 +2171,31 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       let deepgramText = '';
       let realWordCount = 0;
       let wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
+      const { signal: sttSignal, cleanup: sttCleanup } = createManagedAbortSignal();
       try {
         const pcmBase64 = encodePcmToInt16Base64();
         const sttRes = await fetch('/api/stt/transcribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: sttSignal,
           body: JSON.stringify({ pcmBase64 })
         });
-        if (sttRes.ok) {
+        if (sttRes.ok && isMountedRef.current) {
           const sttData = await sttRes.json();
           deepgramText = sttData.transcript || '';
           realWordCount = sttData.wordsCount || 0;
           wordTimestamps = sttData.words || [];
-          if (deepgramText) setDeepgramTranscript(deepgramText);
+          if (deepgramText && isMountedRef.current) setDeepgramTranscript(deepgramText);
         }
-      } catch (err) {
-        console.warn('Deepgram STT failed (non-critical):', err);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('Deepgram STT failed (non-critical):', err);
+        }
       } finally {
-        setIsTranscribing(false);
+        sttCleanup();
+        if (isMountedRef.current) {
+          setIsTranscribing(false);
+        }
       }
 
       const acousticsFinal = (wordTimestamps.length > 0 || realWordCount > 0 || deepgramText)
@@ -2117,8 +2213,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         userAnswer: deepgramText || 'Устный ответ через Gemini Live'
       };
 
-      setEvaluation((prev) => (prev ? { ...prev, ...enrichedResult } : enrichedResult));
-      setBatchResults((prev) => ({ ...prev, [evaluatedQuestionId]: enrichedResult }));
+      if (isMountedRef.current) {
+        setEvaluation((prev) => (prev ? { ...prev, ...enrichedResult } : enrichedResult));
+        setBatchResults((prev) => ({ ...prev, [evaluatedQuestionId]: enrichedResult }));
+      }
 
       const currentTurns = dialogueTurnsRef.current;
       const fullDialogue = [
@@ -2128,10 +2226,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
       // Save to SQLite
       if (evaluatedQuestionId) {
+        const { signal: saveSignal, cleanup: saveCleanup } = createManagedAbortSignal();
         try {
           await fetch('/api/eval/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: saveSignal,
             body: JSON.stringify({
               questionId: evaluatedQuestionId,
               topic: activeTopic,
@@ -2146,8 +2246,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               audioMetrics: acousticsFinal
             })
           });
-        } catch (err) {
-          console.error('Error saving evaluation to DB:', err);
+        } catch (err: any) {
+          if (err?.name !== 'AbortError') {
+            console.error('Error saving evaluation to DB:', err);
+          }
+        } finally {
+          saveCleanup();
         }
       }
     }
@@ -2399,12 +2503,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             isPauseHolding={isPauseHolding}
             rmsDb={rmsDb}
             onInterruption={() => {
-              playoutManagerRef.current?.handleInterruption();
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-              setIsRecording(true);
-              isRecordingRef.current = true;
-              lastAiSpeechEndedAtRef.current = Date.now();
+              handleClientBargeIn();
             }}
             triggerEndTurn={triggerEndTurn}
             toggleMic={() => void toggleMic()}

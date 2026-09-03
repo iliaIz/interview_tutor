@@ -15,6 +15,7 @@ export class AudioPlayoutManager {
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private playheadCursor = 0;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
+  private activeChimes: Set<{ osc: OscillatorNode; gain: GainNode }> = new Set();
   private pendingSamples: Float32Array[] = [];
   private isResuming = false;
   private readonly isMobileDevice: boolean;
@@ -22,6 +23,8 @@ export class AudioPlayoutManager {
   private readonly TARGET_SAMPLE_RATE = 24000;
   public onPlaybackFinished?: () => void;
   public isMuted: boolean = false;
+  private drainTimer: ReturnType<typeof setTimeout> | null = null;
+  private interruptionTimer: ReturnType<typeof setTimeout> | null = null;
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
@@ -68,6 +71,9 @@ export class AudioPlayoutManager {
       osc.connect(gain);
       gain.connect(masterGain);
 
+      const chimeHandle = { osc, gain };
+      this.activeChimes.add(chimeHandle);
+
       osc.start(now);
       osc.stop(now + 0.22);
 
@@ -76,6 +82,7 @@ export class AudioPlayoutManager {
           osc.disconnect();
           gain.disconnect();
         } catch {}
+        this.activeChimes.delete(chimeHandle);
       };
     } catch (e) {
       // Audio context might not be fully unlocked yet; safely ignore
@@ -109,6 +116,10 @@ export class AudioPlayoutManager {
       }
       osc.connect(gain);
       gain.connect(masterGain);
+
+      const chimeHandle = { osc, gain };
+      this.activeChimes.add(chimeHandle);
+
       osc.start(now);
       osc.stop(now + 0.20);
       osc.onended = () => {
@@ -116,6 +127,7 @@ export class AudioPlayoutManager {
           osc.disconnect();
           gain.disconnect();
         } catch {}
+        this.activeChimes.delete(chimeHandle);
       };
     } catch {}
   }
@@ -252,29 +264,46 @@ export class AudioPlayoutManager {
    */
   public async playBase64Audio(base64Audio: string): Promise<void> {
     if (!base64Audio) return;
+    const sanitized = base64Audio.replace(/\s+/g, '');
+    if (!sanitized) return;
+
     const { context } = this.ensureContext();
     if (context.state === 'suspended') {
       await this.resume();
     }
-    const binary = atob(base64Audio);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+
+    let bytes: Uint8Array;
+    try {
+      const binary = atob(sanitized);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+    } catch (err) {
+      console.warn('Invalid base64 in playBase64Audio:', err);
+      return;
     }
 
     try {
       // Native fast decoding for WAV/MP3 from Gemini TTS v3
-      const audioBuffer = await context.decodeAudioData(bytes.buffer.slice(0));
+      const arrayBuffer = bytes.buffer.slice(0) as ArrayBuffer;
+      const audioBuffer = await context.decodeAudioData(arrayBuffer);
       this.playDecodedAudioBuffer(audioBuffer);
     } catch {
       // Fallback for raw PCM 24kHz Int16
-      this.enqueuePcmChunk(base64Audio);
+      this.enqueuePcmChunk(sanitized);
     }
   }
 
   public playDecodedAudioBuffer(buffer: AudioBuffer): void {
     const { context, masterGain } = this.ensureContext();
     if (!masterGain) return;
+
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
+
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(masterGain);
@@ -311,9 +340,19 @@ export class AudioPlayoutManager {
    */
   public enqueuePcmChunk(base64Payload: string): void {
     if (!base64Payload || base64Payload.length === 0) return;
+    const sanitized = base64Payload.replace(/\s+/g, '');
+    if (!sanitized) return;
+
     const { context } = this.ensureContext();
 
-    const binaryString = atob(base64Payload);
+    let binaryString: string;
+    try {
+      binaryString = atob(sanitized);
+    } catch (err) {
+      console.warn('Invalid base64 in enqueuePcmChunk:', err);
+      return;
+    }
+
     const len = binaryString.length;
     const sampleCount = Math.floor(len / 2);
     if (sampleCount === 0) return;
@@ -403,10 +442,8 @@ export class AudioPlayoutManager {
     };
   }
 
-  private drainTimer: any = null;
-
   public isPlaying(): boolean {
-    return this.activeSources.size > 0 || this.pendingSamples.length > 0;
+    return this.activeSources.size > 0 || this.pendingSamples.length > 0 || this.activeChimes.size > 0;
   }
 
   /**
@@ -417,6 +454,18 @@ export class AudioPlayoutManager {
       clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
+    if (this.interruptionTimer) {
+      clearTimeout(this.interruptionTimer);
+      this.interruptionTimer = null;
+    }
+    for (const chime of this.activeChimes) {
+      try {
+        chime.osc.stop();
+        chime.osc.disconnect();
+        chime.gain.disconnect();
+      } catch {}
+    }
+    this.activeChimes.clear();
     this.pendingSamples = [];
     for (const source of this.activeSources) {
       try {
@@ -440,8 +489,21 @@ export class AudioPlayoutManager {
       clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
+    if (this.interruptionTimer) {
+      clearTimeout(this.interruptionTimer);
+      this.interruptionTimer = null;
+    }
+    for (const chime of this.activeChimes) {
+      try {
+        chime.osc.stop();
+        chime.osc.disconnect();
+        chime.gain.disconnect();
+      } catch {}
+    }
+    this.activeChimes.clear();
+
     this.pendingSamples = [];
-    if (!this.context || !this.masterGain) return;
+    if (!this.context || !this.masterGain || this.context.state === 'closed') return;
     const now = this.context.currentTime;
     const fadeDurationSec = 0.005; // 5ms linear ramp
 
@@ -451,16 +513,23 @@ export class AudioPlayoutManager {
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
       this.masterGain.gain.linearRampToValueAtTime(0.0, now + fadeDurationSec);
 
+      // Snapshot sources to stop so newly arriving frames aren't killed
+      const sourcesToStop = new Set(this.activeSources);
+      this.activeSources.clear();
+
       // 2. Tear down active nodes after ramp completes
-      setTimeout(() => {
-        for (const source of this.activeSources) {
+      this.interruptionTimer = setTimeout(() => {
+        this.interruptionTimer = null;
+        for (const source of sourcesToStop) {
           try {
             source.stop();
             source.disconnect();
           } catch {}
         }
-        this.activeSources.clear();
-        this.playheadCursor = 0;
+
+        if (this.activeSources.size === 0) {
+          this.playheadCursor = 0;
+        }
 
         // 3. Reset gain back to unmuted unity (1.5) or keep muted (0.0) for future speech
         if (this.context && this.masterGain && this.context.state !== 'closed') {
@@ -475,6 +544,18 @@ export class AudioPlayoutManager {
 
   public async teardown(): Promise<void> {
     this.handleInterruption();
+    if (this.interruptionTimer) {
+      clearTimeout(this.interruptionTimer);
+      this.interruptionTimer = null;
+    }
+    for (const chime of this.activeChimes) {
+      try {
+        chime.osc.stop();
+        chime.osc.disconnect();
+        chime.gain.disconnect();
+      } catch {}
+    }
+    this.activeChimes.clear();
     this.pendingSamples = [];
     if (this.speakerphoneElement) {
       try {

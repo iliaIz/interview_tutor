@@ -68,7 +68,6 @@ interface ProxySession {
   lastActivityAt: number;
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
-  greetingWatchdog?: NodeJS.Timeout | null;
   currentAiTurnText?: string;
   persona?: InterviewPersonaId;
   targetGrade?: TargetGrade;
@@ -200,7 +199,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Session: ${sessionId || 'anon'}, Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
 
     const geminiSocket = new WebSocket(upstreamWsUrl);
-    let greetingWatchdog: NodeJS.Timeout | null = null;
 
     const session: ProxySession = {
       clientSocket,
@@ -220,7 +218,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       lastActivityAt: Date.now(),
       heartbeatInterval: null,
       nudgeWatchdog: null,
-      greetingWatchdog: null,
       currentAiTurnText: '',
       persona,
       targetGrade
@@ -469,10 +466,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         if (parsed.serverContent?.modelTurn) {
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
-          if (greetingWatchdog) {
-            clearTimeout(greetingWatchdog);
-            greetingWatchdog = null;
-          }
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
             session.nudgeWatchdog = null;
@@ -513,6 +506,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
         // Handle Function Calling / toolCall
         if (parsed.toolCall?.functionCalls) {
+          isToolCallProcessed = true; // Never leak internal toolCall frames to frontend client
           session.lastActivityAt = Date.now();
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
@@ -521,16 +515,33 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
 
           for (const call of parsed.toolCall.functionCalls) {
-            const handled = await handleLiveToolCall({
-              call,
-              clientSocket,
-              geminiSocket,
-              session,
-              parsedHints,
-              liveCoaching
-            });
-            if (handled) {
-              isToolCallProcessed = true;
+            try {
+              await handleLiveToolCall({
+                call,
+                clientSocket,
+                geminiSocket,
+                session,
+                parsedHints,
+                liveCoaching
+              });
+            } catch (toolErr) {
+              const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
+              console.error(`❌ Error executing tool ${call.name}:`, toolErr);
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify({
+                  toolResponse: {
+                    functionResponses: [
+                      {
+                        id: call.id,
+                        name: call.name,
+                        response: {
+                          error: `Tool execution failed: ${errorMessage}`
+                        }
+                      }
+                    ]
+                  }
+                }));
+              }
             }
           }
         }
@@ -682,14 +693,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const terminate = (source: string, code?: number, reason?: Buffer) => {
       console.log(`🔌 Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
-      if (greetingWatchdog) {
-        clearTimeout(greetingWatchdog);
-        greetingWatchdog = null;
-      }
-      if (session.greetingWatchdog) {
-        clearTimeout(session.greetingWatchdog);
-        session.greetingWatchdog = null;
-      }
       if (session.heartbeatInterval) {
         clearInterval(session.heartbeatInterval);
         session.heartbeatInterval = null;
