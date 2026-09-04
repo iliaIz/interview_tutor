@@ -59,11 +59,16 @@ ai.djelu.site, ai.192-124-182-59.sslip.io {
         not path /proxy-api/*
         not path /control/*
         not path /api/*
+        not path /v1/*
+        not path /ws/*
+        not path /health/*
         not header Authorization Bearer*
     }
     basic_auth @ui_auth {
         djelu $2a$14$oxkQ/tCtGKSoIb8sB3asWeGAeWLzj/E2XtVYzMVdyDosTUls0cjla
     }
 
-    reverse_proxy litellm-dashboard-ui:80
+    reverse_proxy litellm-gateway:4000 {
+        flush_interval -1
+    }
 }
