@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 /**
  * Centralized Application Environment Configuration
  * Single Source of Truth for Models, Gateways, and Keys (August 2026 SOTA)

@@ -93,6 +93,19 @@ authRouter.post('/ws-ticket', requireAuth, (req: AuthenticatedRequest, res: Resp
   }
 });
 
+// GET /api/auth/dev-ticket (Localhost diagnostics only)
+authRouter.get('/dev-ticket', (_req: any, res: any) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Dev ticket forbidden in production' });
+  }
+  try {
+    const ticket = authService.createWsTicket('user_master');
+    res.json({ ticket });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT /api/auth/profile (Update display name)
 authRouter.put('/profile', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   try {

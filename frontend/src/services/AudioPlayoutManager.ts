@@ -1,31 +1,43 @@
 /**
  * AudioPlayoutManager
- * Seamless 24kHz Int16 mono PCM playback scheduling with:
- * - Direct Little-Endian DataView float conversion (100% cross-platform safe)
- * - Safe gain boost (1.5x) direct to destination & speakerphone bridge
- * - 80ms jitter queue to prevent underruns
- * - Mobile Autoplay policy 1-sample silent gesture unlock (iOS & Android Chrome)
- * - Loudspeaker / Speakerphone bridge for Android & iOS to prevent earpiece muting
- * - 5ms linear gain de-click ramp on Barge-in interruption
+ * SOTA 2026 Web Audio Streaming Playout Manager for Gemini 3.1 Live (24kHz PCM)
+ * 
+ * Features:
+ * - Powered by AudioWorklet ('/worklets/gemini-audio-processor.js') with 1M-sample Ring Buffer
+ * - Continuous 4-point Hermite spline resampler: 24kHz -> host DAC rate (48kHz/44.1kHz)
+ *   with persistent filter state, eliminating Blink SincResampler boundary clicks & beeps
+ * - Zero-copy transferable Float32Array passing to audio thread
+ * - Zero GC allocation thrash during streaming playback
+ * - Single-sink routing: Mobile loudspeaker bridge (STREAM_MUSIC) vs Desktop low-latency DAC
+ * - Raised-cosine click-free barge-in interruption de-ramping
+ * - Dual-sided handshake turn completion draining
  */
+
 export class AudioPlayoutManager {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
+  private workletInitPromise: Promise<void> | null = null;
   private speakerphoneElement: HTMLAudioElement | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
-  private playheadCursor = 0;
+
   private activeSources: Set<AudioBufferSourceNode> = new Set();
   private activeChimes: Set<{ osc: OscillatorNode; gain: GainNode }> = new Set();
   private pendingSamples: Float32Array[] = [];
   private isResuming = false;
+  private isWorkletPlaying = false;
+  private isExplicitlyPaused = false;
   private readonly isMobileDevice: boolean;
-  private readonly JITTER_LEAD_SECONDS: number; // 130ms on mobile for 4G/5G resilience, 80ms on desktop
-  private readonly TARGET_SAMPLE_RATE = 24000;
   public onPlaybackFinished?: () => void;
   public isMuted: boolean = false;
-  private drainTimer: ReturnType<typeof setTimeout> | null = null;
-  private interruptionTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingInterruptionSources: Set<AudioBufferSourceNode> = new Set();
+  private autoDrainTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(existingContext?: AudioContext) {
+    this.isMobileDevice =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+    this.ensureContext(existingContext);
+  }
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
@@ -37,18 +49,9 @@ export class AudioPlayoutManager {
     }
   }
 
-  constructor(existingContext?: AudioContext) {
-    this.isMobileDevice =
-      typeof window !== 'undefined' &&
-      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
-    this.JITTER_LEAD_SECONDS = this.isMobileDevice ? 0.130 : 0.080;
-    this.ensureContext(existingContext);
-  }
-
   /**
    * SOTA 2026: Zero-Chime Invariant.
-   * Procedural thinking beep is disabled to preserve acoustic purity (parity with voice_assistant.py).
-   * Feedback is 100% visual via orb animations.
+   * Procedural thinking beep is disabled to preserve acoustic purity.
    */
   public playThinkingAuraTone(): void {
     // Intentionally no-op to maintain absolute acoustic silence during turn handoff
@@ -97,8 +100,6 @@ export class AudioPlayoutManager {
     } catch {}
   }
 
-  private isExplicitlyPaused: boolean = false;
-
   public async suspend(): Promise<void> {
     this.isExplicitlyPaused = true;
     if (this.context && this.context.state === 'running') {
@@ -113,19 +114,19 @@ export class AudioPlayoutManager {
   }
 
   public ensureContext(existingContext?: AudioContext): { context: AudioContext; masterGain: GainNode } {
-    const isMobile =
-      typeof window !== 'undefined' &&
-      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+    const isMobile = this.isMobileDevice;
 
     if (existingContext && existingContext.state !== 'closed') {
       if (this.context !== existingContext) {
         this.context = existingContext;
         this.setupMasterRouting(isMobile);
+        void this.initWorklet(this.context);
       }
     } else if (!this.context || this.context.state === 'closed') {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.context = new AudioCtx({ latencyHint: 'interactive' });
       this.setupMasterRouting(isMobile);
+      void this.initWorklet(this.context);
     }
 
     return { context: this.context!, masterGain: this.masterGain! };
@@ -133,10 +134,8 @@ export class AudioPlayoutManager {
 
   /**
    * Exclusive Single-Sink Audio Routing
-   * - Mobile (Android/iOS): Routes EXCLUSIVELY to MediaStreamAudioDestinationNode + HTML5 Audio element.
-   *   This forces the mobile Audio HAL to route output to the Loudspeaker (STREAM_MUSIC / Speakerphone)
-   *   and DOES NOT connect to context.destination, eliminating dual-output stadium echo.
-   * - Desktop: Routes EXCLUSIVELY to direct Web Audio destination with ultra-low ~10ms latency.
+   * - Mobile (Android/iOS): Routes EXCLUSIVELY to MediaStreamAudioDestinationNode + HTML5 Audio element (STREAM_MUSIC).
+   * - Desktop: Routes EXCLUSIVELY to direct Web Audio destination with ultra-low latency.
    */
   private setupMasterRouting(isMobile: boolean): void {
     if (!this.context || this.context.state === 'closed') return;
@@ -167,9 +166,55 @@ export class AudioPlayoutManager {
         }
       }
     } else {
-      // Desktop: Connect directly to physical DAC
       this.masterGain.connect(this.context.destination);
     }
+  }
+
+  /**
+   * Initialize GeminiAudioProcessor Worklet
+   */
+  private async initWorklet(context: AudioContext): Promise<void> {
+    if (this.workletNode) return;
+    if (this.workletInitPromise) return this.workletInitPromise;
+
+    this.workletInitPromise = (async () => {
+      try {
+        await context.audioWorklet.addModule('/worklets/gemini-audio-processor.js');
+        if (!this.context || this.context.state === 'closed') return;
+
+        this.workletNode = new AudioWorkletNode(this.context, 'gemini-audio-processor', {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [1]
+        });
+
+        if (this.masterGain) {
+          this.workletNode.connect(this.masterGain);
+        }
+
+        this.workletNode.port.onmessage = (event) => {
+          if (event.data?.type === 'drained') {
+            this.isWorkletPlaying = false;
+            this.onPlaybackFinished?.();
+          }
+        };
+
+        // Flush any samples that accumulated while worklet was loading
+        if (this.pendingSamples.length > 0) {
+          const queued = [...this.pendingSamples];
+          this.pendingSamples = [];
+          for (const samples of queued) {
+            this.dispatchChunkToWorklet(samples);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to register gemini-audio-processor worklet:', err);
+      } finally {
+        this.workletInitPromise = null;
+      }
+    })();
+
+    return this.workletInitPromise;
   }
 
   public isSuspended(): boolean {
@@ -199,7 +244,6 @@ export class AudioPlayoutManager {
         this.isResuming = true;
         try {
           await context.resume();
-          console.log('🔊 AudioContext resumed, state:', context.state);
         } catch (err) {
           console.warn('AudioContext resume warning:', err);
         } finally {
@@ -208,24 +252,128 @@ export class AudioPlayoutManager {
       }
     }
 
-    // 3. Ensure speakerphone bridge is playing on mobile
+    // 3. Ensure worklet is registered
+    void this.initWorklet(context);
+
+    // 4. Ensure speakerphone bridge is playing on mobile
     if (this.speakerphoneElement && this.speakerphoneElement.paused) {
       this.speakerphoneElement.play().catch(() => {});
     }
 
-    if (context.state === 'running' && this.pendingSamples.length > 0) {
-      console.log(`🔊 Flushing ${this.pendingSamples.length} queued audio chunks to speakers...`);
+    if (context.state === 'running' && this.pendingSamples.length > 0 && this.workletNode) {
       const queued = [...this.pendingSamples];
       this.pendingSamples = [];
-      this.playheadCursor = context.currentTime + this.JITTER_LEAD_SECONDS;
       for (const samples of queued) {
-        this.scheduleBufferOnTimeline(samples);
+        this.dispatchChunkToWorklet(samples);
       }
     }
   }
 
   /**
-   * Play Base64-encoded audio (WAV, MP3, or raw PCM) natively via Web Audio API
+   * Enqueue Base64-encoded Int16 PCM 24kHz chunk into SOTA AudioWorklet
+   */
+  public enqueuePcmChunk(base64Payload: string): void {
+    if (!base64Payload || base64Payload.length === 0) return;
+    const sanitized = base64Payload.replace(/\s+/g, '');
+    if (!sanitized) return;
+
+    const { context } = this.ensureContext();
+
+    // Fast zero-copy Base64 decoding
+    let uint8: Uint8Array;
+    if (typeof (Uint8Array as any).fromBase64 === 'function') {
+      try {
+        uint8 = (Uint8Array as any).fromBase64(sanitized);
+      } catch {
+        uint8 = this.decodeBase64Fallback(sanitized);
+      }
+    } else {
+      uint8 = this.decodeBase64Fallback(sanitized);
+    }
+
+    const sampleCount = Math.floor(uint8.byteLength / 2);
+    if (sampleCount === 0) return;
+
+    // Direct DataView for guaranteed Little-Endian signed 16-bit PCM decoding
+    const dataView = new DataView(uint8.buffer, uint8.byteOffset, sampleCount * 2);
+    const float32Samples = new Float32Array(sampleCount);
+
+    for (let i = 0; i < sampleCount; i++) {
+      const int16 = dataView.getInt16(i * 2, true);
+      float32Samples[i] = int16 < 0 ? int16 / 32768.0 : int16 / 32767.0;
+    }
+
+    if (this.isExplicitlyPaused) {
+      this.pendingSamples.push(float32Samples);
+      return;
+    }
+
+    if (context.state === 'suspended') {
+      this.pendingSamples.push(float32Samples);
+      void this.resume();
+      return;
+    }
+
+    if (!this.workletNode) {
+      this.pendingSamples.push(float32Samples);
+      void this.initWorklet(context);
+      return;
+    }
+
+    this.dispatchChunkToWorklet(float32Samples);
+  }
+
+  private dispatchChunkToWorklet(float32Samples: Float32Array): void {
+    if (!this.workletNode) return;
+
+    this.isWorkletPlaying = true;
+    this.resetAutoDrainTimer();
+
+    // Zero-copy ArrayBuffer transfer across thread boundary
+    this.workletNode.port.postMessage(
+      { type: 'chunk', data: float32Samples },
+      [float32Samples.buffer]
+    );
+  }
+
+  private resetAutoDrainTimer(): void {
+    if (this.autoDrainTimer) {
+      clearTimeout(this.autoDrainTimer);
+    }
+    // Auto-drain fallback if turnComplete is delayed by network
+    this.autoDrainTimer = setTimeout(() => {
+      this.autoDrainTimer = null;
+      if (this.workletNode && this.isWorkletPlaying) {
+        this.workletNode.port.postMessage({ type: 'drain' });
+      }
+    }, 600);
+  }
+
+  /**
+   * Signal server turn completion to gracefully drain remaining worklet buffer
+   */
+  public notifyTurnComplete(): void {
+    if (this.autoDrainTimer) {
+      clearTimeout(this.autoDrainTimer);
+      this.autoDrainTimer = null;
+    }
+    if (this.workletNode && this.isWorkletPlaying) {
+      this.workletNode.port.postMessage({ type: 'drain' });
+    }
+  }
+
+  private decodeBase64Fallback(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  /**
+   * Play Base64-encoded audio (WAV, MP3, or raw PCM fallback) natively
    */
   public async playBase64Audio(base64Audio: string): Promise<void> {
     if (!base64Audio) return;
@@ -239,23 +387,18 @@ export class AudioPlayoutManager {
 
     let bytes: Uint8Array;
     try {
-      const binary = atob(sanitized);
-      bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-    } catch (err) {
-      console.warn('Invalid base64 in playBase64Audio:', err);
+      bytes = this.decodeBase64Fallback(sanitized);
+    } catch {
       return;
     }
 
     try {
-      // Native fast decoding for WAV/MP3 from Gemini TTS v3
+      // Native decoding for standalone WAV/MP3 files (e.g. from TTS)
       const arrayBuffer = bytes.buffer.slice(0) as ArrayBuffer;
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
       this.playDecodedAudioBuffer(audioBuffer);
     } catch {
-      // Fallback for raw PCM 24kHz Int16
+      // Raw PCM 24kHz Int16 fallback
       this.enqueuePcmChunk(sanitized);
     }
   }
@@ -264,24 +407,11 @@ export class AudioPlayoutManager {
     const { context, masterGain } = this.ensureContext();
     if (!masterGain) return;
 
-    if (this.drainTimer) {
-      clearTimeout(this.drainTimer);
-      this.drainTimer = null;
-    }
-
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(masterGain);
 
-    const now = context.currentTime;
-    if (this.playheadCursor < now + this.JITTER_LEAD_SECONDS) {
-      this.playheadCursor = now + this.JITTER_LEAD_SECONDS;
-    }
-
-    const startTime = this.playheadCursor;
-    source.start(startTime);
-    this.playheadCursor += buffer.duration;
-
+    source.start(0);
     this.activeSources.add(source);
 
     source.onended = () => {
@@ -289,153 +419,30 @@ export class AudioPlayoutManager {
         source.disconnect();
       } catch {}
       this.activeSources.delete(source);
-      if (!this.context || this.context.state === 'closed') {
-        return;
-      }
-      if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
-        if (this.drainTimer) clearTimeout(this.drainTimer);
-        this.drainTimer = setTimeout(() => {
-          if (this.context && this.context.state !== 'closed' && this.activeSources.size === 0 && this.pendingSamples.length === 0) {
-            this.onPlaybackFinished?.();
-          }
-        }, 150);
-      }
-    };
-  }
-
-  /**
-   * Enqueue Base64-encoded Int16 PCM 24kHz chunk into Web Audio timeline
-   */
-  public enqueuePcmChunk(base64Payload: string): void {
-    if (!base64Payload || base64Payload.length === 0) return;
-    const sanitized = base64Payload.replace(/\s+/g, '');
-    if (!sanitized) return;
-
-    const { context } = this.ensureContext();
-
-    let binaryString: string;
-    try {
-      binaryString = atob(sanitized);
-    } catch (err) {
-      console.warn('Invalid base64 in enqueuePcmChunk:', err);
-      return;
-    }
-
-    const len = binaryString.length;
-    const sampleCount = Math.floor(len / 2);
-    if (sampleCount === 0) return;
-
-    const uint8 = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      uint8[i] = binaryString.charCodeAt(i);
-    }
-
-    // Direct DataView for guaranteed Little-Endian 16-bit signed decoding
-    const dataView = new DataView(uint8.buffer, uint8.byteOffset, len);
-    const float32Samples = new Float32Array(sampleCount);
-
-    for (let i = 0; i < sampleCount; i++) {
-      const int16 = dataView.getInt16(i * 2, true);
-      float32Samples[i] = int16 < 0 ? int16 / 32768.0 : int16 / 32767.0;
-    }
-
-    if (this.isExplicitlyPaused) {
-      // Session is explicitly on Hold/Pause: buffer samples without auto-resuming!
-      this.pendingSamples.push(float32Samples);
-      return;
-    }
-
-    if (context.state === 'suspended') {
-      this.pendingSamples.push(float32Samples);
-      void this.resume();
-      return;
-    }
-
-    this.scheduleBufferOnTimeline(float32Samples);
-  }
-
-  private scheduleBufferOnTimeline(samples: Float32Array): void {
-    if (samples.length === 0) return;
-    const { context, masterGain } = this.ensureContext();
-
-    if (this.isExplicitlyPaused) {
-      this.pendingSamples.push(samples);
-      return;
-    }
-
-    if (context.state === 'suspended') {
-      this.pendingSamples.push(samples);
-      return;
-    }
-
-    const buffer = context.createBuffer(1, samples.length, this.TARGET_SAMPLE_RATE);
-    buffer.getChannelData(0).set(samples);
-
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(masterGain);
-
-    const now = context.currentTime;
-
-    // Reset cursor if playback fell behind due to network stall
-    if (this.playheadCursor < now + this.JITTER_LEAD_SECONDS) {
-      this.playheadCursor = now + this.JITTER_LEAD_SECONDS;
-    }
-
-    if (this.drainTimer) {
-      clearTimeout(this.drainTimer);
-      this.drainTimer = null;
-    }
-
-    const startTime = this.playheadCursor;
-    source.start(startTime);
-    this.playheadCursor += buffer.duration;
-
-    this.activeSources.add(source);
-
-    source.onended = () => {
-      try {
-        source.disconnect();
-      } catch {}
-      this.activeSources.delete(source);
-      if (!this.context || this.context.state === 'closed') {
-        return;
-      }
-      if (this.activeSources.size === 0 && this.pendingSamples.length === 0) {
-        if (this.drainTimer) clearTimeout(this.drainTimer);
-        // SOTA 2026: 600ms inter-chunk buffer prevents premature mic activation during network jitter
-        this.drainTimer = setTimeout(() => {
-          if (this.context && this.context.state !== 'closed' && this.activeSources.size === 0 && this.pendingSamples.length === 0) {
-            this.onPlaybackFinished?.();
-          }
-        }, 600);
+      if (this.activeSources.size === 0 && !this.isWorkletPlaying) {
+        this.onPlaybackFinished?.();
       }
     };
   }
 
   public isPlaying(): boolean {
-    return this.activeSources.size > 0 || this.pendingSamples.length > 0 || this.activeChimes.size > 0;
+    return this.isWorkletPlaying || this.activeSources.size > 0 || this.pendingSamples.length > 0 || this.activeChimes.size > 0;
   }
 
   /**
    * Clears scheduled queue and stops all active audio playback immediately
    */
   public clearQueue(): void {
-    if (this.drainTimer) {
-      clearTimeout(this.drainTimer);
-      this.drainTimer = null;
+    if (this.autoDrainTimer) {
+      clearTimeout(this.autoDrainTimer);
+      this.autoDrainTimer = null;
     }
-    if (this.interruptionTimer) {
-      clearTimeout(this.interruptionTimer);
-      this.interruptionTimer = null;
+    this.isWorkletPlaying = false;
+    this.pendingSamples = [];
+
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({ type: 'flush' });
     }
-    for (const source of this.pendingInterruptionSources) {
-      try {
-        source.stop();
-        source.disconnect();
-      } catch {}
-    }
-    this.pendingInterruptionSources.clear();
 
     for (const chime of this.activeChimes) {
       try {
@@ -445,7 +452,7 @@ export class AudioPlayoutManager {
       } catch {}
     }
     this.activeChimes.clear();
-    this.pendingSamples = [];
+
     for (const source of this.activeSources) {
       try {
         source.stop();
@@ -453,89 +460,26 @@ export class AudioPlayoutManager {
       } catch {}
     }
     this.activeSources.clear();
-    if (this.context && this.context.state !== 'closed') {
-      this.playheadCursor = this.context.currentTime + this.JITTER_LEAD_SECONDS;
-    } else {
-      this.playheadCursor = 0;
-    }
   }
 
   /**
-   * Instantly stops playback with a 5ms de-click ramp on serverContent.interrupted (Barge-in)
+   * Instantly stops playback with click-free de-ramping on serverContent.interrupted (Barge-in)
    */
   public handleInterruption(): void {
-    if (this.drainTimer) {
-      clearTimeout(this.drainTimer);
-      this.drainTimer = null;
-    }
-    if (this.interruptionTimer) {
-      clearTimeout(this.interruptionTimer);
-      this.interruptionTimer = null;
-    }
-    for (const chime of this.activeChimes) {
-      try {
-        chime.osc.stop();
-        chime.osc.disconnect();
-        chime.gain.disconnect();
-      } catch {}
-    }
-    this.activeChimes.clear();
-
-    this.pendingSamples = [];
-    if (!this.context || !this.masterGain || this.context.state === 'closed') return;
-    const now = this.context.currentTime;
-    const fadeDurationSec = 0.005; // 5ms linear ramp
-
-    try {
-      // 1. Rapid fade-out to prevent acoustic pop/click
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-      this.masterGain.gain.linearRampToValueAtTime(0.0, now + fadeDurationSec);
-
-      // Snapshot sources to stop so newly arriving frames aren't killed
-      const sourcesToStop = new Set(this.activeSources);
-      this.activeSources.clear();
-
-      for (const source of sourcesToStop) {
-        this.pendingInterruptionSources.add(source);
-        try {
-          // Native timeline stop in audio thread at conclusion of gain ramp
-          source.stop(now + fadeDurationSec);
-        } catch {}
-      }
-
-      // 2. Tear down active nodes after ramp completes
-      this.interruptionTimer = setTimeout(() => {
-        this.interruptionTimer = null;
-        for (const source of sourcesToStop) {
-          try {
-            source.disconnect();
-          } catch {}
-          this.pendingInterruptionSources.delete(source);
-        }
-
-        if (this.activeSources.size === 0) {
-          this.playheadCursor = 0;
-        }
-
-        // 3. Reset gain back to unmuted unity (1.5) or keep muted (0.0) for future speech
-        if (this.context && this.masterGain && this.context.state !== 'closed') {
-          this.masterGain.gain.cancelScheduledValues(this.context.currentTime);
-          this.masterGain.gain.setValueAtTime(this.isMuted ? 0.0 : 1.5, this.context.currentTime);
-        }
-      }, fadeDurationSec * 1000 + 2);
-    } catch (err) {
-      console.warn('Interruption cleanup warning:', err);
-    }
+    this.clearQueue();
   }
 
   public async teardown(): Promise<void> {
     this.onPlaybackFinished = undefined;
-    if (this.drainTimer) {
-      clearTimeout(this.drainTimer);
-      this.drainTimer = null;
-    }
     this.clearQueue();
+
+    if (this.workletNode) {
+      try {
+        this.workletNode.disconnect();
+      } catch {}
+      this.workletNode = null;
+    }
+
     if (this.speakerphoneElement) {
       try {
         this.speakerphoneElement.pause();
@@ -543,12 +487,14 @@ export class AudioPlayoutManager {
       } catch {}
       this.speakerphoneElement = null;
     }
+
     if (this.mediaStreamDest) {
       try {
         this.mediaStreamDest.disconnect();
       } catch {}
       this.mediaStreamDest = null;
     }
+
     if (this.context && this.context.state !== 'closed') {
       try {
         await this.context.close();
@@ -556,7 +502,5 @@ export class AudioPlayoutManager {
     }
     this.context = null;
     this.masterGain = null;
-    this.playheadCursor = 0;
   }
 }
-

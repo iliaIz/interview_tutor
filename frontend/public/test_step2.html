@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Аудио-диагностика Шаг 2: Пошаговая изоляция Web Audio</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #faf7f8;
+      color: #2d2638;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 {
+      color: #7c3aed;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .badge-baseline { background: #dcfce7; color: #166534; }
+    .badge-suspect { background: #fee2e2; color: #991b1b; }
+    .desc {
+      font-size: 13px;
+      color: #4b5563;
+    }
+    button {
+      background: linear-gradient(135deg, #a855f7, #ec4899);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      align-self: flex-start;
+    }
+    button:hover { opacity: 0.95; }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .log-box {
+      background: #18181b;
+      color: #a1a1aa;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      padding: 16px;
+      border-radius: 12px;
+      height: 220px;
+      overflow-y: auto;
+      margin-top: 24px;
+      white-space: pre-wrap;
+    }
+    .status-bar {
+      font-weight: 600;
+      color: #7c3aed;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔬 Лаборатория дифференциальной аудио-диагностики</h1>
+  <div class="subtitle">
+    Шаг 1 доказал: в Python (PyAudio) звук <strong>абсолютно чистый</strong>.<br>
+    На этой странице мы по очереди проверяем подозрительные модули в браузере.
+  </div>
+
+  <!-- ТЕСТ 1: Чистый Web Audio (Дискретные чанки) -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">1. Базовый чистый Web Audio (Дискретные чанки)</span>
+      <span class="badge badge-suspect">Текущий способ приложения</span>
+    </div>
+    <div class="desc">
+      На каждый входящий WebSocket чанк создается отдельный <code>AudioBufferSourceNode</code> (24 кГц в контекст 48 кГц).<br>
+      <em>Вы подтвердили: здесь слышны писки!</em>
+    </div>
+    <button id="btnTest1" onclick="runCleanWebAudioTest()">▶️ Запустить тест 1 (дискретные чанки)</button>
+  </div>
+
+  <!-- ТЕСТ 1B: Единый сплошной буфер (Single Continuous AudioBuffer) -->
+  <div class="card" style="border-left: 4px solid #10b981;">
+    <div class="card-header">
+      <span class="card-title">1B. Единый сплошной буфер (Все чанки склеены в 1 целый файл)</span>
+      <span class="badge badge-baseline">Проверка гипотезы склейки</span>
+    </div>
+    <div class="desc">
+      Накапливает все чанки за 2-3 секунды, склеивает их в <strong>один непрерывный массив сэмплов</strong> (как единый файл) и запускает <strong>один-единственный AudioBufferSourceNode</strong>.<br>
+      Если здесь писков НЕТ $\rightarrow$ причина на 100% в разрывах на границах чанков!
+    </div>
+    <button id="btnTest1B" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="runAccumulatedBufferTest()">▶️ Запустить 1B (цельный сплошной буфер)</button>
+  </div>
+
+  <!-- ТЕСТ 1C: Нативная частота 24 кГц (AudioContext({ sampleRate: 24000 })) -->
+  <div class="card" style="border-left: 4px solid #3b82f6;">
+    <div class="card-header">
+      <span class="card-title">1C. Нативная частота 24 кГц (Без ресэмплера браузера)</span>
+      <span class="badge badge-baseline">Нативный 24 кГц</span>
+    </div>
+    <div class="desc">
+      Создает <code>new AudioContext({ sampleRate: 24000 })</code> — частота контекста точно совпадает с частотой Gemini (24000 Гц), отключая внутренний ресэмплинг браузера.
+    </div>
+    <button id="btnTest1C" style="background: linear-gradient(135deg, #3b82f6, #2563eb);" onclick="runNative24kTest()">▶️ Запустить 1C (нативный 24 кГц)</button>
+  </div>
+
+  <!-- ТЕСТ 1D: Сглаживание стыков микрофейдом (De-Click 3ms) -->
+  <div class="card" style="border-left: 4px solid #8b5cf6;">
+    <div class="card-header">
+      <span class="card-title">1D. Сглаживание стыков (De-Click Micro-Fade)</span>
+      <span class="badge badge-baseline">Сглаженные границы</span>
+    </div>
+    <div class="desc">
+      Дискретные чанки, но на начало и конец каждого чанка накладывается ультракороткий 3-миллисекундный фейдин/фейдаут, устраняющий скачки фазы и клики.
+    </div>
+    <button id="btnTest1D" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);" onclick="runDeClickTest()">▶️ Запустить 1D (сглаживание границ)</button>
+  </div>
+
+  <!-- ТЕСТ 1E: SOTA 2026 AudioWorklet Streaming -->
+  <div class="card" style="border: 2px solid #10b981; background: #f0fdf4;">
+    <div class="card-header">
+      <span class="card-title">🔥 1E. SOTA AudioWorklet Streaming (Кольцевой буфер + сплайн Эрмита)</span>
+      <span class="badge" style="background: #10b981; color: white;">SOTA Решение 2026</span>
+    </div>
+    <div class="desc">
+      <strong>Решение по итогам Deep Research:</strong> Единый постоянный <code>AudioWorkletProcessor</code> в аудио-потоке браузера.<br>
+      • Кольцевой буфер на 65 536 сэмплов (2.7 сек).<br>
+      • Непрерывный 4-точечный сплайн-интерполятор Эрмита (без сброса фильтра Blink и фазы).<br>
+      • Джиттер-буфер 80мс + защита от щелчков при паузах.<br>
+      • Играет <strong>всё приветствие целиком</strong> (не обрезаясь, как в 1B).
+    </div>
+    <button id="btnTest1E" style="background: linear-gradient(135deg, #10b981, #047857); padding: 12px 24px; font-size: 15px;" onclick="runAudioWorkletTest()">🚀 Запустить 1E (SOTA AudioWorklet)</button>
+  </div>
+
+  <!-- ТЕСТ 2: SpeechRecognition (Системный писк Chrome) -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">2. Проверка SpeechRecognition (webkitSpeechRecognition)</span>
+      <span class="badge badge-suspect">Главный подозреваемый</span>
+    </div>
+    <div class="desc">
+      Запускает встроенный в Chrome <code>webkitSpeechRecognition.start()</code> (точно так же, как в строке 415 VoiceModal.tsx).<br>
+      <strong>Обратите внимание:</strong> издает ли Google Chrome характерный короткий системный «писк / chime» в момент старта и остановки?
+    </div>
+    <button id="btnTest2" onclick="runSpeechRecognitionTest()">🎤 Запустить SpeechRecognition (3 сек)</button>
+  </div>
+
+  <!-- ТЕСТ 3: Перегрузка гейна (masterGain = 1.5) -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">3. Проверка клиппинга (masterGain = 1.5)</span>
+      <span class="badge badge-suspect">Подозрение на искажение</span>
+    </div>
+    <div class="desc">
+      Играет приветствие Gemini 3.1 Live, но с умножением амплитуды на <strong>1.5</strong> (как было прописано в AudioPlayoutManager.ts).
+    </div>
+    <button id="btnTest3" onclick="runClippingGainTest()">🔊 Запустить с masterGain = 1.5</button>
+  </div>
+
+  <!-- ТЕСТ 4: 1-сэмпловый импульс разлочки -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">4. Импульс разлочки (1 сэмпл 22050 Гц)</span>
+      <span class="badge badge-suspect">Подозрение на щелчок при старте</span>
+    </div>
+    <div class="desc">
+      Воспроизводит прямо в динамики тот самый 1-сэмпловый буфер разлочки с чужой частотой 22050 Гц из метода <code>resume()</code>.
+    </div>
+    <button id="btnTest4" onclick="runOneSampleImpulseTest()">⚡ Воспроизвести 1-сэмпловый импульс</button>
+  </div>
+
+  <!-- ТЕСТ 5: Синусоидальный осциллятор playHoldChime -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">5. Осциллятор playHoldChime (440 - 660 Гц)</span>
+      <span class="badge badge-suspect">Синтетический генератор</span>
+    </div>
+    <div class="desc">
+      Воспроизводит чистый синусоидальный тон из метода <code>playHoldChime</code> (строка 65 в AudioPlayoutManager.ts).
+    </div>
+    <button id="btnTest5" onclick="runOscillatorTest()">🔔 Воспроизвести тон playHoldChime</button>
+  </div>
+
+  <div class="status-bar" id="statusBar">Готов к тестам. Выберите тест выше.</div>
+  <div class="log-box" id="logBox">=== Журнал событий аудио-лаборатории ===\n</div>
+
+  <script>
+    function log(msg) {
+      const el = document.getElementById('logBox');
+      el.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+      console.log(msg);
+    }
+
+    function setStatus(msg) {
+      document.getElementById('statusBar').textContent = msg;
+    }
+
+    async function getTicket() {
+      const res = await fetch('/api/auth/dev-ticket');
+      const data = await res.json();
+      return data.ticket;
+    }
+
+    // ТЕСТ 1: Базовый чистый Web Audio
+    async function runCleanWebAudioTest() {
+      setStatus('Подключение к WebSocket Gemini Live...');
+      log('--- Запуск Теста 1: Чистый Web Audio (gain = 1.0) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.0; // ЧИСТЫЙ ЕДИНИЧНЫЙ ГЕЙН
+        gainNode.connect(ctx.destination);
+
+        const params = new URLSearchParams({
+          sessionId: 'test_clean_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          persona: 'mentor',
+          targetGrade: 'L5_SENIOR',
+          maxProbes: '3',
+          deepDive: 'true',
+          liveCoaching: 'true',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        let playhead = ctx.currentTime + 0.15; // 150ms плавный начальный pre-roll
+        let chunkIndex = 0;
+
+        ws.onopen = () => {
+          log('✅ WebSocket подключен. Ожидание Gemini 3.1 Live...');
+          setStatus('Ожидание аудио от Gemini Live...');
+        };
+
+        ws.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'setupComplete') {
+            log('🎉 setupComplete: ИИ начинает говорить...');
+            setStatus('🔊 Воспроизведение через чистый Web Audio (gain = 1.0)...');
+          }
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const len = bin.length;
+                const sampleCount = Math.floor(len / 2);
+                if (sampleCount < 64) continue; // отсекаем 1-сэмпловый мусор
+
+                const u8 = new Uint8Array(len);
+                for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+
+                const buf = ctx.createBuffer(1, sampleCount, 24000);
+                buf.getChannelData(0).set(f32);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(gainNode);
+
+                const now = ctx.currentTime;
+                if (playhead < now + 0.05) playhead = now + 0.05;
+                src.start(playhead);
+                playhead += buf.duration;
+                chunkIndex++;
+              }
+            }
+          }
+          if (data.serverContent?.turnComplete) {
+            log(`✅ Воспроизведение завершено (получено ${chunkIndex} чанков).`);
+            setStatus('Тест 1 завершен. Были ли писки?');
+          }
+        };
+
+        ws.onerror = (e) => log('❌ Ошибка WebSocket: ' + e);
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 1B: Единый сплошной буфер (Single Continuous AudioBuffer)
+    async function runAccumulatedBufferTest() {
+      setStatus('Сбор всех чанков в единый буфер...');
+      log('--- Запуск Теста 1B: Единый сплошной буфер (склейка всех чанков) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.0;
+        gainNode.connect(ctx.destination);
+
+        const params = new URLSearchParams({
+          sessionId: 'test_accum_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          persona: 'mentor',
+          targetGrade: 'L5_SENIOR',
+          maxProbes: '3',
+          deepDive: 'true',
+          liveCoaching: 'true',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        const chunks = [];
+        let totalSamples = 0;
+        let isStarted = false;
+
+        ws.onopen = () => {
+          log('✅ WebSocket подключен. Накопление чанков от Gemini 3.1 Live...');
+          setStatus('ИИ генерирует аудио. Накапливаем цельный буфер...');
+        };
+
+        const playContinuousBuffer = () => {
+          if (isStarted || chunks.length === 0) return;
+          isStarted = true;
+
+          log(`🎶 Склеиваем ${chunks.length} чанков в ОДИН сплошной массив (${totalSamples} сэмплов, ~${(totalSamples/24000).toFixed(1)} сек)...`);
+          const merged = new Float32Array(totalSamples);
+          let offset = 0;
+          for (const c of chunks) {
+            merged.set(c, offset);
+            offset += c.length;
+          }
+
+          const buf = ctx.createBuffer(1, totalSamples, 24000);
+          buf.getChannelData(0).set(merged);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(gainNode);
+          src.start(0);
+
+          log('🎧 СТАРТ ВОСПРОИЗВЕДЕНИЯ: Играет ОДНА непрерывная нода! Слушайте: есть ли писки?');
+          setStatus('🔊 Воспроизведение ЕДИНОГО сплошного буфера без границ...');
+
+          src.onended = () => {
+            log('✅ Воспроизведение цельного буфера завершено.');
+            setStatus('Тест 1B завершен. Были ли писки в цельном буфере?');
+          };
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const sampleCount = Math.floor(bin.length / 2);
+                if (sampleCount < 64) continue;
+
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+                chunks.push(f32);
+                totalSamples += sampleCount;
+              }
+            }
+          }
+          if (data.serverContent?.turnComplete) {
+            log('📦 Все данные получены от сервера.');
+            playContinuousBuffer();
+          }
+        };
+
+        // Запуск через 2.5 секунды если turnComplete задерживается
+        setTimeout(() => {
+          if (!isStarted && chunks.length > 5) {
+            playContinuousBuffer();
+          }
+        }, 2500);
+
+        ws.onerror = (e) => log('❌ Ошибка WebSocket: ' + e);
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 1C: Нативная частота 24 кГц
+    async function runNative24kTest() {
+      setStatus('Инициализация AudioContext с частотой 24 кГц...');
+      log('--- Запуск Теста 1C: Нативная частота 24 кГц (AudioContext sampleRate: 24000) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ sampleRate: 24000, latencyHint: 'interactive' });
+        await ctx.resume();
+
+        log(`🔊 Фактическая частота AudioContext: ${ctx.sampleRate} Гц (Gemini: 24000 Гц)`);
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.0;
+        gainNode.connect(ctx.destination);
+
+        const params = new URLSearchParams({
+          sessionId: 'test_24k_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          persona: 'mentor',
+          targetGrade: 'L5_SENIOR',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        let playhead = ctx.currentTime + 0.15;
+        let count = 0;
+
+        ws.onopen = () => setStatus('Ожидание Gemini Live (24 кГц без ресэмплера)...');
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const sampleCount = Math.floor(bin.length / 2);
+                if (sampleCount < 64) continue;
+
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+
+                const buf = ctx.createBuffer(1, sampleCount, 24000);
+                buf.getChannelData(0).set(f32);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(gainNode);
+
+                const now = ctx.currentTime;
+                if (playhead < now + 0.05) playhead = now + 0.05;
+                src.start(playhead);
+                playhead += buf.duration;
+                count++;
+              }
+            }
+          }
+          if (data.serverContent?.turnComplete) {
+            log(`✅ Тест 1C завершен (${count} чанков).`);
+            setStatus('Тест 1C завершен. Были ли писки?');
+          }
+        };
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 1D: Сглаживание стыков микрофейдом (De-Click 3ms)
+    async function runDeClickTest() {
+      setStatus('Запуск со сглаживанием границ (De-Click 3ms)...');
+      log('--- Запуск Теста 1D: Сглаживание стыков (De-Click 3ms) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.0;
+        gainNode.connect(ctx.destination);
+
+        const params = new URLSearchParams({
+          sessionId: 'test_declick_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          persona: 'mentor',
+          targetGrade: 'L5_SENIOR',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        let playhead = ctx.currentTime + 0.15;
+        let count = 0;
+        const FADE_SAMPLES = 72; // 3ms при 24000 Гц
+
+        ws.onopen = () => setStatus('Ожидание Gemini Live (De-Click micro-fade)...');
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const sampleCount = Math.floor(bin.length / 2);
+                if (sampleCount < 64) continue;
+
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+
+                // Сглаживание начала (fade-in 3ms)
+                const fadeLen = Math.min(FADE_SAMPLES, Math.floor(sampleCount / 4));
+                for (let i = 0; i < fadeLen; i++) {
+                  f32[i] *= (i / fadeLen);
+                }
+                // Сглаживание конца (fade-out 3ms)
+                for (let i = 0; i < fadeLen; i++) {
+                  f32[sampleCount - 1 - i] *= (i / fadeLen);
+                }
+
+                const buf = ctx.createBuffer(1, sampleCount, 24000);
+                buf.getChannelData(0).set(f32);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(gainNode);
+
+                const now = ctx.currentTime;
+                if (playhead < now + 0.05) playhead = now + 0.05;
+                src.start(playhead);
+                playhead += buf.duration;
+                count++;
+              }
+            }
+          }
+          if (data.serverContent?.turnComplete) {
+            log(`✅ Тест 1D завершен (${count} чанков).`);
+            setStatus('Тест 1D завершен. Были ли писки?');
+          }
+        };
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 1E: SOTA 2026 AudioWorklet Streaming
+    async function runAudioWorkletTest() {
+      setStatus('Инициализация SOTA AudioWorklet...');
+      log('--- Запуск Теста 1E: SOTA AudioWorklet Streaming (Ring Buffer + Hermite SRC) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        log(`🔊 AudioContext запущен: sampleRate = ${ctx.sampleRate} Гц`);
+        log('📦 Загрузка AudioWorklet модуля: /worklets/gemini-audio-processor.js ...');
+
+        await ctx.audioWorklet.addModule('/worklets/gemini-audio-processor.js');
+        log('✅ Модуль GeminiAudioProcessor успешно зарегистрирован в аудио-потоке!');
+
+        const workletNode = new AudioWorkletNode(ctx, 'gemini-audio-processor', {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [1]
+        });
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.0;
+        workletNode.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        workletNode.port.onmessage = (e) => {
+          if (e.data?.type === 'drained') {
+            log('🎉 [Worklet] Буфер полностью доиграл и опустошился (drained).');
+            setStatus('Тест 1E завершен! Как звук? Были ли писки или артефакты?');
+          }
+        };
+
+        const params = new URLSearchParams({
+          sessionId: 'test_worklet_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          persona: 'mentor',
+          targetGrade: 'L5_SENIOR',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        let chunkCount = 0;
+        let totalSamplesReceived = 0;
+
+        ws.onopen = () => {
+          setStatus('Ожидание Gemini 3.1 Live (потоковая передача в AudioWorklet)...');
+          log('✅ WebSocket подключен. Потоковая передача чанков напрямую в RingBuffer ворклета...');
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              if (part.text) {
+                log(`💬 [Gemini Text]: "${part.text}"`);
+              }
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const sampleCount = Math.floor(bin.length / 2);
+                if (sampleCount < 64) continue;
+
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+
+                // Zero-copy transfer в AudioWorklet
+                workletNode.port.postMessage(
+                  { type: 'chunk', data: f32 },
+                  [f32.buffer]
+                );
+
+                chunkCount++;
+                totalSamplesReceived += sampleCount;
+              }
+            }
+          }
+
+          if (data.serverContent?.turnComplete) {
+            log(`📦 Сервер завершил генерацию (${chunkCount} чанков, ~${(totalSamplesReceived/24000).toFixed(1)} сек речи).`);
+            log('⏳ Отправлен сигнал drain: ворклет плавно доигрывает накопленный остаток...');
+            workletNode.port.postMessage({ type: 'drain' });
+          }
+        };
+
+        ws.onerror = (e) => log('❌ Ошибка WebSocket: ' + e);
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 2: SpeechRecognition (Проверка системного писка Chrome)
+    function runSpeechRecognitionTest() {
+      setStatus('Запуск SpeechRecognition...');
+      log('--- Запуск Теста 2: webkitSpeechRecognition ---');
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        log('❌ Браузер не поддерживает SpeechRecognition.');
+        return;
+      }
+
+      try {
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'ru-RU';
+
+        rec.onstart = () => {
+          log('🎤 SpeechRecognition.start() сработал! Слушайте динамики: прозвучал ли системный писк/бип Chrome?');
+          setStatus('🎤 Слушайте: раздался ли писк браузера? (остановится через 3 сек)');
+        };
+
+        rec.onend = () => {
+          log('⏹️ SpeechRecognition остановлен.');
+          setStatus('Тест 2 завершен.');
+        };
+
+        rec.onerror = (e) => log('SpeechRecognition error: ' + e.error);
+        rec.start();
+
+        setTimeout(() => {
+          try { rec.stop(); } catch {}
+        }, 3000);
+      } catch (err) {
+        log('❌ Ошибка SpeechRecognition: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 3: Клиппинг gain = 1.5
+    async function runClippingGainTest() {
+      setStatus('Подключение к WebSocket с gain = 1.5...');
+      log('--- Запуск Теста 3: Клиппинг (masterGain = 1.5) ---');
+      try {
+        const ticket = await getTicket();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.5; // ПЕРЕГРУЗКА 1.5x
+        gainNode.connect(ctx.destination);
+
+        const params = new URLSearchParams({
+          sessionId: 'test_clip_' + Date.now(),
+          questionId: 'q_java_theory_1',
+          topic: 'Java Core & Spring',
+          questionText: 'Расскажите про жизненный цикл Spring бина.',
+          referenceAnswer: 'Жизненный цикл Spring бина...',
+          sessionType: 'tutor',
+          tutorMode: 'deep_dive',
+          voice: 'Kore',
+          userGender: 'female',
+          turnMode: 'auto',
+          strategy: 'socratic_tutoring',
+          liveModel: 'gemini-live-v3',
+          ticket: ticket
+        });
+
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws/live?${params.toString()}`);
+        let playhead = ctx.currentTime + 0.15;
+
+        ws.onopen = () => setStatus('Ожидание Gemini Live с 1.5x усилением...');
+        ws.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+          if (data.serverContent?.modelTurn?.parts) {
+            for (const part of data.serverContent.modelTurn.parts) {
+              const b64 = part.inlineData?.data || part.inline_data?.data;
+              if (b64) {
+                const bin = atob(b64);
+                const sampleCount = Math.floor(bin.length / 2);
+                if (sampleCount < 64) continue;
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                const dv = new DataView(u8.buffer);
+                const f32 = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i++) {
+                  const s = dv.getInt16(i * 2, true);
+                  f32[i] = s < 0 ? s / 32768 : s / 32767;
+                }
+                const buf = ctx.createBuffer(1, sampleCount, 24000);
+                buf.getChannelData(0).set(f32);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(gainNode);
+                const now = ctx.currentTime;
+                if (playhead < now + 0.05) playhead = now + 0.05;
+                src.start(playhead);
+                playhead += buf.duration;
+              }
+            }
+          }
+          if (data.serverContent?.turnComplete) {
+            log('✅ Тест 3 (gain = 1.5) завершен.');
+            setStatus('Тест 3 завершен. Были ли хрипы/писки на гласных?');
+          }
+        };
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 4: 1-сэмпловый импульс
+    async function runOneSampleImpulseTest() {
+      log('--- Запуск Теста 4: 1-сэмпловый буфер (22050 Гц) ---');
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const silent = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = silent;
+        src.connect(ctx.destination);
+        src.start(0);
+
+        log('⚡ Импульс отправлен в ЦАП (createBuffer(1, 1, 22050)). Слышен ли щелчок/писк?');
+        setStatus('Импульс воспроизведен. Слышали щелчок?');
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ТЕСТ 5: Синусоидальный осциллятор playHoldChime
+    async function runOscillatorTest() {
+      log('--- Запуск Теста 5: Синусоида playHoldChime (440-660 Гц) ---');
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx({ latencyHint: 'interactive' });
+        await ctx.resume();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const now = ctx.currentTime;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.20);
+
+        log('🔔 Синусоида 440-660 Гц воспроизведена. Похож ли этот писк на тот, что вы слышали?');
+        setStatus('Синусоида отыграла.');
+      } catch (err) {
+        log('❌ Ошибка: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>

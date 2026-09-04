@@ -1067,6 +1067,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           if (data.serverContent.turnComplete) {
             isServerTurnCompleteRef.current = true;
+            playoutManagerRef.current?.notifyTurnComplete();
             console.log('AI turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
 
             // Dual-Sided Handshake: If audio playout already finished or no audio was received, activate mic immediately
