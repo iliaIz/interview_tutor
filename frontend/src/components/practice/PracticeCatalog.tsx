@@ -32,7 +32,7 @@ import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
   { id: 'spring_transactions', name: 'Spring Transactions Lab', icon: Database, badge: 'SOTA 2026' },
-  { id: 'testing_mutation', name: 'Testing & Mutation', icon: Bug, badge: 'Kill Mutants' },
+  { id: 'testing_mutation', name: 'Testing & Mutation', icon: Bug, badge: '30 Katas' },
   { id: 'lld_bigtech', name: 'BigTech LLD', icon: Layers, badge: 'Яндекс/Озон' },
   { id: 'lld_fintech', name: 'FinTech & Ledger', icon: Crown, badge: 'Т-Банк/Stripe' },
   { id: 'lld_concurrency', name: 'Concurrency Lab', icon: Zap, badge: 'Loom/Threads' },
@@ -40,11 +40,22 @@ const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentTy
   { id: 'java21_idioms', name: 'Java 21 Idioms', icon: Sparkles }
 ];
 
+export const TESTING_ARCHETYPES = [
+  { id: 'all', name: 'Все архетипы (30)', badge: '🏆 Все 6', icon: Sparkles, match: [] },
+  { id: 'legacy', name: 'Legacy Seams (5)', badge: '✂️ Seams', icon: Shield, match: ['trip-service', 'gilded-rose', 'overloaded-constructor', 'legacy-invoice', 'legacy-tax'] },
+  { id: 'junit5', name: 'JUnit 5 & Boundaries (5)', badge: '🧪 Deep JUnit', icon: Terminal, match: ['financial-tx', 'combinatorial-pricing', 'dynamic-rbac', 'nested-account', 'security-context'] },
+  { id: 'mockito', name: 'Mockito 5 Verification (5)', badge: '🎭 Mockito 5', icon: CheckCircle2, match: ['audit-trail', 'async-event-captor', 'spy-do-return', 'resilient-retry', 'deterministic-time-uuid'] },
+  { id: 'fsm', name: 'State Machines & Retries (5)', badge: '🔄 Automata', icon: Flame, match: ['order-state-machine', 'idempotent-account', 'circuit-breaker-state', 'sliding-window-rate-limiter', 'distributed-saga'] },
+  { id: 'concurrency', name: 'Concurrency & Loom (5)', badge: '⚡ Loom & Races', icon: Zap, match: ['awaitility-polling', 'cyclic-barrier', 'threadmxbean-deadlock', 'virtual-thread-pinning', 'lockfree-ringbuffer'] },
+  { id: 'archunit', name: 'ArchUnit & Slices (5)', badge: '🏛️ ArchUnit', icon: Layers, match: ['archunit-layer-isolation', 'archunit-enterprise-api-governance', 'archunit-transactional-integrity', 'spring-webmvc-problem-detail', 'jackson-financial-pan-masking'] },
+];
+
 export const PracticeCatalog: React.FC = () => {
   const { openPracticeChallenge, openTransactionLab, showToast } = useAppStore();
   const [challenges, setChallenges] = useState<CodingChallenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory>('all');
+  const [selectedArchetype, setSelectedArchetype] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -74,20 +85,38 @@ export const PracticeCatalog: React.FC = () => {
 
   const filteredChallenges = useMemo(() => {
     return challenges.filter((c) => {
+      const isMutationKata =
+        c.track === 'testing_mutation' ||
+        c.category === 'testing_mutation' ||
+        c.challengeMode === 'write_the_tests' ||
+        (c.mutants && c.mutants.length > 0);
+
       const matchesCategory =
         selectedCategory === 'all' ||
         c.category === selectedCategory ||
         c.track === selectedCategory ||
-        (selectedCategory === 'testing_mutation' && (c.track === 'testing_mutation' || c.challengeMode === 'write_the_tests' || (c.mutants && c.mutants.length > 0))) ||
+        (selectedCategory === 'testing_mutation' && isMutationKata) ||
         (selectedCategory === 'machine_coding' && (c.category === 'machine_coding' || c.track?.startsWith('lld')));
+
+      if (!matchesCategory) return false;
+
+      if (selectedCategory === 'testing_mutation' && selectedArchetype !== 'all') {
+        const arch = TESTING_ARCHETYPES.find(a => a.id === selectedArchetype);
+        if (arch && arch.match.length > 0) {
+          const normKey = (c.id + ' ' + (c.slug || '')).toLowerCase().replace(/_/g, '-');
+          const matchesArch = arch.match.some(m => normKey.includes(m));
+          if (!matchesArch) return false;
+        }
+      }
+
       const matchesSearch =
         !searchQuery.trim() ||
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.shortDescription && c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.targetStack && c.targetStack.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [challenges, selectedCategory, searchQuery]);
+  }, [challenges, selectedCategory, selectedArchetype, searchQuery]);
 
   // Keep selectedId valid
   useEffect(() => {
@@ -217,7 +246,10 @@ export const PracticeCatalog: React.FC = () => {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    setSelectedArchetype('all');
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
                     isSelected
                       ? 'bg-pastel-text text-white shadow-xs'
@@ -243,6 +275,34 @@ export const PracticeCatalog: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* Archetype Sub-Filter Chips for Testing & Mutation */}
+        {selectedCategory === 'testing_mutation' && (
+          <div className="mt-4 pt-3 border-t border-pastel-border/60 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+            <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+              <Filter className="w-3 h-3 text-rose-500" />
+              Архетипы:
+            </span>
+            {TESTING_ARCHETYPES.map((arch) => {
+              const ArchIcon = arch.icon;
+              const isSelected = selectedArchetype === arch.id;
+              return (
+                <button
+                  key={arch.id}
+                  onClick={() => setSelectedArchetype(arch.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
+                    isSelected
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
+                  }`}
+                >
+                  <ArchIcon className="w-3.5 h-3.5" />
+                  <span>{arch.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 3. MASTER-DETAIL SPLIT STUDIO LAYOUT (SOTA 2026) */}
@@ -425,17 +485,31 @@ export const PracticeCatalog: React.FC = () => {
             </div>
 
             {/* Architectural & Hard Invariants Box */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/60 to-pastel-bg border border-purple-200/80 space-y-2 text-xs">
-              <h4 className="font-bold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                <Shield className="w-3.5 h-3.5 text-purple-700" />
-                <span>Архитектурные требования (Hard Invariants)</span>
-              </h4>
-              <ul className="space-y-1 text-slate-700 font-sans list-disc pl-4 leading-relaxed">
-                <li><strong>Временная виртуализация:</strong> Использовать только инжектированный <code className="text-purple-800 bg-purple-100/80 px-1 py-0.2 rounded font-mono">java.time.Clock</code> (запрет <code className="font-mono text-rose-700">System.currentTimeMillis()</code>).</li>
-                <li><strong>Потокобезопасность:</strong> Поддержка параллельных запросов без гонок данных и блокировок несущих потоков (Virtual Threads Loom).</li>
-                <li><strong>Чистота архитектуры:</strong> SOLID, нулевые утечки памяти, детерминированные тесты.</li>
-              </ul>
-            </div>
+            {activeChallenge.track === 'testing_mutation' || activeChallenge.category === 'testing_mutation' ? (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-50/70 to-pink-50/40 border border-rose-200/80 space-y-2 text-xs">
+                <h4 className="font-bold text-rose-950 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                  <Bug className="w-3.5 h-3.5 text-rose-700" />
+                  <span>Инварианты мутационного тестирования (PITest SOTA)</span>
+                </h4>
+                <ul className="space-y-1 text-slate-700 font-sans list-disc pl-4 leading-relaxed">
+                  <li><strong>PITest Gregor Mutators:</strong> В исходный код инжектируются 5 мутантов (границы условий, пропуск вызовов, инверсия логики).</li>
+                  <li><strong>Killer Assertions:</strong> Ваш тест-сьют должен обнаружить и уничтожить 100% мутантов без ложных срабатываний.</li>
+                  <li><strong>Суб-150мс JVM Sandbox:</strong> Чистые Java 21 тесты без медленных внешних контейнеров с мгновенной обратной связью.</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/60 to-pastel-bg border border-purple-200/80 space-y-2 text-xs">
+                <h4 className="font-bold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                  <Shield className="w-3.5 h-3.5 text-purple-700" />
+                  <span>Архитектурные требования (Hard Invariants)</span>
+                </h4>
+                <ul className="space-y-1 text-slate-700 font-sans list-disc pl-4 leading-relaxed">
+                  <li><strong>Временная виртуализация:</strong> Использовать только инжектированный <code className="text-purple-800 bg-purple-100/80 px-1 py-0.2 rounded font-mono">java.time.Clock</code> (запрет <code className="font-mono text-rose-700">System.currentTimeMillis()</code>).</li>
+                  <li><strong>Потокобезопасность:</strong> Поддержка параллельных запросов без гонок данных и блокировок несущих потоков (Virtual Threads Loom).</li>
+                  <li><strong>Чистота архитектуры:</strong> SOLID, нулевые утечки памяти, детерминированные тесты.</li>
+                </ul>
+              </div>
+            )}
 
             {/* Target Tech Stack & Phases */}
             <div className="grid grid-cols-2 gap-3 text-xs font-mono">

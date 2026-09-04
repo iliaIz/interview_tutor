@@ -21,7 +21,7 @@ export interface TestQualityScanResult {
 export class TestQualityScanner {
   private static readonly SLEEP_REGEX = /\b(Thread\s*\.\s*sleep|TimeUnit\s*\.\s*\w+\s*\.\s*sleep)\s*\(/;
   private static readonly OVER_MOCK_REGEX = /\bmock\s*\(\s*(List|Map|Set|Collection|ArrayList|HashMap|HashSet)\s*\.\s*class\s*\)/;
-  private static readonly ASSERTION_REGEX = /\b(assert\w*|assertThat|expect|verify|fail)\s*[\(\{]/;
+  private static readonly ASSERTION_REGEX = /\b(assert\w*|assertThat|expect|verify|fail|await)\s*[\(\{]/;
   private static readonly IGNORED_ANNOTATION_REGEX = /@(?:Disabled|Ignore)\b/;
 
   /**
@@ -42,7 +42,7 @@ export class TestQualityScanner {
       // Line by line checks for Sleep, Over-mocking, and Ignored annotations
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const cleanLine = line.replace(/\/\/.*$/, ''); // strip comments
+        const cleanLine = line.replace(/\/\/.*$/, '').replace(/"(?:[^"\\]|\\.)*"/g, '""'); // strip comments and string literals
         const lineNum = i + 1;
 
         if (this.SLEEP_REGEX.test(cleanLine)) {

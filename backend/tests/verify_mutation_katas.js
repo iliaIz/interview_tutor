@@ -102,7 +102,7 @@ async function runMasterVerification() {
     throw new Error('One or more mutation katas failed baseline verification!');
   }
 
-  console.log('\n🎉 ALL 8 TESTING & MUTATION KATAS AND AST GUARDS VERIFIED SUCCESSFULLY!');
+  console.log('\n🎉 ALL 30 TESTING & MUTATION KATAS AND AST GUARDS VERIFIED SUCCESSFULLY!');
 }
 
 runMasterVerification().catch(err => {

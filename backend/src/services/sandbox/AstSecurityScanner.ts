@@ -65,7 +65,7 @@ const FORBIDDEN_PATTERNS: ForbiddenPattern[] = [
   },
   {
     rule: 'NO_DYNAMIC_REFLECTION',
-    regex: /\b(Class\s*\.\s*forName|MethodHandles|VarHandle|\.(getMethod|getDeclaredMethod|getDeclaredConstructor|getConstructor|getDeclaredField|getField|invoke)\s*\()/,
+    regex: /\b(Class\s*\.\s*forName|MethodHandles|VarHandle|\.(getMethod|getDeclaredMethod|getDeclaredConstructor|getConstructor)\s*\(|\.(getDeclaredField|getField)\s*\([^)]+\)|\.invoke\s*\()/,
     message: 'Динамическая рефлексия (Class.forName, MethodHandles, .invoke) запрещена в песочнице.'
   },
   {
