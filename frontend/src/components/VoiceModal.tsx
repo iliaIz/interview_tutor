@@ -988,9 +988,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           return;
         }
 
+        // Live tool execution notification from backend
+        if (data.type === 'tool_executing') {
+          console.log('🛠️ AI tool executing:', data.tools);
+          setThinkingStage('processing');
+          clearAllTurnWatchdogs();
+          // Give generous breathing room for tool execution (15s before critical status)
+          const t1 = setTimeout(() => {
+            if (isThinkingRef.current) setThinkingStage('delayed');
+          }, 8000);
+          const t2 = setTimeout(() => {
+            if (isThinkingRef.current) setThinkingStage('critical');
+          }, 15000);
+          turnWatchdogRef.current = [t1, t2];
+          return;
+        }
+
         // Upstream response delayed nudge (>5.5s)
         if (data.type === 'thinking_delay') {
-      setThinkingStage('delayed');
+          // If a tool was executed recently, don't rush into delayed stage
+          setThinkingStage('delayed');
           return;
         }
 
@@ -1001,6 +1018,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (payload?.action !== 'clear') {
             setIsWhiteboardOpen(true);
           }
+          // Whiteboard update received: AI is actively delivering data!
+          clearAllTurnWatchdogs();
+          setThinkingStage('processing');
+          const t1 = setTimeout(() => {
+            if (isThinkingRef.current) setThinkingStage('delayed');
+          }, 8000);
+          turnWatchdogRef.current = [t1];
           return;
         }
 
@@ -2079,12 +2103,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             if (!isThinkingRef.current) {
               if (isSpeech) {
-                // SOTA Speech duration guard: filter out spurious noise spikes (<350ms)
+                // SOTA Speech duration guard: 150ms accommodates short answers ("Да", "Нет", "Ок") while rejecting micro-clicks
                 if (!speechStartTimeRef.current) {
                   speechStartTimeRef.current = Date.now();
                 }
                 const speechDuration = Date.now() - speechStartTimeRef.current;
-                if (speechDuration >= 350) {
+                if (speechDuration >= 150) {
                   hasSpokenInTurnRef.current = true;
                 }
                 setIsUserSpeaking(true);

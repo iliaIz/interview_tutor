@@ -77,6 +77,7 @@ interface ProxySession {
   currentAiTurnText?: string;
   persona?: InterviewPersonaId;
   targetGrade?: TargetGrade;
+  isToolCallPending?: boolean;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -226,7 +227,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       nudgeWatchdog: null,
       currentAiTurnText: '',
       persona,
-      targetGrade
+      targetGrade,
+      isToolCallPending: false
     };
 
     // WebSocket Keepalive Heartbeat (every 15s)
@@ -470,6 +472,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
         // Model Turn Text accumulation and watchdog clearing
         if (parsed.serverContent?.modelTurn) {
+          session.isToolCallPending = false;
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
           if (session.nudgeWatchdog) {
@@ -513,6 +516,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         // Handle Function Calling / toolCall
         if (parsed.toolCall?.functionCalls) {
           isToolCallProcessed = true; // Never leak internal toolCall frames to frontend client
+          session.isToolCallPending = true;
           session.lastActivityAt = Date.now();
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
@@ -520,35 +524,49 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           }
           console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
 
-          for (const call of parsed.toolCall.functionCalls) {
-            try {
-              await handleLiveToolCall({
-                call,
-                clientSocket,
-                geminiSocket,
-                session,
-                parsedHints,
-                liveCoaching
-              });
-            } catch (toolErr) {
-              const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
-              console.error(`❌ Error executing tool ${call.name}:`, toolErr);
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                geminiSocket.send(JSON.stringify({
-                  toolResponse: {
-                    functionResponses: [
-                      {
-                        id: call.id,
-                        name: call.name,
-                        response: {
-                          error: `Tool execution failed: ${errorMessage}`
+          // SOTA 2026: Notify client that tools are actively executing (prevents false gateway delay alerts)
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(JSON.stringify({
+              type: 'tool_executing',
+              tools: parsed.toolCall.functionCalls.map((fc: any) => fc.name)
+            }));
+          }
+
+          try {
+            for (const call of parsed.toolCall.functionCalls) {
+              try {
+                await handleLiveToolCall({
+                  call,
+                  clientSocket,
+                  geminiSocket,
+                  session,
+                  parsedHints,
+                  liveCoaching
+                });
+              } catch (toolErr) {
+                const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
+                console.error(`❌ Error executing tool ${call.name}:`, toolErr);
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  geminiSocket.send(JSON.stringify({
+                    toolResponse: {
+                      functionResponses: [
+                        {
+                          id: call.id,
+                          name: call.name,
+                          response: {
+                            result: {
+                              error: `Tool execution failed: ${errorMessage}`
+                            }
+                          }
                         }
-                      }
-                    ]
-                  }
-                }));
+                      ]
+                    }
+                  }));
+                }
               }
             }
+          } finally {
+            session.isToolCallPending = false;
           }
         }
       } catch (e) {
@@ -706,6 +724,16 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         }
         session.frameQueue.push(payloadBuffer);
       } else {
+        // Critical Protocol Guard: Drop client realtimeInput audio while toolCall is pending to prevent 1008 Policy Violation!
+        if (session.isToolCallPending) {
+          try {
+            const parsedObj = JSON.parse(buffer.toString());
+            if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
+              return;
+            }
+          } catch {}
+        }
+
         if (geminiSocket.readyState === WebSocket.OPEN) {
           geminiSocket.send(payloadBuffer);
         }

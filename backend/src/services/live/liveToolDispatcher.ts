@@ -49,8 +49,10 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             id: call.id,
             name: call.name,
             response: {
-              status: 'SUCCESS',
-              message: 'Интерактивная доска обновлена на экране кандидата.'
+              result: {
+                status: 'SUCCESS',
+                message: 'Интерактивная доска обновлена на экране кандидата.'
+              }
             }
           }
         ]
@@ -93,8 +95,10 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             id: call.id,
             name: call.name,
             response: {
-              status: 'SUCCESS',
-              message: 'Баг подтвержден как решенный.'
+              result: {
+                status: 'SUCCESS',
+                message: 'Баг подтвержден как решенный.'
+              }
             }
           }
         ]
@@ -268,9 +272,11 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             id: call.id,
             name: call.name,
             response: {
-              status: 'COMMITTED',
-              evaluationId: savedEvalId,
-              message: 'Оценка сохранена.'
+              result: {
+                status: 'COMMITTED',
+                evaluationId: savedEvalId,
+                message: 'Оценка сохранена.'
+              }
             }
           }
         ]

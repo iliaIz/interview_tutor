@@ -412,8 +412,8 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                           {thinkingStage === 'critical'
                             ? 'Задержка ответа шлюза...'
                             : thinkingStage === 'delayed'
-                            ? 'Связь со шлюзом: генерация...'
-                            : 'ИИ осмысливает ваш ответ...'}
+                            ? 'Связь со шлюзом: генерация схемы...'
+                            : 'ИИ осмысливает ответ и готовит пояснение...'}
                         </span>
                       </span>
                       {thinkingStage === 'critical' && (
