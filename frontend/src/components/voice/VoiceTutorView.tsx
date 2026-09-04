@@ -225,10 +225,10 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(true)}
-                className="w-full py-2 px-3 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                className="w-full py-2 px-3 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs hover:border-pastel-accentViolet/50 group"
               >
-                <Settings2 className="w-3.5 h-3.5 text-pastel-accentViolet" />
-                <span>Настройки голоса ({interviewConfig.voice})</span>
+                <Settings2 className="w-3.5 h-3.5 text-pastel-accentViolet group-hover:rotate-45 transition-transform" />
+                <span>⚙️ Все настройки (Голос: {interviewConfig.voice || 'Kore'})</span>
               </button>
             </div>
           </div>

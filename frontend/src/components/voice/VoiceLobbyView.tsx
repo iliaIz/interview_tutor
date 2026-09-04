@@ -9,7 +9,9 @@ import {
   FastForward,
   Play,
   Loader2,
-  Settings2
+  Settings2,
+  Volume2,
+  Zap
 } from 'lucide-react';
 import { InterviewConfig } from '../../types/interviewConfig';
 import { PersonaSelector } from '../PersonaSelector';
@@ -80,6 +82,18 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
         </p>
 
         <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+          {/* Turn Mode Pill */}
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold shadow-2xs ${
+            (interviewConfig.turnMode || 'manual') === 'auto'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              (interviewConfig.turnMode || 'manual') === 'auto' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+            }`} />
+            <span>{(interviewConfig.turnMode || 'manual') === 'auto' ? '⚡ Авто-VAD' : '✋ По очереди'}</span>
+          </span>
+
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pastel-card border border-pastel-border text-[11px] font-semibold text-pastel-text shadow-2xs">
             {interviewConfig.strategy === 'socratic_tutoring' ? (
               <GraduationCap className="w-3.5 h-3.5 text-pastel-accentRose" />
@@ -277,10 +291,10 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
         <button
           type="button"
           onClick={() => setIsSettingsOpen(true)}
-          className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+          className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:border-pastel-accentViolet/50 group"
         >
-          <Settings2 className="w-4 h-4 text-pastel-accentViolet" />
-          <span>Настроить стратегию, голос и профили</span>
+          <Settings2 className="w-4 h-4 text-pastel-accentViolet group-hover:rotate-45 transition-transform" />
+          <span>⚙️ Все настройки (Режим, голос, стратегия, VAD)</span>
         </button>
       </div>
     </div>

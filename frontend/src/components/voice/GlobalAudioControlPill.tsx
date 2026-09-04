@@ -1,35 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Headphones, Mic, Volume2, Sparkles, Sliders, ChevronDown, 
-  Check, Zap, Hand, User, Shield, Info, Play, Loader2
+  Check, Zap, Hand, User, Shield, Info, Play, Loader2, ArrowRight
 } from 'lucide-react';
-import { 
-  getActiveConfig, saveActiveConfig 
-} from '../../services/profileStorage';
 import { 
   AVAILABLE_VOICES, GeminiVoiceName, TurnMode, UserGender 
 } from '../../types/interviewConfig';
 import { TargetGrade } from '../../types/personas';
+import { useInterviewConfig } from '../../hooks/useInterviewConfig';
+import { VoiceSettingsDrawer } from '../VoiceSettingsDrawer';
 
 export const GlobalAudioControlPill: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [config, setConfig] = useState(getActiveConfig());
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const { config, updateConfig } = useInterviewConfig();
   const [previewingVoice, setPreviewingVoice] = useState<GeminiVoiceName | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Synchronize state across tabs or when saved elsewhere
-  useEffect(() => {
-    const handleUpdate = () => {
-      setConfig(getActiveConfig());
-    };
-    window.addEventListener('interview_config_updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-    return () => {
-      window.removeEventListener('interview_config_updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-    };
-  }, []);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -51,12 +38,6 @@ export const GlobalAudioControlPill: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
-
-  const updateConfig = (patch: Partial<typeof config>) => {
-    const next = { ...config, ...patch };
-    setConfig(next);
-    saveActiveConfig(next);
-  };
 
   const playVoicePreview = async (voice: GeminiVoiceName) => {
     if (previewingVoice) return;
@@ -355,8 +336,34 @@ export const GlobalAudioControlPill: React.FC = () => {
             </label>
           </div>
 
+          {/* Advanced Settings Jump Button */}
+          <div className="pt-2.5 border-t border-pastel-border/60">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                setIsAdvancedOpen(true);
+              }}
+              className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-pastel-rose/80 via-white to-pastel-lavender/80 hover:from-pastel-accentRose/20 hover:to-pastel-accentViolet/20 border border-pastel-accentViolet/30 text-pastel-accentViolet text-xs font-bold transition-all flex items-center justify-between cursor-pointer shadow-2xs group active:scale-98"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-pastel-accentViolet/10 flex items-center justify-center text-pastel-accentViolet group-hover:rotate-45 transition-transform duration-300">
+                  <Sliders className="w-3.5 h-3.5" />
+                </div>
+                <span>Дополнительно: Профили и стратегия</span>
+              </div>
+              <ArrowRight className="w-3.5 h-3.5 text-pastel-accentRose group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+
         </div>
       )}
+
+      {/* Advanced Settings Drawer Modal */}
+      <VoiceSettingsDrawer
+        isOpen={isAdvancedOpen}
+        onClose={() => setIsAdvancedOpen(false)}
+      />
     </div>
   );
 };

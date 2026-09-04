@@ -56,6 +56,7 @@ import { triggerSuccessConfetti } from '../utils/confetti';
 import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
+import { useInterviewConfig } from '../hooks/useInterviewConfig';
 import { Question, useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import {
@@ -180,7 +181,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [isTransitionPaused, setIsTransitionPaused] = useState(false);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [interviewConfig, setInterviewConfig] = useState<InterviewConfig>(getActiveConfig());
+  const { config: interviewConfig, setConfig: setInterviewConfig } = useInterviewConfig();
+  const interviewConfigRef = useRef<InterviewConfig>(interviewConfig);
+  useEffect(() => {
+    interviewConfigRef.current = interviewConfig;
+  }, [interviewConfig]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRadarOpen, setIsRadarOpen] = useState(false);
 
@@ -635,7 +640,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       hasAutoLaunchedRef.current = false;
       return;
     }
-    const currentConfig = getActiveConfig();
+    const currentConfig = interviewConfigRef.current;
     // SOTA 2026: Tutor always opens in calm Lobby state so user can choose tutoring mode and review topic
     const shouldFastLaunch = !currentConfig.alwaysShowPreflight && sessionType !== 'tutor';
 
@@ -1431,7 +1436,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isThinkingRef.current = true;
     startTurnWatchdog();
 
-    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    const isManual = (interviewConfigRef.current.turnMode || 'manual') === 'manual';
     if (isManual) {
       // 1. Convert Float32 audio chunks to 16kHz Int16 PCM Base64
       let totalSamples = 0;
@@ -1651,7 +1656,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       answer: activeReferenceAnswer
     };
 
-    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    const isManual = (interviewConfigRef.current.turnMode || 'manual') === 'manual';
     if (isManual) {
       turnCountRef.current = 0;
       setIsConnected(true);
@@ -1979,11 +1984,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 }
               } else if (hasSpokenInTurnRef.current) {
                 setIsUserSpeaking(false);
-                const turnMode = interviewConfig.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+                const currentCfg = interviewConfigRef.current;
+                const turnMode = currentCfg.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
                 if (turnMode === 'auto') {
                   setIsPauseHolding(true);
                   if (!silenceTimerRef.current) {
-                    const vadPauseMs = interviewConfig.vadPauseMs ?? 1800;
+                    const vadPauseMs = currentCfg.vadPauseMs ?? 1800;
                     silenceTimerRef.current = setTimeout(() => {
                       console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
                       setIsPauseHolding(false);

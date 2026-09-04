@@ -1,39 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Settings2, Sparkles, GraduationCap, ShieldCheck, 
   Volume2, Bookmark, Plus, Trash2, Code2, ChevronDown, ChevronUp,
-  Microscope
+  Microscope, Play, Loader2
 } from 'lucide-react';
 import { 
-  InterviewConfig, InterviewProfile, AVAILABLE_VOICES 
+  InterviewConfig, InterviewProfile, AVAILABLE_VOICES, GeminiVoiceName 
 } from '../types/interviewConfig';
 import { 
   getCachedProfiles, fetchProfiles, saveUserProfile, deleteUserProfile 
 } from '../services/profileStorage';
+import { useInterviewConfig } from '../hooks/useInterviewConfig';
 
 interface VoiceSettingsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  config: InterviewConfig;
-  onChangeConfig: (newConfig: InterviewConfig) => void;
-  questionText: string;
-  referenceAnswer: string;
+  config?: InterviewConfig;
+  onChangeConfig?: (newConfig: InterviewConfig) => void;
+  questionText?: string;
+  referenceAnswer?: string;
 }
 
 export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   isOpen,
   onClose,
-  config,
-  onChangeConfig,
-  questionText,
-  referenceAnswer
+  config: propConfig,
+  onChangeConfig: propOnChangeConfig,
+  questionText = 'Расскажите о вашем опыте в backend-разработке.',
+  referenceAnswer = ''
 }) => {
+  const hookConfig = useInterviewConfig();
+  const config = propConfig || hookConfig.config;
+  const onChangeConfig = propOnChangeConfig || hookConfig.setConfig;
+
   const [profiles, setProfiles] = useState<InterviewProfile[]>(getCachedProfiles());
   const [newProfileName, setNewProfileName] = useState('');
   const [showNewProfileInput, setShowNewProfileInput] = useState(false);
   const [showPromptInspector, setShowPromptInspector] = useState(false);
+  const [previewingVoice, setPreviewingVoice] = useState<GeminiVoiceName | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playVoicePreview = async (voice: GeminiVoiceName) => {
+    if (previewingVoice) return;
+    setPreviewingVoice(voice);
+
+    try {
+      const res = await fetch('/api/interview/greeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: 'Знакомство',
+          questionText: 'Привет! Я твой голосовой наставник по Java и Spring.',
+          voice: voice,
+          strategy: config.strategy || 'socratic_tutoring'
+        })
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.audioBase64) {
+        if (!audioRef.current) {
+          audioRef.current = new Audio();
+        }
+        audioRef.current.src = `data:audio/wav;base64,${data.audioBase64}`;
+        audioRef.current.onended = () => setPreviewingVoice(null);
+        audioRef.current.onerror = () => setPreviewingVoice(null);
+        await audioRef.current.play();
+      } else {
+        setPreviewingVoice(null);
+      }
+    } catch (err) {
+      console.warn('Voice preview failed:', err);
+      setPreviewingVoice(null);
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen) {
@@ -416,9 +458,26 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                             <Volume2 className="w-3.5 h-3.5 text-pastel-accentViolet" />
                             {v.name}
                           </span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-500 font-medium">
-                            {v.gender}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-500 font-medium">
+                              {v.gender}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void playVoicePreview(v.id);
+                              }}
+                              title="Прослушать голос"
+                              className="p-1 rounded-lg hover:bg-pastel-rose text-pastel-accentRoseText transition cursor-pointer"
+                            >
+                              {previewingVoice === v.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin text-pastel-accentRose" />
+                              ) : (
+                                <Play className="w-3 h-3 text-pastel-accentRose fill-pastel-accentRose/20" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <p className="text-[10px] text-slate-500 leading-tight">
                           {v.style}
