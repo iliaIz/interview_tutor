@@ -348,8 +348,6 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                         onClick={() => {
                           if (isAiSpeaking) {
                             onInterruption();
-                          } else if (isRecording) {
-                            triggerEndTurn();
                           } else {
                             toggleMic();
                           }
@@ -359,7 +357,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                           isAiSpeaking
                             ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
                             : isRecording
-                            ? 'Нажмите, чтобы передать вопрос/реплику тьютору'
+                            ? 'Нажмите, чтобы отключить микрофон'
                             : 'Нажмите, чтобы включить микрофон'
                         }
                       >
@@ -457,8 +455,9 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full bg-pastel-card text-pastel-muted text-[10px] border border-pastel-border">
-                      Микрофон на паузе
+                    <span className="px-2.5 py-0.5 rounded-full bg-pastel-card text-pastel-muted text-[10px] border border-pastel-border flex items-center gap-1">
+                      <MicOff className="w-3 h-3 text-slate-400" />
+                      <span>Микрофон отключен (нажмите на кружок)</span>
                     </span>
                   )}
                 </div>

@@ -144,10 +144,34 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
 ДИРЕКТИВА ПО КОНТЕКСТУ КОДА: Кандидат сейчас смотрит на версию ${activeCodeArtifact.id || 'активную'}. Если он задает вопрос по коду или строкам («почему тут так?», «что в 5-й строке?»), отвечай применительно именно к этому сниппету.\n`
     : '';
 
-  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}${activeArtifactSection}`;
+  const tutorZeroGradingInstruction = `=== АБСОЛЮТНЫЙ ЗАПРЕТ ОЦЕНИВАНИЯ И ВЕРДИКТОВ (ZERO GRADING INVARIANT) ===
+Ты находишься в режиме ОБУЧЕНИЯ И РАЗБОРА ТЕМЫ (AI-Тьютор), а НЕ на собеседовании.
+1. Категорически ЗАПРЕЩЕНО ставить баллы (score 0-100), оценивать кандидата, выносить вердикты найма (Hire/No Hire) или говорить фразы в духе «вы сдали / не сдали».
+2. Категорически ЗАПРЕЩЕНО вызывать функцию submit_interview_evaluation.
+3. Твоя единственная цель — дружелюбно объяснять устройство технологий под капотом, отвечать на любые вопросы кандидата и при необходимости показывать понятный код на доске (update_whiteboard).
+4. Диалог продолжается столько, сколько нужно кандидату. Никаких финальных вердиктов и оценочных отчетов!`;
+
+  const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}${activeArtifactSection}${
+    sessionType === 'tutor' ? `\n\n${tutorZeroGradingInstruction}` : ''
+  }`;
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor') {
+    if (customPromptOverride && customPromptOverride.trim().length > 20) {
+      return `${customPromptOverride.trim()}
+
+${genderRule}
+
+[КОНТЕКСТ ВОПРОСА]
+ВОПРОС: "${questionText}"
+ЭТАЛОННЫЙ ОТВЕТ:
+${referenceAnswer}
+
+=== ПРАВИЛА ОБУЧЕНИЯ (AI-ТЬЮТОР) ===
+1. Отвечай на вопросы кандидата, дружелюбно объясняй тему и демонстрируй примеры на доске (update_whiteboard).
+2. Категорически ЗАПРЕЩЕНО выставлять оценки, баллы и вызывать функцию submit_interview_evaluation.`;
+    }
+
     if (tutorMode === 'bug_hunt') {
       return `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
 Ты опытный, доброжелательный ${isFemale ? 'техлид (женщина)' : 'техлид (мужчина)'}. Ты проводишь с кандидатом интерактивное устное код-ревью.

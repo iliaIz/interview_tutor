@@ -153,7 +153,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     activeWhiteboardState,
     setWhiteboardState,
     isWhiteboardOpen,
-    setIsWhiteboardOpen
+    setIsWhiteboardOpen,
+    codeRevisions,
+    activeRevisionId
   } = useAppStore();
 
   // Session Type State ('interview' | 'tutor')
@@ -248,6 +250,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [isPauseHolding, setIsPauseHolding] = useState<boolean>(false);
   const [isSessionPaused, setIsSessionPaused] = useState<boolean>(false);
   const isSessionPausedRef = useRef<boolean>(false);
+  const speechStartTimeRef = useRef<number | null>(null);
+  const lastSyncedRevisionIdRef = useRef<string | null>(null);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isConnectionLost, setIsConnectionLost] = useState(false);
   const [rmsDb, setRmsDb] = useState<number>(-60);
@@ -394,6 +398,58 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
   }, [isOpen, stage]);
 
+  // SOTA 2026 Scenario A: Silent Grounding Frame injection on Code Revision Switch
+  useEffect(() => {
+    if (stage !== 'active' || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!activeRevisionId) return;
+    if (lastSyncedRevisionIdRef.current === activeRevisionId) return;
+
+    lastSyncedRevisionIdRef.current = activeRevisionId;
+    const currentRev = codeRevisions?.find((r) => r.id === activeRevisionId);
+    if (!currentRev) return;
+
+    console.log(`📡 [Scenario A Grounding] Injecting silent context frame for revision "${currentRev.title}" (${currentRev.id})`);
+    const silentGroundingFrame = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `📌 [КОНТЕКСТ ЭКРАНА: ВЕРСИЯ "${currentRev.title}"]:\n\`\`\`${currentRev.language || 'java'}\n${currentRev.code}\n\`\`\`\n(Системная директива: кандидат сейчас смотрит на эту ревизию кода на экране. Не отвечай сейчас вслух, просто учитывай этот код как активный контекст при следующем вопросе или ответе).`
+              }
+            ]
+          }
+        ],
+        turnComplete: false
+      }
+    };
+    try {
+      wsRef.current.send(JSON.stringify(silentGroundingFrame));
+    } catch (err) {
+      console.warn('Failed to send silent grounding frame:', err);
+    }
+  }, [activeRevisionId, codeRevisions, stage]);
+
+  // SOTA 2026 Auto-Healing Invariant: Prevent microphone from being stuck in pause during active session
+  useEffect(() => {
+    if (stage !== 'active') return;
+    const interval = setInterval(() => {
+      const isAiBusy =
+        isAiSpeakingRef.current ||
+        (playoutManagerRef.current?.isPlaying() ?? false) ||
+        isThinkingRef.current;
+      if (!isAiBusy && !isSessionPausedRef.current && !isMuted && !isRecordingRef.current) {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isEvaluationFinalizedRef.current) {
+          console.log('🎙️ [Auto-Healing] Restoring active recording state in dialogue session');
+          setIsRecording(true);
+          isRecordingRef.current = true;
+        }
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [stage, isMuted]);
+
   // Live Speech Recognition for Real-time Acoustic & Clarity HUD
   useEffect(() => {
     if (!isRecording || speechCoachingMode === 'off') {
@@ -533,6 +589,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     clearAllTurnWatchdogs();
     setIsThinking(false);
     isThinkingRef.current = false;
+
+    // Zero Grading Invariant: Never trigger evaluation in Tutor mode!
+    if (sessionType === 'tutor') {
+      console.log('🛡️ Suppressed REST eval fallback in tutor mode (zero grading invariant).');
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      return;
+    }
+
     setIsSubmitting(true);
     setDialogueTurns((prev) => [
       ...prev,
@@ -804,6 +869,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       probesCount: String(turnCountRef.current)
     });
 
+    // Scenario A: Pass currently active code snippet on connection startup
+    const currentStartupCode = activeWhiteboardState?.code || codeRevisions?.find((r) => r.id === activeRevisionId)?.code;
+    if (currentStartupCode) {
+      const activeArtifactPayload = {
+        id: activeRevisionId || 'initial',
+        title: activeWhiteboardState?.title || 'Исходный код',
+        language: activeWhiteboardState?.language || 'java',
+        code: currentStartupCode
+      };
+      params.set('activeCodeArtifact', JSON.stringify(activeArtifactPayload));
+    }
+
     // SOTA 2026: Prefetch One-Time WS Ticket for Zero-Trust Gemini Live Handshake
     const { signal: ticketSignal, cleanup: ticketCleanup } = createManagedAbortSignal();
     try {
@@ -979,6 +1056,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           void initMicrophoneHardware();
         } else if (data.type === 'evaluation_completed') {
           clearAllTurnWatchdogs();
+          if (sessionType === 'tutor') {
+            console.log('🛡️ Blocked evaluation_completed in tutor mode (zero grading invariant).');
+            return;
+          }
           const evalData: EvaluationResult = data.evaluation;
           // SOTA Guard: Suppress premature evaluation on Turn 0 if candidate hasn't spoken/submitted yet
           if (!hasSpokenInTurnRef.current && userPcmChunksRef.current.length === 0 && !isSubmitting) {
@@ -1406,7 +1487,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setEvaluation(null);
     setStage('active');
 
-    const isManual = (interviewConfig.turnMode || 'manual') === 'manual';
+    const isManual = sessionType !== 'tutor' && (interviewConfig.turnMode || 'manual') === 'manual';
     if (isManual) {
       void startLiveInterview();
     } else {
@@ -1435,6 +1516,29 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setIsThinking(true);
     isThinkingRef.current = true;
     startTurnWatchdog();
+
+    // SOTA Priority: If Live WebSocket is open, send turnComplete frame immediately!
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const turnCompleteMsg = {
+        clientContent: {
+          turnComplete: true
+        }
+      };
+      wsRef.current.send(JSON.stringify(turnCompleteMsg));
+      console.log('📤 Sent clientContent.turnComplete to Gemini Live');
+      return;
+    }
+
+    // In Tutor mode, never fall back to REST interview turn
+    if (sessionType === 'tutor') {
+      console.warn('⚠️ WebSocket not open in Tutor mode during triggerEndTurn.');
+      clearAllTurnWatchdogs();
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      return;
+    }
 
     const isManual = (interviewConfigRef.current.turnMode || 'manual') === 'manual';
     if (isManual) {
@@ -1473,7 +1577,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             history: dialogueTurns.filter((t) => t.role !== 'system'),
             turnCount: turnCountRef.current,
             maxProbes: interviewConfig.maxProbes || 2,
-            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+            strategy: interviewConfig.strategy,
             deepDive: !!interviewConfig.deepDive,
             liveCoaching: !!interviewConfig.liveCoaching,
             voice: interviewConfig.voice,
@@ -1656,7 +1760,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       answer: activeReferenceAnswer
     };
 
-    const isManual = (interviewConfigRef.current.turnMode || 'manual') === 'manual';
+    const isManual = sessionType !== 'tutor' && (interviewConfigRef.current.turnMode || 'manual') === 'manual';
     if (isManual) {
       turnCountRef.current = 0;
       setIsConnected(true);
@@ -1673,9 +1777,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             questionText: targetQ.question,
             voice: interviewConfig.voice,
             userGender: interviewConfig.userGender || 'female',
-            strategy: sessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+            strategy: interviewConfig.strategy,
             sessionType,
-            tutorMode: sessionType === 'tutor' ? tutorMode : '',
+            tutorMode: '',
             initialUserMessage: customPromptOverride || ''
           })
         });
@@ -1975,26 +2079,36 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             if (!isThinkingRef.current) {
               if (isSpeech) {
-                hasSpokenInTurnRef.current = true;
+                // SOTA Speech duration guard: filter out spurious noise spikes (<350ms)
+                if (!speechStartTimeRef.current) {
+                  speechStartTimeRef.current = Date.now();
+                }
+                const speechDuration = Date.now() - speechStartTimeRef.current;
+                if (speechDuration >= 350) {
+                  hasSpokenInTurnRef.current = true;
+                }
                 setIsUserSpeaking(true);
                 setIsPauseHolding(false);
                 if (silenceTimerRef.current) {
                   clearTimeout(silenceTimerRef.current);
                   silenceTimerRef.current = null;
                 }
-              } else if (hasSpokenInTurnRef.current) {
-                setIsUserSpeaking(false);
-                const currentCfg = interviewConfigRef.current;
-                const turnMode = currentCfg.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
-                if (turnMode === 'auto') {
-                  setIsPauseHolding(true);
-                  if (!silenceTimerRef.current) {
-                    const vadPauseMs = currentCfg.vadPauseMs ?? 1800;
-                    silenceTimerRef.current = setTimeout(() => {
-                      console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
-                      setIsPauseHolding(false);
-                      triggerEndTurn();
-                    }, vadPauseMs);
+              } else {
+                speechStartTimeRef.current = null;
+                if (hasSpokenInTurnRef.current) {
+                  setIsUserSpeaking(false);
+                  const currentCfg = interviewConfigRef.current;
+                  const turnMode = currentCfg.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+                  if (turnMode === 'auto') {
+                    setIsPauseHolding(true);
+                    if (!silenceTimerRef.current) {
+                      const vadPauseMs = currentCfg.vadPauseMs ?? 1800;
+                      silenceTimerRef.current = setTimeout(() => {
+                        console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
+                        setIsPauseHolding(false);
+                        triggerEndTurn();
+                      }, vadPauseMs);
+                    }
                   }
                 }
               }
@@ -2184,6 +2298,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const finalizeEvaluation = async (evalData: EvaluationResult, evaluatedQuestionId: string, qIndex: number) => {
+    // Zero Grading Invariant: Tutor never evaluates, scores, or switches to verdict
+    if (sessionType === 'tutor') {
+      console.log('🛡️ [Zero Grading Invariant] finalizeEvaluation suppressed in tutor mode');
+      return;
+    }
     if (isEvaluationFinalizedRef.current) return;
     isEvaluationFinalizedRef.current = true;
 
@@ -2338,6 +2457,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const handleRequestVerdict = () => {
+    // Zero Grading Invariant: Tutor never requests verdict
+    if (sessionType === 'tutor') {
+      console.log('🛡️ [Zero Grading Invariant] handleRequestVerdict suppressed in tutor mode');
+      return;
+    }
     if (isEvaluationFinalizedRef.current) return;
     setIsSubmitting(true);
     setIsRecording(false);

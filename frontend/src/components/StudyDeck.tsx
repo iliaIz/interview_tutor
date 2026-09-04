@@ -207,7 +207,7 @@ const getTutorModeLabel = (mode: string) => {
                     setIsVoiceOpen(true);
                   }}
                   className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95"
-                  title="Обсудить вопрос голосом с AI-тьютором в выбранном режиме"
+                  title="Обсудить вопрос голосом с AI-тьютором без оценок (режим обучения)"
                 >
                   <Brain className="w-3.5 h-3.5" /> Тьютор ({getTutorModeLabel(voiceModalTutorMode)})
                 </button>
@@ -450,17 +450,11 @@ const getTutorModeLabel = (mode: string) => {
           </button>
         </div>
 
-        <button
-          onClick={() => {
-            setVoiceModalSessionType('interview');
-            setIsVoiceOpen(true);
-          }}
-          className="px-3.5 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/40 hover:bg-pastel-accentRose hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-          title="Сдать этот вопрос устно голосовому AI-интервьюеру"
-        >
-          <Mic className="w-3.5 h-3.5" />
-          <span>Сдать устно ИИ</span>
-        </button>
+        <div className="text-[11px] font-medium text-pastel-muted hidden sm:flex items-center gap-1.5">
+          <span>Навигация:</span>
+          <kbd className="px-1.5 py-0.5 text-[10px] bg-pastel-bg rounded border border-pastel-border font-mono">←</kbd>
+          <kbd className="px-1.5 py-0.5 text-[10px] bg-pastel-bg rounded border border-pastel-border font-mono">→</kbd>
+        </div>
       </div>
 
       {/* Footer Controls */}
