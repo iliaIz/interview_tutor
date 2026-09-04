@@ -636,8 +636,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
     const currentConfig = getActiveConfig();
-    const isExplicitTextLaunch = Boolean(customPromptOverride && customPromptOverride.trim().length > 0);
-    const shouldFastLaunch = !currentConfig.alwaysShowPreflight && (sessionType !== 'tutor' || isExplicitTextLaunch);
+    // SOTA 2026: Tutor always opens in calm Lobby state so user can choose tutoring mode and review topic
+    const shouldFastLaunch = !currentConfig.alwaysShowPreflight && sessionType !== 'tutor';
 
     if (stage === 'lobby' && shouldFastLaunch && !hasAutoLaunchedRef.current) {
       hasAutoLaunchedRef.current = true;
@@ -792,7 +792,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       customAnchors: JSON.stringify(interviewConfig.customAnchors || []),
       customPrompt: customPromptOverride || interviewConfig.customPromptOverride || '',
       initialUserMessage: customPromptOverride || '',
-      liveModel: interviewConfig.liveModel || 'gemini-live-v2',
+      liveModel: interviewConfig.liveModel || (localStorage.getItem('interview_live_model') as any) || 'gemini-live-v3',
       questionIndex: String(qIndex),
       totalQuestions: String(totalQuestions),
       isRetry: String(!!isRetry),

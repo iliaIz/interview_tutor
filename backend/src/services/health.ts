@@ -100,10 +100,13 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
         // Verify models existence
         textModelReady = availableInProxy.includes(textModelName);
         liveModelReady = availableInProxy.includes(liveModelName) || 
+                         availableInProxy.includes('gemini-live-v3') ||
+                         availableInProxy.includes('gemini-live-v2') ||
                          availableInProxy.includes('gemini-tts-live-v3') ||
                          availableInProxy.includes('gemini-live');
         livePreviewModelReady = !livePreviewModelName ||
                                 availableInProxy.includes(livePreviewModelName) ||
+                                availableInProxy.includes('gemini-live-v2') ||
                                 availableInProxy.includes('gemini-live-v3');
         ttsModelReady = availableInProxy.includes(ttsModelName) ||
                         availableInProxy.includes('gemini-tts-v3');

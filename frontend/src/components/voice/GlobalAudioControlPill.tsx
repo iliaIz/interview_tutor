@@ -205,6 +205,41 @@ export const GlobalAudioControlPill: React.FC = () => {
                 ? 'ИИ слушает паузы в речи и отвечает мгновенно без нажатий кнопок.' 
                 : 'Вы сами нажимаете «Закончить ответ» — идеально для шумных мест.'}
             </p>
+
+            {turnMode === 'auto' && (
+              <div className="pt-1.5 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Движок Live</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Auto-VAD</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 bg-pastel-bg/80 p-1 rounded-xl border border-pastel-border">
+                  <button
+                    type="button"
+                    onClick={() => updateConfig({ liveModel: 'gemini-live-v3' })}
+                    className={`flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      (config.liveModel || 'gemini-live-v3') === 'gemini-live-v3'
+                        ? 'bg-white text-purple-900 shadow-xs border border-purple-300 ring-1 ring-purple-300/40'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    }`}
+                  >
+                    <span>🟣 Live v3</span>
+                    <span className="text-[8px] bg-purple-100 text-purple-700 px-1 py-0.2 rounded font-semibold">Def</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateConfig({ liveModel: 'gemini-live-v2' })}
+                    className={`flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      (config.liveModel || 'gemini-live-v3') === 'gemini-live-v2'
+                        ? 'bg-white text-emerald-900 shadow-xs border border-emerald-300 ring-1 ring-emerald-300/40'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    }`}
+                  >
+                    <span>🟢 Live v2</span>
+                    <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1 py-0.2 rounded font-semibold">SOTA</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Voice Selection */}

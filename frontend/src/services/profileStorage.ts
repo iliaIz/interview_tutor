@@ -168,6 +168,7 @@ export async function deleteUserProfile(profileId: string): Promise<void> {
 export function getActiveConfig(): InterviewConfig {
   const userGender = (localStorage.getItem('interview_user_gender') as any) || 'female';
   const turnMode = (localStorage.getItem('interview_turn_mode') as any) || 'manual';
+  const liveModel = (localStorage.getItem('interview_live_model') as any) || 'gemini-live-v3';
   const alwaysShowPreflight = localStorage.getItem('interview_always_show_preflight') === 'true';
 
   try {
@@ -178,6 +179,7 @@ export function getActiveConfig(): InterviewConfig {
         ...parsed,
         userGender: parsed.userGender || userGender,
         turnMode: parsed.turnMode || turnMode,
+        liveModel: parsed.liveModel || liveModel,
         alwaysShowPreflight: typeof parsed.alwaysShowPreflight === 'boolean' ? parsed.alwaysShowPreflight : alwaysShowPreflight
       };
     }
@@ -186,6 +188,7 @@ export function getActiveConfig(): InterviewConfig {
     ...BUILT_IN_PROFILES[0].config,
     userGender,
     turnMode,
+    liveModel,
     alwaysShowPreflight
   };
 }
@@ -197,6 +200,9 @@ export function saveActiveConfig(config: InterviewConfig): void {
     }
     if (config.turnMode) {
       localStorage.setItem('interview_turn_mode', config.turnMode);
+    }
+    if (config.liveModel) {
+      localStorage.setItem('interview_live_model', config.liveModel);
     }
     if (typeof config.alwaysShowPreflight === 'boolean') {
       localStorage.setItem('interview_always_show_preflight', String(config.alwaysShowPreflight));

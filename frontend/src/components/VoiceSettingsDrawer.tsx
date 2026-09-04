@@ -356,34 +356,34 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-v2' })}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                          (config.liveModel || 'gemini-live-v2') === 'gemini-live-v2'
-                            ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
-                            : 'bg-white hover:bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-xs font-bold text-emerald-950">🟢 gemini-live-v2</span>
-                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Стабильный</span>
-                        </div>
-                        <p className="text-[10px] text-slate-600">Высокая квота, без обрывов длинных сессий.</p>
-                      </button>
-
-                      <button
-                        type="button"
                         onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-v3' })}
                         className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                          config.liveModel === 'gemini-live-v3'
+                          (config.liveModel || 'gemini-live-v3') === 'gemini-live-v3'
                             ? 'bg-purple-50/80 border-purple-400 ring-1 ring-purple-400/40 shadow-xs'
                             : 'bg-white hover:bg-slate-50 border-slate-200'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs font-bold text-purple-950">🟣 gemini-live-v3</span>
-                          <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded">Preview</span>
+                          <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded">По умолчанию (3.1)</span>
                         </div>
-                        <p className="text-[10px] text-slate-600">Экспериментальный Gemini 3.1 Live Preview.</p>
+                        <p className="text-[10px] text-slate-600">SOTA Gemini 3.1 Live Preview со сверхбыстрым синтезом.</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-v2' })}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          config.liveModel === 'gemini-live-v2'
+                            ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs font-bold text-emerald-950">🟢 gemini-live-v2</span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Стабильный (2.5)</span>
+                        </div>
+                        <p className="text-[10px] text-slate-600">Проверенный движок 2.5 Flash на случай сбоев в Preview.</p>
                       </button>
                     </div>
                   </div>

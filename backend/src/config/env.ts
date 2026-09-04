@@ -21,11 +21,13 @@ export const envConfig = {
   models: {
     text: process.env.GEMINI_TEXT_MODEL || 'gemini-smart',
     fast: process.env.GEMINI_FAST_MODEL || 'gemini-fast',
-    live: process.env.GEMINI_LIVE_MODEL || 'gemini-live-v2',
-    livePreview: process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v3',
+    live: process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3',
+    livePreview: process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v2',
     supportedLiveModels: [
-      process.env.GEMINI_LIVE_MODEL || 'gemini-live-v2',
-      process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v3'
+      process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3',
+      process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v2',
+      'gemini-live-v2',
+      'gemini-live-v3'
     ].filter(Boolean),
     tts: process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3',
     embedding: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding'
