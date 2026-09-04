@@ -46,49 +46,12 @@ export class AudioPlayoutManager {
   }
 
   /**
-   * Procedural Latency Masking Chime (Soft 432Hz sine tone with exponential decay)
-   * Eliminates dead silence during TTFB wait without external mp3 dependencies
+   * SOTA 2026: Zero-Chime Invariant.
+   * Procedural thinking beep is disabled to preserve acoustic purity (parity with voice_assistant.py).
+   * Feedback is 100% visual via orb animations.
    */
   public playThinkingAuraTone(): void {
-    if (this.isMuted) return;
-    try {
-      const { context, masterGain } = this.ensureContext();
-      if (context.state !== 'running') {
-        void this.resume();
-        return;
-      }
-
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-
-      const now = context.currentTime;
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(432, now); // 432Hz harmonic warm tone
-      osc.frequency.exponentialRampToValueAtTime(540, now + 0.12);
-
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.06, now + 0.03); // Soft, non-intrusive volume
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.20);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      const chimeHandle = { osc, gain };
-      this.activeChimes.add(chimeHandle);
-
-      osc.start(now);
-      osc.stop(now + 0.22);
-
-      osc.onended = () => {
-        try {
-          osc.disconnect();
-          gain.disconnect();
-        } catch {}
-        this.activeChimes.delete(chimeHandle);
-      };
-    } catch (e) {
-      // Audio context might not be fully unlocked yet; safely ignore
-    }
+    // Intentionally no-op to maintain absolute acoustic silence during turn handoff
   }
 
   /**

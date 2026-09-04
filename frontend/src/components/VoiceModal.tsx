@@ -464,7 +464,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const startTurnWatchdog = () => {
     clearAllTurnWatchdogs();
     setThinkingStage('processing');
-    playoutManagerRef.current?.playThinkingAuraTone();
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate(15); } catch {}
