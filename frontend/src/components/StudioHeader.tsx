@@ -49,6 +49,8 @@ export const StudioHeader: React.FC = () => {
     };
   }, [isHealthPopoverOpen]);
 
+  const shortSha = (import.meta.env.VITE_GIT_COMMIT_SHA as string)?.slice(0, 7) || systemHealth?.commitSha || 'dev';
+
   const renderHealthBadge = () => {
     let badgeContent = null;
 
@@ -119,6 +121,16 @@ export const StudioHeader: React.FC = () => {
                   <span>{systemHealth.latencyMs ? `${systemHealth.latencyMs} мс` : 'Ready'}</span>
                 </span>
               </div>
+
+              {shortSha && (
+                <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-pastel-bg/60 border border-pastel-border/70 text-[11px]">
+                  <span className="text-pastel-muted flex items-center gap-1.5 font-sans">
+                    <Activity className="w-3 h-3 text-pastel-accentRose" />
+                    <span>Версия сборки</span>
+                  </span>
+                  <span className="font-mono font-bold text-slate-700">{shortSha}</span>
+                </div>
+              )}
 
               {/* 4 Models Matrix */}
               <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
@@ -260,7 +272,11 @@ export const StudioHeader: React.FC = () => {
 
               <button
                 onClick={openProfileModal}
-                title={`Настройки профиля: ${currentUser.name} (${currentUser.role})`}
+                title={
+                  currentUser.role === 'owner'
+                    ? `Профиль: ${currentUser.name} (Владелец) • Сборка: ${shortSha}`
+                    : `Настройки профиля: ${currentUser.name} (${currentUser.role})`
+                }
                 className="flex items-center gap-1 sm:gap-1.5 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-pastel-card hover:bg-pastel-rose/50 text-pastel-text border border-pastel-border hover:border-pastel-accentRose/50 shadow-2xs transition cursor-pointer group shrink-0"
               >
                 <User className="w-3.5 h-3.5 text-pastel-accentRose" />

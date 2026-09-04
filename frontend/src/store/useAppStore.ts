@@ -49,6 +49,7 @@ export interface SystemHealth {
   message?: string;
   latencyMs?: number;
   error?: string;
+  commitSha?: string;
 }
 
 export interface RecapTarget {
@@ -794,6 +795,7 @@ export const useAppStore = create<AppState>()(
                 isAiReady: !!data.isAiReady,
                 latencyMs: data.aiGateway?.latencyMs,
                 error: data.aiGateway?.error,
+                commitSha: data.commitSha || data.version,
                 message: data.isAiReady
                   ? 'AI Шлюз готов к работе'
                   : (data.aiGateway?.status === 'connecting' ? 'Инициализация AI шлюза...' : 'AI Шлюз недоступен')

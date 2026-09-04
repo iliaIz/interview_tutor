@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { User, X, Check, Edit3, Shield, Loader2, KeyRound, Sparkles } from 'lucide-react';
+import { User, X, Check, Edit3, Shield, Loader2, KeyRound, Sparkles, GitCommit, ExternalLink } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const ProfileEditModal: React.FC = () => {
-  const { isProfileModalOpen, closeProfileModal, currentUser, updateUserName, openAdminInvitesModal } = useAppStore();
+  const { isProfileModalOpen, closeProfileModal, currentUser, updateUserName, openAdminInvitesModal, systemHealth } = useAppStore();
   useBodyScrollLock(isProfileModalOpen);
 
   const [name, setName] = useState(currentUser?.name || '');
@@ -42,6 +42,11 @@ export const ProfileEditModal: React.FC = () => {
 
 
   const roleInfo = getRoleBadge(currentUser.role);
+
+  const clientCommitSha = (import.meta.env.VITE_GIT_COMMIT_SHA as string) || '';
+  const shortClientSha = clientCommitSha ? clientCommitSha.slice(0, 7) : 'dev';
+  const backendCommitSha = systemHealth?.commitSha || 'unknown';
+  const isSynced = !clientCommitSha || backendCommitSha === 'dev' || backendCommitSha === 'unknown' || shortClientSha === backendCommitSha;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto modal-overscroll-contain font-sans">
@@ -95,6 +100,49 @@ export const ProfileEditModal: React.FC = () => {
             >
               Управление инвайтами →
             </button>
+          </div>
+        )}
+
+        {/* SOTA 2026 Owner Build Revision & Cloud Sync */}
+        {currentUser.role === 'owner' && (
+          <div className="p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/90 relative z-10 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 text-pastel-muted font-medium">
+                <GitCommit className="w-3.5 h-3.5 text-pastel-accentRose" />
+                <span>Ревизия сборки:</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={clientCommitSha ? `https://github.com/iliaIz/interview_tutor/commit/${clientCommitSha}` : 'https://github.com/iliaIz/interview_tutor'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Открыть коммит на GitHub"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-pastel-border text-slate-800 font-mono text-[11px] font-bold hover:bg-pastel-rose/30 hover:border-pastel-accentRose/50 transition cursor-pointer group shadow-2xs"
+                >
+                  <span>{shortClientSha}</span>
+                  <ExternalLink className="w-3 h-3 text-pastel-muted group-hover:text-pastel-accentRose" />
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-pastel-border/60">
+              <span className="text-pastel-muted">Серверный API:</span>
+              <span className="flex items-center gap-1.5 font-mono">
+                {isSynced ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-emerald-700 font-medium">Синхронизирован ({backendCommitSha})</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-amber-700 font-medium" title="Кэш браузера отличается от сервера. Нажмите Ctrl+F5">
+                      Кэш: {shortClientSha} ≠ Сервер: {backendCommitSha}
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
           </div>
         )}
 

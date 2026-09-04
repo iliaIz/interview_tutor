@@ -6,6 +6,8 @@ dotenv.config();
 export interface SystemHealthStatus {
   status: 'ready' | 'warming_up' | 'unreachable';
   isAiReady: boolean;
+  version: string;
+  commitSha: string;
   timestamp: string;
   aiGateway: {
     url: string;
@@ -147,9 +149,14 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   const isAiReady = aiStatus === 'ready' && allModelsReady;
   const overallStatus = isAiReady ? 'ready' : (aiStatus === 'unreachable' ? 'unreachable' : 'warming_up');
 
+  const rawSha = process.env.GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
+  const commitSha = rawSha ? rawSha.slice(0, 7) : 'dev';
+
   cachedHealth = {
     status: overallStatus,
     isAiReady,
+    version: commitSha,
+    commitSha,
     timestamp: new Date().toISOString(),
     aiGateway: {
       url: cleanProxyBase,

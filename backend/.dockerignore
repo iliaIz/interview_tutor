@@ -1,0 +1,18 @@
+# Node & build outputs
+node_modules
+dist
+
+# Data & storage persistence
+data/
+storage/
+*.db*
+*.sqlite*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
