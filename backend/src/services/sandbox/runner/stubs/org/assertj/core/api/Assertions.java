@@ -288,6 +288,18 @@ public class Assertions {
             return this;
         }
 
+        @Override
+        public BigDecimalAssert isNotNull() {
+            super.isNotNull();
+            return this;
+        }
+
+        @Override
+        public BigDecimalAssert isNull() {
+            super.isNull();
+            return this;
+        }
+
         public BigDecimalAssert isEqualByComparingTo(BigDecimal expected) {
             isNotNull();
             if (expected == null || actual.compareTo(expected) != 0) {

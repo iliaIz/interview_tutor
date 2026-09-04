@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
-    "build:sandbox": "javac -d bin src/services/sandbox/runner/*.java src/services/sandbox/runner/stubs/org/junit/jupiter/api/*.java src/services/sandbox/runner/stubs/org/junit/jupiter/api/function/*.java src/services/sandbox/runner/stubs/org/junit/jupiter/params/*.java src/services/sandbox/runner/stubs/org/junit/jupiter/params/provider/*.java src/services/sandbox/runner/stubs/org/assertj/core/api/*.java",
+    "build:sandbox": "node -e \"const { execSync } = require('child_process'), fs = require('fs'), path = require('path'); function walk(dir) { let r = []; for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); if (fs.statSync(p).isDirectory()) r = r.concat(walk(p)); else if (p.endsWith('.java')) r.push(p); } return r; } const files = walk('src/services/sandbox/runner').join(' '); execSync('javac -d bin ' + files, { stdio: 'inherit' });\"",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
   },

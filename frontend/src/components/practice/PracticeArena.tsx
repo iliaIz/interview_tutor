@@ -5,7 +5,10 @@ import { ChallengeSpecPanel } from './ChallengeSpecPanel';
 import { WorkspaceEditor } from './WorkspaceEditor';
 import { PracticeEvaluationModal } from './PracticeEvaluationModal';
 import { TransactionLabArena } from './TransactionLabArena';
-import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2, Compass, Bot } from 'lucide-react';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { TestingCompassSheet } from './compass/TestingCompassSheet';
+import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -21,6 +24,7 @@ export const PracticeArena: React.FC = () => {
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const { toggleCompass, toggleOpen: toggleTutorDrawer, isOpen: isTutorOpen } = usePracticeTutorStore();
 
   if (activeTransactionLabScenarioId !== null) {
     return (
@@ -104,6 +108,29 @@ export const PracticeArena: React.FC = () => {
 
         {/* Right: Score, Status Badge & Desktop Focus Mode */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Compass & AI-Tutor Action Buttons */}
+          <button
+            onClick={() => toggleCompass()}
+            title="Testing Compass: 5 Золотых Заповедей (Ctrl + /)"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-2xs"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Компас</span>
+          </button>
+
+          <button
+            onClick={() => toggleTutorDrawer()}
+            title="AI-Напарник (Парное программирование & подсказки)"
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+              isTutorOpen
+                ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
+                : 'bg-white text-slate-700 border-pastel-border hover:border-pastel-accentRose/50'
+            }`}
+          >
+            <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
+            <span className="hidden sm:inline">AI-Напарник</span>
+          </button>
+
           <button
             onClick={() => setIsFocusMode(!isFocusMode)}
             title={isFocusMode ? "Показать спецификацию" : "Развернуть редактор на 100% ширины (Focus Mode)"}
@@ -159,6 +186,12 @@ export const PracticeArena: React.FC = () => {
         result={activePracticeReport}
         onRetry={() => setActivePracticeReport(null)}
       />
+
+      {/* Testing Compass Top Overlay */}
+      <TestingCompassSheet />
+
+      {/* Multimodal AI Pair-Programming Sidecar Drawer */}
+      <PracticeTutorDrawer />
     </div>
   );
 };

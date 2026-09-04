@@ -17,6 +17,8 @@ import {
   Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { useAppStore } from '../../store/useAppStore';
 
 interface MutationRadarWidgetProps {
   report: MutationExecutionResponse;
@@ -35,6 +37,26 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
     : report.mutationScore >= 50
     ? 'from-amber-500 to-yellow-500 text-amber-400'
     : 'from-rose-500 to-pink-500 text-rose-400';
+
+  const { sendMessage } = usePracticeTutorStore();
+  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
+
+  const handleAskTutorAboutMutant = (mutant: MutantResult) => {
+    sendMessage(
+      `Мутант "${mutant.name}" (${mutant.id}) выжил в файле ${mutant.file} на строке ${mutant.line}.\n` +
+      `Объясни, почему текущие тесты его не поймали и какое граничное условие или проверку AssertJ нужно добавить?`,
+      {
+        kataId: activePracticeChallenge?.id || 'kata',
+        kataTitle: activePracticeChallenge?.title || 'Testing Kata',
+        kataCategory: activePracticeChallenge?.category || 'Testing & Mutation',
+        kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
+        activeFilePath: currentFile?.path || 'src/test/java/Test.java',
+        activeFileContent: currentFile?.content || '',
+        survivingMutants: activePracticeChallenge?.mutants
+      }
+    );
+  };
 
   const toggleMutant = (id: string) => {
     setExpandedMutantId(prev => (prev === id ? null : id));
@@ -246,6 +268,18 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                         <div className="text-rose-300 bg-rose-950/40 p-2 rounded-lg text-[11px] border border-rose-900/40">
                           💡 <strong>Подсказка:</strong> Мутант выжил, потому что ни один из ваших тестов не упал при инъекции дефекта. Напишите тест с граничным условием или проверкой исключения для этой строки!
                         </div>
+                      )}
+                      {!isKilled && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAskTutorAboutMutant(mutant);
+                          }}
+                          className="mt-1 flex items-center gap-1.5 self-start px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRoseText text-xs font-bold border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Спросить AI-Напарника: Как уничтожить этого мутанта?</span>
+                        </button>
                       )}
                     </motion.div>
                   )}

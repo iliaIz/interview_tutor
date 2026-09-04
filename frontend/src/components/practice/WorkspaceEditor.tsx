@@ -17,12 +17,15 @@ import {
   Cpu,
   Bug,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Compass,
+  Bot
 } from 'lucide-react';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
 import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConsole';
 import { MutationExecutionResponse } from '../../types/practice';
 import { evaluateAstRules } from '../../utils/astRules';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -83,6 +86,20 @@ export const WorkspaceEditor: React.FC = () => {
     if (!currentFile?.content) return [];
     return evaluateAstRules(currentFile.content).filter(r => r.isViolation);
   }, [currentFile?.content]);
+
+  const { toggleCompass, toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
+
+  // Global shortcut: Ctrl + / (or Cmd + /) toggles Testing Compass overlay
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        toggleCompass();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [toggleCompass]);
 
   // Timer effect
   useEffect(() => {
@@ -338,7 +355,18 @@ export const WorkspaceEditor: React.FC = () => {
 
 
         {/* Timer & Status in Header */}
-        <div className="flex items-center gap-3 shrink-0 text-xs">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
+          {/* Compass Quick Button */}
+          <button
+            onClick={() => toggleCompass()}
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-pastel-accentRose border border-pastel-accentRose/30 text-[11px] font-bold transition cursor-pointer shadow-2xs"
+            title="Testing Compass (Ctrl + /)"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Компас</span>
+            <kbd className="hidden lg:inline text-[9px] px-1 rounded bg-slate-900 text-slate-400 font-mono">Ctrl+/</kbd>
+          </button>
+
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
             <Clock className="w-3 h-3 text-pastel-accentRose animate-pulse" />
             <span>{formatTime(practiceElapsedSeconds)}</span>
