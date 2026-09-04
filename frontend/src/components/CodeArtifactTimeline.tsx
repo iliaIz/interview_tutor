@@ -208,6 +208,9 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
               isDiff={true}
               title={`Дифф: v${prevRev.index} ➔ v${activeRev.index} (${activeRev.title})`}
               showLineNumbers={true}
+              revisionIndex={activeRev.index}
+              revisionTitle={activeRev.title}
+              revisionId={activeRev.id}
             />
           ) : (
             <CodeViewer
@@ -216,6 +219,9 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
               isDiff={false}
               title={`Версия ${activeRev.index}: ${activeRev.title}`}
               showLineNumbers={true}
+              revisionIndex={activeRev.index}
+              revisionTitle={activeRev.title}
+              revisionId={activeRev.id}
             />
           )}
         </div>

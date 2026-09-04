@@ -36,8 +36,32 @@ export const StudyDeck: React.FC = () => {
     openReportModal,
     setQuestionEvaluation,
     updateTopicProgress,
-    openTransactionLab
+    openTransactionLab,
+    setBatch
   } = useAppStore();
+
+  const [isAutoHealing, setIsAutoHealing] = useState(false);
+
+  // SOTA 2026 Auto-Healing: If page reloads with empty batch but valid selectedTopicId, restore questions automatically
+  useEffect(() => {
+    if ((!currentBatch || currentBatch.length === 0) && selectedTopicId && !isAutoHealing) {
+      setIsAutoHealing(true);
+      fetch(`/api/topics/${selectedTopicId}/questions`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+        .then((data) => {
+          const allQuestions = data.questions || [];
+          if (allQuestions.length > 0) {
+            setBatch(allQuestions.slice(0, 10));
+          }
+        })
+        .catch((err) => {
+          console.warn('Auto-healing batch failed:', err);
+        })
+        .finally(() => {
+          setIsAutoHealing(false);
+        });
+    }
+  }, [currentBatch, selectedTopicId, isAutoHealing, setBatch]);
 const TUTOR_MODES = [
   { id: 'deep_dive' as const, label: 'Под капотом', icon: '🔬', desc: 'Глубокий разбор JVM, байткода, concurrency и edge cases' },
   { id: 'socratic' as const, label: 'Сократ', icon: '💡', desc: 'Наводящие вопросы и совместный поиск решения' },
@@ -91,6 +115,15 @@ const getTutorModeLabel = (mode: string) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentQuestionIndex, currentBatch, isVoiceOpen, setQuestionIndex]);
+
+  if (isAutoHealing) {
+    return (
+      <div className="max-w-xl mx-auto py-24 text-center space-y-3">
+        <div className="w-8 h-8 mx-auto rounded-full border-2 border-pastel-accentViolet border-t-transparent animate-spin" />
+        <p className="text-sm font-medium text-pastel-muted">Восстановление изучаемой темы...</p>
+      </div>
+    );
+  }
 
   if (!currentBatch || currentBatch.length === 0) {
     return (

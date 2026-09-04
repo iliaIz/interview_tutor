@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSelectionFocusStore } from '../store/useSelectionFocusStore';
 import {
   Mic,
   MicOff,
@@ -430,6 +431,103 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       console.warn('Failed to send silent grounding frame:', err);
     }
   }, [activeRevisionId, codeRevisions, stage]);
+
+  // SOTA 2026 Deictic Grounding: Inject active selection context before user voice audio
+  const isFocusInjectedInCurrentTurnRef = useRef(false);
+
+  const injectActiveFocusGroundingFrame = useCallback(() => {
+    if (isFocusInjectedInCurrentTurnRef.current) return;
+    const focus = useSelectionFocusStore.getState().activeFocus;
+    if (!focus || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    isFocusInjectedInCurrentTurnRef.current = true;
+    let textPrompt = '';
+    if (focus.zone === 'code') {
+      const lineRange = focus.startLine
+        ? focus.endLine && focus.endLine !== focus.startLine
+          ? `строки ${focus.startLine}-${focus.endLine}`
+          : `строка ${focus.startLine}`
+        : '';
+      textPrompt = `🎯 [ФОКУС ВНИМАНИЯ КАНДИДАТА: фрагмент кода в открытой версии ${focus.revisionTitle || `v${focus.revisionIndex || ''}`}${lineRange ? ` (${lineRange})` : ''}]:\n\`\`\`${focus.language || 'java'}\n${focus.text}\n\`\`\`\n(Системная директива: кандидат голосом обращается именно к этому фрагменту кода. Учитывай это при ответе).`;
+    } else if (focus.zone === 'term') {
+      textPrompt = `🎯 [ФОКУС ВНИМАНИЯ КАНДИДАТА: термин «${focus.text}» в эталонном ответе]:\n(Системная директива: кандидат голосом задает вопрос или просит пояснить именно этот термин).`;
+    } else if (focus.zone === 'question') {
+      textPrompt = `🎯 [ФОКУС ВНИМАНИЯ КАНДИДАТА: выделен фрагмент формулировки вопроса]:\n«${focus.text}»\n(Системная директива: кандидат голосом обращается к этой части вопроса).`;
+    } else {
+      textPrompt = `🎯 [ФОКУС ВНИМАНИЯ КАНДИДАТА: выделен фрагмент эталонного ответа]:\n«${focus.text}»\n(Системная директива: кандидат голосом обращается к этой части ответа).`;
+    }
+
+    console.log('📡 [Deictic Grounding] Injected turn focus frame:', textPrompt);
+    const focusFrame = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: textPrompt }]
+          }
+        ],
+        turnComplete: false
+      }
+    };
+    try {
+      wsRef.current.send(JSON.stringify(focusFrame));
+    } catch (e) {
+      console.warn('Failed to send deictic grounding frame:', e);
+    }
+  }, []);
+
+  // SOTA 2026 Deictic Grounding: Global mouseup listener for text selection in question/answer/code zones
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+
+      const selectedText = selection.toString().trim();
+      if (!selectedText || selectedText.length < 2) return;
+
+      const anchorElem = selection.anchorNode?.parentElement;
+      const zoneElem = anchorElem?.closest('[data-selection-zone]') as HTMLElement | null;
+      if (!zoneElem) return;
+
+      const zone = zoneElem.getAttribute('data-selection-zone');
+      if (zone === 'question') {
+        useSelectionFocusStore.getState().setFocus({
+          zone: 'question',
+          text: selectedText,
+          timestamp: Date.now()
+        });
+      } else if (zone === 'reference_answer') {
+        useSelectionFocusStore.getState().setFocus({
+          zone: 'reference_answer',
+          text: selectedText,
+          timestamp: Date.now()
+        });
+      } else if (zone === 'code') {
+        const startLineElem = selection.anchorNode?.parentElement?.closest('[data-line-number]');
+        const endLineElem = selection.focusNode?.parentElement?.closest('[data-line-number]');
+        const startLine = startLineElem ? parseInt(startLineElem.getAttribute('data-line-number') || '1', 10) : undefined;
+        const endLine = endLineElem ? parseInt(endLineElem.getAttribute('data-line-number') || '1', 10) : undefined;
+        const revIdxStr = zoneElem.getAttribute('data-revision-index');
+        const revisionIndex = revIdxStr ? parseInt(revIdxStr, 10) : undefined;
+
+        useSelectionFocusStore.getState().setFocus({
+          zone: 'code',
+          text: selectedText,
+          startLine: startLine && endLine ? Math.min(startLine, endLine) : startLine,
+          endLine: startLine && endLine ? Math.max(startLine, endLine) : endLine,
+          revisionIndex,
+          timestamp: Date.now()
+        });
+      }
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isOpen]);
 
   // SOTA 2026 Auto-Healing Invariant: Prevent microphone from being stuck in pause during active session
   useEffect(() => {
@@ -926,6 +1024,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           setIsRecording(true);
           isRecordingRef.current = true;
           hasSpokenInTurnRef.current = false;
+          if (isFocusInjectedInCurrentTurnRef.current) {
+            isFocusInjectedInCurrentTurnRef.current = false;
+            useSelectionFocusStore.getState().clearFocus();
+          }
           setDialogueTurns((prev) => {
             const last = prev[prev.length - 1];
             if (last && last.text.includes('Ваша очередь')) return prev;
@@ -1187,6 +1289,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               setIsRecording(true);
               isRecordingRef.current = true;
               hasSpokenInTurnRef.current = false;
+              if (isFocusInjectedInCurrentTurnRef.current) {
+                isFocusInjectedInCurrentTurnRef.current = false;
+                useSelectionFocusStore.getState().clearFocus();
+              }
               setDialogueTurns((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.text.includes('Ваша очередь')) return prev;
@@ -1408,12 +1514,30 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     // 2. Full-Duplex WebSocket Path
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      let promptToSend = text;
+      const currentFocus = useSelectionFocusStore.getState().activeFocus;
+      if (currentFocus) {
+        if (currentFocus.zone === 'code') {
+          const lineRange = currentFocus.startLine
+            ? currentFocus.endLine && currentFocus.endLine !== currentFocus.startLine
+              ? `строки ${currentFocus.startLine}-${currentFocus.endLine}`
+              : `строка ${currentFocus.startLine}`
+            : '';
+          promptToSend = `[ФОКУС ВНИМАНИЯ КАНДИДАТА: фрагмент кода в открытой версии ${currentFocus.revisionTitle || `v${currentFocus.revisionIndex || ''}`}${lineRange ? ` (${lineRange})` : ''}]:\n\`\`\`${currentFocus.language || 'java'}\n${currentFocus.text}\n\`\`\`\n\nВопрос кандидата: ${text}`;
+        } else if (currentFocus.zone === 'term') {
+          promptToSend = `[ФОКУС ВНИМАНИЯ КАНДИДАТА: термин «${currentFocus.text}» в эталонном ответе]:\nВопрос кандидата: ${text}`;
+        } else {
+          promptToSend = `[ФОКУС ВНИМАНИЯ КАНДИДАТА: «${currentFocus.text}»]:\nВопрос кандидата: ${text}`;
+        }
+        useSelectionFocusStore.getState().clearFocus();
+      }
+
       const turnFrame = {
         clientContent: {
           turns: [
             {
               role: 'user',
-              parts: [{ text }]
+              parts: [{ text: promptToSend }]
             }
           ],
           turnComplete: true
@@ -1543,6 +1667,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     // SOTA Priority: If Live WebSocket is open, send turnComplete frame immediately!
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      if (!isFocusInjectedInCurrentTurnRef.current) {
+        injectActiveFocusGroundingFrame();
+      }
       const turnCompleteMsg = {
         clientContent: {
           turnComplete: true
@@ -2109,7 +2236,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 }
                 const speechDuration = Date.now() - speechStartTimeRef.current;
                 if (speechDuration >= 150) {
-                  hasSpokenInTurnRef.current = true;
+                  if (!hasSpokenInTurnRef.current) {
+                    hasSpokenInTurnRef.current = true;
+                    injectActiveFocusGroundingFrame();
+                  }
                 }
                 setIsUserSpeaking(true);
                 setIsPauseHolding(false);

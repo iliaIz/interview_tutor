@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import Prism from '../utils/prismSetup';
 import { Highlight, type PrismTheme } from 'prism-react-renderer';
 import { Copy, Check, Search } from 'lucide-react';
+import { useSelectionFocusStore } from '../store/useSelectionFocusStore';
 
 // Import Prism language definitions for Java, Kotlin, SQL, JSON, Bash
 import 'prismjs/components/prism-clike';
@@ -153,6 +154,9 @@ export interface CodeViewerProps {
   className?: string;
   maxHeight?: string;
   searchQuery?: string;
+  revisionIndex?: number;
+  revisionTitle?: string;
+  revisionId?: string;
 }
 
 type DiffKind = 'added' | 'removed' | 'neutral';
@@ -172,8 +176,54 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
   className = '',
   maxHeight,
   searchQuery = '',
+  revisionIndex,
+  revisionTitle,
+  revisionId,
 }) => {
   const [copied, setCopied] = useState(false);
+  const { activeFocus, setFocus, clearFocus } = useSelectionFocusStore();
+  const rawCodeLines = useMemo(() => (code || '').trimEnd().split('\n'), [code]);
+
+  // SOTA 2026 Deictic Grounding: Check if line is within active user focus
+  const isLineInFocus = (lineNum: number) => {
+    if (!activeFocus || activeFocus.zone !== 'code') return false;
+    if (activeFocus.revisionIndex !== undefined && revisionIndex !== undefined && activeFocus.revisionIndex !== revisionIndex) {
+      return false;
+    }
+    const start = activeFocus.startLine ?? 0;
+    const end = activeFocus.endLine ?? 0;
+    return lineNum >= start && lineNum <= end;
+  };
+
+  const handleGutterClick = (lineNum: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLineInFocus(lineNum) && activeFocus?.startLine === activeFocus?.endLine) {
+      clearFocus();
+      return;
+    }
+
+    let start = lineNum;
+    let end = lineNum;
+
+    if (e.shiftKey && activeFocus && activeFocus.zone === 'code' && activeFocus.startLine) {
+      start = Math.min(activeFocus.startLine, lineNum);
+      end = Math.max(activeFocus.startLine, lineNum);
+    }
+
+    const selectedLinesText = rawCodeLines.slice(start - 1, end).join('\n');
+
+    setFocus({
+      zone: 'code',
+      text: selectedLinesText,
+      startLine: start,
+      endLine: end,
+      revisionIndex,
+      revisionTitle: title || revisionTitle || (revisionIndex ? `v${revisionIndex}` : undefined),
+      revisionId,
+      language,
+      timestamp: Date.now()
+    });
+  };
 
   // Normalize code and extract unified diff & search match metadata
   const { normalizedCode, linesMeta, totalMatches } = useMemo(() => {
@@ -238,6 +288,8 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
 
   return (
     <div
+      data-selection-zone="code"
+      data-revision-index={revisionIndex}
       className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-xs md:text-sm shadow-xl modal-overscroll-contain ${className}`}
       style={{ contain: 'content' }}
     >
@@ -303,12 +355,16 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
                 {tokens.map((lineTokens, lineIndex) => {
                   const meta = linesMeta[lineIndex] || { diffKind: 'neutral', isMatch: false };
                   const lineProps = getLineProps({ line: lineTokens, key: lineIndex });
+                  const lineNum = lineIndex + 1;
+                  const inFocus = isLineInFocus(lineNum);
 
                   let rowBgStyle = 'hover:bg-white/[0.03] transition-colors duration-75';
                   let indicatorChar = ' ';
                   let indicatorStyle = 'text-transparent';
 
-                  if (isDiff) {
+                  if (inFocus) {
+                    rowBgStyle = 'bg-pastel-accentViolet/25 border-l-2 border-pastel-accentViolet ring-1 ring-pastel-accentViolet/40';
+                  } else if (isDiff) {
                     if (meta.diffKind === 'added') {
                       rowBgStyle = 'bg-emerald-500/10 border-l-2 border-emerald-500';
                       indicatorChar = '+';
@@ -328,11 +384,19 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
                     <div
                       key={lineIndex}
                       {...lineProps}
+                      data-line-number={lineNum}
                       className={`flex items-baseline w-full px-2 py-0.5 ${rowBgStyle}`}
                     >
                       {showLineNumbers && (
-                        <span className="w-9 flex-shrink-0 select-none pr-3 text-right font-mono text-[11px] text-[#7E7796] tabular-nums">
-                          {lineIndex + 1}
+                        <span
+                          onClick={(e) => handleGutterClick(lineNum, e)}
+                          title="Нажмите, чтобы указать ИИ на эту строку"
+                          data-line-number={lineNum}
+                          className={`w-9 flex-shrink-0 select-none pr-3 text-right font-mono text-[11px] tabular-nums cursor-pointer transition-colors duration-150 ${
+                            inFocus ? 'text-pastel-accentViolet font-bold' : 'text-[#7E7796] hover:text-pastel-accentViolet'
+                          }`}
+                        >
+                          {lineNum}
                         </span>
                       )}
 
@@ -371,7 +435,10 @@ export const CodeViewer = React.memo(CodeViewerComponent, (prev, next) => {
     prev.title === next.title &&
     prev.className === next.className &&
     prev.maxHeight === next.maxHeight &&
-    prev.searchQuery === next.searchQuery
+    prev.searchQuery === next.searchQuery &&
+    prev.revisionIndex === next.revisionIndex &&
+    prev.revisionTitle === next.revisionTitle &&
+    prev.revisionId === next.revisionId
   );
 });
 

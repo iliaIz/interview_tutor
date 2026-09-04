@@ -3,11 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
   BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause, Square,
-  Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2 
+  Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2, Target, X
 } from 'lucide-react';
 import { CodeViewer } from '../CodeViewer';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { DialogueTurn } from '../../hooks/useLiveAudioSession';
+import { useSelectionFocusStore } from '../../store/useSelectionFocusStore';
 
 export interface VoiceTutorViewProps {
   stage: 'lobby' | 'active';
@@ -88,6 +89,8 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
   isSessionPaused,
   onToggleSessionPause
 }) => {
+  const { activeFocus, setFocus, clearFocus } = useSelectionFocusStore();
+
   return (
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden my-3">
       {/* Left Panel: Study Material & Reference Theory */}
@@ -104,7 +107,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
 
         <div className="flex-1 overflow-y-auto pr-1.5 pt-2.5 space-y-3">
           {/* Question Header Card */}
-          <div className="p-3 rounded-xl bg-white border border-pastel-border/70 shadow-2xs">
+          <div data-selection-zone="question" className="p-3 rounded-xl bg-white border border-pastel-border/70 shadow-2xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-accentRose block mb-1">
               {isBatchMode ? `Вопрос #${activeQuestionNum} (${activeBatchIndex + 1}/${totalQuestions}):` : 'Вопрос:'}
             </span>
@@ -114,7 +117,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
           </div>
 
           {/* Markdown Theory & Code */}
-          <div className="p-3.5 rounded-xl bg-white border border-pastel-border/70 shadow-2xs leading-relaxed text-pastel-text/90">
+          <div data-selection-zone="reference_answer" className="p-3.5 rounded-xl bg-white border border-pastel-border/70 shadow-2xs leading-relaxed text-pastel-text/90">
             <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted flex items-center gap-1 mb-2">
               <Sparkles className="w-3 h-3 text-pastel-accentRose" />
               Подробный эталонный ответ:
@@ -140,8 +143,28 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                       </div>
                     );
                   }
+                  const isFocused = activeFocus?.text === codeStr;
                   return (
-                    <code className="px-1.5 py-0.5 rounded-md bg-pastel-lavender/60 text-pastel-accentViolet font-mono text-[11px] font-semibold" {...props}>
+                    <code
+                      onClick={() => {
+                        if (isFocused) {
+                          clearFocus();
+                        } else {
+                          setFocus({
+                            zone: 'term',
+                            text: codeStr,
+                            timestamp: Date.now()
+                          });
+                        }
+                      }}
+                      title="Нажмите, чтобы указать ИИ на этот термин"
+                      className={`px-1.5 py-0.5 rounded-md font-mono text-[11px] font-semibold cursor-pointer transition-all duration-150 ${
+                        isFocused
+                          ? 'bg-pastel-accentViolet text-white ring-2 ring-pastel-accentViolet/50 shadow-2xs'
+                          : 'bg-pastel-lavender/60 text-pastel-accentViolet hover:bg-pastel-lavender hover:ring-1 hover:ring-pastel-accentViolet/40'
+                      }`}
+                      {...props}
+                    >
                       {children}
                     </code>
                   );
@@ -290,6 +313,29 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                   {interviewConfig.voice}
                 </span>
               </div>
+
+              {/* SOTA 2026 Deictic Grounding Focus Badge */}
+              {activeFocus && (
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-2 rounded-xl bg-pastel-accentViolet/10 border border-pastel-accentViolet/30 text-[11px] text-pastel-accentViolet font-medium animate-fadeIn">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Target className="w-3.5 h-3.5 shrink-0 text-pastel-accentViolet animate-pulse" />
+                    <span className="font-bold shrink-0">Фокус ИИ:</span>
+                    <span className="truncate font-mono text-[10px] text-pastel-text">
+                      {activeFocus.zone === 'code'
+                        ? `${activeFocus.revisionTitle || 'Код'}, стр. ${activeFocus.startLine}${activeFocus.endLine && activeFocus.endLine !== activeFocus.startLine ? `-${activeFocus.endLine}` : ''}`
+                        : `«${activeFocus.text.slice(0, 35)}${activeFocus.text.length > 35 ? '...' : ''}»`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearFocus}
+                    title="Снять фокус внимания"
+                    className="p-1 rounded-md hover:bg-pastel-accentViolet/20 text-pastel-accentViolet/80 hover:text-pastel-accentViolet cursor-pointer transition shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
 
               {/* Unified Media Control Cluster (SOTA 2026 Ergonomics): [ ⏸️ Пауза ] - ( 🎙️ Сфера ) - [ ⏹️ Стоп ] */}
               <div className="my-2 flex flex-col items-center justify-center shrink-0">

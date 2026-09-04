@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore, Question } from '../store/useAppStore';
 import { VoiceModal } from './VoiceModal';
 import {
@@ -49,8 +49,32 @@ export const ExamQuiz: React.FC = () => {
     openTopicQuestions,
     startStudyWithQuestions,
     startQuizWithQuestions,
-    setQuestionEvaluation
+    setQuestionEvaluation,
+    setBatch
   } = useAppStore();
+
+  const [isAutoHealing, setIsAutoHealing] = useState(false);
+
+  // SOTA 2026 Auto-Healing: If quiz view reloads with empty batch but valid selectedTopicId, restore questions automatically
+  useEffect(() => {
+    if ((!currentBatch || currentBatch.length === 0) && selectedTopicId && !isAutoHealing) {
+      setIsAutoHealing(true);
+      fetch(`/api/topics/${selectedTopicId}/questions`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+        .then((data) => {
+          const allQuestions = data.questions || [];
+          if (allQuestions.length > 0) {
+            setBatch(allQuestions.slice(0, 10));
+          }
+        })
+        .catch((err) => {
+          console.warn('Auto-healing quiz batch failed:', err);
+        })
+        .finally(() => {
+          setIsAutoHealing(false);
+        });
+    }
+  }, [currentBatch, selectedTopicId, isAutoHealing, setBatch]);
 
   const [userAnswer, setUserAnswer] = useState('');
   const [loadingEval, setLoadingEval] = useState(false);
@@ -61,6 +85,15 @@ export const ExamQuiz: React.FC = () => {
   const [resultsHistory, setResultsHistory] = useState<Record<string, EvalRecord>>({});
   const [isQuizCompleted, setIsQuizCompleted] = useState(false);
   const [expandedResultIds, setExpandedResultIds] = useState<Set<string>>(new Set());
+
+  if (isAutoHealing) {
+    return (
+      <div className="max-w-xl mx-auto py-24 text-center space-y-3">
+        <div className="w-8 h-8 mx-auto rounded-full border-2 border-pastel-accentViolet border-t-transparent animate-spin" />
+        <p className="text-sm font-medium text-pastel-muted">Восстановление вопросов квиза...</p>
+      </div>
+    );
+  }
 
   if (!currentBatch || currentBatch.length === 0) {
     return (

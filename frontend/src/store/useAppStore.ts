@@ -920,11 +920,27 @@ export const useAppStore = create<AppState>()(
         cheatSheetBookmarks: state.cheatSheetBookmarks,
         topicAccessMap: state.topicAccessMap,
         codeRevisions: state.codeRevisions,
+        // SOTA 2026: Seamless Question & Portion Continuity across page reloads & browser restarts
+        currentBatch: state.currentBatch,
+        currentQuestionIndex: state.currentQuestionIndex,
+        activeBatchSession: state.activeBatchSession,
       }),
       onRehydrateStorage: () => (state) => {
         // Sanitize legacy corrupted localStorage topicsProgress
         if (state) {
           state.topicsProgress = {};
+          // Ensure currentQuestionIndex is strictly bounded within currentBatch length
+          if (Array.isArray(state.currentBatch) && state.currentBatch.length > 0) {
+            const maxIdx = state.currentBatch.length - 1;
+            if (typeof state.currentQuestionIndex !== 'number' || state.currentQuestionIndex < 0) {
+              state.currentQuestionIndex = 0;
+            } else if (state.currentQuestionIndex > maxIdx) {
+              state.currentQuestionIndex = maxIdx;
+            }
+          } else {
+            state.currentBatch = [];
+            state.currentQuestionIndex = 0;
+          }
         }
       }
     }
