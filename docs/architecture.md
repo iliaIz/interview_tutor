@@ -21,10 +21,10 @@ flowchart TD
         P1["🎙️ 1. Oral Mock Interview\n(Gemini Live 24kHz PCM, Tactile Barge-In)"]
         P2["🧬 2. Testing & Mutation Arena\n(42 Katas, Pitest Engine, Testing Compass)"]
         P3["⚡ 3. Spring Transactions Lab\n(16 Scenarios, Sub-Second Proxy Engine)"]
-        P4["📐 4. System Design Arena\n(Cytoscape Canvas, 8 L0 Katas, L1 Math Engine)"]
-        P5["🚨 5. Incident Triage Studio\n(15 Scenarios, Thread/Heap Trees, Tarjan SCC)"]
+        P4["📐 4. System Design Arena\n(Cytoscape Canvas, 31 Scenarios, L1 Math Engine)"]
+        P5["🚨 5. Incident Triage Studio & Bug-Hunt\n(22 SRE Dumps, 70 Katas, Tarjan SCC)"]
         P6["☕ 6. Machine Coding & LLD\n(35 Challenges, AST Invariants, Clock Injection)"]
-        P7["🎓 7. Guided Academy Studio\n(25-Step Sprint, FSRS-5 Graph, Knapsack NBA)"]
+        P7["🎓 7. Guided Academy Studio\n(8 Unified Tracks, 177 Steps, FSRS-5 Graph, Interleaved NBA)"]
         P8["🎧 8. StudyDeck & Audio Podcasts\n(Two-Host Dialogue, Gemini 3.1 TTS, Flashcards)"]
         
         Nav --> P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8
@@ -98,6 +98,16 @@ All modules and future extensions MUST strictly observe the following platform i
 - All full-screen arenas utilize `100dvh` (`h-[calc(100dvh-4rem)]`) to prevent virtual keyboard viewport bouncing.
 - Nested modals and drawers use a module-level reference-counted scroll lock (`useBodyScrollLock`) to prevent premature `document.body` unlock.
 - Large catalogs use CSS `content-visibility: auto; contain-intrinsic-size: 0 90px;` for 120 FPS scrolling on mobile devices.
+
+### 2.6. Dual ID ↔ Slug Aliasing Invariant (Zero-Broken-Steps)
+- Challenge references in Guided Roadmaps (`json/guided_roadmaps.json`) and database lookup APIs can be expressed either as numeric primary keys (`id: "1"`) or human-readable slugs (`slug: "kata_test_threadpool_rejection"`).
+- All progress resolution services (`getUserEntityProgress`) MUST join submissions symmetrically on `(s.challenge_id = c.id OR s.challenge_id = c.slug)` and populate both identifiers in the user's completed set.
+- Under NO circumstance should a candidate who completed a challenge under its slug find the corresponding roadmap step marked incomplete or unnavigable ("дырявая лестница").
+
+### 2.7. Unified 4-Compass Ergonomics (`Ctrl + /`)
+- Every specialized technical practice environment (Testing, Transactions, System Design, SRE Incident Triage) MUST provide a domain-specific interactive heuristic compass.
+- Compasses MUST be uniformly accessible via the global shortcut `Ctrl + /` (or `Cmd + /` on macOS) as well as a tactile floating action button in the arena header.
+- Compasses provide instant multi-axis radar diagnostics (Coverage vs Mutants, Proxy vs Pool Depth, CAP vs SPOF, MTTR vs Root Cause) to turn blind trial-and-error into structured engineering analysis.
 
 ---
 
@@ -240,11 +250,11 @@ The System Design Arena bridges the gap between blank-canvas design intimidation
 
 ```mermaid
 flowchart TD
-    subgraph Progression ["🪜 4-Tier System Design Scaffolding"]
-        L0["L0: 8 Component Micro-Katas\n(DB Indexing, Cache-Aside, CDC, Partitioning)"]
+    subgraph Progression ["🪜 4-Tier System Design Scaffolding (31 Scenarios)"]
+        L0["L0: 8 Component Micro-Katas\n(DB Indexing, Cache-Aside, CDC, Partitioning, Sharding)"]
         L1["L1: Back-of-the-Envelope Math Coach\n(RPS, Read/Write Ratio, Storage, Network Bandwidth ±25%)"]
-        L2["L2: 3 Faded Archetypes\n(Complete partially implemented architectures)"]
-        L3["L3: 12 Combat Industrial Designs\n(TinyURL, RateLimiter, Real-Time Chat, Uber/Cab Dispatch)"]
+        L2["L2: 4 Faded Archetypes\n(Complete partially implemented architectures & fix SPOFs)"]
+        L3["L3: 18 Combat Industrial Designs\n(TinyURL, RateLimiter, Real-Time Chat, Uber Dispatch, Payment Gateway)"]
         L0 --> L1 --> L2 --> L3
     end
 
@@ -252,7 +262,7 @@ flowchart TD
         Palette["Component Palette\n(Load Balancers, Gateways, Redis, Kafka, PostgreSQL, S3)"]
         Canvas["Cytoscape DAG Layout\n(Auto-routing, Port Snapping, Latency Tags)"]
         DES["Discrete Event Packet Tracer\n(Visualizing traffic spikes, buffer drops)"]
-        Compass["System Compass Radar\n(CAP, SLA, SPOF Detection, Throughput)"]
+        Compass["System Compass Radar\n(CAP, SLA, SPOF Detection, Throughput, Ctrl + /)"]
         
         Palette --> Canvas
         Canvas --> DES
@@ -262,27 +272,32 @@ flowchart TD
     Progression --> Workspace
 ```
 
-#### Key Capabilities:
+#### Key Capabilities & 31-Scenario Catalog:
 - **8 L0 Micro-Katas:** Bite-sized interactive challenges focusing on single architectural decisions (e.g., configuring Redis Sentinel vs Cluster, setting Kafka partition keys, designing compound indexes).
-- **L1 Capacity Estimation Math Coach:** Socratic interactive coach validating RPS, IOPS, and storage with a $\pm 25\%$ tolerance window before canvas work begins.
-- **L2 Faded Archetype Scaffolding:** Partially completed topologies where candidates fix Single Points of Failure (SPOFs), place write-back buffers, or configure cross-region replication.
-- **System Compass Radar:** Real-time architectural heuristic analyzer scoring the candidate's design on Reliability, Scalability, Cost Efficiency, Latency, and Security.
+- **L1 Capacity Estimation Math Coach:** Socratic interactive coach validating RPS, IOPS, network throughput, and storage with a $\pm 25\%$ tolerance window before canvas work begins.
+- **4 L2 Faded Archetype Scaffolding:** Partially completed topologies where candidates identify and remediate Single Points of Failure (SPOFs), insert write-back buffers, or configure multi-region data replication.
+- **18 L3 Combat Industrial Scenarios:** End-to-end full canvas designs covering Tier-1 interview classics (TinyURL, Distributed Rate Limiter, Ride Hailing Dispatch, Flash Sale Engine, Collaborative Text Editor).
+- **System Design Compass (`Ctrl + /`):** Real-time architectural heuristic analyzer scoring the candidate's design on Reliability, Scalability, Cost Efficiency, Latency, and Security.
 
 ---
 
-### 3.5. Pillar 5: Production Incident Triage Studio
+### 3.5. Pillar 5: Production Incident Triage Studio & Bug-Hunt Arena
 
-The Production Incident Triage Studio equips engineers with realistic SRE troubleshooting reflexes through real-world thread dumps, heap snapshots, and a Socratic Incident Commander.
+The platform cleanly separates diagnostic problem-solving into two dedicated, non-overlapping environments:
+1. **«Баг-Хант» (Bug Hunt Arena — 70 Katas):** Rapid visual code-inspection katas focused on identifying concurrency bugs, off-by-one errors, and memory leaks in specific Java methods.
+2. **«Триаж Аварий» (Incident Triage Studio — 22 Scenarios):** Full-scale SRE post-mortem environments providing raw JVM thread dumps, heap summaries, flamegraphs, and a Socratic Incident Commander.
 
 ```mermaid
 flowchart LR
-    subgraph Incidents ["🚨 15 Production Incident Scenarios"]
+    subgraph Incidents ["🚨 22 Production Incident Scenarios"]
         I1["High CPU / Infinite Loop"]
         I2["Thread Pool Starvation"]
         I3["Project Loom Carrier Pinning"]
         I4["Metaspace OOM / ClassLoader Leak"]
         I5["HikariCP Connection Pool Exhaustion"]
         I6["Circular DB Deadlock (SKIP LOCKED missing)"]
+        I7["Kafka Consumer Group Rebalance Storm"]
+        I8["Epoll Socket Leak in Netty Gateway"]
     end
 
     subgraph Tooling ["🛠️ Diagnostic Workstation"]
@@ -290,6 +305,7 @@ flowchart LR
         Tarjan["🔍 Tarjan SCC Cycle Detector\n(Finds circular 'waiting to lock <0x...>' in <1ms)"]
         MDV["💾 Memory & Heap Profiler\n(Dominator Tree, Retained Size, GC Roots)"]
         SQL["⏱️ Slow Query & Hikari Monitor\n(Active, Idle, Pending connections)"]
+        Compass["🧭 Triage Compass Radar\n(MTTA, MTTR, Blast Radius, Root Cause, Ctrl + /)"]
     end
 
     subgraph Commander ["🧑‍✈️ Socratic Incident Commander"]
@@ -306,6 +322,7 @@ flowchart LR
 #### Key Components:
 - **Tarjan Strongly Connected Components (SCC) Engine:** Automatically extracts circular wait graphs from thread dump raw text to pinpoint deadlock origins in $<1\text{ms}$.
 - **Thread & Memory Tree Visualizer:** Interactive hierarchical views replacing impenetrable 50,000-line log files.
+- **Triage Compass (`Ctrl + /`):** Visual diagnostic radar plotting MTTA/MTTR velocity, blast radius containment, cycle resolution, and root cause isolation.
 - **Dual-Phase Rubric:** Evaluates candidates separately on **Time-to-Mitigate** (stopping customer bleeding) and **Time-to-Resolve** (identifying underlying software flaw).
 
 ---
@@ -339,7 +356,7 @@ $$\text{FinalScore} = 0.40 \cdot S_{\text{correctness}} + 0.20 \cdot S_{\text{co
 
 ### 3.7. Pillar 7: Guided Academy Studio
 
-The Guided Academy Studio synthesizes candidate progress across all 8 arenas into a personalized 25-step Senior Spring Career Sprint, managed by a closed-loop FSRS-5 Knowledge Graph.
+The Guided Academy Studio orchestrates candidate progression across all technical arenas into **8 structured, level-calibrated roadmaps totaling 177 verified steps**, powered by a closed-loop FSRS-5 Knowledge Graph and a Socratic Next Best Action Recommender with Cognitive Interleaving.
 
 ```mermaid
 graph TD
@@ -366,15 +383,43 @@ graph TD
         FIRe --> Knapsack
     end
 
-    subgraph Curriculum ["🎓 25-Step Senior Sprint"]
-        Step1["Step 1: Virtual Threads & Memory"] --> Step2["Step 2: Testing & Pitest Arena"]
-        Step2 --> Step3["Step 3: Spring Transaction Proxy"]
-        Step3 --> StepN["... -> Step 25: Staff Architecture Defense"]
+    subgraph Tracks ["🎓 8 Calibrated Roadmaps (177 Steps Total)"]
+        R1["1. Senior BigTech Sprint (25 steps)"]
+        R2["2. Staff/Principal Track (60 steps)"]
+        R3["3. FinTech & HFT Systems (30 steps)"]
+        R4["4. Java 21 Concurrency Master (15 steps)"]
+        R5["5. Spring Boot 3.4 Internals (20 steps)"]
+        R6["6. Incident Triage & SRE (15 steps)"]
+        R7["7. Distributed System Design (20 steps)"]
+        R8["8. Testing & Quality Engineering (20 steps)"]
+    end
+
+    subgraph NBA ["🧭 Socratic Next Best Action (Cognitive Interleaving)"]
+        API["GET /api/roadmaps/next-best-step"]
+        Interleave["Cognitive Interleaving\n(Cycles Machine Coding -> HLD -> Triage -> Oral Defense)"]
+        Breadcrumb["academyBreadcrumbContext\n(Seamless cross-arena jumping & 1-click return)"]
+        
+        API --> Interleave --> Breadcrumb
     end
 
     KG <--> FSRS
-    FSRS --> Curriculum
+    FSRS --> Tracks
+    Tracks --> NBA
 ```
+
+#### The 8 Guided Roadmaps:
+1. **Senior BigTech Sprint (25 steps):** High-yield fast-track covering Java 21 virtual threads, Spring proxy gotchas, BigTech LLD archetypes, and System Design fundamentals.
+2. **Staff/Principal Architecture & Leadership (60 steps):** Rigorously rebalanced flagship curriculum (23 System Design, 16 Machine Coding, 9 Incident Triage, 5 Oral Defense, 4 Architecture Invariants, 2 Transactions Lab, 1 Mutation Kata).
+3. **FinTech & High-Frequency Systems (30 steps):** Double-entry ledgers, lock-free ring buffers, idempotency, zero-double precision, and high-load payment gateways.
+4. **Java 21 Concurrency & Systems Master (15 steps):** Project Loom, carrier pinning elimination, ScopedValue, lock-free contention, and custom ThreadPoolExecutors.
+5. **Spring Boot 3.4 & Framework Internals (20 steps):** CGLIB proxy bypass, transaction rollback rules, `@MockitoBean` isolation, and auto-configuration lifecycle.
+6. **Production Incident Triage & SRE (15 steps):** Thread pool starvation, Tarjan SCC deadlock resolution, heap dominator trees, and P99 latency mitigation.
+7. **Distributed System Design Specialist (20 steps):** Math estimation coach, faded architectures, partition strategies, and multi-region high availability.
+8. **Testing & Quality Engineering (20 steps):** Boundary edge testing, Mockito verification hygiene, and Pitest mutation hunting.
+
+#### Socratic Next Best Action Recommender (`GET /api/roadmaps/next-best-step`):
+- **Cognitive Interleaving:** Deliberately rotates practice modalities (Machine Coding $\to$ System Design $\to$ Incident Triage $\to$ Mock Defense) to prevent cognitive tunnel vision and maximize long-term neurological retention.
+- **Cross-Arena Breadcrumb Envelope (`academyBreadcrumbContext`):** Automatically injects the active roadmap context into any target arena, allowing seamless 1-click return upon task completion.
 
 #### Mathematical Formulation:
 - **Retention Probability:**
@@ -420,6 +465,27 @@ sequenceDiagram
 - **Two-Host Dynamic Dialogue:** Host A plays the curious interviewer posing edge-case questions; Host B plays the seasoned Staff Architect explaining the JVM/Spring internals.
 - **Synchronized Transcripts:** Live karaoke-style highlight tracking along the audio playback timeline.
 - **Anki-Style Spaced Repetition:** Flashcard evaluation (Again, Hard, Good, Easy) directly adjusting node stability in the FSRS-5 engine.
+
+---
+
+### 3.9. The 4 Interactive Technical Compasses (`Ctrl + /`)
+
+To eliminate aimless trial-and-error, each technical arena provides an interactive radar compass triggered universally via `Ctrl + /` (or `Cmd + /` on macOS) or the floating compass badge:
+
+```mermaid
+flowchart TD
+    subgraph Compasses ["🧭 The 4 Technical Compasses (Ctrl + /)"]
+        TC["🧪 Testing Compass\n(Testing & Mutation Arena)\n• Mutation Kill Rate (%)\n• Boundary Deficit\n• Mocking Hygiene (@MockitoBean)\n• Assertion Density"]
+        TxC["⚡ Transaction Compass\n(Spring Transactions Lab)\n• Proxy Interception Safety\n• Rollback Rule Correctness\n• Propagation Hazard Index\n• HikariCP Deadlock Margin"]
+        SDC["📐 System Design Compass\n(System Design Arena)\n• Reliability (CAP/PACELC)\n• Scalability & SPOF Elimination\n• Latency (P99 / Caching)\n• Cost & Resource Efficiency"]
+        ITC["🚨 Incident Triage Compass\n(Incident Triage Studio)\n• MTTA / MTTR Mitigation Velocity\n• Blast Radius Containment\n• Tarjan SCC Deadlock Resolution\n• Deductive RCA Hygiene"]
+    end
+```
+
+1. **Testing Compass:** Diagnoses test suites against mutation engines, highlighting surviving mutant vulnerabilities and missing boundary tests without revealing the solution.
+2. **Transaction Compass:** Evaluates transactional topologies against Spring AOP proxy rules, checked exception rollback semantics, and HikariCP connection starvation formulas ($P \ge T \times (D - 1) + 1$).
+3. **System Design Compass:** Evaluates Cytoscape architectural DAGs against distributed trade-offs (CAP theorem, single points of failure, partition keys, read/write bottlenecks).
+4. **Incident Triage Compass:** Scores SRE post-mortem workflows, penalizing premature speculation and rewarding rapid traffic shedding followed by systematic thread/heap graph isolation.
 
 ---
 
@@ -530,6 +596,15 @@ erDiagram
         float difficulty
         datetime last_reviewed
         datetime due_date
+    }
+
+    GUIDED_ROADMAPS {
+        string id PK
+        string title
+        string target_level
+        int total_steps
+        json steps_json
+        json metadata_json
     }
 ```
 

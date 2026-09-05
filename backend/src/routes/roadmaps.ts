@@ -28,12 +28,19 @@ interface UserEntityProgress {
 
 function getUserEntityProgress(userId: string): UserEntityProgress {
   try {
-    // 1. Coding challenges (LLD & Testing Katas)
+    // 1. Coding challenges (LLD & Testing Katas) with dual ID <-> Slug aliasing
     const codeRows = db.prepare(`
-      SELECT challenge_id FROM coding_submissions 
-      WHERE user_id = ? AND (status = 'COMPLETED' OR status = 'PASSED' OR (score IS NOT NULL AND score >= 70))
+      SELECT s.challenge_id, c.id AS ch_id, c.slug AS ch_slug
+      FROM coding_submissions s
+      LEFT JOIN coding_challenges c ON (s.challenge_id = c.id OR s.challenge_id = c.slug)
+      WHERE s.user_id = ? AND (s.status = 'COMPLETED' OR s.status = 'PASSED' OR (s.score IS NOT NULL AND s.score >= 70))
     `).all(userId) as any[];
-    const completedChallenges = new Set<string>(codeRows.map(r => r.challenge_id));
+    const completedChallenges = new Set<string>();
+    for (const r of codeRows) {
+      if (r.challenge_id) completedChallenges.add(r.challenge_id);
+      if (r.ch_id) completedChallenges.add(r.ch_id);
+      if (r.ch_slug) completedChallenges.add(r.ch_slug);
+    }
 
     // 2. Production triage incidents
     const triageRows = db.prepare(`

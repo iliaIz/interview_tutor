@@ -238,6 +238,87 @@ export const PracticeCatalog: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Arena Switcher Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-pastel-border/60">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategory('spring_transactions');
+              setSelectedArchetype('all');
+            }}
+            className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between group ${
+              selectedCategory === 'spring_transactions'
+                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-xs'
+                : 'bg-pastel-bg/50 hover:bg-white border-pastel-border/70'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-pastel-text block group-hover:text-blue-700 transition">
+                  Spring Transactions Lab
+                </span>
+                <span className="text-[11px] text-pastel-muted">16 сценариев L0–L3</span>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-pastel-muted group-hover:text-blue-600 transition group-hover:translate-x-0.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategory('testing_mutation');
+              setSelectedArchetype('all');
+            }}
+            className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between group ${
+              selectedCategory === 'testing_mutation'
+                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-300 shadow-xs'
+                : 'bg-pastel-bg/50 hover:bg-white border-pastel-border/70'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <Bug className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-pastel-text block group-hover:text-emerald-700 transition">
+                  Testing & Mutation Arena
+                </span>
+                <span className="text-[11px] text-pastel-muted">42 каты L0–L3</span>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-pastel-muted group-hover:text-emerald-600 transition group-hover:translate-x-0.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategory('lld_bigtech');
+              setSelectedArchetype('all');
+            }}
+            className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between group ${
+              selectedCategory === 'lld_bigtech' || selectedCategory === 'lld_fintech' || selectedCategory === 'lld_concurrency'
+                ? 'bg-gradient-to-r from-purple-50 to-rose-50 border-purple-300 shadow-xs'
+                : 'bg-pastel-bg/50 hover:bg-white border-pastel-border/70'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                <Code2 className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-pastel-text block group-hover:text-purple-700 transition">
+                  Machine Coding LLD
+                </span>
+                <span className="text-[11px] text-pastel-muted">35 задач BigTech & FinTech</span>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-pastel-muted group-hover:text-purple-600 transition group-hover:translate-x-0.5" />
+          </button>
+        </div>
+
         {/* 2. Search & Category Filter Bar */}
         <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Category Pills */}

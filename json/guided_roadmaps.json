@@ -1474,9 +1474,9 @@
       },
       {
         "stepNumber": 20,
-        "title": "Concurrent Data Structures: Lock-Free Queues & CAS Loops",
+        "title": "Lock-Free RingBuffer (CAS & Contention)",
         "milestoneId": "m5",
-        "seniorBarConcept": "Неблокирующие структуры данных, атомарные инструкции CPU (Compare-And-Swap — CAS), алгоритмы Michael-Scott Queue, проблема ABA и решение через AtomicStampedReference.",
+        "seniorBarConcept": "Lock-free ring buffer на базе AtomicReferenceArray и CAS без блокировок",
         "interviewTrap": "Написание бесконечного CAS-цикла без вызова Thread.onSpinWait(), приводящее к избыточной загрузке ядра CPU.",
         "estimatedMinutes": 25,
         "coreRequirements": {
@@ -1507,7 +1507,7 @@
           "senior_step_19"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "lld-lock-free-stack",
+        "targetScenarioId": "kata_test_lock_free_ringbuffer_contention",
         "domain": "core_java",
         "pedagogicalRationale": "Ключевой шаг L5 BigTech Sprint: 'Concurrent Data Structures: Lock-Free Queues & CAS Loops' с фокусом на практическую отработку в целевой арене machine_coding."
       },
@@ -1737,9 +1737,9 @@
     "steps": [
       {
         "stepNumber": 1,
-        "title": "HotSpot Continuations & C++ ContinuationEntry Layout",
+        "title": "Java 21 Memory Model & Hardware Ergonomics",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: HotSpot Continuations & C++ ContinuationEntry Layout",
+        "seniorBarConcept": "JMM Happens-Before, MESI/MOESI cache coherence, CPU memory barriers, False Sharing",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1763,18 +1763,18 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #1: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "theory",
+        "targetScenarioId": null,
+        "domain": "core_java",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене core_java (JMM Happens-Before, MESI/MOESI cache coherence, CPU memory barriers, False Shari...)"
       },
       {
         "stepNumber": 2,
-        "title": "JIT C2 Compiler Inlining, Escape Analysis & Scalar Replacement",
+        "title": "Lock-Free Ring Buffer (CAS & Contention)",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: JIT C2 Compiler Inlining, Escape Analysis & Scalar Replacement",
+        "seniorBarConcept": "CAS AtomicReferenceArray, Cacheline Padding, LMAX Disruptor",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1798,20 +1798,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_1"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
+        "targetArena": "testing_mutation",
+        "targetScenarioId": "kata_test_lock_free_ringbuffer_contention",
         "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #2: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (CAS AtomicReferenceArray, Cacheline Padding, LMAX Disruptor...)"
       },
       {
         "stepNumber": 3,
-        "title": "Foreign Function & Memory API (FFM JEP 454) vs JNI Overhead",
+        "title": "Read-Write Lock with Writer Preference",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Foreign Function & Memory API (FFM JEP 454) vs JNI Overhead",
+        "seniorBarConcept": "Предотвращение Starvation писателей под преобладающей нагрузкой читателей",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1835,20 +1835,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_2"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
+        "targetScenarioId": "lld-read-write-lock-writer-pref",
         "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #3: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Предотвращение Starvation писателей под преобладающей нагрузкой читателей...)"
       },
       {
         "stepNumber": 4,
-        "title": "Mechanical Sympathy: L1/L2/L3 Cache Line Invalidation & MOESI Protocol",
+        "title": "Partitioning & Consistent Hashing",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Mechanical Sympathy: L1/L2/L3 Cache Line Invalidation & MOESI Protocol",
+        "seniorBarConcept": "Проектирование алгоритма консистентного хэширования с виртуальными узлами",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1872,20 +1872,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_3"
         ],
         "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-04",
+        "targetScenarioId": "hld-micro-07",
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #4: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Проектирование алгоритма консистентного хэширования с виртуальными узлами...)"
       },
       {
         "stepNumber": 5,
-        "title": "Off-Heap Direct ByteBuffer Memory Management & Netty Leak Forensics",
+        "title": "Virtual Thread Carrier Pinning Triage",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Off-Heap Direct ByteBuffer Memory Management & Netty Leak Forensics",
+        "seniorBarConcept": "Диагностика захвата OS-потока в synchronized блоках под нагрузкой",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1909,20 +1909,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_4"
         ],
         "targetArena": "incident_triage",
-        "targetScenarioId": "triage-incident-10",
-        "domain": "incident_triage",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #5: глубокий анализ системных инвариантов и компромиссов в incident_triage."
+        "targetScenarioId": "triage-incident-03",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Диагностика захвата OS-потока в synchronized блоках под нагрузкой...)"
       },
       {
         "stepNumber": 6,
-        "title": "Generational ZGC Colored Pointers & Sub-Millisecond STW Mechanics",
+        "title": "Real-Time Concurrent Leaderboard",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Generational ZGC Colored Pointers & Sub-Millisecond STW Mechanics",
+        "seniorBarConcept": "Высококонкурентный скоринг игроков на основе ConcurrentSkipListMap",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1946,20 +1946,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_5"
         ],
-        "targetArena": "incident_triage",
-        "targetScenarioId": "triage-incident-12",
-        "domain": "incident_triage",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #6: глубокий анализ системных инвариантов и компромиссов в incident_triage."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-concurrent-leaderboard",
+        "domain": "concurrency",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Высококонкурентный скоринг игроков на основе ConcurrentSkipListMap...)"
       },
       {
         "stepNumber": 7,
-        "title": "Async-Profiler Flame Graphs & Kernel Syscall Latency Analysis",
+        "title": "Distributed Deduplication & Idempotency",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Async-Profiler Flame Graphs & Kernel Syscall Latency Analysis",
+        "seniorBarConcept": "Двухуровневый дедупликатор на Redis/Bloom Filter и реляционном персисте",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -1983,20 +1983,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_6"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #7: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-micro-04",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Двухуровневый дедупликатор на Redis/Bloom Filter и реляционном персисте...)"
       },
       {
         "stepNumber": 8,
-        "title": "Class Data Sharing (CDS) & Ahead-Of-Time (AOT) Spring Boot 3.3 Engine",
+        "title": "Distributed Idempotency Processor",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Class Data Sharing (CDS) & Ahead-Of-Time (AOT) Spring Boot 3.3 Engine",
+        "seniorBarConcept": "SHA-256 хэширование payload, atomic token reservation, idempotency TTL",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2020,20 +2020,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_7"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #8: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-idempotency-key-processor",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (SHA-256 хэширование payload, atomic token reservation, idempotency TTL...)"
       },
       {
         "stepNumber": 9,
-        "title": "Bytecode Instrumentation, Java Agents & ByteBuddy In-Flight Rewriting",
+        "title": "Global URL Shortener & Analytics",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Bytecode Instrumentation, Java Agents & ByteBuddy In-Flight Rewriting",
+        "seniorBarConcept": "Балансировка 100k RPS, распределенный Base62 генератор, репликация",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2057,20 +2057,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_8"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #9: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-01",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Балансировка 100k RPS, распределенный Base62 генератор, репликация...)"
       },
       {
         "stepNumber": 10,
-        "title": "Disruptor RingBuffer Lock-Free Architecture & Memory Barriers",
+        "title": "Thread Pool Starvation & Queue Overflow",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Disruptor RingBuffer Lock-Free Architecture & Memory Barriers",
+        "seniorBarConcept": "Аварийный триаж переполнения блокирующей очереди и каскадного отказа",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2094,20 +2094,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_9"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #10: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-02",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Аварийный триаж переполнения блокирующей очереди и каскадного отказа...)"
       },
       {
         "stepNumber": 11,
-        "title": "CAS Contention Elimination: Striped64, LongAdder & Cache Padding",
+        "title": "Double-Entry Accounting Ledger",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: CAS Contention Elimination: Striped64, LongAdder & Cache Padding",
+        "seniorBarConcept": "Упорядоченные блокировки по ID счетов (Deadlock-free transfer), Banker’s rounding",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2131,20 +2131,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_10"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-11",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #11: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-double-entry-ledger",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (Упорядоченные блокировки по ID счетов (Deadlock-free transfer), Banker’s roundin...)"
       },
       {
         "stepNumber": 12,
-        "title": "Scoped Values (JEP 446) & Structured Concurrency Under 100k Virtual Threads",
+        "title": "High-Throughput Rate Limiter Service",
         "milestoneId": "sm1",
-        "seniorBarConcept": "Углубленная архитектура JVM и ядра ОС: Scoped Values (JEP 446) & Structured Concurrency Under 100k Virtual Threads",
+        "seniorBarConcept": "Многоуровневый Token Bucket + Sliding Window Counter на кластере Redis",
         "interviewTrap": "Попытка оптимизации алгоритмов без учета аппаратных эффектов L1/L3 кэшей и барьеров StoreLoad.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2168,20 +2168,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_11"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #12: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-02",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Многоуровневый Token Bucket + Sliding Window Counter на кластере Redis...)"
       },
       {
         "stepNumber": 13,
-        "title": "Raft Consensus Protocol: Leader Election & Log Compaction",
+        "title": "Distributed Rate Limiter Core",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Raft Consensus Protocol: Leader Election & Log Compaction",
+        "seniorBarConcept": "Алгоритм Sliding Window Log с минимизацией памяти и блокировок",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2205,20 +2205,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_12"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-13",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #13: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-rate-limiter",
+        "domain": "concurrency",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Алгоритм Sliding Window Log с минимизацией памяти и блокировок...)"
       },
       {
         "stepNumber": 14,
-        "title": "Split-Brain Prevention, Fencing Tokens & Epoch Invariants",
+        "title": "Faded Architecture: E-Commerce Checkout",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Split-Brain Prevention, Fencing Tokens & Epoch Invariants",
+        "seniorBarConcept": "Устранение SPOF и организация очередей заказов в отказоустойчивом кластере",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2242,20 +2242,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_13"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #14: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-faded-01",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Устранение SPOF и организация очередей заказов в отказоустойчивом кластере...)"
       },
       {
         "stepNumber": 15,
-        "title": "PostgreSQL Shared Buffers, WAL Flush & Recovery Internals",
+        "title": "Socratic Defense: Concurrency & Transaction Boundaries",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: PostgreSQL Shared Buffers, WAL Flush & Recovery Internals",
+        "seniorBarConcept": "Устная защита выбора механизмов синхронизации перед ИИ Bar-Raiser",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2279,20 +2279,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_14"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
+        "targetArena": "oral_interview",
+        "targetScenarioId": null,
         "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #15: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Устная защита выбора механизмов синхронизации перед ИИ Bar-Raiser...)"
       },
       {
         "stepNumber": 16,
-        "title": "PostgreSQL Serializable Snapshot Isolation (SSI) & SIREAD Lock Escalation",
+        "title": "Distributed Transactions & 2PC vs SAGA",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: PostgreSQL Serializable Snapshot Isolation (SSI) & SIREAD Lock Escalation",
+        "seniorBarConcept": "Dual-Write Problem, Outbox Pattern, TCC (Try-Confirm-Cancel), Идемпотентность компенсирующих транзакций",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2316,20 +2316,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_15"
         ],
-        "targetArena": "transactions",
-        "targetScenarioId": "propagation_required_vs_requires_new",
-        "domain": "transactions",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #16: глубокий анализ системных инвариантов и компромиссов в transactions."
+        "targetArena": "theory",
+        "targetScenarioId": null,
+        "domain": "databases",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене databases (Dual-Write Problem, Outbox Pattern, TCC (Try-Confirm-Cancel), Идемпотентность ко...)"
       },
       {
         "stepNumber": 17,
-        "title": "Distributed SQL Spanner / CockroachDB: TrueTime vs Hybrid Logical Clocks",
+        "title": "Two-Phase Compensating Saga",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Distributed SQL Spanner / CockroachDB: TrueTime vs Hybrid Logical Clocks",
+        "seniorBarConcept": "Моделирование распределенной Саги с откатами через компенсирующие действия",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2353,20 +2353,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_16"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #17: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "transactions",
+        "targetScenarioId": "distributed_saga_compensating_actions",
+        "domain": "databases",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене databases (Моделирование распределенной Саги с откатами через компенсирующие действия...)"
       },
       {
         "stepNumber": 18,
-        "title": "Consistent Hashing Ring with Virtual Nodes & Bounded-Loads Balancing",
+        "title": "HikariCP Pool Starvation Deadlock",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Consistent Hashing Ring with Virtual Nodes & Bounded-Loads Balancing",
+        "seniorBarConcept": "Расчет пула соединений по формуле Вулдриджа под вложенными транзакциями",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2390,20 +2390,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_17"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #18: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "transactions",
+        "targetScenarioId": "hikaricp_pool_deadlock",
+        "domain": "databases",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене databases (Расчет пула соединений по формуле Вулдриджа под вложенными транзакциями...)"
       },
       {
         "stepNumber": 19,
-        "title": "Distributed Locking Redlock vs ZooKeeper/etcd Quorum Trade-offs",
+        "title": "Transactional Outbox & Poller Engine",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Distributed Locking Redlock vs ZooKeeper/etcd Quorum Trade-offs",
+        "seniorBarConcept": "Надежная доставка событий в Kafka через Debezium CDC / Poller без дубликатов",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2427,20 +2427,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_18"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #19: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-transactional-outbox",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (Надежная доставка событий в Kafka через Debezium CDC / Poller без дубликатов...)"
       },
       {
         "stepNumber": 20,
-        "title": "Two-Phase Commit (2PC) vs Saga Orchestration Failure Modes",
+        "title": "Distributed KV Store & Quorum Consensus",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Two-Phase Commit (2PC) vs Saga Orchestration Failure Modes",
+        "seniorBarConcept": "Кворумное чтение и запись (W+R>N), векторные часы, антиэнтропия",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2464,20 +2464,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_19"
         ],
-        "targetArena": "transactions",
-        "targetScenarioId": "distributed_saga_compensating_actions",
-        "domain": "transactions",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #20: глубокий анализ системных инвариантов и компромиссов в transactions."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-03",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Кворумное чтение и запись (W+R>N), векторные часы, антиэнтропия...)"
       },
       {
         "stepNumber": 21,
-        "title": "Deterministic Double-Entry Financial Ledger Design with Banker's Rounding",
+        "title": "Metaspace OOM & ClassLoader Leak",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Deterministic Double-Entry Financial Ledger Design with Banker's Rounding",
+        "seniorBarConcept": "Расследование утечки метаспейса динамических прокси и CGLIB генераторов",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2501,20 +2501,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_20"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-01",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #21: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-04",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Расследование утечки метаспейса динамических прокси и CGLIB генераторов...)"
       },
       {
         "stepNumber": 22,
-        "title": "CQRS & Event Sourcing with Snapshotting and Deterministic Replay",
+        "title": "Smart Payment Routing & Fallback Engine",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: CQRS & Event Sourcing with Snapshotting and Deterministic Replay",
+        "seniorBarConcept": "Динамический выбор платежного шлюза по latency, success rate и fallback",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2538,20 +2538,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_21"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #22: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-payment-routing-engine",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (Динамический выбор платежного шлюза по latency, success rate и fallback...)"
       },
       {
         "stepNumber": 23,
-        "title": "Transactional Outbox with Debezium CDC and Exactly-Once Guarantees",
+        "title": "Event-Driven Notification Platform",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Transactional Outbox with Debezium CDC and Exactly-Once Guarantees",
+        "seniorBarConcept": "Миллиарды пуш-уведомлений, приоритетные очереди, circuit breaker на SMS шлюзы",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2575,20 +2575,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_22"
         ],
-        "targetArena": "transactions",
-        "targetScenarioId": "write_skew_and_outbox",
-        "domain": "transactions",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #23: глубокий анализ системных инвариантов и компромиссов в transactions."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-04",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Миллиарды пуш-уведомлений, приоритетные очереди, circuit breaker на SMS шлюзы...)"
       },
       {
         "stepNumber": 24,
-        "title": "Multi-Master Active-Active Database Replication & Conflict Resolution",
+        "title": "Circular Database Deadlock",
         "milestoneId": "sm2",
-        "seniorBarConcept": "Распределенная согласованность и транзакционные хранилища: Multi-Master Active-Active Database Replication & Conflict Resolution",
+        "seniorBarConcept": "Триаж взаимных блокировок транзакций PostgreSQL при обновлении связанных строк",
         "interviewTrap": "Игнорирование сетевых асимметричных разделений (Network Partitions) и фантомных записей.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2612,20 +2612,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_23"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #24: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-06",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Триаж взаимных блокировок транзакций PostgreSQL при обновлении связанных строк...)"
       },
       {
         "stepNumber": 25,
-        "title": "Kafka KRaft Consensus Metadata Engine vs ZooKeeper Cluster",
+        "title": "Notification Deduplication Engine",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Kafka KRaft Consensus Metadata Engine vs ZooKeeper Cluster",
+        "seniorBarConcept": "24-часовая дедупликация и скользящие окна подавления спама",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2649,20 +2649,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_24"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-05",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #25: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-notification-filter",
+        "domain": "bigtech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене bigtech (24-часовая дедупликация и скользящие окна подавления спама...)"
       },
       {
         "stepNumber": 26,
-        "title": "Kafka Zero-Copy sendfile() OS Kernel Transfer Mechanics",
+        "title": "Distributed Web Crawler & URL Frontier",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Kafka Zero-Copy sendfile() OS Kernel Transfer Mechanics",
+        "seniorBarConcept": "Архитектура распределенного краулера, политесс, распределение очередей по доменам",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2686,20 +2686,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_25"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #26: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-05",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Архитектура распределенного краулера, политесс, распределение очередей по домена...)"
       },
       {
         "stepNumber": 27,
-        "title": "Kafka Cooperative Sticky Assignor & Dynamic Rebalance Protocols",
+        "title": "Faded Architecture: Real-Time Auction",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Kafka Cooperative Sticky Assignor & Dynamic Rebalance Protocols",
+        "seniorBarConcept": "Устранение задержек и консистентность ставок под пиковой нагрузкой",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2723,20 +2723,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_26"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #27: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-faded-02",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Устранение задержек и консистентность ставок под пиковой нагрузкой...)"
       },
       {
         "stepNumber": 28,
-        "title": "Kafka Exactly-Once Semantics (EOS v2) & Transaction Coordinator",
+        "title": "Distributed Fenced Lock Simulation",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Kafka Exactly-Once Semantics (EOS v2) & Transaction Coordinator",
+        "seniorBarConcept": "Монотонно возрастающие токены fencing, аренда блокировки, heartbeat",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2760,20 +2760,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_27"
         ],
-        "targetArena": "transactions",
-        "targetScenarioId": "propagation_required_vs_requires_new",
-        "domain": "transactions",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #28: глубокий анализ системных инвариантов и компромиссов в transactions."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-fenced-lock-heartbeat",
+        "domain": "concurrency",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Монотонно возрастающие токены fencing, аренда блокировки, heartbeat...)"
       },
       {
         "stepNumber": 29,
-        "title": "Event-Driven Out-of-Order Processing: Flink Watermarks & Tumbling Windows",
+        "title": "Kafka Consumer Lag & Rebalance Storm",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Event-Driven Out-of-Order Processing: Flink Watermarks & Tumbling Windows",
+        "seniorBarConcept": "Триаж каскадного ребаланса партиций Kafka из-за долгого цикла обработки",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2797,20 +2797,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_28"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-09",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #29: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-07",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Триаж каскадного ребаланса партиций Kafka из-за долгого цикла обработки...)"
       },
       {
         "stepNumber": 30,
-        "title": "Schema Evolution: Avro, Protobuf & Schema Registry Compatibility Rules",
+        "title": "Socratic Defense: HighLoad Fault Tolerance",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Schema Evolution: Avro, Protobuf & Schema Registry Compatibility Rules",
+        "seniorBarConcept": "Устная защита стратегий деградации, Graceful Shutdown и изоляции сбоев",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2834,20 +2834,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_29"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #30: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "oral_interview",
+        "targetScenarioId": null,
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Устная защита стратегий деградации, Graceful Shutdown и изоляции сбоев...)"
       },
       {
         "stepNumber": 31,
-        "title": "Multi-Region Active-Active Kafka Cluster Replication (MirrorMaker 2)",
+        "title": "Consensus Algorithms: Raft, Paxos & Gossip",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Multi-Region Active-Active Kafka Cluster Replication (MirrorMaker 2)",
+        "seniorBarConcept": "Leader Election, Log Replication, Split-Brain prevention, Quorum intersection",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2871,20 +2871,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_30"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #31: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "theory",
+        "targetScenarioId": null,
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Leader Election, Log Replication, Split-Brain prevention, Quorum intersection...)"
       },
       {
         "stepNumber": 32,
-        "title": "Kafka Dead Letter Queue (DLQ) & Retry Policy with Backoff Jitter",
+        "title": "Real-Time Collaborative Document Editing",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Kafka Dead Letter Queue (DLQ) & Retry Policy with Backoff Jitter",
+        "seniorBarConcept": "OT (Operational Transformation) vs CRDT, WebSockets mesh, snapshot storage",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2908,20 +2908,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_31"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #32: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-06",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (OT (Operational Transformation) vs CRDT, WebSockets mesh, snapshot storage...)"
       },
       {
         "stepNumber": 33,
-        "title": "High-Throughput Compression: Zstandard vs Snappy in Streaming Pipelines",
+        "title": "Thread-Safe Event Bus with Topic Subscriptions",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: High-Throughput Compression: Zstandard vs Snappy in Streaming Pipelines",
+        "seniorBarConcept": "Высокопроизводительный In-Memory брокер с буферизацией и диспетчеризацией",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2945,20 +2945,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_32"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
+        "targetScenarioId": "lld-event-bus-pub-sub",
         "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #33: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Высокопроизводительный In-Memory брокер с буферизацией и диспетчеризацией...)"
       },
       {
         "stepNumber": 34,
-        "title": "Idempotency Key Deduplication Engine with Redis & Bloom Filters",
+        "title": "HikariCP Leak & Idle-in-Transaction",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Idempotency Key Deduplication Engine with Redis & Bloom Filters",
+        "seniorBarConcept": "Поиск незакрытых соединений в пуле и блокирующих внешних HTTP-вызовов",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -2982,20 +2982,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_33"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #34: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-08",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Поиск незакрытых соединений в пуле и блокирующих внешних HTTP-вызовов...)"
       },
       {
         "stepNumber": 35,
-        "title": "Distributed Rate Limiter: Sliding Window Counter via Redis Lua Scripts",
+        "title": "Video Streaming & Content Delivery Network (CDN)",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Distributed Rate Limiter: Sliding Window Counter via Redis Lua Scripts",
+        "seniorBarConcept": "HLS/DASH чанки, распределенный кэш, Origin Shielding, транскодирование",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3019,20 +3019,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_34"
         ],
         "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-15",
+        "targetScenarioId": "hld-scenario-07",
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #35: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (HLS/DASH чанки, распределенный кэш, Origin Shielding, транскодирование...)"
       },
       {
         "stepNumber": 36,
-        "title": "Real-Time Stream Joining: Temporal Table Joins & State TTL Management",
+        "title": "Tagged Metric Aggregator (P50, P95, P99)",
         "milestoneId": "sm3",
-        "seniorBarConcept": "Потоковая обработка больших данных и брокеры сообщений: Real-Time Stream Joining: Temporal Table Joins & State TTL Management",
+        "seniorBarConcept": "Потоковый расчет процентилей на базе T-Digest / HdrHistogram без OOM",
         "interviewTrap": "Потеря сообщений при сбое брокера из-за некорректного acks=all и min.insync.replicas.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3056,20 +3056,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_35"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #36: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-metric-aggregator-percentiles",
+        "domain": "bigtech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене bigtech (Потоковый расчет процентилей на базе T-Digest / HdrHistogram без OOM...)"
       },
       {
         "stepNumber": 37,
-        "title": "Circuit Breaker, Bulkhead & Rate Limiter Cascading Resilience",
+        "title": "Ride-Sharing Dispatch & Geospatial Tracking",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Circuit Breaker, Bulkhead & Rate Limiter Cascading Resilience",
+        "seniorBarConcept": "QuadTree / Geohash, хранение перемещений водителей, сопоставление поблизости",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3093,20 +3093,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_36"
         ],
         "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-17",
+        "targetScenarioId": "hld-scenario-08",
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #37: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (QuadTree / Geohash, хранение перемещений водителей, сопоставление поблизости...)"
       },
       {
         "stepNumber": 38,
-        "title": "Microservices Graceful Shutdown & Kubernetes SIGTERM Drain Lifecycle",
+        "title": "Long GC Pauses & Old Gen Fragmentation",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Microservices Graceful Shutdown & Kubernetes SIGTERM Drain Lifecycle",
+        "seniorBarConcept": "Анализ GC логов G1/ZGC, настройка регионов и устранение evacuation failure",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3130,20 +3130,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_37"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #38: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-09",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Анализ GC логов G1/ZGC, настройка регионов и устранение evacuation failure...)"
       },
       {
         "stepNumber": 39,
-        "title": "Observability: OpenTelemetry Distributed Tracing & W3C TraceContext",
+        "title": "Subscription Billing Engine with Grace Periods",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Observability: OpenTelemetry Distributed Tracing & W3C TraceContext",
+        "seniorBarConcept": "Периодический биллинг с мягкими grace-периодами, ретраями и вебхуками",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3167,20 +3167,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_38"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #39: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-subscription-billing-engine",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (Периодический биллинг с мягкими grace-периодами, ретраями и вебхуками...)"
       },
       {
         "stepNumber": 40,
-        "title": "Micrometer High-Cardinality Metrics & Prometheus 1.x / VictoriaMetrics",
+        "title": "Stock Exchange Order Book & Matching Engine",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Micrometer High-Cardinality Metrics & Prometheus 1.x / VictoriaMetrics",
+        "seniorBarConcept": "Двусторонний стакан заявок (Limit Order Book), FIFO приоритеты, sub-ms задержки",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3204,20 +3204,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_39"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #40: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-09",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Двусторонний стакан заявок (Limit Order Book), FIFO приоритеты, sub-ms задержки...)"
       },
       {
         "stepNumber": 41,
-        "title": "Multi-Level Caching: L1 In-Memory Caffeine + L2 Distributed Redis",
+        "title": "PostgreSQL Connection Exhaustion & Statement Timeout",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Multi-Level Caching: L1 In-Memory Caffeine + L2 Distributed Redis",
+        "seniorBarConcept": "Падение базы от наплыва медленных запросов, настройка PgBouncer",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3241,20 +3241,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_40"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #41: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-10",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Падение базы от наплыва медленных запросов, настройка PgBouncer...)"
       },
       {
         "stepNumber": 42,
-        "title": "Cache Stampede Protection: XFetch Probabilistic Early Recompute",
+        "title": "Faded Architecture: IoT Telemetry Ingestion",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Cache Stampede Protection: XFetch Probabilistic Early Recompute",
+        "seniorBarConcept": "Проектирование конвейера приема 1M RPS с датчиков без потери данных",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3278,20 +3278,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_41"
         ],
         "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-02",
+        "targetScenarioId": "hld-faded-03",
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #42: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Проектирование конвейера приема 1M RPS с датчиков без потери данных...)"
       },
       {
         "stepNumber": 43,
-        "title": "Zero-Downtime Database Schema Migration (Expand & Contract Pattern)",
+        "title": "Distributed Cron Task Scheduler",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Zero-Downtime Database Schema Migration (Expand & Contract Pattern)",
+        "seniorBarConcept": "Лидер-следящая координация, Cron парсер, распределение задач по нодам",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3315,20 +3315,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_42"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #43: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-task-scheduler-cron",
+        "domain": "bigtech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене bigtech (Лидер-следящая координация, Cron парсер, распределение задач по нодам...)"
       },
       {
         "stepNumber": 44,
-        "title": "Disaster Recovery Topologies: RPO=0 / RTO<30s Multi-DC Active-Passive",
+        "title": "Search Engine Autocomplete & Typeahead",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Disaster Recovery Topologies: RPO=0 / RTO<30s Multi-DC Active-Passive",
+        "seniorBarConcept": "Trie на распределенном кэше, ранжирование по популярности, дедупликация",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3352,20 +3352,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_43"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #44: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-10",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Trie на распределенном кэше, ранжирование по популярности, дедупликация...)"
       },
       {
         "stepNumber": 45,
-        "title": "gRPC vs REST vs GraphQL: Multiplexing, Flow Control & Protobuf Serialization",
+        "title": "Socratic Defense: Forensic Root Cause Analysis",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: gRPC vs REST vs GraphQL: Multiplexing, Flow Control & Protobuf Serialization",
+        "seniorBarConcept": "Устная защита гипотезы аварии и постмортема перед Главным инженером",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3389,20 +3389,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_44"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #45: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "oral_interview",
+        "targetScenarioId": null,
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Устная защита гипотезы аварии и постмортема перед Главным инженером...)"
       },
       {
         "stepNumber": 46,
-        "title": "OAuth2, OIDC & JWT Stateless Security Architecture with JWK Rotation",
+        "title": "Multi-Region Active-Active & Data Sovereignty",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: OAuth2, OIDC & JWT Stateless Security Architecture with JWK Rotation",
+        "seniorBarConcept": "Conflict-Free Replicated Data Types, Cross-Region Latency, GDPR/152-ФЗ, Local Writes",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3426,20 +3426,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_45"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #46: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "theory",
+        "targetScenarioId": null,
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Conflict-Free Replicated Data Types, Cross-Region Latency, GDPR/152-ФЗ, Local Wr...)"
       },
       {
         "stepNumber": 47,
-        "title": "mTLS & Dynamic Certificate Lifecycle Management with SPIFFE/SPIRE",
+        "title": "Distributed Logging & APM Tracing Platform",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: mTLS & Dynamic Certificate Lifecycle Management with SPIFFE/SPIRE",
+        "seniorBarConcept": "OpenTelemetry, ClickHouse / Elasticsearch буферизация, P99 поиск по трейсам",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3463,20 +3463,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_46"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #47: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-11",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (OpenTelemetry, ClickHouse / Elasticsearch буферизация, P99 поиск по трейсам...)"
       },
       {
         "stepNumber": 48,
-        "title": "Chaos Engineering: Automated Fault Injection via Chaos Mesh & Toxiproxy",
+        "title": "E-Commerce Flash Sale & Virtual Waiting Room",
         "milestoneId": "sm4",
-        "seniorBarConcept": "Отказоустойчивость, безопасность и наблюдаемость: Chaos Engineering: Automated Fault Injection via Chaos Mesh & Toxiproxy",
+        "seniorBarConcept": "Очереди ожидания (Virtual Queue), сброс избыточного трафика, защита склада",
         "interviewTrap": "Каскадное падение кластера из-за отсутствия таймаутов и Bulkhead изоляции.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3500,20 +3500,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_47"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #48: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-12",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Очереди ожидания (Virtual Queue), сброс избыточного трафика, защита склада...)"
       },
       {
         "stepNumber": 49,
-        "title": "Infrastructure TCO & FinOps Optimization: Compute, Storage & Network",
+        "title": "Industrial Circuit Breaker State Machine",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Infrastructure TCO & FinOps Optimization: Compute, Storage & Network",
+        "seniorBarConcept": "Состояния CLOSED, OPEN, HALF_OPEN, кольцевой буфер ошибок, concurrency guards",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3537,20 +3537,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_48"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
+        "targetScenarioId": "lld-circuit-breaker-engine",
         "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #49: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене concurrency (Состояния CLOSED, OPEN, HALF_OPEN, кольцевой буфер ошибок, concurrency guards...)"
       },
       {
         "stepNumber": 50,
-        "title": "Architecture Decision Records (ADR) & Trade-off Matrix Formalization",
+        "title": "Real-Time Gaming Leaderboard & Matchmaking",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Architecture Decision Records (ADR) & Trade-off Matrix Formalization",
+        "seniorBarConcept": "Redis Sorted Sets, ELO matchmaking, распределение игровых сессий по регионам",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3574,20 +3574,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_49"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #50: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-13",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Redis Sorted Sets, ELO matchmaking, распределение игровых сессий по регионам...)"
       },
       {
         "stepNumber": 51,
-        "title": "Technical Debt Management & Modernization Roadmap Strategy",
+        "title": "Disaster Recovery & Split-Brain Simulation",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Technical Debt Management & Modernization Roadmap Strategy",
+        "seniorBarConcept": "Расследование рассинхронизации реплик базы данных при изоляции дата-центра",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3611,20 +3611,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_50"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #51: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "incident_triage",
+        "targetScenarioId": "triage-incident-15",
+        "domain": "forensics",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене forensics (Расследование рассинхронизации реплик базы данных при изоляции дата-центра...)"
       },
       {
         "stepNumber": 52,
-        "title": "Engineering Excellence & System Bar-Raiser Interview Protocol",
+        "title": "Social Network Feed Generation (Fan-out on write vs read)",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Engineering Excellence & System Bar-Raiser Interview Protocol",
+        "seniorBarConcept": "Гибридный Fan-out для инфлюенсеров, кэширование таймлайнов пользователей",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3648,20 +3648,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_51"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #52: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-14",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Гибридный Fan-out для инфлюенсеров, кэширование таймлайнов пользователей...)"
       },
       {
         "stepNumber": 53,
-        "title": "Capacity Planning & Forecasting Model for 10x Business Scale",
+        "title": "Expense Sharing & Debt Simplification",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Capacity Planning & Forecasting Model for 10x Business Scale",
+        "seniorBarConcept": "Минимизация транзакций взаимозачетов через графовый алгоритм потоков",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3685,20 +3685,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_52"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-13",
-        "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #53: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "targetArena": "machine_coding",
+        "targetScenarioId": "lld-splitwise-debt-simplification",
+        "domain": "fintech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене fintech (Минимизация транзакций взаимозачетов через графовый алгоритм потоков...)"
       },
       {
         "stepNumber": 54,
-        "title": "High-Frequency Trading Matching Engine: Sub-Microsecond Lock-Free OrderBook",
+        "title": "Distributed Blob Storage & Metadata Service",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: High-Frequency Trading Matching Engine: Sub-Microsecond Lock-Free OrderBook",
+        "seniorBarConcept": "Chunking, Content-Addressable Storage (CAS), репликация метаданных",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3722,20 +3722,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_53"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #54: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-15",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Chunking, Content-Addressable Storage (CAS), репликация метаданных...)"
       },
       {
         "stepNumber": 55,
-        "title": "Geo-Distributed Multi-Region Collaborative Document Engine (CRDT)",
+        "title": "Ad Click Event Aggregation & Fraud Detection",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Geo-Distributed Multi-Region Collaborative Document Engine (CRDT)",
+        "seniorBarConcept": "Лямбда/Каппа архитектура, скользящие окна Flink, защита от скликивания",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3759,20 +3759,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_54"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #55: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-16",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Лямбда/Каппа архитектура, скользящие окна Flink, защита от скликивания...)"
       },
       {
         "stepNumber": 56,
-        "title": "Distributed Ride-Sharing Dispatch & Spatial Indexing (H3 / S2)",
+        "title": "Order Lifecycle State Machine",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Distributed Ride-Sharing Dispatch & Spatial Indexing (H3 / S2)",
+        "seniorBarConcept": "Детерминированный переход состояний заказа с аудит-логом и блокировками",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3796,20 +3796,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_55"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #56: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetScenarioId": "lld-order-state-machine",
+        "domain": "bigtech",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене bigtech (Детерминированный переход состояний заказа с аудит-логом и блокировками...)"
       },
       {
         "stepNumber": 57,
-        "title": "Global S3-Compatible Object Store with Erasure Coding",
+        "title": "Vector Database for AI Semantic Search",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Global S3-Compatible Object Store with Erasure Coding",
+        "seniorBarConcept": "HNSW / IVF-PQ индексация эмбеддингов, шардирование по сходству векторов",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3833,20 +3833,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_56"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #57: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "system_design",
+        "targetScenarioId": "hld-scenario-17",
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (HNSW / IVF-PQ индексация эмбеддингов, шардирование по сходству векторов...)"
       },
       {
         "stepNumber": 58,
-        "title": "Global Payment Ledger with Multi-Currency Double-Entry Invariants",
+        "title": "Distributed Job Queue & Dead Letter Queue (DLQ)",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Global Payment Ledger with Multi-Currency Double-Entry Invariants",
+        "seniorBarConcept": "Гарантии At-least-once, видимость сообщений (Visibility Timeout), DLQ политики",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3870,20 +3870,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_57"
         ],
         "targetArena": "system_design",
         "targetScenarioId": "hld-scenario-18",
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #58: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Гарантии At-least-once, видимость сообщений (Visibility Timeout), DLQ политики...)"
       },
       {
         "stepNumber": 59,
-        "title": "Distributed Task Scheduler for Billions of Scheduled Events",
+        "title": "Staff Bar-Raiser: Trade-offs & Compromises",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Distributed Task Scheduler for Billions of Scheduled Events",
+        "seniorBarConcept": "Устное интервью с Amazon Bar-Raiser: выбор архитектурных компромиссов",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3907,20 +3907,20 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_58"
         ],
-        "targetArena": "machine_coding",
-        "targetScenarioId": "rate-limiter-token-bucket",
-        "domain": "concurrency",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #59: глубокий анализ системных инвариантов и компромиссов в machine_coding."
+        "targetArena": "oral_interview",
+        "targetScenarioId": null,
+        "domain": "system_design",
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Устное интервью с Amazon Bar-Raiser: выбор архитектурных компромиссов...)"
       },
       {
         "stepNumber": 60,
-        "title": "Staff/Principal Bar-Raiser Defense & Comprehensive System Design Review",
+        "title": "Principal Defense: End-to-End System Architecture",
         "milestoneId": "sm5",
-        "seniorBarConcept": "Архитектурная стратегия и Bar-Raiser защита: Staff/Principal Bar-Raiser Defense & Comprehensive System Design Review",
+        "seniorBarConcept": "Комплексная защита архитектуры многорегиональной платформы перед комитетом",
         "interviewTrap": "Защита решения без количественных расчетов TCO и оценки рисков RPO/RTO.",
         "estimatedMinutes": 30,
         "coreRequirements": {
@@ -3944,14 +3944,14 @@
           "Защита Capacity Plan и расчет TCO инфраструктуры"
         ],
         "crossCourseLinks": [],
-        "requiredForGrade": "L6",
+        "requiredForGrade": "L6/L7",
         "prerequisiteStepIds": [
           "staff_step_59"
         ],
-        "targetArena": "system_design",
-        "targetScenarioId": "hld-scenario-20",
+        "targetArena": "oral_interview",
+        "targetScenarioId": null,
         "domain": "system_design",
-        "pedagogicalRationale": "Staff/Principal Bar-Raiser шаг #60: глубокий анализ системных инвариантов и компромиссов в system_design."
+        "pedagogicalRationale": "Развивает компетенции Staff/Principal инженера в домене system_design (Комплексная защита архитектуры многорегиональной платформы перед комитетом...)"
       }
     ]
   },
@@ -4130,9 +4130,9 @@
       },
       {
         "stepNumber": 5,
-        "title": "Deadlock-Free Lock Ordering & Lock-Free Concurrent Stacks",
+        "title": "Lock-Free RingBuffer (CAS Contention)",
         "milestoneId": "cm1",
-        "seniorBarConcept": "Алгоритм Treiber Stack, Michael-Scott Queue, проблема ABA и AtomicStampedReference.",
+        "seniorBarConcept": "Построение lock-free структур данных на CAS и AtomicReference",
         "interviewTrap": "Ложное предположение о потокобезопасности без явных барьеров синхронизации.",
         "estimatedMinutes": 25,
         "coreRequirements": {
@@ -4162,7 +4162,7 @@
           "conc_step_4"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "lld-lock-free-stack",
+        "targetScenarioId": "kata_test_lock_free_ringbuffer_contention",
         "pedagogicalRationale": "Углубленное освоение конкурентности в Java 21: 'Deadlock-Free Lock Ordering & Lock-Free Concurrent Stacks' через практическую арену machine_coding."
       },
       {
@@ -4482,9 +4482,9 @@
       },
       {
         "stepNumber": 15,
-        "title": "High-Frequency Trading Matching Engine: Lock-Free OrderBook",
+        "title": "HighLoad Inventory Reservation & Flash Sale",
         "milestoneId": "cm3",
-        "seniorBarConcept": "Сверхнизкие задержки, детерминированное сопоставление заявок без GC-аллокаций.",
+        "seniorBarConcept": "Резервирование инвентаря без дедлоков под высокой конкуренцией",
         "interviewTrap": "Ложное предположение о потокобезопасности без явных барьеров синхронизации.",
         "estimatedMinutes": 25,
         "coreRequirements": {
@@ -4512,7 +4512,7 @@
           "conc_step_14"
         ],
         "targetArena": "machine_coding",
-        "targetScenarioId": "lld-highload-trading-matching-engine",
+        "targetScenarioId": "mc_flash_sale_engine",
         "pedagogicalRationale": "Углубленное освоение конкурентности в Java 21: 'High-Frequency Trading Matching Engine: Lock-Free OrderBook' через практическую арену machine_coding."
       }
     ]

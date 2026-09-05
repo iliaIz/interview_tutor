@@ -163,12 +163,12 @@ export const StudioHeader: React.FC = () => {
   };
 
   const tabs: { id: StudioTab; label: string; shortLabel: string; icon: React.ComponentType<any>; badge?: string }[] = [
-    { id: 'academy', label: 'Академия', shortLabel: 'Академия', icon: Sparkles, badge: '6' },
-    { id: 'theory', label: 'База знаний', shortLabel: 'Теория', icon: BookOpen },
-    { id: 'incidents', label: 'Инциденты', shortLabel: 'Инциденты', icon: Bug, badge: '70' },
-    { id: 'triage', label: 'Триаж Дампов', shortLabel: 'Триаж', icon: Terminal, badge: '15' },
-    { id: 'practice', label: 'Machine Coding', shortLabel: 'LLD', icon: Code2, badge: '35' },
-    { id: 'system_design', label: 'System Design', shortLabel: 'HLD', icon: Layers, badge: '20' }
+    { id: 'academy', label: 'Академия', shortLabel: 'Академия', icon: Sparkles, badge: '8' },
+    { id: 'theory', label: 'База знаний', shortLabel: 'Теория', icon: BookOpen, badge: '816' },
+    { id: 'practice', label: 'Практика', shortLabel: 'Практика', icon: Code2, badge: '93' },
+    { id: 'incidents', label: 'Баг-Хант', shortLabel: 'Баг-Хант', icon: Bug, badge: '70' },
+    { id: 'triage', label: 'Триаж Аварий', shortLabel: 'Триаж', icon: Terminal, badge: '22' },
+    { id: 'system_design', label: 'System Design', shortLabel: 'HLD', icon: Layers, badge: '31' }
   ];
 
   return (
