@@ -24,6 +24,8 @@ export interface LiveToolContext {
     hasCandidateResponded?: boolean;
     persona?: any;
     targetGrade?: any;
+    currentArchitectureMermaid?: string;
+    currentGraphIr?: string;
   };
   parsedHints?: string[];
   liveCoaching?: boolean;
@@ -443,7 +445,7 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
           submissionId,
           session.questionId,
           session.userId || 'default_user',
-          '',
+          session.currentArchitectureMermaid || '',
           defense,
           JSON.stringify(packet)
         );

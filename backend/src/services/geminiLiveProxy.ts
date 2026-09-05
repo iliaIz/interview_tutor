@@ -79,6 +79,8 @@ interface ProxySession {
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
   sessionType?: 'interview' | 'tutor' | 'system_design';
+  currentArchitectureMermaid?: string;
+  currentGraphIr?: string;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -655,12 +657,26 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
         // Multimodal Deictic Canvas Grounding event from client (System Design Studio)
         if (parsed.type === 'canvas_delta') {
+          if (parsed.payload?.architectureMermaid) {
+            session.currentArchitectureMermaid = parsed.payload.architectureMermaid;
+          }
+          if (parsed.payload?.graphIr) {
+            session.currentGraphIr = parsed.payload.graphIr;
+          }
+
           if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
-            const summary = parsed.payload?.mutationSummary || 
-              (parsed.payload?.focusedElement 
-                ? `Фокус кандидата на компоненте: ${parsed.payload.focusedElement.label || parsed.payload.focusedElement.id} (${parsed.payload.focusedElement.nodeType || 'node'}, config: ${JSON.stringify(parsed.payload.focusedElement.config || {})})` 
-                : 'Кандидат внёс изменения в архитектурный граф на холсте');
-            const deicticText = `[CANVAS_DEICTIC_CONTEXT: ${summary}]`;
+            let deicticContent = '';
+            if (parsed.payload?.graphIr) {
+              const summary = parsed.payload.mutationSummary ? `${parsed.payload.mutationSummary}\n` : '';
+              deicticContent = `${summary}${parsed.payload.graphIr}`;
+            } else {
+              deicticContent = parsed.payload?.mutationSummary || 
+                (parsed.payload?.focusedElement 
+                  ? `Фокус кандидата на компоненте: ${parsed.payload.focusedElement.label || parsed.payload.focusedElement.id} (${parsed.payload.focusedElement.nodeType || 'node'}, config: ${JSON.stringify(parsed.payload.focusedElement.config || {})})` 
+                  : 'Кандидат внёс изменения в архитектурный граф на холсте');
+            }
+
+            const deicticText = `[CANVAS_DEICTIC_CONTEXT: ${deicticContent}]`;
             console.log(`🧭 Canvas deictic context forwarded to Gemini Live: ${deicticText}`);
             geminiSocket.send(JSON.stringify({
               clientContent: {

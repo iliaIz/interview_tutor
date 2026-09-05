@@ -238,6 +238,10 @@ export const SystemDesignArena: React.FC = () => {
     setIsEvaluating(true);
 
     try {
+      const effectiveMermaid = architectureMode === 'canvas'
+        ? (canvasPayload?.architectureMermaid || mermaidCode)
+        : mermaidCode;
+
       const res = await fetch('/api/system-design/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -245,7 +249,7 @@ export const SystemDesignArena: React.FC = () => {
         body: JSON.stringify({
           scenarioId: activeSystemDesignScenario.id,
           conversationHistory: chatMessages,
-          architectureMermaid: mermaidCode,
+          architectureMermaid: effectiveMermaid,
           notesMarkdown: candidateNotes,
           canvasTopology: canvasPayload
         })

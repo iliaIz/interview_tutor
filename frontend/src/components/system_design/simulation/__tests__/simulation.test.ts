@@ -56,6 +56,27 @@ assert(mmcMetrics.dropProbability === 0.0, 'Stable M/M/c must have zero drop');
 assert(mmcMetrics.utilization < 0.70, 'Utilization should be ~66.7%');
 assert(mmcMetrics.p50LatencyMs > 0 && mmcMetrics.p99LatencyMs > mmcMetrics.p50LatencyMs, 'P99 must be greater than P50');
 
+// 4.1 [P1.1] Test O(1) Euler-Maclaurin on 10,000,000 items
+const t0 = performance.now();
+const hitRatio10M = AnalyticalPerformanceEngine.calculateCacheHitRatio(10_000_000, 100_000, 1.2);
+const elapsedZipfMs = performance.now() - t0;
+console.log(`[P1.1 Benchmark] 10M Catalog Zipf hit ratio: ${(hitRatio10M * 100).toFixed(2)}% in ${elapsedZipfMs.toFixed(3)}ms`);
+assert(elapsedZipfMs < 5.0, `Zipfian 10M evaluation must execute in < 5ms (took ${elapsedZipfMs.toFixed(3)}ms)`);
+assert(hitRatio10M > 0.85, 'Cache hit ratio for 100k cache over 10M catalog should be > 85%');
+
+// 4.2 [P2.2] Test O(c) Geometric M/M/c/K with massive buffer (500,000 items)
+const t1 = performance.now();
+const massiveBufferMetrics = AnalyticalPerformanceEngine.evaluate({
+  arrivalRate: 3500,
+  serviceRate: 300,
+  instances: 10, // capacity 3000 < 3500 -> saturated
+  bufferCapacity: 500_000
+});
+const elapsedQueueMs = performance.now() - t1;
+console.log(`[P2.2 Benchmark] 500k Buffer M/M/c/K drop: ${(massiveBufferMetrics.dropProbability * 100).toFixed(2)}% in ${elapsedQueueMs.toFixed(3)}ms`);
+assert(elapsedQueueMs < 5.0, `Massive buffer evaluation must execute in < 5ms without GC thrashing (took ${elapsedQueueMs.toFixed(3)}ms)`);
+assert(massiveBufferMetrics.dropProbability > 0.10, 'Saturated massive queue must still shed load');
+
 // 5. Test Tarjan SPOF Detection
 const nodes: LinterNode[] = [
   { id: 'client-1', type: 'client', data: { nodeType: 'client', instances: 1 } },

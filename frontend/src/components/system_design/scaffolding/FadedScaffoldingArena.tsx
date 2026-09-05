@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -22,28 +22,11 @@ import {
 import confetti from 'canvas-confetti';
 import { FADED_ARCHETYPES, FadedArchetype } from './FadedScaffoldingCatalog';
 import { MarkdownRenderer } from '../../MarkdownRenderer';
-import { BaseArchitectureNode } from '../canvas/nodes/BaseArchitectureNode';
-import { FlowEdge } from '../canvas/edges/FlowEdge';
+import { systemDesignNodeTypes, systemDesignEdgeTypes } from '../canvas/nodes/nodeTypesRegistry';
+import { calculateTopologySignature } from '../canvas/graphIrGenerator';
 import { ComponentPalette } from '../canvas/palette/ComponentPalette';
 import { ArchitectureTopologyLinter, LinterNode, LinterEdge } from '../simulation/ArchitectureTopologyLinter';
 import { ArchitectureNodeType } from '../../../types/systemDesignCanvas';
-
-const nodeTypes = {
-  client: BaseArchitectureNode,
-  gateway: BaseArchitectureNode,
-  service: BaseArchitectureNode,
-  database: BaseArchitectureNode,
-  cache: BaseArchitectureNode,
-  queue: BaseArchitectureNode,
-  blob_storage: BaseArchitectureNode,
-  circuit_breaker: BaseArchitectureNode,
-  default: BaseArchitectureNode
-};
-
-const edgeTypes = {
-  flow: FlowEdge,
-  default: FlowEdge
-};
 
 interface FadedScaffoldingArenaProps {
   initialArchetypeId?: string;
@@ -102,7 +85,16 @@ const FadedScaffoldingContent: React.FC<FadedScaffoldingArenaProps> = ({ initial
     setNodes((nds) => nds.concat(newNode));
   };
 
-  const handleVerifyResolution = () => {
+  // Deterministic topology signature: react to node config & edge protocol changes
+  const topologySignature = useMemo(() => {
+    return calculateTopologySignature(nodes, edges);
+  }, [nodes, edges]);
+
+  // Live re-validation if candidate modifies canvas while looking at diagnostics
+  const reportRef = React.useRef(validationReport);
+  reportRef.current = validationReport;
+
+  const handleVerifyResolution = useCallback(() => {
     const linterNodes: LinterNode[] = nodes.map(n => ({
       id: n.id,
       type: n.type,
@@ -179,7 +171,14 @@ const FadedScaffoldingContent: React.FC<FadedScaffoldingArenaProps> = ({ initial
         });
       } catch (_) {}
     }
-  };
+  }, [nodes, edges, activeArchetype]);
+
+  // Live re-verify on topology changes if candidate is looking at validation results
+  useEffect(() => {
+    if (reportRef.current !== null) {
+      handleVerifyResolution();
+    }
+  }, [topologySignature, handleVerifyResolution]);
 
   return (
     <div className="flex flex-col h-full bg-pastel-canvas text-pastel-text overflow-hidden">
@@ -412,8 +411,8 @@ const FadedScaffoldingContent: React.FC<FadedScaffoldingArenaProps> = ({ initial
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
+              nodeTypes={systemDesignNodeTypes}
+              edgeTypes={systemDesignEdgeTypes}
               fitView
               className="bg-[#0f172a]"
             >

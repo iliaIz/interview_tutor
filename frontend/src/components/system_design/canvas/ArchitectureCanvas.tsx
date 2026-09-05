@@ -16,8 +16,12 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { BaseArchitectureNode } from './nodes/BaseArchitectureNode';
-import { FlowEdge } from './edges/FlowEdge';
+import { systemDesignNodeTypes, systemDesignEdgeTypes } from './nodes/nodeTypesRegistry';
+import { 
+  calculateTopologySignature, 
+  generateGraphAdjacencyIr, 
+  convertCanvasToMermaid 
+} from './graphIrGenerator';
 import { ComponentPalette } from './palette/ComponentPalette';
 import { LiveMetricsHUD } from './telemetry/LiveMetricsHUD';
 import { ChaosMonkeyPanel } from './chaos/ChaosMonkeyPanel';
@@ -28,27 +32,15 @@ import {
   ArchitectureGraphPayload 
 } from '../../../types/systemDesignCanvas';
 
-const nodeTypes = {
-  client: BaseArchitectureNode,
-  gateway: BaseArchitectureNode,
-  service: BaseArchitectureNode,
-  database: BaseArchitectureNode,
-  cache: BaseArchitectureNode,
-  queue: BaseArchitectureNode,
-  blob_storage: BaseArchitectureNode,
-  circuit_breaker: BaseArchitectureNode,
-  default: BaseArchitectureNode
-};
-
-const edgeTypes = {
-  flow: FlowEdge,
-  default: FlowEdge
-};
-
 interface ArchitectureCanvasProps {
   scenarioTitle?: string;
   onExportPayload?: (payload: ArchitectureGraphPayload) => void;
-  onDeicticContextChange?: (context: { focusedElement?: any; mutationSummary?: string }) => void;
+  onDeicticContextChange?: (context: {
+    focusedElement?: any;
+    mutationSummary?: string;
+    graphIr?: string;
+    architectureMermaid?: string;
+  }) => void;
 }
 
 // Starter Enterprise Topology
@@ -174,25 +166,34 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     togglePause
   } = useSimulationWorker({ initialInputRps: 2000 });
 
-  // Sync React Flow topology to simulation worker whenever nodes or edges change
+  // Deterministic topology signature: react to node config & edge protocol changes
+  const topologySignature = useMemo(() => {
+    return calculateTopologySignature(nodes, edges);
+  }, [nodes, edges]);
+
+  // Sync React Flow topology to simulation worker whenever topology signature changes
   useEffect(() => {
     updateTopology(nodes, edges, inputRps);
-  }, [nodes.length, edges.length, inputRps, updateTopology]);
+  }, [topologySignature, inputRps, updateTopology]);
 
-  // Debounced topology mutation deictic event (500ms)
+  // Debounced topology mutation deictic event (500ms) with Micro-Graph Adjacency IR
   useEffect(() => {
     if (!onDeicticContextChange) return;
     if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
     deicticTimerRef.current = setTimeout(() => {
+      const graphIr = generateGraphAdjacencyIr(nodes, edges);
+      const architectureMermaid = convertCanvasToMermaid(nodes, edges);
       onDeicticContextChange({
-        mutationSummary: `Топология холста: ${nodes.length} узлов, ${edges.length} связей. Компоненты: ${nodes.map(n => n.data?.label || n.id).join(', ')}`
+        mutationSummary: `Топология холста: ${nodes.length} узлов, ${edges.length} связей. Компоненты: ${nodes.map(n => n.data?.label || n.id).join(', ')}`,
+        graphIr,
+        architectureMermaid
       });
     }, 500);
 
     return () => {
       if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
     };
-  }, [nodes.length, edges.length, onDeicticContextChange]);
+  }, [topologySignature, onDeicticContextChange]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     onDeicticContextChange?.({
@@ -330,10 +331,12 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           target: e.target,
           config: (e.data?.config as any) || { protocol: 'REST', isAsync: false, timeoutMs: 3000 }
         })),
-        simulationMetrics: telemetry || undefined
+        simulationMetrics: telemetry || undefined,
+        architectureMermaid: convertCanvasToMermaid(nodes, edges),
+        graphIr: generateGraphAdjacencyIr(nodes, edges)
       });
     }
-  }, [nodes, edges, telemetry, onExportPayload]);
+  }, [topologySignature, telemetry, onExportPayload]);
 
   return (
     <div className="flex h-full w-full relative overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -367,8 +370,8 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           onInit={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
+          nodeTypes={systemDesignNodeTypes}
+          edgeTypes={systemDesignEdgeTypes}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.2}

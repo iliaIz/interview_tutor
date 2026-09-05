@@ -117,4 +117,7 @@ export interface ArchitectureGraphPayload {
     config: ArchitectureEdgeConfig;
   }>;
   simulationMetrics?: SimulationTelemetryFrame;
+  architectureMermaid?: string;
+  graphIr?: string;
 }
+

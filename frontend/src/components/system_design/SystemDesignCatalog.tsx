@@ -17,13 +17,65 @@ export const SystemDesignCatalog: React.FC = () => {
   const { openSystemDesignScenario } = useAppStore();
   const [scenarios, setScenarios] = useState<SystemDesignScenario[]>([]);
   const [loading, setLoading] = useState(true);
+  // Read initial deep-link query parameters
+  const initialParams = useMemo(() => {
+    if (typeof window === 'undefined') return { level: 'all' as const, kata: null, archetype: null, scenario: null };
+    const params = new URLSearchParams(window.location.search);
+    const rawLevel = params.get('level');
+    const level: 'all' | 'L0' | 'L2' | 'L3' = (rawLevel === 'L0' || rawLevel === 'L2' || rawLevel === 'L3' || rawLevel === 'all') ? rawLevel : 'all';
+    return {
+      level,
+      kata: params.get('kata'),
+      archetype: params.get('archetype'),
+      scenario: params.get('scenario')
+    };
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L2' | 'L3'>('all');
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L2' | 'L3'>(initialParams.level);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(initialParams.scenario);
   const [isMathCoachOpen, setIsMathCoachOpen] = useState(false);
-  const [activeMicroKataId, setActiveMicroKataId] = useState<string | null>(null);
-  const [activeFadedArchetypeId, setActiveFadedArchetypeId] = useState<string | null>(null);
+  const [activeMicroKataId, setActiveMicroKataId] = useState<string | null>(initialParams.kata);
+  const [activeFadedArchetypeId, setActiveFadedArchetypeId] = useState<string | null>(initialParams.archetype);
+
+  // Sync state changes to URL query parameters for deep linking & F5 bookmarking
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    
+    // Level parameter
+    if (selectedLevel !== 'all') {
+      params.set('level', selectedLevel);
+    } else {
+      params.delete('level');
+    }
+
+    // Micro Kata parameter
+    if (activeMicroKataId) {
+      params.set('kata', activeMicroKataId);
+    } else {
+      params.delete('kata');
+    }
+
+    // Faded Archetype parameter
+    if (activeFadedArchetypeId) {
+      params.set('archetype', activeFadedArchetypeId);
+    } else {
+      params.delete('archetype');
+    }
+
+    // Scenario parameter
+    if (selectedScenarioId) {
+      params.set('scenario', selectedScenarioId);
+    } else {
+      params.delete('scenario');
+    }
+
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [selectedLevel, activeMicroKataId, activeFadedArchetypeId, selectedScenarioId]);
 
   useEffect(() => {
     fetch('/api/system-design/scenarios', { credentials: 'include' })
