@@ -1,118 +1,447 @@
 # System Architecture & Technical Specification: InterviewPrep AI (SOTA September 2026)
 
-> **Canonical System Specification & Master Reference**  
-> **Production Target:** `https://djelu.site` (Docker Compose + Caddy 2.8 Reverse Proxy)  
-> **LLM/Audio Gateway:** `http://litellm-gateway:4000` (LiteLLM Proxy with 4-Model Dual-Tier Circuit Breaker)
+> **Canonical System Specification & Master Reference (SSOT)**  
+> **Production Target:** `https://djelu.site` (Docker Compose + Caddy 2.8 Reverse Proxy + Node.js 22 Backend + LiteLLM AI Gateway)  
+> **LLM/Audio Gateway:** `http://litellm-gateway:4000` (LiteLLM Proxy with 4-Model Dual-Tier Circuit Breaker)  
+> **Target Framework & Runtime:** Java 21 LTS, Spring Boot 3.4+, Virtual Threads (Project Loom), TypeScript 5.6+, React 19
 
 ---
 
-## 1. System Overview & Platform Topology
+## 1. Executive Summary & Platform Vision
 
-InterviewPrep AI is an institutional-grade technical interview preparation platform for Java 21+ & Spring Boot engineers, architected around three unified learning and assessment pillars:
+**InterviewPrep AI** is an institutional-grade technical preparation and skill evaluation platform specifically engineered for Java 21+ and Spring Boot software engineers targeting Senior, Staff, and Principal roles.
 
-1. 🧠 **Knowledge Base & Voice Socratic Interviewer:** 816 curated Java/Spring questions with real-time bidirectional multimodal audio (Gemini Live 24kHz PCM) and automated speech evaluations.
-2. 🐛 **Production Incident & Bug Simulator:** 70 SOTA engineering katas (Streams, Concurrency, Loom Pinning, Spring Boot 3.4 `@MockitoBean`) with dynamic task generation, Full-Jitter Backoff resilience, and `TaskRecoveryCard` zero-blank-screen recovery.
-3. 🏛️ **Live-Coding, Machine Coding & LLD Arena:** 35 production-grade Low-Level Design challenges (BigTech Core, FinTech Ledger, Concurrency Systems) with full multi-file scaffolds, deterministic `Clock.fixed` virtual time testing, and 8-factor AST static auditing.
+Unlike static quiz platforms or disjointed coding sandboxes, InterviewPrep AI is organized around **8 integrated learning pillars** anchored by an interactive Socratic AI Tutor, deterministic AST auditing, sub-second execution engines, and a unified cognitive knowledge graph powered by the SOTA FSRS-5 spaced repetition model.
 
 ```mermaid
 flowchart TD
-    subgraph Client ["🖥️ Client SPA / Android & Desktop (100dvh, 120 FPS Virtualized)"]
-        UI["🎨 StudioHeader & 3-Mode Navigation"]
-        VoiceModal["🎙️ VoiceModal & AudioPlayoutManager (24kHz PCM)"]
-        LiveIDE["💻 Machine Coding Arena & WorkspaceEditor (CodeMirror 6)"]
-        IncidentHub["🐛 BugChallengeCard & Incident Simulator (70 Katas)"]
-        RecoveryCard["🛡️ TaskRecoveryCard (Live Countdown & Health Diagnostics)"]
-        ScrollLock["🔒 Singleton useBodyScrollLock (Reference-Counted)"]
+    subgraph UI ["🌐 Unified Frontend (React 19 + Tailwind CSS + CodeMirror 6)"]
+        Nav["🧭 Master Header & Dynamic Arena Switcher (100dvh Responsive)"]
         
-        UI --- VoiceModal
-        UI --- LiveIDE
-        UI --- IncidentHub
-        IncidentHub --- RecoveryCard
-    end
-
-    subgraph Edge ["🌐 Edge & Security Layer (VPS djelu.site)"]
-        Caddy["🛡️ Caddy 2.8 Reverse Proxy\n(Auto-HTTPS, HTTP/3, WebSocket Upgrade)"]
-    end
-
-    subgraph BackendApp ["⚙️ Node.js 22 Backend Container (interview-backend-api)"]
-        Express["🚀 Express REST API (/api/health, /api/practice, /api/eval)"]
-        AST["🔍 AST Static Analyzer & 8 SOTA Java 21 Audit Rules"]
-        Evaluator["🧠 Dual-Pass AI Code Evaluator (AbortSignal 60s)"]
-        LiveProxy["📡 GeminiLiveProxy (/ws/live)"]
-        DynamicGen["🎲 DynamicTaskGenerator (Full-Jitter Backoff, 0 Phantom Fallbacks)"]
-        SessionStore["💾 SQLite Database (816 Questions, 35 LLD Challenges, Submissions)"]
+        P1["🎙️ 1. Oral Mock Interview\n(Gemini Live 24kHz PCM, Tactile Barge-In)"]
+        P2["🧬 2. Testing & Mutation Arena\n(42 Katas, Pitest Engine, Testing Compass)"]
+        P3["⚡ 3. Spring Transactions Lab\n(16 Scenarios, Sub-Second Proxy Engine)"]
+        P4["📐 4. System Design Arena\n(Cytoscape Canvas, 8 L0 Katas, L1 Math Engine)"]
+        P5["🚨 5. Incident Triage Studio\n(15 Scenarios, Thread/Heap Trees, Tarjan SCC)"]
+        P6["☕ 6. Machine Coding & LLD\n(35 Challenges, AST Invariants, Clock Injection)"]
+        P7["🎓 7. Guided Academy Studio\n(25-Step Sprint, FSRS-5 Graph, Knapsack NBA)"]
+        P8["🎧 8. StudyDeck & Audio Podcasts\n(Two-Host Dialogue, Gemini 3.1 TTS, Flashcards)"]
         
-        Express <--> AST
-        AST <--> Evaluator
-        Express <--> LiveProxy
-        Express <--> DynamicGen
-        Express <--> SessionStore
+        Nav --> P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8
     end
 
-    subgraph Gateway ["⚡ LiteLLM AI Gateway Container (Port 4000)"]
-        LLMGateway["LiteLLM Gateway (PostgreSQL Idempotent Registry)"]
-        CircuitBreaker["2-Tier Circuit Breaker (Key 429 / Model 503)"]
-        VirtualModels["Model Aliases (gemini-smart, gemini-fast, gemini-live-v2, gemini-tts-v3)"]
-        LLMGateway --- CircuitBreaker
-        LLMGateway --- VirtualModels
+    subgraph Core ["⚙️ Core Backend Services (Node.js 22 LTS)"]
+        API["🚀 Express API Router (/api/health, /api/practice, /api/eval)"]
+        AST["🔍 8-Factor AST Static Auditing Service"]
+        ProxyRunner["⚡ In-Memory Spring Transaction Runner (<50ms)"]
+        JVMRunner["☕ Resident JVM Compiler & Pitest Runner (<80ms)"]
+        FSRSEngine["🧠 FSRS-5 Spaced Repetition & Knowledge Graph Service"]
+        IncidentEngine["🔍 Thread Dump & Tarjan SCC Deadlock Analyzer"]
+        LiveWS["📡 WebSocket Gemini Live Proxy (/ws/live)"]
+        
+        API --- AST
+        API --- ProxyRunner
+        API --- JVMRunner
+        API --- FSRSEngine
+        API --- IncidentEngine
+        API --- LiveWS
     end
 
-    subgraph Upstream ["☁️ Google Cloud AI"]
-        GeminiLive["🎙️ Gemini Multimodal Live API (Bidirectional 24kHz PCM)"]
-        GeminiSmart["🧠 Gemini 3.7 / 3.6 Flash (Extended Reasoning & Code Evaluation)"]
-        GeminiTTS["🗣️ Gemini 3.1 Flash TTS (Multi-Voice Audio Recaps)"]
+    subgraph Edge ["⚡ Edge Gateway & AI Infrastructure"]
+        Caddy["🛡️ Caddy 2.8 Reverse Proxy (Auto-HTTPS, HTTP/3, WSS)"]
+        LiteLLM["⚡ LiteLLM Proxy (:4000) (Dual-Tier Circuit Breaker, Key Pool)"]
+        GeminiCloud["☁️ Google Cloud Gemini (smart, live, tts, embedding)"]
+        SQLiteDB["💾 SQLite3 /app/data/interview.db (SSOT Catalog & Progress)"]
+        PostgresDB["🐘 PostgreSQL 16 (LiteLLM Registry & Observability)"]
+        
+        Caddy <--> API
+        API <--> LiteLLM
+        API <--> SQLiteDB
+        LiteLLM <--> PostgresDB
+        LiteLLM <--> GeminiCloud
     end
-
-    Client <-- "HTTPS / WSS (100dvh)" --> Caddy
-    Caddy <-- "Proxy Pass (Port 5000)" --> Express
-    Express <-- "ws://litellm-gateway:4000/ws/live" --> LLMGateway
-    Express <-- "http://litellm-gateway:4000/v1" --> LLMGateway
-    LLMGateway <-- "Bidirectional WS" --> GeminiLive
-    LLMGateway <-- "HTTPS / REST (JSON Mode)" --> GeminiSmart
-    LLMGateway <-- "REST Audio" --> GeminiTTS
 ```
 
 ---
 
-## 2. Machine Coding & LLD Arena Architecture
+## 2. Global Architectural Hard Invariants
 
-### 2.1. 35 SOTA LLD Challenges Catalog
-The platform provides 35 end-to-end Low-Level Design challenges organized across 3 industrial tracks:
+All modules and future extensions MUST strictly observe the following platform invariants:
 
-| Track | Challenges Count | Representative Archetypes | Key Invariants |
+### 2.1. LiteLLM Proxy Invariant (Zero Hardcoded Keys)
+- All LLM reasoning, multimodal audio WebSocket, and TTS synthesis MUST route through `LiteLLM_Proxy` (`http://litellm-gateway:4000` or `http://localhost:4000` via `${LITELLM_PROXY_URL}`).
+- Direct calls to Google Gemini endpoints and hardcoded API keys (`AQ.*`) are strictly prohibited in application code.
+- Models are mapped through canonical environment variables:
+  - `GEMINI_TEXT_MODEL` (e.g. `gemini-smart`)
+  - `GEMINI_LIVE_MODEL` (e.g. `gemini-live` / `gemini-tts-live-v3`)
+  - `GEMINI_TTS_MODEL` (e.g. `gemini-tts-v3`)
+  - `GEMINI_EMBEDDING_MODEL` (e.g. `text-embedding-3-small` / `gemini-embedding`)
+  - `LITELLM_API_KEY` (virtual authorization key)
+
+### 2.2. Deterministic Time & Financial Invariants in Machine Coding (Java 21)
+- **Time Virtualization:** Business logic must NEVER invoke `System.currentTimeMillis()`, `Instant.now()`, or `LocalDate.now()` directly. Time must be constructor-injected via `java.time.Clock`. Enforced statically via AST rule `enforce-clock-injection`.
+- **Financial Precision:** All monetary amounts, fees, and balances must use `java.math.BigDecimal` with explicit scale and `RoundingMode.HALF_EVEN` (Banker's Rounding). Primitive `double` or `float` in financial domains is blocked via AST rule `no-double-in-money`.
+- **Deadlock-Free Lock Acquisition:** In multi-account or multi-resource operations, lock acquisition must follow strict global ID ordering: `lock(min(id1, id2)) -> lock(max(id1, id2))`.
+
+### 2.3. Gemini Live Multimodal Invariants & State Machine
+- **First-Turn Lockdown:** In Turn 0 greeting, the AI interviewer is strictly forbidden from invoking `submit_interview_evaluation`. The backend tracks `hasCandidateResponded` and rejects early evaluations with a structured `toolResponse` error.
+- **Dual-Sided Handshake:** Transition from AI speaking to candidate recording is unblocked symmetrically by whichever event finishes LAST:
+  1. `AudioPlayoutManager.onPlaybackFinished` (headphones buffer drain).
+  2. WebSocket `turnComplete: true` arrival (server network completion).
+- **Tactile Barge-In:** Clicking the center orb during AI speech triggers a 5ms de-click ramp, mutes audio immediately, cancels server playout, and activates the candidate mic.
+
+### 2.4. Zero-Phantom-Fallback & Full-Jitter Backoff
+- When upstream LLMs experience rate limits (429) or proxy failures (503), the backend executes Full-Jitter Exponential Backoff ($T = \text{random}(0, \min(2500, 800 \times 1.8^{\text{attempt}}))$) up to 2 retries.
+- Under NO circumstance does the backend fabricate fake static responses disguised as dynamic AI generation. If retries fail, it returns a structured HTTP 503 rendering `TaskRecoveryCard`.
+
+### 2.5. Mobile Ergonomics & Viewport Standard
+- All full-screen arenas utilize `100dvh` (`h-[calc(100dvh-4rem)]`) to prevent virtual keyboard viewport bouncing.
+- Nested modals and drawers use a module-level reference-counted scroll lock (`useBodyScrollLock`) to prevent premature `document.body` unlock.
+- Large catalogs use CSS `content-visibility: auto; contain-intrinsic-size: 0 90px;` for 120 FPS scrolling on mobile devices.
+
+---
+
+## 3. The 8 Specialized Architectural Pillars
+
+---
+
+### 3.1. Pillar 1: Oral Mock Interview & Voice Studio
+
+The Oral Mock Interview studio delivers real-time voice technical interviews using Gemini Multimodal Live API over WebSockets, operating at 24kHz bidirectional PCM audio.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Candidate as 👤 Candidate
+    participant UI as 📱 VoiceModal / React
+    participant AudioMgr as 🔊 AudioPlayoutManager
+    participant NodeProxy as ⚙️ Node.js LiveProxy (/ws/live)
+    participant LiteLLM as ⚡ LiteLLM Proxy (:4000)
+    participant GeminiLive as ☁️ Gemini Multimodal Live
+
+    Candidate->>UI: Click «Начать собеседование»
+    UI->>AudioMgr: initMicrophoneHardware() (async background)
+    UI->>NodeProxy: WS Connect (/ws/live?scenario=mock_junior)
+    NodeProxy->>LiteLLM: WS Upstream (gemini-live)
+    LiteLLM->>GeminiLive: Bidi WebSocket Handshake
+    GeminiLive-->>NodeProxy: setupComplete
+    
+    rect rgb(240, 248, 255)
+        Note over GeminiLive,AudioMgr: Turn 0: AI Speaks Greeting
+        GeminiLive-->>NodeProxy: audio chunks (24kHz PCM)
+        NodeProxy-->>UI: Binary WS Frame (Decoded as UTF-8 / PCM)
+        UI->>AudioMgr: scheduleBuffer()
+        AudioMgr-->>Candidate: 🔊 Voice Greeting Reads Question
+        GeminiLive-->>NodeProxy: turnComplete: true
+        NodeProxy-->>UI: turnComplete: true
+        AudioMgr-->>UI: onPlaybackFinished (Buffer Drained)
+        Note over UI: Dual-Sided Handshake Unlocks Mic
+    end
+
+    rect rgb(255, 245, 245)
+        Note over Candidate,NodeProxy: Candidate Speaks Answer
+        Candidate->>UI: Speaks into microphone
+        UI->>NodeProxy: candidate_audio (PCM 16kHz base64)
+        Candidate->>UI: Click «Передать ответ ➔»
+        UI->>NodeProxy: client_content (end_of_turn: true)
+    end
+
+    rect rgb(245, 255, 245)
+        Note over GeminiLive,UI: Socratic Evaluation & Scoring
+        GeminiLive-->>NodeProxy: toolCall: submit_interview_evaluation(scores)
+        NodeProxy->>NodeProxy: Verify hasCandidateResponded === true
+        NodeProxy-->>GeminiLive: toolResponse: OK
+        GeminiLive-->>NodeProxy: Audio verdict + structured JSON
+        NodeProxy-->>UI: evaluation_completed
+        UI-->>Candidate: Render STAR/PREP Feedback Cards
+    end
+```
+
+#### Key Technical Components:
+- **`AudioPlayoutManager` (`frontend/src/utils/audioPlayoutManager.ts`):** High-precision Web Audio scheduler managing jitter buffers, seamless sample stitching without clicks, and single-sink routing on mobile (HTML5 Audio element via `MediaStreamAudioDestinationNode` for `STREAM_MUSIC` routing).
+- **First-Turn Lockdown Engine:** Guards Turn 0 to eliminate hallucinated instant evaluations.
+- **STAR & PREP Rubrics:** Structured evaluation assessing Situation, Task, Action, Result for behavioral/incident questions, and Point, Reason, Example, Point for architectural discussions.
+
+---
+
+### 3.2. Pillar 2: Testing & Mutation Arena
+
+The Testing & Mutation Arena provides 42 industrial coding challenges across an L0–L3 cognitive ladder, bridging the gap between superficial line coverage and robust mutation test quality.
+
+```mermaid
+flowchart LR
+    subgraph Ladder ["🪜 4-Tier Cognitive Ladder (42 Katas)"]
+        L0["L0: Spot the Bug (10)\n(Locate flaw in untested code)"]
+        L1["L1: Boundary & Edge Tests (12)\n(Null, empty, MAX_INT, clock shifts)"]
+        L2["L2: Mockito Verification (10)\n(verifyNoInteractions, @MockitoBean)"]
+        L3["L3: Mutation Hunting (10)\n(Kill Pitest mutants: conditionals, math)"]
+        L0 --> L1 --> L2 --> L3
+    end
+
+    subgraph Engine ["⚡ Sub-Second Evaluation Pipeline"]
+        Source["User Test Code"] --> ASTAudit["AST Static Check\n(Spring 6.2 @MockitoBean, etc.)"]
+        ASTAudit --> InMemCompiler["Resident JVM Compiler\n(<80ms execution)"]
+        InMemCompiler --> PitestEngine["Pitest Mutation Engine\n(Operator Replacement)"]
+        PitestEngine --> Metrics["Score: Line Cov vs Mutation Score"]
+    end
+
+    Ladder --> Engine
+```
+
+#### Cognitive Ladder Breakdown:
+1. **L0: Spot the Flaw (10 Katas):** Rapid diagnostics of faulty business logic without writing test code.
+2. **L1: Boundary & Edge Suite (12 Katas):** Writing JUnit 5 parameterized tests for off-by-one errors, timezone boundary bugs, and overflow conditions.
+3. **L2: Spring 6.2 Mockito Mastery (10 Katas):** Testing slice isolation with `@MockitoBean` (replacing deprecated `@MockBean`), argument captors (`ArgumentCaptor`), and strict verification (`verifyNoMoreInteractions`).
+4. **L3: Mutation Combat (10 Katas):** Surviving mutation attacks where Pitest substitutes relational operators (`>=` $\to$ `>`), inverts conditionals, or mutates return values.
+- **Testing Compass:** Live visual radar plotting Coverage %, Mutation Kill Ratio %, Mocking Hygiene, and Boundary Deficit.
+
+---
+
+### 3.3. Pillar 3: Spring Transactions Lab
+
+The Spring Transactions Lab teaches relational transactions, isolation anomalies, proxy mechanics, and connection pool sizing through interactive timelines and deterministic sub-second simulation.
+
+```mermaid
+flowchart TD
+    subgraph ScenarioCatalog ["📦 16 Transaction Lab Scenarios (L0–L3)"]
+        S0["L0: Self-Invocation Proxy Bypass (@Transactional ignored)"]
+        S1["L1: Rollback Rules (Checked vs Runtime Exceptions)"]
+        S2["L2: Propagation Hazards (REQUIRES_NEW, NESTED, Connection Exhaustion)"]
+        S3["L3: Isolation & Concurrency (Lost Update, Non-Repeatable, Deadlock)"]
+    end
+
+    subgraph SimulationCore ["⚡ Sub-Second Interceptor Engine (<50ms)"]
+        Proxy["ProxyInterceptor\n(Tracks target calls & advice)"]
+        Pool["DeterministicConnectionPool\n(Simulates HikariCP max-pool-size)"]
+        Timeline["Multi-Thread Timeline Recorder\n(Events: acquire, commit, rollback)"]
+        
+        Proxy --> Pool
+        Pool --> Timeline
+    end
+
+    subgraph Theorem ["📐 HikariCP Deadlock Theorem"]
+        Formula["Minimum Connections to Prevent Deadlock:\nP >= T * (D - 1) + 1\nwhere T = threads, D = nested transaction depth"]
+    end
+
+    ScenarioCatalog --> SimulationCore
+    SimulationCore --> Theorem
+```
+
+#### Core Engine Features:
+- **Ultra-Fast In-Memory Proxy Interceptor:** Replaces heavy 8-second Spring Boot testcontainer startup with an in-memory execution harness evaluating proxy boundaries in **20–50ms**.
+- **Interactive Multi-Threaded Timeline:** Renders step-by-step visual interleaving of Thread 1 and Thread 2 connection acquisition, locks, and commit/rollback points.
+- **Connection Starvation & Pool Deadlock Detection:** Demonstrates HikariCP pool exhaustion when nested transactions require $D > 1$ simultaneous connections per request thread.
+
+---
+
+### 3.4. Pillar 4: System Design Arena
+
+The System Design Arena bridges the gap between blank-canvas design intimidation and high-velocity interview execution through Cytoscape.js interactive graph topologies, mathematical capacity estimation, and faded scaffolding.
+
+```mermaid
+flowchart TD
+    subgraph Progression ["🪜 4-Tier System Design Scaffolding"]
+        L0["L0: 8 Component Micro-Katas\n(DB Indexing, Cache-Aside, CDC, Partitioning)"]
+        L1["L1: Back-of-the-Envelope Math Coach\n(RPS, Read/Write Ratio, Storage, Network Bandwidth ±25%)"]
+        L2["L2: 3 Faded Archetypes\n(Complete partially implemented architectures)"]
+        L3["L3: 12 Combat Industrial Designs\n(TinyURL, RateLimiter, Real-Time Chat, Uber/Cab Dispatch)"]
+        L0 --> L1 --> L2 --> L3
+    end
+
+    subgraph Workspace ["🎨 Interactive Cytoscape.js Topology Canvas"]
+        Palette["Component Palette\n(Load Balancers, Gateways, Redis, Kafka, PostgreSQL, S3)"]
+        Canvas["Cytoscape DAG Layout\n(Auto-routing, Port Snapping, Latency Tags)"]
+        DES["Discrete Event Packet Tracer\n(Visualizing traffic spikes, buffer drops)"]
+        Compass["System Compass Radar\n(CAP, SLA, SPOF Detection, Throughput)"]
+        
+        Palette --> Canvas
+        Canvas --> DES
+        Canvas --> Compass
+    end
+
+    Progression --> Workspace
+```
+
+#### Key Capabilities:
+- **8 L0 Micro-Katas:** Bite-sized interactive challenges focusing on single architectural decisions (e.g., configuring Redis Sentinel vs Cluster, setting Kafka partition keys, designing compound indexes).
+- **L1 Capacity Estimation Math Coach:** Socratic interactive coach validating RPS, IOPS, and storage with a $\pm 25\%$ tolerance window before canvas work begins.
+- **L2 Faded Archetype Scaffolding:** Partially completed topologies where candidates fix Single Points of Failure (SPOFs), place write-back buffers, or configure cross-region replication.
+- **System Compass Radar:** Real-time architectural heuristic analyzer scoring the candidate's design on Reliability, Scalability, Cost Efficiency, Latency, and Security.
+
+---
+
+### 3.5. Pillar 5: Production Incident Triage Studio
+
+The Production Incident Triage Studio equips engineers with realistic SRE troubleshooting reflexes through real-world thread dumps, heap snapshots, and a Socratic Incident Commander.
+
+```mermaid
+flowchart LR
+    subgraph Incidents ["🚨 15 Production Incident Scenarios"]
+        I1["High CPU / Infinite Loop"]
+        I2["Thread Pool Starvation"]
+        I3["Project Loom Carrier Pinning"]
+        I4["Metaspace OOM / ClassLoader Leak"]
+        I5["HikariCP Connection Pool Exhaustion"]
+        I6["Circular DB Deadlock (SKIP LOCKED missing)"]
+    end
+
+    subgraph Tooling ["🛠️ Diagnostic Workstation"]
+        TDV["🧵 Thread Dump Visualizer\n(Color-coded states: RUNNABLE, BLOCKED, WAITING)"]
+        Tarjan["🔍 Tarjan SCC Cycle Detector\n(Finds circular 'waiting to lock <0x...>' in <1ms)"]
+        MDV["💾 Memory & Heap Profiler\n(Dominator Tree, Retained Size, GC Roots)"]
+        SQL["⏱️ Slow Query & Hikari Monitor\n(Active, Idle, Pending connections)"]
+    end
+
+    subgraph Commander ["🧑‍✈️ Socratic Incident Commander"]
+        Mitigate["Phase 1: Immediate Mitigation\n(Traffic shed, restart, rollback)"]
+        RCA["Phase 2: Root Cause Hypothesis Tree\n(Evidence-based deduction)"]
+        PostMortem["Phase 3: Preventative Action Items\n(P99 timeout, bounded queues)"]
+        Mitigate --> RCA --> PostMortem
+    end
+
+    Incidents --> Tooling
+    Tooling --> Commander
+```
+
+#### Key Components:
+- **Tarjan Strongly Connected Components (SCC) Engine:** Automatically extracts circular wait graphs from thread dump raw text to pinpoint deadlock origins in $<1\text{ms}$.
+- **Thread & Memory Tree Visualizer:** Interactive hierarchical views replacing impenetrable 50,000-line log files.
+- **Dual-Phase Rubric:** Evaluates candidates separately on **Time-to-Mitigate** (stopping customer bleeding) and **Time-to-Resolve** (identifying underlying software flaw).
+
+---
+
+### 3.6. Pillar 6: Machine Coding & Low-Level Design (LLD) Studio
+
+The Machine Coding Studio evaluates candidate code against rigorous production standards across 35 multi-file design challenges.
+
+#### 35 Challenges Across 3 Industrial Tracks:
+| Track | Count | Core Archetypes | Key Enforced Invariants |
 | :--- | :---: | :--- | :--- |
-| **🏛️ BigTech Core LLD** | 15 | • Notification Filtering & 24h Deduplication (Яндекс)<br>• In-Memory Rate Limiter (Token Bucket / Sliding Window)<br>• In-Memory Cache (TTL, LRU/LFU)<br>• Task Scheduler (Cron, Priority)<br>• Order State Machine, Circuit Breaker, Event Bus | Injected `java.time.Clock`, Specification Pattern, OCP, Bounded Cache Eviction |
-| **💳 FinTech & Ledger LLD** | 10 | • Double-Entry Accounting Ledger (Т-Банк / Stripe)<br>• Idempotency Key Processor (SHA-256 / TTL)<br>• Transactional Outbox (SKIP LOCKED)<br>• Multi-Currency Wallet (Hold/Capture/Release)<br>• Fraud Detection Sliding Window Rules | Ordered ID Locking (Deadlock-Free), `BigDecimal` with `RoundingMode.HALF_EVEN`, Zero `float`/`double` |
-| **⚡ Concurrency Systems LLD** | 10 | • Multi-threaded Elevator Dispatcher (Virtual Threads)<br>• Custom ThreadPoolExecutor & Work-Stealing<br>• Connection Pool Manager (Leak Detection, MaxWait)<br>• Async Batch Flusher (Size $N$ \|\| Time $T$ ms)<br>• Multi-tier Cache Stampede Protection (SingleFlight)<br>• LMAX Disruptor Ring Buffer | Zero Carrier Pinning, `ReentrantLock` + `Condition`, Non-blocking Striped Cells |
+| **🏛️ BigTech Core LLD** | 15 | Rate Limiter (Token Bucket / Sliding Log), LRU/LFU Cache, Task Scheduler, Notification Filtering, Order State Machine | Injected `java.time.Clock`, Specification Pattern, OCP, Bounded Cache Eviction |
+| **💳 FinTech & Ledger LLD** | 10 | Double-Entry Ledger, Idempotency Processor, Transactional Outbox, Multi-Currency Wallet, Fraud Rules | Ordered ID Locks (Deadlock-Free), `BigDecimal` with `RoundingMode.HALF_EVEN`, Zero `float`/`double` |
+| **⚡ Concurrency Systems LLD** | 10 | Virtual Thread Elevator Dispatcher, Custom ThreadPoolExecutor, Connection Pool Manager, Async Batch Flusher, Cache Stampede SingleFlight, Disruptor Ring Buffer | Zero Carrier Pinning, `ReentrantLock` + `Condition`, Striped Cells |
 
-### 2.2. Deterministic Static AST Analysis Engine (8 Rules)
-Before invoking LLM reasoning, code submissions are audited through an 8-rule deterministic AST engine synchronized between `frontend/src/utils/astRules.ts` and `backend/src/services/astAuditService.ts`:
+#### Deterministic 8-Factor AST Static Auditing Service:
+Code submissions must pass deterministic AST rules before AI scoring:
+1. `carrier-thread-pinning` (Critical): Blocks `synchronized` blocks inside virtual threads.
+2. `unbounded-threadlocal-leak` (High): Enforces `try-finally { tl.remove(); }` or `ScopedValue`.
+3. `unsafe-tomap-collision` (High): Flags 2-argument `Collectors.toMap` without merge functions.
+4. `deprecated-mockbean-springboot34` (Medium): Flags `@MockBean`, requiring Spring 6.2 `@MockitoBean`.
+5. `blocking-call-in-controller` (Critical): Flags `Thread.sleep` or blocking I/O in HTTP controllers.
+6. `side-effects-in-peek` (Medium): Catches state mutation inside `Stream.peek()`.
+7. `enforce-clock-injection` (High): Enforces constructor-injected `java.time.Clock`.
+8. `no-double-in-money` (Critical): Enforces `BigDecimal` with `RoundingMode.HALF_EVEN`.
 
-1. **`carrier-thread-pinning` (Critical):** Blocks `synchronized` blocks/methods that pin OS carrier threads in Project Loom virtual thread runtimes.
-2. **`unbounded-threadlocal-leak` (High):** Flags `ThreadLocal.set()` without guaranteed `try-finally { remove(); }` or unmigrated to Java 21 `ScopedValue`.
-3. **`unsafe-tomap-collision` (High):** Catches 2-argument `Collectors.toMap(k, v)` lacking a merge function.
-4. **`deprecated-mockbean-springboot34` (Medium):** Flags `@MockBean` in Spring Boot 3.4+, requiring Spring 6.2 `@MockitoBean`.
-5. **`blocking-call-in-controller` (Critical):** Blocks `Thread.sleep` in REST controller request threads.
-6. **`side-effects-in-peek` (Medium):** Detects state mutations inside `Stream.peek()`.
-7. **`enforce-clock-injection` (High):** Prohibits direct `System.currentTimeMillis()` / `Instant.now()` in business services, enforcing constructor-injected `java.time.Clock`.
-8. **`no-double-in-money` (Critical):** Prohibits `double`/`float` in monetary/balance calculations, enforcing `BigDecimal` with `RoundingMode.HALF_EVEN`.
-
-### 2.3. SOTA 5-Factor Scoring Formula
-The dual-pass evaluation produces an objective 0–100 score:
+#### 5-Factor Evaluation Formula:
 $$\text{FinalScore} = 0.40 \cdot S_{\text{correctness}} + 0.20 \cdot S_{\text{concurrency}} + 0.20 \cdot S_{\text{architecture}} + 0.10 \cdot S_{\text{time\_testability}} + 0.10 \cdot S_{\text{java21\_idioms}}$$
 
 ---
 
-## 3. Resilience & Zero-Phantom-Fallback Invariants
+### 3.7. Pillar 7: Guided Academy Studio
 
-### 3.1. Elimination of Fake Fallbacks
-* Under no circumstances does the system fabricate static tasks pretending to be AI generation when the LLM gateway is degraded.
-* `DynamicTaskGenerator` implements **Full-Jitter Exponential Backoff**:
-  $$T_{\text{wait}} = \text{random}\left(0, \min(2500, 800 \times 1.8^{\text{attempt}})\right)$$
-* Up to 2 automated retries occur transparently for HTTP 429, 503, or upstream timeouts.
+The Guided Academy Studio synthesizes candidate progress across all 8 arenas into a personalized 25-step Senior Spring Career Sprint, managed by a closed-loop FSRS-5 Knowledge Graph.
 
-### 3.2. Structured HTTP 503 Contract & Actionable Recovery UI
-When the gateway is persistently unavailable, `POST /api/practice/generate-task` returns a structured HTTP 503 JSON payload:
+```mermaid
+graph TD
+    subgraph KG ["🕸️ Closed-Loop Knowledge Graph G = (V, E)"]
+        N1["Java Core & Concurrency"]
+        N2["Spring Framework Internals & AOP"]
+        N3["Spring Transactions & Data"]
+        N4["System Architecture & Distributed Systems"]
+        N5["Production Incident Triage & SRE"]
+        
+        N1 -->|pre-requisite| N2
+        N2 -->|pre-requisite| N3
+        N3 -->|pre-requisite| N4
+        N1 -->|cross-domain| N5
+        N3 -->|cross-domain| N5
+    end
+
+    subgraph FSRS ["🧠 FSRS-5 Spaced Repetition Engine"]
+        States["Item State: (Stability S, Difficulty D, Retrievability R)"]
+        FIRe["Fractional Implicit Repetition (FIRe)\n(Actions in Machine Coding update knowledge nodes)"]
+        Knapsack["Precedence Constrained Knapsack Optimizer\n(Maximizes retention gain within daily budget T)"]
+        
+        States --> FIRe
+        FIRe --> Knapsack
+    end
+
+    subgraph Curriculum ["🎓 25-Step Senior Sprint"]
+        Step1["Step 1: Virtual Threads & Memory"] --> Step2["Step 2: Testing & Pitest Arena"]
+        Step2 --> Step3["Step 3: Spring Transaction Proxy"]
+        Step3 --> StepN["... -> Step 25: Staff Architecture Defense"]
+    end
+
+    KG <--> FSRS
+    FSRS --> Curriculum
+```
+
+#### Mathematical Formulation:
+- **Retention Probability:**
+  $$R(t, S) = \left(1 + \text{factor} \times \frac{t}{S}\right)^{-1}$$
+- **Daily Sprint Optimization (PCKP):**
+  $$\max \sum_{i \in \mathcal{V}} \Delta \text{KnowledgeGain}_i \cdot x_i \quad \text{s.t.} \quad \sum_{i \in \mathcal{V}} t_i x_i \le T_{\text{budget}}, \quad x_j \le x_i \; \forall (i, j) \in \mathcal{E}$$
+- **Cross-Arena Universal Context Payload (`frontend/src/types/tutor.ts`):** Standardized context envelope transmitted to the Socratic AI Tutor regardless of active arena.
+
+---
+
+### 3.8. Pillar 8: StudyDeck & Audio Podcasts
+
+The StudyDeck provides auditory spaced learning via two-host conversational podcasts generated dynamically using Gemini 3.1 Flash TTS.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Candidate as 👤 Candidate
+    participant UI as 📱 StudyDeckView
+    participant Backend as ⚙️ Express Backend (/api/podcast)
+    participant LiteLLM as ⚡ LiteLLM Proxy (:4000)
+    participant GeminiTTS as ☁️ Gemini 3.1 Flash TTS
+    participant Cache as 💾 Local Audio File Cache
+
+    Candidate->>UI: Selects Flashcard or Topic
+    UI->>Backend: GET /api/podcast/generate?topic=hikari_deadlock
+    Backend->>Cache: Check for pre-generated MP3/WAV
+    alt Cache Hit
+        Cache-->>Backend: Existing audio file stream
+    else Cache Miss
+        Backend->>LiteLLM: Prompt two-host script (Host A + Host B)
+        LiteLLM-->>Backend: Structured script turns
+        Backend->>LiteLLM: TTS Synthesis (Host A: Voice 1, Host B: Voice 2)
+        LiteLLM->>GeminiTTS: Render dual-voice chunks
+        GeminiTTS-->>Backend: Multi-voice audio stream
+        Backend->>Cache: Save to disk
+    end
+    Backend-->>UI: Stream audio stream (chunked audio/mpeg)
+    UI-->>Candidate: 🎧 Interactive two-host dialogue with synchronized transcript
+```
+
+#### Highlights:
+- **Two-Host Dynamic Dialogue:** Host A plays the curious interviewer posing edge-case questions; Host B plays the seasoned Staff Architect explaining the JVM/Spring internals.
+- **Synchronized Transcripts:** Live karaoke-style highlight tracking along the audio playback timeline.
+- **Anki-Style Spaced Repetition:** Flashcard evaluation (Again, Hard, Good, Easy) directly adjusting node stability in the FSRS-5 engine.
+
+---
+
+## 4. Cross-Cutting Engineering & Resilience Architecture
+
+### 4.1. Two-Tier Circuit Breaker Architecture
+
+All upstream calls pass through a resilient dual-tier Circuit Breaker in `LiteLLM_Proxy`:
+
+```mermaid
+flowchart TD
+    Req["Incoming API Request"] --> CB1["Tier 1: Key-Level Circuit Breaker\n(Per-Key Rate Limits / 429)"]
+    CB1 -->|Key Exhausted| FailoverKey["Failover to Next Virtual Key in Pool\n(Zero User Impact)"]
+    CB1 -->|All Keys 429| CB2["Tier 2: Model-Level Circuit Breaker\n(Model 503 / Provider Outage)"]
+    CB2 -->|Fast Failover| ModelFallback["Switch to Backup Model Alias\n(e.g. gemini-smart -> gemini-fast)"]
+    CB2 -->|All Out| Structured503["Return Structured HTTP 503 Payload\n(retryAfterSeconds: 5, healthEndpoint)"]
+```
+
+### 4.2. Actionable HTTP 503 Recovery Contract
+
+When the AI gateway experiences an upstream outage, the backend returns a structured JSON payload:
+
 ```json
 {
   "error": "LLM_GATEWAY_TEMPORARILY_UNAVAILABLE",
@@ -124,110 +453,131 @@ When the gateway is persistently unavailable, `POST /api/practice/generate-task`
 }
 ```
 
-The frontend renders [`TaskRecoveryCard`](file:///d:/projects/interview_projects/spring/frontend/src/components/TaskRecoveryCard.tsx):
-* Live animated countdown timer with progress bar and Pause/Resume toggle.
-* 3 one-click actions: 🔄 *«Повторить сейчас»*, 📚 *«Банк 70 задач»*, 🩺 *«Диагностика шлюза»* (inline query to `/api/health`).
+The frontend renders `TaskRecoveryCard`:
+- Live animated countdown timer with pause/resume toggle.
+- 1-click retry button.
+- Instant access to the offline catalog of 70 SOTA katas.
+- Real-time inline gateway health diagnostics.
+
+### 4.3. UI Performance, Virtualization & Scroll Lock Invariants
+
+- **Reference-Counted Scroll Lock (`useBodyScrollLock`):** Tracks an integer `activeLocksCount`. Eliminates the classic modal bug where closing an inner modal releases body scrolling while the outer modal is still mounted.
+- **100dvh Standard:** Replaces problematic `100vh` on mobile viewports with `100dvh` (`h-[calc(100dvh-4rem)]`) to absorb mobile browser address bar and keyboard resizes without layout reflows.
+- **CSS `content-visibility: auto`:** Large lists of 800+ questions render with zero DOM virtualization lag, guaranteeing 120 FPS scrolling on iOS and Android devices.
 
 ---
 
-## 4. Gemini Live Multimodal Protocol & State Machine
+## 5. Database Topology & Schema Reference
 
-### 4.1. First-Turn Lockdown Invariant
-* **Turn 0 Directive:** In all system prompts, the AI interviewer is strictly forbidden from calling `submit_interview_evaluation` during Turn 0 greeting.
-* **Backend Guard:** The backend WebSocket session tracks `hasCandidateResponded`. Early evaluation attempts are rejected with structured `toolResponse` errors.
-
-### 4.2. Dual-Sided Handshake
-The transition from AI speech to candidate microphone (`isAiSpeaking: false`, `isRecording: true`) is symmetrically unblocked by whichever event finishes LAST:
-1. `AudioPlayoutManager.onPlaybackFinished` (physical audio drains in headphones).
-2. WebSocket `turnComplete: true` arrival (network streaming concludes).
+The primary persistence layer uses SQLite3 at `/app/data/interview.db` (with PostgreSQL 16 backing LiteLLM state and vector embeddings).
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Lobby: Инициализация диалога
-    Lobby --> Connecting: Клик «Начать собеседование»
-    
-    state Connecting {
-        [*] --> ResumingAudio: Web Audio API resume
-        ResumingAudio --> OpeningWS: ws://djelu.site/ws/live
-        OpeningWS --> BackgroundMic: Фоновый прогрев MediaStream
+erDiagram
+    QUESTIONS ||--o{ CANDIDATE_ERROR_VECTORS : tracks
+    CODING_CHALLENGES ||--o{ CODING_SUBMISSIONS : receives
+    SPRING_TRANSACTION_CHALLENGES ||--o{ CODING_SUBMISSIONS : receives
+    INCIDENT_SCENARIOS ||--o{ INCIDENT_SUBMISSIONS : receives
+    KNOWLEDGE_NODES ||--o{ USER_FSRS_STATES : measures
+
+    QUESTIONS {
+        string id PK
+        string topic
+        string question
+        string answer
+        string source_pages
+        int difficulty
     }
-    
-    Connecting --> Turn0_AiSpeaking: setupComplete + initialGreeting
-    
-    state Turn0_AiSpeaking {
-        [*] --> StreamingAudio: Прием 24kHz PCM чанков
-        StreamingAudio --> PlayoutTimeline: Планирование на AudioContext
-        PlayoutTimeline --> AwaitingDrain: turnComplete получен
+
+    CODING_CHALLENGES {
+        string id PK
+        string slug UK
+        string title
+        string track
+        string difficulty
+        json manifest_json
     }
-    
-    Turn0_AiSpeaking --> CandidateTurn: Dual-Sided Handshake (Audio Drained && turnComplete)
-    Turn0_AiSpeaking --> CandidateTurn: Tactile Barge-In (Клик по центральному кругу)
-    
-    state CandidateTurn {
-        [*] --> ManualReflection: Микрофон активен
-        ManualReflection --> CandidateSpeaking: Речь кандидата
-        CandidateSpeaking --> TransmittingAnswer: Клик «Передать ответ ➔»
+
+    SPRING_TRANSACTION_CHALLENGES {
+        string id PK
+        string slug UK
+        string title
+        string category
+        string difficulty
+        json manifest_json
     }
-    
-    CandidateTurn --> Thinking_Evaluating: turnComplete передан на бэкенд
-    
-    state Thinking_Evaluating {
-        [*] --> WatchdogTimer: Старт таймера безопасности 6.5с
-        WatchdogTimer --> ProbingOrEval: Gemini генерирует разбор
-        ProbingOrEval --> REST_Fallback: Срабатывание 6.5с таймаута
+
+    INCIDENT_SCENARIOS {
+        string id PK
+        string slug UK
+        string title
+        string severity
+        text thread_dump_raw
+        text heap_summary_json
+        json rubric_json
     }
-    
-    Thinking_Evaluating --> Verdict: evaluation_completed
-    Thinking_Evaluating --> Turn0_AiSpeaking: Следующий вопрос
-    
-    Verdict --> Lobby: Клик «Завершить»
-    Verdict --> Turn0_AiSpeaking: 1-Click Retry
+
+    KNOWLEDGE_NODES {
+        string id PK
+        string domain
+        string title
+        json prerequisites_json
+    }
+
+    USER_FSRS_STATES {
+        string user_id PK
+        string node_id PK
+        float stability
+        float difficulty
+        datetime last_reviewed
+        datetime due_date
+    }
 ```
 
 ---
 
-## 5. UI/UX Ergonomics & Mobile Responsiveness
-
-### 5.1. Mobile Viewport Stability (`100dvh`)
-* `PracticeArena.tsx` utilizes `h-[calc(100dvh-4rem)]` to prevent virtual keyboard displacement on Android / iOS devices.
-* File tabs in `WorkspaceEditor.tsx` feature `touch-pan-x no-scrollbar` for smooth horizontal swiping with touch targets $\ge 36\text{px}$.
-
-### 5.2. Multi-Modal Reference-Counted Scroll Lock
-* `useBodyScrollLock.ts` maintains a module-level `activeLocksCount` reference counter. Opening nested drawers (e.g. Memory Radar over Bug Hunt Modal) does not prematurely unlock `document.body` when an inner drawer closes.
-
-### 5.3. CSS Virtualization for 120 FPS Scrolling
-* Question cards (`QuestionExplorer.tsx`) and topic cards (`TopicSelector.tsx`) utilize `.card-content-visibility` (`content-visibility: auto; contain-intrinsic-size: 0 90px;`), enabling buttery-smooth 120 FPS scrolling across all 816 questions on mobile hardware.
-
----
-
-## 6. Production Deployment Topology
+## 6. Production Deployment & Infrastructure Topology
 
 ```mermaid
 graph TD
-    subgraph Host ["VPS (192.124.182.59 / djelu.site)"]
-        CaddyContainer["interview-caddy-ssl (Caddy 2.8 Reverse Proxy)"]
-        BackendContainer["interview-backend-api (Node.js 22 + Express)"]
-        LiteLLMContainer["litellm-gateway (LiteLLM Port 4000)"]
-        PostgresContainer["litellm-postgres (PostgreSQL 16)"]
-        SQLiteVolume["/app/data/interview.db (816 Questions, 35 LLD Tasks)"]
-        
-        CaddyContainer -->|":5000"| BackendContainer
-        BackendContainer --> SQLiteVolume
-        BackendContainer -->|":4000"| LiteLLMContainer
-        LiteLLMContainer --> PostgresContainer
+    subgraph Host ["VPS Production Environment (djelu.site / 192.124.182.59)"]
+        subgraph EdgeLayer ["Edge Proxy Container"]
+            Caddy["interview-caddy-ssl\nCaddy 2.8 Reverse Proxy\n(Ports 80, 443 -> Auto-HTTPS)"]
+        end
+
+        subgraph AppLayer ["Application Containers"]
+            BackendApp["interview-backend-api\nNode.js 22 LTS + Express\n(Port 5000 / Internal WS)"]
+            LiteLLM["litellm-gateway\nLiteLLM AI Gateway\n(Port 4000)"]
+            Postgres["litellm-postgres\nPostgreSQL 16\n(Port 5432 Internal)"]
+        end
+
+        subgraph StorageLayer ["Persistent Data Volumes"]
+            DataVol["/app/data/interview.db\n(SQLite3 Production Database)"]
+            MediaVol["/app/media_cache/\n(TTS Audio Podcasts & Scenarios)"]
+        end
+
+        Caddy -->|":5000"| BackendApp
+        BackendApp -->|":4000"| LiteLLM
+        LiteLLM --> Postgres
+        BackendApp --> DataVol
+        BackendApp --> MediaVol
     end
 
-    Internet["🌍 Internet / Browsers"] -->|HTTPS :443 / WSS| CaddyContainer
-    LiteLLMContainer -->|Google Cloud AI| GeminiCloud["☁️ Gemini API (smart, live, tts, embedding)"]
+    subgraph UpstreamAI ["Cloud AI Providers"]
+        GoogleCloud["Google Cloud Gemini\n(Smart Reasoning, Live Multimodal, TTS, Embeddings)"]
+    end
+
+    Internet["🌍 Internet / Browsers"] -->|HTTPS / WSS| Caddy
+    LiteLLM --> GoogleCloud
 ```
 
 ---
 
-## 7. Database Schema Reference (SQLite `interview.db`)
+## 7. Health Diagnostics & Observability Standard
 
-* `questions`: 816 questions (`id`, `topic`, `question`, `answer`, `source_pages`).
-* `coding_challenges`: 42 challenges (`id`, `slug`, `title`, `category`, `track`, `difficulty`, `manifest_json`).
-* `coding_submissions`: User code submissions (`challenge_id`, `user_id`, `files_json`, `score`, `evaluation_json`).
-* `bug_challenges`: 70 SOTA katas (`id`, `topic_id`, `code_snippet`, `bug_explanation`, `fixed_code`, `hints_json`).
-* `candidate_error_vectors`: Deficit tracking (`topic`, `error_concept`, `embedding`, `deficit_weight`, `solo_streak`).
-* `interview_profiles`: Presets (`socratic_tutoring`, `adaptive_probing`, `voice`, `strategy`).
+The platform exposes unified health and diagnostic endpoints:
+- `GET /api/health`: Validates process uptime, memory footprint, SQLite connectivity, and tests upstream connectivity to `LiteLLM_Proxy` with latency timings for all 4 primary model aliases:
+  1. `GEMINI_TEXT_MODEL`
+  2. `GEMINI_LIVE_MODEL`
+  3. `GEMINI_TTS_MODEL`
+  4. `GEMINI_EMBEDDING_MODEL`
+- `GET /api/health/diagnostics`: Detailed breakdown of active connection pools, resident compiler warm status, and FSRS cache hits.

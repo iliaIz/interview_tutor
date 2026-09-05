@@ -1,0 +1,579 @@
+[
+  {
+    "id": "self_invocation_bypass",
+    "title": "Обход AOP-прокси при локальном самовызове (Self-Invocation)",
+    "domain": "E-Commerce / Order Processing",
+    "difficulty": "Junior",
+    "badge": "CGLIB Bypass",
+    "problemStatement": "Метод checkout() оформляет заказ и вызывает вспомогательный метод saveAuditRecord(), помеченный @Transactional(propagation = REQUIRES_NEW). Бизнес-требование: аудит-запись должна сохраниться в базе данных ДАЖЕ ЕСЛИ основной заказ завершится ошибкой. Однако в проде аудит-записи при ошибках бесследно исчезают. Найдите причину и настройте границы транзакций.",
+    "simulatedLoad": {
+      "defaultThreads": 5,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "OrderProcessingService",
+        "methods": [
+          {
+            "id": "checkout",
+            "name": "checkout",
+            "returnType": "OrderResult",
+            "parameters": "Long orderId, BigDecimal amount",
+            "businessContract": "Основной бизнес-метод оформления заказа. Должен выполняться в стандартной транзакции (REQUIRED), откатываться при сбое платежа.",
+            "codeSnippet": "public OrderResult checkout(Long orderId, BigDecimal amount) {\n    validateOrder(orderId);\n    paymentClient.charge(amount);\n    // ВНИМАНИЕ: Вызов метода того же класса через this!\n    this.saveAuditRecord(orderId, \"CHARGED\");\n    return new OrderResult(\"SUCCESS\");\n}",
+            "correctConfig": {
+              "propagation": "REQUIRED"
+            },
+            "traps": [
+              "self_invocation_bypass"
+            ],
+            "explanation": "Для checkout() достаточно REQUIRED. Но вызов saveAuditRecord() через this обходит CGLIB-прокси: аннотация на saveAuditRecord() не сработает, пока метод не вынесен в отдельный бин (например, AuditLogService)."
+          },
+          {
+            "id": "saveAuditRecord",
+            "name": "saveAuditRecord",
+            "returnType": "void",
+            "parameters": "Long orderId, String action",
+            "businessContract": "Запись в аудит-лог. Должна фиксироваться в БД в ЛЮБОМ случае, даже если родительская транзакция упадет (REQUIRES_NEW).",
+            "codeSnippet": "public void saveAuditRecord(Long orderId, String action) {\n    auditRepository.save(new AuditLog(orderId, action));\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW"
+            },
+            "traps": [
+              "self_invocation_bypass"
+            ],
+            "explanation": "Для изоляции аудита требуется REQUIRES_NEW. Однако, находясь в том же классе, вызов минует TransactionInterceptor. В архитектуре Spring его необходимо вынести в отдельный @Service AuditService."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Почему вызов saveAuditRecord() не открывает новую транзакцию в рантайме Spring, несмотря на аннотацию REQUIRES_NEW?",
+        "idealKeypoints": [
+          "CGLIB / Dynamic Proxy перехватывает только внешние вызовы бина",
+          "Вызов внутри того же класса компилируется в invokevirtual на this",
+          "Транзакционный перехватчик TransactionInterceptor не активируется"
+        ]
+      },
+      {
+        "question": "Каковы два архитектурно правильных способа решения проблемы self-invocation?",
+        "idealKeypoints": [
+          "Декомпозиция: вынос метода в отдельный Spring @Service бин",
+          "Программное управление: использование TransactionTemplate с setPropagationBehavior(PROPAGATION_REQUIRES_NEW)"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "hikaricp_pool_deadlock",
+    "title": "Взаимная блокировка пула HikariCP (Connection Exhaustion)",
+    "domain": "FinTech / Billing & Audit",
+    "difficulty": "Senior",
+    "badge": "HikariCP Deadlock",
+    "problemStatement": "Метод BillingService.processInvoice() удерживает физическое JDBC-соединение и синхронно вызывает AuditLogService.recordEvent() с REQUIRES_NEW. При размере пула HikariCP = 10 соединений и нагрузке в 15 параллельных запросов система намертво виснет на 30 секунд, после чего падает с SQLTransientConnectionException. Настройте транзакции и предотвратите дедлок.",
+    "simulatedLoad": {
+      "defaultThreads": 15,
+      "poolCapacity": 10,
+      "depthPerThread": 2
+    },
+    "services": [
+      {
+        "className": "BillingService",
+        "methods": [
+          {
+            "id": "processInvoice",
+            "name": "processInvoice",
+            "returnType": "void",
+            "parameters": "Invoice invoice",
+            "businessContract": "Проведение счета в БД. Требует транзакции REQUIRED. Удерживает первое соединение из пула.",
+            "codeSnippet": "public void processInvoice(Invoice invoice) {\n    invoiceRepository.save(invoice);\n    // Вызов внешнего сервиса с REQUIRES_NEW: запрашивает второе соединение!\n    auditLogService.recordEvent(invoice.getId(), \"INVOICE_PROCESSED\");\n}",
+            "correctConfig": {
+              "propagation": "REQUIRED",
+              "timeout": 5
+            },
+            "traps": [
+              "hikaricp_deadlock"
+            ],
+            "explanation": "Основная транзакция удерживает Connection 1. Вызов REQUIRES_NEW во внешнем сервисе запрашивает Connection 2 из того же пула HikariCP."
+          }
+        ]
+      },
+      {
+        "className": "AuditLogService",
+        "methods": [
+          {
+            "id": "recordEvent",
+            "name": "recordEvent",
+            "returnType": "void",
+            "parameters": "Long invoiceId, String event",
+            "businessContract": "Фиксация аудита независимо от счета. При синхронном вызове в одном пуле вызывает дедлок голодания.",
+            "codeSnippet": "public void recordEvent(Long invoiceId, String event) {\n    auditRepository.save(new SecurityAudit(invoiceId, event));\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW",
+              "timeout": 3
+            },
+            "traps": [
+              "hikaricp_deadlock"
+            ],
+            "explanation": "По теореме Вулдриджа при D=2 и P=10 безопасное число потоков T <= 9. При T=15 потоков возникает циклический дедлок: все потоки удерживают 1-е соединение и ждут 2-е. Решение: выделенный auxiliary auditDataSource либо асинхронный @Async listener."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Сформулируйте математическое условие возникновения взаимной блокировки пула соединений HikariCP по теореме Бретта Вулдриджа.",
+        "idealKeypoints": [
+          "P <= T * (D - 1), где P — размер пула, T — число параллельных потоков, D — глубина вложенности соединений",
+          "Для безопасности требуется P >= T * (D - 1) + 1"
+        ]
+      },
+      {
+        "question": "Почему виртуальные потоки Java 21 (Loom) делают эту проблему еще более острой?",
+        "idealKeypoints": [
+          "Виртуальные потоки снимают ограничение пула Tomcat на 200 потоков",
+          "Под нагрузкой одновременно стартуют тысячи потоков, мгновенно исчерпывая пул HikariCP"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checked_exception_rollback",
+    "title": "Фиксация транзакций при проверяемых исключениях (Checked Exception)",
+    "domain": "Logistics / Cargo Clearing",
+    "difficulty": "Middle",
+    "badge": "Silent Commit",
+    "problemStatement": "Метод dispatchCargo() списывает инвентарь склада и при сетевой ошибке таможенного шлюза выбрасывает checked exception CustomCustomsClearanceException extends Exception. Однако при проверке БД инвентарь оказывается списанным! Почему Spring зафиксировал транзакцию и как настроить гарантированный откат?",
+    "simulatedLoad": {
+      "defaultThreads": 5,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "CargoDispatchService",
+        "methods": [
+          {
+            "id": "dispatchCargo",
+            "name": "dispatchCargo",
+            "returnType": "void",
+            "parameters": "CargoItem cargo",
+            "businessContract": "Списание груза со склада. При падении таможенного оформления обязано откатить списание инвентаря.",
+            "codeSnippet": "public void dispatchCargo(CargoItem cargo) throws CustomsClearanceException {\n    inventoryRepository.deductStock(cargo.getId(), cargo.getQuantity());\n    if (!customsClient.verify(cargo)) {\n        // Checked Exception! Spring по умолчанию интерпретирует его как штатное завершение!\n        throw new CustomsClearanceException(\"Таможенный шлюз отклонил декларацию\");\n    }\n}",
+            "correctConfig": {
+              "propagation": "REQUIRED",
+              "rollbackFor": [
+                "Exception.class"
+              ]
+            },
+            "traps": [
+              "checked_exception_no_rollback"
+            ],
+            "explanation": "По спецификации Spring откат транзакции по умолчанию происходит только на RuntimeException и Error. При выбрасывании checked exception (наследников Exception) необходимо явно указывать rollbackFor = Exception.class."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Какое дефолтное правило отката заложено в Spring TransactionInterceptor и почему оно расходится с интуицией разработчиков?",
+        "idealKeypoints": [
+          "По умолчанию откат только при unchecked exceptions (RuntimeException) и Error",
+          "Checked exceptions считаются контролируемым бизнес-результатом метода, поэтому вызывается commit()"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "readonly_dirty_checking",
+    "title": "Оптимизация readOnly = true и отключение Dirty Checking",
+    "domain": "E-Commerce / High-Load Catalog",
+    "difficulty": "Middle",
+    "badge": "Dirty Checking & Replica",
+    "problemStatement": "Сервис каталога browseCatalog() обрабатывает 5000 RPS. Профайлер показывает, что 35% процессорного времени тратится на построение слепков сущностей Hibernate и последующий dirty checking при коммите. Настройте метод так, чтобы оптимизировать использование памяти и направить запросы на реплику чтения.",
+    "simulatedLoad": {
+      "defaultThreads": 20,
+      "poolCapacity": 20,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "ProductCatalogService",
+        "methods": [
+          {
+            "id": "browseCatalog",
+            "name": "browseCatalog",
+            "returnType": "List<ProductDto>",
+            "parameters": "String category, Pageable pageable",
+            "businessContract": "Высоконагруженная выборка товаров. Только чтение данных. Должна быть максимально быстрой и энергоэффективной.",
+            "codeSnippet": "public List<ProductDto> browseCatalog(String category, Pageable pageable) {\n    return productRepository.findByCategory(category, pageable)\n        .stream().map(this::toDto).toList();\n}",
+            "correctConfig": {
+              "propagation": "SUPPORTS",
+              "readOnly": true,
+              "timeout": 3
+            },
+            "traps": [
+              "missing_readonly_optimization"
+            ],
+            "explanation": "readOnly = true переключает сессию Hibernate в FlushMode.MANUAL, отключая аллокацию entity snapshots и ресурсоемкую фазу dirty checking, а JDBC драйверу передает connection.setReadOnly(true) для роутинга на read-replica."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Что физически происходит в Hibernate и JDBC драйвере при установке флага readOnly = true?",
+        "idealKeypoints": [
+          "Hibernate переключается в FlushMode.MANUAL и отключает dirty checking (не строит снимки сущностей)",
+          "JDBC драйверу отправляется connection.setReadOnly(true), что переключает транзакцию БД в READ ONLY режим"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "external_io_idle_in_tx",
+    "title": "Блокирующий сетевой ввод-вывод внутри транзакции (Idle in Transaction)",
+    "domain": "FinTech / Payment Orchestration",
+    "difficulty": "Senior",
+    "badge": "Idle Connection Anti-Pattern",
+    "problemStatement": "Метод processTransfer() списывает баланс, делает HTTP-запрос к внешнему банку Stripe, а затем обновляет статус. При сетевой задержке Stripe в 2 секунды все соединения базы данных повисают в состоянии idle in transaction, исчерпывая пул HikariCP. Устраните антипаттерн.",
+    "simulatedLoad": {
+      "defaultThreads": 15,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "PaymentOrchestrator",
+        "methods": [
+          {
+            "id": "processTransfer",
+            "name": "processTransfer",
+            "returnType": "void",
+            "parameters": "UUID accountId, BigDecimal amount",
+            "businessContract": "Оркестрация перевода средств. Не должна удерживать JDBC-соединение во время внешнего сетевого HTTP-вызова.",
+            "codeSnippet": "public void processTransfer(UUID accountId, BigDecimal amount) {\n    // Фаза 1: Резервирование в БД\n    // Фаза 2: Сетевой HTTP вызов к Stripe (2-3 секунды!)\n    // Фаза 3: Фиксация или откат резерва\n}",
+            "correctConfig": {
+              "propagation": "NONE"
+            },
+            "traps": [
+              "blocking_io_in_transaction"
+            ],
+            "explanation": "Вызов внешних REST/gRPC сервисов внутри @Transactional — критический антипаттерн. Сам метод-оркестратор не должен быть @Transactional. Резервирование и фиксация должны оформляться короткими независимыми транзакциями через TransactionTemplate."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Почему удержание JDBC-соединения во время ожидания сетевого сокета (REST/gRPC) фатально для пропускной способности системы?",
+        "idealKeypoints": [
+          "Соединение простаивает в состоянии idle in transaction, не выполняя полезной работы",
+          "Пул HikariCP блокируется, другие запросы встают в очередь ожидания",
+          "Увеличивается риск удержания блокировок строк в СУБД"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "after_commit_listener_silent_loss",
+    "title": "Потеря изменений в фазе AFTER_COMMIT (@TransactionalEventListener)",
+    "domain": "Notification / Domain Events",
+    "difficulty": "Senior",
+    "badge": "AFTER_COMMIT Pitfall",
+    "problemStatement": "Слушатель OrderNotificationListener подписан на событие создания заказа с @TransactionalEventListener(phase = AFTER_COMMIT). Внутри он обновляет статус доставки в БД: deliveryRepository.save(status). Однако в БД изменения не сохраняются и ошибок не возникает. В чем причина и как настроить сохранение?",
+    "simulatedLoad": {
+      "defaultThreads": 5,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "OrderNotificationListener",
+        "methods": [
+          {
+            "id": "onOrderCreated",
+            "name": "onOrderCreated",
+            "returnType": "void",
+            "parameters": "OrderCreatedEvent event",
+            "businessContract": "Обработка события после успешного коммита заказа. Запись статуса доставки в базу данных.",
+            "codeSnippet": "@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)\npublic void onOrderCreated(OrderCreatedEvent event) {\n    // Внимание: родительское JDBC-соединение уже зафиксировано и закрыто!\n    deliveryRepository.save(new DeliveryStatus(event.getOrderId(), \"DISPATCHED\"));\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW"
+            },
+            "traps": [
+              "after_commit_closed_connection"
+            ],
+            "explanation": "В фазе AFTER_COMMIT исходное JDBC-соединение уже зафиксировано и возвращено в пул. Попытка вызвать save() без открытия новой транзакции (REQUIRES_NEW) не отправляет SQL в БД, так как Hibernate не может сбросить Persistence Context в закрытый ресурс."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Почему изменения сущностей в методе с @TransactionalEventListener(phase = AFTER_COMMIT) молча теряются без REQUIRES_NEW?",
+        "idealKeypoints": [
+          "В фазе AFTER_COMMIT транзакция уже завершена, соединение закрыто или возвращено в пул",
+          "Hibernate сессия переведена в режим read-only/closed, dirty checking не приводит к вызову flush"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "nested_savepoints_partial_rollback",
+    "title": "Частичный откат через NESTED и Savepoint базы данных",
+    "domain": "Loyalty Program / Multi-Source Payment",
+    "difficulty": "Senior",
+    "badge": "NESTED Savepoint",
+    "problemStatement": "Пользователь оплачивает заказ: сперва списываются бонусы программы лояльности, затем карта. Если списание бонусов падает (например, счет заморожен), заказ ДОЛЖЕН продолжиться за полную стоимость с карты, не ломая основную транзакцию и не выделяя второго сокета из пула.",
+    "simulatedLoad": {
+      "defaultThreads": 5,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "CheckoutCoordinator",
+        "methods": [
+          {
+            "id": "payOrder",
+            "name": "payOrder",
+            "returnType": "void",
+            "parameters": "Order order",
+            "businessContract": "Родительская транзакция оформления заказа. Управляет сквозным сохранением.",
+            "codeSnippet": "public void payOrder(Order order) {\n    orderRepository.save(order);\n    try {\n        loyaltyService.deductPoints(order.getUserId(), order.getPoints());\n    } catch (BonusException e) {\n        log.warn(\"Списание бонусов не удалось, продолжаем за полную сумму\");\n    }\n    cardPaymentService.chargeCard(order.getId(), order.getTotal());\n}",
+            "correctConfig": {
+              "propagation": "REQUIRED"
+            },
+            "traps": [
+              "nested_savepoint_semantics"
+            ],
+            "explanation": "Родительский метод открывает стандартную транзакцию REQUIRED."
+          }
+        ]
+      },
+      {
+        "className": "LoyaltyService",
+        "methods": [
+          {
+            "id": "deductPoints",
+            "name": "deductPoints",
+            "returnType": "void",
+            "parameters": "Long userId, BigDecimal points",
+            "businessContract": "Списание бонусов. В случае ошибки должен откатываться только этот блок через точку сохранения (Savepoint).",
+            "codeSnippet": "public void deductPoints(Long userId, BigDecimal points) {\n    userAccountRepository.deductBonus(userId, points);\n}",
+            "correctConfig": {
+              "propagation": "NESTED"
+            },
+            "traps": [
+              "nested_savepoint_semantics"
+            ],
+            "explanation": "Propagation.NESTED использует JDBC Savepoint в рамках ТОГО ЖЕ физического соединения. При ошибке происходит откат ROLLBACK TO SAVEPOINT, не переводя всю транзакцию в rollback-only."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "В чем ключевое отличие Propagation.NESTED от Propagation.REQUIRES_NEW в плане использования ресурсов пула соединений?",
+        "idealKeypoints": [
+          "NESTED использует одно и то же физическое JDBC-соединение и создает SAVEPOINT в БД",
+          "REQUIRES_NEW приостанавливает текущее соединение и захватывает второе соединение из пула HikariCP"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "async_threadlocal_context_loss",
+    "title": "Потеря контекста транзакции в многопоточности (@Async)",
+    "domain": "Invoicing / Async Tasks",
+    "difficulty": "Senior",
+    "badge": "ThreadLocal Isolation",
+    "problemStatement": "Метод генерации финансового отчета помечен аннотациями @Transactional и @Async. Разработчик ожидает, что при падении генерации транзакция откатит статус в БД. Однако транзакция либо не открывается, либо живет в отдельном потоке без связи с родительским контекстом.",
+    "simulatedLoad": {
+      "defaultThreads": 5,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "AsyncReportService",
+        "methods": [
+          {
+            "id": "generateFiscalReport",
+            "name": "generateFiscalReport",
+            "returnType": "CompletableFuture<Report>",
+            "parameters": "Long reportId",
+            "businessContract": "Асинхронная генерация отчета. Транзакционный контекст в ThreadLocal не передается в пул воркеров TaskExecutor.",
+            "codeSnippet": "@Async\npublic CompletableFuture<Report> generateFiscalReport(Long reportId) {\n    Report report = reportRepository.findById(reportId).orElseThrow();\n    // Логика расчета\n    return CompletableFuture.completedFuture(report);\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW"
+            },
+            "traps": [
+              "async_context_loss"
+            ],
+            "explanation": "TransactionSynchronizationManager хранит контекст в ThreadLocal. Метод @Async выполняется в другом потоке, поэтому родительская транзакция физически не может быть продолжена. Необходима явная новая транзакция REQUIRES_NEW в отдельном бине."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Почему совмещение @Async и @Transactional на одном методе является антипаттерном в Spring Boot?",
+        "idealKeypoints": [
+          "Неопределенность порядка интерцепторов AsyncExecutionInterceptor и TransactionInterceptor",
+          "Потеря ThreadLocal контекста: транзакция не может сквозным образом откатиться вместе с вызывающим потоком"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "isolation_leak_pool",
+    "title": "Утечка уровня изоляции через пул HikariCP (Isolation Leak)",
+    "domain": "Banking Ledger / High-Concurrency",
+    "difficulty": "Lead",
+    "badge": "Isolation Leak SOTA",
+    "problemStatement": "Метод auditReconciliation() выполняется с @Transactional(isolation = Isolation.SERIALIZABLE). После возврата соединения в пул HikariCP обычные методы чтения со стандартным Isolation.DEFAULT внезапно начинают падать с ошибками PostgreSQL 40001 (serialization failure). Объясните явление Isolation Leak и устраните его.",
+    "simulatedLoad": {
+      "defaultThreads": 10,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "LedgerAuditService",
+        "methods": [
+          {
+            "id": "auditReconciliation",
+            "name": "auditReconciliation",
+            "returnType": "void",
+            "parameters": "Long accountId",
+            "businessContract": "Сверка балансов в строгом режиме SERIALIZABLE. Не должна загрязнять настройки соединения для других потоков.",
+            "codeSnippet": "public void auditReconciliation(Long accountId) {\n    BigDecimal sum = ledgerRepository.calculateSum(accountId);\n    auditRepository.verifySum(accountId, sum);\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW",
+              "isolation": "SERIALIZABLE",
+              "timeout": 5
+            },
+            "traps": [
+              "isolation_leak"
+            ],
+            "explanation": "Когда транзакция меняет уровень изоляции на физическом сокете (connection.setTransactionIsolation), при возврате в HikariCP сокет сохраняет этот режим. Если пул не настроен на авто-сброс, следующий метод с DEFAULT подхватит SERIALIZABLE! Решение: spring.datasource.hikari.transaction-isolation=TRANSACTION_READ_COMMITTED."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Что такое Isolation Leak в пулах соединений и какими директивами конфигурации он устраняется в Spring Boot?",
+        "idealKeypoints": [
+          "Физический JDBC-сокет сохраняет измененный уровень изоляции после возврата в пул",
+          "Устраняется параметром spring.datasource.hikari.transaction-isolation или явным сбросом в JPA Dialect"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "aop_order_retry_collision",
+    "title": "Конфликт интерцепторов: @Retryable поверх @Transactional",
+    "domain": "FinTech / High-Frequency Transfers",
+    "difficulty": "Lead",
+    "badge": "AOP Order Collision",
+    "problemStatement": "Для защиты от конфликтов оптимистической блокировки разработчик пометил метод transferFunds() аннотациями @Retryable и @Transactional. При конфликте метод падает с UnexpectedRollbackException: Transaction silently rolled back because it has been marked as rollback-only. Почему повторы не сработали?",
+    "simulatedLoad": {
+      "defaultThreads": 10,
+      "poolCapacity": 10,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "AccountTransferService",
+        "methods": [
+          {
+            "id": "transferFunds",
+            "name": "transferFunds",
+            "returnType": "void",
+            "parameters": "UUID from, UUID to, BigDecimal amount",
+            "businessContract": "Перевод средств с автоматическим повтором при OptimisticLockException. Каждая попытка обязана открывать свежую чистую транзакцию.",
+            "codeSnippet": "// Ошибка: аспект транзакции оборачивает аспект повторов!\npublic void transferFunds(UUID from, UUID to, BigDecimal amount) {\n    accountRepository.transfer(from, to, amount);\n}",
+            "correctConfig": {
+              "propagation": "REQUIRES_NEW",
+              "timeout": 3
+            },
+            "traps": [
+              "aop_retry_order_collision"
+            ],
+            "explanation": "Если аспект транзакций является внешним, транзакция открывается 1 раз. При ошибке она переходит в rollback-only, а L1 кэш Hibernate становится невалидным. Вторая попытка @Retry выполняется в той же мертвой транзакции. Решение: Order(Retry) < Order(Transaction) и разнесение на два бина."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "Почему при совмещении @Retryable и @Transactional на одном методе возникает UnexpectedRollbackException?",
+        "idealKeypoints": [
+          "Аспект транзакций переводит существующую физическую транзакцию в setRollbackOnly() при первом сбое",
+          "Повторная попытка выполняется внутри уже помеченной на откат транзакции",
+          "Кэш 1-го уровня (EntityManager) сохраняет грязные ссылки на сущности"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "write_skew_and_outbox",
+    "title": "Аномалия Write Skew и Transactional Outbox (Spring Modulith 2.0)",
+    "domain": "Distributed Architecture / Event-Driven",
+    "difficulty": "Lead",
+    "badge": "Outbox & Write Skew",
+    "problemStatement": "В микросервисе заказов требуется исключить аномалию Write Skew при резервировании слотов доставки и гарантировать атомарную отправку события OrderCreatedEvent в Kafka без блокирующего двухфазного коммита (2PC/XA). Примените уровень SERIALIZABLE (SSI) и паттерн Transactional Outbox.",
+    "simulatedLoad": {
+      "defaultThreads": 20,
+      "poolCapacity": 15,
+      "depthPerThread": 1
+    },
+    "services": [
+      {
+        "className": "OrderOutboxService",
+        "methods": [
+          {
+            "id": "createOrderWithOutbox",
+            "name": "createOrderWithOutbox",
+            "returnType": "void",
+            "parameters": "Order order",
+            "businessContract": "Сохранение заказа в БД и публикация события в outbox таблицу event_publication в единой ACID транзакции.",
+            "codeSnippet": "public void createOrderWithOutbox(Order order) {\n    orderRepository.save(order);\n    // Публикация доменного события Spring Modulith:\n    events.publishEvent(new OrderCreatedEvent(order.getId(), order.getAmount()));\n}",
+            "correctConfig": {
+              "propagation": "REQUIRED",
+              "isolation": "READ_COMMITTED",
+              "rollbackFor": [
+                "Exception.class"
+              ]
+            },
+            "traps": [
+              "dual_write_problem"
+            ],
+            "explanation": "Паттерн Transactional Outbox через Spring Modulith 2.0 сохраняет событие в таблицу event_publication в рамках той же локальной транзакции. Делать синхронный Kafka send() внутри @Transactional недопустимо из-за проблемы двойной записи."
+          }
+        ]
+      }
+    ],
+    "probingQuestions": [
+      {
+        "question": "В чем заключается аномалия Write Skew и почему REPEATABLE_READ в PostgreSQL от нее не защищает?",
+        "idealKeypoints": [
+          "Параллельные транзакции читают пересекающиеся данные, но изменяют непересекающиеся строки, нарушая составной инвариант",
+          "Snapshot Isolation не фиксирует конфликт, так как строки физически разные; требуется SERIALIZABLE (SSI) или SELECT FOR UPDATE"
+        ]
+      },
+      {
+        "question": "Почему паттерн Transactional Outbox превосходит двухфазный коммит (2PC/XA) в микросервисной архитектуре?",
+        "idealKeypoints": [
+          "2PC требует синхронного удержания распределенных блокировок на всех участниках и снижает доступность",
+          "Outbox атомарно сохраняет событие в локальной реляционной таблице, а CDC (Debezium) или Spring Modulith асинхронно доставляют его в Kafka"
+        ]
+      }
+    ]
+  }
+]

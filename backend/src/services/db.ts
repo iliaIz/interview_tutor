@@ -249,6 +249,19 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS spring_transaction_challenges (
+    id TEXT PRIMARY KEY,
+    scenario_number INTEGER,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    badge TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS guided_roadmaps (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -772,7 +785,42 @@ export function seedNextGenCatalogs() {
       });
       syncRm(roadmaps);
       console.log(`✅ Seeded ${roadmaps.length} Master Academy Programs (Career & Domain) into SQLite`);
+    }
 
+    // 4. Spring Transaction Scenarios
+    const txPath = resolveJsonPath('spring_transaction_scenarios.json');
+    if (txPath) {
+      const txScenarios = JSON.parse(fs.readFileSync(txPath, 'utf-8'));
+      const upsertTx = db.prepare(`
+        INSERT INTO spring_transaction_challenges (id, scenario_number, slug, title, domain, difficulty, badge, manifest_json, updated_at)
+        VALUES (@id, @scenario_number, @slug, @title, @domain, @difficulty, @badge, @manifest_json, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          scenario_number = excluded.scenario_number,
+          slug = excluded.slug,
+          title = excluded.title,
+          domain = excluded.domain,
+          difficulty = excluded.difficulty,
+          badge = excluded.badge,
+          manifest_json = excluded.manifest_json,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const syncTx = db.transaction((items: any[]) => {
+        let num = 1;
+        for (const sc of items) {
+          upsertTx.run({
+            id: sc.id,
+            scenario_number: num++,
+            slug: sc.id,
+            title: sc.title,
+            domain: sc.domain || 'Enterprise Transactions',
+            difficulty: sc.difficulty || 'Middle',
+            badge: sc.badge || 'Spring TX',
+            manifest_json: JSON.stringify(sc)
+          });
+        }
+      });
+      syncTx(txScenarios);
+      console.log(`✅ Seeded ${txScenarios.length} Spring Transaction scenarios into SQLite`);
     }
   } catch (err) {
     console.error('Error seeding Next-Gen catalogs:', err);

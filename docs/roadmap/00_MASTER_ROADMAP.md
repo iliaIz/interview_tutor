@@ -38,20 +38,32 @@ flowchart TD
         Phase4["📐 ЭТАП 4: Interactive Architecture Canvas & DES\n(React Flow Drag&Drop + Web Worker симулятор Erlang-C + Chaos Monkey)"]
     end
 
-    subgraph Wave3 ["☕ Волна 3: Практический JVM-код и верификация качества"]
-        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(In-memory компилятор < 80мс, 100 потоков, 15 эталонных LLD-задач)"]
-        Phase6["🧪 ЭТАП 6: Testing & Mutation Arena\n(35+ Katas: Kill the Mutants, Seams, Testcontainers, Slices, Mutation Score >= 85%)"]
+    subgraph Wave3 ["☕ Волна 3: Практический JVM-код и верификация качества [ЗАВЕРШЕНО]"]
+        Phase5["☕ ЭТАП 5: Isolated Java 21 Execution Sandbox\n(In-memory компилятор < 80мс, 100 потоков, 15 эталонных LLD-задач) [ГОТОВО]"]
+        Phase6["🧪 ЭТАП 6: Testing & Mutation Arena\n(42 Katas: L0-L3 Ladder + Compass + Multimodal AI Co-Pilot) [ГОТОВО]"]
+    end
+
+    subgraph Wave4 ["🪜 Волна 4: Педагогическое выравнивание и ликвидация дырявых лестниц [В РАБОТЕ]"]
+        Phase7["🏛️ ЭТАП 7: Master Spec & Architectural Harmonization\n(docs/architecture.md, удаление техдолга, унификация AI-тьютора)"]
+        Phase8["⚡ ЭТАП 8: Spring Transactions Lab Scaffolding\n(L0-L3 лестница, Transaction Compass, CGLIB трейсер)"]
+        Phase9["📐 ЭТАП 9: System Design Cognitive Ladder\n(L0 микро-кирпичики, L1 Math Coach, L2 Faded Architectures, Compass)"]
+        Phase10["🚨 ЭТАП 10: Production Incident Triage Scaffolding\n(L0 вводные инциденты, Triage Compass, Socratic Incident Commander)"]
+        Phase11["🎓 ЭТАП 11: Unified Academy Curriculum Backbone\n(Сквозной навигатор всех 6 практик, закрытие слепых зон роадмапа)"]
     end
 
     Current --> Phase4
     Phase4 --> Phase5
     Phase5 --> Phase6
+    Phase6 --> Phase7
+    Phase7 --> Phase8 & Phase9 & Phase10
+    Phase8 & Phase9 & Phase10 --> Phase11
 
     classDef done fill:#e2fbe8,stroke:#22c55e,stroke-width:2px;
     classDef currentPhase fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
     classDef queued fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
 
     class Current,Phase1,Phase2,Phase3,Phase4,Phase5,Phase6 done;
+    class Phase7,Phase8,Phase9,Phase10,Phase11 queued;
 ```
 
 ---
@@ -65,9 +77,14 @@ flowchart TD
 | **Этап 1** | [phase_01_speech_analytics_and_star_coach.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_01_speech_analytics_and_star_coach.md) | WPM-темп, детекция паразитов, адаптивный STAR/PREP/Rule of 3 | Завершено | Web Audio API, Web Speech API | ✅ **Завершено** |
 | **Этап 2** | [phase_02_faang_personas_and_scorecards.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_02_faang_personas_and_scorecards.md) | Калибровка грейда (L4/L5/L6), симуляция Amazon Bar-Raiser/Google Staff, официальный бланк | Завершено | LiteLLM Prompt Profiles | ✅ **Завершено** |
 | **Этап 3** | [phase_03_fsrs5_adaptive_memory_radar.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_03_fsrs5_adaptive_memory_radar.md) | Закрытие пробелов по кривой забывания FSRS-5, 3 зоны памяти, интерактивный слайдер | Завершено | SQLite, векторные эмбеддинги | ✅ **Завершено** |
-| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Высокая | `@xyflow/react` (React Flow v12+) | ✅ **Завершено** |
+| **Этап 4** | [phase_04_interactive_system_design_canvas.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_04_interactive_system_design_canvas.md) | Drag & Drop холст HLD архитектуры + DES симулятор ($M/M/c$, $M/G/1$) + Chaos Monkey | Завершено | `@xyflow/react` (React Flow v12+) | ✅ **Завершено** |
 | **Этап 5** | [phase_05_isolated_jvm_execution_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_05_isolated_jvm_execution_sandbox.md) | In-memory запуск Java 21 (< 80мс), 100 потоков стресс-теста + 15 LLD-задач BigTech | Завершено | Docker Zero-Trust / In-memory Compiler | ✅ **Завершено** |
-| **Этап 6** | [phase_06_testing_and_mutation_arena.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_06_testing_and_mutation_arena.md) | Режим Write-the-Tests, 35+ кат (Kill the Mutants, Seams, Testcontainers), Mutation Score $\ge 85\%$ | Завершено | Песочница Этапа 5, Defect Injection | ✅ **Завершено** |
+| **Этап 6** | [phase_06_testing_and_mutation_arena.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_06_testing_and_mutation_arena.md) | Режим Write-the-Tests, 42 каты (L0-L3 лестница, Testing Compass, Мутационный скор $\ge 85\%$) | Завершено | Песочница Этапа 5, Defect Injection | ✅ **Завершено** |
+| **Этап 7** | [phase_07_master_spec_and_architectural_harmonization.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_07_master_spec_and_architectural_harmonization.md) | Актуализация `docs/architecture.md`, очистка мертвого кода, типизация контрактов | 2-3 дня | Markdown, TypeScript DTO | 📋 **Запланировано** |
+| **Этап 8** | [phase_08_spring_transactions_ladder_and_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_08_spring_transactions_ladder_and_sandbox.md) | 16 сценариев (L0-L3), Transaction Compass (`Ctrl + /`), визуализация CGLIB-прокси | 4-5 дней | Transaction Engine | 📋 **Запланировано** |
+| **Этап 9** | [phase_09_system_design_cognitive_ladder.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_09_system_design_cognitive_ladder.md) | L0 Building Blocks (6 кат), L1 Math Coach, L2 Faded Architectures, System Design Compass | 5-7 дней | Cytoscape, Math Engine | 📋 **Запланировано** |
+| **Этап 10** | [phase_10_production_incident_triage_scaffolding.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_10_production_incident_triage_scaffolding.md) | L0 обучающие инциденты, Triage Compass (`Ctrl + /`), Socratic AI Incident Commander | 3-4 дня | Dump Parsers, WebSockets | 📋 **Запланировано** |
+| **Этап 11** | [phase_11_unified_academy_curriculum_backbone.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_11_unified_academy_curriculum_backbone.md) | Сквозной дирижер подготовки, единые треки Junior->Senior->Staff, реактивный прогресс | 3-4 дня | FSRS-5 Radar, SQLite Store | 📋 **Запланировано** |
 
 ---
 
