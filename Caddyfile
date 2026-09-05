@@ -94,3 +94,12 @@ dnd.djelu.site, dnd.192-124-182-59.sslip.io {
         reverse_proxy dicehub_frontend:80
     }
 }
+
+kiro.djelu.site, kiro.192-124-182-59.sslip.io {
+    import common_headers
+    encode zstd gzip
+
+    reverse_proxy kiro-web:80 {
+        flush_interval -1
+    }
+}
