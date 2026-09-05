@@ -68,10 +68,21 @@ export interface IncidentTriageEvaluation {
   seniorBarRating: string;
 }
 
+export type TargetArenaType = 
+  | 'oral_interview' 
+  | 'testing_mutation' 
+  | 'transactions' 
+  | 'system_design' 
+  | 'incident_triage' 
+  | 'machine_coding' 
+  | 'theory';
+
 export interface AcademyCoreRequirements {
   theoryTopic?: string;
   theoryTitle?: string;
-  taskType?: 'lld' | 'hld' | 'triage' | 'sql' | 'config';
+  taskType?: string;
+  targetArena?: TargetArenaType;
+  targetScenarioId?: string;
   taskDescription?: string;
   lldChallengeSlug?: string;
   hldScenarioId?: string;
@@ -90,6 +101,12 @@ export interface AcademyStep {
   seniorBarConcept: string;
   interviewTrap: string;
   estimatedMinutes: number;
+  targetArena?: TargetArenaType;
+  targetScenarioId?: string;
+  requiredForGrade?: string;
+  prerequisiteStepIds?: string[];
+  domain?: string;
+  pedagogicalRationale?: string;
   coreRequirements?: AcademyCoreRequirements;
   bonusDeepDive?: AcademyBonusDeepDive;
   masteryChecklist: string[];
@@ -97,7 +114,9 @@ export interface AcademyStep {
   isCompleted?: boolean;
   entityStatus?: {
     isManual: boolean;
+    isTxPassed?: boolean;
     isLldPassed: boolean;
+    isTestingPassed?: boolean;
     isTriagePassed: boolean;
     isHldPassed: boolean;
   };
@@ -106,6 +125,21 @@ export interface AcademyStep {
   incidentKataId?: string;
   lldChallengeId?: string;
   hldScenarioId?: string;
+}
+
+export interface NextBestStepRecommendation {
+  hasRecommendation: boolean;
+  message?: string;
+  courseId: string;
+  courseTitle: string;
+  step?: AcademyStep;
+  stepNumber?: number;
+  title?: string;
+  targetArena?: TargetArenaType;
+  targetScenarioId?: string;
+  estimatedMinutes?: number;
+  domain?: string;
+  pedagogicalRationale?: string;
 }
 
 export interface AcademyMilestone {

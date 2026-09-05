@@ -62,8 +62,7 @@ flowchart TD
     classDef currentPhase fill:#fff7ed,stroke:#ea580c,stroke-width:2px;
     classDef queued fill:#f0f9ff,stroke:#0284c7,stroke-width:2px;
 
-    class Current,Phase1,Phase2,Phase3,Phase4,Phase5,Phase6,Phase7,Phase8,Phase9,Phase10 done;
-    class Phase11 currentPhase;
+    class Current,Phase1,Phase2,Phase3,Phase4,Phase5,Phase6,Phase7,Phase8,Phase9,Phase10,Phase11 done;
 ```
 
 ---
@@ -84,7 +83,7 @@ flowchart TD
 | **Этап 8** | [phase_08_spring_transactions_ladder_and_sandbox.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_08_spring_transactions_ladder_and_sandbox.md) | 16 сценариев (L0-L3), Transaction Compass (`Ctrl + /`), визуализация CGLIB-прокси | 4-5 дней | Transaction Engine | ✅ **Готово (100%)** |
 | **Этап 9** | [phase_09_system_design_cognitive_ladder.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_09_system_design_cognitive_ladder.md) | L0 Building Blocks (8 кат), L1 Math Coach, L2 Faded Architectures, System Design Compass | 1 день | Cytoscape, Math Engine | ✅ **Готово (100%)** |
 | **Этап 10** | [phase_10_production_incident_triage_scaffolding.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_10_production_incident_triage_scaffolding.md) | L0 обучающие инциденты, Triage Compass (`Ctrl + /`), Socratic AI Incident Commander | 1 день | Dump Parsers, WebSockets | ✅ **Готово (100%)** |
-| **Этап 11** | [phase_11_unified_academy_curriculum_backbone.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_11_unified_academy_curriculum_backbone.md) | Сквозной дирижер подготовки, единые треки Junior->Senior->Staff, реактивный прогресс | 3-4 дня | FSRS-5 Radar, SQLite Store | 🚀 **В работе** |
+| **Этап 11** | [phase_11_unified_academy_curriculum_backbone.md](file:///d:/projects/interview_projects/spring/docs/roadmap/phase_11_unified_academy_curriculum_backbone.md) | Сквозной дирижер подготовки, единые треки Junior->Senior->Staff, реактивный прогресс | 3-4 дня | FSRS-5 Radar, SQLite Store | ✅ **Готово (100%)** |
 
 ---
 

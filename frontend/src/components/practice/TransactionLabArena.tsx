@@ -33,6 +33,7 @@ import { HikariPoolSlotMeter } from './HikariPoolSlotMeter';
 import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { useAppStore } from '../../store/useAppStore';
 
 interface TransactionLabArenaProps {
   initialScenarioId?: string;
@@ -45,6 +46,8 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   onBack,
   onStartVoiceDefense
 }) => {
+  const { academyBreadcrumbContext, toggleAcademyStepProgress } = useAppStore();
+
   // Practice Tutor Store (Socratic AI Tutor & Compass)
   const {
     isCompassOpen,
@@ -134,6 +137,26 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   const handleRunEvaluation = () => {
     const result = TransactionValidator.evaluateScenario(scenario, userConfigs, threads);
     setEvalResult(result);
+
+    if (result.isPassed) {
+      // Async record submission to backend SQLite
+      fetch('/api/roadmaps/transactions/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          scenarioId: scenario.id,
+          passed: true,
+          score: 100,
+          userConfigs
+        })
+      }).catch((err) => console.error('Failed to save tx submission:', err));
+
+      // If launched from Academy curriculum, auto-mark step complete
+      if (academyBreadcrumbContext?.courseId && academyBreadcrumbContext?.stepNumber) {
+        void toggleAcademyStepProgress(academyBreadcrumbContext.courseId, academyBreadcrumbContext.stepNumber, true);
+      }
+    }
   };
 
   // Ask Socratic Tutor about a Compass Rule

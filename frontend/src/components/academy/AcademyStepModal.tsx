@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AcademyStep } from '../../types/nextgen';
-import { X, CheckCircle2, Circle, Sparkles, AlertTriangle, Flame, Star, Headphones, ArrowRight, Code2, Layers, Terminal, BookOpen, Clock, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle2, Circle, Sparkles, AlertTriangle, Flame, Star, Headphones, ArrowRight, Code2, Layers, Terminal, BookOpen, Clock, ShieldCheck, Database, Bug, Compass, Target } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 interface AcademyStepModalProps {
@@ -23,39 +23,20 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
   const { 
     setStudioTab, 
     setAcademyBreadcrumb,
-    openTopicBugHunt, 
-    openSystemDesignScenario,
-    openTriageIncident,
     setSelectedTopic,
-    setView
+    setView,
+    launchAcademyStepTarget
   } = useAppStore();
 
   if (!step) return null;
 
   const core = step.coreRequirements || {};
   const isCompleted = Boolean(step.isCompleted);
+  const arena = step.targetArena || core.targetArena || core.taskType || 'theory';
 
   const handleLaunchPractice = () => {
-    setAcademyBreadcrumb({
-      courseId,
-      courseTitle,
-      stepNumber: step.stepNumber,
-      stepTitle: step.title
-    });
-
-    if (core.lldChallengeSlug) {
-      setStudioTab('practice');
-      onClose();
-    } else if (core.hldScenarioId) {
-      setStudioTab('system_design');
-      onClose();
-    } else if (core.triageIncidentId) {
-      setStudioTab('triage');
-      onClose();
-    } else {
-      setStudioTab('practice');
-      onClose();
-    }
+    void launchAcademyStepTarget(step, courseId, courseTitle);
+    onClose();
   };
 
   const handleLaunchTheory = () => {
@@ -82,6 +63,27 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
     onClose();
   };
 
+  const getArenaBadge = (targetArena: string) => {
+    switch (targetArena) {
+      case 'transactions':
+        return { label: 'Spring Transactions Lab', icon: Database, color: 'bg-blue-50 text-blue-700 border-blue-200' };
+      case 'system_design':
+        return { label: 'System Design Arena', icon: Layers, color: 'bg-purple-50 text-purple-700 border-purple-200' };
+      case 'incident_triage':
+        return { label: 'Incident Triage Studio', icon: Terminal, color: 'bg-amber-50 text-amber-800 border-amber-200' };
+      case 'testing_mutation':
+        return { label: 'Mutation Testing Arena', icon: Bug, color: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+      case 'machine_coding':
+        return { label: 'Machine Coding (LLD)', icon: Code2, color: 'bg-rose-50 text-rose-800 border-rose-200' };
+      case 'oral_interview':
+        return { label: 'Gemini Live Mock Voice', icon: Headphones, color: 'bg-teal-50 text-teal-800 border-teal-200' };
+      default:
+        return { label: 'База Знаний (Теория)', icon: BookOpen, color: 'bg-slate-50 text-slate-800 border-slate-200' };
+    }
+  };
+  const arenaInfo = getArenaBadge(arena);
+  const ArenaBadgeIcon = arenaInfo.icon;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-pastel-text/30 backdrop-blur-md animate-fade-in">
       <div className="bg-white/95 rounded-3xl shadow-2xl border border-pastel-border w-full max-w-3xl max-h-[92dvh] flex flex-col overflow-hidden relative backdrop-blur-xl">
@@ -96,6 +98,9 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
                 Шаг #{step.stepNumber}
+              </span>
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${arenaInfo.color}`}>
+                <ArenaBadgeIcon className="w-3 h-3" /> {arenaInfo.label}
               </span>
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-lavender text-pastel-accentViolet border border-pastel-accentViolet/20 flex items-center gap-1">
                 <Clock className="w-3 h-3" /> ~{step.estimatedMinutes} мин
@@ -147,6 +152,17 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
             </div>
           )}
 
+          {/* 1.5 Pedagogical Rationale Callout */}
+          {step.pedagogicalRationale && (
+            <div className="p-3.5 rounded-2xl bg-white/90 border border-pastel-border/80 shadow-2xs flex items-start gap-2.5 text-xs text-pastel-text/90">
+              <Target className="w-4 h-4 text-pastel-accentRose shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-pastel-accentRose">Методическое обоснование: </span>
+                <span>{step.pedagogicalRationale}</span>
+              </div>
+            </div>
+          )}
+
           {/* 2. Core Requirements (100% Зачёт) */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-pastel-text font-bold text-xs uppercase tracking-wider">
@@ -183,25 +199,25 @@ export const AcademyStepModal: React.FC<AcademyStepModalProps> = ({
               <div className="p-4 rounded-2xl bg-gradient-to-br from-white/90 to-pastel-rose/20 border border-pastel-accentRose/30 shadow-2xs flex flex-col justify-between gap-3">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                      {core.taskType === 'hld' ? <Layers className="w-3 h-3" /> : core.taskType === 'triage' ? <Terminal className="w-3 h-3" /> : <Code2 className="w-3 h-3" />}
-                      Практика: {core.taskType ? core.taskType.toUpperCase() : 'LLD'}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${arenaInfo.color}`}>
+                      <ArenaBadgeIcon className="w-3 h-3" />
+                      {arenaInfo.label}
                     </span>
-                    {step.entityStatus?.isLldPassed || step.entityStatus?.isTriagePassed || step.entityStatus?.isHldPassed ? (
+                    {step.entityStatus?.isTxPassed || step.entityStatus?.isTestingPassed || step.entityStatus?.isLldPassed || step.entityStatus?.isTriagePassed || step.entityStatus?.isHldPassed ? (
                       <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
                         <CheckCircle2 className="w-3 h-3" /> Решено
                       </span>
                     ) : null}
                   </div>
                   <p className="text-xs text-pastel-text leading-snug">
-                    {core.taskDescription || "Решить профильную задачу с верификацией"}
+                    {core.taskDescription || step.pedagogicalRationale || "Решить профильную задачу с верификацией"}
                   </p>
                 </div>
                 <button
                   onClick={handleLaunchPractice}
                   className="flex items-center justify-center gap-1.5 w-full py-2 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white shadow-xs hover:opacity-95 transition cursor-pointer"
                 >
-                  <span>Запустить в Арене</span>
+                  <span>Запустить в {arenaInfo.label}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

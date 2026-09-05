@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AcademyCourse, AcademyStep } from '../../types/nextgen';
 import { AcademyStepModal } from './AcademyStepModal';
+import { NextBestActionCard } from './NextBestActionCard';
 import { 
   Sparkles, 
   CheckCircle2, 
@@ -23,11 +24,13 @@ import {
   Filter,
   CheckCheck,
   RotateCcw,
-  Flame
+  Flame,
+  Zap,
+  Bug
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type StepFilterType = 'all' | 'uncompleted' | 'lld' | 'hld' | 'triage' | 'theory';
+type StepFilterType = 'all' | 'uncompleted' | 'transactions' | 'testing_mutation' | 'lld' | 'hld' | 'triage' | 'theory';
 
 export const AcademyStudio: React.FC = () => {
   const { 
@@ -183,6 +186,8 @@ export const AcademyStudio: React.FC = () => {
   // Counts for quick filter badges
   const filterCounts = useMemo(() => {
     let uncompleted = 0;
+    let transactions = 0;
+    let testingMutation = 0;
     let lld = 0;
     let hld = 0;
     let triage = 0;
@@ -190,13 +195,15 @@ export const AcademyStudio: React.FC = () => {
 
     steps.forEach((s) => {
       if (!s.isCompleted) uncompleted++;
-      if (s.coreRequirements?.lldChallengeSlug) lld++;
-      if (s.coreRequirements?.hldScenarioId) hld++;
-      if (s.coreRequirements?.triageIncidentId) triage++;
-      if (s.coreRequirements?.theoryTitle) theory++;
+      if (s.targetArena === 'transactions') transactions++;
+      if (s.targetArena === 'testing_mutation') testingMutation++;
+      if (s.targetArena === 'machine_coding' || s.coreRequirements?.lldChallengeSlug) lld++;
+      if (s.targetArena === 'system_design' || s.coreRequirements?.hldScenarioId) hld++;
+      if (s.targetArena === 'incident_triage' || s.coreRequirements?.triageIncidentId) triage++;
+      if (s.targetArena === 'theory' || s.targetArena === 'oral_interview' || s.coreRequirements?.theoryTitle) theory++;
     });
 
-    return { total: steps.length, uncompleted, lld, hld, triage, theory };
+    return { total: steps.length, uncompleted, transactions, testingMutation, lld, hld, triage, theory };
   }, [steps]);
 
   // Filtered steps based on search and active filter pill
@@ -204,10 +211,12 @@ export const AcademyStudio: React.FC = () => {
     return steps.filter((step) => {
       // 1. Filter Type
       if (filterType === 'uncompleted' && step.isCompleted) return false;
-      if (filterType === 'lld' && !step.coreRequirements?.lldChallengeSlug) return false;
-      if (filterType === 'hld' && !step.coreRequirements?.hldScenarioId) return false;
-      if (filterType === 'triage' && !step.coreRequirements?.triageIncidentId) return false;
-      if (filterType === 'theory' && !step.coreRequirements?.theoryTitle) return false;
+      if (filterType === 'transactions' && step.targetArena !== 'transactions') return false;
+      if (filterType === 'testing_mutation' && step.targetArena !== 'testing_mutation') return false;
+      if (filterType === 'lld' && step.targetArena !== 'machine_coding' && !step.coreRequirements?.lldChallengeSlug) return false;
+      if (filterType === 'hld' && step.targetArena !== 'system_design' && !step.coreRequirements?.hldScenarioId) return false;
+      if (filterType === 'triage' && step.targetArena !== 'incident_triage' && !step.coreRequirements?.triageIncidentId) return false;
+      if (filterType === 'theory' && step.targetArena !== 'theory' && step.targetArena !== 'oral_interview' && !step.coreRequirements?.theoryTitle) return false;
 
       // 2. Search Query
       if (!searchQuery.trim()) return true;
@@ -350,34 +359,30 @@ export const AcademyStudio: React.FC = () => {
         })}
       </div>
 
-      {/* 3. Hero Focus Unit (Zero-Friction Resume) */}
-      {nextFocusStep && currentCourse && (
-        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-white/95 via-pastel-rose/25 to-pastel-lavender/25 border border-pastel-accentRose/30 shadow-md backdrop-blur-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5 relative z-10">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-accentRose text-white shadow-2xs">
-                Рекомендуемый фокус сейчас
-              </span>
-              <span className="text-[11px] font-mono font-bold text-pastel-muted">
-                {currentCourse.title} • Шаг #{nextFocusStep.stepNumber}
-              </span>
+      {/* 3. SOTA Socratic Next Best Action Recommender */}
+      {currentCourse && (
+        <>
+          <NextBestActionCard
+            courseId={currentCourse.id}
+            courseTitle={currentCourse.title}
+            onStepStarted={() => fetchActiveCourseDetails(currentCourse.id)}
+          />
+          {progress.percentage === 100 && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-50 via-teal-50 to-white border border-emerald-200/80 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white">
+                  🎉 Трек полностью освоен!
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-emerald-950">
+                  Все {steps.length} шагов программы {currentCourse.title} успешно пройдены
+                </h3>
+                <p className="text-xs text-emerald-800">
+                  Все требования грейда выполнены. Вы можете провести пробное интервью с AI Bar-Raiser в голосовом режиме Gemini Live или выбрать следующий трек.
+                </p>
+              </div>
             </div>
-            <h2 className="text-base sm:text-xl font-bold text-pastel-text">
-              {nextFocusStep.title}
-            </h2>
-            <p className="text-xs sm:text-sm text-pastel-accentRose font-medium">
-              💡 {nextFocusStep.seniorBarConcept}
-            </p>
-          </div>
-
-          <button
-            onClick={() => openAcademyStepModal(nextFocusStep)}
-            className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white shadow-md shadow-pastel-accentRose/20 hover:opacity-95 transition cursor-pointer shrink-0"
-          >
-            <span>Продолжить обучение: Шаг #{nextFocusStep.stepNumber}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+          )}
+        </>
       )}
 
       {/* 4. Senior Readiness Radar (4 Pillars of Seniority) */}
@@ -526,6 +531,34 @@ export const AcademyStudio: React.FC = () => {
               <Flame className="w-3 h-3 text-amber-500" />
               <span>В фокусе ({filterCounts.uncompleted})</span>
             </button>
+
+            {filterCounts.transactions > 0 && (
+              <button
+                onClick={() => setFilterType('transactions')}
+                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                  filterType === 'transactions'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                }`}
+              >
+                <Database className="w-3 h-3" />
+                <span>Транзакции ({filterCounts.transactions})</span>
+              </button>
+            )}
+
+            {filterCounts.testingMutation > 0 && (
+              <button
+                onClick={() => setFilterType('testing_mutation')}
+                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                  filterType === 'testing_mutation'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <Bug className="w-3 h-3" />
+                <span>Мутации & Тесты ({filterCounts.testingMutation})</span>
+              </button>
+            )}
 
             <button
               onClick={() => setFilterType('lld')}
@@ -744,6 +777,21 @@ export const AcademyStudio: React.FC = () => {
                               {/* Core Requirements Badges */}
                               <div className="pt-3 border-t border-pastel-border/40 flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {step.requiredForGrade && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200" title="Обязательный шаг для целевого грейда">
+                                      ★ Core
+                                    </span>
+                                  )}
+                                  {step.targetArena === 'transactions' && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                      ⚡ Транзакции
+                                    </span>
+                                  )}
+                                  {step.targetArena === 'testing_mutation' && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      🧪 Мутации
+                                    </span>
+                                  )}
                                   {core.lldChallengeSlug && (
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                                       💻 LLD

@@ -153,6 +153,7 @@ interface AppState {
   setAcademyBreadcrumb: (ctx: AcademyBreadcrumbContext | null) => void;
   returnToAcademyStep: () => void;
   toggleAcademyStepProgress: (courseId: string, stepNumber: number, isCompleted: boolean) => Promise<void>;
+  launchAcademyStepTarget: (step: RoadmapStep, courseId: string, courseTitle: string) => Promise<void>;
 
   // System Design Studio State
   activeSystemDesignScenario: SystemDesignScenario | null;
@@ -439,6 +440,91 @@ export const useAppStore = create<AppState>()(
           });
         } catch (e) {
           console.error('Error saving academy progress:', e);
+        }
+      },
+      launchAcademyStepTarget: async (step, courseId, courseTitle) => {
+        const targetArena = step.targetArena || step.coreRequirements?.targetArena || step.coreRequirements?.taskType;
+        const targetScenarioId = step.targetScenarioId || step.coreRequirements?.targetScenarioId;
+
+        // 1. Set breadcrumb context & close modal
+        set({
+          academyBreadcrumbContext: {
+            courseId,
+            courseTitle,
+            stepNumber: step.stepNumber,
+            stepTitle: step.title
+          },
+          activeAcademyStepModal: null
+        });
+
+        // 2. Dispatch to designated target arena
+        if (targetArena === 'transactions' || targetArena === 'spring_transactions') {
+          const scenId = targetScenarioId || 'self_invocation_bypass';
+          get().openTransactionLab(scenId);
+        } else if (targetArena === 'system_design' || targetArena === 'hld') {
+          const scenId = targetScenarioId || step.coreRequirements?.hldScenarioId || 'hld-scenario-01';
+          try {
+            const res = await fetch('/api/system-design/scenarios', { credentials: 'include' });
+            if (res.ok) {
+              const scenarios = await res.json();
+              const found = scenarios.find((s: any) => s.id === scenId || s.slug === scenId);
+              if (found) {
+                get().openSystemDesignScenario(found);
+                set({ currentStudioTab: 'system_design' });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to load system design scenario:', e);
+          }
+          set({ currentStudioTab: 'system_design' });
+        } else if (targetArena === 'incident_triage' || targetArena === 'triage') {
+          const incId = targetScenarioId || step.coreRequirements?.triageIncidentId || 'triage-l0-01';
+          try {
+            const res = await fetch('/api/triage/incidents', { credentials: 'include' });
+            if (res.ok) {
+              const incidents = await res.json();
+              const found = incidents.find((i: any) => i.id === incId || i.slug === incId);
+              if (found) {
+                get().openTriageIncident(found);
+                set({ currentStudioTab: 'triage' });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to load triage incident:', e);
+          }
+          set({ currentStudioTab: 'triage' });
+        } else if (targetArena === 'testing_mutation' || targetArena === 'machine_coding' || targetArena === 'lld') {
+          const challId = targetScenarioId || step.coreRequirements?.lldChallengeSlug || 'rate-limiter-token-bucket';
+          try {
+            const res = await fetch('/api/practice/challenges', { credentials: 'include' });
+            if (res.ok) {
+              const challenges = await res.json();
+              const found = challenges.find((c: any) => c.id === challId || c.slug === challId);
+              if (found) {
+                get().openPracticeChallenge(found);
+                set({ currentStudioTab: 'practice' });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to load practice challenge:', e);
+          }
+          set({ currentStudioTab: 'practice' });
+        } else if (targetArena === 'oral_interview') {
+          set({
+            currentStudioTab: 'theory',
+            currentView: 'questions'
+          });
+        } else {
+          // Default to theory view
+          const topic = step.domain || step.coreRequirements?.theoryTopic || 'core';
+          get().setSelectedTopic(topic, 'Java Core & Spring');
+          set({
+            currentStudioTab: 'theory',
+            currentView: 'questions'
+          });
         }
       },
 

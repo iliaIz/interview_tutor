@@ -272,6 +272,20 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS spring_transaction_submissions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'default_user',
+    scenario_id TEXT NOT NULL,
+    passed INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
+    user_configs_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_tx_sub_user ON spring_transaction_submissions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_tx_sub_scenario ON spring_transaction_submissions(scenario_id);
+
 
   CREATE TABLE IF NOT EXISTS roadmap_progress (
     user_id TEXT DEFAULT 'default_user',
