@@ -12,6 +12,7 @@ export const IncidentTriageCatalog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
+  const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L1' | 'L2'>('all');
 
   useEffect(() => {
     fetch('/api/triage/challenges', { credentials: 'include' })
@@ -34,10 +35,11 @@ export const IncidentTriageCatalog: React.FC = () => {
   const safeIncidents = Array.isArray(incidents) ? incidents : [];
   const filteredIncidents = safeIncidents.filter(inc => {
     const matchesSev = selectedSeverity === 'all' || inc.severity === selectedSeverity;
+    const matchesLevel = selectedLevel === 'all' || inc.level === selectedLevel;
     const matchesSearch = !searchQuery || 
       inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inc.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSev && matchesSearch;
+    return matchesSev && matchesLevel && matchesSearch;
   });
 
 
@@ -64,21 +66,64 @@ export const IncidentTriageCatalog: React.FC = () => {
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 🧵 Production Forensics Lab
               </span>
-              <span className="text-xs text-pastel-muted font-mono">
+              <span className="text-xs text-pastel-muted font-mono font-bold">
                 {incidents.length} сценариев аварий JVM & HighLoad
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-pastel-text tracking-tight">
               Триаж Прод-Аварий: Дампы, Логи & RCA
             </h1>
-            <p className="text-sm text-pastel-muted mt-1 max-w-2xl">
-              15 аутентичных расследований аварий: Thread Dumps (Deadlocks, Carrier Pinning), Heap Dumps (Metaspace, ThreadLocal), GC STW-паузы и PostgreSQL Saga Deadlocks.
+            <p className="text-sm text-pastel-muted mt-1 max-w-2xl leading-relaxed">
+              22 аутентичных расследования аварий: от базовых L0-примитивов взаимных блокировок и утечек до L1 методик RED/USE и L2 боевых постмортемов (Carrier Pinning, STW-паузы, Saga Deadlocks).
             </p>
           </div>
         </div>
 
+        {/* Cognitive Ladder (L0 -> L1 -> L2) */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('all')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+              selectedLevel === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Все уровни ({incidents.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L0')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L0' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-800 hover:bg-emerald-100/60'
+            }`}
+          >
+            <span>🧱 L0: Примитивы дампа</span>
+            <span className="text-[10px] opacity-80">({incidents.filter(i => i.level === 'L0').length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L1')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L1' ? 'bg-blue-600 text-white shadow-xs' : 'text-blue-800 hover:bg-blue-100/60'
+            }`}
+          >
+            <span>📊 L1: Методики RED/USE</span>
+            <span className="text-[10px] opacity-80">({incidents.filter(i => i.level === 'L1').length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L2')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L2' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-800 hover:bg-purple-100/60'
+            }`}
+          >
+            <span>🔥 L2: Боевые аварии</span>
+            <span className="text-[10px] opacity-80">({incidents.filter(i => i.level === 'L2').length})</span>
+          </button>
+        </div>
+
         {/* Search & Filter Bar */}
-        <div className="mt-6 pt-5 border-t border-pastel-border/60 flex flex-col sm:flex-row gap-3">
+        <div className="mt-4 pt-4 border-t border-pastel-border/60 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -86,7 +131,7 @@ export const IncidentTriageCatalog: React.FC = () => {
               placeholder="Поиск по аварии (например, Deadlock, Loom Pinning, HikariCP, GC, Kafka)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-pastel-bg border border-pastel-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-pastel-accentRose font-sans transition shadow-2xs"
+              className="w-full bg-pastel-bg border border-pastel-border rounded-xl pl-10 pr-4 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-none focus:border-amber-500 font-sans transition shadow-2xs"
             />
           </div>
         </div>
@@ -104,7 +149,7 @@ export const IncidentTriageCatalog: React.FC = () => {
                 : 'bg-white/70 text-pastel-muted hover:text-pastel-text border border-pastel-border'
             }`}
           >
-            {sev === 'all' ? `Все аварии (${incidents.length})` : sev}
+            {sev === 'all' ? `Все критичности (${incidents.length})` : sev}
           </button>
         ))}
       </div>
@@ -143,15 +188,28 @@ export const IncidentTriageCatalog: React.FC = () => {
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                      isCrit 
-                        ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                        : isHigh 
-                        ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                        : 'bg-blue-50 text-blue-700 border-blue-200'
-                    }`}>
-                      {incident.severity}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {incident.level && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                          incident.level === 'L0'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : incident.level === 'L1'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-purple-50 text-purple-700 border-purple-200'
+                        }`}>
+                          {incident.level}
+                        </span>
+                      )}
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                        isCrit 
+                          ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                          : isHigh 
+                          ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}>
+                        {incident.severity}
+                      </span>
+                    </div>
                     
                     <span className="text-[10px] font-mono text-pastel-muted font-bold flex items-center gap-1">
                       <Terminal className="w-3 h-3 text-slate-500" />

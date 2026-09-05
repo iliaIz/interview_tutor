@@ -49,7 +49,8 @@ export interface ProductionIncident {
   slug: string;
   title: string;
   category: string;
-  severity: 'CRITICAL' | 'HIGH';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  level?: 'L0' | 'L1' | 'L2';
   symptomsMarkdown: string;
   rawArtifactText: string;
   rootCauseAnalysis: string;

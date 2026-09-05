@@ -1,7 +1,105 @@
 [
   {
-    "id": "triage-incident-01",
+    "id": "triage-l0-01",
     "incidentNumber": 1,
+    "slug": "triage-l0-01-synchronized-deadlock-primitive",
+    "title": "L0-01: Циклический взаимный захват мониторов (2-Thread Synchronized Deadlock)",
+    "category": "L0: Concurrency Primitives",
+    "level": "L0",
+    "severity": "CRITICAL",
+    "symptomsMarkdown": "Приложение внезапно прекратило обрабатывать запросы на эндпоинтах /order/reserve и /order/cancel. Загрузка процессора (CPU) упала до 0%, а HTTP-клиенты получают таймаут Gateway Timeout (504). Дамп потоков содержит всего 2 активных рабочих потока.",
+    "rawArtifactText": "\"Worker-Thread-1\" #42 prio=5 os_prio=0 cpu=120.3ms tid=0x00007f8b1c01a800 nid=0x1a03 waiting for monitor entry [0x000070000a12b000]\n   java.lang.Thread.State: BLOCKED (on object monitor)\n\tat com.enterprise.order.InventoryService.reserve(InventoryService.java:45)\n\t- waiting to lock <0x000000070b4a1120> (a java.lang.Object)\n\t- locked <0x000000070b4a1130> (a java.lang.Object)\n\tat com.enterprise.order.OrderWorkflow.process(OrderWorkflow.java:88)\n\n\"Worker-Thread-2\" #43 prio=5 os_prio=0 cpu=115.1ms tid=0x00007f8b1c01b800 nid=0x1a04 waiting for monitor entry [0x000070000a22c000]\n   java.lang.Thread.State: BLOCKED (on object monitor)\n\tat com.enterprise.order.PaymentService.refund(PaymentService.java:32)\n\t- waiting to lock <0x000000070b4a1130> (a java.lang.Object)\n\t- locked <0x000000070b4a1120> (a java.lang.Object)\n\tat com.enterprise.order.OrderWorkflow.cancel(OrderWorkflow.java:104)\n\nFound one Java-level deadlock:\n=============================\n\"Worker-Thread-1\":\n  waiting to lock monitor 0x00007f8b1c01a800 (object 0x000000070b4a1120, a java.lang.Object),\n  which is held by \"Worker-Thread-2\"\n\"Worker-Thread-2\":\n  waiting to lock monitor 0x00007f8b1c01b800 (object 0x000000070b4a1130, a java.lang.Object),\n  which is held by \"Worker-Thread-1\"",
+    "rootCauseAnalysis": "Классическая взаимная блокировка (Deadlock) двух потоков на уровне мониторов synchronized. Поток Worker-Thread-1 удерживает лок 0x...1130 и ожидает захвата 0x...1120. Поток Worker-Thread-2 удерживает лок 0x...1120 и ожидает захвата 0x...1130. Возникло нарушение правила детерминированного порядка захвата ресурсов (Lock Ordering Pattern). Оба потока перешли в BLOCKED и не могут освободить мониторы.",
+    "remediationMarkdown": "1. Зафиксировать строгий детерминированный порядок захвата мониторов: всегда захватывать лок с меньшим ID/хэшем перед локом с большим ID: min(id1, id2) -> max(id1, id2).\n2. Заменить внутренние мониторы synchronized на java.util.concurrent.locks.ReentrantLock с вызовом tryLock(timeout), чтобы поток при таймауте откатывал транзакцию и не зависал навсегда.\n3. Добавить статический анализ SpotBugs / SonarQube на поиск вложенных блоков синхронизации.",
+    "keyMetricTrigger": "Active Threads BLOCKED = 2 / CPU = 0% / HTTP 504 Gateway Timeout"
+  },
+  {
+    "id": "triage-l0-02",
+    "incidentNumber": 2,
+    "slug": "triage-l0-02-unbounded-accumulator-heap-leak",
+    "title": "L0-02: Утечка памяти в бесконечной очереди (Unbounded Accumulator Heap Leak)",
+    "category": "L0: Memory Primitives",
+    "level": "L0",
+    "severity": "CRITICAL",
+    "symptomsMarkdown": "Приложение мониторинга метрик после 12 часов непрерывной работы начинает испытывать деградацию p99 latency. Стандартный jcmd GC.class_histogram показывает аномальное накопление объектов без освобождения после Full GC.",
+    "rawArtifactText": "num     #instances         #bytes  class name (module)\n-------------------------------------------------------\n   1:       5242880      167772160  java.util.concurrent.ConcurrentLinkedQueue$Node (java.base@21.0.2)\n   2:       5242878      125829072  com.enterprise.telemetry.MetricPayload\n   3:             1        8388632  [Ljava.util.concurrent.ConcurrentLinkedQueue$Node;\n   4:          1240         119040  java.lang.String\n   5:           850          68000  java.util.HashMap$Node\nTotal       10487849      302167904  (302 MB shallow heap, retained > 1.2 GB)",
+    "rootCauseAnalysis": "Паттерн утечки Unbounded In-Memory Accumulator: число элементов коллекции ConcurrentLinkedQueue$Node (5 242 880) строго совпадает с числом бизнес-объектов MetricPayload (5 242 878). Очередь не имеет верхней границы емкости (unbounded queue), а фоновые потоки-потребители (consumers) либо работают медленнее продюсеров, либо завершились с необработанным исключением. Память кучи не освобождается при сборке мусора, потому что узлы очереди жестко удерживаются в GC Roots статическим синглтон-сервисом.",
+    "remediationMarkdown": "1. Заменить неконтролируемую очередь ConcurrentLinkedQueue на ограниченную очередь с явным бэкпрешером (ArrayBlockingQueue или LinkedBlockingQueue с емкостью capacity=50000).\n2. Настроить стратегию обработки переполнения: сброс старых метрик (drop oldest) или отклонение новых вызовов с HTTP 429 / метрикой отбрасывания.\n3. Проверить здоровье потоков-консьюмеров (Thread.setDefaultUncaughtExceptionHandler), чтобы упавший поток перезапускался пулом потоков.",
+    "keyMetricTrigger": "OldGen Occupancy > 90% / ConcurrentLinkedQueue$Node > 5M instances"
+  },
+  {
+    "id": "triage-l0-03",
+    "incidentNumber": 3,
+    "slug": "triage-l0-03-hikaricp-pool-exhaustion-primitive",
+    "title": "L0-03: Истощение пула соединений HikariCP (Connection Pool Starvation)",
+    "category": "L0: Database Primitives",
+    "level": "L0",
+    "severity": "CRITICAL",
+    "symptomsMarkdown": "При умеренном росте RPS до 250 сервиса заказов входящие запросы начинают массово падать с пятисотыми ошибками. В логах появляется лавина исключений SQLTransientConnectionException, а все соединения в пуле находятся в статусе active.",
+    "rawArtifactText": "2026-09-05 14:22:01.402 ERROR --- [http-nio-8080-exec-15] o.h.engine.jdbc.spi.SqlExceptionHelper: HikariPool-1 - Connection is not available, request timed out after 30000ms.\n2026-09-05 14:22:01.403 WARN  --- [HikariPool-1 housekeeper] com.zaxxer.hikari.pool.HikariPool: HikariPool-1 - Pool stats (total=10, active=10, idle=0, waiting=37)\njava.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 30000ms.\n\tat com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:217)\n\tat com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:162)\n\tat com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:128)\n\tat org.hibernate.engine.jdbc.connections.internal.DatasourceConnectionProviderImpl.getConnection(DatasourceConnectionProviderImpl.java:122)\n\npg_stat_activity view snapshot:\npid  | state               | query_duration | query\n---------------------------------------------------------------------------------------------------------\n2101 | idle in transaction | 48.2s          | SELECT * FROM orders WHERE id = $1 FOR UPDATE\n2102 | idle in transaction | 45.1s          | SELECT * FROM orders WHERE id = $1 FOR UPDATE\n...  | (all 10 connections held in 'idle in transaction' state for > 40 seconds)",
+    "rootCauseAnalysis": "Истощение пула соединений HikariCP (Pool Starvation). Все 10 соединений (total=10, active=10) заняты и удерживаются потоками приложения, а 37 потоков находятся в состоянии WAITING (parking) внутри HikariPool.getConnection(). Анализ pg_stat_activity показывает, что все коннекты находятся в состоянии 'idle in transaction': сервис открыл JDBC-транзакцию, выполнил запрос к БД, а затем начал выполнять долгий синхронный HTTP-вызов к стороннему платежному шлюзу, удерживая открытое соединение с базой данных.",
+    "remediationMarkdown": "1. Вынести внешние сетевые HTTP-вызовы за пределы границ аннотации @Transactional, чтобы физическое соединение с БД освобождалось мгновенно после выполнения SQL.\n2. Включить детектор утечек HikariCP: spring.datasource.hikari.leak-detection-threshold=5000 (фиксирует стеки удержания соединения > 5с).\n3. Уменьшить connectionTimeout с 30000 мс до 3000-5000 мс для быстрого Fail-Fast отклика.",
+    "keyMetricTrigger": "HikariPool waiting threads = 37 / idle in transaction > 40s"
+  },
+  {
+    "id": "triage-l0-04",
+    "incidentNumber": 4,
+    "slug": "triage-l0-04-cglib-metaspace-classloader-leak",
+    "title": "L0-04: Утечка Metaspace из-за генерации динамических CGLIB-прокси",
+    "category": "L0: ClassLoader Primitives",
+    "level": "L0",
+    "severity": "HIGH",
+    "symptomsMarkdown": "Приложение после серии горячих перезагрузок (hot redeploy) или динамической компиляции правил скриптового движка падает с фатальной ошибкой java.lang.OutOfMemoryError: Metaspace. При этом куча (Heap OldGen) заполнена менее чем на 25%.",
+    "rawArtifactText": "[2026-09-05T12:10:04.120+0000] [critical] java.lang.OutOfMemoryError: Metaspace\nDumping heap and classloader stats...\njcmd <pid> VM.classloader_stats:\nClassLoader               Parents              Loaded Classes   Metaspace Size\n------------------------------------------------------------------------------\nAppClassLoader            PlatformClassLoader  4120             38 MB\nGeneratedClassLoader$14   AppClassLoader       1                16 KB (CGLIB dynamic proxy)\nGeneratedClassLoader$15   AppClassLoader       1                16 KB (CGLIB dynamic proxy)\n... (Over 42,000 unique ephemeral ClassLoader instances created by runtime proxy factory)\n\nTotal Metaspace Committed: 512 MB (MaxMetaspaceSize: 512 MB reached)",
+    "rootCauseAnalysis": "Утечка метаданных классов (Metaspace / ClassLoader Leak). Приложение динамически генерирует прокси-классы через CGLIB / ByteBuddy без переиспользования кэша ClassLoader. Каждый новый прокси-объект создавался в собственном эфемерном загрузчике классов GeneratedClassLoader. В HotSpot JVM классы не могут быть выгружены из Metaspace до тех пор, пока жив их ClassLoader. Так как ссылки на сгенерированные прокси удерживались в статических коллекциях приложения, сборщик мусора не мог выгрузить загрузчики, что привело к полному исчерпанию MaxMetaspaceSize (512 MB).",
+    "remediationMarkdown": "1. Включить кэширование динамических прокси-классов: использовать синглтон ProxyFactory / Enhancer с активацией UseCache (CGLIB setUseCache(true)).\n2. Настроить мониторинг Metaspace: jcmd <pid> VM.classloader_stats и метрику jvm.classes.loaded.\n3. При необходимости динамической генерации использовать слабые ссылки (WeakReference / ClassValue) для предотвращения удержания ClassLoader после завершения жизненного цикла сессии.",
+    "keyMetricTrigger": "OutOfMemoryError: Metaspace / Classes Loaded > 40,000"
+  },
+  {
+    "id": "triage-l1-01",
+    "incidentNumber": 5,
+    "slug": "triage-l1-01-g1gc-humongous-allocation-fragmentation",
+    "title": "L1-01: Фрагментация G1GC и 40-секундная STW-пауза из-за Humongous-объектов",
+    "category": "L1: Guided GC Workflows",
+    "level": "L1",
+    "severity": "CRITICAL",
+    "symptomsMarkdown": "При пиковом импорте выгрузок из 1С / CSV-каталога сервис каталога полностью зависает на 42 секунды. Мониторинг показывает скачок p99 latency до 42 000 мс. Процессор в это время загружен одним ядром на 100%, остальные ядра простаивают.",
+    "rawArtifactText": "[2026-09-05T16:03:30.120+0000][info][gc,start    ] GC(84) Pause Young (Normal) (G1 Evacuation Pause)\n[2026-09-05T16:03:30.121+0000][info][gc,ergo     ] GC(84) Request concurrent cycle initiation, reason: humongous allocation request, size: 8388624 bytes\n[2026-09-05T16:03:30.130+0000][info][gc,evac     ] GC(84) To-space exhausted\n[2026-09-05T16:03:30.135+0000][info][gc          ] GC(84) Pause Young (Normal) (G1 Evacuation Pause) (to-space exhausted) 3912M->3890M(4096M) 14.891ms\n[2026-09-05T16:03:30.136+0000][info][gc,start    ] GC(85) Pause Full (Allocation Failure)\n[2026-09-05T16:03:30.136+0000][info][gc,phases   ] GC(85) Phase 1: Mark live objects 12104.2ms\n[2026-09-05T16:03:42.240+0000][info][gc,phases   ] GC(85) Phase 2: Prepare for compaction 8192.1ms\n[2026-09-05T16:03:50.432+0000][info][gc,phases   ] GC(85) Phase 3: Adjust pointers 14210.4ms\n[2026-09-05T16:04:04.642+0000][info][gc,phases   ] GC(85) Phase 4: Compact heap 7410.8ms\n[2026-09-05T16:04:12.052+0000][info][gc          ] GC(85) Pause Full (Allocation Failure) 3890M->840M(4096M) 41916.0ms",
+    "rootCauseAnalysis": "Humongous Allocation Fragmentation в сборщике G1GC. Размер региона G1 по умолчанию составлял 2 MB (-XX:G1HeapRegionSize=2M). При загрузке больших CSV/JSON файлов сервис аллоцировал непрерывные массивы byte[] размером 8.3 MB. Любой объект, превышающий 50% размера региона G1 (1 MB), классифицируется как Humongous и аллоцируется напрямую в непрерывную последовательность регионов OldGen. Частые аллокации вызвали острую фрагментацию кучи: несмотря на наличие свободного места, G1 не смог найти 5 последовательных свободных регионов, что вызвало 'To-space exhausted' и откат к однопоточному Full GC со Stop-The-World паузой в 41.9 секунды.",
+    "remediationMarkdown": "1. Увеличить размер региона G1: задать -XX:G1HeapRegionSize=16M или 32M, чтобы крупные объекты помещались в стандартные регионы Eden.\n2. Переписать код обработки входящих выгрузок на потоковую передачу данных (InputStream / Jackson Streaming API) вместо загрузки всего файла в цельный byte[] / String в памяти.\n3. Рассмотреть переход на Generational ZGC (-XX:+UseZGC -XX:+ZGenerational) для гарантии субмиллисекундных пауз STW.",
+    "keyMetricTrigger": "Pause Full (Allocation Failure) > 40s / To-space exhausted"
+  },
+  {
+    "id": "triage-l1-02",
+    "incidentNumber": 6,
+    "slug": "triage-l1-02-kafka-rebalance-storm-gc",
+    "title": "L1-02: Шторм ребалансировок Kafka Consumer Group из-за GC STW-паузы",
+    "category": "L1: Messaging & Event Streaming",
+    "level": "L1",
+    "severity": "CRITICAL",
+    "symptomsMarkdown": "Группа из 12 подов консьюмеров Kafka неожиданно перестала обрабатывать сообщения. Consumer Lag вырос с 0 до 850 000 сообщений. Попытка SRE увеличить количество реплик с 12 до 24 подов парализовала Kafka брокеры: загрузка CPU брокера подскочила до 100%, а консьюмеры непрерывно перезапускают ребалансировку.",
+    "rawArtifactText": "[2026-09-05 16:04:12.812] WARN [Consumer clientId=inv-worker-1, groupId=inventory-group] org.apache.kafka.clients.consumer.internals.ConsumerCoordinator:\nconsumer poll() timeout has expired, meaning processing took too long.\norg.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced and assigned the partitions to another member. This means that the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time processing messages.\n\nCorrelated JVM GC Log from inv-worker-1:\n[2026-09-05T16:03:30.120+0000][info][gc] GC(42) Pause Full (Allocation Failure) 3980M->840M(4096M) 41917.5ms (STW pause duration: 41.9s)\nKafka Client Config:\nmax.poll.interval.ms = 30000 (30 seconds)\nsession.timeout.ms = 10000 (10 seconds)\npartition.assignment.strategy = org.apache.kafka.clients.consumer.RangeAssignor",
+    "rootCauseAnalysis": "Шторм ребалансировок (Kafka Consumer Rebalance Storm), инициированный Stop-The-World паузой сборщика мусора. STW-пауза длилась 41.9 секунды, что превысило значение max.poll.interval.ms (30 секунд). Брокер Kafka (Group Coordinator) счел узел мертвым и исключил его из группы, запустив глобальную ребалансировку всех 96 партиций. Когда под очнулся от GC, он попытался закоммитить офсеты, получил CommitFailedException и повторно запросил вступление в группу. Ошибочное решение масштабировать поды до 24 удвоило служебный трафик JoinGroup/SyncGroup, зациклив всю группу в бесконечной фазе PreparingRebalance.",
+    "remediationMarkdown": "1. Немедленно остановить шторм: перевести стратегию распределения партиций на CooperativeStickyAssignor (инкрементальная ребалансировка без Stop-the-World остановки всех консьюмеров).\n2. Увеличить max.poll.interval.ms с 30 000 до 120 000 мс и уменьшить max.poll.records с 500 до 50, ограничив время пачки сообщений.\n3. Устранить причину GC-пауз: выделить запас памяти в куче (-Xmx8g) и настроить Generational ZGC.\n4. Уменьшить количество подов консьюмеров до числа, кратного партициям (например, 12 подов на 96 партиций = ровно по 8 партиций на под).",
+    "keyMetricTrigger": "CommitFailedException / Consumer Lag > 800k / STW Pause > max.poll.interval.ms"
+  },
+  {
+    "id": "triage-l1-03",
+    "incidentNumber": 7,
+    "slug": "triage-l1-03-kubernetes-cfs-cpu-throttling",
+    "title": "L1-03: Троттлинг CPU в Kubernetes Pod (cgroups CFS Quota Starvation)",
+    "category": "L1: Kubernetes & Infrastructure",
+    "level": "L1",
+    "severity": "HIGH",
+    "symptomsMarkdown": "Приложение в кластере Kubernetes демонстрирует деградацию времени отклика с 20 мс до 1500 мс. При этом метрика Node CPU Utilization физического сервера составляет всего 12%, а профилировщик не находит блокировок потоков в приложении.",
+    "rawArtifactText": "Container metrics from /sys/fs/cgroup/cpu/cpu.stat:\nnr_periods 12400\nnr_throttled 9850\nthrottled_time 482194820120 (482 seconds of pure CPU throttling within last 10 minutes)\nPercentage of throttled periods: 79.4% !\n\nKubernetes Resource Spec:\nresources:\n  requests:\n    cpu: \"500m\"\n    memory: \"2Gi\"\n  limits:\n    cpu: \"1000m\"\n    memory: \"2Gi\"\n\nJVM Flag: -XX:ActiveProcessorCount not set (JVM detects host 64 cores, launches 64 ForkJoinPool workers)",
+    "rootCauseAnalysis": "Троттлинг CPU ядром Linux из-за исчерпания CFS Quota (Completely Fair Scheduler). Контейнеру задан жесткий limits.cpu: '1000m' (квота 100 мс на 100 мс CFS period). Однако JVM без параметра ActiveProcessorCount определила хостовые 64 ядра и создала 64 рабочих потока. Когда несколько потоков одновременно выполняют кратковременные всплески вычислений, они суммарно сжигают 100 мс процессорного времени за первые 2-3 миллисекунды периода, после чего ядро Linux жестко замораживает весь контейнер на оставшиеся 97 миллисекунд периода. Это вызвало искусственную задержку в 79.4% периодов.",
+    "remediationMarkdown": "1. Удалить limits.cpu из спецификации пода в Kubernetes, оставив только requests.cpu (Production Best Practice Google/Netflix), предотвратив троттлинг при наличии свободных ядер на хосте.\n2. Если лимиты обязательны политикой кластера: явно передать JVM параметр -XX:ActiveProcessorCount=2, ограничив параллелизм пулов потоков реальной выделенной квотой.\n3. Включить алертинг в Prometheus по метрике rate(container_cpu_cfs_throttled_periods_total[5m]) > 0.15.",
+    "keyMetricTrigger": "nr_throttled / nr_periods > 75% / throttled_time > 400s"
+  },
+  {
+    "id": "triage-incident-01",
+    "incidentNumber": 8,
     "slug": "triage-incident-01-java-level-deadlock",
     "title": "Инцидент 1: Взаимная блокировка потоков в классической модели взаимодействия (Java-Level Deadlock)",
     "category": "Concurrency & Deadlocks",
@@ -10,11 +108,12 @@
     "rawArtifactText": "Снятие снимка потоков с помощью утилиты jstack \\<pid\\> или jcmd \\<pid\\> Thread.print позволяет зафиксировать секцию автоматического обнаружения взаимной блокировки встроенным детектором JVM6:\n\n# **Found one Java-level deadlock:**\n\n\"orders-executor-1\": waiting to lock monitor 0x00007f9a3c006208 (object 0x00000000d6e567c8, a java.lang.Object), which is held by \"inventory-executor-2\" \"inventory-executor-2\": waiting to lock monitor 0x00007f9a3c003d58 (object 0x00000000d6e567d8, a java.lang.Object), which is held by \"orders-executor-1\"\n\n# **Java stack information for the threads listed above:**\n\n\"orders-executor-1\": at com.example.service.OrderService.processOrder(OrderService.java:45) \\- waiting to lock \\<0x00000000d6e567c8\\> (a com.example.model.InventoryLock) \\- locked \\<0x00000000d6e567d8\\> (a com.example.model.OrderLock) at com.example.controller.OrderController.lambda0(OrderController.java:22) at java.base/java.util.concurrent.ThreadPoolExecutorreserveWorker.run(ThreadPoolExecutor.java:642) at java.base/java.lang.Thread.run(Thread.java:1583)  \nFound 1 deadlock.",
     "rootCauseAnalysis": "Корневой причиной аварии является фундаментальное нарушение правила строгого порядка захвата ресурсов (Lock Ordering Pattern) в условиях многопоточной среды5. Поток orders-executor-1, исполняя бизнес-метод создания заказа, успешно захватил монитор объекта OrderLock и попытался войти в критическую секцию объекта InventoryLock7. В этот же момент параллельный поток inventory-executor-2, выполняющий резервирование остатков, захватил монитор InventoryLock и запросил доступ к OrderLock7. В результате образовалась классическая круговая зависимость (Coffman conditions), при которой оба потока перешли в состояние BLOCKED и заблокировали дальнейшее продвижение исполнительного конвейера5. Поскольку примитив synchronized не предоставляет встроенных механизмов прерывания ожидания по таймауту, заблокированные потоки навечно удерживают захваченные ресурсы, вызывая голодание последующих потоков5.",
     "remediationMarkdown": "Для предотвращения классических взаимных блокировок архитектура системы должна быть переведена с базовых примитивов synchronized на продвинутые блокировки из пакета java.util.concurrent.locks.ReentrantLock с обязательным вызовом метода tryLock() с явным таймаутом5. Это позволяет потоку корректно обработать невозможность получения ресурса, откатить бизнес-операцию и освободить ранее захваченные блокировки5. На программном уровне необходимо внедрить глобальный регламент упорядочивания ресурсов (Global Lock Ordering), обязывающий сортировать объекты блокировок по уникальному идентификатору или хэш-коду перед входом в критическую секцию5. В пайплайны непрерывной интеграции (CI/CD) следует интегрировать инструменты статического анализа кода (SpotBugs, SonarQube) для раннего обнаружения вложенных блоков синхронизации.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-02",
-    "incidentNumber": 2,
+    "incidentNumber": 9,
     "slug": "triage-incident-02-carrier-thread-pinning-project-loom",
     "title": "Инцидент 2: Захват несущего потока (Carrier Thread Pinning) в Project Loom (JDK 21\\)",
     "category": "Project Loom & Pinning",
@@ -23,11 +122,12 @@
     "rawArtifactText": "Запись профилировщика Java Flight Recorder (JFR) при анализе через утилиту jcmd или JDK Mission Control содержит множественные события jdk.VirtualThreadPinned с длительностью, существенно превышающей стандартный порог в 20 миллисекунд1:  \n\\[45.120s\\]\\[info\\]\\[gc,vt\\] Event: jdk.VirtualThreadPinned Start Time: 2025-02-15T10:15:30.102Z Duration: 4210.5 ms Thread: \"ForkJoinPool-1-worker-3\" Carrier Thread: \"ForkJoinPool-1-worker-3\" Pinned Duration: 4210.5 ms Pinned Reason: VM call to com.example.cache.RedisCacheRepository.getWithLock on stack Stack Trace: java.base/java.lang.VirtualThread.parkOnCarrierThread(VirtualThread.java:672) java.base/java.lang.VirtualThread.park(VirtualThread.java:594) java.base/java.lang.System$2.parkVirtualThread(System.java:2639) java.base/jdk.internal.misc.Unsafe.park(Unsafe.java:1094) java.base/java.util.concurrent.locks.LockSupport.park(LockSupport.java:371) com.example.cache.RedisCacheRepository.getWithLock(RedisCacheRepository.java:42) \\-\\> synchronized block com.example.service.ProductService.getProductDetails(ProductService.java:115) com.example.controller.ProductController.get(ProductController.java:28)",
     "rootCauseAnalysis": "Исполнение виртуальных потоков в Project Loom осуществляется путем их монтирования (mount) на небольшой пул платформных потоков операционной системы, называемых несущими (Carrier Threads), размер которого по умолчанию равен числу доступных ядер процессора Runtime.getRuntime().availableProcessors()1. В JDK 21–23 выполнение блокирующей операции ввода-вывода (в данном случае сетевого вызова к Redis) внутри блока или метода с ключевым словом synchronized приводят к фиксации (pinning) виртуального потока на его несущем потоке2. Внутренняя реализация JVM Hotspot в указанных версиях не может выгрузить (unmount) стековые кадры виртуального потока в кучу, поскольку монитор Java жестко привязан к идентификатору платформного потока2. В результате все carrier-потоки в ForkJoinPool оказались заблокированы ожиданием сетевого ввода-вывода, что вызвало тотальное голодание планировщика (Carrier Thread Starvation)2.",
     "remediationMarkdown": "Основным способом устранения проблемы фиксации является полный рефакторинг кода с заменой блоков synchronized на явные блокировки java.util.concurrent.locks.ReentrantLock10. ReentrantLock корректно обрабатывается рантаймом Virtual Threads, позволяя виртуальному потоку отмонтироваться от carrier-потока на время блокировки сокета1. На этапе разработки необходимо запускать приложение с системной опцией \\-Djdk.tracePinnedThreads=full, которая выводит в консоль полные стеки вызовов в момент фиксации. В долгосрочной перспективе рекомендуется запланировать обновление до JDK 24+ (JEP 491: Rebind Synchronized to Support Unmounting), где механизм мониторов переработан на уровне JVM, исключая привязку к несущим потокам2.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-03",
-    "incidentNumber": 3,
+    "incidentNumber": 10,
     "slug": "triage-incident-03-virtual-threads-clinit",
     "title": "Инцидент 3: Захват планировщика Virtual Threads при инициализации класса (\\<clinit\\>)",
     "category": "Project Loom / JVM Internals",
@@ -36,11 +136,12 @@
     "rawArtifactText": "Снятие событий JFR и анализ через команды jcmd \\<pid\\> JFR.view cell-height=20 jdk.VirtualThreadPinned выявляет специфическую причину фиксации нативного уровня11:  \njdk.VirtualThreadPinned { startTime \\= 14:10:02.115 duration \\= 10.002 s carrierThread \\= \"ForkJoinPool-1-worker-1\" pinnedReason \\= \"VM call to com.center.BlockingInitializationClass. on stack\" blockingOperation \\= \"LockSupport.park\" stackTrace \\= \\[ java.lang.Thread.sleep(Native Method) com.center.BlockingInitializationClass.(BlockingInitializationClass.java:12) com.center.ServiceLogic.process(ServiceLogic.java:45) java.lang.VirtualThread.run(VirtualThread.java:311) \\] }",
     "rootCauseAnalysis": "Согласно спецификации виртуальной машины Java (JVMS §5.4.3), резолвинг символьных ссылок и выполнение статического блока инициализации класса (\\<clinit\\>) происходит под внутренним системным заборником JVM с формированием нативного стекового кадра11. Если внутри статического блока класса или при инициализации его статических полей выполняется блокирующая операция (например, Thread.sleep или считывание конфигурации из внешнего источника), виртуальный поток не может быть отмонтирован от carrier-потока из\\-за наличия нативного кадра на стеке11. Когда параллельные виртуальные потоки пытаются обратиться к этому же классу, они блокируются в ожидании завершения его инициализации2. Поскольку инициализирующий поток заблокировал один из немногочисленных carrier-потоков, а остальные виртуальные потоки встали в очередь за классом, происходит взаимное блокирование всей инфраструктуры планировщика Loom2.",
     "remediationMarkdown": "С точки зрения архитектуры необходимо ввести строгий запрет на выполнение любых сетевых и дисковых операций ввода-вывода, а также задержек внутри блоков статической инициализации (static { ... })11. Инициализацию тяжелых ресурсов необходимо переносить в фазу раннего бутстрапа приложения до открытия сетевых портов, выполняя ее в главном платформном потоке (main). Рекомендуется применять паттерн ленивой инициализации через явные методы или использовать события жизненного цикла фреймворков (например, Spring EventListener на событие ContextRefreshedEvent).",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-04",
-    "incidentNumber": 4,
+    "incidentNumber": 11,
     "slug": "triage-incident-04-hikaricp",
     "title": "Инцидент 4: Истощение пула соединений HikariCP из\\-за отсутствия индексов в СУБД",
     "category": "Connection Pool & DB",
@@ -49,11 +150,12 @@
     "rawArtifactText": "Логи приложения насыщаются сообщениями о превышении таймаута таски ожидания соединения из пула HikariCP3:  \n2025-02-15 14:22:01.402 ERROR \\--- \\[http-nio-8080-exec-15\\] o.h.engine.jdbc.spi.SqlExceptionHelper: HikariPool-1 \\- Connection is not available, request timed out after 30000ms.  \n2025-02-15 14:22:01.403 WARN \\--- \\[HikariPool-1 housekeeper\\] com.zaxxer.hikari.pool.HikariPool: HikariPool-1 \\- Pool stats (total=10, active=10, idle=0, waiting=37)  \njava.sql.SQLTransientConnectionException: HikariPool-1 \\- Connection is not available, request timed out after 30000ms. at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:217) at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:162) at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:128) at org.hibernate.engine.jdbc.connections.internal.DatasourceConnectionProviderImpl.getConnection(DatasourceConnectionProviderImpl.java:122) at org.hibernate.internal.NonContextualJdbcConnectionAccess.obtainConnection(NonContextualJdbcConnectionAccess.java:38)",
     "rootCauseAnalysis": "Неопытные инженеры часто пытаются устранить данную проблему простым увеличением размера пула maximumPoolSize, что лишь усугубляет сбой на стороне базы данных3. Анализ активности базы данных через системное представление pg\\_stat\\_activity показывает, что все 10 соединений пула непрерывно выполняют SQL-запрос поиска заказов по статусу и дате3. Из-за отсутствия составного индекса по полям status и created\\_at СУБД вынуждена выполнять полное сканирование таблицы (Sequential Scan) на миллионах записей3. Время выполнения одного запроса выросло с 2 миллисекунд до 8.5 секунд. Соединения остаются захваченными потоками приложения на весь период сканирования таблицы в СУБД, в результате чего 37 входящих потоков приложения встают в очередь ожидания и падают по таймауту connectionTimeout (30000 мс)3.",
     "remediationMarkdown": "Решение требует проведения оптимизации схемы хранения данных в СУБД и добавления покрывающих индексов для исключения тяжелых операций сканирования3. На уровне конфигурации HikariCP и драйвера базы данных необходимо установить жесткие верхние границы выполнения запросов через параметр statement\\_timeout \\= 5000 (мс) на стороне СУБД, а параметр hikari.connectionTimeout снизить до 5000 мс для быстрого возврата ошибки (Fail-Fast)3. В обязательном порядке следует активировать детектор долгих соединений через spring.datasource.hikari.leak-detection-threshold \\= 5000, что позволит автоматически регистрировать стеки вызовов кода, удерживающего соединение сверх нормы3.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-05",
-    "incidentNumber": 5,
+    "incidentNumber": 12,
     "slug": "triage-incident-05-hikaricp-transactional",
     "title": "Инцидент 5: Истощение пула HikariCP из\\-за блокирующих сетевых вызовов внутри транзакции (@Transactional)",
     "category": "Network & Transactions",
@@ -62,11 +164,12 @@
     "rawArtifactText": "Логи детектора утечек HikariCP содержат стек вызовов потока, удерживающего JDBC-соединение во время выполнения сетевого ввода-вывода3:  \n2025-02-15 15:04:12.891 WARN \\--- \\[HikariPool-1 leak detector\\] com.zaxxer.hikari.pool.ProxyLeakTask: Apparent connection leak detected terms of holding time on connection org.postgresql.jdbc.PgConnection@5e21966a, written stacktrace follows: java.base/java.net.SocketInputStream.socketRead0(Native Method) java.base/java.net.SocketInputStream.read(SocketInputStream.java:150) org.apache.http.impl.io.SessionInputBufferImpl.read(SessionInputBufferImpl.java:137) org.apache.http.impl.execchain.MainClientExec.execute(MainClientExec.java:191) org.springframework.web.client.RestTemplate.doExecute(RestTemplate.java:787) com.example.client.PaymentGatewayClient.charge(PaymentGatewayClient.java:45) com.example.service.OrderCheckoutService.processCheckout(OrderCheckoutService.java:62) org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:382)",
     "rootCauseAnalysis": "Разработчик разместил аннотацию Spring @Transactional над внешним сервисным методом processCheckout()3. При входе в перехватчик транзакций Spring Transaction Manager запрашивает физическое JDBC-соединение из пула HikariCP, открывает транзакцию в СУБД и связывает соединение с потоком через TransactionSynchronizationManager3. После этого внутри метода выполняется синхронный вызов стороннего сервиса выплат через RestTemplate3. Когда внешний сервис замедлил обработку вызовов до 30 секунд, физическое соединение с базой данных оставалось заблокированным за данным потоком, не выполняя при этом никаких SQL-команд3. Это привело к мгновенной утилизации пула соединений параллельными запросами3.",
     "remediationMarkdown": "Архитектура бизнес-сервисов должна строго следовать принципу минимизации границ транзакций (Transaction Scope Minimization)3. Все внешние сетевые вызовы по HTTP/gRPC должны быть вынесены за пределы аннотации @Transactional3. Изменение состояния БД и взаимодействие с сетью должны разделяться: сначала выполняется сетевой вызов, и только затем открывается короткая база\\-данных транзакция с помощью TransactionTemplate для сохранения результатов3. Для сетевых клиентов необходимо настраивать агрессивные таймауты (ConnectTimeout — 1 сек, ReadTimeout — 3 сек).",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-06",
-    "incidentNumber": 6,
+    "incidentNumber": 13,
     "slug": "triage-incident-06-kafka-consumer-group-max-poll-inter",
     "title": "Инцидент 6: Шторм ребалансировки в Kafka Consumer Group из\\-за превышения max.poll.interval.ms",
     "category": "Kafka & Messaging",
@@ -75,11 +178,12 @@
     "rawArtifactText": "Лог-файл Kafka-клиента фиксирует регулярное исключение консьюмера из состава группы по инициативе брокера-координатора13:  \n2025-02-15 10:15:22.812 WARN \\--- \\[kafka-coordinator-heartbeat-thread\\] o.a.k.c.c.i.ConsumerCoordinator: \\[Consumer clientId=order-consumer-1, groupId=order-processing-group\\] Consumer poll process time (68421ms) exceeded max.poll.interval.ms (60000ms). Evicting consumer from group.  \n2025-02-15 10:15:22.815 INFO \\--- \\[kafka-coordinator-heartbeat-thread\\] o.a.k.c.c.i.ConsumerCoordinator: \\[Consumer clientId=order-consumer-1, groupId=order-processing-group\\] Revoking previously assigned partitions \\[order-events-0, order-events-1\\]  \n2025-02-15 10:15:23.001 ERROR \\--- \\[main\\] o.a.k.c.c.i.ConsumerCoordinator: Offset commit failed with a fatal error: org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced and assigned the partitions to another member.",
     "rootCauseAnalysis": "Фоновый поток отправки пульса (Heartbeat Thread) исправно шлет сигналы брокеру, из\\-за чего таймаут session.timeout.ms не срабатывает14. Однако главный поток приложения, исполняющий управляющий цикл poll(), застрял на долговременной обработке пачки записей (batch)13. Суммарное время обработки всех элементов пакета превысило установленный лимит max.poll.interval.ms (60000 мс)13. Координатор группы посчитал данный экземпляр консьюмера зависшим и запустил процедуру ребалансировки (Rebalance)13. При попытке зафиксировать смещения (offsets) консьюмер получил CommitFailedException14. После перераспределения партиций другой консьюмер повторно вычитал не зафиксированные сообщения и снова превысил интервал обработки, запустив цепную реакцию бесконечных ребалансировок (Rebalance Storm)14.",
     "remediationMarkdown": "Главная превентивная мера состоит в снижении размера пакета вычитываемых данных путем уменьшения параметра max.poll.records (например, с 500 до 50 элементов), либо в увеличении max.poll.interval.ms под реальные требования тяжелой бизнес-обработки13. На архитектурном уровне следует внедрить паттерн асинхронной обработки, выгружающий вычитанные сообщения в внутренний пул рабочих потоков с приостановкой вычитывания партиций (consumer.pause()) при переполнении внутренних очередей14. Дополнительно рекомендуется перевести стратегию назначений партиций на CooperativeStickyAssignor, исключающий полную остановку вычитывания не затронутых ребалансировкой партиций (Cooperative Rebalancing)13.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-07",
-    "incidentNumber": 7,
+    "incidentNumber": 14,
     "slug": "triage-incident-07-java-heap-threadlocal",
     "title": "Инцидент 7: Утечка памяти Java Heap через ThreadLocal в пуле рабочих потоков веб\\-сервера",
     "category": "Heap Memory & ThreadLocal",
@@ -88,11 +192,12 @@
     "rawArtifactText": "Анализ Heap Dump в инструменте Eclipse MAT (Memory Analyzer Tool) указывает на удержание основного объема памяти в таблицах ThreadLocalMap рабочих потоков веб\\-сервера5:\n\n## **Class Name | Shallow Heap | Retained Heap | Percentage**\n\n## **org.apache.catalina.core.StandardThreadExecutor | 1,024 | 3,842,109,120 | 89.4% └─ java.lang.Thread\\[\\] | 2,048 | 3,842,108,096 | 89.4% └─ java.lang.Thread | 512 | 152,410,210 | 3.5% └─ java.lang.ThreadLocalThreadLocalMap$Entry\\[\\] | 2,048 | 152,408,912 | 3.5% └─ com.example.context.UserSecurityContext | 64 | 152,100,000 | 3.5%**",
     "rootCauseAnalysis": "В приложении используется переиспользуемый пул потоков (Tomcat HTTP Executors). Для проброса контекста безопасности пользователя между слоями приложения применялся статический объект ThreadLocal\\<UserSecurityContext\\>. В перехватчике запросов перед началом обработки выполнялась запись контекста через UserSecurityContextHolder.set(context). Однако в блоке finally обработчика отсутствовал вызов UserSecurityContextHolder.remove(). Поскольку потоки пула веб\\-сервера переиспользуются и не завершают свой жизненный цикл после обработки HTTP-ответа, сильные ссылки (Strong References) из значений ThreadLocalMap удержали объекты контекста и связанные с ними тяжелые графы данных от сборки мусора5.",
     "remediationMarkdown": "Обеспечение корректной очистки ThreadLocal требует использования строгой конструкции try-finally во всех перехватчиках и фильтрах входящих запросов: Java try { contextHolder.set(securityContext); chain.doFilter(request, response); } finally { contextHolder.remove(); } В современности наиболее надежным архитектурным решением является переход на механизм Scoped Values (JEP 429/446), представленный в JDK 21+, который гарантирует автоматическое уничтожение и неизменяемость контекста при выходе из области видимости блока выполнения, полностью исключая утечки памяти2.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-08",
-    "incidentNumber": 8,
+    "incidentNumber": 15,
     "slug": "triage-incident-08-metaspace",
     "title": "Инцидент 8: Раздувание области Metaspace из\\-за динамической генерации прокси-классов без кэширования",
     "category": "Metaspace & ClassLoader",
@@ -101,11 +206,12 @@
     "rawArtifactText": "StackTrace падения приложения и данные анализа вывода команды jcmd \\<pid\\> VM.metaspace указывают на генерацию байт-кода10:  \njava.lang.OutOfMemoryError: Metaspace at java.base/java.lang.ClassLoader.defineClass1(Native Method) at java.base/java.lang.ClassLoader.defineClass(ClassLoader.java:1027) at net.sf.cglib.core.ReflectUtils.defineClass(ReflectUtils.java:506) at net.sf.cglib.core.AbstractClassGenerator.generate(AbstractClassGenerator.java:363) at net.sf.cglib.proxy.Enhancer.generateClass(Enhancer.java:582) at net.sf.cglib.proxy.Enhancer.createHelper(Enhancer.java:500) at net.sf.cglib.proxy.Enhancer.create(Enhancer.java:374) at com.example.dynamic.ProxyFactory.createProxy(ProxyFactory.java:31)",
     "rootCauseAnalysis": "В рамках собственного модуля валидации на каждый входящий HTTP-запрос создавался новый экземпляр генератора прокси net.sf.cglib.proxy.Enhancer (или аналогичного ByteBuddy)10. Из-за некорректной конфигурации у генератора было отключено кэширование сгенерированных классов (setUseCache(false))10. При каждом вызове CGLIB генерировал уникальный байт-код прокси-класса и загружал его через создаваемый одноразовый ClassLoader10. Метаданные классов непрерывно забивали область Metaspace10. Выгрузка классов (Class Unloading) не могла произойти, так как ссылки на созданные загрузчики классов удерживались во внутренних структурах приложения10.",
     "remediationMarkdown": "Устранение проблемы требует принудительного включения кэширования сгенерированных прокси-классов на уровне фабрик генерации или перехода на стандартные средства Spring AOP / Dynamic Proxies10. На уровне параметров запуска JVM необходимо задать жесткие лимиты области метаданных: \\-XX:MaxMetaspaceSize=512m и \\-XX:CompressedClassSpaceSize=128m для предотвращения исчерпания всей физической памяти хоста10. В систему мониторинга добавляются метрики jvm\\_classes\\_loaded\\_classes и jvm\\_classes\\_unloaded\\_classes.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-09",
-    "incidentNumber": 9,
+    "incidentNumber": 16,
     "slug": "triage-incident-09-heap-unbounded-queue",
     "title": "Инцидент 9: Утечка памяти Heap из\\-за использования неограниченного буфера (Unbounded Queue)",
     "category": "Heap & Unbounded Buffers",
@@ -114,11 +220,12 @@
     "rawArtifactText": "Анализ Dominator Tree дампа памяти в Eclipse MAT фиксирует абсолютное доминирование структуры очереди5:\n\n## **Class Name | Shallow Heap | Retained Heap | Percentage**\n\n## **com.example.event.AsyncEventPublisher | 64 | 7,521,098,112 | 94.2% └─ java.util.concurrent.LinkedBlockingQueue | 48 | 7,521,098,048 | 94.2% └─ java.util.concurrent.LinkedBlockingQueue$Node| 32 | 7,521,098,000 | 94.2% └─ com.example.event.AuditLogEvent | 40 | 7,521,000,000 | 94.2%**",
     "rootCauseAnalysis": "В качестве промежуточного буфера для асинхронной отправки событий использовался экземпляр new LinkedBlockingQueue\\<\\>() с вызовом конструктора по умолчанию5. Конструктор по умолчанию инициализирует очередь с лимитом Integer.MAX\\_VALUE, что делает буфер фактически неограниченным5. Когда скорость поступления событий в сервис превысила скорость их сброса в хранилище (Producer speed \\> Consumer speed), очередь начала разрастаться, аккумулируя миллионы объектов5. Это привело к затоплению памяти Heap и непрерывным бесполезным циклам GC15.",
     "remediationMarkdown": "Применение неограниченных буферов в продуктивных системах категорически запрещено5. Все очереди должны иметь явный ограниченный размер, например new LinkedBlockingQueue\\<\\>(10000) или ArrayBlockingQueue5. Архитектура обязана поддерживать явные стратегии управления переполнением (Backpressure): сброс старых событий (DiscardOldestPolicy), отказ от приема новых (DiscardPolicy) или принудительная блокировка потока-производителя (CallerRunsPolicy).",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-10",
-    "incidentNumber": 10,
+    "incidentNumber": 17,
     "slug": "triage-incident-10-direct-buffer-memory-netty",
     "title": "Инцидент 10: Утечка нативной внекучевой памяти (Direct Buffer Memory) в сетевом стеке Netty",
     "category": "Off-Heap & Direct Memory",
@@ -127,11 +234,12 @@
     "rawArtifactText": "Логи приложения содержат предупреждение встроенного детектора утечек Netty ResourceLeakDetector16:  \n2025-02-15 08:12:00.123 ERROR io.netty.util.ResourceLeakDetector \\- LEAK: ByteBuf.release() was not called before it was garbage-collected. Recent access records: \\#1: io.netty.buffer.AdvancedLeakAwareByteBuf.readBytes(AdvancedLeakAwareByteBuf.java:518) com.example.net.CustomFrameDecoder.decode(CustomFrameDecoder.java:34) Created at: io.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:402)  \njava.lang.OutOfMemoryError: Direct buffer memory at java.base/java.nio.Bits.reserveMemory(Bits.java:175) at java.base/java.nio.DirectByteBuffer.(DirectByteBuffer.java:118)",
     "rootCauseAnalysis": "Для исключения лишнего копирования данных между кучей и сетевым стеком Netty выделяет память вне кучи через DirectByteBuffer и управляет объектами ByteBuf с помощью механизмов подсчета ссылок (Reference Counting)16. В кастомном декодере сетевого конвейера CustomFrameDecoder при возникновении ошибки парсинга входящего пакета ветка обработки не вызывала метод ReferenceCountUtil.release(msg)16. Нативные буферы не возвращались в пул и удержали выделенные страницы нативной памяти, что привело к превышению лимита MaxDirectMemorySize и аварии16.",
     "remediationMarkdown": "В коде конвейеров Netty обработка буферов должна осуществляться с помощью SimpleChannelInboundHandler, который автоматически освобождает ссылки на буферы16. На тестовых средах необходимо устанавливать параметр уровня детекции утечек \\-Dio.netty.leakDetection.level=PARANOID16. Для предотвращения аварийного завершения процесса операционной системой требуется явно задавать верхнюю границу внекучевой памяти через JVM параметр \\-XX:MaxDirectMemorySize=1g.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-11",
-    "incidentNumber": 11,
+    "incidentNumber": 18,
     "slug": "triage-incident-11-stop-the-world-g1gc-humongous-alloc",
     "title": "Инцидент 11: Длинные Stop-The-World паузы в G1GC из\\-за фрагментации гигантскими объектами (Humongous Allocations)",
     "category": "G1 Garbage Collection",
@@ -140,11 +248,12 @@
     "rawArtifactText": "Unified GC log (-Xlog:gc\\*) фиксирует регулярное выделение гигантских регионов и длительные паузы сборки17:  \n\\[0.148s\\]\\[info\\]\\[gc,alloc,region\\] G1 Humongous Allocation detected on thread http-nio-8080-exec-4, format: byte array, size: 16777232 bytes (16.00 MB), region size: 8388608 bytes (8.00 MB)  \n\\[12.412s\\]\\[info\\]\\[gc \\] GC(42) Pause Young (Normal) (G1 Humongous Allocation) 48M-\\>32M(128M) 142.372ms \\[12.413s\\]\\[info\\]\\[gc,cpu \\] GC(42) User=0.45s Sys=0.02s Real=0.14s \\[15.890s\\]\\[info\\]\\[gc,humongous\\] GC(43) Concurrent Humongous Dead Object Reclaim: 2 objects reclaimed",
     "rootCauseAnalysis": "В сборщике мусора G1GC вся куча разбивается на равные области (Regions)17. Объект классифицируется как гигантский (Humongous), если его размер превышает 50% от размера одного региона17. В коде приложения выполнялось чтение тяжелых CSV-файлов целиком в массив byte\\[\\] размером 16 МБ. При установленном размере региона в 8 МБ данный массив не помещался в стандартные регионы Young Generation17. Сборщик G1 был вынужден выделять непрерывную последовательность регионов напрямую в Old Generation17. Это вызвало фрагментацию кучи, частые преждевременные старты циклов Concurrent Mark и длительные STW-паузы для поиска и очистки Humongous-объектов17.",
     "remediationMarkdown": "Основным решением является увеличение размера региона G1 с помощью параметра \\-XX:G1HeapRegionSize=32m, чтобы крупные объекты помещались в стандартные регионы17. На уровне бизнес-логики необходимо провести рефакторинг выгрузки данных, отказавшись от загрузки полных массивов в память в пользу потоковой обработки (Streaming API, Jackson SequenceWriter, NIO FileChannel).",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-12",
-    "incidentNumber": 12,
+    "incidentNumber": 19,
     "slug": "triage-incident-12-allocation-stalls-low-latency-zgc",
     "title": "Инцидент 12: Задержки приложения из\\-за Allocation Stalls в low-latency сборщике ZGC",
     "category": "ZGC Low-Latency",
@@ -153,11 +262,12 @@
     "rawArtifactText": "Лог-файл сборщика мусора ZGC содержит информацию о блокировке рабочих потоков приложения при попытке выделить память15:  \n\\[2025-02-15T11:59:57.277+0000\\]\\[63.851s\\]\\[info\\]\\[gc\\] Allocation Stall (Worker-6) 11332.231ms \\[2025-02-15T11:59:57.277+0000\\]\\[63.851s\\]\\[info\\]\\[gc\\] Allocation Stall (Worker-26) 9898.046ms \\[2025-02-15T11:59:57.278+0000\\]\\[63.852s\\]\\[info\\]\\[gc\\] GC(12) Garbage Collection (Allocation Stall) 14336M-\\>4096M(16384M) 210.412ms",
     "rootCauseAnalysis": "ZGC проводит маркировку и перемещение объектов параллельно с работой потоков приложения (Concurrent GC)4. Однако, если интенсивность создания новых объектов потоками приложения (Allocation Rate) начинает превышать скорость, с которой фоновые потоки ZGC успевают освобождать память, куча полностью исчерпывается4. В этот момент рантайм JVM принудительно останавливает потоки приложения, запрашивающие память, до момента завершения фазы очистки15. Данная ситуация называется Allocation Stall15. Она не учитывается в традиционных метриках STW-пауз, но приводит к полной остановке выполнения бизнес-логики19.",
     "remediationMarkdown": "Для устранения Allocation Stalls необходимо переключиться на Generational ZGC (доступен в JDK 21+ через параметры \\-XX:+UseZGC \\-XX:+ZGenerational), который разделяет объекты по возрасту и в разы повышает пропускную способность сборщика15. Дополнительно необходимо увеличить число фоновых потоков сборки через \\-XX:ConcGCThreads и скорректировать параметр \\-XX:ZAllocationSpikeTolerance для более раннего старта циклов сборки при всплесках нагрузки4.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-13",
-    "incidentNumber": 13,
+    "incidentNumber": 20,
     "slug": "triage-incident-13-safepoint-synchronization-delay",
     "title": "Инцидент 13: Задержка достижения точки безопасности (Safepoint Synchronization Delay) из\\-за исчисляемых циклов",
     "category": "Safepoints & JIT Loops",
@@ -166,11 +276,12 @@
     "rawArtifactText": "Трейс событий точки безопасности (Safepoint) в JFR или лог \\-XX:+PrintGCApplicationStoppedTime:  \n\\[35.120s\\]\\[info\\]\\[safepoint\\] Entering safepoint region: GarbageCollect \\[35.121s\\]\\[info\\]\\[safepoint\\] Total time spent in GC pauses: 0.01s, Time spent in Safepoint sync: 3.42s  \nJFR Event: jdk.SafepointWaitBlocked Safepoint ID: 412 Blocking Thread: \"analytics-worker-2\" State: In Compiled Code (Counted Loop) Duration: 3418 ms",
     "rootCauseAnalysis": "Для выполнения системных операций (GC, деоптимизация кода) JVM должна привести все потоки к Safepoint. JIT-компилятор вставляет инструкции проверки точки безопасности (Safepoint Polls) в скомпилированный код. Однако C2-компилятор по умолчанию оптимизирует и удаляет проверки Safepoint Poll из тела простых исчисляемых циклов (Counted Loops с цельночисленным счетчиком int). Поток analytics-worker-2 вошел в цикл обработки большого массива for (int i \\= 0; i \\< size; i++). Все остальные потоки приложения уже встали на точке безопасности, но JVM не могла начать GC, пока указанный поток не дошел до конца цикла, вызвав трехсекундную задержку Safepoint Sync.",
     "remediationMarkdown": "Решение требует активирования флага компилятора \\-XX:+UseCountedLoopSafepoints, обязывающего JIT вставлять инструкции проверки Safepoint Poll в исчисляемые циклы. Альтернативным решением на уровне кода является изменение типа счетчика цикла с int на long (for (long i \\= 0; ...)), так как циклы со счетчиком long рассматриваются компилятором как Uncounted Loops и содержат проверки Safepoint Poll по умолчанию.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-14",
-    "incidentNumber": 14,
+    "incidentNumber": 21,
     "slug": "triage-incident-14-",
     "title": "Инцидент 14: Каскадный отказ пула потоков приложения при отсутствии сетевых таймаутов",
     "category": "Socket Timeouts & Pools",
@@ -179,11 +290,12 @@
     "rawArtifactText": "Тред-дамп приложения показывает, что все 200 рабочих потоков Tomcat находятся в состоянии RUNNABLE, заблокированные на вызове чтения из сокета5:  \n\"http-nio-8080-exec-200\" \\#450 daemon prio=5 os\\_prio=0 tid=0x00007f8a10012000 nid=0x4b12 runnable \\[0x00007f8a33dfe000\\] java.lang.Thread.State: RUNNABLE at java.base/java.net.SocketInputStream.socketRead0(Native Method) at java.base/java.net.SocketInputStream.read(SocketInputStream.java:150) at com.example.http.SimpleHttpClient.executeRequest(SimpleHttpClient.java:55) at com.example.service.RecommendationService.getRecommendations(RecommendationService.java:30) at com.example.controller.CatalogController.getProductCard(CatalogController.java:42)  \nStats: Total Threads: 200, State RUNNABLE (Socket read): 200, Queue Size: 1000 (FULL)",
     "rootCauseAnalysis": "В HTTP-клиенте взаимодействия с RecommendationService не были сконфигурированы параметры таймаута чтения из сокета (ReadTimeout)5. Когда рекомендательный сервис завис, каждый новый запрос к каталогу задействовал рабочий поток из пула http-nio-8080-exec и блокировал его на неопределенное время5. За короткий промежуток времени все 200 потоков сервера оказались заблокированы5. Это привело к невозможности обработки даже тех вызовов, которые не требовали обращения к зависшему внешнему сервису (Каскадный отказ)5.",
     "remediationMarkdown": "Все сетевые клиенты должны иметь жестко сконфигурированные таймауты (ConnectTimeout — 500 мс, ReadTimeout — 1500 мс). На архитектурном уровне необходимо применять паттерны изоляции ресурсов «Bulkhead» (отдельные пулы потоков для разных внешних сервисов) и «Circuit Breaker» (Resilience4j), который размыкает цепь и мгновенно возвращает резервный ответ (Fallback) при превышении порога ошибок внешнего сервиса.",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   },
   {
     "id": "triage-incident-15",
-    "incidentNumber": 15,
+    "incidentNumber": 22,
     "slug": "triage-incident-15-deadlock-saga",
     "title": "Инцидент 15: Межсервисный Deadlock на уровне СУБД при вызове распределенной Saga-транзакции",
     "category": "PostgreSQL Distributed Deadlocks",
@@ -192,6 +304,7 @@
     "rawArtifactText": "Лог-файл PostgreSQL содержит детальный граф циклической блокировки строк таблиц:  \n2025-02-15 18:33:10.112 UTC \\[14201\\] ERROR: deadlock detected 2025-02-15 18:33:10.112 UTC \\[14201\\] DETAIL: Process 14201 waits for ShareLock on transaction 849201; blocked by process 14209\\. Process 14209 waits for ExclusiveLock on tuple (42,15) of relation \"user\\_balances\"; blocked by process 14201\\. 2025-02-15 18:33:10.112 UTC \\[14201\\] CONTEXT: SQL statement \"UPDATE user\\_balances SET balance \\= balance \\- 100 WHERE user\\_id \\= $1\"",
     "rootCauseAnalysis": "В процессе выполнения шагов распределенной Saga-транзакции два параллельных экземпляра сервиса выполнили обновление балансов пользователей в хаотичном порядке. Транзакция TX-1 сначала обновила запись пользователя user\\_id \\= A, а затем попыталась обновить user\\_id \\= B. Транзакция TX-2 параллельно заблокировала user\\_id \\= B и затребовала блокировку user\\_id \\= A. СУБД обнаружила взаимный эксклюзивный захват кортежей (Tuple Locks) и принудительно прервала одну из транзакций по ошибке deadlock detected.",
     "remediationMarkdown": "Устранение Deadlock на уровне базы данных требует обеспечения строгого детерминированного порядка захвата строк (Deterministic Lock Ordering): массив идентификаторов пользователей user\\_id перед выполнением операторов UPDATE должен всегда сортироваться по возрастанию (A \\< B). В качестве альтернативы рекомендуется применять оптимистичные блокировки (@Version) вместо пессимистичных, а на уровне оркестратора Saga внедрить механизм повторных попыток выполнения транзакций (Retry with Exponential Backoff and Jitter).",
-    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s"
+    "keyMetricTrigger": "Active Threads BLOCKED / Latency Spike / GC Pause > 5s",
+    "level": "L2"
   }
 ]

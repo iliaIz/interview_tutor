@@ -4,11 +4,13 @@ import { IncidentTriageEvaluation } from '../../types/nextgen';
 import { 
   ArrowLeft, Terminal, AlertTriangle, CheckCircle2, Award,
   Send, Sparkles, Flame, Copy, Check, FileCode, Activity, Loader2,
-  Search, X, Eye, Edit3, ShieldAlert, Cpu, Layers, Lock, ChevronDown, ChevronUp, Table
+  Search, X, Eye, Edit3, ShieldAlert, Cpu, Layers, Lock, ChevronDown, ChevronUp, Table,
+  Compass, MessageSquare
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CodeViewer } from '../CodeViewer';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { TriageCompassSheet } from './compass/TriageCompassSheet';
 
 export const IncidentTriageStudio: React.FC = () => {
   const { 
@@ -19,7 +21,8 @@ export const IncidentTriageStudio: React.FC = () => {
     returnToAcademyStep,
     toggleAcademyStepProgress
   } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'symptoms' | 'artifact' | 'rca'>('artifact');
+  const [activeTab, setActiveTab] = useState<'symptoms' | 'artifact' | 'rca' | 'incident_commander'>('artifact');
+  const [isCompassOpen, setIsCompassOpen] = useState(false);
   
   // Profiler UI vs Raw Terminal Mode
   const [artifactViewMode, setArtifactViewMode] = useState<'profiler' | 'raw'>('profiler');
@@ -38,6 +41,62 @@ export const IncidentTriageStudio: React.FC = () => {
   
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<IncidentTriageEvaluation | null>(null);
+
+  // Global Hotkey for Triage Compass (Ctrl + /)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setIsCompassOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // Socratic Incident Commander State
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
+    {
+      role: 'assistant',
+      content: `Оперативный мост инцидента на связи. Мы расследуем «${activeTriageIncident?.title || 'аварию'}». С каких первичных симптомов (RED/USE) вы начинаете, и какую фальсифицируемую гипотезу хотите проверить в дампе?`
+    }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || isSendingMessage || !activeTriageIncident) return;
+    const userMsg = inputMessage.trim();
+    setInputMessage('');
+
+    const updatedChat = [...chatMessages, { role: 'user' as const, content: userMsg }];
+    setChatMessages(updatedChat);
+    setIsSendingMessage(true);
+
+    try {
+      const res = await fetch('/api/triage/probe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          incidentId: activeTriageIncident.id,
+          userMessage: userMsg,
+          conversationHistory: updatedChat.slice(-6)
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      } else {
+        showToast({ type: 'error', title: 'Ошибка AI', message: 'Не удалось получить ответ от Incident Commander' });
+      }
+    } catch {
+      showToast({ type: 'error', title: 'Сетевая ошибка', message: 'Ошибка связи с сервером' });
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
 
   // Autosave & Server Hydration for RCA Hypothesis & Prevention Plan
   useEffect(() => {
@@ -251,6 +310,18 @@ export const IncidentTriageStudio: React.FC = () => {
 
           <div className="h-4 w-px bg-pastel-border shrink-0" />
 
+          {activeTriageIncident.level && (
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+              activeTriageIncident.level === 'L0'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : activeTriageIncident.level === 'L1'
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-purple-50 text-purple-700 border-purple-200'
+            }`}>
+              {activeTriageIncident.level}
+            </span>
+          )}
+
           <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-md">
             {activeTriageIncident.title}
           </span>
@@ -279,6 +350,16 @@ export const IncidentTriageStudio: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('incident_commander')}
+            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeTab === 'incident_commander' ? 'bg-white text-amber-800 shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+            <span>Incident Commander</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('rca')}
             className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeTab === 'rca' ? 'bg-white text-amber-800 shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
@@ -289,16 +370,27 @@ export const IncidentTriageStudio: React.FC = () => {
           </button>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={handleEvaluate}
-          disabled={isEvaluating}
-          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white transition shadow-sm cursor-pointer disabled:opacity-50 shrink-0 active:scale-95 touch-manipulation"
-        >
-          {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать RCA (Ctrl+↵)'}</span>
-          <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsCompassOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition cursor-pointer shadow-2xs"
+            title="Шпаргалка Triage Compass (Ctrl + /)"
+          >
+            <Compass className="w-3.5 h-3.5 text-amber-600 animate-spin-slow" />
+            <span className="hidden sm:inline">Компас (Ctrl+/)</span>
+          </button>
+
+          <button
+            onClick={handleEvaluate}
+            disabled={isEvaluating}
+            className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white transition shadow-sm cursor-pointer disabled:opacity-50 shrink-0 active:scale-95 touch-manipulation"
+          >
+            {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать RCA (Ctrl+↵)'}</span>
+            <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Body */}
@@ -788,6 +880,71 @@ export const IncidentTriageStudio: React.FC = () => {
             </div>
           </div>
         )}
+
+        {activeTab === 'incident_commander' && (
+          <div className="max-w-3xl mx-auto flex flex-col h-[560px] bg-white/95 border border-pastel-border/80 rounded-2xl overflow-hidden shadow-sm">
+            {/* Header info */}
+            <div className="px-4 py-3 border-b border-pastel-border/80 bg-slate-50/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
+                  IC
+                </div>
+                <div>
+                  <span className="font-bold text-xs text-slate-800 block">Lead Incident Commander (War Room)</span>
+                  <span className="text-[10px] text-slate-500">Сократический триаж: научный метод, фальсификация, минимизация Blast Radius</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                ● Live Bridge
+              </span>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 font-sans text-xs">
+              {chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl p-3.5 leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-tr-none shadow-2xs'
+                        : 'bg-pastel-bg text-pastel-text border border-pastel-border rounded-tl-none'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {isSendingMessage && (
+                <div className="flex items-center gap-2 text-pastel-muted text-xs font-mono">
+                  <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Incident Commander анализирует ваш шаг и телеметрию...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Input Bar */}
+            <div className="p-3 border-t border-pastel-border bg-white flex gap-2">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Задайте вопрос дежурному лиду, запросите телеметрию или сформулируйте гипотезу..."
+                className="flex-1 bg-pastel-bg border border-pastel-border rounded-xl px-3.5 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-amber-500 font-sans"
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim() || isSendingMessage}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white transition disabled:opacity-40 cursor-pointer shadow-2xs"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Evaluation Result Modal */}
@@ -838,6 +995,17 @@ export const IncidentTriageStudio: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Triage Compass Modal Sheet (5 Golden SRE Rules) */}
+      <TriageCompassSheet
+        isOpen={isCompassOpen}
+        onClose={() => setIsCompassOpen(false)}
+        onAskTutorAboutRule={(ruleTitle, ruleSummary) => {
+          setIsCompassOpen(false);
+          setActiveTab('incident_commander');
+          setInputMessage(`Объясните подробнее правило «${ruleTitle}» в контексте нашего инцидента «${activeTriageIncident.title}»:\n${ruleSummary}`);
+        }}
+      />
     </div>
   );
 };
