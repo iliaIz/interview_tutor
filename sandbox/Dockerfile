@@ -9,13 +9,8 @@ COPY backend/src/services/sandbox/runner /build/runner
 
 # Compile daemon and all stubs into /app/bin
 RUN mkdir -p /app/bin && \
-    javac -d /app/bin \
-      /build/runner/*.java \
-      /build/runner/stubs/org/junit/jupiter/api/*.java \
-      /build/runner/stubs/org/junit/jupiter/api/function/*.java \
-      /build/runner/stubs/org/junit/jupiter/params/*.java \
-      /build/runner/stubs/org/junit/jupiter/params/provider/*.java \
-      /build/runner/stubs/org/assertj/core/api/*.java
+    find /build/runner -name "*.java" > /build/sources.txt && \
+    javac -d /app/bin @/build/sources.txt
 
 # Stage 2: Hardened unprivileged runner
 FROM eclipse-temurin:21-jdk-alpine AS runner
