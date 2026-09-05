@@ -8,6 +8,10 @@ import {
   Calculator, X
 } from 'lucide-react';
 import { CapacityMathCoach } from './CapacityMathCoach';
+import { MicroKataArena } from './katas/MicroKataArena';
+import { MICRO_KATAS, MicroKata } from './katas/MicroKatasCatalog';
+import { FadedScaffoldingArena } from './scaffolding/FadedScaffoldingArena';
+import { FADED_ARCHETYPES, FadedArchetype } from './scaffolding/FadedScaffoldingCatalog';
 
 export const SystemDesignCatalog: React.FC = () => {
   const { openSystemDesignScenario } = useAppStore();
@@ -18,6 +22,8 @@ export const SystemDesignCatalog: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L2' | 'L3'>('all');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [isMathCoachOpen, setIsMathCoachOpen] = useState(false);
+  const [activeMicroKataId, setActiveMicroKataId] = useState<string | null>(null);
+  const [activeFadedArchetypeId, setActiveFadedArchetypeId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/system-design/scenarios', { credentials: 'include' })
@@ -68,6 +74,28 @@ export const SystemDesignCatalog: React.FC = () => {
     return safeScenarios.find(s => s.id === selectedScenarioId) || filteredScenarios[0] || null;
   }, [safeScenarios, selectedScenarioId, filteredScenarios]);
 
+  const filteredMicroKatas = useMemo(() => {
+    if (!searchQuery.trim()) return MICRO_KATAS;
+    const q = searchQuery.toLowerCase();
+    return MICRO_KATAS.filter((k: MicroKata) => 
+      k.title.toLowerCase().includes(q) ||
+      k.subtitle.toLowerCase().includes(q) ||
+      k.category.toLowerCase().includes(q) ||
+      k.hardInvariantText.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredFadedArchetypes = useMemo(() => {
+    if (!searchQuery.trim()) return FADED_ARCHETYPES;
+    const q = searchQuery.toLowerCase();
+    return FADED_ARCHETYPES.filter((a: FadedArchetype) => 
+      a.title.toLowerCase().includes(q) ||
+      a.subtitle.toLowerCase().includes(q) ||
+      a.affectedDomain.toLowerCase().includes(q) ||
+      a.diagnosisMarkdown.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
@@ -106,6 +134,14 @@ export const SystemDesignCatalog: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (activeMicroKataId) {
+    return <MicroKataArena initialKataId={activeMicroKataId} onBack={() => setActiveMicroKataId(null)} />;
+  }
+
+  if (activeFadedArchetypeId) {
+    return <FadedScaffoldingArena initialArchetypeId={activeFadedArchetypeId} onBack={() => setActiveFadedArchetypeId(null)} />;
   }
 
   return (
@@ -163,7 +199,7 @@ export const SystemDesignCatalog: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>L0: Building Blocks (8)</span>
+            <span>L0: Micro-Katas ({MICRO_KATAS.length})</span>
           </button>
           <button
             type="button"
@@ -184,7 +220,7 @@ export const SystemDesignCatalog: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>L2: Faded Architectures (3)</span>
+            <span>L2: Faded Scaffolding ({FADED_ARCHETYPES.length})</span>
           </button>
           <button
             type="button"
@@ -196,7 +232,7 @@ export const SystemDesignCatalog: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-violet-400" />
-            <span>L3: Full-Scale Combat (20)</span>
+            <span>L3: Combat Arenas ({scenarios.length})</span>
           </button>
         </div>
 
@@ -233,8 +269,126 @@ export const SystemDesignCatalog: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. MASTER-DETAIL SPLIT STUDIO (SOTA 2026) */}
-      {filteredScenarios.length === 0 ? (
+      {/* 3. COGNITIVE LEVEL VIEWS (SOTA 2026) */}
+      {selectedLevel === 'L0' ? (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4">
+            <div>
+              <h2 className="text-base font-bold text-emerald-900 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span>Level 0: Алгоритмические Микро-Каты (In-Memory Core Primitives)</span>
+              </h2>
+              <p className="text-xs text-emerald-800/80 mt-0.5 leading-relaxed">
+                8 фундаментальных распределенных примитивов с точными формулами, AssertJ assertions и интерактивными ползунками.
+              </p>
+            </div>
+            <span className="text-xs font-mono px-3 py-1 rounded-full bg-white text-emerald-800 border border-emerald-200 font-bold shrink-0 self-start sm:self-auto shadow-2xs">
+              {filteredMicroKatas.length} из 8 доступно
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredMicroKatas.map((kata: MicroKata) => (
+              <div 
+                key={kata.id}
+                className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 group"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
+                      {kata.category}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                      {kata.difficulty} • #{kata.number}
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-sm text-pastel-text group-hover:text-emerald-800 transition-colors">
+                    {kata.title}
+                  </h3>
+
+                  <p className="text-xs text-pastel-muted leading-relaxed line-clamp-2">
+                    {kata.subtitle}
+                  </p>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 font-mono text-[11px] text-slate-700">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Инвариант / Ограничение:</span>
+                    <span className="font-semibold text-emerald-900 line-clamp-2">{kata.hardInvariantText}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveMicroKataId(kata.id)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Запустить интерактивную кату</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : selectedLevel === 'L2' ? (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4">
+            <div>
+              <h2 className="text-base font-bold text-amber-900 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span>Level 2: Faded Scaffolding (Инженерная починка сломанных топологий)</span>
+              </h2>
+              <p className="text-xs text-amber-800/80 mt-0.5 leading-relaxed">
+                5 реальных инцидентов BigTech с падающими метриками и задержками. Исправьте схему на холсте, чтобы восстановить SLA.
+              </p>
+            </div>
+            <span className="text-xs font-mono px-3 py-1 rounded-full bg-white text-amber-800 border border-amber-200 font-bold shrink-0 self-start sm:self-auto shadow-2xs">
+              {filteredFadedArchetypes.length} из 5 доступно
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredFadedArchetypes.map((arch: FadedArchetype) => (
+              <div 
+                key={arch.id}
+                className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all flex flex-col justify-between space-y-3.5 group"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                      {arch.affectedDomain}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-rose-600">
+                      {arch.incidentSeverity} • #{arch.number}
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-sm text-pastel-text group-hover:text-amber-900 transition-colors">
+                    {arch.title}
+                  </h3>
+
+                  <p className="text-xs text-pastel-muted leading-relaxed line-clamp-2">
+                    {arch.subtitle}
+                  </p>
+
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200/80 font-mono text-[11px] text-rose-800">
+                    <span className="text-[10px] text-rose-500 block uppercase font-bold">Симптомы аварии:</span>
+                    <span className="font-semibold">
+                      {Object.entries(arch.simulatedFailureMetrics).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveFadedArchetypeId(arch.id)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Перейти в Scaffolding Arena & Устранить сбой</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : filteredScenarios.length === 0 ? (
         <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
           <Layers className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
           <h3 className="text-base font-bold text-pastel-text">Сценарии не найдены</h3>

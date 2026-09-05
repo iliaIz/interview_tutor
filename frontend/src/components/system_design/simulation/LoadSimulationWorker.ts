@@ -9,6 +9,8 @@ import {
   EdgeLiveMetrics, 
   SimulationTelemetryFrame 
 } from '../../../types/systemDesignCanvas';
+import { AnalyticalPerformanceEngine } from './AnalyticalPerformanceEngine';
+import { ArchitectureTopologyLinter, LinterNode, LinterEdge } from './ArchitectureTopologyLinter';
 
 interface WorkerNodeData {
   id: string;
@@ -247,8 +249,52 @@ class SimulationEngine {
     const edgeMetrics: Record<string, EdgeLiveMetrics> = {};
     const antiPatterns: AntiPatternWarning[] = [];
 
-    // Check for Cyclic Dependency Anti-pattern
-    if (hasCycle) {
+    // 1. Run Deterministic Architecture AST Topology Linter (O(|V| + |E|)) in < 2ms
+    const linterNodes: LinterNode[] = Array.from(this.nodes.values()).map(n => ({
+      id: n.id,
+      type: n.type,
+      data: {
+        nodeType: n.type,
+        label: n.label,
+        instances: n.config?.replicas || 1,
+        replicas: n.config?.replicas || 1,
+        config: n.config
+      }
+    }));
+
+    const linterEdges: LinterEdge[] = this.edges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      data: {
+        protocol: e.protocol,
+        isAsync: e.isAsync,
+        config: {
+          protocol: e.protocol,
+          isAsync: e.isAsync
+        }
+      }
+    }));
+
+    const diagnostics = ArchitectureTopologyLinter.lint(linterNodes, linterEdges);
+    for (const diag of diagnostics) {
+      let apType: 'spof' | 'cyclic_dependency' | 'unbuffered_db_write' | 'cascading_timeout' = 'spof';
+      if (diag.ruleId === 'SYNC_RPC_CYCLE') apType = 'cyclic_dependency';
+      else if (diag.ruleId === 'DIRECT_DB_INGRESS' || diag.ruleId === 'UNBUFFERED_ANALYTICAL_WRITE') apType = 'unbuffered_db_write';
+      else if (diag.ruleId === 'MISSING_CIRCUIT_BREAKER') apType = 'cascading_timeout';
+
+      antiPatterns.push({
+        id: `diag_${diag.ruleId}_${diag.affectedNodeIds.join('_')}`,
+        type: apType,
+        severity: diag.severity === 'error' ? 'critical' : 'warning',
+        title: diag.message.split(':')[0] || diag.ruleId,
+        description: diag.message,
+        affectedNodeIds: diag.affectedNodeIds
+      });
+    }
+
+    // Check for Cyclic Dependency from topological sort
+    if (hasCycle && !antiPatterns.some(a => a.type === 'cyclic_dependency')) {
       const cyclicNodeIds = Array.from(this.nodes.keys()).filter(id => !sortedOrder.includes(id));
       antiPatterns.push({
         id: 'cyclic_dep',
@@ -259,7 +305,6 @@ class SimulationEngine {
         affectedNodeIds: cyclicNodeIds
       });
 
-      // Explicitly populate nodeMetrics for cyclic nodes so ReactFlow canvas doesn't render undefined/empty stats
       for (const cyclicId of cyclicNodeIds) {
         nodeMetrics[cyclicId] = {
           currentRps: 0,
@@ -295,7 +340,7 @@ class SimulationEngine {
       entryNodes.forEach(id => nodeIncomingRps.set(id, splitRps));
     }
 
-    // Process each node in topological order
+    // Process each node in topological order using AnalyticalPerformanceEngine
     for (const nodeId of sortedOrder) {
       const node = this.nodes.get(nodeId);
       if (!node) continue;
@@ -306,13 +351,29 @@ class SimulationEngine {
       const threadPool = config.threadPool || 10;
       const c = Math.max(1, replicas * (node.type === 'service' ? threadPool : 1));
       const mu = config.serviceRateMu || (node.type === 'cache' ? 2000 : node.type === 'database' ? 300 : 250);
-      const capacity = c * mu;
 
-      let utilization = capacity > 0 ? incomingRps / capacity : 0;
-      let errorRate = 0;
-      let queueLength = 0;
+      // SOTA: Run Analytical Performance Engine (M/M/c/K, USL, Zipfian cache)
+      const engineEval = AnalyticalPerformanceEngine.evaluate({
+        arrivalRate: incomingRps,
+        serviceRate: mu,
+        instances: c,
+        bufferCapacity: config.threadPool ? config.threadPool * 2 : 50,
+        usl: replicas > 1 ? { sigma: 0.03, kappa: 0.001 } : undefined,
+        cache: node.type === 'cache' ? {
+          totalCatalogSize: 100_000,
+          cacheCapacity: 10_000,
+          zipfAlpha: 1.3,
+          readRatio: config.readWriteRatio ?? 0.85
+        } : undefined
+      });
+
+      let utilization = engineEval.utilization;
+      let errorRate = engineEval.dropProbability;
+      let queueLength = Math.round(engineEval.queueLength);
       let baseLatMs = config.baseLatencyMs || (node.type === 'cache' ? 2 : node.type === 'database' ? 15 : 10);
-      let p50Ms = baseLatMs;
+      let p50Ms = baseLatMs + engineEval.p50LatencyMs;
+      let p95Ms = baseLatMs + (engineEval.p50LatencyMs + engineEval.p90LatencyMs) / 2;
+      let p99Ms = baseLatMs + engineEval.p99LatencyMs;
       let health: NodeHealthStatus = 'healthy';
 
       // Chaos impact on this node
@@ -324,11 +385,15 @@ class SimulationEngine {
           health = 'failed';
           errorRate = 1.0;
           p50Ms = 5000;
+          p95Ms = 5000;
+          p99Ms = 5000;
           utilization = 1.0;
           queueLength = incomingRps * 10;
         } else if (this.chaosState.activeChaos === 'latency_spike') {
           health = 'critical';
           p50Ms = 5000;
+          p95Ms = 5000;
+          p99Ms = 5000;
           utilization = 1.0;
           if (this.chaosState.circuitBreakerState === 'OPEN') {
             errorRate = 0.50; // Fallback responses
@@ -337,44 +402,20 @@ class SimulationEngine {
           health = 'failed';
           errorRate = 0.85;
           p50Ms = 2000;
+          p95Ms = 2000;
+          p99Ms = 2000;
         }
       } else {
-        // Normal Queueing Theory calculation
-        if (utilization >= 1.0) {
+        if (errorRate > 0.50 || utilization >= 1.0) {
+          health = 'failed';
+        } else if (errorRate > 0.05 || utilization >= 0.85) {
           health = 'critical';
-          errorRate = Math.min(0.95, (incomingRps - capacity) / incomingRps);
-          queueLength = Math.round((incomingRps - capacity) * 1.5);
-          p50Ms = baseLatMs + 800 * (utilization - 0.9);
-        } else if (utilization >= 0.80) {
+        } else if (utilization >= 0.70) {
           health = 'warning';
-          // Heavy-tail variance: databases & persistent stores have higher variance (disk I/O, lock contention)
-          const cs2 = node.type === 'database' ? 2.5 : node.type === 'cache' ? 0.8 : 1.2;
-          const wQ = allenCunneenQueueWaitMs(c, incomingRps, mu, 1.0, cs2);
-          p50Ms = baseLatMs + wQ;
-          queueLength = Math.round(incomingRps * (wQ / 1000));
         } else {
           health = 'healthy';
-          const cs2 = node.type === 'database' ? 2.0 : 1.0;
-          const wQ = allenCunneenQueueWaitMs(c, incomingRps, mu, 1.0, cs2);
-          p50Ms = baseLatMs + wQ;
-          queueLength = Math.max(0, Math.round(incomingRps * 0.02 * utilization));
         }
       }
-
-      // Check for SPOF anti-pattern
-      if (replicas <= 1 && incomingRps > 500 && node.type !== 'client' && node.type !== 'circuit_breaker') {
-        antiPatterns.push({
-          id: `spof_${nodeId}`,
-          type: 'spof',
-          severity: 'warning',
-          title: `SPOF: Узел «${node.label}» не имеет реплик`,
-          description: `Узел обрабатывает ${Math.round(incomingRps)} RPS в единственном экземпляре. При падении система будет недоступна.`,
-          affectedNodeIds: [nodeId]
-        });
-      }
-
-      const p95Ms = Math.round(p50Ms * (1 + 1.2 * utilization));
-      const p99Ms = Math.round(p50Ms * (1 + 2.5 * utilization));
 
       nodeMetrics[nodeId] = {
         currentRps: Math.round(incomingRps),

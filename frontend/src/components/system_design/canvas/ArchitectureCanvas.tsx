@@ -48,6 +48,7 @@ const edgeTypes = {
 interface ArchitectureCanvasProps {
   scenarioTitle?: string;
   onExportPayload?: (payload: ArchitectureGraphPayload) => void;
+  onDeicticContextChange?: (context: { focusedElement?: any; mutationSummary?: string }) => void;
 }
 
 // Starter Enterprise Topology
@@ -153,12 +154,14 @@ const INITIAL_EDGES: Edge[] = [
 ];
 
 const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
-  onExportPayload
+  onExportPayload,
+  onDeicticContextChange
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(INITIAL_NODES);
   const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const deicticTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Discrete Event Simulation Web Worker hook
   const {
@@ -175,6 +178,43 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
   useEffect(() => {
     updateTopology(nodes, edges, inputRps);
   }, [nodes.length, edges.length, inputRps, updateTopology]);
+
+  // Debounced topology mutation deictic event (500ms)
+  useEffect(() => {
+    if (!onDeicticContextChange) return;
+    if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
+    deicticTimerRef.current = setTimeout(() => {
+      onDeicticContextChange({
+        mutationSummary: `Топология холста: ${nodes.length} узлов, ${edges.length} связей. Компоненты: ${nodes.map(n => n.data?.label || n.id).join(', ')}`
+      });
+    }, 500);
+
+    return () => {
+      if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
+    };
+  }, [nodes.length, edges.length, onDeicticContextChange]);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    onDeicticContextChange?.({
+      focusedElement: {
+        id: node.id,
+        label: node.data?.label || node.id,
+        nodeType: node.data?.nodeType || node.type,
+        config: node.data?.config
+      }
+    });
+  }, [onDeicticContextChange]);
+
+  const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    onDeicticContextChange?.({
+      focusedElement: {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        config: edge.data?.config
+      }
+    });
+  }, [onDeicticContextChange]);
 
   // Enrich nodes with live telemetry metrics from worker
   const enrichedNodes = useMemo(() => {
@@ -298,7 +338,21 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
   return (
     <div className="flex h-full w-full relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Drag & Drop Sidebar Palette */}
-      <ComponentPalette />
+      <ComponentPalette 
+        onSelectComponent={(type, label) => {
+          const newNode: Node = {
+            id: `node-${Date.now()}`,
+            type,
+            position: { x: 400 + Math.random() * 60, y: 200 + Math.random() * 60 },
+            data: {
+              label,
+              nodeType: type,
+              config: {}
+            }
+          };
+          setNodes(nds => nds.concat(newNode));
+        }}
+      />
 
       {/* Main Canvas Viewport */}
       <div ref={reactFlowWrapper} className="flex-1 h-full relative">
@@ -308,6 +362,8 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={handleNodeClick}
+          onEdgeClick={handleEdgeClick}
           onInit={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}

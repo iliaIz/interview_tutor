@@ -113,7 +113,11 @@ const PALETTE_ITEMS: PaletteItem[] = [
   }
 ];
 
-export const ComponentPalette: React.FC = () => {
+export interface ComponentPaletteProps {
+  onSelectComponent?: (type: ArchitectureNodeType, label: string) => void;
+}
+
+export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ onSelectComponent }) => {
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     ingress: true,
     compute: true,
@@ -173,6 +177,7 @@ export const ComponentPalette: React.FC = () => {
                       key={item.id}
                       draggable
                       onDragStart={(e) => onDragStart(e, item)}
+                      onClick={() => onSelectComponent?.(item.nodeType, item.label)}
                       className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 hover:border-violet-400 dark:hover:border-violet-500 hover:shadow-sm cursor-grab active:cursor-grabbing transition-all group"
                     >
                       <GripVertical className="w-3 h-3 text-slate-600 dark:text-slate-300 group-hover:text-slate-600" />

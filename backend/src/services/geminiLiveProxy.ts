@@ -78,6 +78,7 @@ interface ProxySession {
   persona?: InterviewPersonaId;
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
+  sessionType?: 'interview' | 'tutor' | 'system_design';
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -115,9 +116,14 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       return;
     }
 
-    console.log(`🎙️ Authenticated client connected to Live Audio WS Proxy (user: ${authenticatedUser.name})`);
-
-    const sessionType = ((query.sessionType as string) === 'tutor' ? 'tutor' : 'interview') as 'interview' | 'tutor';
+    const rawSessionType = (query.sessionType as string) || '';
+    const sessionType = (
+      rawSessionType === 'tutor'
+        ? 'tutor'
+        : rawSessionType === 'system_design'
+          ? 'system_design'
+          : 'interview'
+    ) as 'interview' | 'tutor' | 'system_design';
 
     const tutorMode = (query.tutorMode as any) || 'deep_dive';
     const bugTitle = (query.bugTitle as string) || '';
@@ -228,7 +234,8 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       currentAiTurnText: '',
       persona,
       targetGrade,
-      isToolCallPending: false
+      isToolCallPending: false,
+      sessionType
     };
 
     // WebSocket Keepalive Heartbeat (every 15s)
@@ -643,6 +650,28 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           session.isOnHold = Boolean(parsed.paused);
           session.lastActivityAt = Date.now();
           console.log(`⏸️ Client toggled session_hold: ${session.isOnHold ? 'HOLD (Timer Frozen)' : 'ACTIVE'}`);
+          return;
+        }
+
+        // Multimodal Deictic Canvas Grounding event from client (System Design Studio)
+        if (parsed.type === 'canvas_delta') {
+          if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
+            const summary = parsed.payload?.mutationSummary || 
+              (parsed.payload?.focusedElement 
+                ? `Фокус кандидата на компоненте: ${parsed.payload.focusedElement.label || parsed.payload.focusedElement.id} (${parsed.payload.focusedElement.nodeType || 'node'}, config: ${JSON.stringify(parsed.payload.focusedElement.config || {})})` 
+                : 'Кандидат внёс изменения в архитектурный граф на холсте');
+            const deicticText = `[CANVAS_DEICTIC_CONTEXT: ${summary}]`;
+            console.log(`🧭 Canvas deictic context forwarded to Gemini Live: ${deicticText}`);
+            geminiSocket.send(JSON.stringify({
+              clientContent: {
+                turns: [{
+                  role: 'user',
+                  parts: [{ text: deicticText }]
+                }],
+                turnComplete: false
+              }
+            }));
+          }
           return;
         }
 

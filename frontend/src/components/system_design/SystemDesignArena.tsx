@@ -4,7 +4,7 @@ import { SystemDesignEvaluation } from '../../types/nextgen';
 import { 
   ArrowLeft, BookOpen, Layers, MessageSquare, Send, Award,
   Sparkles, ShieldAlert, Cpu, Database, CheckCircle2, RotateCcw, X, Loader2,
-  Eye, Edit3, Code2, Calculator, Compass
+  Eye, Edit3, Code2, Calculator, Compass, Radio
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { MermaidPreview } from './MermaidPreview';
@@ -13,6 +13,9 @@ import { ArchitectureCanvas } from './canvas/ArchitectureCanvas';
 import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
 import { CapacityMathCoach } from './CapacityMathCoach';
 import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
+import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
+import { SystemDesignVoiceHUD } from './defense/SystemDesignVoiceHUD';
+import { HiringCommitteeVerdictModal, HiringCommitteePacket } from './defense/HiringCommitteeVerdictModal';
 
 const cleanScenarioText = (text?: string): string => {
   if (!text) return '';
@@ -85,11 +88,76 @@ export const SystemDesignArena: React.FC = () => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-
   // Evaluation State
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<SystemDesignEvaluation | null>(null);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
+
+  // Live Bar-Raiser Defense State
+  const [chaosAlert, setChaosAlert] = useState<{ failureType: string; targetId: string; context: string } | null>(null);
+  const [observations, setObservations] = useState<Array<{ dimension?: string; signal?: string; demonstrated_level?: string; evidence_transcript?: string }>>([]);
+  const [hiringCommitteePacket, setHiringCommitteePacket] = useState<HiringCommitteePacket | null>(null);
+
+  const {
+    isConnected: isVoiceConnected,
+    isAiSpeaking,
+    isRecording,
+    isMuted,
+    statusMessage: voiceStatus,
+    startSession: startVoiceSession,
+    disconnectSession: disconnectVoiceSession,
+    toggleMic,
+    finishManualTurn,
+    sendCanvasDelta,
+    playoutManagerRef
+  } = useLiveAudioSession({
+    onChaosInjected: (payload) => {
+      setChaosAlert({
+        failureType: payload.failureType,
+        targetId: payload.targetComponentId,
+        context: payload.technicalContext
+      });
+      showToast({
+        type: 'error',
+        title: `🔥 Chaos Injected: ${payload.failureType}`,
+        message: `Узел: ${payload.targetComponentId}. ${payload.technicalContext}`
+      });
+    },
+    onCandidateObservationRecorded: (obs) => {
+      setObservations(prev => [obs, ...prev]);
+    },
+    onHiringCommitteeVerdict: (data) => {
+      if (data.packet) {
+        setHiringCommitteePacket(data.packet);
+      }
+    },
+    onError: (err) => showToast({ type: 'error', title: 'Ошибка голосовой сессии', message: err })
+  });
+
+  const handleStartVoiceDefense = async () => {
+    if (!activeSystemDesignScenario) return;
+    try {
+      await startVoiceSession({
+        sessionType: 'system_design',
+        topic: activeSystemDesignScenario.title,
+        questionText: activeSystemDesignScenario.title,
+        referenceAnswer: activeSystemDesignScenario.contextMarkdown,
+        scenarioId: activeSystemDesignScenario.id,
+        voice: 'Charon'
+      });
+      showToast({
+        type: 'success',
+        title: 'Защита начата',
+        message: 'Соединение с Principal Bar-Raiser установлено'
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Ошибка соединения',
+        message: err?.message || 'Не удалось запустить Live сессию'
+      });
+    }
+  };
 
   // Auto-restore saved draft and architecture from database
   React.useEffect(() => {
@@ -302,6 +370,27 @@ export const SystemDesignArena: React.FC = () => {
             <span className="hidden sm:inline">Компас (Ctrl+/)</span>
           </button>
 
+          {/* Live Bar-Raiser Defense Trigger */}
+          <button
+            onClick={() => {
+              if (isVoiceConnected) {
+                disconnectVoiceSession();
+              } else {
+                void handleStartVoiceDefense();
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs ${
+              isVoiceConnected 
+                ? 'bg-purple-100 text-purple-900 border border-purple-300' 
+                : 'bg-gradient-to-r from-purple-600 to-pastel-accentViolet text-white hover:opacity-95'
+            }`}
+            title="Запустить голосовую защиту с Bar-Raiser (Live Audio)"
+          >
+            <Radio className={`w-3.5 h-3.5 ${isVoiceConnected ? 'text-purple-600 animate-pulse' : 'text-white'}`} />
+            <span className="hidden sm:inline">{isVoiceConnected ? 'Защита активна' : '🎙️ Защита Bar-Raiser'}</span>
+            <span className="sm:hidden">{isVoiceConnected ? 'Активна' : '🎙️ Голос'}</span>
+          </button>
+
           <button
             onClick={handleEvaluate}
             disabled={isEvaluating}
@@ -313,6 +402,30 @@ export const SystemDesignArena: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Live Bar-Raiser Defense HUD */}
+      {isVoiceConnected && (
+        <div className="px-4 pt-3 shrink-0 z-20">
+          <SystemDesignVoiceHUD
+            isConnected={isVoiceConnected}
+            isAiSpeaking={isAiSpeaking}
+            isRecording={isRecording}
+            isMuted={isMuted}
+            statusMessage={voiceStatus}
+            chaosAlert={chaosAlert}
+            observationCount={observations.length}
+            onDismissChaos={() => setChaosAlert(null)}
+            onToggleMic={toggleMic}
+            onFinishTurn={finishManualTurn}
+            onDisconnect={disconnectVoiceSession}
+            onBargeIn={() => {
+              if (isAiSpeaking && playoutManagerRef.current) {
+                playoutManagerRef.current.handleInterruption();
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Main Content Body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" onKeyDown={handleKeyDown}>
@@ -439,6 +552,7 @@ export const SystemDesignArena: React.FC = () => {
                 <ArchitectureCanvas 
                   scenarioTitle={activeSystemDesignScenario.title}
                   onExportPayload={setCanvasPayload}
+                  onDeicticContextChange={sendCanvasDelta}
                 />
               </div>
             ) : (
@@ -632,6 +746,22 @@ export const SystemDesignArena: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Hiring Committee SOTA Scorecard Modal */}
+      {hiringCommitteePacket && (
+        <HiringCommitteeVerdictModal
+          packet={hiringCommitteePacket}
+          scenarioTitle={activeSystemDesignScenario.title}
+          observations={observations}
+          onClose={() => setHiringCommitteePacket(null)}
+          onRetry={() => {
+            setHiringCommitteePacket(null);
+            setChaosAlert(null);
+            setObservations([]);
+            void handleStartVoiceDefense();
+          }}
+        />
       )}
 
       {/* System Design Compass Modal Sheet (5 Golden Rules) */}

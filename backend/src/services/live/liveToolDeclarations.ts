@@ -127,9 +127,102 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
           feedback: { type: 'STRING', description: 'Краткая похвала и подтверждение' },
           keyInsight: { type: 'STRING', description: 'Ключевая мысль фикса' }
         },
-        required: ['isSolved', 'feedback', 'keyInsight']
+        required: ['isSolved', 'feedback']
       }
     });
+  } else if (sessionType === 'system_design') {
+    toolDeclarations.push(
+      {
+        name: 'inject_chaos_failure',
+        description: 'Simulates an infrastructure or network failure on a specific canvas component.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            failure_type: {
+              type: 'STRING',
+              enum: [
+                'ASYMMETRIC_NETWORK_PARTITION',
+                'RAFT_LEADER_CRASH_DURING_COMMIT',
+                'CASCADING_RETRY_STORM',
+                'STORAGE_COMPACTION_IO_STALL',
+                'HOT_PARTITION_KEY_SATURATION'
+              ],
+              description: 'The technical failure scenario to simulate.'
+            },
+            target_component_id: {
+              type: 'STRING',
+              description: 'The unique ID of the target canvas node or edge.'
+            },
+            technical_context: {
+              type: 'STRING',
+              description: 'Precise failure details and environmental symptoms communicated to the candidate.'
+            }
+          },
+          required: ['failure_type', 'target_component_id', 'technical_context']
+        }
+      },
+      {
+        name: 'record_candidate_observation',
+        description: 'Logs an atomic piece of evaluative evidence to the hiring committee candidate packet.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            dimension: {
+              type: 'STRING',
+              enum: [
+                'problem_exploration',
+                'system_architecture',
+                'deep_dives_and_edge_cases',
+                'operational_excellence'
+              ]
+            },
+            signal: {
+              type: 'STRING',
+              enum: ['GREEN_FLAG', 'RED_FLAG']
+            },
+            demonstrated_level: {
+              type: 'STRING',
+              enum: ['L4', 'L5', 'L6', 'L7']
+            },
+            evidence_transcript: {
+              type: 'STRING',
+              description: 'Verbatim quote or precise architectural flaw showing the level.'
+            }
+          },
+          required: ['dimension', 'signal', 'demonstrated_level', 'evidence_transcript']
+        }
+      },
+      {
+        name: 'submit_hiring_committee_verdict',
+        description: 'Finalizes the interview and commits the calibrated score matrix to the hiring board.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            target_level: { type: 'STRING', enum: ['L5', 'L6', 'L7'] },
+            calibrated_level: { type: 'STRING', enum: ['L4', 'L5', 'L6', 'L7'] },
+            verdict: {
+              type: 'STRING',
+              enum: ['STRONG_NO_HIRE', 'NO_HIRE', 'LEANING_HIRE', 'HIRE', 'STRONG_HIRE']
+            },
+            scores: {
+              type: 'OBJECT',
+              properties: {
+                exploration: { type: 'NUMBER', description: 'Score between 1.0 and 4.0' },
+                architecture: { type: 'NUMBER', description: 'Score between 1.0 and 4.0' },
+                deep_dives: { type: 'NUMBER', description: 'Score between 1.0 and 4.0' },
+                operational_excellence: { type: 'NUMBER', description: 'Score between 1.0 and 4.0' }
+              },
+              required: ['exploration', 'architecture', 'deep_dives', 'operational_excellence']
+            },
+            calibration_defense: {
+              type: 'STRING',
+              description: 'Detailed justification comparing demonstrated signals against L5/L6/L7 level anchors.'
+            }
+          },
+          required: ['target_level', 'calibrated_level', 'verdict', 'scores', 'calibration_defense']
+        }
+      }
+    );
   }
 
   return toolDeclarations;

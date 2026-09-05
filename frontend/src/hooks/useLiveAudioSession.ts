@@ -2,10 +2,11 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 
 export interface LiveAudioSessionParams {
-  sessionType?: 'interview' | 'tutor';
+  sessionType?: 'interview' | 'tutor' | 'system_design';
   tutorMode?: string;
   topic?: string;
   questionId?: string;
+  scenarioId?: string;
   questionText?: string;
   referenceAnswer?: string;
   voice?: string;
@@ -36,6 +37,9 @@ export interface UseLiveAudioSessionOptions {
   onSetupComplete?: () => void;
   onEvaluationCompleted?: (evaluation: any) => void;
   onBugSolved?: (payload: any) => void;
+  onChaosInjected?: (payload: any) => void;
+  onCandidateObservationRecorded?: (observation: any) => void;
+  onHiringCommitteeVerdict?: (verdict: any) => void;
   onError?: (errorMsg: string) => void;
   onDisconnect?: () => void;
 }
@@ -366,6 +370,21 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             return;
           }
 
+          if (data.type === 'chaos_injected') {
+            optionsRef.current.onChaosInjected?.(data);
+            return;
+          }
+
+          if (data.type === 'candidate_observation_recorded') {
+            optionsRef.current.onCandidateObservationRecorded?.(data.observation);
+            return;
+          }
+
+          if (data.type === 'hiring_committee_verdict') {
+            optionsRef.current.onHiringCommitteeVerdict?.(data);
+            return;
+          }
+
           if (data.error) {
             setStatusMessage(`❌ ${data.error}`);
             optionsRef.current.onError?.(data.error);
@@ -621,6 +640,18 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     }
   }, []);
 
+  /**
+   * Send Multimodal Deictic Canvas Delta to Live Audio Session
+   */
+  const sendCanvasDelta = useCallback((payload: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'canvas_delta',
+        payload
+      }));
+    }
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -641,6 +672,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     disconnectSession,
     resetSessionStateOnly,
     sendTextMessage,
+    sendCanvasDelta,
     toggleMic,
     toggleMute,
     setMuted,
