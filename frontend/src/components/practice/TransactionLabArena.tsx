@@ -16,7 +16,9 @@ import {
   Award,
   ChevronRight,
   ShieldCheck,
-  Zap
+  Zap,
+  Compass,
+  Bot
 } from 'lucide-react';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 import {
@@ -28,6 +30,9 @@ import { TransactionValidator } from '../../services/transactionValidator';
 import { TransactionAnnotationChip } from './TransactionAnnotationChip';
 import { ExecutionFlameChart } from './ExecutionFlameChart';
 import { HikariPoolSlotMeter } from './HikariPoolSlotMeter';
+import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
+import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 
 interface TransactionLabArenaProps {
   initialScenarioId?: string;
@@ -40,10 +45,27 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   onBack,
   onStartVoiceDefense
 }) => {
+  // Practice Tutor Store (Socratic AI Tutor & Compass)
+  const {
+    isCompassOpen,
+    toggleCompass,
+    isOpen: isTutorOpen,
+    toggleOpen: toggleTutorDrawer,
+    sendMessage
+  } = usePracticeTutorStore();
+
   // Active Scenario state
   const [activeScenarioId, setActiveScenarioId] = useState<string>(() => {
     return initialScenarioId || TRANSACTION_LAB_SCENARIOS[0].id;
   });
+
+  // Level selector filter
+  const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L1' | 'L2' | 'L3'>('all');
+
+  const filteredScenarios = useMemo(() => {
+    if (selectedLevel === 'all') return TRANSACTION_LAB_SCENARIOS;
+    return TRANSACTION_LAB_SCENARIOS.filter((s) => s.level === selectedLevel);
+  }, [selectedLevel]);
 
   const scenario = useMemo(() => {
     return (
@@ -63,7 +85,6 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     const initial: Record<string, TransactionAnnotationConfig> = {};
     for (const service of scenario.services) {
       for (const method of service.methods) {
-        // Default to REQUIRED or NONE for testing
         initial[method.id] = { propagation: 'REQUIRED' };
       }
     }
@@ -79,6 +100,18 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
   // Evaluation results
   const [evalResult, setEvalResult] = useState<ScenarioEvaluationResult | null>(null);
+
+  // Global shortcut: Ctrl + / (or Cmd + /) toggles Transaction Compass
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        toggleCompass();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleCompass]);
 
   // Update specific method config
   const handleMethodConfigChange = (methodId: string, newConfig: TransactionAnnotationConfig) => {
@@ -103,8 +136,43 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     setEvalResult(result);
   };
 
+  // Ask Socratic Tutor about a Compass Rule
+  const handleAskTutorAboutRule = (ruleTitle: string, ruleSummary: string) => {
+    toggleCompass(false);
+    toggleTutorDrawer(true);
+    sendMessage(
+      `Объясни подробнее архитектурное правило из Transaction Compass: "${ruleTitle}". Как оно применяется к текущему сценарию "${scenario.title}"?`,
+      {
+        kataId: scenario.id,
+        kataTitle: scenario.title,
+        kataCategory: 'Spring Transactions',
+        kataInstructions: `${scenario.problemStatement}\n\nСводка правила: ${ruleSummary}`,
+        activeFilePath: `${scenario.services[0]?.className}.java`,
+        activeFileContent: scenario.services
+          .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
+          .join('\n\n')
+      }
+    );
+  };
+
+  // Level Badge Color Helper
+  const getLevelBadgeClass = (level?: string) => {
+    switch (level) {
+      case 'L0':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'L1':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'L2':
+        return 'bg-violet-100 text-violet-800 border-violet-200';
+      case 'L3':
+        return 'bg-rose-100 text-rose-800 border-rose-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-br from-slate-50 via-pastel-bg/30 to-violet-50/20 overflow-y-auto">
+    <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-br from-slate-50 via-pastel-bg/30 to-violet-50/20 overflow-y-auto relative">
       {/* Top Header */}
       <header className="sticky top-0 z-30 px-4 sm:px-6 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-3">
@@ -118,8 +186,8 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-violet-700 bg-violet-100/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                SOTA 2026 Workbench
+              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${getLevelBadgeClass(scenario.level)}`}>
+                {scenario.level || 'L0'} &bull; {scenario.difficulty}
               </span>
               <span className="text-xs text-slate-400">/</span>
               <span className="text-xs font-semibold text-slate-500">{scenario.domain}</span>
@@ -132,6 +200,33 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Compass Quick Button */}
+          <button
+            type="button"
+            onClick={() => toggleCompass()}
+            className="py-2 px-3 rounded-xl border border-violet-200 bg-violet-50/80 hover:bg-violet-100 text-violet-700 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Transaction Compass: 5 Золотых Заповедей (Ctrl + /)"
+          >
+            <Compass className="w-3.5 h-3.5 text-violet-600 animate-spin-slow" />
+            <span className="hidden sm:inline">Transaction Compass</span>
+          </button>
+
+          {/* AI-Tutor Button */}
+          <button
+            type="button"
+            onClick={() => toggleTutorDrawer()}
+            className={`py-2 px-3 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+              isTutorOpen
+                ? 'bg-rose-500 text-white border-rose-600'
+                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+            }`}
+            title="Открыть диалог с Socratic AI-тьютором"
+          >
+            <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
+            <span className="hidden sm:inline">ИИ-Тьютор</span>
+          </button>
+
+          {/* AST Run Button */}
           <button
             type="button"
             onClick={handleRunEvaluation}
@@ -164,15 +259,46 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         <section className="lg:col-span-4 space-y-4 flex flex-col min-h-0">
           {/* Scenario Selector Pill Dropdown */}
           <div className="p-4 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm space-y-3">
-            <label className="font-extrabold text-xs text-slate-800 uppercase tracking-wide flex items-center justify-between">
-              <span>Каталог 11 Сценариев:</span>
+            <div className="flex items-center justify-between">
+              <label className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                Каталог 16 Сценариев:
+              </label>
               <span className="text-[10px] text-violet-600 font-bold font-mono">
-                {TRANSACTION_LAB_SCENARIOS.findIndex((s) => s.id === activeScenarioId) + 1} / 11
+                {TRANSACTION_LAB_SCENARIOS.findIndex((s) => s.id === activeScenarioId) + 1} / 16
               </span>
-            </label>
-            <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-              {TRANSACTION_LAB_SCENARIOS.map((sc, idx) => {
+            </div>
+
+            {/* Cognitive Tier Filter Tabs */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/60 overflow-x-auto text-[11px]">
+              {(
+                [
+                  { id: 'all', label: 'Все' },
+                  { id: 'L0', label: 'L0 Primitives' },
+                  { id: 'L1', label: 'L1 Lifecycle' },
+                  { id: 'L2', label: 'L2 Concurrency' },
+                  { id: 'L3', label: 'L3 Production' }
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedLevel(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
+                    selectedLevel === tab.id
+                      ? 'bg-white text-violet-900 shadow-2xs border border-violet-200/60'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Scenario List */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {filteredScenarios.map((sc) => {
                 const isActive = sc.id === activeScenarioId;
+                const globalIdx = TRANSACTION_LAB_SCENARIOS.findIndex((s) => s.id === sc.id) + 1;
                 return (
                   <button
                     key={sc.id}
@@ -185,8 +311,13 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
                     }`}
                   >
                     <div className="truncate min-w-0 pr-2">
-                      <div className="text-[10px] text-slate-400 font-mono">#{idx + 1} &bull; {sc.difficulty}</div>
-                      <div className="truncate text-xs font-semibold">{sc.title}</div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                        <span className={`px-1.5 py-0.2 rounded border font-bold ${getLevelBadgeClass(sc.level)}`}>
+                          {sc.level}
+                        </span>
+                        <span>#{globalIdx} &bull; {sc.difficulty}</span>
+                      </div>
+                      <div className="truncate text-xs font-semibold mt-0.5">{sc.title}</div>
                     </div>
                     <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-white border border-slate-200 shrink-0">
                       {sc.badge}
@@ -365,6 +496,16 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
           )}
         </section>
       </main>
+
+      {/* Transaction Compass Drawer (Ctrl + /) */}
+      <TransactionCompassSheet
+        isOpen={isCompassOpen}
+        onClose={() => toggleCompass(false)}
+        onAskTutorAboutRule={handleAskTutorAboutRule}
+      />
+
+      {/* Socratic AI Tutor Drawer */}
+      <PracticeTutorDrawer />
     </div>
   );
 };

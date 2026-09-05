@@ -59,6 +59,7 @@ export interface TransactionScenario {
   title: string;
   domain: string;
   difficulty: 'Junior' | 'Middle' | 'Senior' | 'Lead';
+  level: 'L0' | 'L1' | 'L2' | 'L3';
   badge: string;
   problemStatement: string;
   services: ServiceClassSpec[];

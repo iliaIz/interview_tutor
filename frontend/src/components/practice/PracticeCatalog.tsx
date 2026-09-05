@@ -317,7 +317,9 @@ export const PracticeCatalog: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 border border-white/30">
                   Explorable Systems Workbench
                 </span>
-                <span className="text-[10px] text-violet-200 font-mono">11 Канонических Сценариев</span>
+                <span className="text-[10px] text-violet-200 font-mono">
+                  {TRANSACTION_LAB_SCENARIOS.length} Канонических Сценариев (L0–L3)
+                </span>
               </div>
               <h3 className="text-lg font-black tracking-tight">
                 Spring Transaction Playground (@Transactional Lab)
@@ -344,8 +346,11 @@ export const PracticeCatalog: React.FC = () => {
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
-                      #{idx + 1} &bull; {sc.difficulty}
+                    <span className="text-[10px] font-mono font-bold text-slate-400 flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.2 rounded bg-violet-100 text-violet-800 font-bold border border-violet-200">
+                        {sc.level}
+                      </span>
+                      <span>#{idx + 1} &bull; {sc.difficulty}</span>
                     </span>
                     <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
                       {sc.badge}

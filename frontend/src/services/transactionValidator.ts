@@ -100,6 +100,75 @@ export class TransactionValidator {
           }
         }
 
+        // Private method trap
+        if (method.traps.includes('private_method_trap')) {
+          if (config.propagation !== 'NONE') {
+            score -= 40;
+            violations.push(
+              '⚠️ CGLIB No-Op: аннотация @Transactional на private/protected методах тихо игнорируется Spring AOP! Настройте транзакцию на публичном методе.'
+            );
+          }
+        }
+
+        // Unexpected rollback trap
+        if (method.traps.includes('unexpected_rollback_trap')) {
+          if (config.propagation === 'REQUIRED') {
+            score -= 35;
+            violations.push(
+              '⚠️ Сбой дочернего метода с REQUIRED выставит setRollbackOnly(), вызвав UnexpectedRollbackException при коммите родителя! Используйте REQUIRES_NEW или NESTED.'
+            );
+          }
+        }
+
+        // Async context loss trap
+        if (method.traps.includes('async_context_loss')) {
+          if (config.propagation !== 'REQUIRES_NEW') {
+            score -= 40;
+            violations.push(
+              '⚠️ Потеря контекста в @Async: TransactionSynchronizationManager не передает ThreadLocal в новый поток. Требуется открыть собственную транзакцию (REQUIRES_NEW).'
+            );
+          }
+        }
+
+        // Write skew anomaly trap
+        if (method.traps.includes('write_skew_anomaly')) {
+          if (config.isolation !== 'SERIALIZABLE') {
+            score -= 35;
+            violations.push(
+              '⚠️ Аномалия Write Skew: параллельные транзакции видят один снимок и модифицируют разные строки. Требуется уровень изоляции SERIALIZABLE.'
+            );
+          }
+        }
+
+        // Retryable order collision trap
+        if (method.traps.includes('retryable_order_collision')) {
+          if (config.propagation !== 'REQUIRES_NEW') {
+            score -= 30;
+            violations.push(
+              '⚠️ Коллизия порядков AOP: при повторной попытке @Retryable переиспользуется испорченная транзакция. Требуется REQUIRES_NEW.'
+            );
+          }
+        }
+
+        // Dirty checking memory bloat trap
+        if (method.traps.includes('dirty_checking_memory_bloat')) {
+          if (!config.readOnly) {
+            score -= 25;
+            violations.push(
+              '⚠️ Раздувание памяти: без readOnly = true Hibernate сохранит снапшоты всех 10 000 сущностей в LoadedState для dirty-checking.'
+            );
+          }
+        }
+
+        // Nested savepoint tip
+        if (method.traps.includes('nested_savepoint_trap')) {
+          if (config.propagation === 'REQUIRES_NEW') {
+            tips.push(
+              '💡 Совет: REQUIRES_NEW занимает 2-е физическое соединение из пула HikariCP. Для частичного отката без риска дедлока лучше использовать NESTED (Savepoints).'
+            );
+          }
+        }
+
         const clampedScore = Math.max(0, Math.min(100, score));
         totalScore += clampedScore;
 
