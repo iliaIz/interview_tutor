@@ -72,3 +72,25 @@ ai.djelu.site, ai.192-124-182-59.sslip.io {
         flush_interval -1
     }
 }
+
+dnd.djelu.site, dnd.192-124-182-59.sslip.io {
+    import common_headers
+    encode zstd gzip
+
+    # 1. Real-Time SSE Stream (Zero Buffering)
+    handle /api/sse/* {
+        reverse_proxy dicehub_backend:8000 {
+            flush_interval -1
+        }
+    }
+
+    # 2. REST API & Ingestion Webhooks
+    handle /api/* {
+        reverse_proxy dicehub_backend:8000
+    }
+
+    # 3. Frontend SPA
+    handle {
+        reverse_proxy dicehub_frontend:80
+    }
+}
