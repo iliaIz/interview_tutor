@@ -4,13 +4,15 @@ import { SystemDesignEvaluation } from '../../types/nextgen';
 import { 
   ArrowLeft, BookOpen, Layers, MessageSquare, Send, Award,
   Sparkles, ShieldAlert, Cpu, Database, CheckCircle2, RotateCcw, X, Loader2,
-  Eye, Edit3, Code2
+  Eye, Edit3, Code2, Calculator, Compass
 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { MermaidPreview } from './MermaidPreview';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { ArchitectureCanvas } from './canvas/ArchitectureCanvas';
 import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
+import { CapacityMathCoach } from './CapacityMathCoach';
+import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
 
 const cleanScenarioText = (text?: string): string => {
   if (!text) return '';
@@ -42,9 +44,22 @@ export const SystemDesignArena: React.FC = () => {
     returnToAcademyStep,
     toggleAcademyStepProgress
   } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'staff_ai'>('spec');
+  const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'math_coach' | 'staff_ai'>('spec');
   const [architectureMode, setArchitectureMode] = useState<'canvas' | 'mermaid'>('canvas');
   const [canvasPayload, setCanvasPayload] = useState<ArchitectureGraphPayload | null>(null);
+  const [isCompassOpen, setIsCompassOpen] = useState(false);
+
+  // Global Hotkey for Compass (Ctrl + /)
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setIsCompassOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   
   // Interactive Diagram & Candidate Solution State
   const [mermaidCode, setMermaidCode] = useState<string>(
@@ -246,6 +261,16 @@ export const SystemDesignArena: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('math_coach')}
+            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeTab === 'math_coach' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>Math Coach</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('architecture')}
             className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeTab === 'architecture' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
@@ -266,16 +291,27 @@ export const SystemDesignArena: React.FC = () => {
           </button>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={handleEvaluate}
-          disabled={isEvaluating}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white transition shadow-sm shadow-pastel-accentRose/20 cursor-pointer disabled:opacity-50 shrink-0 touch-manipulation active:scale-95"
-        >
-          {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать проект (Ctrl+↵)'}</span>
-          <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsCompassOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition cursor-pointer shadow-2xs"
+            title="Шпаргалка System Design Compass (Ctrl + /)"
+          >
+            <Compass className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Компас (Ctrl+/)</span>
+          </button>
+
+          <button
+            onClick={handleEvaluate}
+            disabled={isEvaluating}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white transition shadow-sm shadow-pastel-accentRose/20 cursor-pointer disabled:opacity-50 shrink-0 touch-manipulation active:scale-95"
+          >
+            {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать проект (Ctrl+↵)'}</span>
+            <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Body */}
@@ -343,6 +379,21 @@ export const SystemDesignArena: React.FC = () => {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'math_coach' && (
+          <div className="max-w-5xl mx-auto space-y-4">
+            <CapacityMathCoach
+              onApplyCalculations={(summary) => {
+                setCandidateNotes(prev => {
+                  const prefix = prev ? prev + '\n\n' : '';
+                  return prefix + '### Оценки Capacity Math Coach:\n' + summary;
+                });
+                showToast({ type: 'success', title: 'Расчеты скопированы', message: 'Оценки добавлены в пояснительную записку' });
+                setActiveTab('architecture');
+              }}
+            />
           </div>
         )}
 
@@ -582,6 +633,17 @@ export const SystemDesignArena: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* System Design Compass Modal Sheet (5 Golden Rules) */}
+      <SystemDesignCompassSheet
+        isOpen={isCompassOpen}
+        onClose={() => setIsCompassOpen(false)}
+        onAskTutorAboutRule={(ruleTitle, ruleSummary) => {
+          setIsCompassOpen(false);
+          setActiveTab('staff_ai');
+          setInputMessage(`Объясните подробнее золотое правило «${ruleTitle}» в контексте нашей системы «${activeSystemDesignScenario.title}»:\n${ruleSummary}`);
+        }}
+      />
     </div>
   );
 };

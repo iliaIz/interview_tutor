@@ -1,7 +1,304 @@
 [
   {
-    "id": "hld-scenario-01",
+    "id": "hld-micro-01",
     "scenarioNumber": 1,
+    "slug": "hld-micro-01-consistent-hashing",
+    "title": "Микро-ката 1: Consistent Hashing Ring и виртуальные ноды",
+    "category": "Distributed Storage & Caching",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "1M–10M пользователей",
+      "estimatedPeakRPS": "10,000–50,000 RPS",
+      "dailyStorageGrowth": "50 GB / день",
+      "retentionPolicy": "30 дней",
+      "slaAvailability": "99.9%"
+    },
+    "contextMarkdown": "При масштабировании распределенного кэш-кластера наивное хэширование hash(key) % N приводит к инвалидации (N-1)/N ключей при изменении числа серверов N. При падении 1 из 10 нод теряется 90% кэша, что мгновенно обрушивает базу данных лавиной запросов (Cache Stampede). Реализуйте Consistent Hashing с кольцом из 2^32-1 позиций и виртуальными нодами (vnodes) для равномерной балансировки нагрузки.",
+    "calculationsMarkdown": "| Метрика | Значение |\n| :--- | :--- |\n| **Число серверов N** | 10 нод |\n| **Виртуальных нод на сервер** | 150–200 vnodes |\n| **Доля перемещаемых ключей при сбое** | 1/N = 10% (вместо 90%) |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Hash Ring** | MurmurHash3 / Ketama | Кольцо хэшей 2^32 positions |\n| **Cache Nodes** | Redis / Memcached Cluster | Хранилище горячих ключей |",
+    "bottlenecksMarkdown": "Неравномерное распределение ключей устраняется увеличением числа виртуальных нод до 150-250 на физический сервер. Для репликации ключей используется обход кольца по часовой стрелке с выбором следующих R уникальных физических нод.",
+    "initialMermaid": "graph TD\n    Client[Клиентский запрос] --> Ring[Consistent Hashing Ring (Murmur3)]\n    Ring --> Node1[Кэш-нода 1 (150 vnodes)]\n    Ring --> Node2[Кэш-нода 2 (150 vnodes)]\n    Ring --> Node3[Кэш-нода 3 (150 vnodes)]",
+    "tradeOffProbes": [
+      {
+        "question": "Зачем в алгоритме Consistent Hashing нужны виртуальные ноды (Virtual Nodes)?",
+        "modelAnswer": "Виртуальные ноды обеспечивают равномерное статистическое распределение ключей по кольцу, устраняют проблему \"горячих секторов\" и позволяют учитывать разную мощность физических серверов."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-02",
+    "scenarioNumber": 2,
+    "slug": "hld-micro-02-cache-stampede",
+    "title": "Микро-ката 2: Защита от Cache Stampede (SingleFlight vs XFetch)",
+    "category": "Caching & Concurrency",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "5M пользователей",
+      "estimatedPeakRPS": "50,000 RPS",
+      "dailyStorageGrowth": "10 GB / день",
+      "retentionPolicy": "7 дней",
+      "slaAvailability": "99.95%"
+    },
+    "contextMarkdown": "Горячий ключ с 50 000 RPS истекает по TTL. В момент промаха тысячи параллельных потоков одновременно начинают тяжелый пересчет данных и обращаются к СУБД, вызывая исчерпание пула коннектов и отказ базы. Требуется защитить базу данных с помощью мьютекса SingleFlight или алгоритма вероятностного раннего обновления XFetch.",
+    "calculationsMarkdown": "| Метод | Нагрузка на СУБД при промахе |\n| :--- | :--- |\n| **Без защиты** | 50 000 RPS прямо в СУБД (Отказ) |\n| **SingleFlight Mutex** | Ровно 1 запрос в СУБД, остальные ждут |\n| **XFetch Algorithm** | 0 промахов: обновление в фоне до истечения TTL |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Application Cache** | Caffeine / Guava | Локальный кэш L1 |\n| **Distributed Cache** | Redis Cluster | Распределенный кэш L2 |\n| **SingleFlight Guard** | Mutex / Redlock | Пропуск только одного потока к БД |",
+    "bottlenecksMarkdown": "Слишком долгий таймаут ожидания мьютекса может привести к зависанию клиентских запросов. Рекомендуется использовать XFetch (Probabilistic Early Expiration), при котором один из клиентов заранее обновляет кэш в фоне с вероятностью, растущей по мере приближения к TTL.",
+    "initialMermaid": "graph TD\n    Request[50k RPS Запросов] --> CacheCheck{Ключ в Redis?}\n    CacheCheck -->|HIT| ReturnCache[Мгновенный ответ 100ns]\n    CacheCheck -->|MISS| Mutex{SingleFlight Mutex}\n    Mutex -->|Победитель 1 тред| ComputeDB[(Запрос в PostgreSQL)]\n    Mutex -->|Остальные 49999| WaitLock[Ожидание первого ответа]",
+    "tradeOffProbes": [
+      {
+        "question": "В чем преимущество алгоритма XFetch перед мьютексом SingleFlight?",
+        "modelAnswer": "XFetch обновляет кэш превентивно в фоновом режиме до фактического истечения срока жизни, поэтому клиенты вообще никогда не сталкиваются с задержкой ожидания пересчета данных."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-03",
+    "scenarioNumber": 3,
+    "slug": "hld-micro-03-sharding-key",
+    "title": "Микро-ката 3: Выбор ключа шардирования (Range vs Hash)",
+    "category": "Database Sharding",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "20M пользователей",
+      "estimatedPeakRPS": "30,000 RPS",
+      "dailyStorageGrowth": "200 GB / день",
+      "retentionPolicy": "1825 дней",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Таблица заказов интернет-магазина превысила 10 TB. Выбор ключа шардирования определяет производительность всей системы. Шардирование по created_at приводит к тому, что все новые записи штурмуют последний шард (Hot Spotting). Шардирование по UUID_заказа делает невозможным выборку истории заказов пользователя без опроса всех шардов (Scatter-Gather). Спроектируйте составной ключ шардирования.",
+    "calculationsMarkdown": "| Стратегия | Равномерность записи | Сложность выборки по пользователю |\n| :--- | :--- | :--- |\n| **Range (created_at)** | Ужасная (Hot Spotting) | Scatter-Gather по всем шардам |\n| **Hash (order_id)** | Отличная | Scatter-Gather по всем шардам |\n| **Hash (user_id)** | Отличная | 1 шард (Single Node Read) |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Sharding Router** | Vitess / Citus / ProxySQL | Маршрутизация SQL-запросов |\n| **Shard Clusters** | PostgreSQL 16 Instances | Изолированные физические шарды |",
+    "bottlenecksMarkdown": "При выборе user_id в качестве ключа шардирования корпоративные клиенты (B2B-аккаунты) могут создать неравномерный шард. Решение: гибридный ключ с солением (Salted Shard Key) для аномально крупных пользователей.",
+    "initialMermaid": "graph TD\n    Query[SQL Запрос] --> Router[Sharding Router]\n    Router -->|hash(user_id) % 4 == 0| Shard1[(Шард 0)]\n    Router -->|hash(user_id) % 4 == 1| Shard2[(Шард 1)]\n    Router -->|hash(user_id) % 4 == 2| Shard3[(Шард 2)]\n    Router -->|hash(user_id) % 4 == 3| Shard4[(Шард 3)]",
+    "tradeOffProbes": [
+      {
+        "question": "Что такое Scatter-Gather запрос и почему его следует избегать в высоконагруженных шардированных базах?",
+        "modelAnswer": "Scatter-Gather опрашивает все шарды параллельно и агрегирует результаты на координаторе. Задержка запроса определяется самым медленным шардом (P99 tail latency), а координатор испытывает пиковую нагрузку на память при сортировке."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-04",
+    "scenarioNumber": 4,
+    "slug": "hld-micro-04-rate-limiter",
+    "title": "Микро-ката 4: Распределенный Rate Limiter (Token Bucket в Redis)",
+    "category": "API Gateway & Security",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "10M пользователей",
+      "estimatedPeakRPS": "100,000 RPS",
+      "dailyStorageGrowth": "5 GB / день",
+      "retentionPolicy": "1 день",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Публичный API необходимо защитить от флуда и атак типа Denial of Service (лимит: 100 запросов в минуту на клиента). Сравните алгоритмы Fixed Window, Sliding Window Log и Token Bucket. Спроектируйте атомарный Token Bucket на основе Redis и Lua-скрипта с минимальными накладными расходами на сеть.",
+    "calculationsMarkdown": "| Алгоритм | Память на ключ | Устойчивость к всплескам |\n| :--- | :--- | :--- |\n| **Fixed Window** | 8 Bytes | Уязвим: 2x лимит на границе окон |\n| **Sliding Log** | ~800 Bytes (ZSET) | Идеальная, но слишком много RAM |\n| **Token Bucket** | ~16 Bytes (tokens + ts) | Отличная: сглаживает всплески |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **API Gateway** | Envoy / Kong | Перехват входящих запросов |\n| **Rate Limit Service** | Go / Java 21 | Проверка квот по Token Bucket |\n| **Counter Store** | Redis Cluster | Атомарный расчет в Lua-скриптах |",
+    "bottlenecksMarkdown": "Сетевой RTT в Redis (0.5 мс) на каждый входящий запрос удваивает задержку API Gateway. Решение: пакетный локальный Token Bucket в памяти Gateway (Local Token Batching), синхронизирующийся с Redis раз в 100 запросов.",
+    "initialMermaid": "graph TD\n    Client[Клиент] --> Gateway[API Gateway]\n    Gateway --> Check{Локальный бакет?}\n    Check -->|Есть токены| Forward[Пропустить к сервису]\n    Check -->|Бакет пуст| Redis[(Redis: EVALSHA token_bucket.lua)]\n    Redis -->|Allowed| Forward\n    Redis -->|Rejected| HTTP429[HTTP 429 Too Many Requests]",
+    "tradeOffProbes": [
+      {
+        "question": "Почему расчет Token Bucket в Redis необходимо выполнять именно через Lua-скрипт?",
+        "modelAnswer": "Lua-скрипты выполняются в Redis атомарно в одном потоке, что предотвращает race condition между считыванием баланса токенов и списанием (Check-then-Act bug) без необходимости медленных распределенных блокировок."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-05",
+    "scenarioNumber": 5,
+    "slug": "hld-micro-05-idempotent-consumer",
+    "title": "Микро-ката 5: Идемпотентный консьюмер и дедупликация событий",
+    "category": "Messaging & Event Streaming",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "5M пользователей",
+      "estimatedPeakRPS": "20,000 RPS",
+      "dailyStorageGrowth": "50 GB / день",
+      "retentionPolicy": "90 дней",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Воркер вычитывает сообщения из Kafka с семантикой доставки At-Least-Once. При падении воркера до коммита смещения (Offset Commit) брокер повторно отправляет те же сообщения другому воркеру. Если сообщение содержит финансовую транзакцию, произойдет двойное списание средств. Спроектируйте идемпотентный консьюмер с дедупликацией по idempotency_key.",
+    "calculationsMarkdown": "| Семантика | Гарантия | Риск |\n| :--- | :--- | :--- |\n| **At-Most-Once** | 0 или 1 доставка | Потеря сообщений |\n| **At-Least-Once** | 1 или более доставок | Дубликаты при сбоях воркера |\n| **Exactly-Once** | At-Least-Once + Idempotent Sink | Гарантированная бизнес-целостность |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Message Broker** | Apache Kafka | Поток сообщений At-Least-Once |\n| **Consumer** | Spring Kafka Worker | Обработка бизнес-логики |\n| **Idempotency Store** | PostgreSQL (Unique Key) | Блокировка дубликатов |",
+    "bottlenecksMarkdown": "Вставка в таблицу дедупликации перед выполнением логики может привести к зависанию ключа, если воркер упал посреди обработки. Решение: выполнение бизнес-операции и вставка idempotency_key в ЕДИНОЙ транзакции СУБД.",
+    "initialMermaid": "graph TD\n    Kafka[Apache Kafka Topic] --> Worker[Kafka Consumer Worker]\n    Worker --> TxStart[START TRANSACTION]\n    TxStart --> InsertDedup[INSERT INTO processed_events idempotency_key]\n    InsertDedup -->|DuplicateKeyException| Rollback[ROLLBACK & ACK KAFKA]\n    InsertDedup -->|OK| BusinessAction[Update Balances & State]\n    BusinessAction --> TxCommit[COMMIT TRANSACTION]\n    TxCommit --> CommitOffset[Commit Kafka Offset]",
+    "tradeOffProbes": [
+      {
+        "question": "Что произойдет, если подтвердить смещение в Kafka (Commit Offset) ДО завершения транзакции в БД?",
+        "modelAnswer": "Если воркер упадет между коммитом смещения и коммитом в базе данных, сообщение будет навсегда потеряно (семантика At-Most-Once), так как брокер посчитает его успешно обработанным."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-06",
+    "scenarioNumber": 6,
+    "slug": "hld-micro-06-read-after-write",
+    "title": "Микро-ката 6: Обеспечение согласованности Read-After-Write",
+    "category": "Database Replication",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "10M пользователей",
+      "estimatedPeakRPS": "40,000 RPS",
+      "dailyStorageGrowth": "100 GB / день",
+      "retentionPolicy": "180 дней",
+      "slaAvailability": "99.95%"
+    },
+    "contextMarkdown": "Пользователь обновляет данные профиля (Write на Master), после чего браузер немедленно перегружает страницу и делает GET-запрос (Read с Read-Replica). Из-за репликационного лага (Replication Lag 200-500 мс) реплика возвращает старые данные. Пользователь видит старый профиль и повторно отправляет форму, считая операцию неуспешной. Настройте динамическую маршрутизацию Read-After-Write.",
+    "calculationsMarkdown": "| Источник чтения | Лаг данных | Нагрузка на Master |\n| :--- | :--- | :--- |\n| **Всегда Master** | 0 мс (Strong Consistency) | 100% чтений перегрузят Master |\n| **Всегда Replica** | 200–1000 мс лага | Нарушение пользовательского опыта |\n| **Smart Read-After-Write** | 0 мс для автора, лаг для остальных | Менее 1% чтений идут на Master |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Primary DB** | PostgreSQL Primary (RW) | Запись данных профиля |\n| **Read Replicas** | PostgreSQL Replicas (RO) | Масштабирование обычных чтений |\n| **Lag Tracker** | Redis TTL / Client Cookie | Отметка о недавней записи пользователя |",
+    "bottlenecksMarkdown": "Определение необходимости чтения с мастера можно реализовать через выставление куки last_write_timestamp в браузере или сохранение метки в Redis на 5 секунд. Если текущее время меньше last_write + 5s, запрос направляется на Primary.",
+    "initialMermaid": "graph TD\n    Client[Клиент] --> Router[Database Proxy / Router]\n    Router --> CheckLag{Пользователь писал < 5 сек назад?}\n    CheckLag -->|ДА (Read-After-Write)| Primary[(Primary PostgreSQL Master)]\n    CheckLag -->|НЕТ (Обычное чтение)| Replicas[(Read Replicas Pool)]",
+    "tradeOffProbes": [
+      {
+        "question": "Как обеспечить чтение своих изменений без сохранения состояния на сервере (Stateless)?",
+        "modelAnswer": "Клиенту возвращается криптографически подписанная кука или заголовок с timestamp или LSN (Log Sequence Number) последней записи. Прокси сверяет LSN реплики и перенаправляет на мастер, если реплика еще не догнала этот LSN."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-07",
+    "scenarioNumber": 7,
+    "slug": "hld-micro-07-transactional-outbox",
+    "title": "Микро-ката 7: Паттерн Transactional Outbox и CDC (Debezium)",
+    "category": "Data Integration & Microservices",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "8M пользователей",
+      "estimatedPeakRPS": "25,000 RPS",
+      "dailyStorageGrowth": "40 GB / день",
+      "retentionPolicy": "90 дней",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Микросервис заказов должен изменить статус заказа в PostgreSQL и уведомить микросервис доставки через Apache Kafka. Попытка выполнить запись в базу и отправку в брокер в одном Java-коде создает проблему Dual-Write: падение сервиса между этими действиями ведет к рассинхронизации. Спроектируйте решение на базе Transactional Outbox и Change Data Capture (Debezium).",
+    "calculationsMarkdown": "| Сценарий сбоя | Наивный код | Transactional Outbox + CDC |\n| :--- | :--- | :--- |\n| **Падение Kafka до коммита БД** | Откат БД, сообщение не ушло | Откат обоих: сообщение не в Outbox |\n| **Падение сервиса после коммита БД** | БД изменена, сообщение потеряно | Debezium вычитает Outbox из WAL |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Business DB** | PostgreSQL (таблицы orders + outbox) | Атомарное сохранение сущности и события |\n| **CDC Connector** | Debezium (Kafka Connect) | Непрерывное чтение WAL-лога Postgres |\n| **Event Broker** | Apache Kafka | Гарантированная публикация событий |",
+    "bottlenecksMarkdown": "Таблица outbox быстро разрастается при миллионах событий в день. Решение: партиционирование таблицы outbox по дням с регулярным DROP PARTITION или использование Debezium PostgreSQL Outbox Event Router с автоматической очисткой.",
+    "initialMermaid": "graph TD\n    App[Order Microservice] --> Tx[START TRANSACTION]\n    Tx --> OrdersTable[(Table: orders)]\n    Tx --> OutboxTable[(Table: outbox)]\n    Tx --> Commit[COMMIT TRANSACTION]\n    PostgresWAL[PostgreSQL WAL Engine] --> Debezium[Debezium CDC Connector]\n    Debezium --> Kafka[Apache Kafka Topics]",
+    "tradeOffProbes": [
+      {
+        "question": "Почему чтение таблицы Outbox через Debezium CDC эффективнее обычного периодического опроса (Polling via SELECT)?",
+        "modelAnswer": "CDC читает двоичный лог предзаписи (WAL) без накладных расходов на выполнение SQL-запросов SELECT, не создает блокировок в базе данных и гарантирует суб-секундную задержку репликации событий."
+      }
+    ]
+  },
+  {
+    "id": "hld-micro-08",
+    "scenarioNumber": 8,
+    "slug": "hld-micro-08-indexing-strategy",
+    "title": "Микро-ката 8: Стратегия индексирования (B-Tree, LSM и составные индексы)",
+    "category": "Data Storage Internals",
+    "difficulty": "junior",
+    "level": "L0",
+    "trafficProfile": {
+      "targetDAU": "15M пользователей",
+      "estimatedPeakRPS": "60,000 RPS",
+      "dailyStorageGrowth": "150 GB / день",
+      "retentionPolicy": "365 дней",
+      "slaAvailability": "99.95%"
+    },
+    "contextMarkdown": "Запрос выборки заказов SELECT * FROM orders WHERE user_id = ? AND status = ? ORDER BY created_at DESC выполняет тяжелый Seq Scan по таблице на 100 млн строк. Спроектируйте идеальный составной индекс (Composite Index), учитывающий правило левого префикса (Left-to-Right prefix rule). Сравните поведение B-Tree индекса с LSM-деревом (ScyllaDB / Cassandra) для сценариев с преобладанием записи.",
+    "calculationsMarkdown": "| Тип индекса | Точечное чтение | Скорость записи | Размер на диске |\n| :--- | :--- | :--- | :--- |\n| **B-Tree (PostgreSQL)** | O(log N) — мгновенно | O(log N) — случайный I/O | Большой (фрагментация) |\n| **LSM-Tree (Cassandra)** | O(log N) — требует Bloom filter | O(1) — последовательный append | Компактный |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Relational Store** | PostgreSQL 16 | Хранение заказов с составным B-Tree индексом |\n| **Composite Index** | (user_id, status, created_at DESC) | Покрывающий индекс для исключения FileSort |",
+    "bottlenecksMarkdown": "Если поместить created_at в середину составного индекса (user_id, created_at, status), фильтрация по status не сможет использовать индекс из-за диапазонного сканирования. Равенства должны стоять первыми, сортировка и диапазоны — в конце.",
+    "initialMermaid": "graph TD\n    SQL[SELECT WHERE user_id = X AND status = Y ORDER BY created_at DESC]\n    SQL --> IndexMatch{Индекс (user_id, status, created_at DESC)?}\n    IndexMatch -->|Index Only / Bitmap Scan| Fast[Задержка 2 ms]\n    IndexMatch -->|Неправильный порядок колонок| Slow[FileSort / SeqScan 3500 ms]",
+    "tradeOffProbes": [
+      {
+        "question": "Каково золотое правило порядка колонок в составном B-Tree индексе?",
+        "modelAnswer": "Колонки точного совпадения (Equality: = ) должны стоять первыми, затем колонки сортировки (ORDER BY), и только в самом конце — колонки диапазонов (Range: >, <, BETWEEN)."
+      }
+    ]
+  },
+  {
+    "id": "hld-faded-01",
+    "scenarioNumber": 9,
+    "slug": "hld-faded-01-flash-sale",
+    "title": "Faded Architecture 1: Flash Sale Spike (RDB Crashing under 50k RPS)",
+    "category": "E-Commerce / Flash Sale",
+    "difficulty": "senior",
+    "level": "L2",
+    "trafficProfile": {
+      "targetDAU": "20M пользователей",
+      "estimatedPeakRPS": "50,000 RPS",
+      "dailyStorageGrowth": "100 GB / день",
+      "retentionPolicy": "365 дней",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Дана существующая уязвимая схема: мобильное приложение шлет запросы на оформление заказа прямо на монолитный сервис, который синхронно пишет в одиночный инстанс PostgreSQL. Во время 11.11 Flash Sale всплеск в 50k RPS мгновенно исчерпывает пул HikariCP и вешает СУБД с 100% CPU. Найдите узкие места и перестройте схему: внедрите распределенный кэш для проверки остатков и очередь сообщений для сглаживания пиков записи (Queue-based Load Leveling).",
+    "calculationsMarkdown": "| Параметр | Исходное состояние | Целевая архитектура |\n| :--- | :--- | :--- |\n| **Входящий пик** | 50 000 RPS в PostgreSQL (Отказ) | 50 000 RPS в Redis / Kafka |\n| **Нагрузка на СУБД** | 50 000 RPS (100% CPU) | 2 000 RPS (стабильный батч-воркер) |\n| **Время ответа API** | Таймаут 30 секунд | 25 мс (Async Acknowledgement) |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Pre-Check Cache** | Redis Cluster | Атомарный декремент остатков через DECRBY |\n| **Buffering Queue** | Apache Kafka | Буферизация заказов при пиковой нагрузке |\n| **Order Workers** | Java 21 Consumers | Плавная персистенция заказов в базу данных |\n| **Database** | PostgreSQL Sharded | Персистентное хранилище |",
+    "bottlenecksMarkdown": "Главное узкое место — синхронная транзакционная запись в РСУБД при всплеске. Добавление Redis Cluster с атомарными скриптами проверки складских остатков и Kafka-очереди перед базой изолирует СУБД от пиков нагрузки.",
+    "initialMermaid": "graph TD\n    Client[📱 Мобильные клиенты (50k RPS)] -->|Синхронный POST /orders| App[Монолитный Order Service]\n    App -->|Прямой INSERT| BrokenDB[(Одиночная PostgreSQL 💥 100% CPU)]",
+    "tradeOffProbes": [
+      {
+        "question": "Как уведомить пользователя о подтверждении заказа при асинхронной обработке через Kafka?",
+        "modelAnswer": "Клиенту возвращается статус 202 Accepted с order_token. Клиент либо опрашивает статус (Short Polling), либо держит WebSocket / SSE соединение для получения пуш-уведомления после завершения фонового воркера."
+      }
+    ]
+  },
+  {
+    "id": "hld-faded-02",
+    "scenarioNumber": 10,
+    "slug": "hld-faded-02-celebrity-fanout",
+    "title": "Faded Architecture 2: Celebrity / Hot Partition Fanout (50M Followers)",
+    "category": "Social Networks / Notifications",
+    "difficulty": "senior",
+    "level": "L2",
+    "trafficProfile": {
+      "targetDAU": "50M пользователей",
+      "estimatedPeakRPS": "80,000 RPS",
+      "dailyStorageGrowth": "500 GB / день",
+      "retentionPolicy": "180 дней",
+      "slaAvailability": "99.99%"
+    },
+    "contextMarkdown": "Дана схема ленты новостей на чистом Fanout-on-Write: при публикации поста фоновый воркер дублирует ID поста во все персональные ленты подписчиков в Redis. Когда пост публикует знаменитость с 50 миллионами подписчиков, система генерирует 50 млн операций записи, парализуя брокер сообщений на 40 минут. Перестройте архитектуру на гибридную модель Push/Pull: обычные пользователи используют Fanout-on-Write (Push), а знаменитости — Fanout-on-Read (Pull).",
+    "calculationsMarkdown": "| Подход | Нагрузка при публикации (Запись) | Нагрузка при чтении ленты |\n| :--- | :--- | :--- |\n| **Чистый Push** | 50M записей на 1 твит знаменитости | O(1) мгновенное чтение |\n| **Чистый Pull** | O(1) запись твита | O(N) мердж сотен авторов при каждом чтении |\n| **Гибридный Push/Pull** | O(followers) для обычных, O(1) для VIP | O(1) чтение + дочитка постов отслеживаемых VIP |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Timeline Cache** | Redis Lists | Персональные ленты обычных авторов (Push) |\n| **Celebrity Store** | ScyllaDB / Cassandra | Посты VIP-пользователей для дочитки на лету (Pull) |\n| **Feed Aggregator** | Go Feed Service | Слияние персональной ленты и постов VIP |",
+    "bottlenecksMarkdown": "Порог разделения пользователей на обычных и VIP устанавливается эмпирически (например, > 25 000 подписчиков). Посты VIP не пушатся в миллионы кэшей, а запрашиваются только в момент открытия приложения подписчиком.",
+    "initialMermaid": "graph TD\n    Celebrity[VIP Пользователь (50M подписчиков)] -->|Опубликовать твит| Ingress[Ingress Service]\n    Ingress --> Queue[Kafka Fanout Queue]\n    Queue --> Worker[Fanout Worker 💥 Зависание на 50M записей]\n    Worker --> RedisUserFeeds[(50 000 000 списков в Redis)]",
+    "tradeOffProbes": [
+      {
+        "question": "Каковы критерии отнесения пользователя к категории \"знаменитости\" (Celebrity)?",
+        "modelAnswer": "Количество активных подписчиков (например, более 25k–50k), при котором стоимость Fanout-on-Write начинает превышать стоимость агрегации Fanout-on-Read при открытии ленты."
+      }
+    ]
+  },
+  {
+    "id": "hld-faded-03",
+    "scenarioNumber": 11,
+    "slug": "hld-faded-03-spof-elimination",
+    "title": "Faded Architecture 3: Single Point of Failure (Multi-AZ Active-Active)",
+    "category": "High Availability & Disaster Recovery",
+    "difficulty": "senior",
+    "level": "L2",
+    "trafficProfile": {
+      "targetDAU": "30M пользователей",
+      "estimatedPeakRPS": "40,000 RPS",
+      "dailyStorageGrowth": "200 GB / день",
+      "retentionPolicy": "365 дней",
+      "slaAvailability": "99.999%"
+    },
+    "contextMarkdown": "Платежный процессинг развернут в единственной зоне доступности (Single-AZ dc-east-1). Инфраструктура опирается на один аппаратный балансировщик и одиночный сервер PostgreSQL. При обрыве магистрального оптоволокна в датацентре сервис был недоступен 4 часа. Задача: устранить все точки отказа (SPOF) и спроектировать Multi-AZ Active-Active архитектуру с гео-балансировкой Anycast BGP / Route53, кросс-зонной синхронной репликацией и автоматическим переключением (Failover).",
+    "calculationsMarkdown": "| Параметр | Single-AZ Архитектура | Multi-AZ Active-Active |\n| :--- | :--- | :--- |\n| **SLA Доступности** | 99.5% (до 43 часов простоя в год) | 99.999% (менее 5 минут в год) |\n| **RTO (Recovery Time)** | 4 часа ручного восстановления | < 30 секунд автоматический Failover |\n| **RPO (Data Loss)** | Риск потери последних данных | 0 (Синхронная репликация) |",
+    "topologyMarkdown": "| Компонент | Стек | Назначение |\n| :--- | :--- | :--- |\n| **Global Traffic** | Cloudflare Anycast / Route53 | Балансировка на уровне DNS с Health Checks |\n| **AZ East-1 Cluster** | K8s + PostgreSQL Node A | Активный датацентр 1 |\n| **AZ East-2 Cluster** | K8s + PostgreSQL Node B | Активный датацентр 2 |\n| **Consensus Engine** | Patroni + etcd | Автоматический выбор лидера и переключение |",
+    "bottlenecksMarkdown": "Синхронная репликация между регионами увеличивает задержку записи на сетевой RTT. Внутри одного региона (Multi-AZ) RTT составляет менее 1 мс, что позволяет использовать синхронную репликацию без ощутимой деградации производительности.",
+    "initialMermaid": "graph TD\n    Internet[🌍 Клиенты] --> SingleLB[💥 Single Load Balancer (SPOF)]\n    SingleLB --> SingleApp[Single App Server in AZ-1]\n    SingleApp --> SingleDB[(💥 Single PostgreSQL Master in AZ-1 (SPOF))]",
+    "tradeOffProbes": [
+      {
+        "question": "Что такое Split-Brain синдром в Multi-AZ кластерах и как его предотвратить?",
+        "modelAnswer": "Split-Brain возникает, когда при разрыве связи между зонами обе стороны объявляют себя мастером и принимают несогласованные записи. Предотвращается кворумом (нечетное число участников, минимум 3: например etcd с 3 нодами в 3 разных AZ)."
+      }
+    ]
+  },
+  {
+    "id": "hld-scenario-01",
+    "scenarioNumber": 12,
     "slug": "hld-scenario-01-stripe",
     "title": "Сценарий 1: Система гарантированной доставки вебхуков с изоляцией клиентов (Stripe)",
     "category": "FinTech & Webhooks",
@@ -39,11 +336,12 @@
         "question": "Как организовать доставку вебхуков в приватные корпоративные сети мерчантов (AWS PrivateLink)?",
         "modelAnswer": "Архитектура расширяется специализированными прокси-агентами в инфраструктуре Stripe, которые устанавливают туннельные соединения с Private Endpoint Services внутри VPC мерчанта6."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-02",
-    "scenarioNumber": 2,
+    "scenarioNumber": 13,
     "slug": "hld-scenario-02-uber-yandex-go",
     "title": "Сценарий 2: Распределенный гео-сервис трекинга и матчинга (Uber / Yandex Go)",
     "category": "Geospatial & Mobility",
@@ -81,11 +379,12 @@
         "question": "За счет чего H3 индекс превосходит традиционные структуры QuadTree и Geohash при пространственном поиске?",
         "modelAnswer": "H3 гарантирует инвариантность расстояний между центрами всех соседних ячеек за счет геометрии шестиугольников, снижая сложность поиска смежных объектов до константного времени 11."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-03",
-    "scenarioNumber": 3,
+    "scenarioNumber": 14,
     "slug": "hld-scenario-03-cdn-netflix",
     "title": "Сценарий 3: Глобальная CDN и платформа адаптивного стриминга (Netflix)",
     "category": "Streaming & CDN",
@@ -123,11 +422,12 @@
         "question": "Как зафиксировать мгновенный старт воспроизведения (TTFF \\< 500 мс)?",
         "modelAnswer": "Первый чанк видеоряда отдается с заниженным битрейтом и уменьшенным интервалом между ключевыми кадрами (GOP) непосредственно из RAM операторов CDN9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-04",
-    "scenarioNumber": 4,
+    "scenarioNumber": 15,
     "slug": "hld-scenario-04-ml-ozon",
     "title": "Сценарий 4: Поисковый автокомплит и типэхед с переранжированием на основе ML (Яндекс / Ozon)",
     "category": "Collaborative Systems",
@@ -165,11 +465,12 @@
         "question": "Как оценивать качество работы автокомплита в режиме реального времени?",
         "modelAnswer": "Расчет метрик Mean Reciprocal Rank (MRR) и Click-Through Rate (CTR) первой подсказки на основе потока кликов, агрегируемого в Apache Flink9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-05",
-    "scenarioNumber": 5,
+    "scenarioNumber": 16,
     "slug": "hld-scenario-05-",
     "title": "Сценарий 5: Транзакционное ядро банковского учета (Т-Банк)",
     "category": "Edge & Security",
@@ -207,11 +508,12 @@
         "question": "Что делать при получении сетевого таймаута во время выполнения финансовой операции?",
         "modelAnswer": "Клиент обязан повторить запрос с тем же Idempotency-Key; система проверяет состояние ключа в таблице уникальных операций и возвращает существующий результат без повторного списания13."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-06",
-    "scenarioNumber": 6,
+    "scenarioNumber": 17,
     "slug": "hld-scenario-06-",
     "title": "Сценарий 6: Классифайд с гибридным поиском и полнотекстовым индексом (Авито)",
     "category": "High-Throughput Payments",
@@ -249,11 +551,12 @@
         "question": "Какова оптимальная стратегия шардирования индекса классифайдов?",
         "modelAnswer": "Иерархическое шардирование по категориям верхнего уровня с вторичным разделением по географическим регионам14."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-07",
-    "scenarioNumber": 7,
+    "scenarioNumber": 18,
     "slug": "hld-scenario-07-flash-ozon",
     "title": "Сценарий 7: Сервис бронирования товаров на Flash-распродажах (Ozon / Яндекс Маркет)",
     "category": "AdTech & Real-Time Bidding",
@@ -291,11 +594,12 @@
         "question": "Как отображать статус кнопки «Купить» на фронтенде без создания нагрузки на бэкенд?",
         "modelAnswer": "Кэширование состояния карточки товара на уровнях CDN и клиентского приложения с обновлением через Server-Sent Events (SSE)9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-08",
-    "scenarioNumber": 8,
+    "scenarioNumber": 19,
     "slug": "hld-scenario-08-netflix",
     "title": "Сценарий 8: Сервис контроля активных сессий и просмотров (Netflix / Яндекс Плюс)",
     "category": "Observability & Metrics",
@@ -333,11 +637,12 @@
         "question": "Как защитить эндпоинт Heartbeat от подделки запросов злоумышленниками?",
         "modelAnswer": "Подписание каждого пинга ротируемым короткоживущим JWT-токеном, содержащим зашифрованный идентификатор сессии и HMAC-подпись9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-09",
-    "scenarioNumber": 9,
+    "scenarioNumber": 20,
     "slug": "hld-scenario-09-rate-limiter-stripe",
     "title": "Сценарий 9: Глобальный распределенный Rate Limiter (Stripe / Т-Банк)",
     "category": "E-Commerce & Flash Sales",
@@ -375,11 +680,12 @@
         "question": "Как распределять токены между гео-распределенными центрами обработки данных?",
         "modelAnswer": "Применение алгоритма локальных квот с периодическим перераспределением неиспользованных токенов по протоколу Gossip4."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-10",
-    "scenarioNumber": 10,
+    "scenarioNumber": 21,
     "slug": "hld-scenario-10-eta-uber-yandex-go",
     "title": "Сценарий 10: Графовый сервис построения маршрутов и расчета ETA (Uber / Yandex Go)",
     "category": "Distributed Consensus",
@@ -417,11 +723,12 @@
         "question": "Какими метриками оценивается точность прогнозирования ETA?",
         "modelAnswer": "Метрики MAPE (Mean Absolute Percentage Error) и RMSE, сравнивающие предсказанное время в момент заказа с фактическим временем поездки11."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-11",
-    "scenarioNumber": 11,
+    "scenarioNumber": 22,
     "slug": "hld-scenario-11-ozon",
     "title": "Сценарий 11: Многоканальная платформа уведомлений (Ozon / Авито)",
     "category": "Search & Web Crawling",
@@ -459,11 +766,12 @@
         "question": "Как обеспечить отправку через единое TCP-соединение с APNS?",
         "modelAnswer": "Использование мультиплексирования HTTP/2 фреймов внутри одного персистентного TLS-соединения с применением Netty6."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-12",
-    "scenarioNumber": 12,
+    "scenarioNumber": 23,
     "slug": "hld-scenario-12-apm-uber",
     "title": "Сценарий 12: Распределенная платформа сбора метрик и APM (Яндекс / Uber)",
     "category": "Social Media & Feeds",
@@ -501,11 +809,12 @@
         "question": "Как организовать экономичное хранение старых метрик?",
         "modelAnswer": "Сброс сжатых блоков TSDB из локальных NVMe-накопителей в объектное хранилище S311."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-13",
-    "scenarioNumber": 13,
+    "scenarioNumber": 24,
     "slug": "hld-scenario-13-stripe",
     "title": "Сценарий 13: Идемпотентный платежный шлюз и маршрутизатор эквайринга (Т-Банк / Stripe)",
     "category": "Instant Messaging",
@@ -543,11 +852,12 @@
         "question": "Как выполнять миграции схемы БД платежного ядра без остановки обслуживания?",
         "modelAnswer": "Применение фазового паттернa Expand-and-Contract (добавление поля \\-\\> двойная запись \\-\\> миграция \\-\\> переключение чтения \\-\\> удаление)4."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-14",
-    "scenarioNumber": 14,
+    "scenarioNumber": 25,
     "slug": "hld-scenario-14-netflix-ozon",
     "title": "Сценарий 14: Сервис персонализированных рекомендаций в реальном времени (Netflix / Ozon)",
     "category": "Distributed Identifiers",
@@ -585,11 +895,12 @@
         "question": "Как оценивать качество рекомендаций в реальном времени?",
         "modelAnswer": "Подсчет метрик CTR, Conversion Rate и NDCG на основе потока кликов в Apache Flink9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-15",
-    "scenarioNumber": 15,
+    "scenarioNumber": 26,
     "slug": "hld-scenario-15-",
     "title": "Сценарий 15: Распределенное файловое хранилище с дельта-синхронизацией (Яндекс Диск)",
     "category": "Geo-Search & Proximity",
@@ -627,11 +938,12 @@
         "question": "Как организовать возобновляемую загрузку (Resumable Upload) файла размером 100 ГБ?",
         "modelAnswer": "Параллельная Multipart-загрузка чанков с фиксацией загруженных блоков в таблице сессий8."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-16",
-    "scenarioNumber": 16,
+    "scenarioNumber": 27,
     "slug": "hld-scenario-16-",
     "title": "Сценарий 16: Распределенный планировщик задач миллионного масштаба (Т-Банк / Яндекс)",
     "category": "FinTech & Fraud Detection",
@@ -669,11 +981,12 @@
         "question": "Как вычислять динамические Cron-выражения (\\",
         "modelAnswer": "/5 \\* \\* \\* \\*)?* Планировщик рассчитывает и сохраняет время следующего запуска (next\\_fire\\_time) сразу после срабатывания текущей задачи12."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-17",
-    "scenarioNumber": 17,
+    "scenarioNumber": 28,
     "slug": "hld-scenario-17-",
     "title": "Сценарий 17: Чат реального времени и сервис присутствия (Авито)",
     "category": "Workflow & Task Scheduling",
@@ -711,11 +1024,12 @@
         "question": "Как хранить информацию о прочитанных сообщениях в больших чатах?",
         "modelAnswer": "Фиксация единственного значения last\\_read\\_message\\_id для каждого участника вместо установки флага на каждое сообщение15."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-18",
-    "scenarioNumber": 18,
+    "scenarioNumber": 29,
     "slug": "hld-scenario-18-yandex-food",
     "title": "Сценарий 18: Движок динамической сборки заказов и маршрутизации курьеров (Убер Еда / Yandex Food)",
     "category": "Pricing & Supply-Demand",
@@ -753,11 +1067,12 @@
         "question": "Какой протокол использовать для связи с приложением курьера?",
         "modelAnswer": "Протокол gRPC над HTTP/2 с двунаправленным потоком (Bi-directional Streaming)9."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-19",
-    "scenarioNumber": 19,
+    "scenarioNumber": 30,
     "slug": "hld-scenario-19-netflix-uber",
     "title": "Сценарий 19: Платформа распределенного трассирования (Netflix / Uber)",
     "category": "Trading & Order Matching",
@@ -795,11 +1110,12 @@
         "question": "Как построить онлайн-карту зависимостей микросервисов организации?",
         "modelAnswer": "Потоковая агрегация связей parent\\_service \\-\\> child\\_service во Flink с сохранением графа в графовую СУБД10."
       }
-    ]
+    ],
+    "level": "L3"
   },
   {
     "id": "hld-scenario-20",
-    "scenarioNumber": 20,
+    "scenarioNumber": 31,
     "slug": "hld-scenario-20-ozon",
     "title": "Сценарий 20: Распределенный поисковый краулер и индексер (Яндекс / Ozon)",
     "category": "Security & Vault",
@@ -837,6 +1153,7 @@
         "question": "Как масштабировать DNS-резолвинг при высокой частоте запросов?",
         "modelAnswer": "Локальные кэширующие DNS-серверы (Unbound) на нодах с упреждающим обновлением записей (Prefetching)6."
       }
-    ]
+    ],
+    "level": "L3"
   }
 ]

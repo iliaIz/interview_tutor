@@ -17,7 +17,8 @@ export interface SystemDesignScenario {
   slug: string;
   title: string;
   category: string;
-  difficulty: 'senior' | 'lead';
+  difficulty: 'junior' | 'middle' | 'senior' | 'lead';
+  level?: 'L0' | 'L1' | 'L2' | 'L3';
   trafficProfile: TrafficProfile;
   contextMarkdown: string;
   calculationsMarkdown: string;

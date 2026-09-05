@@ -4,8 +4,10 @@ import { SystemDesignScenario } from '../../types/nextgen';
 import { 
   Layers, Search, Filter, Database, Server, 
   ArrowRight, ShieldCheck, Cpu, Zap, Activity,
-  Award, Clock, MessageSquare, ShieldAlert, CheckCircle2, Play
+  Award, Clock, MessageSquare, ShieldAlert, CheckCircle2, Play,
+  Calculator, X
 } from 'lucide-react';
+import { CapacityMathCoach } from './CapacityMathCoach';
 
 export const SystemDesignCatalog: React.FC = () => {
   const { openSystemDesignScenario } = useAppStore();
@@ -13,7 +15,9 @@ export const SystemDesignCatalog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L2' | 'L3'>('all');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [isMathCoachOpen, setIsMathCoachOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/system-design/scenarios', { credentials: 'include' })
@@ -41,14 +45,15 @@ export const SystemDesignCatalog: React.FC = () => {
 
   const filteredScenarios = useMemo(() => {
     return safeScenarios.filter(s => {
+      const matchesLevel = selectedLevel === 'all' || s.level === selectedLevel;
       const matchesCat = selectedCategory === 'all' || s.category === selectedCategory;
       const matchesSearch = !searchQuery.trim() || 
         s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.contextMarkdown.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCat && matchesSearch;
+      return matchesLevel && matchesCat && matchesSearch;
     });
-  }, [safeScenarios, selectedCategory, searchQuery]);
+  }, [safeScenarios, selectedLevel, selectedCategory, searchQuery]);
 
   // Keep selectedScenarioId valid
   useEffect(() => {
@@ -135,8 +140,68 @@ export const SystemDesignCatalog: React.FC = () => {
           </div>
         </div>
 
+        {/* Cognitive Ladder (L0 -> L1 -> L2 -> L3) */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('all')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+              selectedLevel === 'all'
+                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Все уровни ({scenarios.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L0')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L0'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>L0: Building Blocks (8)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsMathCoachOpen(true)}
+            className="px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 shadow-2xs active:scale-95"
+            title="Открыть тренажер прикидок на салфетке (Back-of-the-Envelope)"
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>🧮 L1: Math Coach (Тренажер)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L2')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L2'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-amber-700 hover:bg-amber-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>L2: Faded Architectures (3)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedLevel('L3')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedLevel === 'L3'
+                ? 'bg-violet-600 text-white shadow-2xs'
+                : 'text-violet-700 hover:bg-violet-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-violet-400" />
+            <span>L3: Full-Scale Combat (20)</span>
+          </button>
+        </div>
+
         {/* 2. Search & Category Filters */}
-        <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-center justify-between gap-3">
+        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Category Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar touch-pan-x">
             {categories.map(cat => (
@@ -207,9 +272,20 @@ export const SystemDesignCatalog: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-purple-50 text-pastel-accentViolet border border-purple-200/80 truncate">
-                      {scenario.category}
-                    </span>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border shrink-0 ${
+                        scenario.level === 'L0'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                          : scenario.level === 'L2'
+                          ? 'bg-amber-100 text-amber-800 border-amber-200'
+                          : 'bg-purple-100 text-purple-800 border-purple-200'
+                      }`}>
+                        {scenario.level || 'L3'}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-purple-50 text-pastel-accentViolet border border-purple-200/80 truncate">
+                        {scenario.category}
+                      </span>
+                    </div>
 
                     <span className="text-[10px] font-mono text-emerald-700 font-bold flex items-center gap-1 shrink-0">
                       <Activity className="w-3 h-3 text-emerald-600" />
@@ -332,6 +408,27 @@ export const SystemDesignCatalog: React.FC = () => {
           </div>
         )}
       </div>
+    )}
+
+      {/* L1 Math Coach Modal Overlay */}
+      {isMathCoachOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/40 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-4 right-4 z-10 flex justify-end pr-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsMathCoachOpen(false)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer shadow-sm"
+                title="Закрыть (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 sm:p-4">
+              <CapacityMathCoach />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
