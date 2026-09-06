@@ -15,7 +15,7 @@
     }
 }
 
-djelu.site, www.djelu.site, 192-124-182-59.sslip.io, :80 {
+java.djelu.site, www.djelu.site, 192-124-182-59.sslip.io, :80 {
     import common_headers
     encode zstd gzip
 
