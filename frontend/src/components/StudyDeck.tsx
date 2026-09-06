@@ -212,10 +212,17 @@ const getTutorModeLabel = (mode: string) => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="text-xs font-bold text-pastel-text bg-pastel-rose px-3 py-1 rounded-full border border-pastel-accentRose/20">
             Карточка {currentQuestionIndex + 1} из {currentBatch.length}
           </span>
+          <button
+            onClick={handleStartVoiceBlitz}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition cursor-pointer shadow-2xs active:scale-95"
+            title={`Пройти устное собеседование по всей группе (${currentBatch.length} вопр.) с итоговой оценкой`}
+          >
+            <Mic className="w-3 h-3" /> Собеседование порции ({currentBatch.length})
+          </button>
           <button
             onClick={handleRecapBatch}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-pastel-lavender/60 text-pastel-accentViolet border border-pastel-accentViolet/20 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer"
@@ -458,15 +465,7 @@ const getTutorModeLabel = (mode: string) => {
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (quickQuestionText.trim()) {
-                        handleLaunchTutorWithPrompt(quickQuestionText.trim());
-                      } else {
-                        setCustomPromptForTutor('');
-                        setVoiceModalSessionType('tutor');
-                        setIsVoiceOpen(true);
-                      }
-                    }}
+                    onClick={() => handleLaunchTutorWithPrompt(quickQuestionText.trim())}
                     className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
@@ -506,6 +505,18 @@ const getTutorModeLabel = (mode: string) => {
             <span className="hidden sm:inline">Вперед</span>
             <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] bg-white/20 rounded border border-white/30 font-mono text-white">→</kbd>
             <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleStartVoiceBlitz}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pastel-lavender/70 hover:bg-pastel-accentViolet text-pastel-accentViolet hover:text-white text-xs font-bold transition border border-pastel-accentViolet/20 cursor-pointer shadow-2xs active:scale-95"
+            title={`Пройти устное собеседование по всей группе (${currentBatch.length} вопр.) с итоговой оценкой`}
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span>Собеседование группы ({currentBatch.length})</span>
           </button>
         </div>
 

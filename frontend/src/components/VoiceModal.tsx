@@ -775,8 +775,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setSessionType(initialSessionType || 'interview');
     setTutorMode(initialTutorMode || 'deep_dive');
 
-    // Check for existing valid session checkpoint for this topic
+    // Check for existing valid session checkpoint for this topic (interview mode only)
     if (
+      initialSessionType !== 'tutor' &&
       isBatchMode &&
       activeBatchSession &&
       !activeBatchSession.isComplete &&
@@ -2197,6 +2198,55 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     });
   };
 
+  /**
+   * Switch to a specific question index within the active batch session (Tutor or Interview)
+   */
+  const handleSwitchQuestion = (targetIndex: number) => {
+    if (!isBatchMode || !questionsBatch || targetIndex < 0 || targetIndex >= questionsBatch.length) {
+      return;
+    }
+    if (targetIndex === activeBatchIndex) return;
+
+    const targetQ = questionsBatch[targetIndex];
+    setActiveBatchIndex(targetIndex);
+    if (onIndexChange) onIndexChange(targetIndex);
+
+    // If currently in lobby, simple instantaneous state update (0ms)
+    if (stage === 'lobby') {
+      return;
+    }
+
+    // If in active live speech mode, perform clean Hot Re-anchor
+    teardownWsAndBuffersOnly();
+    setEvaluation(null);
+    setDialogueTurns([]);
+    dialogueTurnsRef.current = [];
+    setDeepgramTranscript('');
+    setIsTranscriptOpen(false);
+    setIsTranscribing(false);
+    userPcmChunksRef.current = [];
+    transcriptRef.current = '';
+    isEvaluationFinalizedRef.current = false;
+    setIsSubmitting(false);
+
+    setStage('active');
+    setIsAiSpeaking(true);
+    isAiSpeakingRef.current = true;
+
+    setDialogueTurns([
+      { role: 'system', text: `🔄 Переключение на вопрос #${targetQ.num || targetIndex + 1} (${targetIndex + 1} из ${totalQuestions})...` }
+    ]);
+
+    void acquireWakeLock();
+
+    connectLiveWebSocket(targetIndex, {
+      id: targetQ.id,
+      topic: targetQ.topic,
+      question: targetQ.question,
+      answer: targetQ.answer
+    });
+  };
+
   const initMicrophoneHardware = async () => {
     try {
       if (playoutManagerRef.current) {
@@ -2874,18 +2924,20 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               const res = batchResults[q.id];
               const isCurrent = idx === activeBatchIndex;
               return (
-                <div
+                <button
                   key={q.id || idx}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                  type="button"
+                  onClick={() => handleSwitchQuestion(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer focus:outline-none hover:opacity-90 active:scale-95 ${
                     isCurrent
-                      ? 'flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet shadow-2xs'
+                      ? 'flex-1 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet shadow-xs ring-2 ring-pastel-accentViolet/30'
                       : res
                       ? res.isPassed
-                        ? 'w-4 bg-emerald-400'
-                        : 'w-4 bg-rose-400'
-                      : 'w-3 bg-slate-200'
+                        ? 'w-5 bg-emerald-400 hover:bg-emerald-500'
+                        : 'w-5 bg-rose-400 hover:bg-rose-500'
+                      : 'w-4 bg-slate-200 hover:bg-slate-300'
                   }`}
-                  title={`Вопрос #${q.num}: ${q.question.slice(0, 35)}...`}
+                  title={`Перейти к вопросу #${q.num || idx + 1}: ${q.question.slice(0, 45)}...`}
                 />
               );
             })}
@@ -2940,6 +2992,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             textInputRef={textInputRef}
             isSessionPaused={isSessionPaused}
             onToggleSessionPause={toggleSessionPause}
+            onSwitchQuestion={handleSwitchQuestion}
           />
         ) : (
           /* ========================================================================= */

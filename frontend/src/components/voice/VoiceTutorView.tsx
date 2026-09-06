@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
   BookOpen, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause, Square,
-  Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2, Target, X
+  Settings2, Loader2, Clock, Zap, Send, RotateCcw, CheckCircle2, Target, X,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { CodeViewer } from '../CodeViewer';
 import { MarkdownRenderer } from '../MarkdownRenderer';
@@ -48,6 +49,7 @@ export interface VoiceTutorViewProps {
   textInputRef: React.RefObject<HTMLInputElement>;
   isSessionPaused?: boolean;
   onToggleSessionPause?: () => void;
+  onSwitchQuestion?: (newIndex: number) => void;
 }
 
 export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
@@ -87,9 +89,26 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
   onSwitchToInterview,
   textInputRef,
   isSessionPaused,
-  onToggleSessionPause
+  onToggleSessionPause,
+  onSwitchQuestion
 }) => {
   const { activeFocus, setFocus, clearFocus } = useSelectionFocusStore();
+
+  // Keyboard navigation between questions (Alt+ArrowLeft / Alt+ArrowRight)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!onSwitchQuestion || !isBatchMode || totalQuestions <= 1) return;
+      if (e.altKey && e.key === 'ArrowLeft' && activeBatchIndex > 0) {
+        e.preventDefault();
+        onSwitchQuestion(activeBatchIndex - 1);
+      } else if (e.altKey && e.key === 'ArrowRight' && activeBatchIndex < totalQuestions - 1) {
+        e.preventDefault();
+        onSwitchQuestion(activeBatchIndex + 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSwitchQuestion, isBatchMode, totalQuestions, activeBatchIndex]);
 
   return (
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden my-3">
@@ -100,9 +119,36 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
             <BookOpen className="w-4 h-4 text-pastel-accentViolet" />
             <span className="text-xs font-bold text-pastel-text">Изучаемый материал карточки</span>
           </div>
-          <span className="text-[10px] font-semibold text-pastel-muted bg-white px-2 py-0.5 rounded-full border border-pastel-border">
-            {activeTopic}
-          </span>
+          <div className="flex items-center gap-2">
+            {isBatchMode && totalQuestions > 1 && (
+              <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-pastel-border shadow-2xs">
+                <button
+                  type="button"
+                  disabled={activeBatchIndex <= 0}
+                  onClick={() => onSwitchQuestion?.(activeBatchIndex - 1)}
+                  className="p-1 rounded-md text-pastel-muted hover:text-pastel-text hover:bg-pastel-lavender/40 disabled:opacity-25 disabled:cursor-not-allowed transition cursor-pointer"
+                  title="Предыдущий вопрос (Alt+←)"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[10px] font-bold text-pastel-accentViolet font-mono px-1">
+                  {activeBatchIndex + 1} / {totalQuestions}
+                </span>
+                <button
+                  type="button"
+                  disabled={activeBatchIndex >= totalQuestions - 1}
+                  onClick={() => onSwitchQuestion?.(activeBatchIndex + 1)}
+                  className="p-1 rounded-md text-pastel-muted hover:text-pastel-text hover:bg-pastel-lavender/40 disabled:opacity-25 disabled:cursor-not-allowed transition cursor-pointer"
+                  title="Следующий вопрос (Alt+→)"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <span className="text-[10px] font-semibold text-pastel-muted bg-white px-2 py-0.5 rounded-full border border-pastel-border">
+              {activeTopic}
+            </span>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1.5 pt-2.5 space-y-3">
