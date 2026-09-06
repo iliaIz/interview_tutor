@@ -185,6 +185,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { config: interviewConfig, setConfig: setInterviewConfig } = useInterviewConfig();
+  const showToast = useAppStore((s) => s.showToast);
   const interviewConfigRef = useRef<InterviewConfig>(interviewConfig);
   useEffect(() => {
     interviewConfigRef.current = interviewConfig;
@@ -2314,8 +2315,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       sourceNode.connect(workletNode);
       workletNode.connect(gainAnchor);
       gainAnchor.connect(audioCtx.destination);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error initializing microphone hardware:', e);
+      if (isMountedRef.current) {
+        showToast({
+          type: 'warning',
+          title: 'Микрофон недоступен',
+          message: 'Браузер не предоставил доступ к микрофону. Проверьте разрешения или перейдите в письменный режим.'
+        });
+      }
     }
   };
 

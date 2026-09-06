@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
 import { CodeViewer } from './CodeViewer';
+import { useInterviewConfig } from '../hooks/useInterviewConfig';
 
 export const StudyDeck: React.FC = () => {
   const {
@@ -37,7 +38,8 @@ export const StudyDeck: React.FC = () => {
     setQuestionEvaluation,
     updateTopicProgress,
     openTransactionLab,
-    setBatch
+    setBatch,
+    startQuizWithQuestions
   } = useAppStore();
 
   const [isAutoHealing, setIsAutoHealing] = useState(false);
@@ -74,8 +76,12 @@ const getTutorModeLabel = (mode: string) => {
   return found ? found.label : 'Под капотом';
 };
 
+  const { config } = useInterviewConfig();
+  const studyModality = config.studyModality || 'voice';
+
   const [copied, setCopied] = React.useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [voiceInitialIndex, setVoiceInitialIndex] = useState<number>(0);
   const [voiceModalSessionType, setVoiceModalSessionType] = useState<'interview' | 'tutor'>('interview');
   const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>(() => {
     return (localStorage.getItem('interview_tutor_mode') as any) || 'deep_dive';
@@ -83,6 +89,23 @@ const getTutorModeLabel = (mode: string) => {
   const [showAnswer, setShowAnswer] = useState(true);
   const [quickQuestionText, setQuickQuestionText] = useState('');
   const [customPromptForTutor, setCustomPromptForTutor] = useState('');
+
+  const handleStartVoiceBlitz = () => {
+    setVoiceInitialIndex(0);
+    setVoiceModalSessionType('interview');
+    setCustomPromptForTutor('');
+    setIsVoiceOpen(true);
+  };
+
+  const handleStartTextQuiz = () => {
+    if (!currentBatch || currentBatch.length === 0) return;
+    const currentQ = currentBatch[currentQuestionIndex] || currentBatch[0];
+    startQuizWithQuestions(
+      selectedTopicId || currentQ.topic,
+      selectedTopicName || currentQ.topic,
+      currentBatch
+    );
+  };
 
   const handleSelectTutorMode = (mode: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat') => {
     setVoiceModalTutorMode(mode);
@@ -93,6 +116,7 @@ const getTutorModeLabel = (mode: string) => {
 
   const handleLaunchTutorWithPrompt = (prompt?: string) => {
     const text = (prompt !== undefined ? prompt : quickQuestionText).trim();
+    setVoiceInitialIndex(currentQuestionIndex);
     setCustomPromptForTutor(text);
     setVoiceModalSessionType('tutor');
     setIsVoiceOpen(true);
@@ -225,6 +249,7 @@ const getTutorModeLabel = (mode: string) => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
+                    setVoiceInitialIndex(currentQuestionIndex);
                     setVoiceModalSessionType('interview');
                     setIsVoiceOpen(true);
                   }}
@@ -236,6 +261,7 @@ const getTutorModeLabel = (mode: string) => {
 
                 <button
                   onClick={() => {
+                    setVoiceInitialIndex(currentQuestionIndex);
                     setVoiceModalSessionType('tutor');
                     setIsVoiceOpen(true);
                   }}
@@ -508,12 +534,49 @@ const getTutorModeLabel = (mode: string) => {
             Следующая карточка <ArrowRight className="w-4 h-4" />
           </button>
         ) : (
-          <button
-            onClick={() => setView('quiz')}
-            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold hover:opacity-95 transition flex items-center gap-2 shadow-md transform hover:scale-102 active:scale-98 cursor-pointer"
-          >
-            <Brain className="w-5 h-5" /> Проверка знаний ({currentBatch.length} вопр.)
-          </button>
+          <div className="flex items-center gap-2">
+            {studyModality === 'voice' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleStartTextQuiz}
+                  title="Пройти пошаговую проверку письменно с клавиатуры"
+                  className="px-4 py-3 rounded-2xl border border-pastel-border bg-white text-pastel-muted hover:text-pastel-text text-xs font-bold hover:bg-pastel-bg/60 transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                >
+                  <BookOpen className="w-4 h-4 text-pastel-muted" />
+                  <span>Письменно</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartVoiceBlitz}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold hover:opacity-95 transition flex items-center gap-2 shadow-md transform hover:scale-102 active:scale-98 cursor-pointer"
+                >
+                  <Mic className="w-5 h-5 animate-pulse" />
+                  <span>Голосовой блиц ({currentBatch.length} вопр.)</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleStartVoiceBlitz}
+                  title="Пройти устный опрос с Gemini Live (Авто-VAD)"
+                  className="px-4 py-3 rounded-2xl border border-pastel-border bg-white text-pastel-muted hover:text-pastel-text text-xs font-bold hover:bg-pastel-bg/60 transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                >
+                  <Mic className="w-4 h-4 text-pastel-accentViolet" />
+                  <span>Устно</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartTextQuiz}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-sm font-bold hover:opacity-95 transition flex items-center gap-2 shadow-md transform hover:scale-102 active:scale-98 cursor-pointer"
+                >
+                  <Brain className="w-5 h-5" />
+                  <span>Проверка знаний ({currentBatch.length} вопр.)</span>
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -526,7 +589,8 @@ const getTutorModeLabel = (mode: string) => {
         currentQuestionText={currentQ.question}
         referenceAnswer={currentQ.answer}
         questionsBatch={currentBatch}
-        initialQuestionIndex={currentQuestionIndex}
+        initialQuestionIndex={voiceInitialIndex}
+        onIndexChange={(newIdx) => setQuestionIndex(newIdx)}
         initialSessionType={voiceModalSessionType}
         initialTutorMode={voiceModalTutorMode}
         customPromptOverride={customPromptForTutor}

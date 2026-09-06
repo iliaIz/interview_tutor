@@ -109,8 +109,9 @@ export const ExamQuiz: React.FC = () => {
     );
   }
 
-  const currentQ = currentBatch[currentQuestionIndex];
-  const isLast = currentQuestionIndex === currentBatch.length - 1;
+  const safeIndex = Math.min(Math.max(0, currentQuestionIndex), currentBatch.length - 1);
+  const currentQ = currentBatch[safeIndex];
+  const isLast = safeIndex === currentBatch.length - 1;
 
   const handleEvaluate = async () => {
     if (!userAnswer.trim()) {
@@ -227,7 +228,7 @@ export const ExamQuiz: React.FC = () => {
     setUserAnswer('');
     setEvalResult(null);
     if (!isLast) {
-      setQuestionIndex(currentQuestionIndex + 1);
+      setQuestionIndex(safeIndex + 1);
     } else {
       setIsQuizCompleted(true);
     }
@@ -695,7 +696,7 @@ export const ExamQuiz: React.FC = () => {
         currentQuestionText={currentQ.question}
         referenceAnswer={currentQ.answer}
         questionsBatch={currentBatch}
-        initialQuestionIndex={currentQuestionIndex}
+        initialQuestionIndex={safeIndex}
         onIndexChange={(newIdx) => {
           setQuestionIndex(newIdx);
           setEvalResult(null);

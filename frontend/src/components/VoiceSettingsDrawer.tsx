@@ -332,6 +332,67 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                 </div>
               </div>
 
+              {/* Приоритетный формат проверки знаний (Study Modality) */}
+              <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                    <span>Основной формат проверки знаний</span>
+                  </label>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    (config.studyModality || 'voice') === 'voice'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                  }`}>
+                    {(config.studyModality || 'voice') === 'voice' ? '🎙️ Устный (Voice-First)' : '📝 Письменный (Text-First)'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Определяет, какой режим запускается в 1 клик при завершении карточек темы или блиц-повторении.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('interview_study_modality', 'voice');
+                      onChangeConfig({ ...config, studyModality: 'voice' });
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      (config.studyModality || 'voice') === 'voice'
+                        ? 'bg-gradient-to-r from-pastel-accentRose/10 to-pastel-accentViolet/10 border-pastel-accentViolet ring-1 ring-pastel-accentViolet/40 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-slate-800">🎙️ Устный опрос (Hands-free)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      ✨ <strong>Рекомендуется</strong>: ИИ сразу зачитывает вопросы подряд и слушает вас голосом через Авто-VAD без кликов по экрану.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('interview_study_modality', 'text');
+                      onChangeConfig({ ...config, studyModality: 'text' });
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      config.studyModality === 'text'
+                        ? 'bg-blue-50/80 border-blue-400 ring-1 ring-blue-400/40 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-blue-900">📝 Письменный квиз</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-snug">
+                      Пошаговые карточки с клавиатурой: вдумчивое чтение теории и детальный текстовый разбор ошибок после каждого вопроса.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               {/* Режим ведения диалога (Turn Mode) */}
               <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between">

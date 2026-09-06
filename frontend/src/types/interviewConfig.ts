@@ -51,6 +51,7 @@ export type UserGender = 'female' | 'male' | 'neutral';
 export type TurnMode = 'manual' | 'auto';
 export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3';
 export type InterviewLanguage = 'ru' | 'en';
+export type StudyModality = 'voice' | 'text';
 
 import { InterviewPersonaId, TargetGrade } from './personas';
 
@@ -63,6 +64,7 @@ export interface InterviewConfig {
   targetGrade?: TargetGrade; // 🎯 Целевой грейд (L4 Middle+, L5 Senior, L6 Staff)
   userGender?: UserGender; // 👩/👨/⚪ Пол кандидата для согласования грамматики в диалоге
   turnMode?: TurnMode; // 🛑 'manual' (по кнопке «Закончить ответ») | 🎙️ 'auto' (авто-VAD)
+  studyModality?: StudyModality; // 🎯 Приоритетный режим проверки: 🎙️ 'voice' (по умолчанию) | 📝 'text'
   liveModel?: LiveModelChoice; // ⚡ 'gemini-live-v2' (Стабильный, SOTA) | 'gemini-live-v3' (Preview)
   deepDive?: boolean; // 🔬 Глубокое зондирование (под капот, смежные темы, стресс-тест)
   liveCoaching?: boolean; // 🎓 Разбор ошибок и объяснение правильного ответа на лету
