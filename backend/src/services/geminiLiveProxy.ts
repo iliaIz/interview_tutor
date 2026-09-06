@@ -81,6 +81,13 @@ interface ProxySession {
   sessionType?: 'interview' | 'tutor' | 'system_design';
   currentArchitectureMermaid?: string;
   currentGraphIr?: string;
+  isUpstreamReconnecting?: boolean;
+  reconnectAttempts?: number;
+  reconnectTimer?: NodeJS.Timeout | null;
+  toolCallSafetyTimeout?: NodeJS.Timeout | null;
+  lastToolCallHash?: string;
+  lastToolCallTime?: number;
+  isTerminated?: boolean;
 }
 
 export function setupLiveWebSocketProxy(server: http.Server) {
@@ -211,13 +218,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
-    console.log(`⚡ Connecting to Upstream Gemini Live WS (${upstreamWsUrl}) [Session: ${sessionId || 'anon'}, Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, Gender: ${userGender}, TurnMode: ${turnMode}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
-
-    const geminiSocket = new WebSocket(upstreamWsUrl);
 
     const session: ProxySession = {
       clientSocket,
-      geminiSocket,
+      geminiSocket: null as any,
       isSetupComplete: false,
       frameQueue: [],
       sessionId,
@@ -237,7 +241,106 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       persona,
       targetGrade,
       isToolCallPending: false,
-      sessionType
+      sessionType,
+      isUpstreamReconnecting: false,
+      reconnectAttempts: 0,
+      reconnectTimer: null,
+      toolCallSafetyTimeout: null,
+      isTerminated: false
+    };
+
+    let isTerminated = false;
+    const terminate = (source: string, code?: number, reason?: Buffer) => {
+      if (isTerminated || session.isTerminated) return;
+      isTerminated = true;
+      session.isTerminated = true;
+
+      console.log(`🔌 Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
+      if (session.heartbeatInterval) {
+        clearInterval(session.heartbeatInterval);
+        session.heartbeatInterval = null;
+      }
+      if (session.nudgeWatchdog) {
+        clearTimeout(session.nudgeWatchdog);
+        session.nudgeWatchdog = null;
+      }
+      if (session.reconnectTimer) {
+        clearTimeout(session.reconnectTimer);
+        session.reconnectTimer = null;
+      }
+      if (session.toolCallSafetyTimeout) {
+        clearTimeout(session.toolCallSafetyTimeout);
+        session.toolCallSafetyTimeout = null;
+      }
+      if (session.currentAiTurnText && session.sessionId) {
+        const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+        mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+        mem.lastSpeaker = 'model';
+        mem.updatedAt = Date.now();
+        session.currentAiTurnText = '';
+      }
+      session.frameQueue = [];
+      try {
+        if (session.geminiSocket && (session.geminiSocket.readyState === WebSocket.OPEN || session.geminiSocket.readyState === WebSocket.CONNECTING)) {
+          session.geminiSocket.close();
+        }
+      } catch (err) {
+        console.warn('Error closing geminiSocket:', err);
+      }
+      try {
+        if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
+          clientSocket.close();
+        }
+      } catch (err) {
+        console.warn('Error closing clientSocket:', err);
+      }
+    };
+
+    clientSocket.on('close', (code, reason) => terminate('ClientSocket', code, reason));
+    clientSocket.on('error', (err) => {
+      console.error('Client WS error:', err.message);
+      terminate('ClientSocketError');
+    });
+
+    const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
+      if (session.isTerminated || isTerminated) return;
+      console.warn(`⚠️ Upstream Gemini Live WS disconnected [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
+
+      // If client is still connected, attempt Hot Reconnect
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        if ((session.reconnectAttempts || 0) < 3) {
+          session.reconnectAttempts = (session.reconnectAttempts || 0) + 1;
+          session.isUpstreamReconnecting = true;
+          session.isSetupComplete = false;
+          console.log(`🔄 Performing Upstream Hot Reconnect (attempt ${session.reconnectAttempts}/3) for session ${session.sessionId}...`);
+
+          try {
+            clientSocket.send(JSON.stringify({
+              type: 'upstream_reconnecting',
+              attempt: session.reconnectAttempts,
+              maxAttempts: 3
+            }));
+          } catch {}
+
+          const backoffDelay = (session.reconnectAttempts - 1) * 400; // 0ms, 400ms, 800ms
+          if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
+          session.reconnectTimer = setTimeout(() => {
+            if (!session.isTerminated && !isTerminated && clientSocket.readyState === WebSocket.OPEN) {
+              connectGemini(true);
+            }
+          }, backoffDelay);
+          return;
+        } else {
+          console.error(`❌ Upstream Hot Reconnect attempts exhausted (3/3) for session ${session.sessionId}. Terminating session.`);
+          try {
+            clientSocket.send(JSON.stringify({
+              error: 'Голосовой шлюз временно недоступен после повторных попыток переподключения.'
+            }));
+          } catch {}
+        }
+      }
+
+      terminate(source, code, reason);
     };
 
     // WebSocket Keepalive Heartbeat (every 15s)
@@ -283,7 +386,6 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       targetGrade
     });
 
-
     const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);
 
     const setupMessage: any = {
@@ -314,279 +416,370 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       ];
     }
 
-    geminiSocket.on('open', () => {
-      console.log(`✅ Connected to Upstream Gemini Live WS (${liveModel}), sending setup frame...`);
-      geminiSocket.send(JSON.stringify(setupMessage));
-    });
+    const connectGemini = (isInternalReconnect = false) => {
+      if (session.isTerminated || clientSocket.readyState !== WebSocket.OPEN) return;
 
-    geminiSocket.on('message', async (data: RawData) => {
-      const buffer = toRawBuffer(data);
-      const str = buffer.toString('utf8');
-      let isToolCallProcessed = false;
+      console.log(`⚡ ${isInternalReconnect ? 'Reconnecting' : 'Connecting'} to Upstream Gemini Live WS (${upstreamWsUrl}) [Session: ${sessionId || 'anon'}, Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
 
-      try {
-        const parsed = JSON.parse(str);
+      if (session.geminiSocket) {
+        try {
+          session.geminiSocket.removeAllListeners();
+          if (session.geminiSocket.readyState === WebSocket.OPEN || session.geminiSocket.readyState === WebSocket.CONNECTING) {
+            session.geminiSocket.close();
+          }
+        } catch {}
+      }
 
-        // Handle setupComplete from Google Gemini
-        if (parsed.setupComplete) {
-          session.isSetupComplete = true;
-          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType}, isResumed: ${isResumed}, sessionId: ${session.sessionId || 'none'})!`);
+      const geminiSocket = new WebSocket(upstreamWsUrl);
+      session.geminiSocket = geminiSocket;
 
-          if (isResumed) {
-            const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
-            const hasHistory = mem && mem.turns.length > 0;
+      geminiSocket.on('open', () => {
+        console.log(`✅ Connected to Upstream Gemini Live WS (${liveModel}), sending setup frame...`);
+        geminiSocket.send(JSON.stringify(setupMessage));
+      });
 
-            if (hasHistory) {
-              console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
-              const replayTurns = mem.turns.map((t) => ({
-                role: t.role,
-                parts: [{ text: t.text }]
-              }));
+      geminiSocket.on('close', (code, reason) => {
+        handleGeminiDisconnect('GeminiUpstreamClose', code, reason);
+      });
 
-              // Send structured multi-turn conversation history to Google Gemini Live
-              const multiTurnMessage = {
-                clientContent: {
-                  turns: replayTurns,
-                  turnComplete: false
-                }
-              };
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                geminiSocket.send(JSON.stringify(multiTurnMessage));
-              }
+      geminiSocket.on('error', (err) => {
+        console.error('Gemini Live upstream WS error:', err.message);
+        handleGeminiDisconnect('GeminiUpstreamError');
+      });
 
-              // Silent Resumption: if candidate was speaking or reflecting when connection dropped, keep AI silent!
-              if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
-                console.log(`🤫 Silent Resumption active for session ${session.sessionId}: AI remains quiet, microphone immediately unlocked for candidate.`);
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true }));
-                }
-              } else {
-                // If disconnect happened mid-AI monologue, trigger a concise 1-sentence thought completion
-                console.log(`🎙️ Mid-turn Resumption for session ${session.sessionId}: triggering brief completion without greetings.`);
-                const continueTurn = {
+      geminiSocket.on('message', async (data: RawData) => {
+        const buffer = toRawBuffer(data);
+        const str = buffer.toString('utf8');
+        let isToolCallProcessed = false;
+
+        try {
+          const parsed = JSON.parse(str);
+
+          // Handle setupComplete from Google Gemini
+          if (parsed.setupComplete) {
+            session.isSetupComplete = true;
+            const wasReconnecting = session.isUpstreamReconnecting;
+            session.isUpstreamReconnecting = false;
+            session.reconnectAttempts = 0;
+            console.log(`🎉 Upstream setupComplete received (Type: ${sessionType}, isResumed: ${isResumed}, wasReconnecting: ${wasReconnecting}, sessionId: ${session.sessionId || 'none'})!`);
+
+            if (isResumed || wasReconnecting) {
+              const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
+              const hasHistory = mem && mem.turns.length > 0;
+
+              if (hasHistory) {
+                console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
+                const replayTurns = mem.turns.map((t) => ({
+                  role: t.role,
+                  parts: [{ text: t.text }]
+                }));
+
+                // Send structured multi-turn conversation history to Google Gemini Live
+                const multiTurnMessage = {
                   clientContent: {
-                    turns: [
-                      {
-                        role: 'user',
-                        parts: [
-                          {
-                            text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ]: Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
-                          }
-                        ]
-                      }
-                    ],
-                    turnComplete: true
+                    turns: replayTurns,
+                    turnComplete: false
                   }
                 };
                 if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify(continueTurn));
+                  geminiSocket.send(JSON.stringify(multiTurnMessage));
                 }
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
+
+                if (wasReconnecting) {
+                  console.log(`✅ Upstream Hot Reconnect complete: notifying client of ready state`);
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+                  }
+                } else if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
+                  console.log(`🤫 Silent Resumption active for session ${session.sessionId}: AI remains quiet, microphone immediately unlocked for candidate.`);
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true }));
+                  }
+                } else {
+                  // If disconnect happened mid-AI monologue, trigger a concise 1-sentence thought completion
+                  console.log(`🎙️ Mid-turn Resumption for session ${session.sessionId}: triggering brief completion without greetings.`);
+                  const continueTurn = {
+                    clientContent: {
+                      turns: [
+                        {
+                          role: 'user',
+                          parts: [
+                            {
+                              text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ]: Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
+                            }
+                          ]
+                        }
+                      ],
+                      turnComplete: true
+                    }
+                  };
+                  if (geminiSocket.readyState === WebSocket.OPEN) {
+                    geminiSocket.send(JSON.stringify(continueTurn));
+                  }
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
+                  }
+                }
+              } else {
+                if (wasReconnecting) {
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+                  }
+                } else {
+                  // Fallback if memory was cold: send concise non-regreeting continuation
+                  const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
+                  const initialGreetingTurn = {
+                    clientContent: {
+                      turns: [
+                        {
+                          role: 'user',
+                          parts: [{ text: fallbackGreeting }]
+                        }
+                      ],
+                      turnComplete: true
+                    }
+                  };
+                  if (geminiSocket.readyState === WebSocket.OPEN) {
+                    geminiSocket.send(JSON.stringify(initialGreetingTurn));
+                  }
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
+                  }
                 }
               }
             } else {
-              // Fallback if memory was cold: send concise non-regreeting continuation
-              const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
+              let greetingText = '';
+              if (initialUserMessage) {
+                // User connected by sending a concrete textual question/code critique
+                greetingText = initialUserMessage;
+                session.hasCandidateResponded = true;
+                console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
+              } else if (sessionType === 'tutor') {
+                if (tutorMode === 'bug_hunt') {
+                  greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
+                } else if (tutorMode === 'deep_dive') {
+                  greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
+                } else if (tutorMode === 'free_chat') {
+                  greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
+                } else if (tutorMode === 'socratic') {
+                  greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
+                } else if (tutorMode === 'eli5') {
+                  greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
+                } else {
+                  greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
+                }
+              } else {
+                const isSubsequent = questionIndex > 0;
+                if (session.isRetry) {
+                  greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри одной фразой и четко задай этот вопрос.`;
+                } else {
+                  greetingText = isSubsequent
+                    ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
+                    : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+                }
+              }
+
               const initialGreetingTurn = {
                 clientContent: {
                   turns: [
                     {
                       role: 'user',
-                      parts: [{ text: fallbackGreeting }]
+                      parts: [
+                        {
+                          text: greetingText
+                        }
+                      ]
                     }
                   ],
                   turnComplete: true
                 }
               };
+
               if (geminiSocket.readyState === WebSocket.OPEN) {
                 geminiSocket.send(JSON.stringify(initialGreetingTurn));
               }
+
+              // Notify client
               if (clientSocket.readyState === WebSocket.OPEN) {
-                clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
-              }
-            }
-          } else {
-            let greetingText = '';
-            if (initialUserMessage) {
-              // User connected by sending a concrete textual question/code critique
-              greetingText = initialUserMessage;
-              session.hasCandidateResponded = true;
-              console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
-            } else if (sessionType === 'tutor') {
-              if (tutorMode === 'bug_hunt') {
-                greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
-              } else if (tutorMode === 'deep_dive') {
-                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
-              } else if (tutorMode === 'free_chat') {
-                greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
-              } else if (tutorMode === 'socratic') {
-                greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
-              } else if (tutorMode === 'eli5') {
-                greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
-              } else {
-                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
-              }
-            } else {
-              const isSubsequent = questionIndex > 0;
-              if (session.isRetry) {
-                greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри одной фразой и четко задай этот вопрос.`;
-              } else {
-                greetingText = isSubsequent
-                  ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой-переходом подтверди прогресс и четко зачитай следующий технический вопрос: "${questionText || 'Следующий вопрос темы'}"`
-                  : `Привет! Я готова к собеседованию. Поприветствуй меня одной фразой и четко зачитай технический вопрос: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+                clientSocket.send(JSON.stringify({
+                  type: 'setupComplete',
+                  hasInitialUserMessage: !!initialUserMessage
+                }));
               }
             }
 
-            const initialGreetingTurn = {
-              clientContent: {
-                turns: [
-                  {
-                    role: 'user',
-                    parts: [
-                      {
-                        text: greetingText
-                      }
-                    ]
-                  }
-                ],
-                turnComplete: true
-              }
-            };
-
-            if (geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(JSON.stringify(initialGreetingTurn));
-            }
-
-            // SOTA 2026: Destructive 3.5s greetingWatchdog removed to eliminate turn collisions and false Barge-in.
-
-            // Notify client
-            if (clientSocket.readyState === WebSocket.OPEN) {
-              clientSocket.send(JSON.stringify({
-                type: 'setupComplete',
-                hasInitialUserMessage: !!initialUserMessage
-              }));
-            }
-          }
-
-
-          // Drain queued frames
-          while (session.frameQueue.length > 0) {
-            const frame = session.frameQueue.shift();
-            if (frame && geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(frame);
-            }
-          }
-        }
-
-        // Model Turn Text accumulation and watchdog clearing
-        if (parsed.serverContent?.modelTurn) {
-          session.isToolCallPending = false;
-          session.lastActivityAt = Date.now();
-          session.probesCount = (session.probesCount || 0) + 1;
-          if (session.nudgeWatchdog) {
-            clearTimeout(session.nudgeWatchdog);
-            session.nudgeWatchdog = null;
-          }
-
-          if (parsed.serverContent.modelTurn.parts) {
-            for (const part of parsed.serverContent.modelTurn.parts) {
-              if (part.text) {
-                session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
+            // Drain queued frames
+            while (session.frameQueue.length > 0) {
+              const frame = session.frameQueue.shift();
+              if (frame && geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(frame);
               }
             }
           }
-        }
 
-        // AI finished generating turn: commit to session turn history
-        if (parsed.serverContent?.turnComplete) {
-          if (session.currentAiTurnText && session.sessionId) {
-            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-            mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-            mem.lastSpeaker = 'model';
-            mem.updatedAt = Date.now();
-            session.currentAiTurnText = '';
-          }
-        }
-
-        // Barge-in interruption during AI speech
-        if (parsed.serverContent?.interrupted) {
-          if (session.sessionId) {
-            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-            if (session.currentAiTurnText) {
-              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-              session.currentAiTurnText = '';
+          // Model Turn Text accumulation and watchdog clearing
+          if (parsed.serverContent?.modelTurn) {
+            session.isToolCallPending = false;
+            if (session.toolCallSafetyTimeout) {
+              clearTimeout(session.toolCallSafetyTimeout);
+              session.toolCallSafetyTimeout = null;
             }
-            mem.lastSpeaker = 'user';
-            mem.updatedAt = Date.now();
-          }
-        }
+            session.lastActivityAt = Date.now();
+            session.probesCount = (session.probesCount || 0) + 1;
+            if (session.nudgeWatchdog) {
+              clearTimeout(session.nudgeWatchdog);
+              session.nudgeWatchdog = null;
+            }
 
-        // Handle Function Calling / toolCall
-        if (parsed.toolCall?.functionCalls) {
-          isToolCallProcessed = true; // Never leak internal toolCall frames to frontend client
-          session.isToolCallPending = true;
-          session.lastActivityAt = Date.now();
-          if (session.nudgeWatchdog) {
-            clearTimeout(session.nudgeWatchdog);
-            session.nudgeWatchdog = null;
-          }
-          console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
-
-          // SOTA 2026: Notify client that tools are actively executing (prevents false gateway delay alerts)
-          if (clientSocket.readyState === WebSocket.OPEN) {
-            clientSocket.send(JSON.stringify({
-              type: 'tool_executing',
-              tools: parsed.toolCall.functionCalls.map((fc: any) => fc.name)
-            }));
-          }
-
-          try {
-            for (const call of parsed.toolCall.functionCalls) {
-              try {
-                await handleLiveToolCall({
-                  call,
-                  clientSocket,
-                  geminiSocket,
-                  session,
-                  parsedHints,
-                  liveCoaching
-                });
-              } catch (toolErr) {
-                const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
-                console.error(`❌ Error executing tool ${call.name}:`, toolErr);
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify({
-                    toolResponse: {
-                      functionResponses: [
-                        {
-                          id: call.id,
-                          name: call.name,
-                          response: {
-                            result: {
-                              error: `Tool execution failed: ${errorMessage}`
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }));
+            if (parsed.serverContent.modelTurn.parts) {
+              for (const part of parsed.serverContent.modelTurn.parts) {
+                if (part.text) {
+                  session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
                 }
               }
             }
-          } finally {
-            session.isToolCallPending = false;
           }
-        }
-      } catch (e) {
-        // Non-JSON or binary pass-through
-      }
 
-      // Forward everything upstream -> client as Text JSON (avoid double forwarding raw toolCall)
-      if (!isToolCallProcessed && clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(str);
-      }
-    });
+          // AI finished generating turn: commit to session turn history
+          if (parsed.serverContent?.turnComplete) {
+            session.isToolCallPending = false;
+            if (session.toolCallSafetyTimeout) {
+              clearTimeout(session.toolCallSafetyTimeout);
+              session.toolCallSafetyTimeout = null;
+            }
+            if (session.currentAiTurnText && session.sessionId) {
+              const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+              mem.lastSpeaker = 'model';
+              mem.updatedAt = Date.now();
+              session.currentAiTurnText = '';
+            }
+          }
+
+          // Barge-in interruption during AI speech
+          if (parsed.serverContent?.interrupted) {
+            if (session.sessionId) {
+              const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+              if (session.currentAiTurnText) {
+                mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+                session.currentAiTurnText = '';
+              }
+              mem.lastSpeaker = 'user';
+              mem.updatedAt = Date.now();
+            }
+          }
+
+          // Handle Function Calling / toolCall
+          if (parsed.toolCall?.functionCalls) {
+            isToolCallProcessed = true; // Never leak internal toolCall frames to frontend client
+            session.isToolCallPending = true;
+            session.lastActivityAt = Date.now();
+            if (session.nudgeWatchdog) {
+              clearTimeout(session.nudgeWatchdog);
+              session.nudgeWatchdog = null;
+            }
+            console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
+
+            // Set 7s safety timeout to prevent permanent audio mute if upstream never generates modelTurn
+            if (session.toolCallSafetyTimeout) clearTimeout(session.toolCallSafetyTimeout);
+            session.toolCallSafetyTimeout = setTimeout(() => {
+              if (session.isToolCallPending) {
+                console.warn('⚠️ Tool call safety timeout (7s) reached: releasing audio gate');
+                session.isToolCallPending = false;
+              }
+            }, 7000);
+
+            // SOTA 2026: Notify client that tools are actively executing (prevents false gateway delay alerts)
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              clientSocket.send(JSON.stringify({
+                type: 'tool_executing',
+                tools: parsed.toolCall.functionCalls.map((fc: any) => fc.name)
+              }));
+            }
+
+            try {
+              for (const call of parsed.toolCall.functionCalls) {
+                // Deduplication check for update_whiteboard
+                if (call.name === 'update_whiteboard') {
+                  const callKey = JSON.stringify(call.args || {});
+                  const now = Date.now();
+                  if (session.lastToolCallHash === callKey && now - (session.lastToolCallTime || 0) < 3000) {
+                    console.log('🔄 Suppressing duplicate update_whiteboard call within 3s');
+                    if (geminiSocket.readyState === WebSocket.OPEN) {
+                      geminiSocket.send(JSON.stringify({
+                        toolResponse: {
+                          functionResponses: [
+                            {
+                              id: call.id,
+                              name: call.name,
+                              response: {
+                                result: {
+                                  status: 'SUCCESS',
+                                  message: 'Интерактивная доска уже обновлена.'
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }));
+                    }
+                    continue;
+                  }
+                  session.lastToolCallHash = callKey;
+                  session.lastToolCallTime = now;
+                }
+
+                try {
+                  await handleLiveToolCall({
+                    call,
+                    clientSocket,
+                    geminiSocket,
+                    session,
+                    parsedHints,
+                    liveCoaching
+                  });
+                } catch (toolErr) {
+                  const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
+                  console.error(`❌ Error executing tool ${call.name}:`, toolErr);
+                  if (geminiSocket.readyState === WebSocket.OPEN) {
+                    geminiSocket.send(JSON.stringify({
+                      toolResponse: {
+                        functionResponses: [
+                          {
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                              result: {
+                                error: `Tool execution failed: ${errorMessage}`
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }));
+                  }
+                }
+              }
+            } finally {
+              // CRITICAL INVARIANT: DO NOT reset session.isToolCallPending here!
+              // session.isToolCallPending remains TRUE until parsed.serverContent.modelTurn or turnComplete
+              // arrives from Gemini. This prevents sending client PCM audio during the tool transition,
+              // which causes Google 1008 Policy Violation.
+            }
+          }
+        } catch (e) {
+          // Non-JSON or binary pass-through
+        }
+
+        // Forward everything upstream -> client as Text JSON (avoid double forwarding raw toolCall)
+        if (!isToolCallProcessed && clientSocket.readyState === WebSocket.OPEN) {
+          clientSocket.send(str);
+        }
+      });
+    };
+
+    // Initial upstream connection
+    connectGemini(false);
 
     clientSocket.on('message', (data: RawData) => {
       session.lastActivityAt = Date.now();
@@ -615,6 +808,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           return;
         }
 
+        // Client sync_ping when watchdog detects delay
+        if (parsed.type === 'sync_ping') {
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(JSON.stringify({
+              type: 'sync_pong',
+              isSetupComplete: session.isSetupComplete,
+              isUpstreamReconnecting: session.isUpstreamReconnecting,
+              isToolCallPending: session.isToolCallPending,
+              timestamp: Date.now()
+            }));
+          }
+          return;
+        }
+
         // First-frame resumption sync from client (robust fallback if memory was cold)
         if (parsed.type === 'resume_sync' && Array.isArray(parsed.turns) && session.sessionId) {
           const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
@@ -630,13 +837,13 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             console.log(`📥 Seeded session memory from client resume_sync frame: ${mem.turns.length} turns for session ${session.sessionId}`);
 
             // If setupComplete already arrived before resume_sync, replay history upstream now!
-            if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
+            if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
               const replayTurns = mem.turns.map((t) => ({
                 role: t.role,
                 parts: [{ text: t.text }]
               }));
               console.log(`🔄 Replaying ${replayTurns.length} turns to upstream Live model after resume_sync...`);
-              geminiSocket.send(JSON.stringify({
+              session.geminiSocket.send(JSON.stringify({
                 clientContent: {
                   turns: replayTurns,
                   turnComplete: false
@@ -664,7 +871,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
             session.currentGraphIr = parsed.payload.graphIr;
           }
 
-          if (session.isSetupComplete && geminiSocket.readyState === WebSocket.OPEN) {
+          if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
             let deicticContent = '';
             if (parsed.payload?.graphIr) {
               const summary = parsed.payload.mutationSummary ? `${parsed.payload.mutationSummary}\n` : '';
@@ -678,7 +885,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
 
             const deicticText = `[CANVAS_DEICTIC_CONTEXT: ${deicticContent}]`;
             console.log(`🧭 Canvas deictic context forwarded to Gemini Live: ${deicticText}`);
-            geminiSocket.send(JSON.stringify({
+            session.geminiSocket.send(JSON.stringify({
               clientContent: {
                 turns: [{
                   role: 'user',
@@ -761,7 +968,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
         }
       } catch {}
 
-      if (!session.isSetupComplete) {
+      if (!session.isSetupComplete || session.isUpstreamReconnecting) {
         // Buffer audio or turns while waiting for setupComplete (bounded queue against memory leak)
         const MAX_FRAME_QUEUE = 200;
         if (session.frameQueue.length >= MAX_FRAME_QUEUE) {
@@ -779,67 +986,10 @@ export function setupLiveWebSocketProxy(server: http.Server) {
           } catch {}
         }
 
-        if (geminiSocket.readyState === WebSocket.OPEN) {
-          geminiSocket.send(payloadBuffer);
+        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+          session.geminiSocket.send(payloadBuffer);
         }
       }
-    });
-
-    let isTerminated = false;
-    const terminate = (source: string, code?: number, reason?: Buffer) => {
-      if (isTerminated) return;
-      isTerminated = true;
-
-      console.log(`🔌 Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
-      if (session.heartbeatInterval) {
-        clearInterval(session.heartbeatInterval);
-        session.heartbeatInterval = null;
-      }
-      if (session.nudgeWatchdog) {
-        clearTimeout(session.nudgeWatchdog);
-        session.nudgeWatchdog = null;
-      }
-      if (session.currentAiTurnText && session.sessionId) {
-        const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-        mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-        mem.lastSpeaker = 'model';
-        mem.updatedAt = Date.now();
-        session.currentAiTurnText = '';
-      }
-      session.frameQueue = [];
-      try {
-        if (geminiSocket.readyState === WebSocket.OPEN || geminiSocket.readyState === WebSocket.CONNECTING) {
-          geminiSocket.close();
-        }
-      } catch (err) {
-        console.warn('Error closing geminiSocket:', err);
-      }
-      try {
-        if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
-          clientSocket.close();
-        }
-      } catch (err) {
-        console.warn('Error closing clientSocket:', err);
-      }
-    };
-
-    clientSocket.on('close', (code, reason) => terminate('ClientSocket', code, reason));
-    clientSocket.on('error', (err) => {
-      console.error('Client WS error:', err.message);
-      terminate('ClientSocketError');
-    });
-
-    geminiSocket.on('close', (code, reason) => terminate('GeminiUpstream', code, reason));
-    geminiSocket.on('error', (err) => {
-      console.error('Gemini Live upstream WS error:', err.message);
-      if (clientSocket.readyState === WebSocket.OPEN) {
-        try {
-          clientSocket.send(JSON.stringify({ error: `Ошибка голосового шлюза: ${err.message}` }));
-        } catch (sendErr) {
-          console.warn('Failed to forward error message to clientSocket:', sendErr);
-        }
-      }
-      terminate('GeminiUpstreamError');
     });
   });
 }

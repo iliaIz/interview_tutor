@@ -462,7 +462,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                             : 'ИИ осмысливает ответ и готовит пояснение...'}
                         </span>
                       </span>
-                      {thinkingStage === 'critical' && (
+                      {(thinkingStage === 'critical' || thinkingStage === 'delayed') && (
                         <button
                           type="button"
                           onClick={toggleMic}

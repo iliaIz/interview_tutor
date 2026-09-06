@@ -643,6 +643,24 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       if (isThinkingRef.current && !isEvaluationFinalizedRef.current && sessionType !== 'tutor') {
         console.warn('⏱️ 10s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
         void executeInstantRestEvalFallback();
+      } else if (isThinkingRef.current && sessionType === 'tutor') {
+        console.warn('⏱️ 10s Tutor Turn Watchdog expired. Sending sync ping to backend...');
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify({ type: 'sync_ping', timestamp: Date.now() }));
+          } catch {}
+        }
+        // If after 14s still thinking in tutor mode, gently unfreeze thinking state to allow user to continue speaking
+        setTimeout(() => {
+          if (isThinkingRef.current && sessionType === 'tutor') {
+            console.warn('⏱️ 14s Tutor Turn Watchdog hard recovery: unlocking microphone for candidate.');
+            setIsThinking(false);
+            isThinkingRef.current = false;
+            setThinkingStage('idle');
+            setIsRecording(true);
+            isRecordingRef.current = true;
+          }
+        }, 4000);
       }
     }, 10000);
 
@@ -1114,6 +1132,24 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           return;
         }
 
+        // Upstream reconnection events from backend Split-Socket resilience
+        if (data.type === 'upstream_reconnecting') {
+          console.log(`🔄 Upstream reconnecting (attempt ${data.attempt || 1}/${data.maxAttempts || 3})...`);
+          setThinkingStage('delayed');
+          return;
+        }
+
+        if (data.type === 'upstream_ready') {
+          console.log('✅ Upstream reconnected and ready!');
+          clearAllTurnWatchdogs();
+          setThinkingStage('idle');
+          setIsThinking(false);
+          isThinkingRef.current = false;
+          setIsRecording(true);
+          isRecordingRef.current = true;
+          return;
+        }
+
         // Live Whiteboard sync from AI
         if (data.type === 'whiteboard_update') {
           const payload = data.payload;
@@ -1325,14 +1361,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setIsUserSpeaking(false);
 
       // SOTA Auto-Resumption: Seamless reconnection with compacted context on Google/network timeouts
-      const targetQ = questionsBatch?.[activeBatchIndex];
-      const isSessionActive = stage === 'active' && !isEvaluationFinalizedRef.current && !!targetQ;
+      const targetQ = (questionsBatch && questionsBatch[activeBatchIndex]) || {
+        id: activeQuestionId,
+        topic: activeTopic,
+        question: activeQuestionText,
+        answer: activeReferenceAnswer
+      };
+      const isSessionActive = stage === 'active' && !isEvaluationFinalizedRef.current && !!targetQ.question;
       const isDeliberateAbort = ev.code === 1000 && ev.reason === 'client_abort';
 
       if (isSessionActive && !isDeliberateAbort) {
-        if (resumeAttemptsRef.current < 3) {
+        if (resumeAttemptsRef.current < 5) {
           resumeAttemptsRef.current++;
-          console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/3 with state snapshot...`);
+          console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/5 with state snapshot...`);
 
           // Compile state snapshot from dialogueTurnsRef (Strict Question-Boundary Isolation & Splicing up to 3000 chars)
           const turns = dialogueTurnsRef.current.filter((t) => t.role === 'user' || t.role === 'ai');

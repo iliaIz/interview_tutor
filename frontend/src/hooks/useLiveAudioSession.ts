@@ -26,6 +26,8 @@ export interface LiveAudioSessionParams {
   codeSnippet?: string;
   hints?: string[];
   initialUserMessage?: string;
+  sessionId?: string;
+  isResumed?: boolean;
 }
 
 export interface DialogueTurn {
@@ -75,6 +77,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const currentParamsRef = useRef<LiveAudioSessionParams>({});
   const isServerTurnCompleteRef = useRef(false);
   const pendingTextMessageRef = useRef<string | null>(null);
+  const resumeAttemptsRef = useRef<number>(0);
 
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
@@ -158,6 +161,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     }
     if (params.initialUserMessage) {
       query.set('initialUserMessage', params.initialUserMessage);
+    }
+    if (params.sessionId) {
+      query.set('sessionId', params.sessionId);
+    }
+    if (params.isResumed !== undefined) {
+      query.set('isResumed', String(params.isResumed));
     }
 
     return `${protocol}//${hostWithPort}/ws/live?${query.toString()}`;
@@ -352,7 +361,20 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             return;
           }
 
+          if (data.type === 'upstream_reconnecting') {
+            setStatusMessage(`🔄 Синхронизация связи со шлюзом (попытка ${data.attempt || 1}/${data.maxAttempts || 3})...`);
+            return;
+          }
+
+          if (data.type === 'upstream_ready') {
+            setStatusMessage('🎙️ Связь восстановлена: говорите в микрофон...');
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            return;
+          }
+
           if (data.type === 'setupComplete') {
+            resumeAttemptsRef.current = 0;
             setStatusMessage('🔊 AI говорит...');
             // Lazy warm-up mic in background without interrupting playback
             void initMicrophoneHardware();
@@ -470,6 +492,23 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         setIsConnected(false);
         setIsRecording(false);
         isRecordingRef.current = false;
+
+        // Auto-reconnect if dropped unexpectedly (e.g. transient network drop)
+        const isDeliberate = isCleaningUpRef.current || (ev.code === 1000 && ev.reason === 'client_abort');
+        if (!isDeliberate && currentParamsRef.current && resumeAttemptsRef.current < 3) {
+          resumeAttemptsRef.current++;
+          setStatusMessage(`🔄 Переподключение к шлюзу (попытка ${resumeAttemptsRef.current}/3)...`);
+          setTimeout(() => {
+            if (!isCleaningUpRef.current && currentParamsRef.current) {
+              const resumeParams: LiveAudioSessionParams = {
+                ...currentParamsRef.current,
+                isResumed: true
+              };
+              void startSession(resumeParams);
+            }
+          }, 800);
+          return;
+        }
 
         // Drain Phase: Don't abruptly kill playback if audio is still playing
         if (playoutManagerRef.current?.isPlaying()) {
