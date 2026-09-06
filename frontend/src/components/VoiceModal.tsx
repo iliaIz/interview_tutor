@@ -813,9 +813,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       abortAllInFlightRequests();
       teardownFullAudio();
     };
-  }, [isOpen]);
+  }, [isOpen, initialQuestionIndex, initialSessionType]);
 
-  // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled (shows Lobby if Tutor opened without text)
+  // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled (Tutor ALWAYS opens in calm Lobby)
   const hasAutoLaunchedRef = useRef(false);
   useEffect(() => {
     if (!isOpen) {
@@ -824,13 +824,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
     const currentConfig = interviewConfigRef.current;
     // SOTA 2026: Tutor always opens in calm Lobby state so user can choose tutoring mode and review topic
-    const shouldFastLaunch = !currentConfig.alwaysShowPreflight && sessionType !== 'tutor';
+    const effectiveSessionType = initialSessionType || sessionType;
+    const shouldFastLaunch = !currentConfig.alwaysShowPreflight && effectiveSessionType !== 'tutor';
 
     if (stage === 'lobby' && shouldFastLaunch && !hasAutoLaunchedRef.current) {
       hasAutoLaunchedRef.current = true;
-      void startLiveInterviewWithIndex(activeBatchIndex);
+      const targetIdx = initialQuestionIndex !== undefined ? initialQuestionIndex : activeBatchIndex;
+      void startLiveInterviewWithIndex(targetIdx);
     }
-  }, [isOpen, stage, activeBatchIndex, customPromptOverride, sessionType]);
+  }, [isOpen, stage, activeBatchIndex, initialQuestionIndex, customPromptOverride, sessionType, initialSessionType]);
 
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {

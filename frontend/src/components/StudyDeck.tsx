@@ -592,30 +592,33 @@ const getTutorModeLabel = (mode: string) => {
       </div>
 
       {/* Voice Modal with Continuous Batch Mode */}
-      <VoiceModal
-        isOpen={isVoiceOpen}
-        onClose={() => setIsVoiceOpen(false)}
-        questionId={currentQ.id}
-        topic={selectedTopicName || currentQ.topic}
-        currentQuestionText={currentQ.question}
-        referenceAnswer={currentQ.answer}
-        questionsBatch={currentBatch}
-        initialQuestionIndex={voiceInitialIndex}
-        onIndexChange={(newIdx) => setQuestionIndex(newIdx)}
-        initialSessionType={voiceModalSessionType}
-        initialTutorMode={voiceModalTutorMode}
-        customPromptOverride={customPromptForTutor}
-        onBatchComplete={(evaluations: Record<string, any>) => {
-          Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
-            const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;
-            const isMastered = evalData.isPassed && numScore >= 8;
-            setQuestionEvaluation(qId, evalData);
-            if (selectedTopicId) {
-              updateTopicProgress(selectedTopicId, qId, isMastered, currentBatch.length);
-            }
-          });
-        }}
-      />
+      {isVoiceOpen && (
+        <VoiceModal
+          key={`voice_modal_${voiceModalSessionType}_${voiceInitialIndex}_${currentQ.id}`}
+          isOpen={isVoiceOpen}
+          onClose={() => setIsVoiceOpen(false)}
+          questionId={currentQ.id}
+          topic={selectedTopicName || currentQ.topic}
+          currentQuestionText={currentQ.question}
+          referenceAnswer={currentQ.answer}
+          questionsBatch={currentBatch}
+          initialQuestionIndex={voiceInitialIndex}
+          onIndexChange={(newIdx) => setQuestionIndex(newIdx)}
+          initialSessionType={voiceModalSessionType}
+          initialTutorMode={voiceModalTutorMode}
+          customPromptOverride={customPromptForTutor}
+          onBatchComplete={(evaluations: Record<string, any>) => {
+            Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
+              const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;
+              const isMastered = evalData.isPassed && numScore >= 8;
+              setQuestionEvaluation(qId, evalData);
+              if (selectedTopicId) {
+                updateTopicProgress(selectedTopicId, qId, isMastered, currentBatch.length);
+              }
+            });
+          }}
+        />
+      )}
     </div>
   );
 };
