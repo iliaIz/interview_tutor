@@ -1,5 +1,4 @@
 # Caddyfile for InterviewPrep AI (Production 2026)
-# Supports djelu.site, www.djelu.site, 192-124-182-59.sslip.io, and port 80 fallback
 
 {
     email admin@djelu.site
@@ -15,7 +14,7 @@
     }
 }
 
-java.djelu.site, www.djelu.site, 192-124-182-59.sslip.io, :80 {
+java.djelu.site, java.192-124-182-59.sslip.io {
     import common_headers
     encode zstd gzip
 

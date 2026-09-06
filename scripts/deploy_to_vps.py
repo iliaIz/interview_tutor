@@ -107,55 +107,56 @@ def deploy():
     except:
         pass
 
-    print("\n[5/5] Performing Zero-Trust & Health Checks on https://djelu.site...")
+    target_url = os.environ.get("DEPLOY_TARGET_URL", "https://java.djelu.site")
+    print(f"\n[5/5] Performing Zero-Trust & Health Checks on {target_url}...")
     time.sleep(3)
     try:
         session = requests.Session()
 
         # 1. Health check (public)
-        res = session.get("https://djelu.site/api/health", timeout=10)
+        res = session.get(f"{target_url}/api/health", timeout=10)
         print(f"1. Health Check (Public): {res.status_code}")
         print(f"   Response: {res.json()}")
 
         # 2. Zero-Trust Check: Unauthorized request must be rejected with 401
-        unauth_res = session.get("https://djelu.site/api/system-design/scenarios", timeout=10)
+        unauth_res = session.get(f"{target_url}/api/system-design/scenarios", timeout=10)
         print(f"2. Zero-Trust Check (Unauthorized API access): {unauth_res.status_code} (Expected 401)")
         assert unauth_res.status_code == 401, f"Expected 401 Unauthorized, got {unauth_res.status_code}"
 
         # 3. Login with Master Invite Code
         master_code = os.environ.get("MASTER_INVITE_CODE", "SENIOR-JAVA-2026-VIP")
-        login_res = session.post("https://djelu.site/api/auth/login", json={"inviteCode": master_code}, timeout=10)
+        login_res = session.post(f"{target_url}/api/auth/login", json={"inviteCode": master_code}, timeout=10)
         print(f"3. Master Invite Login: {login_res.status_code}")
         assert login_res.status_code == 200, f"Login failed with status {login_res.status_code}: {login_res.text}"
         login_data = login_res.json()
         print(f"   Logged in as: {login_data.get('user', {}).get('name')}")
 
         # 4. Authenticated API checks
-        c_res = session.get("https://djelu.site/api/practice/challenges", timeout=10)
+        c_res = session.get(f"{target_url}/api/practice/challenges", timeout=10)
         print(f"4. Practice Challenges (Auth): {c_res.status_code} (Found {len(c_res.json())} challenges)")
 
-        sd_res = session.get("https://djelu.site/api/system-design/scenarios", timeout=10)
+        sd_res = session.get(f"{target_url}/api/system-design/scenarios", timeout=10)
         print(f"5. System Design Scenarios (Auth): {sd_res.status_code} (Found {len(sd_res.json())} scenarios)")
 
-        tr_res = session.get("https://djelu.site/api/triage/challenges", timeout=10)
+        tr_res = session.get(f"{target_url}/api/triage/challenges", timeout=10)
         print(f"6. Incident Triage (Auth): {tr_res.status_code} (Found {len(tr_res.json())} incidents)")
 
-        rm_res = session.get("https://djelu.site/api/roadmaps", timeout=10)
+        rm_res = session.get(f"{target_url}/api/roadmaps", timeout=10)
         print(f"7. Guided Roadmaps (Auth): {rm_res.status_code} (Found {len(rm_res.json())} roadmap tracks)")
 
-        ticket_res = session.post("https://djelu.site/api/auth/ws-ticket", timeout=10)
+        ticket_res = session.post(f"{target_url}/api/auth/ws-ticket", timeout=10)
         print(f"8. WebSocket One-Time Ticket: {ticket_res.status_code} (Ticket: {ticket_res.json().get('ticket')[:12]}...)")
 
         # 9. Profile rename check
-        prof_res = session.put("https://djelu.site/api/auth/profile", json={"name": "Djelu (Owner)"}, timeout=10)
+        prof_res = session.put(f"{target_url}/api/auth/profile", json={"name": "Djelu (Owner)"}, timeout=10)
         print(f"9. Profile Rename (PUT /profile): {prof_res.status_code} (New Name: {prof_res.json().get('user', {}).get('name')})")
 
         # 10. List invites (Owner RBAC check)
-        invs_res = session.get("https://djelu.site/api/auth/invites", timeout=10)
+        invs_res = session.get(f"{target_url}/api/auth/invites", timeout=10)
         print(f"10. Owner Invites List (GET /invites): {invs_res.status_code} (Found {len(invs_res.json())} invites)")
 
         # 11. Create new invite from UI API
-        new_inv_res = session.post("https://djelu.site/api/auth/invites", json={
+        new_inv_res = session.post(f"{target_url}/api/auth/invites", json={
             "name": "Auto-Test User",
             "role": "user",
             "maxUses": 1
@@ -167,11 +168,11 @@ def deploy():
         # 12. Revoke and permanently delete invite API
         created_id = new_inv_data.get('invite', {}).get('inviteId')
         if created_id:
-            rev_res = session.post(f"https://djelu.site/api/auth/invites/{created_id}/revoke", timeout=10)
+            rev_res = session.post(f"{target_url}/api/auth/invites/{created_id}/revoke", timeout=10)
             print(f"12. Revoke/Delete Invite API (POST /invites/:id/revoke): {rev_res.status_code}")
 
             # 13. Verify permanent deletion from DB
-            after_invs = session.get("https://djelu.site/api/auth/invites", timeout=10).json()
+            after_invs = session.get(f"{target_url}/api/auth/invites", timeout=10).json()
             is_present = any(inv.get('id') == created_id for inv in after_invs)
             print(f"13. Permanent Deletion Verification: {'PASSED (Deleted)' if not is_present else 'FAILED (Still exists)'}")
 
