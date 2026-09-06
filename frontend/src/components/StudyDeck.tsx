@@ -81,6 +81,7 @@ const getTutorModeLabel = (mode: string) => {
 
   const [copied, setCopied] = React.useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
   const [voiceInitialIndex, setVoiceInitialIndex] = useState<number>(0);
   const [voiceModalSessionType, setVoiceModalSessionType] = useState<'interview' | 'tutor'>('interview');
   const [voiceModalTutorMode, setVoiceModalTutorMode] = useState<'deep_dive' | 'socratic' | 'eli5' | 'free_chat'>(() => {
@@ -90,11 +91,16 @@ const getTutorModeLabel = (mode: string) => {
   const [quickQuestionText, setQuickQuestionText] = useState('');
   const [customPromptForTutor, setCustomPromptForTutor] = useState('');
 
-  const handleStartVoiceBlitz = () => {
-    setVoiceInitialIndex(0);
-    setVoiceModalSessionType('interview');
-    setCustomPromptForTutor('');
+  const openVoiceSession = (type: 'interview' | 'tutor', initialIdx: number, prompt: string = '') => {
+    setVoiceInitialIndex(initialIdx);
+    setVoiceModalSessionType(type);
+    setCustomPromptForTutor(prompt);
+    setVoiceSessionId(`voice_session_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
     setIsVoiceOpen(true);
+  };
+
+  const handleStartVoiceBlitz = () => {
+    openVoiceSession('interview', 0, '');
   };
 
   const handleStartTextQuiz = () => {
@@ -116,10 +122,7 @@ const getTutorModeLabel = (mode: string) => {
 
   const handleLaunchTutorWithPrompt = (prompt?: string) => {
     const text = (prompt !== undefined ? prompt : quickQuestionText).trim();
-    setVoiceInitialIndex(currentQuestionIndex);
-    setCustomPromptForTutor(text);
-    setVoiceModalSessionType('tutor');
-    setIsVoiceOpen(true);
+    openVoiceSession('tutor', currentQuestionIndex, text);
     setQuickQuestionText('');
   };
 
@@ -255,11 +258,7 @@ const getTutorModeLabel = (mode: string) => {
               {/* Action Buttons: Voice Interview, AI Tutor & Audio Recap */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    setVoiceInitialIndex(currentQuestionIndex);
-                    setVoiceModalSessionType('interview');
-                    setIsVoiceOpen(true);
-                  }}
+                  onClick={() => openVoiceSession('interview', currentQuestionIndex, '')}
                   className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition cursor-pointer shadow-2xs active:scale-95"
                   title="Пройти устное собеседование по этому вопросу с оценкой"
                 >
@@ -267,11 +266,7 @@ const getTutorModeLabel = (mode: string) => {
                 </button>
 
                 <button
-                  onClick={() => {
-                    setVoiceInitialIndex(currentQuestionIndex);
-                    setVoiceModalSessionType('tutor');
-                    setIsVoiceOpen(true);
-                  }}
+                  onClick={() => openVoiceSession('tutor', currentQuestionIndex, '')}
                   className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95"
                   title="Обсудить вопрос голосом с AI-тьютором без оценок (режим обучения)"
                 >
@@ -592,18 +587,24 @@ const getTutorModeLabel = (mode: string) => {
       </div>
 
       {/* Voice Modal with Continuous Batch Mode */}
-      {isVoiceOpen && (
+      {isVoiceOpen && voiceSessionId && (
         <VoiceModal
-          key={`voice_modal_${voiceModalSessionType}_${voiceInitialIndex}_${currentQ.id}`}
+          key={voiceSessionId}
           isOpen={isVoiceOpen}
-          onClose={() => setIsVoiceOpen(false)}
+          onClose={() => {
+            setIsVoiceOpen(false);
+            setVoiceSessionId(null);
+          }}
           questionId={currentQ.id}
           topic={selectedTopicName || currentQ.topic}
           currentQuestionText={currentQ.question}
           referenceAnswer={currentQ.answer}
           questionsBatch={currentBatch}
           initialQuestionIndex={voiceInitialIndex}
-          onIndexChange={(newIdx) => setQuestionIndex(newIdx)}
+          onIndexChange={(newIdx) => {
+            setQuestionIndex(newIdx);
+            setVoiceInitialIndex(newIdx);
+          }}
           initialSessionType={voiceModalSessionType}
           initialTutorMode={voiceModalTutorMode}
           customPromptOverride={customPromptForTutor}

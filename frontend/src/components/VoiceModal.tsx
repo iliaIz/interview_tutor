@@ -813,7 +813,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       abortAllInFlightRequests();
       teardownFullAudio();
     };
-  }, [isOpen, initialQuestionIndex, initialSessionType]);
+  }, [isOpen]);
 
   // SOTA 2026: Fast-Launch in 1 click when preflight confirmation is disabled (Tutor ALWAYS opens in calm Lobby)
   const hasAutoLaunchedRef = useRef(false);
