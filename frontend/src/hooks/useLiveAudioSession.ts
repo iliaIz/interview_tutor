@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
+import { useInterviewConfig } from './useInterviewConfig';
 
 export interface LiveAudioSessionParams {
   sessionType?: 'interview' | 'tutor' | 'system_design';
@@ -12,6 +13,10 @@ export interface LiveAudioSessionParams {
   voice?: string;
   userGender?: 'female' | 'male' | 'neutral';
   turnMode?: 'manual' | 'auto';
+  vadPauseMs?: number;
+  liveModel?: string;
+  tutorPersona?: string;
+  persona?: string;
   strategy?: 'adaptive_probing' | 'socratic_tutoring';
   maxProbes?: number;
   deepDive?: boolean;
@@ -28,6 +33,7 @@ export interface LiveAudioSessionParams {
   initialUserMessage?: string;
   sessionId?: string;
   isResumed?: boolean;
+  ticket?: string;
 }
 
 export interface DialogueTurn {
@@ -52,11 +58,20 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     optionsRef.current = options;
   }, [options]);
 
+  const { config: globalConfig } = useInterviewConfig();
+  const globalConfigRef = useRef(globalConfig);
+  useEffect(() => {
+    globalConfigRef.current = globalConfig;
+  }, [globalConfig]);
+
   // Session State
   const [isConnected, setIsConnected] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isUserSpeaking, setIsUserSpeaking] = useState<boolean>(false);
+  const [isPauseHolding, setIsPauseHolding] = useState<boolean>(false);
+  const [rmsDb, setRmsDb] = useState<number>(-60);
   const [rttMs, setRttMs] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Готов к началу диалога');
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurn[]>([]);
@@ -78,6 +93,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const isServerTurnCompleteRef = useRef(false);
   const pendingTextMessageRef = useRef<string | null>(null);
   const resumeAttemptsRef = useRef<number>(0);
+
+  // VAD & Turn Taking Refs
+  const speechStartTimeRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<any>(null);
+  const hasSpokenInTurnRef = useRef<boolean>(false);
+  const isUserSpeakingRef = useRef<boolean>(false);
 
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
@@ -132,6 +153,13 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       hostWithPort = `${window.location.hostname}:8091`;
     }
 
+    const cfg = globalConfigRef.current;
+    const effectiveVoice = params.voice || cfg.voice || 'Kore';
+    const effectiveGender = params.userGender || cfg.userGender || 'female';
+    const effectiveTurnMode = params.turnMode || cfg.turnMode || 'auto';
+    const effectiveLiveModel = params.liveModel || cfg.liveModel || 'gemini-live-v3';
+    const effectiveVadPauseMs = params.vadPauseMs ?? cfg.vadPauseMs ?? 1800;
+
     const query = new URLSearchParams();
     if (params.sessionType) query.set('sessionType', params.sessionType);
     if (params.tutorMode) query.set('tutorMode', params.tutorMode);
@@ -139,9 +167,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.questionId) query.set('questionId', params.questionId);
     if (params.questionText) query.set('questionText', params.questionText);
     if (params.referenceAnswer) query.set('referenceAnswer', params.referenceAnswer);
-    if (params.voice) query.set('voice', params.voice);
-    if (params.userGender) query.set('userGender', params.userGender);
-    if (params.turnMode) query.set('turnMode', params.turnMode);
+    query.set('voice', effectiveVoice);
+    query.set('userGender', effectiveGender);
+    query.set('turnMode', effectiveTurnMode);
+    query.set('liveModel', effectiveLiveModel);
+    query.set('vadPauseMs', String(effectiveVadPauseMs));
+
     if (params.strategy) query.set('strategy', params.strategy);
     if (params.maxProbes !== undefined) query.set('maxProbes', String(params.maxProbes));
     if (params.deepDive !== undefined) query.set('deepDive', String(params.deepDive));
@@ -165,12 +196,44 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.sessionId) {
       query.set('sessionId', params.sessionId);
     }
-    if (params.isResumed !== undefined) {
-      query.set('isResumed', String(params.isResumed));
-    }
+    if (params.isResumed !== undefined) query.set('isResumed', String(params.isResumed));
+    if (params.ticket) query.set('ticket', params.ticket);
+    if (params.tutorPersona) query.set('persona', params.tutorPersona);
+    else if (params.persona) query.set('persona', params.persona);
 
     return `${protocol}//${hostWithPort}/ws/live?${query.toString()}`;
   };
+
+  /**
+   * Completes candidate's current speaking turn and triggers AI response over WebSocket
+   */
+  const triggerEndTurn = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(25);
+      } catch {}
+    }
+    setIsPauseHolding(false);
+    hasSpokenInTurnRef.current = false;
+    setIsUserSpeaking(false);
+    isUserSpeakingRef.current = false;
+    speechStartTimeRef.current = null;
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const turnCompleteMsg = {
+        clientContent: {
+          turnComplete: true
+        }
+      };
+      wsRef.current.send(JSON.stringify(turnCompleteMsg));
+      console.log('📤 Sent clientContent.turnComplete to Gemini Live');
+      setStatusMessage('⏳ ИИ осмысливает ответ...');
+    }
+  }, []);
 
   /**
    * Lazy Microphone Hardware Initialization (Runs asynchronously upon setupComplete)
@@ -204,21 +267,74 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       const sourceNode = audioCtx.createMediaStreamSource(stream);
       const workletNode = new AudioWorkletNode(audioCtx, 'audio-capture-processor');
       workletNodeRef.current = workletNode;
+      workletNode.port.postMessage({ type: 'RESET' });
 
       workletNode.port.onmessage = (event: MessageEvent) => {
-        const { type, pcmBuffer } = event.data;
+        const { type, pcmBuffer, metrics } = event.data;
         if (type === 'AUDIO_FRAME') {
           const isAiCurrentlySpeaking =
             isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+          const isReverbCooldownActive =
+            Date.now() - lastAiSpeechEndedAtRef.current < 450;
+          const isSessionMutedOrPaused =
+            isMutedRef.current || !isRecordingRef.current;
+
+          // Dynamic VAD metrics from AudioWorklet
+          if (metrics && !isAiCurrentlySpeaking && !isReverbCooldownActive && !isSessionMutedOrPaused) {
+            setRmsDb(metrics.rmsDb);
+
+            const isSpeech =
+              metrics.speechDetected ||
+              metrics.rmsDb > (metrics.noiseFloorDb ? metrics.noiseFloorDb + 7.5 : -42);
+
+            if (isSpeech) {
+              if (!speechStartTimeRef.current) {
+                speechStartTimeRef.current = Date.now();
+              }
+              const speechDuration = Date.now() - speechStartTimeRef.current;
+              if (speechDuration >= 150) {
+                hasSpokenInTurnRef.current = true;
+              }
+              setIsUserSpeaking(true);
+              isUserSpeakingRef.current = true;
+              setIsPauseHolding(false);
+              if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
+              }
+            } else {
+              speechStartTimeRef.current = null;
+              if (hasSpokenInTurnRef.current) {
+                setIsUserSpeaking(false);
+                isUserSpeakingRef.current = false;
+                const turnMode = currentParamsRef.current.turnMode || 'auto';
+                if (turnMode === 'auto') {
+                  setIsPauseHolding(true);
+                  if (!silenceTimerRef.current) {
+                    const vadPauseMs = currentParamsRef.current.vadPauseMs ?? 1800;
+                    silenceTimerRef.current = setTimeout(() => {
+                      console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
+                      triggerEndTurn();
+                    }, vadPauseMs);
+                  }
+                }
+              }
+            }
+          } else if (isAiCurrentlySpeaking) {
+            if (isUserSpeakingRef.current) {
+              setIsUserSpeaking(false);
+              isUserSpeakingRef.current = false;
+            }
+          }
 
           // Continuous Smooth Realtime Streaming (SOTA 2026 Invariant):
           // Stream standard 100ms PCM chunks while candidate is recording and AI is not speaking.
-          // In 'manual' mode, turnComplete is withheld until candidate commits their turn.
           const shouldTransmit =
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
-            !isAiCurrentlySpeaking;
+            !isAiCurrentlySpeaking &&
+            !isReverbCooldownActive;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);
@@ -258,12 +374,48 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
    */
   const startSession = useCallback(async (params: LiveAudioSessionParams) => {
     try {
-      currentParamsRef.current = params;
+      const cfg = globalConfigRef.current;
+      const effectiveVoice = params.voice || cfg.voice || 'Kore';
+      const effectiveGender = params.userGender || cfg.userGender || 'female';
+      const effectiveTurnMode = params.turnMode || cfg.turnMode || 'auto';
+      const effectiveLiveModel = params.liveModel || cfg.liveModel || 'gemini-live-v3';
+      const effectiveVadPauseMs = params.vadPauseMs ?? cfg.vadPauseMs ?? 1800;
+
+      const effectiveParams: LiveAudioSessionParams = {
+        ...params,
+        voice: effectiveVoice,
+        userGender: effectiveGender,
+        turnMode: effectiveTurnMode,
+        liveModel: effectiveLiveModel,
+        vadPauseMs: effectiveVadPauseMs
+      };
+      currentParamsRef.current = effectiveParams;
       isCleaningUpRef.current = false;
       setStatusMessage('Подключение к голосовому каналу...');
 
       // 0. Acquire Screen Wake Lock for mobile devices
       void acquireWakeLock();
+
+      // Zero-Trust WebSocket Ticket prefetch with graceful cookie fallback
+      let ticketParam = '';
+      try {
+        const ticketRes = await fetch('/api/auth/ws-ticket', {
+          method: 'POST',
+          credentials: 'include'
+        });
+        if (ticketRes.ok) {
+          const ticketData = await ticketRes.json();
+          if (ticketData.ticket) {
+            ticketParam = ticketData.ticket;
+            effectiveParams.ticket = ticketParam;
+            currentParamsRef.current = effectiveParams;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not prefetch WS ticket in useLiveAudioSession, relying on cookie auth:', e);
+      }
+
+      if (isCleaningUpRef.current) return;
 
       // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
       let playoutManager = playoutManagerRef.current;
@@ -299,7 +451,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       }
 
       // 2. Open WebSocket
-      const wsUrl = resolveWsUrl(params);
+      const wsUrl = resolveWsUrl(effectiveParams);
       console.log('⚡ Connecting Live Audio WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -435,8 +587,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             // Model Speech turn
             if (data.serverContent.modelTurn?.parts) {
               isServerTurnCompleteRef.current = false;
-              // SOTA Protection: If user is in manual mode and has not finished turn, suppress unprompted modelTurn
-              const isManualMode = (currentParamsRef.current.turnMode || 'manual') !== 'auto';
+              // SOTA Protection: In manual mode, if candidate is recording and has not committed turn, suppress modelTurn
+              const isManualMode = (currentParamsRef.current.turnMode || 'auto') === 'manual';
               if (isManualMode && isRecordingRef.current) {
                 console.warn('🛡️ Suppressed unprompted server modelTurn during candidate manual reflection.');
                 return;
@@ -446,6 +598,14 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               isAiSpeakingRef.current = true;
               setIsRecording(false);
               isRecordingRef.current = false;
+              setIsUserSpeaking(false);
+              isUserSpeakingRef.current = false;
+              setIsPauseHolding(false);
+              hasSpokenInTurnRef.current = false;
+              if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
+              }
               setStatusMessage('🔊 AI говорит...');
 
               for (const part of data.serverContent.modelTurn.parts) {
@@ -471,6 +631,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               isServerTurnCompleteRef.current = true;
               playoutManagerRef.current?.notifyTurnComplete();
               lastAiSpeechEndedAtRef.current = Date.now();
+              hasSpokenInTurnRef.current = false;
+              setIsPauseHolding(false);
+              if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
+              }
               console.log('AI turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
 
               if (!playoutManagerRef.current?.isPlaying() && !isCleaningUpRef.current) {
@@ -591,6 +757,16 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     inputAudioCtxRef.current = null;
     void releaseWakeLock();
 
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    speechStartTimeRef.current = null;
+    hasSpokenInTurnRef.current = false;
+    setIsUserSpeaking(false);
+    isUserSpeakingRef.current = false;
+    setIsPauseHolding(false);
+
     setIsConnected(false);
     setIsRecording(false);
     isRecordingRef.current = false;
@@ -603,6 +779,16 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
    * Ephemeral Reset (retains AudioContext for quick retries / next questions)
    */
   const resetSessionStateOnly = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    speechStartTimeRef.current = null;
+    hasSpokenInTurnRef.current = false;
+    setIsUserSpeaking(false);
+    isUserSpeakingRef.current = false;
+    setIsPauseHolding(false);
+
     if (wsRef.current) {
       try {
         wsRef.current.close(1000, 'Question advance');
@@ -653,31 +839,14 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   /**
    * Finish Candidate Turn in Manual Mode (Trigger AI evaluation with haptic feedback)
    */
-  const finishManualTurn = useCallback((gender: 'female' | 'male' | 'neutral' = 'female') => {
-    // 1. Android Haptic Feedback
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(25);
-      } catch (e) {}
-    }
-
-    // 2. Transition local UI state
+  const finishManualTurn = useCallback(() => {
+    triggerEndTurn();
     setIsRecording(false);
     isRecordingRef.current = false;
     setIsAiSpeaking(true);
     isAiSpeakingRef.current = true;
     setStatusMessage('⏳ ИИ осмысливает ответ и формирует оценку...');
-
-    // 3. Send Turn Completion Signal over WebSocket
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const endTurnSignal = {
-        clientContent: {
-          turnComplete: true
-        }
-      };
-      wsRef.current.send(JSON.stringify(endTurnSignal));
-    }
-  }, []);
+  }, [triggerEndTurn]);
 
   /**
    * Send Multimodal Deictic Canvas Delta to Live Audio Session
@@ -703,6 +872,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     isAiSpeaking,
     isRecording,
     isMuted,
+    isUserSpeaking,
+    isPauseHolding,
+    rmsDb,
     rttMs,
     statusMessage,
     dialogueTurns,
@@ -716,6 +888,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     toggleMute,
     setMuted,
     finishManualTurn,
+    triggerEndTurn,
     setStatusMessage,
     setDialogueTurns,
     setAiTranscript,

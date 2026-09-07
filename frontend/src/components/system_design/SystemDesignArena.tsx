@@ -103,6 +103,9 @@ export const SystemDesignArena: React.FC = () => {
     isAiSpeaking,
     isRecording,
     isMuted,
+    isUserSpeaking,
+    isPauseHolding,
+    rmsDb,
     statusMessage: voiceStatus,
     startSession: startVoiceSession,
     disconnectSession: disconnectVoiceSession,
@@ -142,8 +145,7 @@ export const SystemDesignArena: React.FC = () => {
         topic: activeSystemDesignScenario.title,
         questionText: activeSystemDesignScenario.title,
         referenceAnswer: activeSystemDesignScenario.contextMarkdown,
-        scenarioId: activeSystemDesignScenario.id,
-        voice: 'Charon'
+        scenarioId: activeSystemDesignScenario.id
       });
       showToast({
         type: 'success',
@@ -415,6 +417,9 @@ export const SystemDesignArena: React.FC = () => {
             isAiSpeaking={isAiSpeaking}
             isRecording={isRecording}
             isMuted={isMuted}
+            isUserSpeaking={isUserSpeaking}
+            isPauseHolding={isPauseHolding}
+            rmsDb={rmsDb}
             statusMessage={voiceStatus}
             chaosAlert={chaosAlert}
             observationCount={observations.length}

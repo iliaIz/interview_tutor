@@ -75,7 +75,7 @@ interface ProxySession {
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
   currentAiTurnText?: string;
-  persona?: InterviewPersonaId;
+  persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
   sessionType?: 'interview' | 'tutor' | 'system_design';
@@ -155,7 +155,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     const userGender = ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral';
     const turnMode = ((query.turnMode as string) === 'auto' ? 'auto' : 'manual') as 'manual' | 'auto';
     const strategy = ((query.strategy as string) === 'socratic_tutoring' ? 'socratic_tutoring' : 'adaptive_probing') as 'adaptive_probing' | 'socratic_tutoring';
-    const persona = ((query.persona as string) || 'mentor') as InterviewPersonaId;
+    const persona = ((query.persona as string) || 'mentor') as any;
     const targetGrade = ((query.targetGrade as string) || 'L5_SENIOR') as TargetGrade;
     const maxProbes = Math.max(1, Math.min(5, parseInt((query.maxProbes as string) || '3', 10) || 3));
     const deepDive = query.deepDive === 'true';

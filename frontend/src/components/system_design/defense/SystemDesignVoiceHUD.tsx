@@ -12,6 +12,9 @@ interface SystemDesignVoiceHUDProps {
   statusMessage: string;
   chaosAlert: { failureType: string; targetId: string; context: string } | null;
   observationCount: number;
+  isUserSpeaking?: boolean;
+  isPauseHolding?: boolean;
+  rmsDb?: number;
   onDismissChaos: () => void;
   onToggleMic: () => void;
   onFinishTurn: () => void;
@@ -27,6 +30,9 @@ export const SystemDesignVoiceHUD: React.FC<SystemDesignVoiceHUDProps> = ({
   statusMessage,
   chaosAlert,
   observationCount,
+  isUserSpeaking = false,
+  isPauseHolding = false,
+  rmsDb = -60,
   onDismissChaos,
   onToggleMic,
   onFinishTurn,
@@ -87,6 +93,27 @@ export const SystemDesignVoiceHUD: React.FC<SystemDesignVoiceHUDProps> = ({
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
               {statusMessage}
             </span>
+            {isRecording && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isPauseHolding ? (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-bold animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                    Пауза (Auto-VAD)
+                  </span>
+                ) : isUserSpeaking ? (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Слушаю...
+                    <span className="w-8 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden inline-block ml-1">
+                      <span 
+                        className="block h-full bg-emerald-500 transition-all duration-75"
+                        style={{ width: `${Math.min(100, Math.max(10, ((rmsDb + 60) / 40) * 100))}%` }}
+                      />
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {observationCount > 0 && (

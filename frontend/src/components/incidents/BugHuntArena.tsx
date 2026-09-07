@@ -144,6 +144,9 @@ export const BugHuntArena: React.FC = () => {
     isAiSpeaking,
     isRecording,
     isMuted,
+    isUserSpeaking,
+    isPauseHolding,
+    rmsDb,
     dialogueTurns,
     startSession,
     disconnectSession,
@@ -292,22 +295,25 @@ export const BugHuntArena: React.FC = () => {
     }
   };
 
+  const startBugVoiceSession = () => {
+    return startSession({
+      sessionType: 'tutor',
+      tutorMode: tutorRole,
+      topic: topicName,
+      bugTitle: challenge?.title || '',
+      bugExplanation: challenge?.bugExplanation || '',
+      codeSnippet: challenge?.codeSnippet || '',
+      hints: challenge?.hints || [],
+      questionId: challenge?.id || ''
+    });
+  };
+
   const handleSendBugText = (textToSend?: string) => {
     const text = (textToSend !== undefined ? textToSend : inputText).trim();
     if (!text) return;
 
     if (!isConnected) {
-      void startSession({
-        sessionType: 'tutor',
-        tutorMode: tutorRole,
-        topic: topicName,
-        bugTitle: challenge?.title || '',
-        bugExplanation: challenge?.bugExplanation || '',
-        codeSnippet: challenge?.codeSnippet || '',
-        hints: challenge?.hints || [],
-        questionId: challenge?.id || '',
-        voice: 'Aoede'
-      });
+      void startBugVoiceSession();
     }
 
     sendTextMessage(text);
@@ -575,13 +581,35 @@ export const BugHuntArena: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => toggleMic()}
+                  onClick={() => {
+                    if (!isConnected) {
+                      void startBugVoiceSession();
+                    } else {
+                      toggleMic();
+                    }
+                  }}
                   className={`p-2 rounded-xl border transition cursor-pointer ${
-                    isRecording
-                      ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
+                    !isConnected
+                      ? 'bg-pastel-bg text-pastel-muted border-pastel-border hover:bg-white hover:text-pastel-text'
+                      : isRecording
+                      ? isPauseHolding
+                        ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
+                        : isUserSpeaking
+                        ? 'bg-emerald-500 text-white border-emerald-600 animate-pulse'
+                        : 'bg-rose-500 text-white border-rose-600'
                       : 'bg-pastel-bg text-pastel-text border-pastel-border hover:bg-white'
                   }`}
-                  title={isRecording ? 'Выключить микрофон' : 'Включить микрофон'}
+                  title={
+                    !isConnected 
+                      ? 'Включить голосовое общение с техлидом' 
+                      : isRecording 
+                      ? isPauseHolding 
+                        ? 'Пауза (Auto-VAD осмысливает)...' 
+                        : isUserSpeaking 
+                        ? 'Слушаю вас...' 
+                        : 'Выключить микрофон' 
+                      : 'Включить микрофон'
+                  }
                 >
                   {isRecording ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                 </button>

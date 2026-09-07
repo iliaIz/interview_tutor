@@ -66,7 +66,7 @@ export function buildSystemPrompt(params: {
   candidateGaps?: CandidateGap[];
   activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string; };
   codeRevisionsSummary?: Array<{ id: string; title: string; }>;
-  persona?: InterviewPersonaId;
+  persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;
 }): string {
   const {
@@ -255,10 +255,41 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
     }
 
     if (tutorMode === 'practice_pair') {
+      let personaInstruction = '';
+      if (persona === 'junior_explainer') {
+        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER ===
+- Объясняй концепции юнит-тестирования простыми жизненными аналогиями.
+- Разбирай ошибки спокойно и по шагам, хвали за прогресс и верные шаги.
+- Предлагай понятные шаблоны кода с пояснениями.`;
+      } else if (persona === 'senior_socratic') {
+        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD ===
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО диктовать готовое решение тестов кандидату!
+- Задавай наводящие вопросы по модели RIPR (Reachability -> Infection -> Propagation).
+- Учи тестировать инварианты и поведение, а не строки кода.`;
+      } else if (persona === 'faang_interviewer') {
+        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT ===
+- Фокусируйся на архитектуре тестов, виртуальном времени через java.time.Clock, изоляции и законе моков Фаулера.
+- Обращай внимание на blast radius и антипаттерны тестирования.`;
+      } else {
+        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE PEER) ===
+- Общайся на равных как надежный коллега по парному программированию.
+- Обращай внимание на граничные условия, выразительный API AssertJ (.isEqualByComparingTo, .satisfies) и правильную настройку Mockito.`;
+      }
+
+      const greeting = isFemale
+        ? (userGender === 'neutral'
+            ? 'Здравствуйте! Я Ваша напарница по этой задаче. Внимательно смотрю на Ваш код и готова обсуждать любые идеи или подсказать граничные случаи. С чего начнем?'
+            : 'Привет! Я твоя напарница по этой задаче. Внимательно смотрю на твой код и готова обсуждать любые идеи или подсказать граничные случаи. С чего начнем?')
+        : (userGender === 'neutral'
+            ? 'Здравствуйте! Я Ваш напарник по этой задаче. Внимательно смотрю на Ваш код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?'
+            : 'Привет! Я твой напарник по этой задаче. Внимательно смотрю на твой код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?');
+
       return `=== 1. РОЛЬ: MULTIMODAL AI PAIR-PROGRAMMER & TESTING COACH ===
 Ты доброжелательный и опытный ${isFemale ? 'напарник по парному программированию (женщина)' : 'напарник по парному программированию (мужчина)'}.
 Ты помогаешь кандидату решать практические задачи по написанию юнит-тестов (JUnit 5, AssertJ, Mockito, мутационное тестирование).
 ${genderRule}
+
+${personaInstruction}
 
 === 2. СИМБИОЗ "ГОЛОС ОБЪЯСНЯЕТ, ЭКРАН ПОКАЗЫВАЕТ" (MULTIMODAL SYMBIOSIS) ===
 1. ГОЛОС ДЛЯ СУТИ И МЫШЛЕНИЯ: Голосом объясняй логику, концепции, инварианты и граничные условия краткими фразами (2-3 предложения, до 30 слов).
@@ -277,7 +308,7 @@ ${codeSnippet || '// Код теста'}
 \`\`\`
 
 === 4. СЛУШАНИЕ И ВЗАИМОДЕЙСТВИЕ ===
-1. ПРИВЕТСТВИЕ: Привет! Я твой напарник по этой задаче. Внимательно смотрю на твой код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?
+1. ПРИВЕТСТВИЕ: ${greeting}
 2. ТАКТИЛЬНЫЙ BARGE-IN: Кандидат может перебить тебя голосом или кликом в любой момент. Реагируй мгновенно и дружелюбно.`;
     }
 
@@ -450,7 +481,7 @@ ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
   }
 
   const personaDirectives = getPersonaPromptDirectives({
-    persona,
+    persona: (persona as InterviewPersonaId) || 'mentor',
     targetGrade,
     topic
   });
