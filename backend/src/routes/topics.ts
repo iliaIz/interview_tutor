@@ -3,11 +3,13 @@ import { db } from '../services/db';
 import { TOPIC_DEFINITIONS, TOPIC_MAP } from '../services/topics';
 import { getAuthUserId } from '../middleware/auth';
 import { getTopicProgress, resetTopicProgress } from '../services/progressService';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
+import { safeJsonParse } from '../utils/safeJson';
 
 const router = Router();
 
 // GET /api/topics - List all topics with authoritative progress summary for authenticated user
-router.get('/', (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const userId = getAuthUserId(req);
 
   const result = TOPIC_DEFINITIONS.map(t => {
@@ -22,7 +24,9 @@ router.get('/', (req, res) => {
         shuffle = Boolean(row.shuffle);
         batchSize = row.batch_size || 5;
       }
-    } catch {}
+    } catch (err: any) {
+      console.warn(`Could not read preferences for topic ${progress.topic}:`, err?.message);
+    }
 
     return {
       ...t,
@@ -38,26 +42,26 @@ router.get('/', (req, res) => {
   });
 
   res.json(result);
-});
+}));
 
 // GET /api/topics/:topicId/batch?size=5&shuffle=true
-router.get('/:topicId/batch', (req, res) => {
+router.get('/:topicId/batch', asyncHandler(async (req, res) => {
   const userId = getAuthUserId(req);
-  const topicId = req.params.topicId.toLowerCase();
+  const topicId = String(req.params.topicId).toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
 
   if (!dbTopicName) {
-    return res.status(404).json({ error: 'Topic not found' });
+    throw new AppError('Topic not found', 404);
   }
 
-  const size = parseInt(req.query.size as string) || 5;
+  const size = parseInt(req.query.size as string, 10) || 5;
   const shuffleParam = req.query.shuffle === 'true';
 
   // Get user progress
   const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
   const progressRow = progressStmt.get(userId, dbTopicName) as any;
 
-  let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
+  const completedIds = progressRow ? safeJsonParse<string[]>(progressRow.completed_ids, []) : [];
 
   let qStmt;
   if (shuffleParam) {
@@ -72,7 +76,7 @@ router.get('/:topicId/batch', (req, res) => {
 
   const formatted = (questions as any[]).map(q => ({
     ...q,
-    source_pages: JSON.parse(q.source_pages || '[]')
+    source_pages: safeJsonParse<string[]>(q.source_pages, [])
   }));
 
   res.json({
@@ -82,14 +86,16 @@ router.get('/:topicId/batch', (req, res) => {
     offset: completedIds.length,
     questions: formatted
   });
-});
+}));
 
 // POST /api/topics/:topicId/progress - Save progress for authenticated user
-router.post('/:topicId/progress', (req, res) => {
+router.post('/:topicId/progress', asyncHandler(async (req, res) => {
   const userId = getAuthUserId(req);
-  const topicId = req.params.topicId.toLowerCase();
+  const topicId = String(req.params.topicId).toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
-  if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
+  if (!dbTopicName) {
+    throw new AppError('Topic not found', 404);
+  }
 
   const { completedIds = [], masteredIds = [], reviewIds = [], lastQuestionId, shuffle = false, batchSize = 5 } = req.body;
 
@@ -124,24 +130,24 @@ router.post('/:topicId/progress', (req, res) => {
   );
 
   res.json({ success: true, topic: dbTopicName });
-});
+}));
 
 // GET /api/topics/:topicId/questions - Get all questions for a specific topic with user status
-router.get('/:topicId/questions', (req, res) => {
+router.get('/:topicId/questions', asyncHandler(async (req, res) => {
   const userId = getAuthUserId(req);
-  const topicId = req.params.topicId.toLowerCase();
+  const topicId = String(req.params.topicId).toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
 
   if (!dbTopicName) {
-    return res.status(404).json({ error: 'Topic not found' });
+    throw new AppError('Topic not found', 404);
   }
 
   // Get user progress
   const progressStmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ? AND topic = ?');
   const progressRow = progressStmt.get(userId, dbTopicName) as any;
 
-  let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
-  let masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+  let completedIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.completed_ids, []) : [];
+  let masteredIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.mastered_ids, []) : [];
 
   // Self-healing merge with question_evaluations
   try {
@@ -191,8 +197,8 @@ router.get('/:topicId/questions', (req, res) => {
         progressRow ? (progressRow.batch_size || 5) : 5
       );
     }
-  } catch (err) {
-    console.warn('Error during self-healing progress merge:', err);
+  } catch (err: any) {
+    console.warn('Error during self-healing progress merge:', err?.message);
   }
 
   const completedSet = new Set(completedIds);
@@ -203,7 +209,7 @@ router.get('/:topicId/questions', (req, res) => {
 
   const formatted = questions.map(q => ({
     ...q,
-    source_pages: JSON.parse(q.source_pages || '[]'),
+    source_pages: safeJsonParse<string[]>(q.source_pages, []),
     isCompleted: completedSet.has(q.id),
     isMastered: masteredSet.has(q.id)
   }));
@@ -219,13 +225,13 @@ router.get('/:topicId/questions', (req, res) => {
     masteredCount: masteredIds.length,
     questions: formatted
   });
-});
+}));
 
 // POST /api/topics/questions/by-ids - Fetch questions by specific IDs
-router.post('/questions/by-ids', (req, res) => {
+router.post('/questions/by-ids', asyncHandler(async (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: 'ids array is required and must not be empty' });
+    throw new AppError('ids array is required and must not be empty', 400);
   }
 
   const placeholders = ids.map(() => '?').join(',');
@@ -234,21 +240,23 @@ router.post('/questions/by-ids', (req, res) => {
 
   const formatted = rows.map(q => ({
     ...q,
-    source_pages: JSON.parse(q.source_pages || '[]')
+    source_pages: safeJsonParse<string[]>(q.source_pages, [])
   }));
 
   res.json({ questions: formatted });
-});
+}));
 
 // POST /api/topics/:topicId/reset - Reset progress ("Сначала") for authenticated user
-router.post('/:topicId/reset', (req, res) => {
+router.post('/:topicId/reset', asyncHandler(async (req, res) => {
   const userId = getAuthUserId(req);
-  const topicId = req.params.topicId.toLowerCase();
+  const topicId = String(req.params.topicId).toLowerCase();
   const dbTopicName = TOPIC_MAP[topicId];
-  if (!dbTopicName) return res.status(404).json({ error: 'Topic not found' });
+  if (!dbTopicName) {
+    throw new AppError('Topic not found', 404);
+  }
 
   const result = resetTopicProgress(userId, topicId);
   res.json(result);
-});
+}));
 
 export default router;

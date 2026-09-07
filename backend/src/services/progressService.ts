@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { db } from './db';
 import { TOPIC_DEFINITIONS, TOPIC_MAP } from './topics';
 import { updateFsrsCardState } from './fsrsEngine';
+import { safeJsonParse } from '../utils/safeJson';
 
 export interface RecordEvaluationParams {
   id?: string;
@@ -63,7 +64,9 @@ export function resolveTopic(topicInput: string, questionId?: string): { dbTopic
           topicId: byQTopic ? byQTopic.id : qRow.topic.toLowerCase()
         };
       }
-    } catch {}
+    } catch (err: any) {
+      console.warn(`Could not lookup topic for questionId ${questionId}:`, err?.message);
+    }
   }
 
   // Default fallback
@@ -117,15 +120,15 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     questionId: params.questionId,
     score: params.score,
     isPassed: params.isPassed
-  }).catch((err) => console.warn('FSRS state update warning:', err));
+  }).catch((err: any) => console.warn('FSRS state update warning:', err?.message || err));
 
   // 2. Fetch existing user_progress
   const progressRow = db.prepare(
     'SELECT * FROM user_progress WHERE user_id = ? AND topic = ?'
   ).get(userId, dbTopicName) as any;
 
-  let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
-  let masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+  let completedIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.completed_ids, []) : [];
+  let masteredIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.mastered_ids, []) : [];
 
   // 3. Self-healing merge with all user's evaluations for this topic
   const evalStmt = db.prepare(`
@@ -148,7 +151,9 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
         masteredIds.push(e.question_id);
       }
     });
-  } catch {}
+  } catch (err: any) {
+    console.warn(`Error during evaluations merge for user ${userId}, topic ${topicId}:`, err?.message);
+  }
 
   // Current answer passed check
   if (params.isPassed || params.score >= 70) {
@@ -217,8 +222,8 @@ export function getTopicProgress(userId: string, topicIdOrName: string): TopicPr
     'SELECT * FROM user_progress WHERE user_id = ? AND topic = ?'
   ).get(userId, dbTopicName) as any;
 
-  let completedIds: string[] = progressRow ? JSON.parse(progressRow.completed_ids || '[]') : [];
-  let masteredIds: string[] = progressRow ? JSON.parse(progressRow.mastered_ids || '[]') : [];
+  let completedIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.completed_ids, []) : [];
+  let masteredIds: string[] = progressRow ? safeJsonParse<string[]>(progressRow.mastered_ids, []) : [];
 
   // Self-healing merge with question_evaluations
   try {
@@ -240,7 +245,9 @@ export function getTopicProgress(userId: string, topicIdOrName: string): TopicPr
         masteredIds.push(e.question_id);
       }
     });
-  } catch {}
+  } catch (err: any) {
+    console.warn(`Error during evaluations merge for topic progress ${topicId}:`, err?.message);
+  }
 
   const percentage = total > 0 ? Math.round((completedIds.length / total) * 100) : 0;
 
@@ -280,7 +287,9 @@ export function resetTopicProgress(userId: string, topicIdOrName: string): { suc
       DELETE FROM question_evaluations
       WHERE user_id = ? AND (topic = ? OR topic = ?)
     `).run(userId, dbTopicName, topicId);
-  } catch {}
+  } catch (err: any) {
+    console.warn(`Could not clear question evaluations during topic reset for ${topicId}:`, err?.message);
+  }
 
   return { success: true, topic: dbTopicName };
 }

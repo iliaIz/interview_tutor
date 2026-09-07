@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { TreeEditDistanceGuard } from '../services/sandbox/TreeEditDistanceGuard';
@@ -10,6 +10,9 @@ import {
   PracticeTutorContext
 } from '../prompts/practiceTutorPrompts';
 import { ALL_MUTATION_CHALLENGES } from '../services/mutationChallenges';
+import { callLiteLlmChatRaw, callLiteLlmChat } from '../services/llmClient';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
+import { safeJsonParse } from '../utils/safeJson';
 
 const router = Router();
 
@@ -17,23 +20,20 @@ const router = Router();
 function getChallengeCanonicalSolutions(challengeId: string): string[] {
   const challenge = ALL_MUTATION_CHALLENGES.find((c) => c.id === challengeId);
   if (!challenge) return [];
-  // Return test files and solution templates
   return challenge.workspaceFiles
     .filter((f) => f.path.includes('Test.java'))
     .map((f) => f.content);
 }
 
 // GET /api/practice-tutor/compass-rules
-router.get('/compass-rules', (_req: Request, res: Response) => {
+router.get('/compass-rules', asyncHandler(async (_req, res) => {
   res.json({
     rules: Object.values(TESTING_COMPASS_RULES)
   });
-});
-
-import { callLiteLlmChatRaw, callLiteLlmChat } from '../services/llmClient';
+}));
 
 // POST /api/practice-tutor/chat
-router.post('/chat', async (req: Request, res: Response): Promise<void> => {
+router.post('/chat', async (req, res): Promise<void> => {
   const abortController = new AbortController();
   req.on('close', () => {
     abortController.abort();
@@ -109,7 +109,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
 
     if (!stream) {
       const data: any = await upstreamRes.json();
-      let rawText = data.choices?.[0]?.message?.content || '';
+      const rawText = data.choices?.[0]?.message?.content || '';
 
       // AST Socratic Guard
       const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
@@ -156,8 +156,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         if (trimmed === 'data: [DONE]') continue;
 
-        try {
-          const json = JSON.parse(trimmed.slice(5).trim());
+        const json = safeJsonParse<any>(trimmed.slice(5).trim(), null);
+        if (json) {
           const delta = json.choices?.[0]?.delta?.content || '';
           if (delta) {
             accumulatedContent += delta;
@@ -165,8 +165,6 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
             const resWithFlush = res as unknown as { flush?: () => void };
             if (typeof resWithFlush.flush === 'function') resWithFlush.flush();
           }
-        } catch {
-          // ignore chunk parse errors
         }
       }
     }
@@ -185,7 +183,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
     res.end();
 
   } catch (err: any) {
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError' || abortController.signal.aborted) {
       return;
     }
     console.error('Error in /api/practice-tutor/chat:', err);
@@ -199,125 +197,114 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/practice-tutor/hint (Progressive Hint Ladder Tiers 0..4)
-router.post('/hint', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const {
-      hintTier = 1,
-      kataId,
-      kataTitle,
-      kataCategory,
-      kataInstructions,
-      activeFilePath,
-      activeFileContent,
-      survivingMutants,
-      compilerError,
-      testFailureMessage
-    } = req.body;
+router.post('/hint', asyncHandler(async (req, res) => {
+  const {
+    hintTier = 1,
+    kataId,
+    kataTitle,
+    kataCategory,
+    kataInstructions,
+    activeFilePath,
+    activeFileContent,
+    survivingMutants,
+    compilerError,
+    testFailureMessage
+  } = req.body;
 
-    const context: PracticeTutorContext = {
-      persona: 'middle_scaffold',
-      assistanceLevel: 2,
-      kataTitle: kataTitle || kataId,
-      kataCategory: kataCategory || 'Testing & Mutation Katas',
-      kataInstructions: kataInstructions || '',
-      activeFilePath: activeFilePath || 'src/test/java/Test.java',
-      activeFileContent: activeFileContent || '',
-      survivingMutants,
-      compilerError,
-      testFailureMessage,
-      hintTier: Number(hintTier) as HintTier
-    };
+  const context: PracticeTutorContext = {
+    persona: 'middle_scaffold',
+    assistanceLevel: 2,
+    kataTitle: kataTitle || kataId,
+    kataCategory: kataCategory || 'Testing & Mutation Katas',
+    kataInstructions: kataInstructions || '',
+    activeFilePath: activeFilePath || 'src/test/java/Test.java',
+    activeFileContent: activeFileContent || '',
+    survivingMutants,
+    compilerError,
+    testFailureMessage,
+    hintTier: Number(hintTier) as HintTier
+  };
 
-    const systemPrompt = buildPracticeTutorSystemPrompt(context);
-    const userPrompt = `Мне нужна подсказка уровня ${hintTier} по модели RIPR для решения этой задачи. Пожалуйста, дай четкий педагогический совет без списывания.`;
+  const systemPrompt = buildPracticeTutorSystemPrompt(context);
+  const userPrompt = `Мне нужна подсказка уровня ${hintTier} по модели RIPR для решения этой задачи. Пожалуйста, дай четкий педагогический совет без списывания.`;
 
-    const requestPayload = {
-      model: envConfig.models.text,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.2,
-      max_tokens: 800,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
-    };
+  const requestPayload = {
+    model: envConfig.models.text,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.2,
+    max_tokens: 800,
+    extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
+  };
 
-    const chatResult = await callLiteLlmChat(requestPayload);
-    const rawText = chatResult.content || '';
+  const chatResult = await callLiteLlmChat(requestPayload);
+  const rawText = chatResult.content || '';
 
-    const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
-    const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
-      leakThreshold: 0.40,
-      isSocraticEnforced: true
-    });
+  const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
+  const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
+    leakThreshold: 0.40,
+    isSocraticEnforced: true
+  });
 
-    res.json({
-      hintTier: Number(hintTier),
-      content: guardResult.redactedText,
-      leakDetected: guardResult.leakDetected
-    });
-  } catch (err: any) {
-    console.error('Error in /api/practice-tutor/hint:', err);
-    res.status(500).json({ error: err.message || 'Failed to generate hint' });
-  }
-});
+  res.json({
+    hintTier: Number(hintTier),
+    content: guardResult.redactedText,
+    leakDetected: guardResult.leakDetected
+  });
+}));
 
 // POST /api/practice-tutor/rule-grounding (Testing Compass 5 Golden Rules)
-router.post('/rule-grounding', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const {
-      ruleId,
-      kataId,
-      kataTitle,
-      activeFilePath,
-      activeFileContent,
-      survivingMutants
-    } = req.body;
+router.post('/rule-grounding', asyncHandler(async (req, res) => {
+  const {
+    ruleId,
+    kataId,
+    kataTitle,
+    activeFilePath,
+    activeFileContent,
+    survivingMutants
+  } = req.body;
 
-    const rule = TESTING_COMPASS_RULES[ruleId];
-    if (!rule) {
-      res.status(400).json({ error: `Unknown ruleId: ${ruleId}` });
-      return;
-    }
-
-    const context: PracticeTutorContext = {
-      persona: 'middle_scaffold',
-      assistanceLevel: 2,
-      kataTitle: kataTitle || kataId,
-      kataCategory: 'Testing & Mutation Katas',
-      kataInstructions: '',
-      activeFilePath: activeFilePath || 'src/test/java/Test.java',
-      activeFileContent: activeFileContent || '',
-      survivingMutants,
-      activeCompassRuleId: ruleId
-    };
-
-    const systemPrompt = buildPracticeTutorSystemPrompt(context);
-    const userPrompt = `Проверь мой код на соответствие правилу Тестинг-Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
-
-    const requestPayload = {
-      model: envConfig.models.text,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.2,
-      max_tokens: 1000,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
-    };
-
-    const chatResult = await callLiteLlmChat(requestPayload);
-    const rawText = chatResult.content || '';
-
-    res.json({
-      ruleId,
-      ruleName: rule.name,
-      content: rawText
-    });
-  } catch (err: any) {
-    console.error('Error in /api/practice-tutor/rule-grounding:', err);
-    res.status(500).json({ error: err.message || 'Failed to ground rule' });
+  const rule = TESTING_COMPASS_RULES[ruleId];
+  if (!rule) {
+    throw new AppError(`Unknown ruleId: ${ruleId}`, 400);
   }
-});
+
+  const context: PracticeTutorContext = {
+    persona: 'middle_scaffold',
+    assistanceLevel: 2,
+    kataTitle: kataTitle || kataId,
+    kataCategory: 'Testing & Mutation Katas',
+    kataInstructions: '',
+    activeFilePath: activeFilePath || 'src/test/java/Test.java',
+    activeFileContent: activeFileContent || '',
+    survivingMutants,
+    activeCompassRuleId: ruleId
+  };
+
+  const systemPrompt = buildPracticeTutorSystemPrompt(context);
+  const userPrompt = `Проверь мой код на соответствие правилу Тестинг-Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
+
+  const requestPayload = {
+    model: envConfig.models.text,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.2,
+    max_tokens: 1000,
+    extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
+  };
+
+  const chatResult = await callLiteLlmChat(requestPayload);
+  const rawText = chatResult.content || '';
+
+  res.json({
+    ruleId,
+    ruleName: rule.name,
+    content: rawText
+  });
+}));
 
 export default router;

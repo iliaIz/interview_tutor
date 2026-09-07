@@ -1,9 +1,8 @@
-import { Router, Request, Response } from 'express';
-import crypto from 'crypto';
+import { Router } from 'express';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
 import { transcribeWithDeepgram } from '../services/deepgramService';
-import { synthesizeTTSBuffer, synthesizeTTSWithRetry } from '../services/podcast';
+import { synthesizeTTSWithRetry } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
 import { getOrCreateSessionMemory } from '../services/geminiLiveProxy';
 import { getAuthUserId } from '../middleware/auth';
@@ -14,6 +13,9 @@ import {
   getPersonaPromptDirectives,
   calculateFaangScorecard
 } from '../prompts/personas';
+import { callLiteLlmChat, parseJsonFromLlm } from '../services/llmClient';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
+import { getRequestAbortSignal } from '../utils/requestAbort';
 
 const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
 
@@ -33,8 +35,6 @@ export interface TurnReasoningResult {
   faangScorecard?: any;
 }
 
-import { callLiteLlmChat, parseJsonFromLlm } from '../services/llmClient';
-
 function parseReasoningJson(raw: string, isTutorMode: boolean): TurnReasoningResult {
   const fallback: TurnReasoningResult = {
     action: isTutorMode ? 'probe' : 'evaluate',
@@ -42,68 +42,61 @@ function parseReasoningJson(raw: string, isTutorMode: boolean): TurnReasoningRes
     feedback: isTutorMode ? undefined : 'Ответ принят.'
   };
 
-  try {
-    return parseJsonFromLlm<TurnReasoningResult>(raw, fallback);
-  } catch {
-    console.warn('Could not parse model reasoning output as JSON, using structured fallback');
-    return fallback;
-  }
+  return parseJsonFromLlm<TurnReasoningResult>(raw, fallback);
 }
 
 const router = Router();
 
 // POST /api/interview/greeting - Synthesizes the initial greeting and question
-router.post('/greeting', async (req: Request, res: Response) => {
-  try {
-    const {
-      topic = 'Java Core',
-      questionText,
-      voice: rawVoice = 'Kore',
-      userGender: rawUserGender = 'female',
-      strategy = 'socratic_tutoring',
-      sessionType: rawSessionType = 'interview',
-      tutorMode: rawTutorMode = 'deep_dive',
-      initialUserMessage = ''
-    } = req.body;
+router.post('/greeting', asyncHandler(async (req, res) => {
+  const {
+    topic = 'Java Core',
+    questionText,
+    voice: rawVoice = 'Kore',
+    userGender: rawUserGender = 'female',
+    sessionType: rawSessionType = 'interview',
+    tutorMode: rawTutorMode = 'deep_dive',
+    initialUserMessage = ''
+  } = req.body;
 
-    const voice = sanitizeVoice(rawVoice);
-    const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
-    const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
-    const tutorMode = ['deep_dive', 'socratic', 'eli5', 'free_chat'].includes(rawTutorMode) ? rawTutorMode : 'deep_dive';
+  const voice = sanitizeVoice(rawVoice);
+  const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
+  const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
+  const tutorMode = ['deep_dive', 'socratic', 'eli5', 'free_chat'].includes(rawTutorMode) ? rawTutorMode : 'deep_dive';
 
-    if (!questionText) {
-      return res.status(400).json({ error: 'questionText is required' });
-    }
+  if (!questionText) {
+    throw new AppError('questionText is required', 400);
+  }
 
-    const genderDirective = userGender === 'female'
-      ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. Обращайся вежливо и поддерживающе, используя ЖЕНСКИЕ окончания в прошедшем времени («Ты готова», «Ты выбрала»).'
-      : userGender === 'male'
-      ? 'Кандидат — МУЖЧИНА. Обращайся вежливо и поддерживающе, используя МУЖСКИЕ окончания («Ты готов», «Ты выбрал»).'
-      : 'Обращайся уважительно на «Вы».';
+  const genderDirective = userGender === 'female'
+    ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. Обращайся вежливо и поддерживающе, используя ЖЕНСКИЕ окончания в прошедшем времени («Ты готова», «Ты выбрала»).'
+    : userGender === 'male'
+    ? 'Кандидат — МУЖЧИНА. Обращайся вежливо и поддерживающе, используя МУЖСКИЕ окончания («Ты готов», «Ты выбрал»).'
+    : 'Обращайся уважительно на «Вы».';
 
-    let greetingPrompt = '';
-    if (sessionType === 'tutor') {
-      if (initialUserMessage) {
-        greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
+  let greetingPrompt = '';
+  if (sessionType === 'tutor') {
+    if (initialUserMessage) {
+      greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
 ${genderDirective}
 Кандидат обратился к тебе с конкретным вопросом:
 "${initialUserMessage}"
 
 Ответь кандидату прямо, дружелюбно и емко (2-3 предложения), раскрывая суть вопроса под капотом.
 Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
-      } else {
-        const modeLabel = tutorMode === 'deep_dive' ? 'под капотом (JVM, байткод, структуры данных)'
-          : tutorMode === 'socratic' ? 'через наводящие вопросы'
-          : tutorMode === 'eli5' ? 'на простых аналогиях'
-          : 'в свободном диалоге';
-        greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
+    } else {
+      const modeLabel = tutorMode === 'deep_dive' ? 'под капотом (JVM, байткод, структуры данных)'
+        : tutorMode === 'socratic' ? 'через наводящие вопросы'
+        : tutorMode === 'eli5' ? 'на простых аналогиях'
+        : 'в свободном диалоге';
+      greetingPrompt = `Ты доброжелательный Senior Java/Spring наставник по теме «${topic}».
 ${genderDirective}
 Твоя задача — поприветствовать кандидата одной короткой, естественной фразой (1-2 предложения) и предложить разобрать вопрос темы «${topic}» ${modeLabel}.
 Вопрос: "${questionText}"
 Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
-      }
-    } else {
-      greetingPrompt = `Ты профессиональный и доброжелательный технический интервьюер.
+    }
+  } else {
+    greetingPrompt = `Ты профессиональный и доброжелательный технический интервьюер.
 ${genderDirective}
 Твоя задача — поприветствовать кандидата одной короткой, естественной живой фразой (максимум 1 предложение) и четко зачитать технический вопрос по теме «${topic}».
 
@@ -113,24 +106,26 @@ ${genderDirective}
 ВАЖНО:
 - НЕ давай подсказок и не отвечай на вопрос.
 - Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
-    }
+  }
 
+  const signal = getRequestAbortSignal(req);
+  try {
     const chatResult = await callLiteLlmChat({
       model: envConfig.models.fast,
       messages: [{ role: 'user', content: greetingPrompt }],
       temperature: 0.3
     }, {
-      signal: (req as any).signal,
+      signal,
       maxRetries: 2
     });
 
-    if ((req as any).signal?.aborted) {
+    if (signal.aborted) {
       return res.status(499).end();
     }
 
     const greetingText = chatResult.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
 
-    if ((req as any).signal?.aborted) {
+    if (signal.aborted) {
       return res.status(499).end();
     }
 
@@ -143,110 +138,104 @@ ${genderDirective}
       audioBase64
     });
   } catch (err: any) {
-    if ((req as any).signal?.aborted || err?.message === 'Request aborted by client') {
+    if (signal.aborted || err?.message === 'Request aborted by client' || err?.name === 'AbortError') {
       return res.status(499).end();
     }
-    console.error('Error in /api/interview/greeting:', err);
-    return res.status(500).json({ error: err.message || 'Greeting synthesis failed' });
+    throw err;
   }
-});
+}));
 
 // POST /api/interview/turn - Cascaded Turn-Based Interview Engine (STT -> Gemini Fast Reasoning -> Gemini TTS v3)
-router.post('/turn', async (req: Request, res: Response) => {
-  try {
-    const {
-      sessionId,
-      questionId,
-      topic = 'Java Core',
-      questionText,
-      referenceAnswer = '',
-      userTranscript: rawTranscript,
-      audioBase64,
-      pcmBase64,
-      history = [],
-      turnCount = 1,
-      maxProbes = 2,
-      strategy = 'socratic_tutoring',
-      deepDive = true,
-      liveCoaching = true,
-      voice: rawVoice = 'Kore',
-      userGender: rawUserGender = 'female',
-      activeCodeArtifact,
-      persona = 'mentor',
-      targetGrade = 'L5_SENIOR',
-      sessionType: rawSessionType = 'interview'
-    } = req.body;
+router.post('/turn', asyncHandler(async (req, res) => {
+  const {
+    sessionId,
+    questionId,
+    topic = 'Java Core',
+    questionText,
+    referenceAnswer = '',
+    userTranscript: rawTranscript,
+    audioBase64,
+    pcmBase64,
+    history = [],
+    turnCount = 1,
+    maxProbes = 2,
+    strategy = 'socratic_tutoring',
+    deepDive = true,
+    voice: rawVoice = 'Kore',
+    userGender: rawUserGender = 'female',
+    activeCodeArtifact,
+    persona = 'mentor',
+    targetGrade = 'L5_SENIOR',
+    sessionType: rawSessionType = 'interview'
+  } = req.body;
 
-    const voice = sanitizeVoice(rawVoice);
-    const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
-    const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
+  const voice = sanitizeVoice(rawVoice);
+  const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
+  const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
 
-    if (!questionText) {
-      return res.status(400).json({ error: 'questionText is required' });
-    }
+  if (!questionText) {
+    throw new AppError('questionText is required', 400);
+  }
 
-    // 1. STT Phase: Transcribe candidate's speech if text not provided
-    let candidateText = (rawTranscript || '').trim();
-    if (!candidateText && (audioBase64 || pcmBase64)) {
-      const pcmBuffer = Buffer.from(audioBase64 || pcmBase64, 'base64');
-      if (pcmBuffer.length > 0) {
-        try {
-          const sttResult = await transcribeWithDeepgram(pcmBuffer, 16000);
-          candidateText = sttResult.transcript.trim();
-        } catch (sttErr) {
-          console.warn('STT failed in /api/interview/turn, using fallback:', sttErr);
-        }
+  // 1. STT Phase: Transcribe candidate's speech if text not provided
+  let candidateText = (rawTranscript || '').trim();
+  if (!candidateText && (audioBase64 || pcmBase64)) {
+    const pcmBuffer = Buffer.from(audioBase64 || pcmBase64, 'base64');
+    if (pcmBuffer.length > 0) {
+      try {
+        const sttResult = await transcribeWithDeepgram(pcmBuffer, 16000);
+        candidateText = sttResult.transcript.trim();
+      } catch (sttErr) {
+        console.warn('STT failed in /api/interview/turn, using fallback:', sttErr);
       }
     }
+  }
 
-    if (!candidateText) {
-      candidateText = '(Кандидат завершил ответ без звука)';
-    }
+  if (!candidateText) {
+    candidateText = '(Кандидат завершил ответ без звука)';
+  }
 
-    if (sessionId && candidateText) {
-      const mem = getOrCreateSessionMemory(sessionId, questionId);
-      mem.turns.push({ role: 'user', text: candidateText });
-      mem.lastSpeaker = 'user';
-      mem.updatedAt = Date.now();
-    }
+  if (sessionId && candidateText) {
+    const mem = getOrCreateSessionMemory(sessionId, questionId);
+    mem.turns.push({ role: 'user', text: candidateText });
+    mem.lastSpeaker = 'user';
+    mem.updatedAt = Date.now();
+  }
 
-    // 2. Reasoning Phase: Evaluate transcript with Gemini Fast
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    // Use gemini-fast for sub-500ms deterministic Socratic reasoning
-    const modelName = envConfig.models.fast;
+  // 2. Reasoning Phase: Evaluate transcript with Gemini Fast
+  const modelName = envConfig.models.fast;
 
-    const personaDirectives = getPersonaPromptDirectives({
-      persona: persona as InterviewPersonaId,
-      targetGrade: targetGrade as TargetGrade,
-      topic
-    });
+  const personaDirectives = getPersonaPromptDirectives({
+    persona: persona as InterviewPersonaId,
+    targetGrade: targetGrade as TargetGrade,
+    topic
+  });
 
-    const genderDirective = userGender === 'female'
-      ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В feedback и репликах строго используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично раскрыла», «Ты верно отметила», «Ты упустила»).'
-      : userGender === 'male'
-      ? 'Кандидат — МУЖЧИНА. В feedback используй мужские окончания («Ты отлично раскрыл», «Ты верно отметил»).'
-      : 'Обращайся уважительно на «Вы».';
+  const genderDirective = userGender === 'female'
+    ? 'Кандидат — ДЕВУШКА/ЖЕНЩИНА. В feedback и репликах строго используй ЖЕНСКИЕ окончания в прошедшем времени («Ты отлично раскрыла», «Ты верно отметила», «Ты упустила»).'
+    : userGender === 'male'
+    ? 'Кандидат — МУЖЧИНА. В feedback используй мужские окончания («Ты отлично раскрыл», «Ты верно отметил»).'
+    : 'Обращайся уважительно на «Вы».';
 
-    const activeCodeSection = activeCodeArtifact?.code
-      ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
-      : '';
+  const activeCodeSection = activeCodeArtifact?.code
+    ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
+    : '';
 
-    const isTutorMode = sessionType === 'tutor';
+  const isTutorMode = sessionType === 'tutor';
 
-    const decisionRules = isTutorMode
-      ? `РЕЖИМ: ОБУЧАЮЩИЙ ТЬЮТОР (TUTOR MODE).
+  const decisionRules = isTutorMode
+    ? `РЕЖИМ: ОБУЧАЮЩИЙ ТЬЮТОР (TUTOR MODE).
 Ты доброжелательный Senior наставник по теме «${topic}».
 Кандидат задает вопросы, разбирается в тонкостях темы или просит подсказку.
 КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку или завершать сессию (action: "evaluate").
 ВСЕГДА выбирай action: "probe" и давай прямой, емкий, полезный ответ или наводящую подсказку кандидату голосом (2-3 предложения).`
-      : `ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ (СОБЕСЕДОВАНИЕ):
+    : `ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ (СОБЕСЕДОВАНИЕ):
 1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
    -> Выбери action: "evaluate".
 2. Если ответ кандидата раскрывает только часть критериев, есть неточности или включен Deep Dive, и раундов ${turnCount} < ${maxProbes}:
    -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).`;
 
-    const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
+  const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
 ${personaDirectives.roleDirective}
 ${personaDirectives.gradeExpectationDirective}
 ${personaDirectives.evaluationRubricDirective}
@@ -279,7 +268,7 @@ ${decisionRules}
   "positivePoints": [список из 1-3 пунктов того, что отвечено верно],
   "missingPoints": [список из 1-3 упущенных нюансов или терминов],
   "feedback": "Подробный текстовый фидбек на 2-3 предложения",
-  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)",
+  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения)",
   "faangScorecard": {
     "verdict": "STRONG_HIRE | HIRE | LEANING_HIRE | LEANING_NO_HIRE | STRONG_NO_HIRE",
     "calibratedGrade": "L4_MIDDLE | L5_SENIOR | L6_STAFF",
@@ -292,15 +281,17 @@ ${decisionRules}
   }
 }`;
 
-    const conversationTurns = [
-      { role: 'system', content: systemPrompt },
-      ...history.map((h: any) => ({
-        role: h.role === 'ai' ? 'assistant' : 'user',
-        content: h.text
-      })),
-      { role: 'user', content: candidateText }
-    ];
+  const conversationTurns = [
+    { role: 'system', content: systemPrompt },
+    ...history.map((h: any) => ({
+      role: h.role === 'ai' ? 'assistant' : 'user',
+      content: h.text
+    })),
+    { role: 'user', content: candidateText }
+  ];
 
+  const signal = getRequestAbortSignal(req);
+  try {
     const proxyResult = await callLiteLlmChat({
       model: modelName,
       messages: conversationTurns,
@@ -308,17 +299,17 @@ ${decisionRules}
       max_tokens: 800,
       response_format: { type: 'json_object' }
     }, {
-      signal: (req as any).signal,
+      signal,
       maxRetries: 2
     });
 
-    if ((req as any).signal?.aborted) {
+    if (signal.aborted) {
       return res.status(499).end();
     }
 
     const reasoningResult = parseReasoningJson(proxyResult.content, isTutorMode);
 
-    if ((req as any).signal?.aborted) {
+    if (signal.aborted) {
       return res.status(499).end();
     }
 
@@ -396,7 +387,9 @@ ${decisionRules}
               topic,
               assistanceLevel: reasoningResult.isPassed ? ((reasoningResult.score ?? 0) >= 85 ? 'solo' : 'guided') : 'relapse'
             });
-          } catch {}
+          } catch (decayErr: any) {
+            console.warn(`Knowledge decay update error for question ${questionId}:`, decayErr?.message);
+          }
 
           if (!reasoningResult.isPassed && reasoningResult.missingPoints && reasoningResult.missingPoints.length > 0) {
             try {
@@ -406,7 +399,9 @@ ${decisionRules}
                 errorConcept: reasoningResult.missingPoints[0],
                 initialDeficit: 1.0
               });
-            } catch {}
+            } catch (gapErr: any) {
+              console.warn(`Error gap recording error for question ${questionId}:`, gapErr?.message);
+            }
           }
         }
       } catch (dbErr) {
@@ -432,12 +427,11 @@ ${decisionRules}
       progress: progressSummary
     });
   } catch (err: any) {
-    if ((req as any).signal?.aborted || err?.message === 'Request aborted by client') {
+    if (signal.aborted || err?.message === 'Request aborted by client' || err?.name === 'AbortError') {
       return res.status(499).end();
     }
-    console.error('Error in /api/interview/turn:', err);
-    res.status(500).json({ error: err.message || 'Interview turn processing failed' });
+    throw err;
   }
-});
+}));
 
 export default router;

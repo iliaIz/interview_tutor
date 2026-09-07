@@ -1,4 +1,5 @@
 import { ErrorRequestHandler } from 'express';
+export { asyncHandler } from './asyncHandler';
 
 export class AppError extends Error {
   public readonly status: number;

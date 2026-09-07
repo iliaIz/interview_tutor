@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import fs from 'fs';
 import { 
   startPodcastJob, 
@@ -9,42 +9,38 @@ import {
   getJob
 } from '../services/podcast';
 import { TOPIC_MAP } from '../services/topics';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
 
 const router = Router();
 
 // POST /api/podcast/generate - Start audio recap job
-router.post('/generate', async (req: Request, res: Response) => {
-  try {
-    const { questionIds, topicId, topicName, tone, length, language, systemPrompt, userPrompt, mode, voice1, voice2 } = req.body;
+router.post('/generate', asyncHandler(async (req, res) => {
+  const { questionIds, topicId, topicName, tone, length, language, systemPrompt, userPrompt, mode, voice1, voice2 } = req.body;
 
-    const resolvedTopicName = topicName || (topicId ? TOPIC_MAP[topicId.toLowerCase()] : undefined);
+  const resolvedTopicName = topicName || (topicId ? TOPIC_MAP[String(topicId).toLowerCase()] : undefined);
 
-    if ((!questionIds || questionIds.length === 0) && !resolvedTopicName) {
-      return res.status(400).json({ error: 'Provide questionIds or valid topicId/topicName' });
-    }
-
-    const job = await startPodcastJob({
-      questionIds,
-      topicName: resolvedTopicName,
-      tone: tone || 'Fun',
-      length: length || 'Medium (10-15 min)',
-      language: language || 'Russian',
-      systemPrompt,
-      userPrompt,
-      mode,
-      voice1: voice1 || 'Kore',
-      voice2: voice2 || 'Puck',
-    });
-
-    res.json(job);
-  } catch (error: any) {
-    console.error('Error generating podcast:', error);
-    res.status(500).json({ error: error.message || 'Internal podcast service error' });
+  if ((!questionIds || questionIds.length === 0) && !resolvedTopicName) {
+    throw new AppError('Provide questionIds or valid topicId/topicName', 400);
   }
-});
+
+  const job = await startPodcastJob({
+    questionIds,
+    topicName: resolvedTopicName,
+    tone: tone || 'Fun',
+    length: length || 'Medium (10-15 min)',
+    language: language || 'Russian',
+    systemPrompt,
+    userPrompt,
+    mode,
+    voice1: voice1 || 'Kore',
+    voice2: voice2 || 'Puck',
+  });
+
+  res.json(job);
+}));
 
 // GET /api/podcast/progress/:jobId - Server-Sent Events (SSE) stream for real-time progress
-router.get('/progress/:jobId', (req: Request, res: Response): void => {
+router.get('/progress/:jobId', (req, res): void => {
   const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
   const currentJob = getJob(jobId);
 
@@ -52,7 +48,7 @@ router.get('/progress/:jobId', (req: Request, res: Response): void => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
 
@@ -137,104 +133,89 @@ router.get('/progress/:jobId', (req: Request, res: Response): void => {
 });
 
 // GET /api/podcast/status/:jobId - Check job status via REST fallback
-router.get('/status/:jobId', async (req: Request, res: Response) => {
-  try {
-    const jobId = (Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId) as string;
-    const status = await fetchJobStatus(jobId);
-    res.json(status);
-  } catch (error: any) {
-    console.error('Error fetching job status:', error);
-    res.status(500).json({ error: error.message || 'Error fetching status' });
-  }
-});
+router.get('/status/:jobId', asyncHandler(async (req, res) => {
+  const jobId = (Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId) as string;
+  const status = await fetchJobStatus(jobId);
+  res.json(status);
+}));
 
 // GET /api/podcast/audio/:jobId - Stream Opus/WAV audio with full HTTP 206 Partial Content support
-router.get('/audio/:jobId', async (req: Request, res: Response) => {
-  try {
-    const jobId = (Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId) as string;
-    const { filePath, mimeType } = await streamAudioFile(jobId);
+router.get('/audio/:jobId', asyncHandler(async (req, res) => {
+  const jobId = (Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId) as string;
+  const { filePath, mimeType } = await streamAudioFile(jobId);
 
-    const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
 
-    const fileExt = filePath.endsWith('.opus') ? 'opus' : 'wav';
-    const filename = `podcast_${jobId}.${fileExt}`;
+  const fileExt = filePath.endsWith('.opus') ? 'opus' : 'wav';
+  const filename = `podcast_${jobId}.${fileExt}`;
 
-    if (!range) {
-      res.writeHead(200, {
-        'Content-Length': fileSize,
-        'Content-Type': mimeType,
-        'Accept-Ranges': 'bytes',
-        'Content-Disposition': `inline; filename="${filename}"`,
-      });
-      fs.createReadStream(filePath).pipe(res);
-      return;
-    }
-
-    const parts = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-    if (start >= fileSize || end >= fileSize || start > end) {
-      res.writeHead(416, {
-        'Content-Range': `bytes */${fileSize}`,
-      });
-      res.end();
-      return;
-    }
-
-    const chunkSize = end - start + 1;
-    const fileStream = fs.createReadStream(filePath, { start, end });
-
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
+  if (!range) {
+    res.writeHead(200, {
+      'Content-Length': fileSize,
       'Content-Type': mimeType,
+      'Accept-Ranges': 'bytes',
       'Content-Disposition': `inline; filename="${filename}"`,
     });
-
-    fileStream.pipe(res);
-  } catch (error: any) {
-    console.error('Error streaming audio:', error);
-    res.status(500).json({ error: error.message || 'Error streaming audio' });
+    fs.createReadStream(filePath).pipe(res);
+    return;
   }
-});
+
+  const parts = range.replace(/bytes=/, '').split('-');
+  const start = parseInt(parts[0], 10);
+  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+  if (start >= fileSize || end >= fileSize || start > end) {
+    res.writeHead(416, {
+      'Content-Range': `bytes */${fileSize}`,
+    });
+    res.end();
+    return;
+  }
+
+  const chunkSize = end - start + 1;
+  const fileStream = fs.createReadStream(filePath, { start, end });
+
+  res.writeHead(206, {
+    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+    'Accept-Ranges': 'bytes',
+    'Content-Length': chunkSize,
+    'Content-Type': mimeType,
+    'Content-Disposition': `inline; filename="${filename}"`,
+  });
+
+  fileStream.pipe(res);
+}));
 
 const sampleAudioCache = new Map<string, Buffer>();
 
 // GET /api/podcast/sample-audio - Stream WAV sample for voice preview using Gemini TTS
-router.get('/sample-audio', async (req: Request, res: Response) => {
-  try {
-    const voice = (req.query.voice as string) || 'Kore';
+router.get('/sample-audio', asyncHandler(async (req, res) => {
+  const voice = (req.query.voice as string) || 'Kore';
 
-    if (sampleAudioCache.has(voice)) {
-      res.setHeader('Content-Type', 'audio/wav');
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      return res.send(sampleAudioCache.get(voice));
-    }
-
-    const sampleTexts: Record<string, string> = {
-      'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
-      'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
-      'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
-      'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
-      'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
-    };
-
-    const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного голоса.';
-
-    const buffer = await synthesizeTTSBuffer(text, voice);
-    sampleAudioCache.set(voice, buffer);
-
+  if (sampleAudioCache.has(voice)) {
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    return res.send(buffer);
-  } catch (err: any) {
-    console.error('Error fetching sample audio:', err);
-    res.status(500).json({ error: err.message || 'Sample audio error' });
+    return res.send(sampleAudioCache.get(voice));
   }
-});
+
+  const sampleTexts: Record<string, string> = {
+    'Kore': 'Привет! Я Kore. Помогу вам легко подготовиться к техническому собеседованию.',
+    'Puck': 'Здравствуйте! Я Puck. Давайте детально изучим ключевые концепции и архитектуру.',
+    'Charon': 'Приветствую! Я Charon. Разберу сложные ответы и подводные камни backend-разработки.',
+    'Aoede': 'Всем привет! Я Aoede. Объясню всё доступно, ярко и с практическими примерами.',
+    'Fenrir': 'Приветствую! Я Fenrir. Проведем строгий разбор архитектуры и стандартов.',
+  };
+
+  const text = sampleTexts[voice] || 'Привет! Это пример звучания выбранного голоса.';
+
+  const buffer = await synthesizeTTSBuffer(text, voice);
+  sampleAudioCache.set(voice, buffer);
+
+  res.setHeader('Content-Type', 'audio/wav');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  return res.send(buffer);
+}));
 
 export default router;
