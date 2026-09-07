@@ -14,6 +14,11 @@
     }
 }
 
+# Root / apex domain redirect to java sub-application
+djelu.site, www.djelu.site {
+    redir https://java.djelu.site{uri} permanent
+}
+
 java.djelu.site, java.192-124-182-59.sslip.io {
     import common_headers
     encode zstd gzip
