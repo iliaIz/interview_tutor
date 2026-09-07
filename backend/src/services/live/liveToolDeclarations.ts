@@ -50,6 +50,41 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
             type: 'STRING',
             description: 'Краткое текстовое резюме для озвучивания и карточки отчета'
           },
+          criteriaBreakdown: {
+            type: 'ARRAY',
+            description: 'Пошаговая ведомость оценки по фиксированным критериям вопроса (сумма maxPoints = 100). Заполняется ПЕРЕД выставлением итогового балла score.',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                id: { type: 'STRING', description: 'Идентификатор критерия (c1, c2, c3)' },
+                title: { type: 'STRING', description: 'Название критерия (например: Определение и концепция, Механика под капотом, Подводные камни)' },
+                maxPoints: { type: 'NUMBER', description: 'Максимальный вес критерия в корзине 100 баллов' },
+                earnedPoints: { type: 'NUMBER', description: 'Набранные кандидатом баллы по этому критерию' },
+                status: { type: 'STRING', enum: ['covered', 'partial', 'missed'], description: 'Степень раскрытия критерия' },
+                probeAssisted: { type: 'BOOLEAN', description: 'true если баллы были добраны благодаря наводящему вопросу интервьюера' },
+                evidence: { type: 'STRING', description: 'Что именно кандидат сказал в подтверждение' },
+                gap: { type: 'STRING', description: 'Что не было раскрыто (если earnedPoints < maxPoints)' }
+              },
+              required: ['id', 'title', 'maxPoints', 'earnedPoints', 'status']
+            }
+          },
+          deductions: {
+            type: 'ARRAY',
+            description: 'ОБЯЗАТЕЛЬНО при score < 100: список конкретных штрафов. Сумма штрафов обязана быть строго равна 100 - score',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                penalty: { type: 'NUMBER', description: 'Количество снятых баллов (например: 10, 15)' },
+                criteria: { type: 'STRING', description: 'К какому критерию относится штраф' },
+                reason: { type: 'STRING', description: 'Точная техническая причина списания баллов' }
+              },
+              required: ['penalty', 'criteria', 'reason']
+            }
+          },
+          upgradeSnippet: {
+            type: 'STRING',
+            description: 'Готовая лаконичная формулировка (1-2 предложения) на Staff-уровне, как закрыть выявленный геп на 100 баллов'
+          },
           questionType: {
             type: 'STRING',
             enum: ['definitional', 'tradeoff', 'behavioral'],

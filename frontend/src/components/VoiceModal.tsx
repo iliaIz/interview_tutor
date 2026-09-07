@@ -73,6 +73,7 @@ import { VoiceLobbyView } from './voice/VoiceLobbyView';
 import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceTutorView } from './voice/VoiceTutorView';
+import { RubricScorecard } from './voice/RubricScorecard';
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   const CHUNK_SIZE = 0x8000;
@@ -3528,9 +3529,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   </div>
                 </div>
 
-                <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-white/90 border border-slate-200 text-slate-700 shadow-2xs">
-                  {evaluation.score ?? 70}/100
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-white/90 border border-slate-200 text-slate-700 shadow-2xs">
+                    {evaluation.score ?? 70}/100
+                  </span>
+                  {(evaluation.score ?? 70) < 100 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-700 shadow-2xs">
+                      -{100 - (evaluation.score ?? 70)} б.
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Transition Control Card (Auto-Timer vs Manual Mode) */}
@@ -3653,19 +3661,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 </div>
               )}
 
-              {evaluation.missingPoints && evaluation.missingPoints.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-rose-50/50 border border-rose-200/60 text-xs">
-                  <span className="font-bold text-rose-700 flex items-center gap-1.5 mb-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                    Упущенные якоря и зоны роста:
-                  </span>
-                  <ul className="space-y-1 text-rose-900 list-disc list-inside">
-                    {evaluation.missingPoints.map((pt, i) => (
-                      <li key={i}>{pt}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* Explainable Rubric Scorecard (Criteria Ledger + Deductions + Upgrade Snippet) */}
+              <RubricScorecard evaluation={evaluation} />
 
               {(evaluation.spokenFeedback || evaluation.feedback) && (
                 <div className="p-3.5 rounded-2xl bg-pastel-card border border-pastel-border text-xs leading-relaxed text-pastel-text">

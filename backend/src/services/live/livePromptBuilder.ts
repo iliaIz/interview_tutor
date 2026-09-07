@@ -40,6 +40,44 @@ export function extractDefaultAnchors(referenceAnswer: string, questionText?: st
   return [referenceAnswer.slice(0, 120)];
 }
 
+export interface WeightedAnchor {
+  id: string;
+  title: string;
+  weight: number;
+  description: string;
+}
+
+export function buildWeightedRubric(referenceAnswer: string, questionText: string, defaultAnchors?: string[]): WeightedAnchor[] {
+  const qLower = (questionText || '').toLowerCase();
+
+  // 1. Behavioral -> STAR (30 / 40 / 30)
+  const isBehavioral = ['опыт', 'инцидент', 'авария', 'баг', 'конфликт', 'проект', 'failure', 'incident', 'tell me about', 'ситуаци'].some(w => qLower.includes(w));
+  if (isBehavioral) {
+    return [
+      { id: 'c1_situation_task', title: 'Situation & Task (Контекст, масштаб и цели)', weight: 30, description: 'Четкое описание контекста проблемы, бизнес-ограничений и стоящих задач' },
+      { id: 'c2_action', title: 'Action (Инженерные действия и архитектурные решения)', weight: 40, description: 'Конкретные личные действия, выбор технологий, паттернов и реализация' },
+      { id: 'c3_result', title: 'Result & Learnings (Измеримый итог и выводы)', weight: 30, description: 'Метрики, эффект для продакшена и ретроспективные архитектурные выводы' }
+    ];
+  }
+
+  // 2. Trade-off -> PREP (30 / 40 / 30)
+  const isTradeoff = [' vs ', 'или', 'разниц', 'сравните', 'почему', 'выбрать', 'компромисс', 'trade-off', 'difference'].some(w => qLower.includes(w));
+  if (isTradeoff) {
+    return [
+      { id: 'c1_point', title: 'Point (Ключевой тезис и критерии выбора)', weight: 30, description: 'Понятный выбор позиции и ясные критерии сравнения технологий' },
+      { id: 'c2_reason', title: 'Reason (Техническое обоснование компромиссов)', weight: 40, description: 'Архитектурные плюсы и минусы, latency, throughput, memory, complexity' },
+      { id: 'c3_example', title: 'Example & Best Practice (Кейс из практики и итог)', weight: 30, description: 'Реальный production-сценарий применения и итоговая рекомендация' }
+    ];
+  }
+
+  // 3. Definitional / Under-the-hood -> Rule of 3 (35 / 35 / 30)
+  return [
+    { id: 'c1_definition', title: 'Определение и ключевые концепции (Rule of 3: Шаг 1)', weight: 35, description: 'Точная терминология, базовое определение и ключевые преимущества технологии' },
+    { id: 'c2_internals', title: 'Механика под капотом и архитектура (Rule of 3: Шаг 2)', weight: 35, description: 'Внутреннее устройство (JMM/Spring lifecycle, проксирование, структуры данных, dispatch)' },
+    { id: 'c3_pitfalls', title: 'Подводные камни и Best Practices (Rule of 3: Шаг 3)', weight: 30, description: 'Ограничения, типовые ошибки (циклические зависимости, self-invocation), runtime-оверхед и production-рекомендации' }
+  ];
+}
+
 export function buildSystemPrompt(params: {
   topic: string;
   questionText: string;
@@ -155,7 +193,8 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
     sessionType === 'tutor' ? `\n\n${tutorZeroGradingInstruction}` : ''
   }`;
 
-  const anchorsFormatted = anchors.map((a, i) => `  [Критерий ${i + 1}] ${a}`).join('\n');
+  const rubric = buildWeightedRubric(referenceAnswer || '', questionText || '', anchors);
+  const anchorsFormatted = rubric.map((r, i) => `  [Критерий ${i + 1}: ${r.id}] (Вес: ${r.weight} б.) ${r.title}\n    Суть: ${r.description}`).join('\n');
 
   // === SYSTEM DESIGN LIVE BAR-RAISER DEFENSE ===
   if (sessionType === 'system_design') {
@@ -532,13 +571,21 @@ ${anchorsFormatted}
 3. РЕАКЦИЯ НА МЕТА-РЕПЛИКИ И КАПИТУЛЯЦИЮ:
    - Если кандидат говорит «Повтори вопрос», «Не расслышала» — вежливо и четко повтори вопрос.
    - Если кандидат говорит «Не знаю», «Сдаюсь», «Объясни» — строго следуй протоколу брейкпоинта (Micro-Lecture) выше.
-4. СОКРАТИЧЕСКОЕ ЗОНДИРОВАНИЕ:
-   - Если кандидат раскрыл только часть критериев или включен Deep Dive — задай четкий наводящий вопрос (лимит: не более ${maxProbes} раундов). ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
+4. СОКРАТИЧЕСКОЕ ЗОНДИРОВАНИЕ И PROBE RECOVERY (ДОБОР БАЛЛОВ):
+   - Если кандидат раскрыл только часть критериев или упустил один из них — задай четкий наводящий вопрос именно по упущенному критерию (лимит: до ${maxProbes} раундов).
+   - Наводящий вопрос НЕ меняет знаменатель (100) и НЕ наказывает кандидата! Он служит возможностью ДОБРАТЬ упущенные баллы по этому критерию (отметь probeAssisted: true и добавь баллы в earnedPoints).
+   - ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
    - Если кандидат ответил на наводящий вопрос или своими словами раскрыл суть — поблагодари за отличный ответ и сразу переходи к финалу (шаг 5).
-5. ФИНАЛИЗАЦИЯ И ОЦЕНКА:
+5. ФИНАЛИЗАЦИЯ И ДЕТЕРМИНИРОВАННЫЙ СКОРИНГ (ZERO-PHANTOM DEDUCTIONS):
    - По завершении ответа кандидата (или после того, как дан ответ на уточняющий вопрос):
      а) ОБЯЗАТЕЛЬНО сначала произнеси вслух теплое устное резюме (2-3 предложения): похвали за верные мысли, отметь зоны роста и скажи «Сейчас зафиксирую результаты и сформирую оценку».
-     б) И затем вызови функцию \`submit_interview_evaluation\` со структурированными оценками (score от 0 до 100, isPassed: score >= 70, positivePoints, missingPoints, spokenFeedback, faangScorecard).`;
+     б) И затем вызови функцию \`submit_interview_evaluation\` со следующими строгими правилами:
+        - criteriaBreakdown: массив по всем критериям темы (${rubric.map(r => r.id).join(', ')}). Сумма maxPoints = 100. Заполни earnedPoints, maxPoints, status ('covered' | 'partial' | 'missed'), probeAssisted, evidence, gap.
+        - deductions: ЕСЛИ score < 100, массив deductions ОБЯЗАН содержать точные штрафы, сумма которых СТРОГО равна (100 - score). Запрещено занижать балл без явного списка штрафов!
+        - score: строго равен сумме earnedPoints по всем критериям (100 - sum(penalties)).
+        - isPassed: score >= 70.
+        - upgradeSnippet: 1-2 предложения на Staff-уровне, как звучал бы ответ на 100 баллов с учетом закрытия пробелов.
+        - positivePoints, missingPoints, spokenFeedback, faangScorecard.`;
   }
 
   // Adaptive Probing with Selected FAANG Persona
@@ -571,25 +618,31 @@ ${anchorsFormatted}
 
 === 3. ОПЕРАЦИОННЫЙ СЦЕНАРИЙ ДИАЛОГА (EXECUTION RULES) ===
 1. ПРИВЕТСТВИЕ: В начале сессии кратко и вежливо поприветствуй кандидата и четко озвучь вопрос темы.
-2. ЗОНДИРОВАНИЕ И FOLLOW-UP:
+2. ЗОНДИРОВАНИЕ, FOLLOW-UP И PROBE RECOVERY:
    - Внимательно сопоставляй ответ кандидата с критериями темы и ожиданиями твоей персоны (${personaDirectives.personaTitle}).
-   - Задавай точечные вопросы по недостающим пунктам или углубляйся под капот (лимит раундов: до ${maxProbes}). ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
+   - Если один из критериев не раскрыт, задай точечный вопрос именно по нему (лимит: до ${maxProbes} раундов). Этот вопрос позволяет кандидату ДОБРАТЬ упущенные баллы (probeAssisted: true).
+   - ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
    - Если кандидат ответил на вопрос или говорит «Не знаю / не помню / объясни / сдаюсь» — переходи к финализации (шаг 3).
-3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ КОМИТЕТА НАЙМА:
+3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ КОМИТЕТА НАЙМА (ZERO-PHANTOM DEDUCTIONS):
    - Когда ключевые вопросы обсуждены, дан ответ на уточнение или кандидат завершил ответ:
      а) ОБЯЗАТЕЛЬНО сначала произнеси вслух четкое устное резюме (2-3 предложения): оцени полноту ответа в манере своей персоны и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и подготовлю пакет комитета найма».
      б) И затем вызови функцию \`submit_interview_evaluation\` со следующими параметрами:
-        - score (0-100), isPassed (score >= 70), positivePoints, missingPoints, spokenFeedback.
+        - criteriaBreakdown: массив по всем критериям темы (${rubric.map(r => r.id).join(', ')}). Заполни id, title, maxPoints, earnedPoints, status ('covered' | 'partial' | 'missed'), probeAssisted (true если добран на уточнении), evidence, gap.
+        - deductions: ЕСЛИ score < 100, массив deductions ОБЯЗАН быть непустым, и сумма всех penalty ДОЛЖНА строго равняться (100 - score). Запрещено занижать балл без фиксации штрафов!
+        - score (0-100): строго равен сумме earnedPoints по критериям (100 - sum(deductions)).
+        - isPassed (score >= 70).
+        - upgradeSnippet: 1-2 предложения с эталонной формулировкой на 100 баллов на уровне Staff-инженера.
+        - positivePoints, missingPoints, spokenFeedback.
         - questionType: 'definitional' (теория, механизмы, JMM), 'tradeoff' (архитектурный выбор/сравнение технологий), или 'behavioral' (личный опыт, баги, аварии).
         - speechCoaching:
           * structureType: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED'.
-          * rephrasedExample: ЕСЛИ вопрос был поведенческим ('behavioral') или компромиссным ('tradeoff'), сформулируй краткий (2-4 предложения) пример того, как кандидат мог бы идеально перефразировать свой опыт по структуре STAR или PREP на уровне Staff-инженера. Если вопрос чисто теоретический — оставь пустым или дай лаконичный тезис по Rule of 3.
+          * rephrasedExample: пример перефразирования опыта кандидата по STAR / PREP / Rule of 3 на уровне Staff-инженера.
         - faangScorecard:
           * verdict: 'STRONG_HIRE' | 'HIRE' | 'LEANING_HIRE' | 'LEANING_NO_HIRE' | 'STRONG_NO_HIRE'.
           * calibratedGrade: фактически подтвержденный грейд ('L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF').
-          * percentile: число от 0 до 100 (рыночный персентиль кандидата относительно претендентов на целевой грейд).
+          * percentile: число от 0 до 100.
           * dimensionScores: { domainDepth: 0-100, systemArchitecture: 0-100, communicationStar: 0-100, operationalExcellence: 0-100 }.
-          * strengths: список из 1-3 ключевых преимуществ ответа с цитатами или конкретными тезисами кандидата.
-          * redFlags: список из 1-3 критических недочетов или упущенных компромиссов.
-          * hiringRecommendation: 1-2 развернутых предложения с официальной рекомендацией для Hiring Committee.`;
+          * strengths: список из 1-3 ключевых преимуществ с цитатами.
+          * redFlags: список из 1-3 критических недочетов.
+          * hiringRecommendation: 1-2 развернутых предложения.`;
 }

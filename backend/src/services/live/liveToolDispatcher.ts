@@ -4,6 +4,7 @@ import { updateBugChallengeStatus } from '../tutorService';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
 import { recordEvaluationAndSyncProgress } from '../progressService';
 import { calculateFaangScorecard } from '../../prompts/personas';
+import { buildWeightedRubric } from './livePromptBuilder';
 
 export interface LiveToolContext {
   call: {
@@ -18,6 +19,8 @@ export interface LiveToolContext {
     questionId?: string;
     userId?: string;
     topic?: string;
+    questionText?: string;
+    referenceAnswer?: string;
     relevantGapIds?: string[];
     probesCount?: number;
     isRetry?: boolean;
@@ -183,6 +186,71 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
     const questionType = args.questionType || 'definitional';
     const speechCoaching = args.speechCoaching || null;
 
+    const rawCriteriaBreakdown = Array.isArray(args.criteriaBreakdown) ? args.criteriaBreakdown : [];
+    let rawDeductions = Array.isArray(args.deductions) ? args.deductions : [];
+    const upgradeSnippet = typeof args.upgradeSnippet === 'string' ? args.upgradeSnippet : '';
+
+    // Auto-Balancer & Fallback: If model did not supply criteriaBreakdown, build it from default rubric
+    let criteriaBreakdown = rawCriteriaBreakdown;
+    if (criteriaBreakdown.length === 0) {
+      const defaultRubric = buildWeightedRubric(session.referenceAnswer || '', session.questionText || '');
+      let remainingScore = score;
+      criteriaBreakdown = defaultRubric.map((r, idx) => {
+        let earned = 0;
+        if (remainingScore >= r.weight) {
+          earned = r.weight;
+          remainingScore -= r.weight;
+        } else {
+          earned = remainingScore;
+          remainingScore = 0;
+        }
+        const isFull = earned === r.weight;
+        const isZero = earned === 0;
+        return {
+          id: r.id,
+          title: r.title,
+          maxPoints: r.weight,
+          earnedPoints: earned,
+          status: isFull ? 'covered' : (isZero ? 'missed' : 'partial'),
+          probeAssisted: (session.probesCount || 0) > 0 && !isFull && earned > 0,
+          evidence: isFull ? 'Критерий раскрыт в ответе' : undefined,
+          gap: isFull ? undefined : (missingPoints[idx] || `Недостаточно полно раскрыты ${r.title.toLowerCase()}`)
+        };
+      });
+    }
+
+    // Auto-Balancer for deductions: if score < 100 and deductions is empty, derive deductions from criteria gaps
+    const totalLostPoints = Math.max(0, 100 - score);
+    let deductions = rawDeductions;
+    if (totalLostPoints > 0 && deductions.length === 0) {
+      const gapCriteria = criteriaBreakdown.filter((c: any) => (c.maxPoints - c.earnedPoints) > 0);
+      if (gapCriteria.length > 0) {
+        deductions = gapCriteria.map((c: any) => ({
+          penalty: c.maxPoints - c.earnedPoints,
+          criteria: c.title,
+          reason: c.gap || `Неполный ответ по критерию «${c.title}»`
+        }));
+      } else if (missingPoints.length > 0) {
+        const perPoint = Math.max(1, Math.round(totalLostPoints / missingPoints.length));
+        deductions = missingPoints.map((mp: string, i: number) => ({
+          penalty: i === missingPoints.length - 1 ? (totalLostPoints - perPoint * (missingPoints.length - 1)) : perPoint,
+          criteria: 'Зоны роста',
+          reason: mp
+        }));
+      } else {
+        deductions = [{
+          penalty: totalLostPoints,
+          criteria: 'Подводные камни и глубина раскрытия',
+          reason: 'Ответ не содержит разбора подводных камней, граничных условий или production best practices.'
+        }];
+      }
+    }
+
+    // Synchronize missingPoints so legacy views and users never see an empty list when score < 100
+    if (missingPoints.length === 0 && deductions.length > 0) {
+      missingPoints.push(...deductions.map((d: any) => `${d.criteria}: ${d.reason} (-${d.penalty} б.)`));
+    }
+
     // FAANG Calibration Scorecard calculation
     const calculatedScorecard = calculateFaangScorecard({
       score,
@@ -215,7 +283,14 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
           positivePoints,
           missingPoints,
           feedback,
-          speechCoaching: speechCoaching ? { ...speechCoaching, questionType, faangScorecard } : { faangScorecard },
+          speechCoaching: {
+            ...(speechCoaching || {}),
+            questionType,
+            faangScorecard,
+            criteriaBreakdown,
+            deductions,
+            upgradeSnippet
+          },
           userAnswer: 'Устный ответ в Gemini Live'
         });
         savedEvalId = syncResult.evalId;
@@ -267,7 +342,7 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
       }
     }
 
-    // Send toolResponse back to Gemini Live
+    // Return tool response to Gemini Live
     const toolResponse = {
       toolResponse: {
         functionResponses: [
@@ -276,7 +351,10 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             name: call.name,
             response: {
               result: {
-                status: 'COMMITTED',
+                success: true,
+                saved: true,
+                score,
+                isPassed,
                 evaluationId: savedEvalId,
                 message: 'Оценка сохранена.'
               }
@@ -305,6 +383,9 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
           questionType,
           speechCoaching,
           faangScorecard,
+          criteriaBreakdown,
+          deductions,
+          upgradeSnippet,
           assistanceLevel,
           knowledgeUpdate: decayResult
         }

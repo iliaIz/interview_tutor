@@ -11,6 +11,7 @@ import { InterviewConfig } from '../../types/interviewConfig';
 import { HiringCommitteeCard } from '../HiringCommitteeCard';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { AcousticTelemetryService } from '../../services/AcousticTelemetryService';
+import { RubricScorecard } from './RubricScorecard';
 
 export interface VoiceVerdictViewProps {
   evaluation: VoiceEvaluationResult;
@@ -43,9 +44,16 @@ export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
             {evaluation.score ?? 70}%
           </div>
           <div>
-            <h4 className="font-bold text-sm">
-              {evaluation.isPassed ? '🎉 Собеседование успешно пройдено!' : 'Требуется дополнительное повторение'}
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-sm">
+                {evaluation.isPassed ? '🎉 Собеседование успешно пройдено!' : 'Требуется дополнительное повторение'}
+              </h4>
+              {(evaluation.score ?? 70) < 100 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-700 shadow-2xs">
+                  -{100 - (evaluation.score ?? 70)} б.
+                </span>
+              )}
+            </div>
             <p className="text-xs opacity-80">
               Стратегия: {interviewConfig.strategy === 'socratic_tutoring' ? 'Сократический менторинг' : 'Адаптивное зондирование'}
             </p>
@@ -216,19 +224,8 @@ export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
         </div>
       )}
 
-      {evaluation.missingPoints && evaluation.missingPoints.length > 0 && (
-        <div className="p-3.5 rounded-2xl bg-rose-50/50 border border-rose-200/60 text-xs">
-          <span className="font-bold text-rose-700 flex items-center gap-1.5 mb-2">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-            Упущенные якоря и зоны роста:
-          </span>
-          <ul className="space-y-1 text-rose-900 list-disc list-inside">
-            {evaluation.missingPoints.map((pt, i) => (
-              <li key={i}>{pt}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Transparent Fixed Rubric & Deductions Audit */}
+      <RubricScorecard evaluation={evaluation} />
 
       {(evaluation.spokenFeedback || evaluation.feedback) && (
         <div className="p-3.5 rounded-2xl bg-pastel-card border border-pastel-border text-xs leading-relaxed text-pastel-text">

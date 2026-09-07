@@ -65,6 +65,7 @@ interface ProxySession {
   questionId?: string;
   userId?: string;
   topic?: string;
+  questionText?: string;
   referenceAnswer?: string;
   relevantGapIds?: string[];
   probesCount?: number;
@@ -228,6 +229,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
       questionId,
       userId: authenticatedUser.id || 'default_user',
       topic,
+      questionText,
       referenceAnswer,
       relevantGapIds,
       probesCount: isResumed ? initialProbesCount : 0,
