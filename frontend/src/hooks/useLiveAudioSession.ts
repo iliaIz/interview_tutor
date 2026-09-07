@@ -1,10 +1,11 @@
 /**
- * Live Audio Session Hook (WebRTC Engine via LiveKit & LiteLLM Proxy)
+ * Live Audio Session Hook (WebSocket Engine via LiteLLM Proxy)
  * 
- * Replaces legacy custom Web Audio API with industrial WebRTC,
- * featuring native OS Acoustic Echo Cancellation (AEC),
+ * Routes through secure WebSocket (/ws/live) over HTTPS port 443,
+ * providing zero-firewall traversal, hardware Acoustic Echo Cancellation (AEC),
  * sub-300ms latency, and centralized LiteLLM proxy failover.
  */
 
-export * from './useLiveKitAudioSession';
-export { useLiveKitAudioSession as useLiveAudioSession } from './useLiveKitAudioSession';
+export * from './useLegacyLiveAudioSession';
+export { useLiveAudioSession } from './useLegacyLiveAudioSession';
+
