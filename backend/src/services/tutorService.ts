@@ -5,6 +5,7 @@ import { envConfig } from '../config/env';
 import { TOPIC_MAP } from './topics';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { LlmGatewayUnavailableError } from './dynamicTaskGenerator';
+import { callLiteLlmChat, parseJsonFromLlm } from './llmClient';
 
 dotenv.config();
 
@@ -238,8 +239,6 @@ export function updateBugChallengeStatus(params: {
 }
 
 export async function generateBugChallenge(params: GenerateBugChallengeParams): Promise<BugChallenge> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
   const modelName = envConfig.models.text;
 
   let topicName = params.topic || 'Java & Spring Framework';
@@ -431,61 +430,12 @@ ${contextInfo}
       extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
     };
 
-    let proxyRes: Response;
-    try {
-      proxyRes = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`,
-        },
-        signal: AbortSignal.timeout(90_000),
-        body: JSON.stringify(reasoningPayload)
-      });
-    } catch (fetchErr: any) {
-      if (endpointUrl.includes('host.docker.internal')) {
-        const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-        console.log(`🔄 Retrying with local URL: ${localUrl}`);
-        proxyRes = await fetch(localUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${proxyApiKey}`,
-          },
-          signal: AbortSignal.timeout(90_000),
-          body: JSON.stringify(reasoningPayload)
-        });
-      } else {
-        throw fetchErr;
-      }
-    }
+    const chatResult = await callLiteLlmChat(reasoningPayload, {
+      timeoutMs: 90_000,
+      maxRetries: 2
+    });
 
-    if (!proxyRes.ok) {
-      const errText = await proxyRes.text();
-      throw new Error(`LiteLLM Proxy (${proxyRes.status}): ${errText}`);
-    }
-
-    const data = await proxyRes.json();
-    const rawContent = data.choices?.[0]?.message?.content || '{}';
-    let cleanedJson = rawContent.trim();
-    if (cleanedJson.startsWith('```json')) {
-      cleanedJson = cleanedJson.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleanedJson.startsWith('```')) {
-      cleanedJson = cleanedJson.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleanedJson);
-    } catch (parseErr) {
-      console.warn('JSON.parse failed on LLM output, extracting JSON block:', parseErr);
-      const jsonMatch = cleanedJson.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw parseErr;
-      }
-    }
+    const parsed = parseJsonFromLlm(chatResult.content);
 
     const challengeId = `bug_${crypto.randomBytes(8).toString('hex')}`;
 

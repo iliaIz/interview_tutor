@@ -33,102 +33,21 @@ export interface TurnReasoningResult {
   faangScorecard?: any;
 }
 
-/**
- * Full-Jitter Exponential Backoff (AGENTS.md Invariant 5):
- * T = random(0, min(2500, 800 * 1.8^attempt))
- * Generates a fresh AbortSignal per attempt and respects client parentSignal cancellation.
- */
-async function fetchWithFullJitterRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 2,
-  parentSignal?: AbortSignal,
-  timeoutMs = 45_000
-): Promise<globalThis.Response> {
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (parentSignal?.aborted) {
-      throw new Error('Request aborted by client');
-    }
-
-    if (attempt > 0) {
-      const backoffCapMs = 2500;
-      const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
-      const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
-      console.log(`⏱️ LiteLLM retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
-      await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
-      if (parentSignal?.aborted) {
-        throw new Error('Request aborted by client');
-      }
-    }
-
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
-    const combinedSignal = parentSignal
-      ? AbortSignal.any([parentSignal, timeoutSignal])
-      : timeoutSignal;
-
-    const perAttemptOptions: RequestInit = {
-      ...options,
-      signal: combinedSignal
-    };
-
-    try {
-      const res = await fetch(url, perAttemptOptions);
-      if (res.ok) {
-        return res;
-      }
-      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
-        const errTxt = await res.text();
-        lastError = new Error(`LiteLLM transient error (${res.status}): ${errTxt}`);
-        console.warn(`[LiteLLM Transient ${res.status}] Attempt ${attempt}/${maxRetries}:`, errTxt.slice(0, 100));
-        continue;
-      }
-      return res;
-    } catch (err: any) {
-      if (parentSignal?.aborted) {
-        throw new Error('Request aborted by client');
-      }
-      lastError = err;
-      console.warn(`[LiteLLM Network Error] Attempt ${attempt}/${maxRetries}:`, err);
-    }
-  }
-  throw (lastError instanceof Error ? lastError : new Error(`LiteLLM request failed after ${maxRetries} retries`));
-}
+import { callLiteLlmChat, parseJsonFromLlm } from '../services/llmClient';
 
 function parseReasoningJson(raw: string, isTutorMode: boolean): TurnReasoningResult {
-  if (!raw || !raw.trim()) {
-    return {
-      action: isTutorMode ? 'probe' : 'evaluate',
-      replyText: 'Давайте продолжим обсуждение.',
-      feedback: 'Ответ принят.'
-    };
-  }
-
-  // 1. Direct parse attempt
-  try {
-    return JSON.parse(raw);
-  } catch {}
-
-  // 2. Strip markdown fences
-  try {
-    const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-    return JSON.parse(clean);
-  } catch {}
-
-  // 3. Regex extract first JSON object {...}
-  try {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-  } catch {}
-
-  // 4. Fallback structured response without crashing
-  console.warn('Could not parse model reasoning output as JSON, using structured fallback:', raw.slice(0, 100));
-  return {
-    action: 'probe',
-    replyText: raw.replace(/[{}"[\]]/g, '').trim() || 'Расскажите подробнее об этой части.'
+  const fallback: TurnReasoningResult = {
+    action: isTutorMode ? 'probe' : 'evaluate',
+    replyText: isTutorMode ? 'Давайте продолжим обсуждение.' : undefined,
+    feedback: isTutorMode ? undefined : 'Ответ принят.'
   };
+
+  try {
+    return parseJsonFromLlm<TurnReasoningResult>(raw, fallback);
+  } catch {
+    console.warn('Could not parse model reasoning output as JSON, using structured fallback');
+    return fallback;
+  }
 }
 
 const router = Router();
@@ -196,38 +115,20 @@ ${genderDirective}
 - Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
     }
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.fast;
-
-    const chatResponse = await fetchWithFullJitterRetry(
-      endpointUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${proxyApiKey}`
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: 'user', content: greetingPrompt }],
-          temperature: 0.3
-        })
-      },
-      2,
-      (req as any).signal
-    );
+    const chatResult = await callLiteLlmChat({
+      model: envConfig.models.fast,
+      messages: [{ role: 'user', content: greetingPrompt }],
+      temperature: 0.3
+    }, {
+      signal: (req as any).signal,
+      maxRetries: 2
+    });
 
     if ((req as any).signal?.aborted) {
       return res.status(499).end();
     }
 
-    if (!chatResponse.ok) {
-      throw new Error(`Proxy returned ${chatResponse.status}: ${await chatResponse.text()}`);
-    }
-
-    const chatData = await chatResponse.json();
-    const greetingText = chatData.choices?.[0]?.message?.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
+    const greetingText = chatResult.content?.trim() || `Привет! Давайте разберем следующий вопрос: ${questionText}`;
 
     if ((req as any).signal?.aborted) {
       return res.status(499).end();
@@ -400,38 +301,22 @@ ${decisionRules}
       { role: 'user', content: candidateText }
     ];
 
-    const proxyRes = await fetchWithFullJitterRetry(
-      endpointUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: conversationTurns,
-          temperature: 0.3,
-          max_tokens: 800,
-          response_format: { type: 'json_object' }
-        })
-      },
-      2,
-      (req as any).signal
-    );
+    const proxyResult = await callLiteLlmChat({
+      model: modelName,
+      messages: conversationTurns,
+      temperature: 0.3,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    }, {
+      signal: (req as any).signal,
+      maxRetries: 2
+    });
 
     if ((req as any).signal?.aborted) {
       return res.status(499).end();
     }
 
-    if (!proxyRes.ok) {
-      const errTxt = await proxyRes.text();
-      throw new Error(`LiteLLM reasoning error (${proxyRes.status}): ${errTxt}`);
-    }
-
-    const proxyData = await proxyRes.json();
-    const rawContent = proxyData.choices?.[0]?.message?.content || '{}';
-    const reasoningResult = parseReasoningJson(rawContent, isTutorMode);
+    const reasoningResult = parseReasoningJson(proxyResult.content, isTutorMode);
 
     if ((req as any).signal?.aborted) {
       return res.status(499).end();

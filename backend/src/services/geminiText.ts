@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
+import { callLiteLlmChat, parseJsonFromLlm } from './llmClient';
 dotenv.config();
 
 export interface EvalResult {
@@ -17,8 +18,6 @@ export async function evaluateAnswerWithGemini(
   userAnswer: string,
   userGender: 'female' | 'male' | 'neutral' = 'female'
 ): Promise<EvalResult> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
   const modelName = envConfig.models.text;
 
   const genderDirective = userGender === 'female'
@@ -49,45 +48,39 @@ ${referenceAnswer}
 Ответ кандидата:
 ${userAnswer}`;
 
-  // Route strictly via LiteLLM Proxy
+  // Route strictly via LiteLLM Proxy with Full-Jitter retry (AGENTS.md Invariant 1 & 5)
   try {
-    console.log(`🤖 Evaluating text answer via LiteLLM Proxy (${endpointUrl}) using model [${modelName}] with thinking_budget=${REASONING_PRESETS.conceptualGrading.thinkingBudget}...`);
-    const proxyRes = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`,
-      },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: REASONING_PRESETS.conceptualGrading.temperature,
-        max_tokens: REASONING_PRESETS.conceptualGrading.maxTokens,
-        extra_body: buildReasoningExtraBody(REASONING_PRESETS.conceptualGrading)
-      })
+    console.log(`🤖 Evaluating text answer via LiteLLM Proxy using model [${modelName}] with thinking_budget=${REASONING_PRESETS.conceptualGrading.thinkingBudget}...`);
+    const chatResult = await callLiteLlmChat({
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: REASONING_PRESETS.conceptualGrading.temperature,
+      max_tokens: REASONING_PRESETS.conceptualGrading.maxTokens,
+      extra_body: buildReasoningExtraBody(REASONING_PRESETS.conceptualGrading)
+    }, {
+      timeoutMs: 45_000,
+      maxRetries: 2
     });
 
-    if (proxyRes.ok) {
-      const data = await proxyRes.json();
-      const rawText = data.choices?.[0]?.message?.content || '{}';
-      const parsed = JSON.parse(rawText);
+    const parsed = parseJsonFromLlm(chatResult.content, {
+      score: 70,
+      isPassed: true,
+      positivePoints: ['Ответ совпадает с основными мыслями темы'],
+      missingPoints: [],
+      feedback: 'Ответ принят!'
+    });
 
-      return {
-        score: parsed.score ?? 70,
-        isPassed: parsed.isPassed ?? (parsed.score >= 70),
-        positivePoints: parsed.positivePoints || ['Ответ совпадает с основными мыслями темы'],
-        missingPoints: parsed.missingPoints || [],
-        feedback: parsed.feedback || 'Ответ принят!'
-      };
-    } else {
-      const errText = await proxyRes.text();
-      throw new Error(`LiteLLM Proxy (${proxyRes.status}): ${errText}`);
-    }
+    return {
+      score: parsed.score ?? 70,
+      isPassed: parsed.isPassed ?? ((parsed.score ?? 70) >= 70),
+      positivePoints: parsed.positivePoints || ['Ответ совпадает с основными мыслями темы'],
+      missingPoints: parsed.missingPoints || [],
+      feedback: parsed.feedback || 'Ответ принят!'
+    };
   } catch (err: any) {
     console.error(`LiteLLM Proxy evaluation error:`, err);
     throw new Error(`Ошибка оценки ответа через LiteLLM Proxy: ${err.message}`);

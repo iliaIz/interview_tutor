@@ -30,39 +30,7 @@ router.get('/compass-rules', (_req: Request, res: Response) => {
   });
 });
 
-// Helper for LiteLLM fetch with host.docker.internal -> localhost failover
-async function callLiteLlm(payload: any, abortSignal?: AbortSignal): Promise<globalThis.Response> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-
-  try {
-    const res = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${proxyApiKey}`
-      },
-      signal: abortSignal,
-      body: JSON.stringify(payload)
-    });
-    return res;
-  } catch (err: any) {
-    if (endpointUrl.includes('host.docker.internal')) {
-      const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-      console.log(`🔄 Retrying LiteLLM Proxy with local URL: ${localUrl}`);
-      return await fetch(localUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${proxyApiKey}`
-        },
-        signal: abortSignal,
-        body: JSON.stringify(payload)
-      });
-    }
-    throw err;
-  }
-}
+import { callLiteLlmChatRaw, callLiteLlmChat } from '../services/llmClient';
 
 // POST /api/practice-tutor/chat
 router.post('/chat', async (req: Request, res: Response): Promise<void> => {
@@ -125,7 +93,10 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
     };
 
-    const upstreamRes = await callLiteLlm(requestPayload, abortController.signal);
+    const upstreamRes = await callLiteLlmChatRaw(requestPayload, {
+      signal: abortController.signal,
+      timeoutMs: 60_000
+    });
 
     if (!upstreamRes.ok) {
       const errText = await upstreamRes.text().catch(() => 'Unknown LiteLLM error');
@@ -271,15 +242,8 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
       extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
     };
 
-    const upstreamRes = await callLiteLlm(requestPayload);
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => 'Error');
-      res.status(upstreamRes.status).json({ error: errText });
-      return;
-    }
-
-    const data: any = await upstreamRes.json();
-    const rawText = data.choices?.[0]?.message?.content || '';
+    const chatResult = await callLiteLlmChat(requestPayload);
+    const rawText = chatResult.content || '';
 
     const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
     const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
@@ -342,15 +306,8 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
       extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
     };
 
-    const upstreamRes = await callLiteLlm(requestPayload);
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => 'Error');
-      res.status(upstreamRes.status).json({ error: errText });
-      return;
-    }
-
-    const data: any = await upstreamRes.json();
-    const rawText = data.choices?.[0]?.message?.content || '';
+    const chatResult = await callLiteLlmChat(requestPayload);
+    const rawText = chatResult.content || '';
 
     res.json({
       ruleId,

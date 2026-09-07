@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
+import { callLiteLlmChat, parseJsonFromLlm } from '../services/llmClient';
 
 export const systemDesignRouter = Router();
 
@@ -78,43 +79,18 @@ ${context}`;
       { role: 'user', content: userMessage }
     ];
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
-    req.on('close', () => {
-      clearTimeout(timeoutId);
-      abortController.abort();
+    const chatResult = await callLiteLlmChat({
+      model: envConfig.models.text,
+      messages,
+      temperature: 0.7,
+      max_tokens: 800
+    }, {
+      signal: (req as any).signal,
+      timeoutMs: 45_000,
+      maxRetries: 2
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages,
-          temperature: 0.7,
-          max_tokens: 800
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Как ваша система гарантирует идемпотентность при сетевых повторах?';
+    const reply = chatResult.content || 'Как ваша система гарантирует идемпотентность при сетевых повторах?';
     res.json({ reply });
   } catch (err: any) {
     console.error('System design probe error:', err);
@@ -170,47 +146,18 @@ ${notesMarkdown || 'Не предоставлена'}
   "barRaiserFeedback": "..."
 }`;
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
-    req.on('close', () => {
-      clearTimeout(timeoutId);
-      abortController.abort();
+    const chatResult = await callLiteLlmChat({
+      model: envConfig.models.text,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    }, {
+      signal: (req as any).signal,
+      timeoutMs: 45_000,
+      maxRetries: 2
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          temperature: 0.2
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    let content = data.choices?.[0]?.message?.content || '{}';
-    if (typeof content === 'string') {
-      content = content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    }
-    const parsed = JSON.parse(content);
+    const parsed = parseJsonFromLlm<any>(chatResult.content, {});
 
     // Persist into system_design_submissions table
     try {

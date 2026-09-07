@@ -18,6 +18,7 @@ import { roadmapsRouter } from './routes/roadmaps';
 import { authRouter } from './routes/auth';
 import { sandboxRouter } from './routes/sandbox';
 import { requireAuth } from './middleware/auth';
+import { errorHandler } from './middleware/errorHandler';
 import { 
   seedQuestionsFromJSON, 
   recoverOrphanedJobs, 
@@ -90,6 +91,9 @@ app.get('/api/config', (req, res) => {
     }
   });
 });
+
+// Centralized API Error Handler
+app.use(errorHandler);
 
 // Create HTTP server
 const server = http.createServer(app);

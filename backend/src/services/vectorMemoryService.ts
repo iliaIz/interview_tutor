@@ -75,81 +75,45 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dotProduct / denominator;
 }
 
+import { callLiteLlmEmbedding } from './llmClient';
+
 /**
- * Generates vector embedding via LiteLLM Proxy using GEMINI_EMBEDDING_MODEL
+ * Generates vector embedding via LiteLLM Proxy using GEMINI_EMBEDDING_MODEL.
+ * Strictly adheres to AGENTS.md Invariant 5 (Zero-Phantom-Fallback).
+ * Returns null if embedding generation fails after full-jitter retries.
  */
-export async function embedText(text: string): Promise<Float32Array> {
+export async function embedText(text: string): Promise<Float32Array | null> {
   const normalized = text.trim();
   if (!normalized) {
-    return new Float32Array(768);
+    return null;
   }
 
   if (embeddingCache.has(normalized)) {
     return embeddingCache.get(normalized)!;
   }
 
-  const cleanProxyBase = envConfig.proxy.baseUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-  const embeddingModel = envConfig.models.embedding;
-
-  try {
-    const res = await fetch(`${cleanProxyBase}/v1/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`
-      },
-      body: JSON.stringify({
-        model: embeddingModel,
-        input: normalized
-      }),
-      signal: AbortSignal.timeout(4000)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const rawVector = data?.data?.[0]?.embedding;
-      if (Array.isArray(rawVector) && rawVector.length > 0) {
-        const floatArray = new Float32Array(rawVector);
-        while (embeddingCache.size >= 500) {
-          const firstKey = embeddingCache.keys().next().value;
-          if (firstKey) embeddingCache.delete(firstKey);
-          else break;
-        }
-        embeddingCache.set(normalized, floatArray);
-        return floatArray;
-      }
-    } else {
-      console.warn(`Embedding API response not ok (${res.status}): ${await res.text()}`);
+  const vec = await callLiteLlmEmbedding(normalized);
+  if (vec) {
+    while (embeddingCache.size >= 500) {
+      const firstKey = embeddingCache.keys().next().value;
+      if (firstKey) embeddingCache.delete(firstKey);
+      else break;
     }
-  } catch (err: any) {
-    console.warn(`Embedding API error via LiteLLM (${embeddingModel}):`, err.message);
+    embeddingCache.set(normalized, vec);
   }
 
-  // Graceful deterministic fallback pseudo-vector (so system never blocks)
-  return createFallbackVector(normalized);
-}
-
-/**
- * Deterministic fallback vector in case gateway is warming up
- */
-function createFallbackVector(text: string): Float32Array {
-  const vec = new Float32Array(768);
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    hash |= 0;
-  }
-  for (let i = 0; i < 768; i++) {
-    vec[i] = Math.sin(hash + i);
-  }
   return vec;
 }
 
 /**
- * Retrieves pre-cached question embedding or generates and stores one
+ * Retrieves pre-cached question embedding or generates and stores one.
+ * Invariant 5: Never caches corrupted or fake vectors into SQLite.
  */
-export async function getOrCacheQuestionEmbedding(questionId: string, questionText: string, topic: string): Promise<Float32Array> {
+export async function getOrCacheQuestionEmbedding(
+  questionId: string,
+  questionText: string,
+  topic: string
+): Promise<Float32Array | null> {
   if (questionId) {
     try {
       const row = db.prepare('SELECT embedding FROM question_embeddings WHERE question_id = ?').get(questionId) as any;
@@ -161,11 +125,11 @@ export async function getOrCacheQuestionEmbedding(questionId: string, questionTe
     }
   }
 
-  // Generate embedding
+  // Generate embedding via canonical client
   const fullText = `${topic}: ${questionText}`;
   const embedding = await embedText(fullText);
 
-  if (questionId) {
+  if (questionId && embedding) {
     try {
       const blob = float32ArrayToBuffer(embedding);
       db.prepare(`
@@ -194,6 +158,10 @@ export async function findRelevantCandidateGaps(
     const questionVec = questionId
       ? await getOrCacheQuestionEmbedding(questionId, questionText, topic)
       : await embedText(`${topic}: ${questionText}`);
+
+    if (!questionVec) {
+      return [];
+    }
 
     // Query active and verifying candidate gaps for this user
     const rows = db.prepare(`
@@ -400,7 +368,7 @@ export async function recordNewErrorGap(params: {
   }
 
   const embedding = await embedText(`${topic} ${subtopic || ''}: ${errorConcept}`);
-  const blob = float32ArrayToBuffer(embedding);
+  const blob = embedding ? float32ArrayToBuffer(embedding) : null;
 
   db.prepare(`
     INSERT INTO candidate_error_vectors (

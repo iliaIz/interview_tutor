@@ -1,6 +1,7 @@
 import { db } from './db';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
+import { callLiteLlmChat, parseJsonFromLlm } from './llmClient';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -282,10 +283,6 @@ async function generateDialogueScript(
   options: GeneratePodcastOptions,
   questionsCount: number
 ): Promise<{ name_of_guest: string; dialogue: DialogueItem[] }> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-  const modelName = envConfig.models.text;
-
   const isDuo = options.mode !== 'solo';
   const systemPrompt = options.systemPrompt || DEFAULT_STRICT_SYSTEM_PROMPT;
   const userPrompt = options.userPrompt || DEFAULT_STRICT_USER_PROMPT;
@@ -310,31 +307,19 @@ ${userPrompt}
 Исходный материал для разбора:
 ${text}`;
 
-  const res = await fetch(endpointUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${proxyApiKey}`,
-    },
-    signal: AbortSignal.timeout(60_000),
-    body: JSON.stringify({
-      model: modelName,
-      messages: [{ role: 'user', content: scriptPrompt }],
-      response_format: { type: 'json_object' },
-      temperature: REASONING_PRESETS.podcastDramaturgy.temperature,
-      max_tokens: REASONING_PRESETS.podcastDramaturgy.maxTokens,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.podcastDramaturgy)
-    })
+  const chatResult = await callLiteLlmChat({
+    model: envConfig.models.text,
+    messages: [{ role: 'user', content: scriptPrompt }],
+    response_format: { type: 'json_object' },
+    temperature: REASONING_PRESETS.podcastDramaturgy.temperature,
+    max_tokens: REASONING_PRESETS.podcastDramaturgy.maxTokens,
+    extra_body: buildReasoningExtraBody(REASONING_PRESETS.podcastDramaturgy)
+  }, {
+    timeoutMs: 60_000,
+    maxRetries: 2
   });
 
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Ошибка генерации сценария через LiteLLM (${res.status}): ${errBody}`);
-  }
-
-  const data = await res.json();
-  const rawJson = data.choices?.[0]?.message?.content || '{}';
-  const parsed = JSON.parse(rawJson);
+  const parsed = parseJsonFromLlm(chatResult.content);
 
   if (!parsed.dialogue || !Array.isArray(parsed.dialogue) || parsed.dialogue.length === 0) {
     throw new Error('ИИ вернул пустой или некорректный список реплик в сценарии.');

@@ -3,6 +3,7 @@ import { CodingChallenge } from './challengeSeedData';
 import { recordNewErrorGap } from './vectorMemoryService';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
+import { callLiteLlmChat, parseJsonFromLlm } from './llmClient';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 
 export interface EvaluationRequest {
@@ -323,55 +324,31 @@ ${sandboxProofXml}
 ${codeXml}
 </evaluation_request>`;
 
-  const chatUrl = envConfig.proxy.chatUrl;
-  const apiKey = envConfig.proxy.apiKey;
   const model = envConfig.models.text || 'gemini-smart';
 
-  console.log(`🤖 Starting practice code evaluation via LiteLLM (${chatUrl}) [${model}]...`);
+  console.log(`🤖 Starting practice code evaluation via LiteLLM [${model}] with Full-Jitter retry...`);
 
-  const response = await fetch(chatUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    signal: abortSignal 
-      ? AbortSignal.any([abortSignal, AbortSignal.timeout(90_000)]) 
-      : AbortSignal.timeout(90_000),
-    body: JSON.stringify({
-      model,
-      temperature: REASONING_PRESETS.codeAudit.temperature,
-      max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
-      response_format: { type: 'json_object' },
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
-      messages: [
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: userPrompt }
-      ]
-    })
+  const chatResult = await callLiteLlmChat({
+    model,
+    temperature: REASONING_PRESETS.codeAudit.temperature,
+    max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
+    response_format: { type: 'json_object' },
+    extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
+    messages: [
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: userPrompt }
+    ]
+  }, {
+    signal: abortSignal,
+    timeoutMs: 90_000,
+    maxRetries: 2
   });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`LiteLLM Proxy evaluation failed [${response.status}]: ${errText}`);
-  }
-
-  const rawJson = await response.json();
-  const contentStr = rawJson.choices?.[0]?.message?.content;
-  if (!contentStr) {
-    throw new Error('LiteLLM returned empty completion response');
-  }
-
-  const cleanContentStr = contentStr
-    .replace(/^\s*```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
 
   let evalData: any;
   try {
-    evalData = JSON.parse(cleanContentStr);
+    evalData = parseJsonFromLlm(chatResult.content);
   } catch (err: any) {
-    console.error('Failed to parse evaluation JSON from Gemini 3.7 Flash:', cleanContentStr);
+    console.error('Failed to parse evaluation JSON from Gemini:', chatResult.content);
     throw new Error(`Invalid JSON evaluation response from AI Gateway: ${err.message}`);
   }
 

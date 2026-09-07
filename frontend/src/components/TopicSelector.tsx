@@ -1,91 +1,23 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import {
-  Coffee,
-  Boxes,
-  Cpu,
-  Layers,
-  Sparkles,
-  Zap,
-  Leaf,
-  ArrowLeftRight,
-  Archive,
-  GitFork,
-  Database,
-  Table,
-  Link as LinkIcon,
-  Activity,
-  Server,
-  Globe,
-  Radio,
-  CheckCircle2,
-  FileText,
-  Code2,
-  Network,
-  FileCode,
-  Palette,
-  BookOpen,
-  Play,
-  RotateCcw,
-  Shuffle,
-  Headphones,
   Search,
-  Check,
-  ListChecks,
-  ChevronRight,
   ChevronDown,
-  Bug,
-  Crown,
-  Trophy,
-  Loader2,
-  Clock,
-  ArrowUpDown,
-  TrendingUp,
-  LayoutGrid,
+  Shuffle,
   FolderTree,
-  X,
-  Filter
+  LayoutGrid,
+  Loader2,
+  Zap,
+  Crown,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailySmartReviewBanner } from './DailySmartReviewBanner';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { FsrsQueueItemDTO } from '../types/fsrs';
-
-const ICON_MAP: Record<string, any> = {
-  'coffee': Coffee,
-  'boxes': Boxes,
-  'cpu': Cpu,
-  'layers': Layers,
-  'sparkles': Sparkles,
-  'zap': Zap,
-  'leaf': Leaf,
-  'arrow-left-right': ArrowLeftRight,
-  'archive': Archive,
-  'git-fork': GitFork,
-  'database': Database,
-  'table': Table,
-  'link': LinkIcon,
-  'activity': Activity,
-  'server': Server,
-  'globe': Globe,
-  'radio': Radio,
-  'check-circle-2': CheckCircle2,
-  'file-text': FileText,
-  'code-2': Code2,
-  'network': Network,
-  'file-code': FileCode,
-  'palette': Palette
-};
-
-const DOMAIN_DEFINITIONS = [
-  { id: 'all', title: 'Все разделы', icon: FolderTree, color: '#6366F1', desc: 'Все 24 инженерные темы' },
-  { id: 'Core Java & JVM', title: 'Core Java & JVM Internals', icon: Coffee, color: '#E08E89', desc: 'Синтаксис, память, ООП, Collections, Generics & JVM' },
-  { id: 'Architecture & Concurrency', title: 'Architecture, Concurrency & Loom', icon: Zap, color: '#8B78E6', desc: 'JMM, Threads, Locks, Virtual Threads & Patterns' },
-  { id: 'Data & Storage', title: 'Databases, Storage & ACID', icon: Database, color: '#5A9E96', desc: 'PostgreSQL, SQL, Hibernate, JPA, Транзакции & Redis' },
-  { id: 'Web & Enterprise', title: 'Spring Enterprise & Architecture', icon: Server, color: '#4F8A8B', desc: 'Spring Boot, IoC, Spring Data, Security & Microservices' },
-  { id: 'Engineering & Tools', title: 'Engineering, Testing & Forensics', icon: Activity, color: '#D97706', desc: 'Kafka, CI/CD, Docker, Тестирование & JFR Profiling' },
-  { id: 'Frontend Basics', title: 'Frontend & Web Foundations', icon: Palette, color: '#E67E22', desc: 'Основы HTML, семантика, формы, CSS, Flexbox & Grid' }
-];
+import { DOMAIN_DEFINITIONS, DomainMeta, ICON_MAP } from './topics/topicIconRegistry';
+import { TopicDomainCard, DomainGroup } from './topics/TopicDomainCard';
+import { TopicGridCard } from './topics/TopicGridCard';
 
 export const TopicSelector: React.FC = () => {
   const {
@@ -555,224 +487,36 @@ export const TopicSelector: React.FC = () => {
         </div>
       ) : viewMode === 'domains' ? (
         <div className="space-y-5">
-          {groupedDomains.map((domain) => {
-            const isCollapsed = Boolean(collapsedDomains[domain.id]);
-            const DomainIcon = domain.icon || FolderTree;
-
-            return (
-              <div
-                key={domain.id}
-                className="bg-white/95 border border-pastel-border/80 rounded-3xl overflow-hidden shadow-xs transition-all duration-200"
-              >
-                {/* Domain Header Banner */}
-                <div
-                  onClick={() => toggleDomainCollapse(domain.id)}
-                  className="p-4 sm:p-5 flex items-center justify-between gap-3 bg-gradient-to-r from-pastel-bg/60 via-white to-pastel-bg/40 cursor-pointer hover:bg-pastel-rose/20 transition select-none"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs"
-                      style={{ backgroundColor: `${domain.color}20`, color: domain.color }}
-                    >
-                      <DomainIcon className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-bold text-sm sm:text-base text-pastel-text truncate">
-                          {domain.title}
-                        </h2>
-                        <span className="text-[11px] font-mono font-bold px-2 py-0.2 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border">
-                          {domain.topics.length} тем
-                        </span>
-                      </div>
-                      <p className="text-xs text-pastel-muted truncate hidden sm:block">
-                        {domain.desc}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right Progress & Toggle */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right hidden sm:block">
-                      <div className="text-xs font-mono font-bold text-pastel-text">
-                        {domain.totalCompleted} / {domain.totalQuestions} вопр.
-                      </div>
-                      <div className="w-24 h-1.5 bg-pastel-border rounded-full overflow-hidden mt-1">
-                        <div
-                          className="h-full bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet rounded-full transition-all duration-500"
-                          style={{ width: `${domain.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-                      {domain.percentage}%
-                    </span>
-
-                    <button
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-pastel-muted hover:text-pastel-text transition"
-                      aria-label="Свернуть домен"
-                    >
-                      <ChevronDown
-                        className={`w-4 h-4 transform transition-transform duration-200 ${
-                          isCollapsed ? '-rotate-90' : ''
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Topics List Inside Domain */}
-                {!isCollapsed && (
-                  <div className="divide-y divide-pastel-border/60 border-t border-pastel-border/60">
-                    {domain.topics.map((t) => {
-                      const IconComponent = ICON_MAP[t.icon] || Coffee;
-                      const progress = topicsProgress[t.id];
-                      const percentage = progress?.percentage !== undefined ? progress.percentage : (t.percentage || 0);
-                      const isStarting = startingTopicId === t.id;
-                      const isFullyMastered = percentage === 100;
-                      const accessMeta = topicAccessMap?.[t.id];
-
-                      return (
-                        <div
-                          key={t.id}
-                          className="p-3.5 sm:p-4 hover:bg-pastel-bg/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                        >
-                          {/* Topic Details */}
-                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                            <div
-                              onClick={() => openTopicQuestions(t.id, t.name)}
-                              className="p-2.5 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer group-hover:scale-105 transition-transform"
-                              style={{ backgroundColor: `${t.color}18`, color: t.color }}
-                              title="Открыть список вопросов"
-                            >
-                              <IconComponent className="w-4 h-4" />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  onClick={() => openTopicQuestions(t.id, t.name)}
-                                  className="font-bold text-xs sm:text-sm text-pastel-text hover:text-pastel-accentRose transition-colors cursor-pointer"
-                                >
-                                  {t.name}
-                                </span>
-
-                                {isFullyMastered ? (
-                                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-0.5">
-                                    <Crown className="w-2.5 h-2.5 text-amber-600 fill-amber-500" /> Mastered
-                                  </span>
-                                ) : percentage > 0 ? (
-                                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    {percentage}%
-                                  </span>
-                                ) : null}
-
-                                {accessMeta?.lastAccessedAt && (
-                                  <span className="text-[9px] font-semibold text-pastel-accentViolet bg-pastel-lavender/50 px-1.5 py-0.2 rounded-full border border-pastel-accentViolet/20 hidden md:inline">
-                                    Недавно
-                                  </span>
-                                )}
-                              </div>
-
-                              <p className="text-xs text-pastel-muted truncate mt-0.5 max-w-xl">
-                                {t.description}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons: 2 Clear CTAs */}
-                          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                            <button
-                              onClick={() => openTopicQuestions(t.id, t.name)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-pastel-bg hover:bg-pastel-rose text-pastel-text hover:text-pastel-accentRose border border-pastel-border transition cursor-pointer"
-                              title="Просмотреть все вопросы по теме"
-                            >
-                              <span>{t.total} вопросов</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleStartTopic(t.id, t.name)}
-                              disabled={isStarting}
-                              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition shadow-2xs cursor-pointer disabled:opacity-50 active:scale-95 touch-manipulation"
-                            >
-                              {isStarting ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Zap className="w-3.5 h-3.5" />
-                              )}
-                              <span>Блиц (10)</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {groupedDomains.map((domain) => (
+            <TopicDomainCard
+              key={domain.id}
+              domain={domain as DomainGroup}
+              isCollapsed={Boolean(collapsedDomains[domain.id])}
+              onToggleCollapse={toggleDomainCollapse}
+              topicsProgress={topicsProgress}
+              startingTopicId={startingTopicId}
+              topicAccessMap={topicAccessMap}
+              onOpenTopicQuestions={openTopicQuestions}
+              onStartTopic={handleStartTopic}
+            />
+          ))}
         </div>
       ) : (
         /* 4. COMPACT GRID VIEW (Alternative) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTopics.map((t) => {
-            const IconComponent = ICON_MAP[t.icon] || Coffee;
             const progress = topicsProgress[t.id];
             const percentage = progress?.percentage !== undefined ? progress.percentage : (t.percentage || 0);
-            const isStarting = startingTopicId === t.id;
 
             return (
-              <div
+              <TopicGridCard
                 key={t.id}
-                className="bg-white/95 border border-pastel-border/80 hover:border-pastel-accentRose/40 rounded-3xl p-5 shadow-xs flex flex-col justify-between gap-4 transition-all duration-200"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border/60">
-                      {t.category}
-                    </span>
-                    <span className="text-xs font-mono font-bold text-pastel-text">
-                      {percentage}%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className="p-2.5 rounded-2xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: `${t.color}18`, color: t.color }}
-                    >
-                      <IconComponent className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-sm text-pastel-text truncate">{t.name}</h3>
-                      <p className="text-xs text-pastel-muted">{t.total} вопросов</p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-pastel-muted line-clamp-2 leading-relaxed">
-                    {t.description}
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-pastel-border/60 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => openTopicQuestions(t.id, t.name)}
-                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-pastel-bg text-pastel-text hover:bg-pastel-rose hover:text-pastel-accentRose border border-pastel-border transition cursor-pointer text-center"
-                  >
-                    Банк вопросов
-                  </button>
-
-                  <button
-                    onClick={() => handleStartTopic(t.id, t.name)}
-                    disabled={isStarting}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition shadow-2xs cursor-pointer disabled:opacity-50"
-                  >
-                    {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                    <span>Блиц</span>
-                  </button>
-                </div>
-              </div>
+                topic={t}
+                percentage={percentage}
+                isStarting={startingTopicId === t.id}
+                onOpenQuestions={openTopicQuestions}
+                onStartTopic={handleStartTopic}
+              />
             );
           })}
         </div>

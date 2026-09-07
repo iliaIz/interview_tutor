@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
+import { callLiteLlmChat, parseJsonFromLlm } from '../services/llmClient';
 
 export const triageRouter = Router();
 
@@ -112,50 +113,21 @@ ${rcaHypothesis || 'Не заполнено'}
 [План превентивных мер и ремедиации]:
 ${preventionPlan || 'Не заполнено'}`;
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
-    req.on('close', () => {
-      clearTimeout(timeoutId);
-      abortController.abort();
+    const chatResult = await callLiteLlmChat({
+      model: envConfig.models.text,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessageContent }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    }, {
+      signal: (req as any).signal,
+      timeoutMs: 45_000,
+      maxRetries: 2
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessageContent }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.2
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    let content = (data.choices?.[0]?.message?.content || '{}').trim();
-    if (content.startsWith('```')) {
-      content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    }
-    const parsed = JSON.parse(content);
+    const parsed = parseJsonFromLlm<any>(chatResult.content, {});
 
     // Persist triage evaluation attempt
     try {
@@ -227,43 +199,18 @@ ${context}`;
       { role: 'user', content: userMessage }
     ];
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
-    req.on('close', () => {
-      clearTimeout(timeoutId);
-      abortController.abort();
+    const chatResult = await callLiteLlmChat({
+      model: envConfig.models.text,
+      messages,
+      temperature: 0.6,
+      max_tokens: 800
+    }, {
+      signal: (req as any).signal,
+      timeoutMs: 45_000,
+      maxRetries: 2
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages,
-          temperature: 0.6,
-          max_tokens: 800
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Что показывает дамп потоков относительно состояния рабочих воркеров?';
+    const reply = chatResult.content || 'Что показывает дамп потоков относительно состояния рабочих воркеров?';
     res.json({ reply });
   } catch (err: any) {
     console.error('Triage probe error:', err);
