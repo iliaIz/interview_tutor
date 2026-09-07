@@ -74,6 +74,7 @@ import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceTutorView } from './voice/VoiceTutorView';
 import { RubricScorecard } from './voice/RubricScorecard';
+import { RubricCriterionResult, ScoreDeduction } from '../types/voice';
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   const CHUNK_SIZE = 0x8000;
@@ -119,7 +120,13 @@ export interface EvaluationResult {
   speechCoaching?: {
     structureType?: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED';
     rephrasedExample?: string;
+    criteriaBreakdown?: RubricCriterionResult[];
+    deductions?: ScoreDeduction[];
+    upgradeSnippet?: string;
   };
+  criteriaBreakdown?: RubricCriterionResult[];
+  deductions?: ScoreDeduction[];
+  upgradeSnippet?: string;
   faangScorecard?: FaangScorecardData;
   userAnswer?: string;
   transcript?: string;
