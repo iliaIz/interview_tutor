@@ -256,16 +256,37 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub, participant: RemoteParticipant) => {
         if (track.kind === Track.Kind.Audio) {
           const el = track.attach();
-          el.autoplay = true;
+          el.id = `livekit-audio-${track.sid}`;
+          el.style.display = 'none';
+          document.body.appendChild(el);
           attachedAudioElementsRef.current.push(el);
-          setStatusMessage('🎙️ Напарник подключен, начинаем диалог...');
-          setIsAiSpeaking(true);
-          isAiSpeakingRef.current = true;
+
+          // Listen to actual physical audio element playback
+          el.onplaying = () => {
+            setIsAiSpeaking(true);
+            isAiSpeakingRef.current = true;
+            setStatusMessage('🗣️ Напарник говорит...');
+          };
+
+          el.onended = () => {
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            setStatusMessage('🎙️ Ваша очередь: говорите в микрофон...');
+          };
+
+          el.play().catch((err) => {
+            console.warn('LiveKit Audio element play() error:', err);
+          });
+
+          setStatusMessage('⚡ Напарник подключен, ожидание ответа...');
         }
       });
 
       room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         track.detach().forEach((el) => {
+          el.pause();
           el.remove();
           const idx = attachedAudioElementsRef.current.indexOf(el);
           if (idx !== -1) attachedAudioElementsRef.current.splice(idx, 1);
@@ -290,6 +311,18 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
         }
       });
 
+      // Event: Remote participant disconnected
+      room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+        if (participant.identity !== room.localParticipant.identity) {
+          console.warn('AI voice agent disconnected:', participant.identity);
+          setIsAiSpeaking(false);
+          isAiSpeakingRef.current = false;
+          setIsRecording(true);
+          isRecordingRef.current = true;
+          setStatusMessage('⚠️ Связь с напарником прервана');
+        }
+      });
+
       // Event: Local participant speaking
       room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
         setIsUserSpeaking(speaking);
@@ -303,6 +336,8 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
 
           if (data.type === 'transcript') {
             const transcriptText = data.text || '';
+            setIsAiSpeaking(true);
+            isAiSpeakingRef.current = true;
             setAiTranscript((prev) => prev + transcriptText);
             setDialogueTurns((prev) => {
               const last = prev[prev.length - 1];
@@ -323,6 +358,13 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
             setIsRecording(true);
             isRecordingRef.current = true;
             setStatusMessage('🎙️ Вы перебили напарника: говорите...');
+          } else if (data.type === 'error') {
+            console.error('AI voice agent error:', data.message);
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            setIsRecording(true);
+            isRecordingRef.current = true;
+            setStatusMessage(`⚠️ Ошибка: ${data.message || 'Сбой генерации речи'}`);
           }
         } catch (e) {
           console.warn('Failed to parse incoming data packet:', e);
@@ -347,7 +389,8 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
       isRecordingRef.current = true;
       setStatusMessage('🟢 Канал связи активен: говорите в микрофон');
 
-      // Periodic audio level polling for UI waveform
+      // Periodic audio level polling for UI waveform & speech stall watchdog
+      let consecutiveAiSpeechStallTicks = 0;
       audioLevelIntervalRef.current = setInterval(() => {
         if (room.localParticipant) {
           const level = room.localParticipant.audioLevel; // 0.0 to 1.0
@@ -357,6 +400,29 @@ export function useLiveKitAudioSession(options: UseLiveKitAudioSessionOptions = 
           } else {
             setRmsDb(-60);
           }
+        }
+
+        // Anti-Stall Watchdog: If UI indicates AI is speaking, but no attached element is actually playing for >6s
+        if (isAiSpeakingRef.current) {
+          const isAnyAudioElementPlaying = attachedAudioElementsRef.current.some(
+            (el) => !el.paused && !el.ended && el.currentTime > 0
+          );
+          if (!isAnyAudioElementPlaying) {
+            consecutiveAiSpeechStallTicks++;
+            if (consecutiveAiSpeechStallTicks > 75) { // ~6 seconds without playback
+              console.warn('⚡ Watchdog: AI speech detected as completed/stalled. Unlocking candidate microphone.');
+              setIsAiSpeaking(false);
+              isAiSpeakingRef.current = false;
+              setIsRecording(true);
+              isRecordingRef.current = true;
+              setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+              consecutiveAiSpeechStallTicks = 0;
+            }
+          } else {
+            consecutiveAiSpeechStallTicks = 0;
+          }
+        } else {
+          consecutiveAiSpeechStallTicks = 0;
         }
       }, 80);
 

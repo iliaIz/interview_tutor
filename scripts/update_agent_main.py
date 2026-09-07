@@ -141,8 +141,9 @@ async def entrypoint(ctx: JobContext):
                     pass
                 except Exception as e:
                     logger.error(f"Error receiving from Gemini: {e}")
+                    raise
 
-            # Task 2: Stream Candidate audio from WebRTC track to Gemini
+            # Task 2: Stream Candidate audio from WebRTC track to Gemini (canonical audio format)
             async def send_candidate_audio():
                 try:
                     audio_queue = asyncio.Queue()
@@ -171,14 +172,13 @@ async def entrypoint(ctx: JobContext):
                         frame = await audio_queue.get()
                         pcm_bytes = frame.data.tobytes()
                         b64_data = base64.b64encode(pcm_bytes).decode("utf-8")
+                        # Canonical Gemini Live audio schema: realtimeInput.audio
                         msg = {
                             "realtimeInput": {
-                                "mediaChunks": [
-                                    {
-                                        "mimeType": "audio/pcm;rate=16000",
-                                        "data": b64_data
-                                    }
-                                ]
+                                "audio": {
+                                    "mimeType": "audio/pcm;rate=16000",
+                                    "data": b64_data
+                                }
                             }
                         }
                         await gemini_ws.send(json.dumps(msg))
@@ -186,6 +186,7 @@ async def entrypoint(ctx: JobContext):
                     pass
                 except Exception as e:
                     logger.error(f"Error streaming candidate audio: {e}")
+                    raise
 
             # Task 3: Handle client data channel messages (text prompts, forced turns)
             async def handle_client_data():
@@ -227,16 +228,32 @@ async def entrypoint(ctx: JobContext):
                     pass
                 except Exception as e:
                     logger.error(f"Error handling client data: {e}")
+                    raise
 
-            # Run all tasks concurrently
+            # Run all tasks concurrently. If any fails or disconnects, exit cleanly.
             recv_task = asyncio.create_task(receive_from_gemini())
             send_task = asyncio.create_task(send_candidate_audio())
             data_task = asyncio.create_task(handle_client_data())
 
-            await asyncio.gather(recv_task, send_task, data_task)
+            done, pending = await asyncio.wait(
+                [recv_task, send_task, data_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            for p in pending:
+                p.cancel()
+            for t in done:
+                exc = t.exception()
+                if exc:
+                    logger.error(f"Task encountered error: {exc}")
 
     except Exception as e:
         logger.error(f"Session error in LiveKit Gemini Agent: {e}")
+    finally:
+        logger.info("Agent session finished, disconnecting from room.")
+        try:
+            await ctx.room.disconnect()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

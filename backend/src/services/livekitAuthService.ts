@@ -113,6 +113,8 @@ export async function generateLiveKitVoiceToken(
     } else {
       greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
     }
+  } else if (sessionType === 'system_design') {
+    greetingText = `Привет! Я готова к защите архитектуры по сценарию «${topic || questionText || 'System Design'}». Поприветствуй меня в 1 коротком предложении и предложи начать с функциональных и нефункциональных требований.`;
   } else {
     const isSubsequent = questionIndex > 0;
     greetingText = isSubsequent
