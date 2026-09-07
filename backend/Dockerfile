@@ -4,7 +4,7 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 # Install build tools for native SQLite bindings
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     python3 \
     make \
     g++ \
