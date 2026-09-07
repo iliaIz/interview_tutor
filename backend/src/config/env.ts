@@ -38,12 +38,6 @@ export const envConfig = {
   deepgram: {
     apiKey: process.env.DEEPGRAM_API_KEY || ''
   },
-  livekit: {
-    url: process.env.LIVEKIT_URL || 'ws://127.0.0.1:7880',
-    publicUrl: process.env.LIVEKIT_PUBLIC_URL || process.env.LIVEKIT_URL || 'ws://127.0.0.1:7880',
-    apiKey: process.env.LIVEKIT_API_KEY || 'devkey',
-    apiSecret: process.env.LIVEKIT_API_SECRET || 'secret_livekit_interview_gemini_2026_proxy'
-  },
   server: {
     backendPort: parseInt(process.env.BACKEND_PORT || '5000', 10),
     frontendPort: parseInt(process.env.FRONTEND_PORT || '8090', 10)

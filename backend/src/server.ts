@@ -17,7 +17,6 @@ import { triageRouter } from './routes/triage';
 import { roadmapsRouter } from './routes/roadmaps';
 import { authRouter } from './routes/auth';
 import { sandboxRouter } from './routes/sandbox';
-import { voiceRouter } from './routes/voice';
 import { requireAuth } from './middleware/auth';
 import { 
   seedQuestionsFromJSON, 
@@ -62,7 +61,6 @@ app.use('/api/sandbox', requireAuth, sandboxRouter);
 app.use('/api/system-design', requireAuth, systemDesignRouter);
 app.use('/api/triage', requireAuth, triageRouter);
 app.use('/api/roadmaps', requireAuth, roadmapsRouter);
-app.use('/api/voice', requireAuth, voiceRouter);
 
 
 
@@ -89,9 +87,6 @@ app.get('/api/config', (req, res) => {
       defaultFastModel: envConfig.models.fast,
       defaultEmbeddingModel: envConfig.models.embedding,
       supportedLiveModels: envConfig.models.supportedLiveModels
-    },
-    livekit: {
-      url: envConfig.livekit.publicUrl
     }
   });
 });
