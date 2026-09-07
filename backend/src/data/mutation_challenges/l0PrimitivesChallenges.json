@@ -1,0 +1,290 @@
+[
+  {
+    "id": "kata_prim_01_scalar_assertions",
+    "slug": "kata-prim-01-scalar-assertions",
+    "title": "PRIM-01: Scalar Assertions & AAA Pattern",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, JUnit 5, AssertJ",
+    "timeLimitMinutes": 15,
+    "shortDescription": "Освойте паттерн Arrange-Act-Assert и точные оракулы состояния в AssertJ.",
+    "instructionsMarkdown": "### 🎯 Учебная цель\nВ первом упражнении лестницы вы освоите канонический паттерн **AAA (Arrange-Act-Assert)**:\n- **Arrange**: Подготовка входных данных и создание экземпляра сервиса.\n- **Act**: Вызов ровно одного тестируемого метода.\n- **Assert**: Проверка полученного результата через AssertJ.\n\n### 🧪 Ваша задача:\nВ `DiscountCalculatorTest.java` дополните тесты проверками для уничтожения 2 мутантов:\n1. **Mutant 1 (MathMutator):** Замена вычитания скидки на сложение (наценка вместо скидки).\n2. **Mutant 2 (ReturnValsMutator):** Замена возвращаемого значения на `BigDecimal.ZERO`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/DiscountCalculator.java",
+        "content": "package com.curriculum.primitives;\n\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\n\npublic class DiscountCalculator {\n    private static final BigDecimal DISCOUNT_RATE = new BigDecimal(\"0.10\");\n\n    public BigDecimal applyDiscount(BigDecimal originalPrice) {\n        if (originalPrice == null || originalPrice.compareTo(BigDecimal.ZERO) < 0) {\n            throw new IllegalArgumentException(\"Price must be non-negative\");\n        }\n        BigDecimal discount = originalPrice.multiply(DISCOUNT_RATE);\n        return originalPrice.subtract(discount).setScale(2, RoundingMode.HALF_UP);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/DiscountCalculatorTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class DiscountCalculatorTest {\n\n    private final DiscountCalculator calculator = new DiscountCalculator();\n\n    @Test\n    @DisplayName(\"Should correctly calculate 10 percent discount for standard price\")\n    public void shouldCalculateStandardDiscount() {\n        // Arrange\n        BigDecimal price = new BigDecimal(\"100.00\");\n\n        // Act\n        BigDecimal result = calculator.applyDiscount(price);\n\n        // Assert: 100.00 - 10.00 = 90.00\n        assertThat(result)\n            .isNotNull()\n            .isEqualByComparingTo(new BigDecimal(\"90.00\"));\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_01_math",
+        "name": "MathMutator (+ instead of -)",
+        "description": "Замена originalPrice.subtract(discount) на originalPrice.add(discount)",
+        "file": "src/main/java/com/curriculum/primitives/DiscountCalculator.java",
+        "line": 13,
+        "mutatedContent": "        return originalPrice.add(discount).setScale(2, RoundingMode.HALF_UP);"
+      },
+      {
+        "id": "mutant_prim_01_return_zero",
+        "name": "ReturnValsMutator (return ZERO)",
+        "description": "Возврат BigDecimal.ZERO вместо вычисленной скидки",
+        "file": "src/main/java/com/curriculum/primitives/DiscountCalculator.java",
+        "line": 13,
+        "mutatedContent": "        return BigDecimal.ZERO;"
+      }
+    ]
+  },
+  {
+    "id": "kata_prim_02_exception_handling",
+    "slug": "kata-prim-02-exception-handling",
+    "title": "PRIM-02: Exception Assertions & Root Cause",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, JUnit 5, AssertJ",
+    "timeLimitMinutes": 15,
+    "shortDescription": "Узнайте, как строго верифицировать исключения и их сообщения с помощью assertThatThrownBy.",
+    "instructionsMarkdown": "### 🎯 Учебная цель\nТестирование ошибок — это не просто перехват исключения через `try-catch`.\nНеобходимо гарантировать:\n1. Точный тип выбрасываемого исключения (например, `IllegalArgumentException`, а не общий `RuntimeException`).\n2. Содержимое сообщения об ошибке (`.hasMessage(...)`).\n\n### 🧪 Ваша задача:\nУничтожьте 2 мутантов в `UserValidatorTest.java`:\n1. **Mutant 1 (EmptyExceptionMessage):** Выброс исключения с пустой строкой вместо понятного сообщения.\n2. **Mutant 2 (WrongExceptionType):** Выброс `IllegalStateException` вместо `IllegalArgumentException`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/UserValidator.java",
+        "content": "package com.curriculum.primitives;\n\npublic class UserValidator {\n    public void validateUsername(String username) {\n        if (username == null || username.trim().isEmpty()) {\n            throw new IllegalArgumentException(\"Username must not be empty\");\n        }\n        if (username.length() < 3) {\n            throw new IllegalArgumentException(\"Username is too short (min 3 chars)\");\n        }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/UserValidatorTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport static org.assertj.core.api.Assertions.assertThatThrownBy;\n\npublic class UserValidatorTest {\n\n    private final UserValidator validator = new UserValidator();\n\n    @Test\n    @DisplayName(\"Should reject null or empty username with explicit message\")\n    public void shouldRejectEmptyUsername() {\n        assertThatThrownBy(() -> validator.validateUsername(\"  \"))\n            .isInstanceOf(IllegalArgumentException.class)\n            .hasMessage(\"Username must not be empty\");\n    }\n\n    @Test\n    @DisplayName(\"Should reject username shorter than 3 characters\")\n    public void shouldRejectTooShortUsername() {\n        assertThatThrownBy(() -> validator.validateUsername(\"ab\"))\n            .isInstanceOf(IllegalArgumentException.class)\n            .hasMessage(\"Username is too short (min 3 chars)\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_02_empty_msg",
+        "name": "EmptyExceptionMessage",
+        "description": "Выброс исключения с пустой строкой в сообщении",
+        "file": "src/main/java/com/curriculum/primitives/UserValidator.java",
+        "line": 6,
+        "mutatedContent": "            throw new IllegalArgumentException(\"\");"
+      },
+      {
+        "id": "mutant_prim_02_wrong_type",
+        "name": "WrongExceptionType",
+        "description": "Выброс IllegalStateException вместо IllegalArgumentException",
+        "file": "src/main/java/com/curriculum/primitives/UserValidator.java",
+        "line": 9,
+        "mutatedContent": "            throw new IllegalStateException(\"Username is too short (min 3 chars)\");"
+      }
+    ]
+  },
+  {
+    "id": "kata_prim_03_parameterized_boundaries",
+    "slug": "kata-prim-03-parameterized-boundaries",
+    "title": "PRIM-03: Parameterized Boundaries (@CsvSource)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, JUnit 5, AssertJ, @ParameterizedTest",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Тестирование граничных условий предикатов через @ParameterizedTest и @CsvSource.",
+    "instructionsMarkdown": "### 🎯 Учебная цель\nОшибка на единицу (**off-by-one**) — самый частый дефект в коде (замена `>` на `>=`).\nПараметризованный тест с таблицей значений позволяет в одном методе проверить границу, шаг ниже и шаг выше.\n\n### 🧪 Ваша задача:\nУничтожьте 2 мутантов в `TieredFeeCalculatorTest.java`:\n1. **Mutant 1 (ConditionalsBoundary):** Замена `amount.compareTo(TIER_THRESHOLD) > 0` на `>= 0`.\n2. **Mutant 2 (FeeRateMath):** Расчет повышенной комиссии 0.05 вместо 0.02.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/TieredFeeCalculator.java",
+        "content": "package com.curriculum.primitives;\n\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\n\npublic class TieredFeeCalculator {\n    public static final BigDecimal TIER_THRESHOLD = new BigDecimal(\"1000.00\");\n    private static final BigDecimal STANDARD_FEE = new BigDecimal(\"0.01\");\n    private static final BigDecimal PREMIUM_FEE = new BigDecimal(\"0.02\");\n\n    public BigDecimal calculateFee(BigDecimal amount) {\n        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {\n            throw new IllegalArgumentException(\"Amount must not be negative\");\n        }\n        // Граница: строго больше 1000.00 -> 2%, иначе 1%\n        if (amount.compareTo(TIER_THRESHOLD) > 0) {\n            return amount.multiply(PREMIUM_FEE).setScale(2, RoundingMode.HALF_UP);\n        }\n        return amount.multiply(STANDARD_FEE).setScale(2, RoundingMode.HALF_UP);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/TieredFeeCalculatorTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.CsvSource;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class TieredFeeCalculatorTest {\n\n    private final TieredFeeCalculator calculator = new TieredFeeCalculator();\n\n    @ParameterizedTest(name = \"Amount {0} should have fee {1}\")\n    @CsvSource({\n        \"999.99,   10.00\",  // 1% от 999.99 = 10.00 (округление)\n        \"1000.00,  10.00\",  // Точная граница: 1000 * 0.01 = 10.00 (убивает > на >=)\n        \"1000.01,  20.00\"   // Шаг выше границы: 1000.01 * 0.02 = 20.00\n    })\n    @DisplayName(\"Should enforce exact tier threshold boundaries\")\n    public void shouldEnforceExactTierThreshold(String inputAmount, String expectedFee) {\n        BigDecimal actual = calculator.calculateFee(new BigDecimal(inputAmount));\n        assertThat(actual).isEqualByComparingTo(new BigDecimal(expectedFee));\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_03_boundary",
+        "name": "ConditionalsBoundaryMutator (> to >=)",
+        "description": "Замена amount.compareTo(TIER_THRESHOLD) > 0 на >= 0",
+        "file": "src/main/java/com/curriculum/primitives/TieredFeeCalculator.java",
+        "line": 15,
+        "mutatedContent": "        if (amount.compareTo(TIER_THRESHOLD) >= 0) {"
+      },
+      {
+        "id": "mutant_prim_03_fee_rate",
+        "name": "MathMutator (Fee Rate)",
+        "description": "Использование PREMIUM_FEE = 0.05 вместо 0.02",
+        "file": "src/main/java/com/curriculum/primitives/TieredFeeCalculator.java",
+        "line": 16,
+        "mutatedContent": "            return amount.multiply(new BigDecimal(\"0.05\")).setScale(2, RoundingMode.HALF_UP);"
+      }
+    ]
+  },
+  {
+    "id": "kata_prim_04_mock_void_command",
+    "slug": "kata-prim-04-mock-void-command",
+    "title": "PRIM-04: Mocking Void Commands (verify & times)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, Mockito 5, AssertJ",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Верификация побочных эффектов методов без возвращаемого значения через Mockito.verify().",
+    "instructionsMarkdown": "### 🎯 Учебная цель\nМетоды командной логики (CQS) возвращают `void`, выполняя побочный эффект (сохранение в БД, отправка нотификации).\nИх невозможно протестировать через `assertEquals`. Единственный надежный способ — **Mockito.verify()**.\n\n### 🧪 Ваша задача:\nУничтожьте 2 мутантов в `RegistrationServiceTest.java`:\n1. **Mutant 1 (VoidMethodCallMutator):** Удаление вызова `notificationClient.sendWelcomeEmail(email)`.\n2. **Mutant 2 (UnwantedCall):** Отправка письма даже при ошибке сохранения в репозиторий.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/NotificationClient.java",
+        "content": "package com.curriculum.primitives;\n\npublic interface NotificationClient {\n    void sendWelcomeEmail(String email);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/primitives/RegistrationService.java",
+        "content": "package com.curriculum.primitives;\n\npublic class RegistrationService {\n    private final NotificationClient notificationClient;\n\n    public RegistrationService(NotificationClient notificationClient) {\n        this.notificationClient = notificationClient;\n    }\n\n    public void registerUser(String email) {\n        if (email == null || !email.contains(\"@\")) {\n            throw new IllegalArgumentException(\"Invalid email\");\n        }\n        // Побочный эффект: отправка письма\n        notificationClient.sendWelcomeEmail(email);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/RegistrationServiceTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.mockito.Mockito.*;\nimport static org.assertj.core.api.Assertions.assertThatThrownBy;\n\n@ExtendWith(MockitoExtension.class)\npublic class RegistrationServiceTest {\n\n    @Mock\n    private NotificationClient notificationClient;\n\n    private RegistrationService registrationService;\n\n    @BeforeEach\n    public void setUp() {\n        registrationService = new RegistrationService(notificationClient);\n    }\n\n    @Test\n    @DisplayName(\"Should send welcome email on valid registration\")\n    public void shouldSendWelcomeEmail() {\n        registrationService.registerUser(\"user@example.com\");\n\n        // Верификация вызова void-метода\n        verify(notificationClient, times(1)).sendWelcomeEmail(\"user@example.com\");\n    }\n\n    @Test\n    @DisplayName(\"Should NOT send welcome email when email is invalid\")\n    public void shouldNotSendEmailOnInvalidInput() {\n        assertThatThrownBy(() -> registrationService.registerUser(\"invalid-email\"))\n            .isInstanceOf(IllegalArgumentException.class);\n\n        // Доказательство отсутствия побочного эффекта\n        verify(notificationClient, never()).sendWelcomeEmail(anyString());\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_04_skip_notification",
+        "name": "VoidMethodCallMutator",
+        "description": "Удаление вызова sendWelcomeEmail",
+        "file": "src/main/java/com/curriculum/primitives/RegistrationService.java",
+        "line": 16,
+        "mutatedContent": "        // notificationClient.sendWelcomeEmail(email);"
+      },
+      {
+        "id": "mutant_prim_04_send_always",
+        "name": "UnconditionalNotificationMutator",
+        "description": "Отправка нотификации до валидации",
+        "file": "src/main/java/com/curriculum/primitives/RegistrationService.java",
+        "line": 13,
+        "mutatedContent": "        notificationClient.sendWelcomeEmail(email);\n        if (email == null || !email.contains(\"@\")) {"
+      }
+    ]
+  },
+  {
+    "id": "kata_prim_05_argument_captor",
+    "slug": "kata-prim-05-argument-captor",
+    "title": "PRIM-05: ArgumentCaptor & Payload Inspection",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, Mockito 5, AssertJ",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Захват и инспекция сложных объектов-аргументов через Mockito ArgumentCaptor.",
+    "instructionsMarkdown": "### 🎯 Учебная цель\nИногда мок вызывается с объектом (DTO / Record), который создается динамически внутри сервиса.\nЧтобы проверить правильность заполнения его полей, используют **ArgumentCaptor**.\n\n### 🧪 Ваша задача:\nУничтожьте 2 мутантов в `OrderDispatcherTest.java`:\n1. **Mutant 1 (CorruptedPayload):** Передача суммы 0.0 вместо реальной суммы заказа в Event.\n2. **Mutant 2 (WrongRoutingKey):** Подмена ключа маршрутизации события.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/OrderEvent.java",
+        "content": "package com.curriculum.primitives;\n\nimport java.math.BigDecimal;\n\npublic record OrderEvent(String orderId, BigDecimal amount, String routingKey) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/primitives/EventBus.java",
+        "content": "package com.curriculum.primitives;\n\npublic interface EventBus {\n    void publish(OrderEvent event);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/primitives/OrderDispatcher.java",
+        "content": "package com.curriculum.primitives;\n\nimport java.math.BigDecimal;\n\npublic class OrderDispatcher {\n    private final EventBus eventBus;\n\n    public OrderDispatcher(EventBus eventBus) {\n        this.eventBus = eventBus;\n    }\n\n    public void dispatch(String orderId, BigDecimal amount) {\n        String routingKey = \"orders.finance\";\n        OrderEvent event = new OrderEvent(orderId, amount, routingKey);\n        eventBus.publish(event);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/OrderDispatcherTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.ArgumentCaptor;\nimport org.mockito.Captor;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.verify;\n\n@ExtendWith(MockitoExtension.class)\npublic class OrderDispatcherTest {\n\n    @Mock\n    private EventBus eventBus;\n\n    private OrderDispatcher dispatcher;\n\n    @Captor\n    private ArgumentCaptor<OrderEvent> eventCaptor;\n\n    @BeforeEach\n    public void setUp() {\n        dispatcher = new OrderDispatcher(eventBus);\n    }\n\n    @Test\n    @DisplayName(\"Should publish correctly populated OrderEvent\")\n    public void shouldPublishCorrectEvent() {\n        dispatcher.dispatch(\"ORD-123\", new BigDecimal(\"450.00\"));\n\n        verify(eventBus).publish(eventCaptor.capture());\n        OrderEvent captured = eventCaptor.getValue();\n\n        assertThat(captured.orderId()).isEqualTo(\"ORD-123\");\n        assertThat(captured.amount()).isEqualByComparingTo(new BigDecimal(\"450.00\"));\n        assertThat(captured.routingKey()).isEqualTo(\"orders.finance\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_05_zero_amount",
+        "name": "CorruptedPayloadMutator",
+        "description": "Передача BigDecimal.ZERO вместо фактической суммы",
+        "file": "src/main/java/com/curriculum/primitives/OrderDispatcher.java",
+        "line": 14,
+        "mutatedContent": "        OrderEvent event = new OrderEvent(orderId, BigDecimal.ZERO, routingKey);"
+      },
+      {
+        "id": "mutant_prim_05_wrong_route",
+        "name": "RoutingKeyMutator",
+        "description": "Подмена routingKey на orders.default",
+        "file": "src/main/java/com/curriculum/primitives/OrderDispatcher.java",
+        "line": 13,
+        "mutatedContent": "        String routingKey = \"orders.default\";"
+      }
+    ]
+  },
+  {
+    "id": "kata_prim_06_time_virtualization",
+    "slug": "kata-prim-06-time-virtualization",
+    "title": "PRIM-06: Time Virtualization with java.time.Clock",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟢 L0: Primitives",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS, java.time.Clock, AssertJ",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Инъекция Clock вместо System.currentTimeMillis() для детерминированных тестов за 0 мс.",
+    "instructionsMarkdown": "### 🎯 Учебная цель\n**Хард-инвариант платформы:** Никогда не используйте `Instant.now()` или `Thread.sleep()`!\nИнъекция `java.time.Clock` позволяет мгновенно перемещать время в тестах вперед или назад через `Clock.fixed(...)`.\n\n### 🧪 Ваша задача:\nУничтожьте 2 мутантов в `SessionTokenServiceTest.java`:\n1. **Mutant 1 (ConditionalsBoundary):** Токен считается просроченным в момент экспирации (замена `isAfter` на `isBefore`).\n2. **Mutant 2 (DurationShift):** Использование времени жизни 5 минут вместо 15.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/primitives/SessionTokenService.java",
+        "content": "package com.curriculum.primitives;\n\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\n\npublic class SessionTokenService {\n    public static final Duration TTL = Duration.ofMinutes(15);\n    private final Clock clock;\n\n    public SessionTokenService(Clock clock) {\n        this.clock = clock;\n    }\n\n    public boolean isTokenExpired(Instant createdAt) {\n        Instant expiresAt = createdAt.plus(TTL);\n        // Просрочен, если текущее время строго позже expiresAt\n        return clock.instant().isAfter(expiresAt);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/primitives/SessionTokenServiceTest.java",
+        "content": "package com.curriculum.primitives;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class SessionTokenServiceTest {\n\n    private final Instant baseTime = Instant.parse(\"2026-09-01T12:00:00Z\");\n\n    @Test\n    @DisplayName(\"Token should be valid within 15 minutes TTL\")\n    public void shouldBeValidWithinTTL() {\n        // Системные часы зафиксированы на 12:10:00 (10 минут после создания)\n        Clock clock = Clock.fixed(baseTime.plusSeconds(600), ZoneOffset.UTC);\n        SessionTokenService service = new SessionTokenService(clock);\n\n        assertThat(service.isTokenExpired(baseTime)).isFalse();\n    }\n\n    @Test\n    @DisplayName(\"Token should be expired after 15 minutes TTL\")\n    public void shouldBeExpiredAfterTTL() {\n        // Системные часы зафиксированы на 12:16:00 (16 минут после создания)\n        Clock clock = Clock.fixed(baseTime.plusSeconds(960), ZoneOffset.UTC);\n        SessionTokenService service = new SessionTokenService(clock);\n\n        assertThat(service.isTokenExpired(baseTime)).isTrue();\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_prim_06_inverted_time",
+        "name": "InvertedTimeComparisonMutator",
+        "description": "Замена isAfter на isBefore в проверке экспирации",
+        "file": "src/main/java/com/curriculum/primitives/SessionTokenService.java",
+        "line": 18,
+        "mutatedContent": "        return clock.instant().isBefore(expiresAt);"
+      },
+      {
+        "id": "mutant_prim_06_short_ttl",
+        "name": "DurationShiftMutator",
+        "description": "Уменьшение TTL до 5 минут",
+        "file": "src/main/java/com/curriculum/primitives/SessionTokenService.java",
+        "line": 8,
+        "mutatedContent": "    public static final Duration TTL = Duration.ofMinutes(5);"
+      }
+    ]
+  }
+]

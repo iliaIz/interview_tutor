@@ -1,0 +1,248 @@
+[
+  {
+    "id": "kata_rev_01_fake_assertion",
+    "slug": "kata-rev-01-fake-assertion",
+    "title": "REV-01: Spot the Fake Assertion (Line Hitter)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, AssertJ, PITest Gregor",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Тест дает 100% Line Coverage, но пропускает фатальный дефект. Добавьте убивающее утверждение.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация (Code Defenders)\nПеред вами тест, написанный недобросовестным разработчиком:\n- Он дает **100% Line Coverage** в JaCoCo.\n- Однако он содержит псевдо-оракул: `assertNotNull(user)` вместо проверки полей.\n- В результате **Mutant 1** выживает!\n\n### 🧪 Ваша цель:\nИзучите выжившего мутанта и добавьте точное утверждение на поле `status`, чтобы уничтожить его.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/reverse/UserAccount.java",
+        "content": "package com.curriculum.reverse;\n\npublic record UserAccount(String id, String email, String status) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/reverse/AccountActivationService.java",
+        "content": "package com.curriculum.reverse;\n\npublic class AccountActivationService {\n    public UserAccount activate(String id, String email) {\n        // Корректная логика: статус обязан быть ACTIVE\n        return new UserAccount(id, email, \"ACTIVE\");\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/reverse/AccountActivationTest.java",
+        "content": "package com.curriculum.reverse;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class AccountActivationTest {\n\n    private final AccountActivationService service = new AccountActivationService();\n\n    @Test\n    @DisplayName(\"Should activate user account\")\n    public void shouldActivateAccount() {\n        UserAccount account = service.activate(\"USR-1\", \"test@domain.com\");\n\n        // Слабый оракул (Line Hitter): покрывает строку, но не проверяет статус!\n        assertThat(account).isNotNull();\n        // Убивающее утверждение\n        assertThat(account.status()).isEqualTo(\"ACTIVE\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_01_corrupt_status",
+        "name": "ReturnValsMutator (Corrupted status)",
+        "description": "Возврат статуса PENDING вместо ACTIVE",
+        "file": "src/main/java/com/curriculum/reverse/AccountActivationService.java",
+        "line": 6,
+        "mutatedContent": "        return new UserAccount(id, email, \"PENDING\");"
+      }
+    ]
+  },
+  {
+    "id": "kata_rev_02_survived_boundary",
+    "slug": "kata-rev-02-survived-boundary",
+    "title": "REV-02: Survived Conditionals Boundary (< vs <=)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, JUnit 5, AssertJ",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Найдите пропущенную граничную точку в существующем сьюте и уничтожьте мутанта.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация\nСуществующий тест проверяет балансы $50$ и $500$, но пропускает точную границу кредитного лимита $0.00$.\nМутатор заменил `balance.compareTo(BigDecimal.ZERO) < 0` на `<= 0`.\nСчет с балансом ровно $0.00$ стал считаться заблокированным!\n\n### 🧪 Ваша цель:\nДобавьте тест на нулевой баланс, чтобы убить **ConditionalsBoundaryMutator**.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/reverse/CreditService.java",
+        "content": "package com.curriculum.reverse;\n\nimport java.math.BigDecimal;\n\npublic class CreditService {\n    public boolean canWithdraw(BigDecimal currentBalance, BigDecimal amount) {\n        BigDecimal remaining = currentBalance.subtract(amount);\n        // Разрешено, если остаток строго >= 0.00 (т.е. remaining < 0 запрещено)\n        if (remaining.compareTo(BigDecimal.ZERO) < 0) {\n            return false;\n        }\n        return true;\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/reverse/CreditServiceTest.java",
+        "content": "package com.curriculum.reverse;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class CreditServiceTest {\n\n    private final CreditService creditService = new CreditService();\n\n    @Test\n    @DisplayName(\"Should allow withdrawal when funds are sufficient\")\n    public void shouldAllowWithdrawal() {\n        boolean allowed = creditService.canWithdraw(new BigDecimal(\"100.00\"), new BigDecimal(\"50.00\"));\n        assertThat(allowed).isTrue();\n    }\n\n    @Test\n    @DisplayName(\"Should allow withdrawal to exact zero balance\")\n    public void shouldAllowExactZeroBalance() {\n        // Убивает мутацию < на <= при нулевом остатке\n        boolean allowed = creditService.canWithdraw(new BigDecimal(\"100.00\"), new BigDecimal(\"100.00\"));\n        assertThat(allowed).isTrue();\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_02_boundary",
+        "name": "ConditionalsBoundaryMutator (< to <=)",
+        "description": "Замена remaining.compareTo(ZERO) < 0 на <= 0",
+        "file": "src/main/java/com/curriculum/reverse/CreditService.java",
+        "line": 9,
+        "mutatedContent": "        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {"
+      }
+    ]
+  },
+  {
+    "id": "kata_rev_03_over_mocking_trap",
+    "slug": "kata-rev-03-over-mocking-trap",
+    "title": "REV-03: The Over-Mocked Ghost Test",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, Mockito 5, AssertJ",
+    "timeLimitMinutes": 25,
+    "shortDescription": "Устраните хрупкость теста: замените избыточное мокирование внутренних вызовов проверкой результата.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация\nТест мокает чистый внутренний хелпер `TaxCalculator`. \nПри смене алгоритма округления тест ломается, хотя публичный контракт не нарушен!\nПерепишите тест, используя реальный экземпляр хелпера, проверяя конечное состояние.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/reverse/TaxHelper.java",
+        "content": "package com.curriculum.reverse;\n\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\n\npublic class TaxHelper {\n    public BigDecimal calculateVat(BigDecimal amount) {\n        return amount.multiply(new BigDecimal(\"0.20\")).setScale(2, RoundingMode.HALF_UP);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/reverse/InvoiceService.java",
+        "content": "package com.curriculum.reverse;\n\nimport java.math.BigDecimal;\n\npublic class InvoiceService {\n    private final TaxHelper taxHelper;\n\n    public InvoiceService(TaxHelper taxHelper) {\n        this.taxHelper = taxHelper;\n    }\n\n    public BigDecimal calculateTotal(BigDecimal netAmount) {\n        BigDecimal vat = taxHelper.calculateVat(netAmount);\n        return netAmount.add(vat);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/reverse/InvoiceServiceTest.java",
+        "content": "package com.curriculum.reverse;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class InvoiceServiceTest {\n\n    // Тестируем с реальным хелпером (State Testing вместо Over-Mocking)\n    private final TaxHelper realTaxHelper = new TaxHelper();\n    private final InvoiceService invoiceService = new InvoiceService(realTaxHelper);\n\n    @Test\n    @DisplayName(\"Should correctly calculate total with 20 percent VAT\")\n    public void shouldCalculateTotalWithVat() {\n        BigDecimal total = invoiceService.calculateTotal(new BigDecimal(\"100.00\"));\n\n        // 100.00 + 20.00 = 120.00\n        assertThat(total).isEqualByComparingTo(new BigDecimal(\"120.00\"));\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_03_vat_rate",
+        "name": "TaxRateMutator (0.10 instead of 0.20)",
+        "description": "Подмена ставки НДС в TaxHelper",
+        "file": "src/main/java/com/curriculum/reverse/TaxHelper.java",
+        "line": 8,
+        "mutatedContent": "        return amount.multiply(new BigDecimal(\"0.10\")).setScale(2, RoundingMode.HALF_UP);"
+      }
+    ]
+  },
+  {
+    "id": "kata_rev_04_flaky_sleep_race",
+    "slug": "kata-rev-04-flaky-sleep-race",
+    "title": "REV-04: Flaky Sleep vs Awaitility Polling",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, Awaitility, Concurrency",
+    "timeLimitMinutes": 25,
+    "shortDescription": "Замените хрупкий недетерминированный Thread.sleep() на быстрый поллинг Awaitility.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация\nАсинхронный воркер обновляет флаг `processed` через случайную задержку.\nТест с `Thread.sleep(50)` падает в CI при нагрузке на процессор.\nИспользуйте `org.awaitility.Awaitility` для стабильного ожидания.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/reverse/AsyncWorker.java",
+        "content": "package com.curriculum.reverse;\n\nimport java.util.concurrent.atomic.AtomicBoolean;\n\npublic class AsyncWorker {\n    private final AtomicBoolean ready = new AtomicBoolean(false);\n\n    public void triggerWork() {\n        Thread.ofVirtual().start(() -> {\n            try {\n                Thread.sleep(10);\n            } catch (InterruptedException ignored) {}\n            ready.set(true);\n        });\n    }\n\n    public boolean isReady() {\n        return ready.get();\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/reverse/AsyncWorkerTest.java",
+        "content": "package com.curriculum.reverse;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport org.awaitility.Awaitility;\nimport java.time.Duration;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class AsyncWorkerTest {\n\n    @Test\n    @DisplayName(\"Should reliably wait for async worker without Thread.sleep\")\n    public void shouldWaitForWorker() {\n        AsyncWorker worker = new AsyncWorker();\n        worker.triggerWork();\n\n        // Стабильный поллинг Awaitility\n        Awaitility.await()\n            .atMost(Duration.ofSeconds(1))\n            .pollInterval(Duration.ofMillis(5))\n            .untilAsserted(() -> assertThat(worker.isReady()).isTrue());\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_04_skip_set",
+        "name": "VoidMethodCallMutator (Skip ready.set)",
+        "description": "Удаление ready.set(true) в асинхронном потоке",
+        "file": "src/main/java/com/curriculum/reverse/AsyncWorker.java",
+        "line": 13,
+        "mutatedContent": "            // ready.set(true);"
+      }
+    ]
+  },
+  {
+    "id": "kata_rev_05_void_bypass_audit",
+    "slug": "kata-rev-05-void-bypass-audit",
+    "title": "REV-05: The Void Method Bypass (Audit Log)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, Mockito 5, AssertJ",
+    "timeLimitMinutes": 20,
+    "shortDescription": "Защитите безопасность: добавьте верификацию записи аудита при блокировке счета.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация\nМутант удалил вызов `auditService.logSecurityEvent(...)`.\nСуществующий тест проверял только статус счета, поэтому мутант выжил незамеченным.\nДобавьте проверку аудита через `verify()`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/reverse/AuditService.java",
+        "content": "package com.curriculum.reverse;\n\npublic interface AuditService {\n    void logSecurityEvent(String accountId, String event);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/reverse/SecurityManager.java",
+        "content": "package com.curriculum.reverse;\n\npublic class SecurityManager {\n    private final AuditService auditService;\n\n    public SecurityManager(AuditService auditService) {\n        this.auditService = auditService;\n    }\n\n    public void lockAccount(String accountId, String reason) {\n        auditService.logSecurityEvent(accountId, \"ACCOUNT_LOCKED: \" + reason);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/reverse/SecurityManagerTest.java",
+        "content": "package com.curriculum.reverse;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.mockito.Mockito.verify;\n\n@ExtendWith(MockitoExtension.class)\npublic class SecurityManagerTest {\n\n    @Mock\n    private AuditService auditService;\n\n    private SecurityManager securityManager;\n\n    @BeforeEach\n    public void setUp() {\n        securityManager = new SecurityManager(auditService);\n    }\n\n    @Test\n    @DisplayName(\"Should write audit security event on account lock\")\n    public void shouldLogSecurityEvent() {\n        securityManager.lockAccount(\"ACC-99\", \"SUSPICIOUS_LOGIN\");\n\n        verify(auditService).logSecurityEvent(\"ACC-99\", \"ACCOUNT_LOCKED: SUSPICIOUS_LOGIN\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_05_skip_audit",
+        "name": "VoidMethodCallMutator",
+        "description": "Удаление записи в аудит-лог",
+        "file": "src/main/java/com/curriculum/reverse/SecurityManager.java",
+        "line": 11,
+        "mutatedContent": "        // auditService.logSecurityEvent(...)"
+      }
+    ]
+  },
+  {
+    "id": "kata_rev_06_archunit_cyclic_hole",
+    "slug": "kata-rev-06-archunit-cyclic-hole",
+    "title": "REV-06: ArchUnit Package Slices Guard",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🟡 L1: Reverse Testing",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, ArchUnit 1.3, SlicesRuleDefinition",
+    "timeLimitMinutes": 25,
+    "shortDescription": "Защитите модульную архитектуру: настройте правило запрета циклических зависимостей.",
+    "instructionsMarkdown": "### 🎯 Инженерная ситуация\nАрхитектурное правило должно запрещать циклические зависимости между доменными модулями.\nНастройте `SlicesRuleDefinition.slices().matching(\"com.curriculum.modular.(*)..\").should().beFreeOfCycles()`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/curriculum/modular/billing/BillingService.java",
+        "content": "package com.curriculum.modular.billing;\n\npublic class BillingService {\n    public void processInvoice() {}\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/curriculum/modular/shipping/ShippingService.java",
+        "content": "package com.curriculum.modular.shipping;\n\npublic class ShippingService {\n    public void scheduleDelivery() {}\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/curriculum/modular/ArchitectureRulesTest.java",
+        "content": "package com.curriculum.modular;\n\nimport com.tngtech.archunit.core.domain.JavaClasses;\nimport com.tngtech.archunit.core.importer.ClassFileImporter;\nimport com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\n\npublic class ArchitectureRulesTest {\n\n    private final JavaClasses classes = new ClassFileImporter().importPackages(\"com.curriculum.modular\");\n\n    @Test\n    @DisplayName(\"Domain packages should be completely free of cyclic dependencies\")\n    public void slicesShouldBeFreeOfCycles() {\n        SlicesRuleDefinition.slices()\n            .matching(\"com.curriculum.modular.(*)..\")\n            .should()\n            .beFreeOfCycles()\n            .check(classes);\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rev_06_cyclic_import",
+        "name": "CyclicDependencyMutator",
+        "description": "Внедрение циклической зависимости billing -> shipping",
+        "file": "src/main/java/com/curriculum/modular/billing/BillingService.java",
+        "line": 4,
+        "mutatedContent": "    private com.curriculum.modular.shipping.ShippingService shippingService;\n    public void processInvoice() { if (shippingService != null) shippingService.scheduleDelivery(); }"
+      }
+    ]
+  }
+]

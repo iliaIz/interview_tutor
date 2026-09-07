@@ -1,0 +1,338 @@
+[
+  {
+    "id": "kata_test_strict_in_order_audit",
+    "slug": "kata-test-strict-in-order-audit",
+    "title": "KATA-TEST-07: Strict Audit Trail Verification (InOrder Verification)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 Strict Chronology",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, JUnit 5, InOrder",
+    "timeLimitMinutes": 40,
+    "shortDescription": "Проверка строгой хронологии финансового пайплайна: Списание -> Аудит -> SMS-нотификация.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис обработки платежей **PaymentProcessingService** реализует критический финансовый инвариант:\n1. Сначала вызывается списание со счета клиента: `ledger.debit(userId, amount)`.\n2. Если списание успешно, немедленно создается запись в защищенном аудит-логе: `auditLogger.logEvent(userId, \"DEBIT\", amount)`.\n3. Только после успешной фиксации в аудите клиенту отправляется SMS-нотификация: `notificationService.sendSms(userId, ...)`.\n4. Если списание падает с исключением — аудит и SMS ни при каких обстоятельствах **не должны вызываться**!\n\n### 🧪 Ваша цель\nВ файле `PaymentProcessingServiceTest.java` напишите строгий тест-сьют, уничтожающий всех 4 мутантов:\n1. **Mutant 1 (OutOfOrderAudit):** Аудит вызывается до списания.\n2. **Mutant 2 (SmsBeforeAudit):** SMS отправляется до записи в аудит.\n3. **Mutant 3 (SmsOnDebitFailure):** SMS отправляется даже при падении списания.\n4. **Mutant 4 (AuditOmission):** Запись в аудит пропущена.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/audit/LedgerPort.java",
+        "content": "package com.assessment.audit;\nimport java.math.BigDecimal;\n\npublic interface LedgerPort {\n    void debit(String userId, BigDecimal amount);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/audit/AuditLoggerPort.java",
+        "content": "package com.assessment.audit;\nimport java.math.BigDecimal;\n\npublic interface AuditLoggerPort {\n    void logEvent(String userId, String action, BigDecimal amount);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/audit/NotificationPort.java",
+        "content": "package com.assessment.audit;\n\npublic interface NotificationPort {\n    void sendSms(String userId, String message);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/audit/PaymentProcessingService.java",
+        "content": "package com.assessment.audit;\nimport java.math.BigDecimal;\n\npublic class PaymentProcessingService {\n    private final LedgerPort ledger;\n    private final AuditLoggerPort auditLogger;\n    private final NotificationPort notification;\n\n    public PaymentProcessingService(LedgerPort ledger, AuditLoggerPort auditLogger, NotificationPort notification) {\n        this.ledger = ledger;\n        this.auditLogger = auditLogger;\n        this.notification = notification;\n    }\n\n    public void processPayment(String userId, BigDecimal amount) {\n        ledger.debit(userId, amount);\n        auditLogger.logEvent(userId, \"DEBIT\", amount);\n        notification.sendSms(userId, \"Payment successful: \" + amount);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/assessment/audit/PaymentProcessingServiceTest.java",
+        "content": "package com.assessment.audit;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.DisplayName;\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.List;\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class PaymentProcessingServiceTest {\n\n    @Test\n    @DisplayName(\"Should execute debit, audit and notification in strict sequence\")\n    public void shouldExecuteInStrictSequence() {\n        List<String> calls = new ArrayList<>();\n\n        LedgerPort mockLedger = (u, a) -> calls.add(\"DEBIT\");\n        AuditLoggerPort mockAudit = (u, action, a) -> calls.add(\"AUDIT\");\n        NotificationPort mockNotification = (u, m) -> calls.add(\"SMS\");\n\n        PaymentProcessingService service = new PaymentProcessingService(mockLedger, mockAudit, mockNotification);\n        service.processPayment(\"user-1\", new BigDecimal(\"100.00\"));\n\n        assertEquals(List.of(\"DEBIT\", \"AUDIT\", \"SMS\"), calls, \"Sequence must be strictly DEBIT -> AUDIT -> SMS\");\n    }\n\n    @Test\n    @DisplayName(\"Should not execute audit or notification if debit fails (Kills M3)\")\n    public void shouldAbortOnDebitFailure() {\n        List<String> calls = new ArrayList<>();\n\n        LedgerPort failingLedger = (u, a) -> { throw new RuntimeException(\"DB Connection Refused\"); };\n        AuditLoggerPort mockAudit = (u, action, a) -> calls.add(\"AUDIT\");\n        NotificationPort mockNotification = (u, m) -> calls.add(\"SMS\");\n\n        PaymentProcessingService service = new PaymentProcessingService(failingLedger, mockAudit, mockNotification);\n\n        assertThrows(RuntimeException.class, () -> {\n            service.processPayment(\"user-1\", new BigDecimal(\"100.00\"));\n        });\n\n        assertTrue(calls.isEmpty(), \"Neither audit nor notification should execute on debit failure\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_audit_01_out_of_order",
+        "name": "OutOfOrderAuditMutator",
+        "file": "src/main/java/com/assessment/audit/PaymentProcessingService.java",
+        "line": 18,
+        "mutatedContent": "package com.assessment.audit;\nimport java.math.BigDecimal;\npublic class PaymentProcessingService {\n    private final LedgerPort ledger; private final AuditLoggerPort auditLogger; private final NotificationPort notification;\n    public PaymentProcessingService(LedgerPort l, AuditLoggerPort a, NotificationPort n) { this.ledger = l; this.auditLogger = a; this.notification = n; }\n    public void processPayment(String userId, BigDecimal amount) {\n        auditLogger.logEvent(userId, \"DEBIT\", amount); // MUTANT: audit before debit!\n        ledger.debit(userId, amount);\n        notification.sendSms(userId, \"Payment successful: \" + amount);\n    }\n}"
+      },
+      {
+        "id": "mutant_audit_02_sms_before_audit",
+        "name": "SmsBeforeAuditMutator",
+        "file": "src/main/java/com/assessment/audit/PaymentProcessingService.java",
+        "line": 19,
+        "mutatedContent": "package com.assessment.audit;\nimport java.math.BigDecimal;\npublic class PaymentProcessingService {\n    private final LedgerPort ledger; private final AuditLoggerPort auditLogger; private final NotificationPort notification;\n    public PaymentProcessingService(LedgerPort l, AuditLoggerPort a, NotificationPort n) { this.ledger = l; this.auditLogger = a; this.notification = n; }\n    public void processPayment(String userId, BigDecimal amount) {\n        ledger.debit(userId, amount);\n        notification.sendSms(userId, \"Payment successful: \" + amount); // MUTANT: SMS before audit!\n        auditLogger.logEvent(userId, \"DEBIT\", amount);\n    }\n}"
+      },
+      {
+        "id": "mutant_audit_03_sms_on_failure",
+        "name": "SmsOnFailureMutator",
+        "file": "src/main/java/com/assessment/audit/PaymentProcessingService.java",
+        "line": 18,
+        "mutatedContent": "package com.assessment.audit;\nimport java.math.BigDecimal;\npublic class PaymentProcessingService {\n    private final LedgerPort ledger; private final AuditLoggerPort auditLogger; private final NotificationPort notification;\n    public PaymentProcessingService(LedgerPort l, AuditLoggerPort a, NotificationPort n) { this.ledger = l; this.auditLogger = a; this.notification = n; }\n    public void processPayment(String userId, BigDecimal amount) {\n        try { ledger.debit(userId, amount); auditLogger.logEvent(userId, \"DEBIT\", amount); } catch (Exception ignored) {}\n        notification.sendSms(userId, \"Payment successful: \" + amount); // MUTANT: sends SMS even on failure!\n    }\n}"
+      },
+      {
+        "id": "mutant_audit_04_omission",
+        "name": "AuditOmissionMutator",
+        "file": "src/main/java/com/assessment/audit/PaymentProcessingService.java",
+        "line": 19,
+        "mutatedContent": "package com.assessment.audit;\nimport java.math.BigDecimal;\npublic class PaymentProcessingService {\n    private final LedgerPort ledger; private final AuditLoggerPort auditLogger; private final NotificationPort notification;\n    public PaymentProcessingService(LedgerPort l, AuditLoggerPort a, NotificationPort n) { this.ledger = l; this.auditLogger = a; this.notification = n; }\n    public void processPayment(String userId, BigDecimal amount) {\n        ledger.debit(userId, amount);\n        // MUTANT: audit log call omitted!\n        notification.sendSms(userId, \"Payment successful: \" + amount);\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_async_event_dto_captor",
+    "slug": "kata-test-async-event-dto-captor",
+    "title": "KATA-TEST-15: Async Event DTO Captor & PII Masking (ArgumentCaptor)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 ArgumentCaptor",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Mockito 5, AssertJ, CompletableFuture",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Глубокий захват DTO в CompletableFuture, аудит маскирования PAN по PCI-DSS и защита от утечки PII.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис **PaymentNotificationOrchestrator** преобразует доменные события в защищенные конверты `EventEnvelope<NotificationPayload>` для Kafka:\n- Добавляет W3C TraceContext (`traceparent`, `X-Correlation-ID`). Если correlationId пуст — генерирует UUID.\n- Маскирует номер карты: оставляет только последние 4 цифры (`****-****-****-1234`).\n- **Строгий аудит PII:** сырой PAN, CVV и секретные ключи мерчанта никогда не должны попадать в брокер.\n\n### 🧪 Ваша цель\nВ `PaymentNotificationOrchestratorTest.java` используйте `ArgumentCaptor` и `verifyNoMoreInteractions()`, уничтожив всех 5 мутантов:\n1. **Mutant 1 (UnmaskedPanLeak):** Утечка незамаскированного PAN в конверт сообщения.\n2. **Mutant 2 (MissingCorrelationIdFallback):** Отсутствие генерации UUID при пустом correlationId.\n3. **Mutant 3 (CvvSerializationLeak):** Утечка CVV-кода в полезную нагрузку.\n4. **Mutant 4 (TraceparentHeaderOmission):** Пропуск заголовка `traceparent`.\n5. **Mutant 5 (ShortPanBoundary):** Ошибка маскирования при граничной длине карты (10 символов).",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "content": "package com.enterprise.orchestrator.event;\n\nimport java.time.Instant;\nimport java.util.*;\nimport java.util.concurrent.CompletableFuture;\n\npublic class PaymentNotificationOrchestrator {\n\n    public interface EventPublisher {\n        CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> envelope);\n    }\n\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n\n    private final EventPublisher publisher;\n\n    public PaymentNotificationOrchestrator(EventPublisher publisher) {\n        this.publisher = Objects.requireNonNull(publisher);\n    }\n\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        Objects.requireNonNull(event);\n        String corrId = (event.correlationId() != null && !event.correlationId().isBlank())\n                ? event.correlationId() : UUID.randomUUID().toString();\n\n        Map<String, String> headers = new HashMap<>();\n        headers.put(\"X-Correlation-ID\", corrId);\n        headers.put(\"traceparent\", \"00-\" + corrId.replace(\"-\", \"\") + \"-0000000000000001-01\");\n        headers.put(\"X-Tenant-ID\", event.tenantId());\n\n        EnvelopeMetadata meta = new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), corrId, Collections.unmodifiableMap(headers));\n        NotificationPayload payload = new NotificationPayload(\n                event.paymentId(),\n                event.recipientId(),\n                new MaskedSummary(event.financial().amountInCents(), event.financial().currency(), maskCardNumber(event.financial().rawCardNumber()))\n        );\n\n        return publisher.publish(new EventEnvelope<>(meta, payload));\n    }\n\n    private String maskCardNumber(String raw) {\n        if (raw == null || raw.length() < 10) return \"****\";\n        String clean = raw.replaceAll(\"\\\\s+\", \"\");\n        return \"****-****-****-\" + clean.substring(clean.length() - 4);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestratorTest.java",
+        "content": "package com.enterprise.orchestrator.event;\n\nimport com.enterprise.orchestrator.event.PaymentNotificationOrchestrator.*;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.ArgumentCaptor;\nimport org.mockito.Captor;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport java.util.concurrent.CompletableFuture;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.*;\n\n@ExtendWith(MockitoExtension.class)\nclass PaymentNotificationOrchestratorTest {\n\n    @Mock private EventPublisher publisher;\n    @Captor private ArgumentCaptor<EventEnvelope<NotificationPayload>> captor;\n\n    @Test\n    @DisplayName(\"Should capture async DTO, mask PAN and verify W3C headers (Kills M1, M3, M4)\")\n    void shouldCaptureAndAuditDto() {\n        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(true));\n        PaymentNotificationOrchestrator orchestrator = new PaymentNotificationOrchestrator(publisher);\n\n        var fin = new FinancialDetails(5000L, \"USD\", \"4111222233334444\", \"123\", \"secret-vault-key\");\n        var event = new PaymentEvent(\"PAY-1\", \"REC-1\", \"TENANT-1\", \"corr-123\", fin);\n\n        orchestrator.orchestrate(event);\n\n        verify(publisher).publish(captor.capture());\n        verifyNoMoreInteractions(publisher);\n\n        EventEnvelope<NotificationPayload> envelope = captor.getValue();\n        assertThat(envelope.payload().summary().maskedPan()).isEqualTo(\"****-****-****-4444\");\n        assertThat(envelope.payload().toString()).doesNotContain(\"123\").doesNotContain(\"secret-vault-key\");\n        assertThat(envelope.metadata().headers()).containsKey(\"traceparent\");\n    }\n\n    @Test\n    @DisplayName(\"Should generate UUID correlationId when missing or blank (Kills M2)\")\n    void shouldGenerateFallbackCorrelationId() {\n        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(true));\n        PaymentNotificationOrchestrator orchestrator = new PaymentNotificationOrchestrator(publisher);\n\n        var fin = new FinancialDetails(1000L, \"USD\", \"4111222233334444\", \"123\", \"key\");\n        var event = new PaymentEvent(\"PAY-2\", \"REC-2\", \"TENANT-1\", \"   \", fin);\n\n        orchestrator.orchestrate(event);\n\n        verify(publisher).publish(captor.capture());\n        assertThat(captor.getValue().metadata().correlationId()).isNotBlank().isNotEqualTo(\"   \");\n    }\n\n    @Test\n    @DisplayName(\"Should correctly mask 10-char boundary card number (Kills M5)\")\n    void shouldMaskTenCharCardNumber() {\n        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(true));\n        PaymentNotificationOrchestrator orchestrator = new PaymentNotificationOrchestrator(publisher);\n\n        var fin = new FinancialDetails(1000L, \"USD\", \"1234567890\", \"111\", \"key\");\n        var event = new PaymentEvent(\"PAY-3\", \"REC-3\", \"TENANT-1\", \"c-3\", fin);\n\n        orchestrator.orchestrate(event);\n\n        verify(publisher).publish(captor.capture());\n        assertThat(captor.getValue().payload().summary().maskedPan()).isEqualTo(\"****-****-****-7890\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_pno_01_unmasked_pan",
+        "name": "UnmaskedPanLeakMutator",
+        "file": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "line": 39,
+        "mutatedContent": "package com.enterprise.orchestrator.event;\nimport java.time.Instant; import java.util.*; import java.util.concurrent.CompletableFuture;\npublic class PaymentNotificationOrchestrator {\n    public interface EventPublisher { CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> e); }\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n    private final EventPublisher publisher;\n    public PaymentNotificationOrchestrator(EventPublisher p) { this.publisher = p; }\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        // MUTANT: leaks raw card number!\n        NotificationPayload payload = new NotificationPayload(event.paymentId(), event.recipientId(), new MaskedSummary(event.financial().amountInCents(), event.financial().currency(), event.financial().rawCardNumber()));\n        return publisher.publish(new EventEnvelope<>(new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), \"c\", Map.of()), payload));\n    }\n}"
+      },
+      {
+        "id": "mutant_pno_02_missing_fallback_uuid",
+        "name": "MissingCorrelationIdFallbackMutator",
+        "file": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "line": 28,
+        "mutatedContent": "package com.enterprise.orchestrator.event;\nimport java.time.Instant; import java.util.*; import java.util.concurrent.CompletableFuture;\npublic class PaymentNotificationOrchestrator {\n    public interface EventPublisher { CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> e); }\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n    private final EventPublisher publisher;\n    public PaymentNotificationOrchestrator(EventPublisher p) { this.publisher = p; }\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        // MUTANT: keeps blank correlationId!\n        String corrId = event.correlationId();\n        NotificationPayload payload = new NotificationPayload(event.paymentId(), event.recipientId(), new MaskedSummary(100L, \"USD\", \"****-****-****-4444\"));\n        return publisher.publish(new EventEnvelope<>(new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), corrId, Map.of()), payload));\n    }\n}"
+      },
+      {
+        "id": "mutant_pno_03_cvv_leak",
+        "name": "CvvSerializationLeakMutator",
+        "file": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "line": 38,
+        "mutatedContent": "package com.enterprise.orchestrator.event;\nimport java.time.Instant; import java.util.*; import java.util.concurrent.CompletableFuture;\npublic class PaymentNotificationOrchestrator {\n    public interface EventPublisher { CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> e); }\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    // MUTANT: NotificationPayload includes CVV!\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary, String cvv) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n    private final EventPublisher publisher;\n    public PaymentNotificationOrchestrator(EventPublisher p) { this.publisher = p; }\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        NotificationPayload payload = new NotificationPayload(event.paymentId(), event.recipientId(), new MaskedSummary(100L, \"USD\", \"****-****-****-4444\"), event.financial().cvv());\n        return publisher.publish(new EventEnvelope<>(new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), \"corr\", Map.of(\"traceparent\", \"00-1\")), payload));\n    }\n}"
+      },
+      {
+        "id": "mutant_pno_04_traceparent_omission",
+        "name": "TraceparentHeaderOmissionMutator",
+        "file": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "line": 32,
+        "mutatedContent": "package com.enterprise.orchestrator.event;\nimport java.time.Instant; import java.util.*; import java.util.concurrent.CompletableFuture;\npublic class PaymentNotificationOrchestrator {\n    public interface EventPublisher { CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> e); }\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n    private final EventPublisher publisher;\n    public PaymentNotificationOrchestrator(EventPublisher p) { this.publisher = p; }\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        // MUTANT: headers map without traceparent!\n        Map<String, String> headers = Map.of(\"X-Correlation-ID\", \"corr\");\n        NotificationPayload payload = new NotificationPayload(event.paymentId(), event.recipientId(), new MaskedSummary(100L, \"USD\", \"****-****-****-4444\"));\n        return publisher.publish(new EventEnvelope<>(new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), \"corr\", headers), payload));\n    }\n}"
+      },
+      {
+        "id": "mutant_pno_05_short_pan",
+        "name": "ShortPanBoundaryMutator",
+        "file": "src/main/java/com/enterprise/orchestrator/event/PaymentNotificationOrchestrator.java",
+        "line": 45,
+        "mutatedContent": "package com.enterprise.orchestrator.event;\nimport java.time.Instant; import java.util.*; import java.util.concurrent.CompletableFuture;\npublic class PaymentNotificationOrchestrator {\n    public interface EventPublisher { CompletableFuture<Boolean> publish(EventEnvelope<NotificationPayload> e); }\n    public record FinancialDetails(long amountInCents, String currency, String rawCardNumber, String cvv, String secretKey) {}\n    public record PaymentEvent(String paymentId, String recipientId, String tenantId, String correlationId, FinancialDetails financial) {}\n    public record MaskedSummary(long amountInCents, String currency, String maskedPan) {}\n    public record NotificationPayload(String paymentId, String recipientId, MaskedSummary summary) {}\n    public record EnvelopeMetadata(UUID eventId, Instant timestamp, String correlationId, Map<String, String> headers) {}\n    public record EventEnvelope<T>(EnvelopeMetadata metadata, T payload) {}\n    private final EventPublisher publisher;\n    public PaymentNotificationOrchestrator(EventPublisher p) { this.publisher = p; }\n    public CompletableFuture<Boolean> orchestrate(PaymentEvent event) {\n        // MUTANT: boundary <= 10 causes 10-char PAN to return ****!\n        String pan = event.financial().rawCardNumber().length() <= 10 ? \"****\" : \"****-****-****-1234\";\n        NotificationPayload payload = new NotificationPayload(event.paymentId(), event.recipientId(), new MaskedSummary(100L, \"USD\", pan));\n        return publisher.publish(new EventEnvelope<>(new EnvelopeMetadata(UUID.randomUUID(), Instant.now(), \"c\", Map.of(\"traceparent\", \"00-1\")), payload));\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_spy_partial_mocking_var",
+    "slug": "kata-test-spy-partial-mocking-var",
+    "title": "KATA-TEST-16: Partial Mocking @Spy (doReturn vs when Bytecode Trap)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 @Spy doReturn Trap",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Mockito 5 @Spy, AssertJ",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Изоляция физического аппаратного HSM через @Spy и преодоление ловушки when() в байткоде JVM.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис квантильного риск-менеджмента **RiskValuationEngine** вычисляет Value-at-Risk (VaR):\n- Вычисления чистые, но требуют валидации лицензии через физический HSM-модуль (`/dev/hsm0`), бросающий `HardwareSecurityTokenException` в среде CI.\n- Применение конструкции `when(spy.validateHsm()).thenReturn(...)` приводит к **краху JVM**, поскольку аргумент метода вычисляется рантаймом Java до вызова `when()`.\n- Корректный паттерн: `doReturn(token).when(spy).validateHsm()`.\n\n### 🧪 Ваша цель\nВ `RiskValuationEngineTest.java` протестируйте математический расчет VaR с частичным мокированием через `doReturn()`, уничтожив всех 5 мутантов:\n1. **Mutant 1 (VaRMultiplierMath):** Ошибка расчета коэффициента $1.645$ (95% доверительный интервал).\n2. **Mutant 2 (HsmCheckOmission):** Пропуск проверки HSM-токена перед началом расчетов.\n3. **Mutant 3 (NegativeExposureAllowed):** Допуск отрицательного размера позиции.\n4. **Mutant 4 (ConfidenceLevelClamp):** Игнорирование валидации уровня достоверности.\n5. **Mutant 5 (SquareRootMath):** Отсутствие взятия квадратного корня от времени горизонта.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "content": "package com.enterprise.finance.risk;\n\nclass HardwareSecurityTokenException extends RuntimeException {\n    public HardwareSecurityTokenException(String message) { super(message); }\n}\n\npublic class RiskValuationEngine {\n\n    public String validateHardwareEntitlement(String licenseKey) {\n        // Interacts with physical HSM /dev/hsm0\n        throw new HardwareSecurityTokenException(\"FATAL: /dev/hsm0 physical token absent\");\n    }\n\n    public double calculateValueAtRisk(double portfolioExposure, double dailyVolatility, int horizonDays, String licenseKey) {\n        if (portfolioExposure <= 0) throw new IllegalArgumentException(\"Exposure must be strictly positive\");\n        if (dailyVolatility <= 0 || dailyVolatility > 1.0) throw new IllegalArgumentException(\"Volatility must be in (0, 1]\");\n        if (horizonDays <= 0) throw new IllegalArgumentException(\"Horizon must be positive\");\n\n        String token = validateHardwareEntitlement(licenseKey);\n        if (token == null || token.isBlank()) throw new SecurityException(\"Invalid HSM entitlement token\");\n\n        // Parametric VaR (95% normal confidence = 1.645 * sigma * sqrt(t))\n        double zScore = 1.645;\n        return portfolioExposure * dailyVolatility * Math.sqrt(horizonDays) * zScore;\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/finance/risk/RiskValuationEngineTest.java",
+        "content": "package com.enterprise.finance.risk;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Spy;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.assertj.core.data.Offset;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.assertj.core.api.Assertions.assertThatThrownBy;\nimport static org.mockito.ArgumentMatchers.anyString;\nimport static org.mockito.Mockito.doReturn;\n\n@ExtendWith(MockitoExtension.class)\nclass RiskValuationEngineTest {\n\n    @Spy\n    private RiskValuationEngine engine;\n\n    @Test\n    @DisplayName(\"Should use doReturn to stub HSM call and calculate VaR with precision (Kills M1, M5)\")\n    void shouldCalculateValueAtRiskWithMockedHsm() {\n        // doReturn prevents JVM from evaluating real validateHardwareEntitlement() call!\n        doReturn(\"VALID-HSM-TOKEN-2026\").when(engine).validateHardwareEntitlement(anyString());\n\n        double var = engine.calculateValueAtRisk(1_000_000.0, 0.02, 10, \"lic-99\");\n\n        // 1_000_000 * 0.02 * sqrt(10) * 1.645 = 104038.94\n        assertThat(var).isCloseTo(104038.94, Offset.offset(0.1));\n    }\n\n    @Test\n    @DisplayName(\"Should reject negative or zero exposure (Kills M3)\")\n    void shouldRejectInvalidExposure() {\n        doReturn(\"VALID\").when(engine).validateHardwareEntitlement(anyString());\n\n        assertThatThrownBy(() -> engine.calculateValueAtRisk(0.0, 0.02, 10, \"lic-99\"))\n            .isInstanceOf(IllegalArgumentException.class);\n    }\n\n    @Test\n    @DisplayName(\"Should fail when HSM token validation fails (Kills M2)\")\n    void shouldFailOnEmptyHsmToken() {\n        doReturn(\"\").when(engine).validateHardwareEntitlement(anyString());\n\n        assertThatThrownBy(() -> engine.calculateValueAtRisk(100_000.0, 0.02, 10, \"lic-99\"))\n            .isInstanceOf(SecurityException.class);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rve_01_var_multiplier",
+        "name": "VaRMultiplierMathMutator",
+        "file": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "line": 20,
+        "mutatedContent": "package com.enterprise.finance.risk;\npublic class RiskValuationEngine {\n    public String validateHardwareEntitlement(String k) { throw new HardwareSecurityTokenException(\"HSM\"); }\n    public double calculateValueAtRisk(double exp, double vol, int h, String k) {\n        validateHardwareEntitlement(k);\n        // MUTANT: 2.0 instead of 1.645!\n        return exp * vol * Math.sqrt(h) * 2.0;\n    }\n}"
+      },
+      {
+        "id": "mutant_rve_02_hsm_omission",
+        "name": "HsmCheckOmissionMutator",
+        "file": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "line": 16,
+        "mutatedContent": "package com.enterprise.finance.risk;\npublic class RiskValuationEngine {\n    public String validateHardwareEntitlement(String k) { throw new HardwareSecurityTokenException(\"HSM\"); }\n    public double calculateValueAtRisk(double exp, double vol, int h, String k) {\n        // MUTANT: token validation omitted!\n        return exp * vol * Math.sqrt(h) * 1.645;\n    }\n}"
+      },
+      {
+        "id": "mutant_rve_03_negative_exposure",
+        "name": "NegativeExposureAllowedMutator",
+        "file": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "line": 12,
+        "mutatedContent": "package com.enterprise.finance.risk;\npublic class RiskValuationEngine {\n    public String validateHardwareEntitlement(String k) { throw new HardwareSecurityTokenException(\"HSM\"); }\n    public double calculateValueAtRisk(double exp, double vol, int h, String k) {\n        validateHardwareEntitlement(k);\n        // MUTANT: allows zero or negative exposure!\n        return exp * vol * Math.sqrt(h) * 1.645;\n    }\n}"
+      },
+      {
+        "id": "mutant_rve_04_volatility_boundary",
+        "name": "VolatilityBoundaryMutator",
+        "file": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "line": 13,
+        "mutatedContent": "package com.enterprise.finance.risk;\npublic class RiskValuationEngine {\n    public String validateHardwareEntitlement(String k) { throw new HardwareSecurityTokenException(\"HSM\"); }\n    public double calculateValueAtRisk(double exp, double vol, int h, String k) {\n        validateHardwareEntitlement(k);\n        // MUTANT: ignores volatility range check!\n        return exp * vol * Math.sqrt(h) * 1.645;\n    }\n}"
+      },
+      {
+        "id": "mutant_rve_05_sqrt_omission",
+        "name": "SquareRootMathMutator",
+        "file": "src/main/java/com/enterprise/finance/risk/RiskValuationEngine.java",
+        "line": 20,
+        "mutatedContent": "package com.enterprise.finance.risk;\npublic class RiskValuationEngine {\n    public String validateHardwareEntitlement(String k) { throw new HardwareSecurityTokenException(\"HSM\"); }\n    public double calculateValueAtRisk(double exp, double vol, int h, String k) {\n        validateHardwareEntitlement(k);\n        // MUTANT: multiplies by h instead of sqrt(h)!\n        return exp * vol * h * 1.645;\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_resilient_cascading_retry",
+    "slug": "kata-test-resilient-cascading-retry",
+    "title": "KATA-TEST-18: Resilient Cascading Retry & Backoff (InOrder & Sleeper)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 InOrder Retry",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Mockito 5, InOrder",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Верификация каскадных сетевых сбоев: Timeout -> 503 -> 200 OK, изоляция времени через Sleeper.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nБанковский клиент **ResilientSettlementClient** выполняет расчеты с автоматическим повтором при транзиентных сбоях:\n- Обрабатывает последовательность сбоев: `SocketTimeout` $\\to$ `Http503` $\\to$ `200 OK`.\n- Применяет экспоненциальный бэкофф: $100\\text{ms} \\to 200\\text{ms} \\to 400\\text{ms}$.\n- Время изолировано через интерфейс `Sleeper` (запрет прямого вызова `Thread.sleep()`).\n- При исчерпании 3 попыток обращается к аварийному шлюзу `FallbackHandler`.\n\n### 🧪 Ваша цель\nВ `ResilientSettlementClientTest.java` напишите тесты с использованием `thenThrow().thenReturn()` и `InOrder`, уничтожающие всех 5 мутантов:\n1. **Mutant 1 (MaxAttemptsOffByOne):** Прекращение попыток после 2-й итерации.\n2. **Mutant 2 (ExponentialBackoffMath):** Линейный бэкофф вместо экспоненциального.\n3. **Mutant 3 (FallbackOmissionOnExhaustion):** Отсутствие вызова fallback при исчерпании попыток.\n4. **Mutant 4 (SleepOnSuccess):** Засыпание после успешного ответа.\n5. **Mutant 5 (FallbackOnSuccess):** Вызов fallback при успешном выполнении.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "content": "package com.enterprise.resilience.banking;\n\nimport java.util.Objects;\n\npublic class ResilientSettlementClient {\n\n    public interface RemoteGateway {\n        String settle(String txId);\n    }\n\n    public interface Sleeper {\n        void sleep(long millis);\n    }\n\n    public interface FallbackHandler {\n        String fallback(String txId, Exception lastError);\n    }\n\n    private final RemoteGateway gateway;\n    private final Sleeper sleeper;\n    private final FallbackHandler fallback;\n\n    public ResilientSettlementClient(RemoteGateway gateway, Sleeper sleeper, FallbackHandler fallback) {\n        this.gateway = Objects.requireNonNull(gateway);\n        this.sleeper = Objects.requireNonNull(sleeper);\n        this.fallback = Objects.requireNonNull(fallback);\n    }\n\n    public String executeWithRetry(String txId) {\n        int maxAttempts = 3;\n        long backoff = 100L;\n        Exception lastErr = null;\n\n        for (int attempt = 1; attempt <= maxAttempts; attempt++) {\n            try {\n                return gateway.settle(txId);\n            } catch (Exception ex) {\n                lastErr = ex;\n                if (attempt < maxAttempts) {\n                    sleeper.sleep(backoff);\n                    backoff *= 2;\n                }\n            }\n        }\n        return fallback.fallback(txId, lastErr);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/resilience/banking/ResilientSettlementClientTest.java",
+        "content": "package com.enterprise.resilience.banking;\n\nimport com.enterprise.resilience.banking.ResilientSettlementClient.*;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InOrder;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.*;\n\n@ExtendWith(MockitoExtension.class)\nclass ResilientSettlementClientTest {\n\n    @Mock private RemoteGateway gateway;\n    @Mock private Sleeper sleeper;\n    @Mock private FallbackHandler fallback;\n\n    @Test\n    @DisplayName(\"Should succeed on 3rd attempt with exponential backoff (Kills M1, M2, M4, M5)\")\n    void shouldSucceedOnThirdAttempt() {\n        when(gateway.settle(\"TX-1\"))\n            .thenThrow(new RuntimeException(\"Timeout\"))\n            .thenThrow(new RuntimeException(\"503 Unavailable\"))\n            .thenReturn(\"SUCCESS-OK\");\n\n        ResilientSettlementClient client = new ResilientSettlementClient(gateway, sleeper, fallback);\n        String res = client.executeWithRetry(\"TX-1\");\n\n        assertThat(res).isEqualTo(\"SUCCESS-OK\");\n\n        InOrder order = inOrder(gateway, sleeper, fallback);\n        order.verify(gateway).settle(\"TX-1\");\n        order.verify(sleeper).sleep(100L);\n        order.verify(gateway).settle(\"TX-1\");\n        order.verify(sleeper).sleep(200L);\n        order.verify(gateway).settle(\"TX-1\");\n        order.verifyNoMoreInteractions();\n        verifyNoInteractions(fallback);\n    }\n\n    @Test\n    @DisplayName(\"Should call fallback when all attempts are exhausted (Kills M3)\")\n    void shouldCallFallbackOnExhaustion() {\n        when(gateway.settle(\"TX-2\")).thenThrow(new RuntimeException(\"Crash\"));\n        when(fallback.fallback(eq(\"TX-2\"), any())).thenReturn(\"FALLBACK-QUEUED\");\n\n        ResilientSettlementClient client = new ResilientSettlementClient(gateway, sleeper, fallback);\n        String res = client.executeWithRetry(\"TX-2\");\n\n        assertThat(res).isEqualTo(\"FALLBACK-QUEUED\");\n        verify(gateway, times(3)).settle(\"TX-2\");\n        verify(fallback).fallback(eq(\"TX-2\"), any());\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_rsc_01_max_attempts",
+        "name": "MaxAttemptsOffByOneMutator",
+        "file": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "line": 30,
+        "mutatedContent": "package com.enterprise.resilience.banking;\npublic class ResilientSettlementClient {\n    public interface RemoteGateway { String settle(String tx); }\n    public interface Sleeper { void sleep(long m); }\n    public interface FallbackHandler { String fallback(String tx, Exception e); }\n    private final RemoteGateway gateway; private final Sleeper sleeper; private final FallbackHandler fallback;\n    public ResilientSettlementClient(RemoteGateway g, Sleeper s, FallbackHandler f) { this.gateway = g; this.sleeper = s; this.fallback = f; }\n    public String executeWithRetry(String tx) {\n        // MUTANT: maxAttempts = 2 instead of 3!\n        for (int i = 1; i <= 2; i++) {\n            try { return gateway.settle(tx); } catch (Exception e) { if (i < 2) sleeper.sleep(100L); }\n        }\n        return fallback.fallback(tx, null);\n    }\n}"
+      },
+      {
+        "id": "mutant_rsc_02_backoff_math",
+        "name": "ExponentialBackoffMathMutator",
+        "file": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "line": 38,
+        "mutatedContent": "package com.enterprise.resilience.banking;\npublic class ResilientSettlementClient {\n    public interface RemoteGateway { String settle(String tx); }\n    public interface Sleeper { void sleep(long m); }\n    public interface FallbackHandler { String fallback(String tx, Exception e); }\n    private final RemoteGateway gateway; private final Sleeper sleeper; private final FallbackHandler fallback;\n    public ResilientSettlementClient(RemoteGateway g, Sleeper s, FallbackHandler f) { this.gateway = g; this.sleeper = s; this.fallback = f; }\n    public String executeWithRetry(String tx) {\n        long backoff = 100L;\n        for (int i = 1; i <= 3; i++) {\n            try { return gateway.settle(tx); } catch (Exception e) {\n                if (i < 3) {\n                    sleeper.sleep(backoff);\n                    // MUTANT: linear addition instead of exponential multiply!\n                    backoff += 10L;\n                }\n            }\n        }\n        return fallback.fallback(tx, null);\n    }\n}"
+      },
+      {
+        "id": "mutant_rsc_03_fallback_omission",
+        "name": "FallbackOmissionOnExhaustionMutator",
+        "file": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "line": 41,
+        "mutatedContent": "package com.enterprise.resilience.banking;\npublic class ResilientSettlementClient {\n    public interface RemoteGateway { String settle(String tx); }\n    public interface Sleeper { void sleep(long m); }\n    public interface FallbackHandler { String fallback(String tx, Exception e); }\n    private final RemoteGateway gateway; private final Sleeper sleeper; private final FallbackHandler fallback;\n    public ResilientSettlementClient(RemoteGateway g, Sleeper s, FallbackHandler f) { this.gateway = g; this.sleeper = s; this.fallback = f; }\n    public String executeWithRetry(String tx) {\n        for (int i = 1; i <= 3; i++) {\n            try { return gateway.settle(tx); } catch (Exception ignored) {}\n        }\n        // MUTANT: returns null without invoking fallback!\n        return null;\n    }\n}"
+      },
+      {
+        "id": "mutant_rsc_04_sleep_on_success",
+        "name": "SleepOnSuccessMutator",
+        "file": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "line": 32,
+        "mutatedContent": "package com.enterprise.resilience.banking;\npublic class ResilientSettlementClient {\n    public interface RemoteGateway { String settle(String tx); }\n    public interface Sleeper { void sleep(long m); }\n    public interface FallbackHandler { String fallback(String tx, Exception e); }\n    private final RemoteGateway gateway; private final Sleeper sleeper; private final FallbackHandler fallback;\n    public ResilientSettlementClient(RemoteGateway g, Sleeper s, FallbackHandler f) { this.gateway = g; this.sleeper = s; this.fallback = f; }\n    public String executeWithRetry(String tx) {\n        for (int i = 1; i <= 3; i++) {\n            try {\n                String r = gateway.settle(tx);\n                sleeper.sleep(500L); // MUTANT: sleeps on success!\n                return r;\n            } catch (Exception ignored) {}\n        }\n        return fallback.fallback(tx, null);\n    }\n}"
+      },
+      {
+        "id": "mutant_rsc_05_fallback_on_success",
+        "name": "FallbackOnSuccessMutator",
+        "file": "src/main/java/com/enterprise/resilience/banking/ResilientSettlementClient.java",
+        "line": 33,
+        "mutatedContent": "package com.enterprise.resilience.banking;\npublic class ResilientSettlementClient {\n    public interface RemoteGateway { String settle(String tx); }\n    public interface Sleeper { void sleep(long m); }\n    public interface FallbackHandler { String fallback(String tx, Exception e); }\n    private final RemoteGateway gateway; private final Sleeper sleeper; private final FallbackHandler fallback;\n    public ResilientSettlementClient(RemoteGateway g, Sleeper s, FallbackHandler f) { this.gateway = g; this.sleeper = s; this.fallback = f; }\n    public String executeWithRetry(String tx) {\n        for (int i = 1; i <= 3; i++) {\n            try {\n                gateway.settle(tx);\n                return fallback.fallback(tx, null); // MUTANT: calls fallback on success!\n            } catch (Exception ignored) {}\n        }\n        return fallback.fallback(tx, null);\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_deterministic_time_mockstatic_uuid",
+    "slug": "kata-test-deterministic-time-mockstatic-uuid",
+    "title": "KATA-TEST-19: Deterministic Time & UUID with mockStatic (JDK 21 Trap)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 mockStatic RealMethods",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Mockito 5 mockStatic, AssertJ",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Мокирование статических Instant.now() и UUID с использованием CALLS_REAL_METHODS в JDK 21.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис финансового аудита **LegacyComplianceTokenService** генерирует криптографические токены:\n- Токен состоит из: SHA-256(`userId + \":\" + uuid + \":\" + instant.toEpochMilli() + \":\" + expiry.toEpochMilli()`).\n- Использует прямое обращение к статикам: `UUID.randomUUID()` и `Instant.now()`.\n- В JDK 21 вызов `Instant.now().plusSeconds(...)` внутренне вызывает `Instant.ofEpochSecond()`.\n- Если сделать наивный `mockStatic(Instant.class)`, то `plusSeconds()` превратится в no-op и вернет `null`, вызвав **NullPointerException**!\n- Единственное верное решение: `mockStatic(Instant.class, Mockito.CALLS_REAL_METHODS)` строго в `try-with-resources`.\n\n### 🧪 Ваша цель\nВ `LegacyComplianceTokenServiceTest.java` детерминированно замокируйте статики, уничтожив всех 5 мутантов:\n1. **Mutant 1 (ExpiryPlusSecondsMath):** Срок действия токена рассчитывается как 300 секунд вместо 3600.\n2. **Mutant 2 (OmitUuidInHash):** Исключение UUID из хэш-сигнатуры токена.\n3. **Mutant 3 (InstantNowRegressed):** Время создания берется из системной эпохи вместо текущего Instant.\n4. **Mutant 4 (Sha256AlgorithmNegate):** Подмена алгоритма хэширования на MD5.\n5. **Mutant 5 (StaticLeakRisk):** Утечка мока статика за пределы тестового блока.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "content": "package com.enterprise.compliance.token;\n\nimport java.nio.charset.StandardCharsets;\nimport java.security.MessageDigest;\nimport java.time.Instant;\nimport java.util.HexFormat;\nimport java.util.UUID;\n\npublic class LegacyComplianceTokenService {\n\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n\n    public ComplianceToken generateToken(String userId) {\n        if (userId == null || userId.isBlank()) throw new IllegalArgumentException(\"User ID cannot be blank\");\n\n        UUID uuid = UUID.randomUUID();\n        Instant now = Instant.now();\n        Instant expiresAt = now.plusSeconds(3600); // 1 hour validity\n\n        String raw = userId + \":\" + uuid + \":\" + now.toEpochMilli() + \":\" + expiresAt.toEpochMilli();\n        String hash = computeSha256(raw);\n\n        return new ComplianceToken(hash, userId, now, expiresAt);\n    }\n\n    private String computeSha256(String input) {\n        try {\n            MessageDigest digest = MessageDigest.getInstance(\"SHA-256\");\n            byte[] encoded = digest.digest(input.getBytes(StandardCharsets.UTF_8));\n            return HexFormat.of().formatHex(encoded);\n        } catch (Exception e) {\n            throw new IllegalStateException(\"Crypto failure\", e);\n        }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/compliance/token/LegacyComplianceTokenServiceTest.java",
+        "content": "package com.enterprise.compliance.token;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.mockito.MockedStatic;\nimport org.mockito.Mockito;\nimport java.time.Instant;\nimport java.util.UUID;\nimport static org.assertj.core.api.Assertions.assertThat;\n\nclass LegacyComplianceTokenServiceTest {\n\n    private final LegacyComplianceTokenService service = new LegacyComplianceTokenService();\n\n    @Test\n    @DisplayName(\"Should mock UUID and Instant with CALLS_REAL_METHODS deterministically (Kills M1, M2, M3, M4, M5)\")\n    void shouldGenerateDeterministicToken() {\n        UUID fixedUuid = UUID.fromString(\"00000000-0000-0000-0000-000000000001\");\n        Instant fixedInstant = Instant.parse(\"2026-04-01T10:00:00Z\");\n\n        // CALLS_REAL_METHODS is mandatory in JDK 21 to prevent plusSeconds from returning null!\n        try (MockedStatic<UUID> uuidMock = Mockito.mockStatic(UUID.class, Mockito.CALLS_REAL_METHODS);\n             MockedStatic<Instant> instantMock = Mockito.mockStatic(Instant.class, Mockito.CALLS_REAL_METHODS)) {\n\n            uuidMock.when(UUID::randomUUID).thenReturn(fixedUuid);\n            instantMock.when(Instant::now).thenReturn(fixedInstant);\n\n            var token = service.generateToken(\"user-42\");\n\n            assertThat(token.userId()).isEqualTo(\"user-42\");\n            assertThat(token.createdAt()).isEqualTo(fixedInstant);\n            assertThat(token.expiresAt()).isEqualTo(fixedInstant.plusSeconds(3600));\n\n            // SHA-256 of \"user-42:00000000-0000-0000-0000-000000000001:1775037600000:1775041200000\"\n            assertThat(token.tokenString()).isNotBlank().hasSize(64);\n        }\n\n        // Verify clean isolation outside try-with-resources\n        assertThat(UUID.randomUUID()).isNotEqualTo(fixedUuid);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_lct_01_expiry_math",
+        "name": "ExpiryPlusSecondsMathMutator",
+        "file": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "line": 16,
+        "mutatedContent": "package com.enterprise.compliance.token;\nimport java.time.Instant; import java.util.UUID;\npublic class LegacyComplianceTokenService {\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n    public ComplianceToken generateToken(String userId) {\n        UUID uuid = UUID.randomUUID();\n        Instant now = Instant.now();\n        // MUTANT: 300 seconds instead of 3600!\n        Instant expiresAt = now.plusSeconds(300);\n        return new ComplianceToken(\"hash\", userId, now, expiresAt);\n    }\n}"
+      },
+      {
+        "id": "mutant_lct_02_omit_uuid",
+        "name": "OmitUuidInHashMutator",
+        "file": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "line": 18,
+        "mutatedContent": "package com.enterprise.compliance.token;\nimport java.time.Instant; import java.util.UUID;\npublic class LegacyComplianceTokenService {\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n    public ComplianceToken generateToken(String userId) {\n        UUID uuid = UUID.randomUUID();\n        Instant now = Instant.now();\n        Instant expiresAt = now.plusSeconds(3600);\n        // MUTANT: omits UUID from raw input to hash!\n        String raw = userId + \":NO_UUID:\" + now.toEpochMilli() + \":\" + expiresAt.toEpochMilli();\n        return new ComplianceToken(raw, userId, now, expiresAt);\n    }\n}"
+      },
+      {
+        "id": "mutant_lct_03_epoch_now",
+        "name": "InstantNowRegressedMutator",
+        "file": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "line": 15,
+        "mutatedContent": "package com.enterprise.compliance.token;\nimport java.time.Instant; import java.util.UUID;\npublic class LegacyComplianceTokenService {\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n    public ComplianceToken generateToken(String userId) {\n        UUID uuid = UUID.randomUUID();\n        // MUTANT: uses Instant.EPOCH instead of Instant.now()!\n        Instant now = Instant.EPOCH;\n        Instant expiresAt = now.plusSeconds(3600);\n        return new ComplianceToken(\"hash\", userId, now, expiresAt);\n    }\n}"
+      },
+      {
+        "id": "mutant_lct_04_md5_hash",
+        "name": "Sha256AlgorithmNegateMutator",
+        "file": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "line": 25,
+        "mutatedContent": "package com.enterprise.compliance.token;\nimport java.time.Instant; import java.util.UUID;\npublic class LegacyComplianceTokenService {\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n    public ComplianceToken generateToken(String userId) {\n        UUID uuid = UUID.randomUUID();\n        Instant now = Instant.now();\n        Instant expiresAt = now.plusSeconds(3600);\n        // MUTANT: 32-char string (MD5 length) instead of 64-char SHA-256!\n        return new ComplianceToken(\"0123456789abcdef0123456789abcdef\", userId, now, expiresAt);\n    }\n}"
+      },
+      {
+        "id": "mutant_lct_05_static_leak",
+        "name": "StaticLeakRiskMutator",
+        "file": "src/main/java/com/enterprise/compliance/token/LegacyComplianceTokenService.java",
+        "line": 14,
+        "mutatedContent": "package com.enterprise.compliance.token;\nimport java.time.Instant; import java.util.UUID;\npublic class LegacyComplianceTokenService {\n    public record ComplianceToken(String tokenString, String userId, Instant createdAt, Instant expiresAt) {}\n    public ComplianceToken generateToken(String userId) {\n        // MUTANT: fixed hardcoded UUID returned!\n        UUID uuid = UUID.fromString(\"00000000-0000-0000-0000-000000000001\");\n        Instant now = Instant.now();\n        return new ComplianceToken(\"hash\", userId, now, now.plusSeconds(3600));\n    }\n}"
+      }
+    ]
+  }
+]

@@ -1,0 +1,339 @@
+[
+  {
+    "id": "kata_test_awaitility_polling_stability",
+    "slug": "kata-test-awaitility-polling-stability",
+    "title": "KATA-TEST-25: Awaitility Polling vs Flaky Sleep (State Stability)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 Awaitility Polling",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Awaitility, AssertJ",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Замена хрупких Thread.sleep на детерминированный Awaitility.until() с проверкой стабильности during().",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис агрегации платежей **PaymentAggregationService** асинхронно накапливает транзакции:\n- Статус меняется: `COLLECTING` $\\to$ `PENDING_SETTLEMENT` $\\to$ `SETTLED`.\n- Применение `Thread.sleep(500)` приводит к **flaky tests** в CI: если сборка перегружена, 500 мс не хватает; на пустом сервере — впустую сжигается время.\n- Требуется детерминированный опрос через `await().atMost(2, SECONDS).until(...)`.\n- Для предотвращения гонок статуса проверяется условие удержания стабильного состояния (`during(100, MILLISECONDS)`).\n\n### 🧪 Ваша цель\nВ `PaymentAggregationServiceTest.java` напишите тесты на Awaitility, уничтожающие всех 5 мутантов:\n1. **Mutant 1 ( prematureSettledStatus):** Преждевременный переход в SETTLED без накопления суммы.\n2. **Mutant 2 (DelayCalculationMath):** Смещение таймера финализации.\n3. **Mutant 3 (FlakySleepInjection):** Искусственная задержка, ломающая жесткие таймауты.\n4. **Mutant 4 (OmitTerminalSettledState):** Застревание в состоянии PENDING_SETTLEMENT.\n5. **Mutant 5 (ConcurrentAmountMutation):** Гонка инкремента суммы без Atomic-примитивов.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "content": "package com.enterprise.concurrency.polling;\n\nimport java.math.BigDecimal;\nimport java.util.Objects;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.AtomicReference;\n\npublic class PaymentAggregationService {\n\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n\n    private final AtomicReference<BatchState> state;\n    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();\n\n    public PaymentAggregationService(String batchId) {\n        this.state = new AtomicReference<>(new BatchState(batchId, BigDecimal.ZERO, BatchStatus.COLLECTING));\n    }\n\n    public synchronized void addPayment(BigDecimal amount) {\n        Objects.requireNonNull(amount);\n        BatchState cur = state.get();\n        state.set(new BatchState(cur.batchId(), cur.totalAmount().add(amount), cur.status()));\n    }\n\n    public void triggerAsyncSettlement(long delayMs) {\n        state.updateAndGet(s -> new BatchState(s.batchId(), s.totalAmount(), BatchStatus.PENDING_SETTLEMENT));\n        scheduler.schedule(() -> {\n            state.updateAndGet(s -> new BatchState(s.batchId(), s.totalAmount(), BatchStatus.SETTLED));\n        }, delayMs, TimeUnit.MILLISECONDS);\n    }\n\n    public BatchState getState() { return state.get(); }\n    public void shutdown() { scheduler.shutdown(); }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/concurrency/polling/PaymentAggregationServiceTest.java",
+        "content": "package com.enterprise.concurrency.polling;\n\nimport com.enterprise.concurrency.polling.PaymentAggregationService.*;\nimport org.junit.jupiter.api.AfterEach;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport java.math.BigDecimal;\nimport java.time.Duration;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.awaitility.Awaitility.await;\n\nclass PaymentAggregationServiceTest {\n\n    private PaymentAggregationService service;\n\n    @AfterEach\n    void tearDown() {\n        if (service != null) service.shutdown();\n    }\n\n    @Test\n    @DisplayName(\"Should poll until SETTLED status and verify stability without Thread.sleep (Kills M1, M2, M4)\")\n    void shouldSettleAsynchronouslyWithAwaitility() {\n        service = new PaymentAggregationService(\"batch-101\");\n        service.addPayment(new BigDecimal(\"250.00\"));\n        service.triggerAsyncSettlement(50);\n\n        assertThat(service.getState().status()).isEqualTo(BatchStatus.PENDING_SETTLEMENT);\n\n        // Awaitility poll: sub-100ms determinism!\n        await().atMost(Duration.ofSeconds(1))\n               .pollInterval(Duration.ofMillis(10))\n               .untilAsserted(() -> {\n                   BatchState state = service.getState();\n                   assertThat(state.status()).isEqualTo(BatchStatus.SETTLED);\n                   assertThat(state.totalAmount()).isEqualByComparingTo(\"250.00\");\n               });\n    }\n\n    @Test\n    @DisplayName(\"Should verify state stability during post-settlement window (Kills M3, M5)\")\n    void shouldVerifyStabilityDuringWindow() {\n        service = new PaymentAggregationService(\"batch-102\");\n        service.addPayment(new BigDecimal(\"100.00\"));\n        service.triggerAsyncSettlement(20);\n\n        await().atMost(Duration.ofMillis(500))\n               .until(() -> service.getState().status() == BatchStatus.SETTLED);\n\n        // Verify state remains stable and does not regress\n        await().during(Duration.ofMillis(50))\n               .until(() -> service.getState().status() == BatchStatus.SETTLED);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_pas_01_premature_settle",
+        "name": "PrematureSettledStatusMutator",
+        "file": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "line": 25,
+        "mutatedContent": "package com.enterprise.concurrency.polling;\nimport java.math.BigDecimal; import java.util.concurrent.atomic.AtomicReference;\npublic class PaymentAggregationService {\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n    private final AtomicReference<BatchState> state;\n    public PaymentAggregationService(String b) { this.state = new AtomicReference<>(new BatchState(b, BigDecimal.ZERO, BatchStatus.COLLECTING)); }\n    public void addPayment(BigDecimal a) {}\n    public void triggerAsyncSettlement(long d) {\n        // MUTANT: immediately sets SETTLED instead of PENDING!\n        state.set(new BatchState(\"b\", BigDecimal.ZERO, BatchStatus.SETTLED));\n    }\n    public BatchState getState() { return state.get(); }\n    public void shutdown() {}\n}"
+      },
+      {
+        "id": "mutant_pas_02_delay_math",
+        "name": "DelayCalculationMathMutator",
+        "file": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "line": 28,
+        "mutatedContent": "package com.enterprise.concurrency.polling;\nimport java.math.BigDecimal; import java.util.concurrent.*; import java.util.concurrent.atomic.AtomicReference;\npublic class PaymentAggregationService {\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n    private final AtomicReference<BatchState> state;\n    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();\n    public PaymentAggregationService(String b) { this.state = new AtomicReference<>(new BatchState(b, BigDecimal.ZERO, BatchStatus.COLLECTING)); }\n    public void addPayment(BigDecimal a) { state.set(new BatchState(\"b\", a, BatchStatus.COLLECTING)); }\n    public void triggerAsyncSettlement(long delayMs) {\n        state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.PENDING_SETTLEMENT));\n        // MUTANT: 10x delay causes timeout!\n        scheduler.schedule(() -> state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.SETTLED)), delayMs * 100, TimeUnit.MILLISECONDS);\n    }\n    public BatchState getState() { return state.get(); }\n    public void shutdown() { scheduler.shutdown(); }\n}"
+      },
+      {
+        "id": "mutant_pas_03_status_regression",
+        "name": "StatusRegressionMutator",
+        "file": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "line": 29,
+        "mutatedContent": "package com.enterprise.concurrency.polling;\nimport java.math.BigDecimal; import java.util.concurrent.*; import java.util.concurrent.atomic.AtomicReference;\npublic class PaymentAggregationService {\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n    private final AtomicReference<BatchState> state;\n    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();\n    public PaymentAggregationService(String b) { this.state = new AtomicReference<>(new BatchState(b, BigDecimal.ZERO, BatchStatus.COLLECTING)); }\n    public void addPayment(BigDecimal a) { state.set(new BatchState(\"b\", a, BatchStatus.COLLECTING)); }\n    public void triggerAsyncSettlement(long delayMs) {\n        state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.PENDING_SETTLEMENT));\n        scheduler.schedule(() -> {\n            state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.SETTLED));\n            // MUTANT: regresses back to COLLECTING after 30ms!\n            try { Thread.sleep(30); state.set(new BatchState(\"b\", BigDecimal.ZERO, BatchStatus.COLLECTING)); } catch (Exception ignored) {}\n        }, delayMs, TimeUnit.MILLISECONDS);\n    }\n    public BatchState getState() { return state.get(); }\n    public void shutdown() { scheduler.shutdown(); }\n}"
+      },
+      {
+        "id": "mutant_pas_04_omit_settled",
+        "name": "OmitTerminalSettledStateMutator",
+        "file": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "line": 29,
+        "mutatedContent": "package com.enterprise.concurrency.polling;\nimport java.math.BigDecimal; import java.util.concurrent.atomic.AtomicReference;\npublic class PaymentAggregationService {\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n    private final AtomicReference<BatchState> state;\n    public PaymentAggregationService(String b) { this.state = new AtomicReference<>(new BatchState(b, BigDecimal.ZERO, BatchStatus.COLLECTING)); }\n    public void addPayment(BigDecimal a) { state.set(new BatchState(\"b\", a, BatchStatus.COLLECTING)); }\n    public void triggerAsyncSettlement(long delayMs) {\n        // MUTANT: never transitions to SETTLED!\n        state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.PENDING_SETTLEMENT));\n    }\n    public BatchState getState() { return state.get(); }\n    public void shutdown() {}\n}"
+      },
+      {
+        "id": "mutant_pas_05_amount_math",
+        "name": "ConcurrentAmountMutationMutator",
+        "file": "src/main/java/com/enterprise/concurrency/polling/PaymentAggregationService.java",
+        "line": 20,
+        "mutatedContent": "package com.enterprise.concurrency.polling;\nimport java.math.BigDecimal; import java.util.concurrent.*; import java.util.concurrent.atomic.AtomicReference;\npublic class PaymentAggregationService {\n    public enum BatchStatus { COLLECTING, PENDING_SETTLEMENT, SETTLED }\n    public record BatchState(String batchId, BigDecimal totalAmount, BatchStatus status) {}\n    private final AtomicReference<BatchState> state;\n    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();\n    public PaymentAggregationService(String b) { this.state = new AtomicReference<>(new BatchState(b, BigDecimal.ZERO, BatchStatus.COLLECTING)); }\n    public void addPayment(BigDecimal a) {\n        // MUTANT: ignores added amount!\n        state.set(new BatchState(\"b\", BigDecimal.ZERO, BatchStatus.COLLECTING));\n    }\n    public void triggerAsyncSettlement(long delayMs) {\n        scheduler.schedule(() -> state.set(new BatchState(\"b\", state.get().totalAmount(), BatchStatus.SETTLED)), delayMs, TimeUnit.MILLISECONDS);\n    }\n    public BatchState getState() { return state.get(); }\n    public void shutdown() { scheduler.shutdown(); }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_race_condition_ledger_transfer",
+    "slug": "kata-test-race-condition-ledger-transfer",
+    "title": "KATA-TEST-26: Double-Spending Race Condition (CyclicBarrier & CAS)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 CyclicBarrier Race",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, CyclicBarrier, AtomicReference",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Провокация гонки за баланс между конкурирующими потоками и верификация закона сохранения баланса.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис **LedgerTransferService** переводит средства между счетами:\n- Базовый инвариант: $B_{src} + B_{dst} = const$ (закон сохранения суммарного баланса).\n- Если баланс списывается без атомарной синхронизации (неатомарный read-then-write), возникает **Race Condition**: со счета с балансом $100$ можно дважды параллельно списать по $100$.\n- Требуется потокобезопасная реализация на атомарном цикле CAS или упорядоченных блокировках.\n\n### 🧪 Ваша цель\nВ `LedgerTransferServiceTest.java` используйте `CyclicBarrier` для одновременного старта 20 потоков, уничтожив всех 5 мутантов:\n1. **Mutant 1 (UnsynchronizedDebit):** Неатомарное списание баланса (гонка данных).\n2. **Mutant 2 (ConservationLawViolation):** Увеличение баланса получателя без списания отправителя.\n3. **Mutant 3 (OverdraftAllowedUnderRace):** Разрешение ухода баланса в минус при конкуренции.\n4. **Mutant 4 (PartialTransferOnFailure):** Списание средств без зачисления получателю.\n5. **Mutant 5 (LostUpdateOnDeposit):** Перезапись баланса получателя без CAS.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/concurrency/ledger/LedgerAccount.java",
+        "content": "package com.enterprise.concurrency.ledger;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\npublic class LedgerAccount {\n    private final String accountId;\n    private final AtomicLong balanceCents;\n\n    public LedgerAccount(String accountId, long initialCents) {\n        this.accountId = accountId;\n        this.balanceCents = new AtomicLong(initialCents);\n    }\n\n    public String id() { return accountId; }\n    public long getBalanceCents() { return balanceCents.get(); }\n\n    public boolean debit(long cents) {\n        while (true) {\n            long cur = balanceCents.get();\n            if (cur < cents) return false;\n            if (balanceCents.compareAndSet(cur, cur - cents)) return true;\n        }\n    }\n\n    public void credit(long cents) {\n        balanceCents.addAndGet(cents);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/concurrency/ledger/LedgerTransferService.java",
+        "content": "package com.enterprise.concurrency.ledger;\n\npublic class LedgerTransferService {\n\n    public boolean transfer(LedgerAccount from, LedgerAccount to, long cents) {\n        if (cents <= 0) throw new IllegalArgumentException(\"Transfer amount must be positive\");\n        if (from.id().equals(to.id())) throw new IllegalArgumentException(\"Cannot transfer to self\");\n\n        // Ordered lock or atomic debit-first\n        if (from.debit(cents)) {\n            to.credit(cents);\n            return true;\n        }\n        return false;\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/concurrency/ledger/LedgerTransferServiceTest.java",
+        "content": "package com.enterprise.concurrency.ledger;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.CyclicBarrier;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport static org.assertj.core.api.Assertions.assertThat;\n\nclass LedgerTransferServiceTest {\n\n    @Test\n    @DisplayName(\"Should maintain total balance invariant under heavy concurrent race condition (Kills M1, M2, M3, M4, M5)\")\n    void shouldPreventDoubleSpendingUnderRaceCondition() throws Exception {\n        int threads = 10;\n        long initialFrom = 1000L;\n        long initialTo = 0L;\n        long transferAmount = 100L; // 10 transfers will exhaust 1000L exactly\n\n        LedgerAccount from = new LedgerAccount(\"ACC-FROM\", initialFrom);\n        LedgerAccount to = new LedgerAccount(\"ACC-TO\", initialTo);\n        LedgerTransferService service = new LedgerTransferService();\n\n        ExecutorService executor = Executors.newFixedThreadPool(threads);\n        CyclicBarrier barrier = new CyclicBarrier(threads);\n        CountDownLatch latch = new CountDownLatch(threads);\n        AtomicInteger successCount = new AtomicInteger();\n\n        // 10 threads trying to transfer 100L each simultaneously\n        for (int i = 0; i < threads; i++) {\n            executor.submit(() -> {\n                try {\n                    barrier.await();\n                    if (service.transfer(from, to, transferAmount)) {\n                        successCount.incrementAndGet();\n                    }\n                } catch (Exception ignored) {\n                } finally {\n                    latch.countDown();\n                }\n            });\n        }\n\n        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();\n        executor.shutdown();\n\n        // Strict conservation law: sum(initial) == sum(final)\n        long totalInitial = initialFrom + initialTo;\n        long totalFinal = from.getBalanceCents() + to.getBalanceCents();\n\n        assertThat(totalFinal).isEqualTo(totalInitial);\n        assertThat(from.getBalanceCents()).isGreaterThanOrEqualTo(0L);\n        assertThat(to.getBalanceCents()).isEqualTo(successCount.get() * transferAmount);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_lts_01_unsynced_debit",
+        "name": "UnsynchronizedDebitMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ledger/LedgerAccount.java",
+        "line": 16,
+        "mutatedContent": "package com.enterprise.concurrency.ledger;\npublic class LedgerAccount {\n    private long balance;\n    public LedgerAccount(String id, long b) { this.balance = b; }\n    public String id() { return \"A\"; }\n    public long getBalanceCents() { return balance; }\n    // MUTANT: non-atomic read-then-write causes race condition!\n    public boolean debit(long c) {\n        if (balance >= c) {\n            try { Thread.sleep(1); } catch (Exception ignored) {}\n            balance -= c;\n            return true;\n        }\n        return false;\n    }\n    public void credit(long c) { balance += c; }\n}"
+      },
+      {
+        "id": "mutant_lts_02_conservation_violation",
+        "name": "ConservationLawViolationMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ledger/LedgerTransferService.java",
+        "line": 9,
+        "mutatedContent": "package com.enterprise.concurrency.ledger;\npublic class LedgerTransferService {\n    public boolean transfer(LedgerAccount from, LedgerAccount to, long cents) {\n        from.debit(cents);\n        // MUTANT: credits 2x cents, creating money out of thin air!\n        to.credit(cents * 2);\n        return true;\n    }\n}"
+      },
+      {
+        "id": "mutant_lts_03_overdraft_allowed",
+        "name": "OverdraftAllowedUnderRaceMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ledger/LedgerAccount.java",
+        "line": 17,
+        "mutatedContent": "package com.enterprise.concurrency.ledger;\nimport java.util.concurrent.atomic.AtomicLong;\npublic class LedgerAccount {\n    private final AtomicLong balance;\n    public LedgerAccount(String id, long b) { this.balance = new AtomicLong(b); }\n    public String id() { return \"A\"; }\n    public long getBalanceCents() { return balance.get(); }\n    public boolean debit(long c) {\n        // MUTANT: unconditionally decrements balance, allowing negative funds!\n        balance.addAndGet(-c);\n        return true;\n    }\n    public void credit(long c) { balance.addAndGet(c); }\n}"
+      },
+      {
+        "id": "mutant_lts_04_partial_transfer",
+        "name": "PartialTransferOnFailureMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ledger/LedgerTransferService.java",
+        "line": 10,
+        "mutatedContent": "package com.enterprise.concurrency.ledger;\npublic class LedgerTransferService {\n    public boolean transfer(LedgerAccount from, LedgerAccount to, long cents) {\n        from.debit(cents);\n        // MUTANT: does not credit recipient, destroying funds!\n        return true;\n    }\n}"
+      },
+      {
+        "id": "mutant_lts_05_lost_update",
+        "name": "LostUpdateOnDepositMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ledger/LedgerAccount.java",
+        "line": 24,
+        "mutatedContent": "package com.enterprise.concurrency.ledger;\npublic class LedgerAccount {\n    private volatile long balance;\n    public LedgerAccount(String id, long b) { this.balance = b; }\n    public String id() { return \"A\"; }\n    public long getBalanceCents() { return balance; }\n    public boolean debit(long c) { balance -= c; return true; }\n    // MUTANT: non-atomic credit causes lost updates under contention!\n    public void credit(long c) { long cur = balance; balance = cur + c; }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_deadlock_provocation_ordered_locking",
+    "slug": "kata-test-deadlock-provocation-ordered-locking",
+    "title": "KATA-TEST-27: Deadlock Provocation & Ordered Locking (ThreadMXBean)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 Deadlock Detection",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ThreadMXBean, ReentrantLock",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Провокация взаимоблокировки (A->B против B->A) и её предотвращение через упорядоченный захват блокировок.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nСервис межбанковских расчетов **InterBankSettlementService** выполняет проводки между банками:\n- Если поток 1 блокирует `BankA -> BankB`, а поток 2 одновременно блокирует `BankB -> BankA`, возникает **Deadlock** (взаимная блокировка потоков).\n- Детекция дедлока в JVM осуществляется через `ManagementFactory.getThreadMXBean().findDeadlockedThreads()`.\n- Предотвращение дедлока требует **Ordered Locking**: блокировки всегда захватываются в лексикографическом порядке идентификаторов: `lock(min(idA, idB)) -> lock(max(idA, idB))`.\n\n### 🧪 Ваша цель\nВ `InterBankSettlementServiceTest.java` напишите тесты, доказывающие отсутствие дедлока при встречных переводах, уничтожив всех 5 мутантов:\n1. **Mutant 1 (ReverseLockingOrder):** Нарушение упорядоченности захвата блокировок.\n2. **Mutant 2 (LockOmission):** Пропуск захвата блокировки на втором аккаунте.\n3. **Mutant 3 (UnlockOmissionOnFailure):** Утечка блокировки при возникновении исключения в блоке try.\n4. **Mutant 4 (IbanComparisonInversion):** Неправильный порядок сравнения ID (`>` вместо `<`).\n5. **Mutant 5 (LockBypassOnSameIban):** Допуск перевода на тот же самый IBAN.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/concurrency/deadlock/BankParticipant.java",
+        "content": "package com.enterprise.concurrency.deadlock;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\npublic class BankParticipant {\n    private final String iban;\n    private final ReentrantLock lock = new ReentrantLock();\n    private long balance;\n\n    public BankParticipant(String iban, long balance) {\n        this.iban = iban;\n        this.balance = balance;\n    }\n\n    public String iban() { return iban; }\n    public ReentrantLock lock() { return lock; }\n    public long getBalance() { return balance; }\n    public void adjust(long delta) { this.balance += delta; }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "content": "package com.enterprise.concurrency.deadlock;\n\nimport java.util.Objects;\n\npublic class InterBankSettlementService {\n\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        Objects.requireNonNull(p1);\n        Objects.requireNonNull(p2);\n        if (p1.iban().equals(p2.iban())) throw new IllegalArgumentException(\"Cannot settle to same bank\");\n\n        // Deadlock-free ordered locking: lock lowest IBAN first!\n        BankParticipant first = p1.iban().compareTo(p2.iban()) < 0 ? p1 : p2;\n        BankParticipant second = (first == p1) ? p2 : p1;\n\n        first.lock().lock();\n        try {\n            second.lock().lock();\n            try {\n                p1.adjust(-amount);\n                p2.adjust(amount);\n            } finally {\n                second.lock().unlock();\n            }\n        } finally {\n            first.lock().unlock();\n        }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/concurrency/deadlock/InterBankSettlementServiceTest.java",
+        "content": "package com.enterprise.concurrency.deadlock;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport java.lang.management.ManagementFactory;\nimport java.lang.management.ThreadMXBean;\nimport java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.assertj.core.api.Assertions.assertThatThrownBy;\n\nclass InterBankSettlementServiceTest {\n\n    private final InterBankSettlementService service = new InterBankSettlementService();\n    private final ThreadMXBean threadMx = ManagementFactory.getThreadMXBean();\n\n    @Test\n    @DisplayName(\"Should settle bidirectional transfers concurrently without deadlocks (Kills M1, M2, M4)\")\n    void shouldPreventDeadlockUnderBidirectionalTransfers() throws Exception {\n        BankParticipant bankA = new BankParticipant(\"DE89370400440532013000\", 100_000L);\n        BankParticipant bankB = new BankParticipant(\"FR76300060000112345678\", 100_000L);\n\n        ExecutorService executor = Executors.newFixedThreadPool(2);\n        CountDownLatch startLatch = new CountDownLatch(1);\n        CountDownLatch finishLatch = new CountDownLatch(2);\n\n        // Thread 1: A -> B\n        executor.submit(() -> {\n            try {\n                startLatch.await();\n                for (int i = 0; i < 50; i++) service.settle(bankA, bankB, 10L);\n            } catch (Exception ignored) {\n            } finally {\n                finishLatch.countDown();\n            }\n        });\n\n        // Thread 2: B -> A (reverse order!)\n        executor.submit(() -> {\n            try {\n                startLatch.await();\n                for (int i = 0; i < 50; i++) service.settle(bankB, bankA, 10L);\n            } catch (Exception ignored) {\n            } finally {\n                finishLatch.countDown();\n            }\n        });\n\n        startLatch.countDown();\n        boolean finished = finishLatch.await(3, TimeUnit.SECONDS);\n        executor.shutdown();\n\n        // Check for JVM deadlock\n        long[] deadlocked = threadMx.findDeadlockedThreads();\n        assertThat(deadlocked).isNull();\n        assertThat(finished).isTrue();\n    }\n\n    @Test\n    @DisplayName(\"Should reject settlement to same bank IBAN (Kills M5)\")\n    void shouldRejectSameBank() {\n        BankParticipant bankA = new BankParticipant(\"DE-SAME\", 1000L);\n        assertThatThrownBy(() -> service.settle(bankA, bankA, 50L))\n            .isInstanceOf(IllegalArgumentException.class);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_ibs_01_naive_locking",
+        "name": "ReverseLockingOrderMutator",
+        "file": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "line": 12,
+        "mutatedContent": "package com.enterprise.concurrency.deadlock;\npublic class InterBankSettlementService {\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        // MUTANT: locks in input order p1 -> p2 without ordering, causing classic deadlock!\n        p1.lock().lock();\n        try {\n            try { Thread.sleep(5); } catch (Exception ignored) {}\n            p2.lock().lock();\n            try { p1.adjust(-amount); p2.adjust(amount); }\n            finally { p2.lock().unlock(); }\n        } finally { p1.lock().unlock(); }\n    }\n}"
+      },
+      {
+        "id": "mutant_ibs_02_lock_omission",
+        "name": "SecondLockOmissionMutator",
+        "file": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "line": 15,
+        "mutatedContent": "package com.enterprise.concurrency.deadlock;\npublic class InterBankSettlementService {\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        p1.lock().lock();\n        try {\n            // MUTANT: does not lock p2 at all!\n            p1.adjust(-amount);\n            p2.adjust(amount);\n        } finally { p1.lock().unlock(); }\n    }\n}"
+      },
+      {
+        "id": "mutant_ibs_03_unlock_leak",
+        "name": "UnlockOmissionOnFailureMutator",
+        "file": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "line": 23,
+        "mutatedContent": "package com.enterprise.concurrency.deadlock;\npublic class InterBankSettlementService {\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        p1.lock().lock();\n        p2.lock().lock();\n        p1.adjust(-amount);\n        p2.adjust(amount);\n        // MUTANT: no try-finally unlock, leaks lock on second invocation!\n    }\n}"
+      },
+      {
+        "id": "mutant_ibs_04_comparison_inversion",
+        "name": "IbanComparisonInversionMutator",
+        "file": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "line": 11,
+        "mutatedContent": "package com.enterprise.concurrency.deadlock;\npublic class InterBankSettlementService {\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        // MUTANT: inverted comparison causes opposite lock order!\n        BankParticipant first = p1.iban().compareTo(p2.iban()) > 0 ? p1 : p2;\n        BankParticipant second = (first == p1) ? p2 : p1;\n        first.lock().lock();\n        try { second.lock().lock(); try { p1.adjust(-amount); p2.adjust(amount); } finally { second.lock().unlock(); } }\n        finally { first.lock().unlock(); }\n    }\n}"
+      },
+      {
+        "id": "mutant_ibs_05_same_iban_allowed",
+        "name": "LockBypassOnSameIbanMutator",
+        "file": "src/main/java/com/enterprise/concurrency/deadlock/InterBankSettlementService.java",
+        "line": 8,
+        "mutatedContent": "package com.enterprise.concurrency.deadlock;\npublic class InterBankSettlementService {\n    public void settle(BankParticipant p1, BankParticipant p2, long amount) {\n        // MUTANT: permits same bank transfer!\n        p1.lock().lock();\n        try { p1.adjust(-amount); p2.adjust(amount); } finally { p1.lock().unlock(); }\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_virtual_thread_carrier_pinning",
+    "slug": "kata-test-virtual-thread-carrier-pinning",
+    "title": "KATA-TEST-28: Virtual Thread Carrier Pinning (synchronized vs Lock)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 Loom Pinning Guard",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Virtual Threads, ReentrantLock",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Замена synchronized на ReentrantLock для предотвращения пиннинга несущих потоков под Project Loom.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nШлюз агрегации данных **ProductAggregatorGateway** запускает тысячи виртуальных потоков (`Thread.ofVirtual()`).\n- **Carrier Thread Pinning:** В Java 21 использование блока `synchronized` во время блокирующего I/O привязывает (пиннит) виртуальный поток к нативному несущему потоку (`ForkJoinPool.carrier`), парализуя масштабируемость платформы.\n- Решение: замена ключевого слова `synchronized` на `ReentrantLock`.\n- При вызове `lock.lock()` виртуальный поток корректно освобождает carrier thread (unmounts).\n\n### 🧪 Ваша цель\nВ `ProductAggregatorGatewayTest.java` напишите тесты под нагрузкой из виртуальных потоков, уничтожающие всех 5 мутантов:\n1. **Mutant 1 (SynchronizedCarrierPinning):** Использование synchronized внутри I/O блока.\n2. **Mutant 2 (TimeoutMathTruncate):** Неправильный таймаут ожидания агрегации.\n3. **Mutant 3 (LockOmission):** Удаление блокировки кэша (гонка данных).\n4. **Mutant 4 (NullProductFallbackOmission):** Падение при недоступности внешнего поставщика.\n5. **Mutant 5 (CarrierExhaustionLoop):** Блокирующий активный спин вместо park/sleep.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "content": "package com.enterprise.concurrency.loom;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport java.util.concurrent.locks.ReentrantLock;\n\npublic class ProductAggregatorGateway {\n\n    private final Map<String, String> cache = new HashMap<>();\n    private final ReentrantLock lock = new ReentrantLock();\n\n    public String fetchProduct(String id) {\n        lock.lock();\n        try {\n            if (cache.containsKey(id)) return cache.get(id);\n            // Simulated virtual-thread friendly operation\n            String result = \"PRODUCT-\" + id;\n            cache.put(id, result);\n            return result;\n        } finally {\n            lock.unlock();\n        }\n    }\n\n    public int getCacheSize() {\n        lock.lock();\n        try { return cache.size(); }\n        finally { lock.unlock(); }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/concurrency/loom/ProductAggregatorGatewayTest.java",
+        "content": "package com.enterprise.concurrency.loom;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport static org.assertj.core.api.Assertions.assertThat;\n\nclass ProductAggregatorGatewayTest {\n\n    @Test\n    @DisplayName(\"Should handle 1,000 concurrent Virtual Threads without deadlock or data loss (Kills M1, M3)\")\n    void shouldHandleVirtualThreadsWithoutPinning() throws Exception {\n        int vThreads = 1000;\n        ProductAggregatorGateway gateway = new ProductAggregatorGateway();\n        CountDownLatch latch = new CountDownLatch(vThreads);\n\n        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {\n            for (int i = 0; i < vThreads; i++) {\n                final String pid = \"SKU-\" + (i % 20); // 20 unique items\n                executor.submit(() -> {\n                    try {\n                        String p = gateway.fetchProduct(pid);\n                        assertThat(p).isNotNull();\n                    } finally {\n                        latch.countDown();\n                    }\n                });\n            }\n            assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();\n        }\n\n        assertThat(gateway.getCacheSize()).isEqualTo(20);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_pag_01_synchronized_pin",
+        "name": "SynchronizedCarrierPinningMutator",
+        "file": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "line": 13,
+        "mutatedContent": "package com.enterprise.concurrency.loom;\nimport java.util.*;\npublic class ProductAggregatorGateway {\n    private final Map<String, String> cache = new HashMap<>();\n    // MUTANT: synchronized pins carrier thread!\n    public synchronized String fetchProduct(String id) {\n        if (cache.containsKey(id)) return cache.get(id);\n        cache.put(id, \"PRODUCT-\" + id);\n        return cache.get(id);\n    }\n    public synchronized int getCacheSize() { return cache.size(); }\n}"
+      },
+      {
+        "id": "mutant_pag_02_lock_omission",
+        "name": "LockOmissionMutator",
+        "file": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "line": 14,
+        "mutatedContent": "package com.enterprise.concurrency.loom;\nimport java.util.*;\npublic class ProductAggregatorGateway {\n    private final Map<String, String> cache = new HashMap<>();\n    // MUTANT: completely unsynchronized HashMap access!\n    public String fetchProduct(String id) {\n        if (cache.containsKey(id)) return cache.get(id);\n        cache.put(id, \"PRODUCT-\" + id);\n        return \"PRODUCT-\" + id;\n    }\n    public int getCacheSize() { return cache.size(); }\n}"
+      },
+      {
+        "id": "mutant_pag_03_null_result",
+        "name": "NullResultMutator",
+        "file": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "line": 18,
+        "mutatedContent": "package com.enterprise.concurrency.loom;\npublic class ProductAggregatorGateway {\n    public String fetchProduct(String id) {\n        // MUTANT: returns null!\n        return null;\n    }\n    public int getCacheSize() { return 0; }\n}"
+      },
+      {
+        "id": "mutant_pag_04_cache_skip",
+        "name": "CacheSizeCorruptMutator",
+        "file": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "line": 25,
+        "mutatedContent": "package com.enterprise.concurrency.loom;\npublic class ProductAggregatorGateway {\n    public String fetchProduct(String id) { return \"PRODUCT-\" + id; }\n    // MUTANT: cache size always reports 0!\n    public int getCacheSize() { return 0; }\n}"
+      },
+      {
+        "id": "mutant_pag_05_carrier_exhaustion",
+        "name": "CarrierExhaustionMutator",
+        "file": "src/main/java/com/enterprise/concurrency/loom/ProductAggregatorGateway.java",
+        "line": 16,
+        "mutatedContent": "package com.enterprise.concurrency.loom;\npublic class ProductAggregatorGateway {\n    public String fetchProduct(String id) {\n        // MUTANT: infinite busy-spin!\n        while (id == null) {}\n        return \"PRODUCT-\" + id;\n    }\n    public int getCacheSize() { return 20; }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_lock_free_ringbuffer_contention",
+    "slug": "kata-test-lock-free-ringbuffer-contention",
+    "title": "KATA-TEST-29: Lock-Free RingBuffer (AtomicReferenceArray & CAS)",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🧬 Lock-Free Buffer",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, AtomicReferenceArray, Thread.onSpinWait()",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Построение lock-free кольцевого буфера на AtomicReferenceArray с проверкой границы N+1.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nКласс **AtomicRingBuffer<T>** реализует неблокирующий циклический буфер фиксированной емкости:\n- Хранилище: `AtomicReferenceArray<T>`.\n- Неблокирующие указатели головы (`head`) и хвоста (`tail`) на `AtomicLong`.\n- При переполнении буфера (`tail - head >= capacity`) метод `offer()` обязан возвращать `false`.\n- При пустом буфере (`head == tail`) метод `poll()` обязан возвращать `null`.\n- В цикле спин-ожидания вызывается `Thread.onSpinWait()` (инструкция процессора PAUSE).\n\n### 🧪 Ваша цель\nВ `AtomicRingBufferTest.java` протестируйте граничные условия вместимости под нагрузкой, уничтожив всех 5 мутантов:\n1. **Mutant 1 (CapacityPlusOneLeak):** Разрешение записи $N+1$ элемента при полной емкости.\n2. **Mutant 2 (PollEmptyReturnGarbage):** Возврат мусорного значения при чтении из пустого буфера.\n3. **Mutant 3 (NonAtomicIndexIncrement):** Неатомарное смещение указателей (гонка индексов).\n4. **Mutant 4 (BufferWrapArithmeticMath):** Ошибка взятия остатка по модулю емкости (`%`).\n5. **Mutant 5 (LostUpdateOnOffer):** Перезапись элементов без CAS.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "content": "package com.enterprise.concurrency.ringbuffer;\n\nimport java.util.Objects;\nimport java.util.concurrent.atomic.AtomicLong;\nimport java.util.concurrent.atomic.AtomicReferenceArray;\n\npublic class AtomicRingBuffer<T> {\n\n    private final AtomicReferenceArray<T> buffer;\n    private final int capacity;\n    private final AtomicLong head = new AtomicLong(0);\n    private final AtomicLong tail = new AtomicLong(0);\n\n    public AtomicRingBuffer(int capacity) {\n        if (capacity <= 0) throw new IllegalArgumentException(\"Capacity must be positive\");\n        this.capacity = capacity;\n        this.buffer = new AtomicReferenceArray<>(capacity);\n    }\n\n    public boolean offer(T item) {\n        Objects.requireNonNull(item);\n        while (true) {\n            long currentTail = tail.get();\n            long currentHead = head.get();\n\n            if (currentTail - currentHead >= capacity) {\n                return false; // Buffer Full\n            }\n\n            if (tail.compareAndSet(currentTail, currentTail + 1)) {\n                int index = (int) (currentTail % capacity);\n                while (!buffer.compareAndSet(index, null, item)) {\n                    Thread.onSpinWait();\n                }\n                return true;\n            }\n            Thread.onSpinWait();\n        }\n    }\n\n    public T poll() {\n        while (true) {\n            long currentHead = head.get();\n            long currentTail = tail.get();\n\n            if (currentHead >= currentTail) {\n                return null; // Buffer Empty\n            }\n\n            if (head.compareAndSet(currentHead, currentHead + 1)) {\n                int index = (int) (currentHead % capacity);\n                T item;\n                while ((item = buffer.get(index)) == null || !buffer.compareAndSet(index, item, null)) {\n                    Thread.onSpinWait();\n                }\n                return item;\n            }\n            Thread.onSpinWait();\n        }\n    }\n\n    public int capacity() { return capacity; }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/concurrency/ringbuffer/AtomicRingBufferTest.java",
+        "content": "package com.enterprise.concurrency.ringbuffer;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport static org.assertj.core.api.Assertions.assertThat;\n\nclass AtomicRingBufferTest {\n\n    @Test\n    @DisplayName(\"Should reject offer when buffer capacity is exactly reached (Kills M1)\")\n    void shouldRejectWhenCapacityReached() {\n        AtomicRingBuffer<String> buffer = new AtomicRingBuffer<>(3);\n        assertThat(buffer.offer(\"A\")).isTrue();\n        assertThat(buffer.offer(\"B\")).isTrue();\n        assertThat(buffer.offer(\"C\")).isTrue();\n\n        // 4th item must be rejected (capacity = 3)\n        assertThat(buffer.offer(\"D\")).isFalse();\n    }\n\n    @Test\n    @DisplayName(\"Should return null when polling empty buffer (Kills M2)\")\n    void shouldReturnNullOnEmptyBuffer() {\n        AtomicRingBuffer<String> buffer = new AtomicRingBuffer<>(5);\n        assertThat(buffer.poll()).isNull();\n\n        buffer.offer(\"ITEM\");\n        assertThat(buffer.poll()).isEqualTo(\"ITEM\");\n        assertThat(buffer.poll()).isNull();\n    }\n\n    @Test\n    @DisplayName(\"Should maintain FIFO and zero item loss under concurrent producers and consumers (Kills M3, M4, M5)\")\n    void shouldHandleMultiProducerConsumerContention() throws Exception {\n        int capacity = 10;\n        int itemsPerProducer = 100;\n        int producers = 4;\n        AtomicRingBuffer<Integer> buffer = new AtomicRingBuffer<>(capacity);\n\n        ExecutorService executor = Executors.newFixedThreadPool(producers + 1);\n        CountDownLatch finishLatch = new CountDownLatch(producers);\n        AtomicInteger consumedCount = new AtomicInteger();\n\n        // Producers\n        for (int p = 0; p < producers; p++) {\n            final int producerId = p;\n            executor.submit(() -> {\n                for (int i = 0; i < itemsPerProducer; i++) {\n                    while (!buffer.offer(producerId * 1000 + i)) {\n                        Thread.onSpinWait();\n                    }\n                }\n                finishLatch.countDown();\n            });\n        }\n\n        // Consumer\n        executor.submit(() -> {\n            while (consumedCount.get() < producers * itemsPerProducer) {\n                Integer item = buffer.poll();\n                if (item != null) consumedCount.incrementAndGet();\n                else Thread.onSpinWait();\n            }\n        });\n\n        assertThat(finishLatch.await(3, TimeUnit.SECONDS)).isTrue();\n        executor.shutdown();\n        assertThat(consumedCount.get()).isEqualTo(producers * itemsPerProducer);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_arb_01_capacity_leak",
+        "name": "CapacityPlusOneLeakMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "line": 27,
+        "mutatedContent": "package com.enterprise.concurrency.ringbuffer;\nimport java.util.concurrent.atomic.*;\npublic class AtomicRingBuffer<T> {\n    private final int capacity;\n    public AtomicRingBuffer(int c) { this.capacity = c; }\n    // MUTANT: > capacity allows N+1 elements!\n    public boolean offer(T item) {\n        return true;\n    }\n    public T poll() { return null; }\n    public int capacity() { return capacity; }\n}"
+      },
+      {
+        "id": "mutant_arb_02_poll_empty",
+        "name": "PollEmptyReturnGarbageMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "line": 44,
+        "mutatedContent": "package com.enterprise.concurrency.ringbuffer;\npublic class AtomicRingBuffer<T> {\n    public AtomicRingBuffer(int c) {}\n    public boolean offer(T item) { return true; }\n    // MUTANT: does not return null on empty!\n    @SuppressWarnings(\"unchecked\")\n    public T poll() { return (T) \"GARBAGE\"; }\n    public int capacity() { return 5; }\n}"
+      },
+      {
+        "id": "mutant_arb_03_non_atomic_idx",
+        "name": "NonAtomicIndexIncrementMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "line": 32,
+        "mutatedContent": "package com.enterprise.concurrency.ringbuffer;\npublic class AtomicRingBuffer<T> {\n    private int tail = 0;\n    public AtomicRingBuffer(int c) {}\n    // MUTANT: non-atomic tail increment causes lost elements under contention!\n    public boolean offer(T item) { tail++; return true; }\n    public T poll() { return null; }\n    public int capacity() { return 10; }\n}"
+      },
+      {
+        "id": "mutant_arb_04_wrap_math",
+        "name": "BufferWrapArithmeticMathMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "line": 30,
+        "mutatedContent": "package com.enterprise.concurrency.ringbuffer;\npublic class AtomicRingBuffer<T> {\n    public AtomicRingBuffer(int c) {}\n    // MUTANT: no modulo arithmetic, throws ArrayIndexOutOfBounds!\n    public boolean offer(T item) { return false; }\n    public T poll() { return null; }\n    public int capacity() { return 10; }\n}"
+      },
+      {
+        "id": "mutant_arb_05_lost_update",
+        "name": "LostUpdateOnOfferMutator",
+        "file": "src/main/java/com/enterprise/concurrency/ringbuffer/AtomicRingBuffer.java",
+        "line": 31,
+        "mutatedContent": "package com.enterprise.concurrency.ringbuffer;\npublic class AtomicRingBuffer<T> {\n    public AtomicRingBuffer(int c) {}\n    // MUTANT: returns true without saving element!\n    public boolean offer(T item) { return true; }\n    public T poll() { return null; }\n    public int capacity() { return 10; }\n}"
+      }
+    ]
+  }
+]

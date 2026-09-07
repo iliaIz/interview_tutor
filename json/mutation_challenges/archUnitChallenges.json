@@ -1,0 +1,429 @@
+[
+  {
+    "id": "kata_test_archunit_layer_isolation",
+    "slug": "kata-test-archunit-layer-isolation",
+    "title": "KATA-TEST-30: ArchUnit Layer Isolation & Inversion",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🏛️ Layer Isolation",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ArchUnit 1.3+, JUnit 5",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Фитнес-функция контроля однонаправленного потока зависимостей: запрет контроллерам вызывать репозитории и гарантия ацикличности графа.",
+    "instructionsMarkdown": "### 🎯 Архитектурная фитнес-функция\nВ распределенных микросервисах электронной коммерции и биллинга архитектурный дрейф часто приводит к прямому обращению веб-контроллеров к интерфейсам репозиториев в обход сервисного слоя.\nПодобная практика нарушает принцип единственной ответственности и инверсии зависимостей, провоцируя размытие границ транзакций, обход валидационных фильтров доменных моделей и исключение механизмов аудита.\nВозникновение циклических зависимостей между пакетами блокирует возможность разделения монолита на обособленные модули.\n\n### 🧪 Ваша цель\nВ `ArchitectureLayerIsolationTest.java` реализуйте правила **ArchUnit 1.3+**:\n1. **Layered Architecture:**\n   - Слой `Controller` (`..controller..`) не вызывается никем.\n   - Слой `Service` (`..service..`) вызывается только `Controller`.\n   - Слой `Repository` (`..repository..`) вызывается только `Service`.\n   - Слой `Domain` (`..domain..`) вызывается `Service`, `Repository`, `Controller`.\n2. **Прямой запрет:** `noClasses().that().resideInAPackage(\"..controller..\").should().dependOnClassesThat().resideInAPackage(\"..repository..\")`.\n3. **Защита домена:** `noClasses().that().resideInAPackage(\"..service..\").should().dependOnClassesThat().resideInAPackage(\"..controller..\")`.\n4. **Ацикличность срезов:** `slices().matching(\"com.enterprise.order.(*)..\").should().beFreeOfCycles()`.\n\nУничтожьте всех 5 архитектурных мутантов!",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/order/domain/Order.java",
+        "content": "package com.enterprise.order.domain;\n\nimport java.math.BigDecimal;\nimport java.util.Objects;\nimport java.util.UUID;\n\npublic final class Order {\n    private final UUID orderId;\n    private final String customerId;\n    private final BigDecimal totalAmount;\n    private final String status;\n\n    public Order(UUID orderId, String customerId, BigDecimal totalAmount, String status) {\n        this.orderId = Objects.requireNonNull(orderId, \"orderId must not be null\");\n        this.customerId = Objects.requireNonNull(customerId, \"customerId must not be null\");\n        this.totalAmount = Objects.requireNonNull(totalAmount, \"totalAmount must not be null\");\n        this.status = Objects.requireNonNull(status, \"status must not be null\");\n    }\n\n    public UUID getOrderId() { return orderId; }\n    public String getCustomerId() { return customerId; }\n    public BigDecimal getTotalAmount() { return totalAmount; }\n    public String getStatus() { return status; }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/order/repository/OrderRepository.java",
+        "content": "package com.enterprise.order.repository;\n\nimport com.enterprise.order.domain.Order;\nimport java.util.Optional;\nimport java.util.UUID;\n\npublic interface OrderRepository {\n    Order save(Order order);\n    Optional<Order> findById(UUID orderId);\n    void deleteById(UUID orderId);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/order/service/OrderService.java",
+        "content": "package com.enterprise.order.service;\n\nimport com.enterprise.order.domain.Order;\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\npublic interface OrderService {\n    Order createOrder(String customerId, BigDecimal amount);\n    Order getOrder(UUID orderId);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/order/service/impl/OrderServiceImpl.java",
+        "content": "package com.enterprise.order.service.impl;\n\nimport com.enterprise.order.domain.Order;\nimport com.enterprise.order.repository.OrderRepository;\nimport com.enterprise.order.service.OrderService;\nimport org.springframework.stereotype.Service;\nimport org.springframework.transaction.annotation.Transactional;\n\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\n@Service\npublic class OrderServiceImpl implements OrderService {\n\n    private final OrderRepository orderRepository;\n\n    public OrderServiceImpl(OrderRepository orderRepository) {\n        this.orderRepository = orderRepository;\n    }\n\n    @Override\n    @Transactional(rollbackFor = Exception.class)\n    public Order createOrder(String customerId, BigDecimal amount) {\n        if (amount.compareTo(BigDecimal.ZERO) <= 0) {\n            throw new IllegalArgumentException(\"Amount must be strictly positive\");\n        }\n        Order order = new Order(UUID.randomUUID(), customerId, amount, \"CREATED\");\n        return orderRepository.save(order);\n    }\n\n    @Override\n    @Transactional(readOnly = true, rollbackFor = Exception.class)\n    public Order getOrder(UUID orderId) {\n        return orderRepository.findById(orderId)\n                .orElseThrow(() -> new IllegalStateException(\"Order not found: \" + orderId));\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/order/controller/OrderController.java",
+        "content": "package com.enterprise.order.controller;\n\nimport com.enterprise.order.domain.Order;\nimport com.enterprise.order.service.OrderService;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\n\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\n@RestController\n@RequestMapping(\"/api/v1/orders\")\npublic class OrderController {\n\n    private final OrderService orderService;\n\n    public OrderController(OrderService orderService) {\n        this.orderService = orderService;\n    }\n\n    @PostMapping\n    @ResponseStatus(HttpStatus.CREATED)\n    public ResponseEntity<OrderResponse> createOrder(@RequestBody CreateOrderRequest request) {\n        Order order = orderService.createOrder(request.customerId(), request.amount());\n        return ResponseEntity.status(HttpStatus.CREATED)\n                .body(new OrderResponse(order.getOrderId(), order.getCustomerId(), order.getTotalAmount(), order.getStatus()));\n    }\n\n    @GetMapping(\"/{id}\")\n    public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID id) {\n        Order order = orderService.getOrder(id);\n        return ResponseEntity.ok(\n                new OrderResponse(order.getOrderId(), order.getCustomerId(), order.getTotalAmount(), order.getStatus()));\n    }\n\n    public record CreateOrderRequest(String customerId, BigDecimal amount) {}\n    public record OrderResponse(UUID orderId, String customerId, BigDecimal amount, String status) {}\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/order/ArchitectureLayerIsolationTest.java",
+        "content": "package com.enterprise.order;\n\nimport com.tngtech.archunit.core.domain.JavaClasses;\nimport com.tngtech.archunit.core.importer.ClassFileImporter;\nimport com.tngtech.archunit.junit.AnalyzeClasses;\nimport com.tngtech.archunit.junit.ArchTest;\nimport com.tngtech.archunit.lang.ArchRule;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\n\nimport static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;\nimport static com.tngtech.archunit.library.Architectures.layeredArchitecture;\nimport static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;\n\n@AnalyzeClasses(packages = \"com.enterprise.order\")\npublic class ArchitectureLayerIsolationTest {\n\n    @ArchTest\n    public static final ArchRule layered_architecture_must_be_respected =\n            layeredArchitecture()\n                    .consideringAllDependencies()\n                    .layer(\"Controller\").definedBy(\"com.enterprise.order.controller..\")\n                    .layer(\"Service\").definedBy(\"com.enterprise.order.service..\")\n                    .layer(\"Repository\").definedBy(\"com.enterprise.order.repository..\")\n                    .layer(\"Domain\").definedBy(\"com.enterprise.order.domain..\")\n                    .whereLayer(\"Controller\").mayNotBeAccessedByAnyLayer()\n                    .whereLayer(\"Service\").mayOnlyBeAccessedByLayers(\"Controller\")\n                    .whereLayer(\"Repository\").mayOnlyBeAccessedByLayers(\"Service\")\n                    .whereLayer(\"Domain\").mayOnlyBeAccessedByLayers(\"Service\", \"Repository\", \"Controller\");\n\n    @ArchTest\n    public static final ArchRule controllers_must_not_depend_on_repositories =\n            noClasses()\n                    .that().resideInAPackage(\"..controller..\")\n                    .should().dependOnClassesThat().resideInAPackage(\"..repository..\")\n                    .because(\"Web layer must communicate with persistence strictly through domain services\");\n\n    @ArchTest\n    public static final ArchRule services_must_not_depend_on_controllers =\n            noClasses()\n                    .that().resideInAPackage(\"..service..\")\n                    .should().dependOnClassesThat().resideInAPackage(\"..controller..\")\n                    .because(\"Domain/Service core must remain independent of external transport adapters\");\n\n    @ArchTest\n    public static final ArchRule packages_must_be_free_of_cycles =\n            slices()\n                    .matching(\"com.enterprise.order.(*)..\")\n                    .should().beFreeOfCycles()\n                    .because(\"Circular package dependencies undermine modularity and prevent independent compilation\");\n\n    @Test\n    @DisplayName(\"Verify layer isolation and dependency rules against imported classes\")\n    void testArchitectureRules() {\n        JavaClasses importedClasses = new ClassFileImporter().importPackages(\"com.enterprise.order\");\n        layered_architecture_must_be_respected.check(importedClasses);\n        controllers_must_not_depend_on_repositories.check(importedClasses);\n        services_must_not_depend_on_controllers.check(importedClasses);\n        packages_must_be_free_of_cycles.check(importedClasses);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_arch_layer_controller_to_repo",
+        "name": "ControllerDirectRepositoryCallMutator",
+        "file": "src/main/java/com/enterprise/order/controller/OrderController.java",
+        "line": 23,
+        "mutatedContent": "package com.enterprise.order.controller;\nimport com.enterprise.order.domain.Order;\nimport com.enterprise.order.service.OrderService;\nimport com.enterprise.order.repository.OrderRepository;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\nimport java.util.UUID;\n@RestController\npublic class OrderController {\n    private final OrderService orderService;\n    // MUTANT: Controller directly accesses persistence layer!\n    private OrderRepository orderRepository;\n    public OrderController(OrderService os) { this.orderService = os; }\n    public Order bypassService(UUID id) { return orderRepository.findById(id).orElse(null); }\n}"
+      },
+      {
+        "id": "mutant_arch_layer_service_imports_controller",
+        "name": "ServiceImportsControllerDtoMutator",
+        "file": "src/main/java/com/enterprise/order/service/impl/OrderServiceImpl.java",
+        "line": 8,
+        "mutatedContent": "package com.enterprise.order.service.impl;\nimport com.enterprise.order.domain.Order;\nimport com.enterprise.order.service.OrderService;\n// MUTANT: Service layer depends on transport controller layer!\nimport com.enterprise.order.controller.OrderController.CreateOrderRequest;\nimport java.math.BigDecimal;\nimport java.util.UUID;\npublic class OrderServiceImpl implements OrderService {\n    public Order createOrder(String c, BigDecimal a) { return null; }\n    public Order getOrder(UUID id) { return null; }\n    public void handleTransportDto(CreateOrderRequest req) {}\n}"
+      },
+      {
+        "id": "mutant_arch_layer_repo_imports_service",
+        "name": "CircularPackageDependencyMutator",
+        "file": "src/main/java/com/enterprise/order/repository/OrderRepository.java",
+        "line": 5,
+        "mutatedContent": "package com.enterprise.order.repository;\nimport com.enterprise.order.domain.Order;\n// MUTANT: Repository references Service creating a cyclical package dependency!\nimport com.enterprise.order.service.OrderService;\nimport java.util.Optional;\nimport java.util.UUID;\npublic interface OrderRepository {\n    Order save(Order o);\n    Optional<Order> findById(UUID id);\n    void deleteById(UUID id);\n    default void triggerAudit(OrderService s) {}\n}"
+      },
+      {
+        "id": "mutant_arch_layer_controller_catches_dao",
+        "name": "ControllerCatchesDataAccessExceptionMutator",
+        "file": "src/main/java/com/enterprise/order/controller/OrderController.java",
+        "line": 30,
+        "mutatedContent": "package com.enterprise.order.controller;\nimport com.enterprise.order.domain.Order;\nimport com.enterprise.order.service.OrderService;\nimport com.enterprise.order.repository.OrderRepository;\npublic class OrderController {\n    private final OrderService orderService;\n    private OrderRepository orderRepository;\n    public OrderController(OrderService orderService) { this.orderService = orderService; }\n    public Order directQuery(java.util.UUID id) { return orderRepository.findById(id).orElse(null); }\n}"
+      },
+      {
+        "id": "mutant_arch_layer_circular_slice",
+        "name": "SlicesCircularDependencyMutator",
+        "file": "src/main/java/com/enterprise/order/domain/Order.java",
+        "line": 6,
+        "mutatedContent": "package com.enterprise.order.domain;\nimport java.math.BigDecimal; import java.util.UUID;\n// MUTANT: Domain entity depends on Service interface, causing cycle in order.(*)..\nimport com.enterprise.order.service.OrderService;\npublic final class Order {\n    private final UUID orderId;\n    public Order(UUID id) { this.orderId = id; }\n    public void attachService(OrderService s) {}\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_archunit_enterprise_api_governance",
+    "slug": "kata-test-archunit-enterprise-api-governance",
+    "title": "KATA-TEST-31: Enterprise API Governance Rules",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🛡️ API Governance",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ArchUnit 1.3+, JUnit 5",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Запрет устаревших Date/Calendar, System.currentTimeMillis, System.exit() и ручного new Thread() в пользу Virtual Threads и Clock.",
+    "instructionsMarkdown": "### 🎯 Архитектурная фитнес-функция\nВ распределенных финансовых транзакционных системах критически важна абсолютная детерминированность шкалы времени и предсказуемость жизненного цикла потоков операционной системы.\n- Использование устаревших API (`java.util.Date`, `java.util.Calendar`, `SimpleDateFormat`) провоцирует состояние гонки.\n- Прямые вызовы `System.currentTimeMillis()` или `Instant.now()` делают невозможным симуляцию временных сдвигов в тестах.\n- Использование `System.exit()` уничтожает контейнер без фазы graceful shutdown.\n- Ручное создание `new Thread()` в среде с виртуальными потоками Java 21 нарушает планирование задач и обходит контексты MDC.\n\n### 🧪 Ваша цель\nВ `EnterpriseApiGovernanceArchTest.java` опишите правила:\n1. **Запрет Legacy Date/Time:** `noClasses().should().dependOnClassesThat().haveFullyQualifiedName(\"java.util.Date\").orShould()...` (Date, Calendar, SimpleDateFormat).\n2. **Инъекция Clock:** `noClasses().should().callMethod(System.class, \"currentTimeMillis\")`.\n3. **Запрет аварийного падения:** `noClasses().should().callMethod(System.class, \"exit\", int.class)...`.\n4. **Запрет ручных потоков:** `noClasses().should().callConstructor(Thread.class)...`.\n\nУничтожьте всех 5 нарушителей корпоративного стандарта!",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/governance/service/CriticalEnterpriseDomainException.java",
+        "content": "package com.enterprise.governance.service;\n\npublic class CriticalEnterpriseDomainException extends RuntimeException {\n    public CriticalEnterpriseDomainException(String message) {\n        super(message);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "content": "package com.enterprise.governance.service;\n\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.util.Objects;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.core.task.TaskExecutor;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class AuditingProcessingService {\n\n    private static final Logger log = LoggerFactory.getLogger(AuditingProcessingService.class);\n\n    private final Clock clock;\n    private final TaskExecutor taskExecutor;\n\n    public AuditingProcessingService(Clock clock, TaskExecutor taskExecutor) {\n        this.clock = Objects.requireNonNull(clock, \"clock must not be null\");\n        this.taskExecutor = Objects.requireNonNull(taskExecutor, \"taskExecutor must not be null\");\n    }\n\n    public Instant recordAuditTimestamp(String eventId) {\n        Instant currentInstant = clock.instant();\n        log.info(\"Audit event registered: {} at {}\", eventId, currentInstant);\n        return currentInstant;\n    }\n\n    public void dispatchAuditTask(Runnable auditTask) {\n        taskExecutor.execute(() -> {\n            try {\n                auditTask.run();\n            } catch (Exception ex) {\n                log.error(\"Asynchronous audit task failed execution\", ex);\n            }\n        });\n    }\n\n    public void handleCriticalFailure(String reason) {\n        log.error(\"Critical enterprise system failure: {}. Propagating domain termination event.\", reason);\n        throw new CriticalEnterpriseDomainException(reason);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/governance/EnterpriseApiGovernanceArchTest.java",
+        "content": "package com.enterprise.governance;\n\nimport com.tngtech.archunit.core.domain.JavaClasses;\nimport com.tngtech.archunit.core.importer.ClassFileImporter;\nimport com.tngtech.archunit.junit.AnalyzeClasses;\nimport com.tngtech.archunit.junit.ArchTest;\nimport com.tngtech.archunit.lang.ArchRule;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\n\nimport static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;\n\n@AnalyzeClasses(packages = \"com.enterprise.governance\")\npublic class EnterpriseApiGovernanceArchTest {\n\n    @ArchTest\n    public static final ArchRule no_legacy_date_time_apis =\n            noClasses()\n                    .should().dependOnClassesThat().haveFullyQualifiedName(\"java.util.Date\")\n                    .orShould().dependOnClassesThat().haveFullyQualifiedName(\"java.util.Calendar\")\n                    .orShould().dependOnClassesThat().haveFullyQualifiedName(\"java.text.SimpleDateFormat\")\n                    .because(\"Modern temporal logic must exclusively utilize java.time types (Instant, LocalDate, ZonedDateTime)\");\n\n    @ArchTest\n    public static final ArchRule no_direct_system_time_calls =\n            noClasses()\n                    .should().callMethod(System.class, \"currentTimeMillis\")\n                    .because(\"Time extraction must be decoupled via java.time.Clock to enable deterministic testability\");\n\n    @ArchTest\n    public static final ArchRule no_system_exit_or_runtime_halt =\n            noClasses()\n                    .should().callMethod(System.class, \"exit\", int.class)\n                    .orShould().callMethod(Runtime.class, \"exit\", int.class)\n                    .orShould().callMethod(Runtime.class, \"halt\", int.class)\n                    .because(\"Services must rely on structured Spring Boot lifecycle and container orchestrators for termination\");\n\n    @ArchTest\n    public static final ArchRule no_manual_thread_instantiation =\n            noClasses()\n                    .should().callConstructor(Thread.class)\n                    .orShould().callConstructor(Thread.class, Runnable.class)\n                    .orShould().callConstructor(Thread.class, String.class)\n                    .orShould().callConstructor(Thread.class, Runnable.class, String.class)\n                    .because(\"Direct Thread instantiation bypasses managed task execution, virtual thread schedulers, and MDC context propagation\");\n\n    @Test\n    @DisplayName(\"Verify API governance rules against imported classes\")\n    void testGovernanceRules() {\n        JavaClasses classes = new ClassFileImporter().importPackages(\"com.enterprise.governance\");\n        no_legacy_date_time_apis.check(classes);\n        no_direct_system_time_calls.check(classes);\n        no_system_exit_or_runtime_halt.check(classes);\n        no_manual_thread_instantiation.check(classes);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_gov_legacy_date",
+        "name": "LegacyDateInjectionMutator",
+        "file": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "line": 23,
+        "mutatedContent": "package com.enterprise.governance.service;\nimport java.time.Instant;\nimport java.util.Date;\npublic class AuditingProcessingService {\n    // MUTANT: uses java.util.Date!\n    public Instant recordAuditTimestamp(String id) {\n        Date d = new Date();\n        return d.toInstant();\n    }\n}"
+      },
+      {
+        "id": "mutant_gov_system_current_time",
+        "name": "SystemCurrentTimeMillisMutator",
+        "file": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "line": 24,
+        "mutatedContent": "package com.enterprise.governance.service;\nimport java.time.Instant;\npublic class AuditingProcessingService {\n    // MUTANT: Direct call to System.currentTimeMillis()!\n    public Instant recordAuditTimestamp(String id) {\n        long ts = System.currentTimeMillis();\n        return Instant.ofEpochMilli(ts);\n    }\n}"
+      },
+      {
+        "id": "mutant_gov_manual_thread",
+        "name": "ManualThreadInstantiationMutator",
+        "file": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "line": 30,
+        "mutatedContent": "package com.enterprise.governance.service;\npublic class AuditingProcessingService {\n    // MUTANT: Direct new Thread().start() instead of TaskExecutor!\n    public void dispatchAuditTask(Runnable task) {\n        new Thread(task).start();\n    }\n}"
+      },
+      {
+        "id": "mutant_gov_system_exit",
+        "name": "SystemExitInvocationMutator",
+        "file": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "line": 39,
+        "mutatedContent": "package com.enterprise.governance.service;\npublic class AuditingProcessingService {\n    // MUTANT: Kills JVM process without graceful shutdown!\n    public void handleCriticalFailure(String reason) {\n        System.exit(1);\n    }\n}"
+      },
+      {
+        "id": "mutant_gov_simple_date_format",
+        "name": "SimpleDateFormatUsageMutator",
+        "file": "src/main/java/com/enterprise/governance/service/AuditingProcessingService.java",
+        "line": 15,
+        "mutatedContent": "package com.enterprise.governance.service;\nimport java.text.SimpleDateFormat;\npublic class AuditingProcessingService {\n    // MUTANT: Thread-unsafe SimpleDateFormat usage!\n    private static final SimpleDateFormat SDF = new SimpleDateFormat(\"yyyy-MM-dd\");\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_archunit_transactional_integrity",
+    "slug": "kata-test-archunit-transactional-integrity",
+    "title": "KATA-TEST-32: Transactional Integrity Guard",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🔒 Transaction Guard",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ArchUnit 1.3+, Spring AOP",
+    "timeLimitMinutes": 45,
+    "shortDescription": "ArchUnit ArchCondition для защиты Spring AOP: @Transactional только на public методах и обязательное указание rollbackFor = Exception.class.",
+    "instructionsMarkdown": "### 🎯 Архитектурная фитнес-функция\nТранзакционная надежность финансовых операций базируется на перехвате методов динамическими прокси Spring AOP.\n- **Инвариант 1 (Публичная видимость):** Прокси активируется **только** при вызове `public` методов. Маркировка `private` или `protected` методов аннотацией `@Transactional` молчаливо игнорируется: код выполняется вне транзакции в режиме autocommit.\n- **Инвариант 2 (Защита от Checked Exceptions):** Стандартный откат Spring инициируется исключительно при `RuntimeException` и `Error`. Если метод бросает Checked Exception (`InsufficientFundsException`, `AccountSuspendedException`), Spring коммитит транзакцию, приводя к финансовому дисбалансу!\n- Поэтому все `@Transactional` обязаны явно указывать `rollbackFor = Exception.class`.\n\n### 🧪 Ваша цель\nВ `TransactionalIntegrityArchTest.java` реализуйте:\n1. `methods().that().areAnnotatedWith(Transactional.class).should().bePublic()`.\n2. Пользовательский `ArchCondition<JavaMethod>`, проверяющий, что атрибут `rollbackFor` или `rollbackForClassName` не пуст.\n3. Классовое правило `classes().that().areAnnotatedWith(Transactional.class).should(...)`.\n\nУничтожьте всех 5 транзакционных мутантов!",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/finance/service/InsufficientFundsException.java",
+        "content": "package com.enterprise.finance.service;\n\npublic class InsufficientFundsException extends Exception {\n    public InsufficientFundsException(String message) {\n        super(message);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/finance/service/AccountSuspendedException.java",
+        "content": "package com.enterprise.finance.service;\n\npublic class AccountSuspendedException extends Exception {\n    public AccountSuspendedException(String message) {\n        super(message);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/finance/service/Account.java",
+        "content": "package com.enterprise.finance.service;\n\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\npublic class Account {\n    private final UUID id;\n    private BigDecimal balance;\n    private final boolean active;\n\n    public Account(UUID id, BigDecimal balance, boolean active) {\n        this.id = id;\n        this.balance = balance;\n        this.active = active;\n    }\n\n    public UUID getId() { return id; }\n    public BigDecimal getBalance() { return balance; }\n    public boolean isActive() { return active; }\n\n    public void debit(BigDecimal amount) {\n        this.balance = this.balance.subtract(amount);\n    }\n\n    public void credit(BigDecimal amount) {\n        this.balance = this.balance.add(amount);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/finance/service/AccountRepository.java",
+        "content": "package com.enterprise.finance.service;\n\nimport java.math.BigDecimal;\nimport java.util.Optional;\nimport java.util.UUID;\n\npublic interface AccountRepository {\n    Optional<Account> findById(UUID id);\n    Account save(Account account);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "content": "package com.enterprise.finance.service;\n\nimport java.math.BigDecimal;\nimport java.util.Objects;\nimport java.util.UUID;\nimport org.springframework.stereotype.Service;\nimport org.springframework.transaction.annotation.Propagation;\nimport org.springframework.transaction.annotation.Transactional;\n\n@Service\npublic class FinancialLedgerService {\n\n    private final AccountRepository accountRepository;\n\n    public FinancialLedgerService(AccountRepository accountRepository) {\n        this.accountRepository = Objects.requireNonNull(accountRepository, \"accountRepository must not be null\");\n    }\n\n    @Transactional(rollbackFor = Exception.class, propagation = Propagation.REQUIRED)\n    public void transferFunds(UUID sourceAccountId, UUID targetAccountId, BigDecimal amount) \n            throws InsufficientFundsException, AccountSuspendedException {\n        \n        if (amount.compareTo(BigDecimal.ZERO) <= 0) {\n            throw new IllegalArgumentException(\"Transfer amount must be strictly positive\");\n        }\n\n        Account source = accountRepository.findById(sourceAccountId)\n                .orElseThrow(() -> new IllegalArgumentException(\"Source account not found\"));\n        Account target = accountRepository.findById(targetAccountId)\n                .orElseThrow(() -> new IllegalArgumentException(\"Target account not found\"));\n\n        if (!source.isActive()) {\n            throw new AccountSuspendedException(\"Source account is suspended: \" + sourceAccountId);\n        }\n\n        if (source.getBalance().compareTo(amount) < 0) {\n            throw new InsufficientFundsException(\"Insufficient balance for debit: \" + sourceAccountId);\n        }\n\n        source.debit(amount);\n        target.credit(amount);\n\n        accountRepository.save(source);\n        accountRepository.save(target);\n    }\n\n    @Transactional(readOnly = true, rollbackFor = Exception.class)\n    public BigDecimal calculateSettlementBalance(UUID accountId) {\n        return accountRepository.findById(accountId)\n                .map(Account::getBalance)\n                .orElse(BigDecimal.ZERO);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/finance/TransactionalIntegrityArchTest.java",
+        "content": "package com.enterprise.finance;\n\nimport com.tngtech.archunit.core.domain.JavaClass;\nimport com.tngtech.archunit.core.domain.JavaClasses;\nimport com.tngtech.archunit.core.domain.JavaMethod;\nimport com.tngtech.archunit.core.importer.ClassFileImporter;\nimport com.tngtech.archunit.junit.AnalyzeClasses;\nimport com.tngtech.archunit.junit.ArchTest;\nimport com.tngtech.archunit.lang.ArchCondition;\nimport com.tngtech.archunit.lang.ArchRule;\nimport com.tngtech.archunit.lang.ConditionEvents;\nimport com.tngtech.archunit.lang.SimpleConditionEvent;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.transaction.annotation.Transactional;\n\nimport static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;\nimport static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;\n\n@AnalyzeClasses(packages = \"com.enterprise.finance\")\npublic class TransactionalIntegrityArchTest {\n\n    @ArchTest\n    public static final ArchRule transactional_methods_must_be_public =\n            methods()\n                    .that().areAnnotatedWith(Transactional.class)\n                    .or().areAnnotatedWith(jakarta.transaction.Transactional.class)\n                    .should().bePublic()\n                    .because(\"Spring AOP proxies can only intercept public methods; transactional private/protected methods are silently bypassed\");\n\n    @ArchTest\n    public static final ArchRule transactional_methods_must_specify_rollback_for =\n            methods()\n                    .that().areAnnotatedWith(Transactional.class)\n                    .should(declareExplicitRollbackForAttribute())\n                    .because(\"Default Spring @Transactional ignores Checked Exceptions, resulting in corrupted database state\");\n\n    @ArchTest\n    public static final ArchRule class_level_transactional_must_specify_rollback_for =\n            classes()\n                    .that().areAnnotatedWith(Transactional.class)\n                    .should(declareClassLevelRollbackForAttribute())\n                    .because(\"Class-level transactions must explicitly govern rollback policies for checked exceptions\");\n\n    public static ArchCondition<JavaMethod> declareExplicitRollbackForAttribute() {\n        return new ArchCondition<>(\"declare explicit rollbackFor specifying Exception.class or checked targets\") {\n            @Override\n            public void check(JavaMethod method, ConditionEvents events) {\n                method.tryGetAnnotationOfType(Transactional.class).ifPresent(tx -> {\n                    boolean hasRollbackForClasses = tx.rollbackFor().length > 0;\n                    boolean hasRollbackForNames = tx.rollbackForClassName().length > 0;\n\n                    if (!hasRollbackForClasses && !hasRollbackForNames) {\n                        String message = String.format(\n                                \"Method <%s> is annotated with @Transactional but lacks explicit rollbackFor\",\n                                method.getFullName());\n                        events.add(SimpleConditionEvent.violated(method, message));\n                    }\n                });\n            }\n        };\n    }\n\n    public static ArchCondition<JavaClass> declareClassLevelRollbackForAttribute() {\n        return new ArchCondition<>(\"declare explicit class-level rollbackFor\") {\n            @Override\n            public void check(JavaClass javaClass, ConditionEvents events) {\n                javaClass.tryGetAnnotationOfType(Transactional.class).ifPresent(tx -> {\n                    boolean hasRollbackForClasses = tx.rollbackFor().length > 0;\n                    boolean hasRollbackForNames = tx.rollbackForClassName().length > 0;\n\n                    if (!hasRollbackForClasses && !hasRollbackForNames) {\n                        String message = String.format(\n                                \"Class <%s> is annotated with @Transactional but lacks explicit rollbackFor\",\n                                javaClass.getName());\n                        events.add(SimpleConditionEvent.violated(javaClass, message));\n                    }\n                });\n            }\n        };\n    }\n\n    @Test\n    @DisplayName(\"Verify Transactional AOP compliance rules against imported classes\")\n    void testTransactionalCompliance() {\n        JavaClasses classes = new ClassFileImporter().importPackages(\"com.enterprise.finance\");\n        transactional_methods_must_be_public.check(classes);\n        transactional_methods_must_specify_rollback_for.check(classes);\n        class_level_transactional_must_specify_rollback_for.check(classes);\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_tx_omit_rollback_for",
+        "name": "OmitRollbackForAttributeMutator",
+        "file": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "line": 19,
+        "mutatedContent": "package com.enterprise.finance.service;\nimport org.springframework.transaction.annotation.Transactional;\npublic class FinancialLedgerService {\n    // MUTANT: Default @Transactional ignores Checked Exceptions!\n    @Transactional\n    public void transferFunds() throws InsufficientFundsException {}\n}"
+      },
+      {
+        "id": "mutant_tx_private_transactional",
+        "name": "PrivateTransactionalMethodMutator",
+        "file": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "line": 48,
+        "mutatedContent": "package com.enterprise.finance.service;\nimport org.springframework.transaction.annotation.Transactional;\npublic class FinancialLedgerService {\n    // MUTANT: private @Transactional is silently bypassed by Spring AOP proxy!\n    @Transactional(rollbackFor = Exception.class)\n    private void syncBalance(Account acc) {}\n}"
+      },
+      {
+        "id": "mutant_tx_protected_transactional",
+        "name": "ProtectedTransactionalMethodMutator",
+        "file": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "line": 49,
+        "mutatedContent": "package com.enterprise.finance.service;\nimport org.springframework.transaction.annotation.Transactional;\npublic class FinancialLedgerService {\n    // MUTANT: protected method cannot be proxied by standard CGLIB proxy!\n    @Transactional(rollbackFor = Exception.class)\n    protected void auditEntry() {}\n}"
+      },
+      {
+        "id": "mutant_tx_narrow_rollback_for",
+        "name": "NarrowRollbackForRuntimeExceptionOnlyMutator",
+        "file": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "line": 19,
+        "mutatedContent": "package com.enterprise.finance.service;\nimport org.springframework.transaction.annotation.Transactional;\npublic class FinancialLedgerService {\n    // MUTANT: rollbackFor only specifies RuntimeException while throws InsufficientFundsException!\n    @Transactional(rollbackFor = RuntimeException.class)\n    public void transferFunds() throws Exception {}\n}"
+      },
+      {
+        "id": "mutant_tx_class_level_missing_rollback",
+        "name": "ClassLevelMissingRollbackForMutator",
+        "file": "src/main/java/com/enterprise/finance/service/FinancialLedgerService.java",
+        "line": 13,
+        "mutatedContent": "package com.enterprise.finance.service;\nimport org.springframework.transaction.annotation.Transactional;\n// MUTANT: Class-level transactional lacks rollbackFor!\n@Transactional\npublic class FinancialLedgerService {\n    public void calculate() {}\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_spring_webmvc_problem_detail",
+    "slug": "kata-test-spring-webmvc-problem-detail",
+    "title": "KATA-TEST-33: WebMvc Slice & RFC 7807 ProblemDetail",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "🌐 WebMvc RFC 7807",
+    "difficulty": "Senior",
+    "targetStack": "Spring Boot 3.4+, Java 21 LTS, @MockitoBean, MockMvc",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Срезовое тестирование контроллера через @WebMvcTest с новым @MockitoBean, проверкой 201/400/404/409 и валидацией ProblemDetail.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nВ распределенных микросервисных экосистемах консистентность обработки исключений является частью контракта интеграции.\n- Спецификация **RFC 7807 («Problem Details for HTTP APIs»)** устанавливает универсальный формат JSON-сбоев (`type`, `title`, `status`, `detail`, `instance`).\n- Начиная со **Spring Boot 3.4**, устаревшая аннотация `@MockBean` выведена из эксплуатации в пользу `org.springframework.test.context.bean.override.mockito.MockitoBean`.\n- Slice-тестирование (`@WebMvcTest`) верифицирует HTTP-контракты за <150 мс без поднятия БД.\n\n### 🧪 Ваша цель\nВ `CustomerControllerWebMvcTest.java` протестируйте:\n1. `POST /api/v1/customers`: 201 Created с заголовком `Location` и валидным телом JSON.\n2. `POST /api/v1/customers`: 400 Bad Request с RFC 7807 ProblemDetail и картой `invalidParams` (`name`, `email`, `tier`).\n3. `GET /api/v1/customers/{id}`: 404 Not Found с RFC 7807 ProblemDetail и `timestamp`.\n4. `POST /api/v1/customers`: 409 Conflict при коллизии уникального email.\n\nУничтожьте всех 5 веб-мутантов!",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/web/dto/CustomerRegistrationRequest.java",
+        "content": "package com.enterprise.web.dto;\n\nimport jakarta.validation.constraints.Email;\nimport jakarta.validation.constraints.NotBlank;\nimport jakarta.validation.constraints.NotNull;\nimport jakarta.validation.constraints.Size;\n\npublic record CustomerRegistrationRequest(\n        @NotBlank(message = \"Name must not be blank\")\n        @Size(min = 2, max = 50, message = \"Name must be between 2 and 50 characters\")\n        String name,\n\n        @NotBlank(message = \"Email must not be blank\")\n        @Email(message = \"Email must be well-formed\")\n        String email,\n\n        @NotNull(message = \"Tier must not be null\")\n        String tier\n) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/dto/CustomerResponse.java",
+        "content": "package com.enterprise.web.dto;\n\nimport java.util.UUID;\n\npublic record CustomerResponse(UUID id, String name, String email, String tier) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/exception/ResourceNotFoundException.java",
+        "content": "package com.enterprise.web.exception;\n\npublic class ResourceNotFoundException extends RuntimeException {\n    public ResourceNotFoundException(String message) {\n        super(message);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/exception/ResourceConflictException.java",
+        "content": "package com.enterprise.web.exception;\n\npublic class ResourceConflictException extends RuntimeException {\n    public ResourceConflictException(String message) {\n        super(message);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/service/CustomerService.java",
+        "content": "package com.enterprise.web.service;\n\nimport com.enterprise.web.dto.CustomerRegistrationRequest;\nimport com.enterprise.web.dto.CustomerResponse;\nimport java.util.UUID;\n\npublic interface CustomerService {\n    CustomerResponse registerCustomer(CustomerRegistrationRequest request);\n    CustomerResponse getCustomerById(UUID id);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/controller/GlobalProblemDetailsExceptionHandler.java",
+        "content": "package com.enterprise.web.controller;\n\nimport com.enterprise.web.exception.ResourceConflictException;\nimport com.enterprise.web.exception.ResourceNotFoundException;\nimport org.springframework.http.HttpHeaders;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.HttpStatusCode;\nimport org.springframework.http.ProblemDetail;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.validation.FieldError;\nimport org.springframework.web.bind.MethodArgumentNotValidException;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\nimport org.springframework.web.bind.annotation.RestControllerAdvice;\nimport org.springframework.web.context.request.WebRequest;\nimport org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;\n\nimport java.net.URI;\nimport java.time.Instant;\nimport java.util.HashMap;\nimport java.util.Map;\n\n@RestControllerAdvice\npublic class GlobalProblemDetailsExceptionHandler extends ResponseEntityExceptionHandler {\n\n    @ExceptionHandler(ResourceNotFoundException.class)\n    public ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {\n        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());\n        problemDetail.setTitle(\"Resource Not Found\");\n        problemDetail.setType(URI.create(\"https://api.enterprise.com/errors/not-found\"));\n        problemDetail.setProperty(\"timestamp\", Instant.now().toString());\n        return problemDetail;\n    }\n\n    @ExceptionHandler(ResourceConflictException.class)\n    public ProblemDetail handleResourceConflict(ResourceConflictException ex) {\n        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());\n        problemDetail.setTitle(\"Resource Conflict\");\n        problemDetail.setType(URI.create(\"https://api.enterprise.com/errors/conflict\"));\n        problemDetail.setProperty(\"timestamp\", Instant.now().toString());\n        return problemDetail;\n    }\n\n    @Override\n    protected ResponseEntity<Object> handleMethodArgumentNotValid(\n            MethodArgumentNotValidException ex,\n            HttpHeaders headers,\n            HttpStatusCode status,\n            WebRequest request) {\n\n        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, \"Request validation failed\");\n        problemDetail.setTitle(\"Bad Request\");\n        problemDetail.setType(URI.create(\"https://api.enterprise.com/errors/bad-request\"));\n        problemDetail.setProperty(\"timestamp\", Instant.now().toString());\n\n        Map<String, String> invalidParams = new HashMap<>();\n        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {\n            invalidParams.put(fieldError.getField(), fieldError.getDefaultMessage());\n        }\n        problemDetail.setProperty(\"invalidParams\", invalidParams);\n\n        return ResponseEntity.status(status).headers(headers).body(problemDetail);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/web/controller/CustomerController.java",
+        "content": "package com.enterprise.web.controller;\n\nimport com.enterprise.web.dto.CustomerRegistrationRequest;\nimport com.enterprise.web.dto.CustomerResponse;\nimport com.enterprise.web.service.CustomerService;\nimport jakarta.validation.Valid;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.MediaType;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\n\nimport java.net.URI;\nimport java.util.UUID;\n\n@RestController\n@RequestMapping(\"/api/v1/customers\")\npublic class CustomerController {\n\n    private final CustomerService customerService;\n\n    public CustomerController(CustomerService customerService) {\n        this.customerService = customerService;\n    }\n\n    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)\n    public ResponseEntity<CustomerResponse> register(@Valid @RequestBody CustomerRegistrationRequest request) {\n        CustomerResponse response = customerService.registerCustomer(request);\n        return ResponseEntity.created(URI.create(\"/api/v1/customers/\" + response.id())).body(response);\n    }\n\n    @GetMapping(value = \"/{id}\", produces = MediaType.APPLICATION_JSON_VALUE)\n    public ResponseEntity<CustomerResponse> getById(@PathVariable UUID id) {\n        return ResponseEntity.ok(customerService.getCustomerById(id));\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/web/controller/CustomerControllerWebMvcTest.java",
+        "content": "package com.enterprise.web.controller;\n\nimport com.enterprise.web.dto.CustomerRegistrationRequest;\nimport com.enterprise.web.dto.CustomerResponse;\nimport com.enterprise.web.exception.ResourceConflictException;\nimport com.enterprise.web.exception.ResourceNotFoundException;\nimport com.enterprise.web.service.CustomerService;\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;\nimport org.springframework.http.MediaType;\nimport org.springframework.test.context.bean.override.mockito.MockitoBean;\nimport org.springframework.test.web.servlet.MockMvc;\n\nimport java.util.UUID;\n\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;\n\n@WebMvcTest(controllers = CustomerController.class)\nclass CustomerControllerWebMvcTest {\n\n    @Autowired\n    private MockMvc mockMvc;\n\n    @MockitoBean\n    private CustomerService customerService;\n\n    @Test\n    @DisplayName(\"POST /api/v1/customers - 201 Created при валидном запросе\")\n    void registerCustomer_ValidPayload_Returns201() throws Exception {\n        UUID customerId = UUID.fromString(\"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\");\n        CustomerResponse mockResponse = new CustomerResponse(customerId, \"John Doe\", \"john.doe@enterprise.com\", \"GOLD\");\n\n        when(customerService.registerCustomer(any(CustomerRegistrationRequest.class))).thenReturn(mockResponse);\n\n        String jsonRequest = \"\"\"\n                {\n                    \"name\": \"John Doe\",\n                    \"email\": \"john.doe@enterprise.com\",\n                    \"tier\": \"GOLD\"\n                }\n                \"\"\";\n\n        mockMvc.perform(post(\"/api/v1/customers\")\n                        .contentType(MediaType.APPLICATION_JSON)\n                        .content(jsonRequest))\n                .andExpect(status().isCreated())\n                .andExpect(header().string(\"Location\", \"/api/v1/customers/\" + customerId))\n                .andExpect(content().contentType(MediaType.APPLICATION_JSON))\n                .andExpect(jsonPath(\"$.id\").value(customerId.toString()))\n                .andExpect(jsonPath(\"$.name\").value(\"John Doe\"))\n                .andExpect(jsonPath(\"$.email\").value(\"john.doe@enterprise.com\"))\n                .andExpect(jsonPath(\"$.tier\").value(\"GOLD\"));\n    }\n\n    @Test\n    @DisplayName(\"POST /api/v1/customers - 400 Bad Request и валидный RFC 7807 при ошибках валидации\")\n    void registerCustomer_InvalidPayload_ReturnsProblemDetail400() throws Exception {\n        String invalidJsonRequest = \"\"\"\n                {\n                    \"name\": \"\",\n                    \"email\": \"invalid-email-address\",\n                    \"tier\": null\n                }\n                \"\"\";\n\n        mockMvc.perform(post(\"/api/v1/customers\")\n                        .contentType(MediaType.APPLICATION_JSON)\n                        .content(invalidJsonRequest))\n                .andExpect(status().isBadRequest())\n                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))\n                .andExpect(jsonPath(\"$.type\").value(\"https://api.enterprise.com/errors/bad-request\"))\n                .andExpect(jsonPath(\"$.title\").value(\"Bad Request\"))\n                .andExpect(jsonPath(\"$.status\").value(400))\n                .andExpect(jsonPath(\"$.detail\").value(\"Request validation failed\"))\n                .andExpect(jsonPath(\"$.timestamp\").exists())\n                .andExpect(jsonPath(\"$.invalidParams.name\").exists())\n                .andExpect(jsonPath(\"$.invalidParams.email\").value(\"Email must be well-formed\"))\n                .andExpect(jsonPath(\"$.invalidParams.tier\").value(\"Tier must not be null\"));\n    }\n\n    @Test\n    @DisplayName(\"GET /api/v1/customers/{id} - 404 Not Found и RFC 7807 при отсутствии ресурса\")\n    void getCustomer_NotFound_ReturnsProblemDetail404() throws Exception {\n        UUID nonExistentId = UUID.fromString(\"00000000-0000-0000-0000-000000000000\");\n        when(customerService.getCustomerById(nonExistentId))\n                .thenThrow(new ResourceNotFoundException(\"Customer with ID not found: \" + nonExistentId));\n\n        mockMvc.perform(get(\"/api/v1/customers/{id}\", nonExistentId)\n                        .accept(MediaType.APPLICATION_JSON))\n                .andExpect(status().isNotFound())\n                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))\n                .andExpect(jsonPath(\"$.type\").value(\"https://api.enterprise.com/errors/not-found\"))\n                .andExpect(jsonPath(\"$.title\").value(\"Resource Not Found\"))\n                .andExpect(jsonPath(\"$.status\").value(404))\n                .andExpect(jsonPath(\"$.detail\").value(\"Customer with ID not found: \" + nonExistentId))\n                .andExpect(jsonPath(\"$.timestamp\").exists());\n    }\n\n    @Test\n    @DisplayName(\"POST /api/v1/customers - 409 Conflict и RFC 7807 при коллизии уникального email\")\n    void registerCustomer_ConflictEmail_ReturnsProblemDetail409() throws Exception {\n        when(customerService.registerCustomer(any(CustomerRegistrationRequest.class)))\n                .thenThrow(new ResourceConflictException(\"Email already registered in system\"));\n\n        String jsonRequest = \"\"\"\n                {\n                    \"name\": \"Jane Doe\",\n                    \"email\": \"jane.doe@enterprise.com\",\n                    \"tier\": \"SILVER\"\n                }\n                \"\"\";\n\n        mockMvc.perform(post(\"/api/v1/customers\")\n                        .contentType(MediaType.APPLICATION_JSON)\n                        .content(jsonRequest))\n                .andExpect(status().isConflict())\n                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))\n                .andExpect(jsonPath(\"$.type\").value(\"https://api.enterprise.com/errors/conflict\"))\n                .andExpect(jsonPath(\"$.title\").value(\"Resource Conflict\"))\n                .andExpect(jsonPath(\"$.status\").value(409))\n                .andExpect(jsonPath(\"$.detail\").value(\"Email already registered in system\"))\n                .andExpect(jsonPath(\"$.timestamp\").exists());\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_webmvc_omit_valid",
+        "name": "OmitValidAnnotationMutator",
+        "file": "src/main/java/com/enterprise/web/controller/CustomerController.java",
+        "line": 31,
+        "mutatedContent": "package com.enterprise.web.controller;\nimport com.enterprise.web.dto.*;\nimport com.enterprise.web.service.CustomerService;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\nimport java.net.URI;\npublic class CustomerController {\n    private final CustomerService customerService;\n    public CustomerController(CustomerService cs) { this.customerService = cs; }\n    // MUTANT: Removed @Valid annotation! Invalid payloads pass without validation!\n    @PostMapping\n    public ResponseEntity<CustomerResponse> register(@RequestBody CustomerRegistrationRequest request) {\n        CustomerResponse r = customerService.registerCustomer(request);\n        return ResponseEntity.created(URI.create(\"/api/v1/customers/\" + r.id())).body(r);\n    }\n}"
+      },
+      {
+        "id": "mutant_webmvc_wrong_conflict_status",
+        "name": "ConflictMappedToBadRequestMutator",
+        "file": "src/main/java/com/enterprise/web/controller/GlobalProblemDetailsExceptionHandler.java",
+        "line": 37,
+        "mutatedContent": "package com.enterprise.web.controller;\nimport com.enterprise.web.exception.ResourceConflictException;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ProblemDetail;\npublic class GlobalProblemDetailsExceptionHandler {\n    // MUTANT: Returns 400 Bad Request instead of 409 Conflict!\n    public ProblemDetail handleResourceConflict(ResourceConflictException ex) {\n        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());\n    }\n}"
+      },
+      {
+        "id": "mutant_webmvc_wrong_timestamp_field",
+        "name": "ProblemDetailTimestampFieldMutator",
+        "file": "src/main/java/com/enterprise/web/controller/GlobalProblemDetailsExceptionHandler.java",
+        "line": 29,
+        "mutatedContent": "package com.enterprise.web.controller;\nimport com.enterprise.web.exception.ResourceNotFoundException;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ProblemDetail;\nimport java.time.Instant;\npublic class GlobalProblemDetailsExceptionHandler {\n    // MUTANT: sets \"time\" instead of \"timestamp\" breaking RFC 7807 contract!\n    public ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {\n        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());\n        pd.setProperty(\"time\", Instant.now().toString());\n        return pd;\n    }\n}"
+      },
+      {
+        "id": "mutant_webmvc_missing_invalid_params",
+        "name": "OmitInvalidParamsMapMutator",
+        "file": "src/main/java/com/enterprise/web/controller/GlobalProblemDetailsExceptionHandler.java",
+        "line": 49,
+        "mutatedContent": "package com.enterprise.web.controller;\nimport org.springframework.http.*;\nimport org.springframework.web.bind.MethodArgumentNotValidException;\nimport org.springframework.web.context.request.WebRequest;\npublic class GlobalProblemDetailsExceptionHandler {\n    // MUTANT: Missing invalidParams map property in 400 response!\n    protected ResponseEntity<Object> handleMethodArgumentNotValid(\n            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {\n        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, \"Request validation failed\");\n        return ResponseEntity.status(status).body(pd);\n    }\n}"
+      },
+      {
+        "id": "mutant_webmvc_status_code_override",
+        "name": "CreatedStatusToOkMutator",
+        "file": "src/main/java/com/enterprise/web/controller/CustomerController.java",
+        "line": 33,
+        "mutatedContent": "package com.enterprise.web.controller;\nimport com.enterprise.web.dto.*;\nimport com.enterprise.web.service.CustomerService;\nimport org.springframework.http.ResponseEntity;\nimport jakarta.validation.Valid;\nimport org.springframework.web.bind.annotation.*;\npublic class CustomerController {\n    private final CustomerService customerService;\n    public CustomerController(CustomerService cs) { this.customerService = cs; }\n    // MUTANT: Returns 200 OK without Location header instead of 201 Created!\n    @PostMapping\n    public ResponseEntity<CustomerResponse> register(@Valid @RequestBody CustomerRegistrationRequest request) {\n        CustomerResponse r = customerService.registerCustomer(request);\n        return ResponseEntity.ok(r);\n    }\n}"
+      }
+    ]
+  },
+  {
+    "id": "kata_test_jackson_financial_pan_masking",
+    "slug": "kata-test-jackson-financial-pan-masking",
+    "title": "KATA-TEST-34: Jackson Financial Serializer & PAN Masking",
+    "category": "testing_mutation",
+    "track": "testing_mutation",
+    "badge": "💳 Jackson & PCI-DSS",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Spring Boot 3.4+, @JsonTest, Jackson",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Тестирование сериализации @JsonTest: исключение потери точности IEEE 754 через BigDecimal, банковское HALF_EVEN и маскирование карт по PCI-DSS.",
+    "instructionsMarkdown": "### 🎯 Инженерная задача\nВ процессинговых и финансовых сервисах обращение с денежными суммами требует исключения типов данных с плавающей запятой (`float`, `double`).\n- Ограничения двоичного формата IEEE 754 (`0.1 + 0.2 = 0.30000000000000004`) приводят к финансовым расхождениям при передаче чисел.\n- Денежные величины должны передаваться как `BigDecimal` в виде строки с фиксацией `scale = 2` и банковским округлением `RoundingMode.HALF_EVEN` (округление Гаусса).\n- **PCI-DSS Requirement 3.3:** Номер платежной карты (PAN) при сериализации обязан маскироваться с сохранением первых 6 и последних 4 цифр (`453275******7890`).\n\n### 🧪 Ваша цель\nВ `PaymentTransactionDtoJsonTest.java` протестируйте через `@JsonTest` и `JacksonTester<PaymentTransactionDto>`:\n1. Банковское округление `HALF_EVEN` без потери точности (`12.505` $\\to$ `\"12.50\"`, `12.515` $\\to$ `\"12.52\"`).\n2. Сериализация в виде JSON-строки, защищенной от IEEE 754 Double.\n3. Строгое маскирование 16-значных Visa/MasterCard и 15-значных Amex, а также PAN с пробелами и дефисами.\n4. Граничные случаи: невалидный PAN (`\"INVALID_PAN\"`), `null` PAN и `null` amount.\n\nУничтожьте всех 5 сериализационных мутантов!",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/enterprise/payment/serializer/FinancialAmountSerializer.java",
+        "content": "package com.enterprise.payment.serializer;\n\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\n\nimport java.io.IOException;\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\n\npublic class FinancialAmountSerializer extends JsonSerializer<BigDecimal> {\n\n    @Override\n    public void serialize(BigDecimal value, JsonGenerator gen, SerializerProvider serializers) throws IOException {\n        if (value == null) {\n            gen.writeNull();\n            return;\n        }\n        BigDecimal scaled = value.setScale(2, RoundingMode.HALF_EVEN);\n        gen.writeString(scaled.toPlainString());\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/payment/serializer/PanMaskingSerializer.java",
+        "content": "package com.enterprise.payment.serializer;\n\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\n\nimport java.io.IOException;\n\npublic class PanMaskingSerializer extends JsonSerializer<String> {\n\n    @Override\n    public void serialize(String value, JsonGenerator gen, SerializerProvider serializers) throws IOException {\n        if (value == null) {\n            gen.writeNull();\n            return;\n        }\n\n        String sanitized = value.replaceAll(\"[\\\\s-]\", \"\");\n        int length = sanitized.length();\n\n        if (length < 13 || length > 19) {\n            gen.writeString(\"INVALID_PAN\");\n            return;\n        }\n\n        String firstSix = sanitized.substring(0, 6);\n        String lastFour = sanitized.substring(length - 4);\n        String maskedMiddle = \"*\".repeat(length - 10);\n\n        gen.writeString(firstSix + maskedMiddle + lastFour);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/enterprise/payment/dto/PaymentTransactionDto.java",
+        "content": "package com.enterprise.payment.dto;\n\nimport com.enterprise.payment.serializer.FinancialAmountSerializer;\nimport com.enterprise.payment.serializer.PanMaskingSerializer;\nimport com.fasterxml.jackson.databind.annotation.JsonSerialize;\n\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\npublic record PaymentTransactionDto(\n        UUID transactionId,\n\n        @JsonSerialize(using = FinancialAmountSerializer.class)\n        BigDecimal amount,\n\n        String currency,\n\n        @JsonSerialize(using = PanMaskingSerializer.class)\n        String primaryAccountNumber,\n\n        String merchantId\n) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/test/java/com/enterprise/payment/dto/PaymentTransactionDtoJsonTest.java",
+        "content": "package com.enterprise.payment.dto;\n\nimport org.junit.jupiter.api.DisplayName;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.autoconfigure.json.JsonTest;\nimport org.springframework.boot.test.json.JacksonTester;\nimport org.springframework.boot.test.json.JsonContent;\n\nimport java.io.IOException;\nimport java.math.BigDecimal;\nimport java.util.UUID;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@JsonTest\nclass PaymentTransactionDtoJsonTest {\n\n    @Autowired\n    private JacksonTester<PaymentTransactionDto> jsonTester;\n\n    @Test\n    @DisplayName(\"Сериализация BigDecimal: гарантированное банковское округление HALF_EVEN без потери точности\")\n    void shouldSerializeAmountWithBankersRoundingAndNoDoublePrecisionLoss() throws IOException {\n        UUID txId = UUID.fromString(\"11111111-2222-3333-4444-555555555555\");\n\n        PaymentTransactionDto txEven = new PaymentTransactionDto(\n                txId, new BigDecimal(\"12.505\"), \"USD\", \"4532751234567890\", \"M-100\");\n        JsonContent<PaymentTransactionDto> resultEven = jsonTester.write(txEven);\n\n        assertThat(resultEven).extractingJsonPathStringValue(\"$.amount\").isEqualTo(\"12.50\");\n\n        PaymentTransactionDto txOdd = new PaymentTransactionDto(\n                txId, new BigDecimal(\"12.515\"), \"USD\", \"4532751234567890\", \"M-100\");\n        JsonContent<PaymentTransactionDto> resultOdd = jsonTester.write(txOdd);\n\n        assertThat(resultOdd).extractingJsonPathStringValue(\"$.amount\").isEqualTo(\"12.52\");\n\n        BigDecimal precisionEdgeCase = new BigDecimal(\"0.1000000000000000055511151231257827021181583404541015625\");\n        PaymentTransactionDto txPrecision = new PaymentTransactionDto(\n                txId, precisionEdgeCase, \"USD\", \"4532751234567890\", \"M-100\");\n        JsonContent<PaymentTransactionDto> resultPrecision = jsonTester.write(txPrecision);\n\n        assertThat(resultPrecision).extractingJsonPathStringValue(\"$.amount\").isEqualTo(\"0.10\");\n    }\n\n    @Test\n    @DisplayName(\"Сериализация PAN: строгое маскирование номера карты по стандарту PCI-DSS (6+mask+4)\")\n    void shouldMaskPrimaryAccountNumberAccordingToPciDss() throws IOException {\n        UUID txId = UUID.fromString(\"11111111-2222-3333-4444-555555555555\");\n\n        PaymentTransactionDto tx16 = new PaymentTransactionDto(\n                txId, new BigDecimal(\"100.00\"), \"USD\", \"4532751234567890\", \"M-100\");\n        assertThat(jsonTester.write(tx16))\n                .extractingJsonPathStringValue(\"$.primaryAccountNumber\")\n                .isEqualTo(\"453275******7890\");\n\n        PaymentTransactionDto txAmex = new PaymentTransactionDto(\n                txId, new BigDecimal(\"100.00\"), \"USD\", \"378282246310005\", \"M-100\");\n        assertThat(jsonTester.write(txAmex))\n                .extractingJsonPathStringValue(\"$.primaryAccountNumber\")\n                .isEqualTo(\"378282*****0005\");\n\n        PaymentTransactionDto txDelimiters = new PaymentTransactionDto(\n                txId, new BigDecimal(\"100.00\"), \"USD\", \"4532-7512-3456-7890\", \"M-100\");\n        assertThat(jsonTester.write(txDelimiters))\n                .extractingJsonPathStringValue(\"$.primaryAccountNumber\")\n                .isEqualTo(\"453275******7890\");\n    }\n\n    @Test\n    @DisplayName(\"Сериализация граничных и некорректных значений PAN\")\n    void shouldHandleInvalidOrNullPanValues() throws IOException {\n        UUID txId = UUID.fromString(\"11111111-2222-3333-4444-555555555555\");\n\n        PaymentTransactionDto txInvalidPan = new PaymentTransactionDto(\n                txId, new BigDecimal(\"50.00\"), \"USD\", \"12345\", \"M-100\");\n        assertThat(jsonTester.write(txInvalidPan))\n                .extractingJsonPathStringValue(\"$.primaryAccountNumber\")\n                .isEqualTo(\"INVALID_PAN\");\n\n        PaymentTransactionDto txNullPan = new PaymentTransactionDto(\n                txId, new BigDecimal(\"50.00\"), \"USD\", null, \"M-100\");\n        assertThat(jsonTester.write(txNullPan))\n                .hasEmptyJsonPathValue(\"$.primaryAccountNumber\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "mutants": [
+      {
+        "id": "mutant_json_number_loss",
+        "name": "JsonNumberDoublePrecisionLossMutator",
+        "file": "src/main/java/com/enterprise/payment/serializer/FinancialAmountSerializer.java",
+        "line": 18,
+        "mutatedContent": "package com.enterprise.payment.serializer;\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\nimport java.io.IOException; import java.math.BigDecimal; import java.math.RoundingMode;\npublic class FinancialAmountSerializer extends JsonSerializer<BigDecimal> {\n    public void serialize(BigDecimal v, JsonGenerator gen, SerializerProvider s) throws IOException {\n        if (v == null) { gen.writeNull(); return; }\n        // MUTANT: Writes raw double number instead of string, introducing IEEE 754 precision loss!\n        gen.writeNumber(v.setScale(2, RoundingMode.HALF_EVEN).doubleValue());\n    }\n}"
+      },
+      {
+        "id": "mutant_json_half_up",
+        "name": "RoundingModeHalfUpMutator",
+        "file": "src/main/java/com/enterprise/payment/serializer/FinancialAmountSerializer.java",
+        "line": 17,
+        "mutatedContent": "package com.enterprise.payment.serializer;\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\nimport java.io.IOException; import java.math.BigDecimal; import java.math.RoundingMode;\npublic class FinancialAmountSerializer extends JsonSerializer<BigDecimal> {\n    public void serialize(BigDecimal v, JsonGenerator gen, SerializerProvider s) throws IOException {\n        if (v == null) { gen.writeNull(); return; }\n        // MUTANT: HALF_UP instead of Bankers Rounding HALF_EVEN!\n        BigDecimal scaled = v.setScale(2, RoundingMode.HALF_UP);\n        gen.writeString(scaled.toPlainString());\n    }\n}"
+      },
+      {
+        "id": "mutant_json_pan_off_by_one",
+        "name": "PanMaskingOffByOneMutator",
+        "file": "src/main/java/com/enterprise/payment/serializer/PanMaskingSerializer.java",
+        "line": 27,
+        "mutatedContent": "package com.enterprise.payment.serializer;\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\nimport java.io.IOException;\npublic class PanMaskingSerializer extends JsonSerializer<String> {\n    public void serialize(String value, JsonGenerator gen, SerializerProvider s) throws IOException {\n        if (value == null) { gen.writeNull(); return; }\n        String sanitized = value.replaceAll(\"[\\\\s-]\", \"\");\n        int length = sanitized.length();\n        if (length < 13 || length > 19) { gen.writeString(\"INVALID_PAN\"); return; }\n        String firstSix = sanitized.substring(0, 6);\n        // MUTANT: leaves 5 digits unmasked (off-by-one error violating PCI-DSS)!\n        String lastFive = sanitized.substring(length - 5);\n        String maskedMiddle = \"*\".repeat(length - 11);\n        gen.writeString(firstSix + maskedMiddle + lastFive);\n    }\n}"
+      },
+      {
+        "id": "mutant_json_null_npe",
+        "name": "FinancialAmountNullPointerMutator",
+        "file": "src/main/java/com/enterprise/payment/serializer/FinancialAmountSerializer.java",
+        "line": 14,
+        "mutatedContent": "package com.enterprise.payment.serializer;\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\nimport java.io.IOException; import java.math.BigDecimal; import java.math.RoundingMode;\npublic class FinancialAmountSerializer extends JsonSerializer<BigDecimal> {\n    public void serialize(BigDecimal value, JsonGenerator gen, SerializerProvider s) throws IOException {\n        // MUTANT: Null check removed! Throws NullPointerException when value is null!\n        BigDecimal scaled = value.setScale(2, RoundingMode.HALF_EVEN);\n        gen.writeString(scaled.toPlainString());\n    }\n}"
+      },
+      {
+        "id": "mutant_json_skip_sanitization",
+        "name": "PanSkipSanitizationMutator",
+        "file": "src/main/java/com/enterprise/payment/serializer/PanMaskingSerializer.java",
+        "line": 14,
+        "mutatedContent": "package com.enterprise.payment.serializer;\nimport com.fasterxml.jackson.core.JsonGenerator;\nimport com.fasterxml.jackson.databind.JsonSerializer;\nimport com.fasterxml.jackson.databind.SerializerProvider;\nimport java.io.IOException;\npublic class PanMaskingSerializer extends JsonSerializer<String> {\n    public void serialize(String value, JsonGenerator gen, SerializerProvider s) throws IOException {\n        if (value == null) { gen.writeNull(); return; }\n        // MUTANT: Skips delimiter sanitization! Formatting characters corrupt length and masking!\n        String sanitized = value;\n        int length = sanitized.length();\n        if (length < 13 || length > 19) { gen.writeString(\"INVALID_PAN\"); return; }\n        String firstSix = sanitized.substring(0, 6);\n        String lastFour = sanitized.substring(length - 4);\n        String maskedMiddle = \"*\".repeat(length - 10);\n        gen.writeString(firstSix + maskedMiddle + lastFour);\n    }\n}"
+      }
+    ]
+  }
+]
