@@ -6,12 +6,18 @@ export const createWhiteboardSlice: StateCreator<AppState, [], [], WhiteboardSli
   isWhiteboardOpen: false,
   codeRevisions: [],
   activeRevisionId: null,
+  hasUnseenWhiteboardUpdate: false,
+  activeWorkspaceView: 'editor',
 
   setWhiteboardState: (wb: WhiteboardState | null) => {
     set((state) => {
+      const isMeaningfulUpdate = Boolean(wb && (wb.code?.trim() || wb.explanation?.trim() || wb.title?.trim()));
+      const shouldFlagUnseen = isMeaningfulUpdate && state.activeWorkspaceView !== 'whiteboard';
+
       const newState = {
         activeWhiteboardState: wb,
-        isWhiteboardOpen: wb ? (wb.action !== 'clear') : false
+        isWhiteboardOpen: wb ? (wb.action !== 'clear') : false,
+        hasUnseenWhiteboardUpdate: shouldFlagUnseen ? true : state.hasUnseenWhiteboardUpdate
       };
 
       // If code is supplied, record as revision if distinct
@@ -43,6 +49,14 @@ export const createWhiteboardSlice: StateCreator<AppState, [], [], WhiteboardSli
   },
 
   setIsWhiteboardOpen: (open: boolean) => set({ isWhiteboardOpen: open }),
+
+  setActiveWorkspaceView: (view: 'editor' | 'whiteboard') =>
+    set((state) => ({
+      activeWorkspaceView: view,
+      hasUnseenWhiteboardUpdate: view === 'whiteboard' ? false : state.hasUnseenWhiteboardUpdate
+    })),
+
+  markWhiteboardSeen: () => set({ hasUnseenWhiteboardUpdate: false }),
 
   addCodeRevision: ({ title, language = 'java', code, author = 'ai' }) => {
     if (!code || !code.trim()) return;

@@ -19,6 +19,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     isConnected,
     isAiSpeaking,
     isRecording,
+    isThinking,
     isMuted,
     isUserSpeaking,
     isPauseHolding,
@@ -31,7 +32,11 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     finishManualTurn,
     playoutManagerRef
   } = useLiveAudioSession({
-    onError: (err) => console.error('Live voice error:', err)
+    onError: (err) => console.error('Live voice error:', err),
+    onWhiteboardUpdate: (payload) => {
+      console.log('[PracticeVoiceHUD] 🎨 Live Tutor updated whiteboard:', payload);
+      useAppStore.getState().setWhiteboardState(payload);
+    }
   });
 
   // Start live session when mounted, seamlessly inheriting user settings
@@ -39,10 +44,24 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     const startLiveTutor = async () => {
       try {
         const turnMode = interviewConfig.turnMode || 'auto';
+        const isLld =
+          activePracticeChallenge?.category === 'LLD & Machine Coding' ||
+          activePracticeChallenge?.track?.startsWith('lld_');
+        const isTx =
+          activePracticeChallenge?.category === 'Transaction Lab' ||
+          activePracticeChallenge?.track?.startsWith('tx_');
+        const topic = isLld
+          ? `LLD Архитектура и Machine Coding: ${activePracticeChallenge?.title}`
+          : isTx
+          ? `Транзакции и Concurrency Lab: ${activePracticeChallenge?.title}`
+          : `Юнит-тестирование и мутации: ${activePracticeChallenge?.title || 'Java 21'}`;
+
         await startSession({
           sessionType: 'tutor',
           tutorMode: 'practice_pair',
-          topic: 'Юнит-тестирование и мутации Java 21',
+          category: activePracticeChallenge?.category,
+          track: activePracticeChallenge?.track,
+          topic,
           bugTitle: activePracticeChallenge?.title || 'Практическая задача',
           bugExplanation: activePracticeChallenge?.instructionsMarkdown?.slice(0, 500) || '',
           codeSnippet: currentFile?.content || '',
@@ -74,11 +93,17 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
 
   // Tactile Barge-In & Turn Controller
   const handleCentralButtonClick = () => {
+    if (isThinking) {
+      // Prevent accidental double clicks or muting while Gemini is processing response
+      return;
+    }
     if (isAiSpeaking && playoutManagerRef.current) {
       playoutManagerRef.current.handleInterruption();
     } else if (interviewConfig.turnMode === 'manual' && isRecording) {
       finishManualTurn();
-    } else {
+    } else if (isRecording) {
+      toggleMic();
+    } else if (isConnected) {
       toggleMic();
     }
   };
@@ -92,6 +117,8 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         className={`absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl transition-opacity duration-700 pointer-events-none ${
           isAiSpeaking
             ? 'bg-pastel-accentRose/30 opacity-100 animate-pulse'
+            : isThinking
+            ? 'bg-violet-500/30 opacity-100 animate-pulse'
             : isPauseHolding
             ? 'bg-amber-400/30 opacity-100 animate-pulse'
             : isUserSpeaking
@@ -127,9 +154,12 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
       <div className="relative my-4 flex flex-col items-center">
         <button
           onClick={handleCentralButtonClick}
+          disabled={isThinking}
           className={`w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-lg cursor-pointer transform active:scale-95 ${
             isAiSpeaking
               ? 'bg-gradient-to-tr from-pink-500 to-rose-400 text-white ring-8 ring-rose-100 animate-pulse'
+              : isThinking
+              ? 'bg-gradient-to-tr from-violet-600 to-indigo-500 text-white ring-8 ring-violet-200 animate-pulse cursor-wait'
               : isPauseHolding
               ? 'bg-gradient-to-tr from-amber-500 to-orange-400 text-white ring-8 ring-amber-100 animate-pulse'
               : isUserSpeaking
@@ -141,6 +171,8 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
           title={
             isAiSpeaking
               ? 'Нажмите, чтобы перебить ИИ (Barge-In)'
+              : isThinking
+              ? 'ИИ осмысливает ответ и генерирует речь...'
               : isManualMode && isRecording
               ? 'Нажмите, чтобы отправить ответ ИИ'
               : 'Нажмите, чтобы включить/отключить микрофон'
@@ -150,6 +182,11 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
             <>
               <Volume2 className="w-8 h-8 animate-bounce" />
               <span className="text-[9px] font-bold mt-1 tracking-wider uppercase">Перебить</span>
+            </>
+          ) : isThinking ? (
+            <>
+              <Loader2 className="w-8 h-8 animate-spin text-white" />
+              <span className="text-[9px] font-bold mt-1 tracking-wider uppercase">ИИ думает</span>
             </>
           ) : isPauseHolding ? (
             <>
@@ -182,7 +219,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         </button>
 
         {/* Dynamic RMS Wave Bar when user is speaking */}
-        {isRecording && !isAiSpeaking && (
+        {isRecording && !isAiSpeaking && !isThinking && (
           <div className="w-28 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2.5 border border-slate-200">
             <div
               className={`h-full transition-all duration-75 rounded-full ${
@@ -198,6 +235,8 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         <span className="text-xs font-semibold text-slate-600 mt-2 text-center max-w-[280px]">
           {isAiSpeaking
             ? 'ИИ говорит вслух (нажмите, чтобы перебить)'
+            : isThinking
+            ? '⏳ ИИ осмысливает ваш ответ...'
             : isPauseHolding
             ? 'Пауза: ИИ осмысливает ваш ответ...'
             : isUserSpeaking

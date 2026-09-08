@@ -480,6 +480,8 @@ export function useLiveAudioSession(
         isResumed: String(!!merged.isResumed)
       });
 
+      if (merged.category) params.set('category', merged.category);
+      if (merged.track) params.set('track', merged.track);
       if (merged.bugTitle) params.set('bugTitle', merged.bugTitle);
       if (merged.bugExplanation) params.set('bugExplanation', merged.bugExplanation);
       if (merged.codeSnippet) params.set('codeSnippet', merged.codeSnippet);
@@ -506,10 +508,18 @@ export function useLiveAudioSession(
       }
 
       const wsUrl = `${protocol}//${host}/ws/live?${params.toString()}`;
+      console.log(`[LiveAudio] 🚀 Connecting WebSocket to ${protocol}//${host}/ws/live`, {
+        sessionType: merged.sessionType,
+        tutorMode: merged.tutorMode,
+        category: merged.category,
+        track: merged.track,
+        turnMode: merged.turnMode
+      });
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log('[LiveAudio] ✅ WebSocket connection established');
         setIsConnected(true);
         setStatusMessage('🎙️ Шлюз активен');
         void initMicrophone();
@@ -539,6 +549,7 @@ export function useLiveAudioSession(
           }
 
           if (data.type === 'tool_executing') {
+            console.log('[LiveAudio] ⚙️ Tool executing in background');
             setThinkingStage('processing');
             clearAllWatchdogs();
             const t1 = setTimeout(() => { if (isThinkingRef.current) setThinkingStage('delayed'); }, 8000);
@@ -548,6 +559,7 @@ export function useLiveAudioSession(
 
           // Tool Call Handlers
           if (data.type === 'whiteboard_update') {
+            console.log('[LiveAudio] 🎨 Whiteboard update received from Live AI:', data.payload?.title);
             optionsRef.current.onWhiteboardUpdate?.(data.payload as WhiteboardUpdatePayload);
             return;
           }
@@ -595,6 +607,9 @@ export function useLiveAudioSession(
               for (const part of modelTurn.parts) {
                 const pcmData = part.inlineData?.data || (part as any).inline_data?.data;
                 if (pcmData) {
+                  if (isThinkingRef.current) {
+                    console.log('[LiveAudio] 🔊 Model first audio chunk received (TTFT complete)');
+                  }
                   isServerTurnCompleteRef.current = false;
                   setIsAiSpeaking(true);
                   isAiSpeakingRef.current = true;
@@ -617,6 +632,7 @@ export function useLiveAudioSession(
             }
 
             if (turnComplete) {
+              console.log('[LiveAudio] 🏁 Model turnComplete received. playout.isPlaying() =', playout.isPlaying());
               isServerTurnCompleteRef.current = true;
               playout.notifyTurnComplete();
               if (!playout.isPlaying()) {

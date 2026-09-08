@@ -93,7 +93,8 @@ export interface LiveAudioSessionOptions {
   isRetry?: boolean;
   isResumed?: boolean;
 
-  // Scenarios (Practice, Bug Hunt, System Design)
+  category?: string;
+  track?: string;
   scenarioId?: string;
   bugTitle?: string;
   bugExplanation?: string;

@@ -25,6 +25,8 @@ export interface StreamRouterOptions {
   parsedHints: string[];
   liveCoaching: boolean;
   liveModel: string;
+  challengeCategory?: string;
+  challengeTrack?: string;
 }
 
 export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
@@ -49,7 +51,9 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     questionIndex,
     parsedHints,
     liveCoaching,
-    liveModel
+    liveModel,
+    challengeCategory = '',
+    challengeTrack = ''
   } = options;
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
@@ -237,6 +241,18 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                 greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
               } else if (tutorMode === 'eli5') {
                 greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
+              } else if (tutorMode === 'practice_pair') {
+                const cat = (challengeCategory || session.challengeCategory || '').toLowerCase();
+                const trk = (challengeTrack || session.challengeTrack || '').toLowerCase();
+                const isLld = ['lld', 'machine_coding', 'concurrency', 'refactoring'].some(k => cat.includes(k) || trk.includes(k));
+                const isTx = cat.includes('transaction') || trk.includes('transaction');
+                if (isLld) {
+                  greetingText = `Привет! Я твоя напарница по проектированию архитектуры задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и спроси, с каких интерфейсов или доменной модели начнем проектирование.`;
+                } else if (isTx) {
+                  greetingText = `Привет! Я разбираю сценарий транзакций «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи разобрать уровни изоляции и поведение БД.`;
+                } else {
+                  greetingText = `Привет! Я твоя напарница по задаче «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи обсудить граничные случаи или план решения.`;
+                }
               } else {
                 greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
               }
@@ -299,6 +315,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
 
           if (parsed.serverContent.modelTurn.parts) {
+            const hasPcm = parsed.serverContent.modelTurn.parts.some((p: any) => p.inlineData || p.inline_data);
+            if (hasPcm && !session.firstAudioChunkLogged) {
+              session.firstAudioChunkLogged = true;
+              const ttft = session.lastTurnCommitTime ? Date.now() - session.lastTurnCommitTime : 0;
+              console.log(`🔊 [MODEL_FIRST_AUDIO] Upstream Gemini emitted first audio chunk (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
+            }
+
             for (const part of parsed.serverContent.modelTurn.parts) {
               if (part.text) {
                 session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
@@ -309,6 +332,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // AI finished generating turn: commit to session turn history
         if (parsed.serverContent?.turnComplete) {
+          console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini turn generation complete (session: ${session.sessionId || 'anon'})`);
+          session.firstAudioChunkLogged = false;
           session.isToolCallPending = false;
           if (session.toolCallSafetyTimeout) {
             clearTimeout(session.toolCallSafetyTimeout);

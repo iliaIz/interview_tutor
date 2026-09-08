@@ -238,12 +238,16 @@ export interface WhiteboardSlice {
   isWhiteboardOpen: boolean;
   codeRevisions: CodeArtifactRevision[];
   activeRevisionId: string | null;
+  hasUnseenWhiteboardUpdate: boolean;
+  activeWorkspaceView: 'editor' | 'whiteboard';
 
   setWhiteboardState: (wb: WhiteboardState | null) => void;
   setIsWhiteboardOpen: (open: boolean) => void;
   addCodeRevision: (rev: { title: string; language?: string; code: string; author?: 'ai' | 'user' }) => void;
   setActiveRevision: (id: string) => void;
   clearCodeRevisions: () => void;
+  setActiveWorkspaceView: (view: 'editor' | 'whiteboard') => void;
+  markWhiteboardSeen: () => void;
 }
 
 export interface BatchSlice {

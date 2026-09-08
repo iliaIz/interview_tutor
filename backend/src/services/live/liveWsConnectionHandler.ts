@@ -86,6 +86,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   const isResumed = query.isResumed === 'true';
   const initialProbesCount = Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0);
   const initialUserMessage = ((query.initialUserMessage as string) || '').trim();
+  const challengeCategory = (query.category as string) || (query.challengeCategory as string) || '';
+  const challengeTrack = (query.track as string) || (query.challengeTrack as string) || '';
 
   let activeCodeArtifact: any = null;
   if (query.activeCodeArtifact) {
@@ -137,6 +139,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
   const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
 
+  console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}`);
+
   const session: ProxySession = {
     clientSocket,
     geminiSocket: null as any,
@@ -165,7 +169,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     reconnectAttempts: 0,
     reconnectTimer: null,
     toolCallSafetyTimeout: null,
-    isTerminated: false
+    isTerminated: false,
+    challengeCategory,
+    challengeTrack
   };
 
   let isTerminated = false;
@@ -256,7 +262,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     activeCodeArtifact,
     codeRevisionsSummary,
     persona,
-    targetGrade
+    targetGrade,
+    challengeCategory,
+    challengeTrack
   });
 
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);
@@ -310,7 +318,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     questionIndex,
     parsedHints,
     liveCoaching,
-    liveModel
+    liveModel,
+    challengeCategory,
+    challengeTrack
   });
 
   // Start upstream connection
@@ -453,6 +463,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
 
       if (parsed.clientContent?.turnComplete) {
+        session.lastTurnCommitTime = Date.now();
+        console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${session.audioChunksCount || 0})`);
+        session.audioChunksCount = 0;
         if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
         session.nudgeWatchdog = setTimeout(() => {
           if (clientSocket.readyState === WebSocket.OPEN) {
@@ -462,6 +475,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
 
       if (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {
+        session.audioChunksCount = (session.audioChunksCount || 0) + 1;
+        if (session.audioChunksCount === 1) {
+          console.log(`🎤 [CLIENT_SPEECH_START] Audio streaming active from mic for session ${session.sessionId || 'anon'}`);
+        }
         const audioData =
           parsed.realtime_input?.audio?.data ||
           parsed.realtimeInput?.audio?.data ||

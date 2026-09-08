@@ -40,4 +40,9 @@ export interface ProxySession {
   lastToolCallHash?: string;
   lastToolCallTime?: number;
   isTerminated?: boolean;
+  audioChunksCount?: number;
+  lastTurnCommitTime?: number;
+  firstAudioChunkLogged?: boolean;
+  challengeCategory?: string;
+  challengeTrack?: string;
 }

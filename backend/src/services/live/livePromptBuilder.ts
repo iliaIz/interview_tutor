@@ -106,6 +106,8 @@ export function buildSystemPrompt(params: {
   codeRevisionsSummary?: Array<{ id: string; title: string; }>;
   persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;
+  challengeCategory?: string;
+  challengeTrack?: string;
 }): string {
   const {
     topic,
@@ -133,7 +135,9 @@ export function buildSystemPrompt(params: {
     activeCodeArtifact,
     codeRevisionsSummary,
     persona = 'mentor',
-    targetGrade = 'L5_SENIOR'
+    targetGrade = 'L5_SENIOR',
+    challengeCategory = '',
+    challengeTrack = ''
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -323,27 +327,48 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
             ? 'Здравствуйте! Я Ваш напарник по этой задаче. Внимательно смотрю на Ваш код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?'
             : 'Привет! Я твой напарник по этой задаче. Внимательно смотрю на твой код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?');
 
-      return `=== 1. РОЛЬ: MULTIMODAL AI PAIR-PROGRAMMER & TESTING COACH ===
+      const cat = (challengeCategory || '').toLowerCase();
+      const trk = (challengeTrack || '').toLowerCase();
+      const isLld = ['lld', 'machine_coding', 'concurrency', 'refactoring'].some(k => cat.includes(k) || trk.includes(k));
+      const isTx = cat.includes('transaction') || trk.includes('transaction');
+
+      let roleHeader = `=== 1. РОЛЬ: MULTIMODAL AI PAIR-PROGRAMMER & TESTING COACH ===
 Ты доброжелательный и опытный ${isFemale ? 'напарник по парному программированию (женщина)' : 'напарник по парному программированию (мужчина)'}.
-Ты помогаешь кандидату решать практические задачи по написанию юнит-тестов (JUnit 5, AssertJ, Mockito, мутационное тестирование).
+Ты помогаешь кандидату решать практические задачи по написанию юнит-тестов (JUnit 5, AssertJ, Mockito, мутационное тестирование).`;
+
+      if (isLld) {
+        roleHeader = `=== 1. РОЛЬ: SENIOR LLD ARCHITECT & MULTIMODAL PAIR-PROGRAMMER ===
+Ты доброжелательный и опытный ${isFemale ? 'архитектор LLD и напарник по парному кодингу (женщина)' : 'архитектор LLD и напарник по парному кодингу (мужчина)'}.
+Ты помогаешь кандидату проектировать расширяемую, чистую и потокобезопасную архитектуру на Java 21:
+- Принципы SOLID и классические паттерны GoF (Стратегия, Фабрика, Декоратор, Цепочка обязанностей).
+- Виртуальное время: инжекция java.time.Clock вместо System.currentTimeMillis() для 0мс детерминированных тестов.
+- Финансовая точность: строгий BigDecimal с явным масштабом и RoundingMode.HALF_EVEN вместо double/float.
+- Потокобезопасность: упорядоченный захват блокировок lock(min, max) для исключения дедлоков, ConcurrentHashMap, AtomicLong.`;
+      } else if (isTx) {
+        roleHeader = `=== 1. РОЛЬ: SPRING TRANSACTIONS & DATABASE SPECIALIST ===
+Ты доброжелательный и опытный ${isFemale ? 'специалист по базам данных и транзакциям Spring (женщина)' : 'специалист по базам данных и транзакциям Spring (мужчина)'}.
+Ты помогаешь кандидату исследовать уровни изоляции (READ COMMITTED, REPEATABLE READ, SERIALIZABLE), ловушку Self-Invocation прокси Spring, блокировки строк (PESSIMISTIC_WRITE) и защиту от дедлоков.`;
+      }
+
+      return `${roleHeader}
 ${genderRule}
 
 ${personaInstruction}
 
 === 2. СИМБИОЗ "ГОЛОС ОБЪЯСНЯЕТ, ЭКРАН ПОКАЗЫВАЕТ" (MULTIMODAL SYMBIOSIS) ===
 1. ГОЛОС ДЛЯ СУТИ И МЫШЛЕНИЯ: Голосом объясняй логику, концепции, инварианты и граничные условия краткими фразами (2-3 предложения, до 30 слов).
-2. КОД НА ДОСКЕ/ЭКРАНЕ: Если нужно показать конкретный синтаксис AssertJ или Mockito, вызови \`update_whiteboard\` с кодом, а голосом скажи: «Я вывела нужную конструкцию на экран».
+2. КОД НА ДОСКЕ/ЭКРАНЕ: Если нужно показать конкретную структуру классов, синтаксис AssertJ, рекорды или паттерны, вызови \`update_whiteboard\` с кодом, а голосом скажи: «Я вывела нужную конструкцию на доску».
 3. НЕ ЗАЧИТЫВАЙ КОД БУКВА ЗА БУКВОЙ: Пользователь видит экран перед глазами.
-4. ПРАВИЛО СОКРАТА: Не вываливай готовое решение. Помогай через модель RIPR (Reachability -> Infection -> Propagation).
+4. ПРАВИЛО СОКРАТА: Не вываливай готовое решение целиком. Направляй через вопросы и подсказки.
 
 === 3. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
 НАЗВАНИЕ: "${bugTitle || questionText || 'Практическая задача'}"
 ИНСТРУКЦИЯ / ЦЕЛЬ:
-${referenceAnswer || bugExplanation || 'Напишите надежные тесты и уничтожьте всех мутантов.'}
+${referenceAnswer || bugExplanation || (isLld ? 'Спроектируйте чистую и расширяемую LLD-архитектуру задачи.' : isTx ? 'Исследуйте поведение транзакций и устраните аномалию БД.' : 'Напишите надежные тесты и уничтожьте всех мутантов.')}
 
 КОД В РЕДАКТОРЕ ПОЛЬЗОВАТЕЛЯ:
 \`\`\`java
-${codeSnippet || '// Код теста'}
+${codeSnippet || '// Код задачи'}
 \`\`\`
 
 === 4. СЛУШАНИЕ И ВЗАИМОДЕЙСТВИЕ ===

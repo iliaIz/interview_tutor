@@ -26,6 +26,7 @@ import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConso
 import { MutationExecutionResponse } from '../../types/practice';
 import { evaluateAstRules } from '../../utils/astRules';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { CodeArtifactTimeline } from '../CodeArtifactTimeline';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -70,7 +71,13 @@ export const WorkspaceEditor: React.FC = () => {
     setPracticeElapsedSeconds,
     showToast,
     academyBreadcrumbContext,
-    toggleAcademyStepProgress
+    toggleAcademyStepProgress,
+    activeWorkspaceView,
+    setActiveWorkspaceView,
+    hasUnseenWhiteboardUpdate,
+    markWhiteboardSeen,
+    activeWhiteboardState,
+    codeRevisions
   } = useAppStore();
 
   const [isDiffOpen, setIsDiffOpen] = useState(false);
@@ -89,17 +96,35 @@ export const WorkspaceEditor: React.FC = () => {
 
   const { toggleCompass, toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
 
-  // Global shortcut: Ctrl + / (or Cmd + /) toggles Testing Compass overlay
+  // Global shortcut: Ctrl + / toggles Compass; Alt + W toggles Whiteboard; Esc exits Whiteboard
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
         toggleCompass();
+      } else if (e.altKey && (e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц')) {
+        e.preventDefault();
+        setActiveWorkspaceView(activeWorkspaceView === 'whiteboard' ? 'editor' : 'whiteboard');
+      } else if (e.key === 'Escape' && activeWorkspaceView === 'whiteboard') {
+        setActiveWorkspaceView('editor');
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [toggleCompass]);
+  }, [toggleCompass, activeWorkspaceView, setActiveWorkspaceView]);
+
+  // Toast notification when AI writes to Whiteboard in background
+  useEffect(() => {
+    if (hasUnseenWhiteboardUpdate && activeWorkspaceView !== 'whiteboard') {
+      showToast({
+        type: 'info',
+        title: '🎨 ИИ обновил доску',
+        message: activeWhiteboardState?.title
+          ? `«${activeWhiteboardState.title}» (нажмите Alt+W)`
+          : 'Напарник оставил запись на доске (Alt+W)'
+      });
+    }
+  }, [hasUnseenWhiteboardUpdate, activeWorkspaceView, activeWhiteboardState?.title, showToast]);
 
   // Timer effect
   useEffect(() => {
@@ -328,13 +353,16 @@ export const WorkspaceEditor: React.FC = () => {
       <div className="flex items-center justify-between bg-slate-900 border-b border-slate-800 px-3 py-1.5 gap-2 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x py-0.5">
           {practiceWorkspaceFiles.map((file, idx) => {
-            const isActive = activeWorkspaceFileIndex === idx;
+            const isActive = activeWorkspaceView === 'editor' && activeWorkspaceFileIndex === idx;
             const fileName = file.path.split('/').pop() || file.path;
 
             return (
               <button
                 key={file.path}
-                onClick={() => setActiveWorkspaceFileIndex(idx)}
+                onClick={() => {
+                  setActiveWorkspaceFileIndex(idx);
+                  setActiveWorkspaceView('editor');
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
                   isActive
                     ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40 font-bold shadow-2xs'
@@ -351,6 +379,34 @@ export const WorkspaceEditor: React.FC = () => {
               </button>
             );
           })}
+
+          {/* Integrated AI Whiteboard Tab */}
+          <div className="h-5 w-px bg-slate-800 shrink-0 mx-1" />
+          <button
+            onClick={() => setActiveWorkspaceView(activeWorkspaceView === 'whiteboard' ? 'editor' : 'whiteboard')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer shrink-0 min-h-[36px] ${
+              activeWorkspaceView === 'whiteboard'
+                ? 'bg-gradient-to-r from-violet-900/80 via-purple-900/70 to-indigo-900/80 text-white border border-purple-400/50 font-bold shadow-md ring-1 ring-purple-400/30'
+                : hasUnseenWhiteboardUpdate
+                ? 'bg-amber-950/50 text-amber-300 border border-amber-500/50 hover:bg-amber-900/50 animate-pulse'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+            }`}
+            title="Интерактивная доска ИИ (нажмите или Alt + W)"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${hasUnseenWhiteboardUpdate ? 'text-amber-400 animate-spin' : activeWorkspaceView === 'whiteboard' ? 'text-purple-300' : 'text-slate-500'}`} />
+            <span>Доска ИИ</span>
+            {codeRevisions && codeRevisions.length > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                activeWorkspaceView === 'whiteboard' ? 'bg-purple-400/30 text-purple-200' : 'bg-slate-800 text-slate-400'
+              }`}>
+                v{codeRevisions.length}
+              </span>
+            )}
+            {hasUnseenWhiteboardUpdate && (
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            )}
+            <kbd className="hidden xl:inline text-[9px] px-1 rounded bg-slate-900/80 text-slate-400 font-mono">Alt+W</kbd>
+          </button>
         </div>
 
 
@@ -380,62 +436,145 @@ export const WorkspaceEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */}
-      <div 
-        className="flex-1 flex overflow-hidden relative font-mono text-xs"
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            void handleRunSandbox();
-          }
-        }}
-      >
-        <CodeMirror
-          value={currentFile.content}
-          height="100%"
-          className="w-full h-full custom-codemirror-container"
-          theme={luxuryPastelTheme}
-          extensions={[java()]}
-          readOnly={currentFile.readOnly}
-          editable={!currentFile.readOnly}
-          indentWithTab={true}
-          basicSetup={{
-            lineNumbers: true,
-            highlightActiveLineGutter: true,
-            highlightSpecialChars: true,
-            history: true,
-            foldGutter: true,
-            drawSelection: true,
-            dropCursor: true,
-            allowMultipleSelections: true,
-            indentOnInput: true,
-            syntaxHighlighting: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            autocompletion: true,
-            rectangularSelection: true,
-            crosshairCursor: true,
-            highlightActiveLine: true,
-            highlightSelectionMatches: true,
-            closeBracketsKeymap: true,
-            defaultKeymap: true,
-            searchKeymap: true,
-            historyKeymap: true,
-            foldKeymap: true,
-            completionKeymap: true,
-            lintKeymap: true
-          }}
-          onChange={(value) => {
-            updateWorkspaceFileContent(activeWorkspaceFileIndex, value);
-          }}
-        />
+      {/* Main Workspace Area: Either Whiteboard Surface or Code Editor */}
+      {activeWorkspaceView === 'whiteboard' ? (
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#121622] text-slate-200 p-4 custom-scrollbar">
+          {/* Whiteboard Header Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/90 rounded-2xl border border-purple-500/30 shadow-lg mb-3 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-xs text-white truncate">
+                    {activeWhiteboardState?.title || 'Интерактивная доска напарника'}
+                  </h3>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                    {activeWhiteboardState?.action === 'patch'
+                      ? '🔧 Diff / Изменения'
+                      : activeWhiteboardState?.action === 'highlight'
+                      ? '🔍 Разбор строк'
+                      : '✨ Демонстрация ИИ'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 truncate">
+                  {activeWhiteboardState?.language?.toUpperCase() || 'JAVA 21'} • Интерактивный артефакт в реальном времени
+                </p>
+              </div>
+            </div>
 
-        {currentFile.readOnly && (
-          <div className="absolute top-3 right-5 bg-slate-900/90 text-slate-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-700 pointer-events-none flex items-center gap-1.5 shadow-md z-10">
-            <Lock className="w-3 h-3 text-amber-400" /> Контракт (Read-Only)
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setActiveWorkspaceView('editor')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
+                title="Вернуться к коду задачи (Esc или Alt+W)"
+              >
+                <span>← Вернуться к коду</span>
+                <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 font-mono">Esc</kbd>
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Optional Explanation Callout */}
+          {activeWhiteboardState?.explanation && (
+            <div className="mb-3 px-4 py-2.5 bg-gradient-to-r from-purple-950/40 via-[#141220] to-indigo-950/40 border border-purple-500/30 rounded-2xl flex items-start gap-2 text-xs text-slate-300 leading-relaxed shadow-xs shrink-0">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+              <p className="text-[11px]">{activeWhiteboardState.explanation}</p>
+            </div>
+          )}
+
+          {/* Highlight Lines Notification */}
+          {activeWhiteboardState?.highlightLines && activeWhiteboardState.highlightLines.length > 0 && (
+            <div className="mb-3 px-4 py-1.5 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-center gap-2 text-[10px] text-amber-300 shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Фокус на строках: {activeWhiteboardState.highlightLines.join(', ')}</span>
+            </div>
+          )}
+
+          {/* Code Artifact Revisions Timeline & Diff Viewer */}
+          {codeRevisions && codeRevisions.length > 0 ? (
+            <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+              <CodeArtifactTimeline showDiffToggle={true} />
+            </div>
+          ) : activeWhiteboardState?.code ? (
+            <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+              <CodeArtifactTimeline showDiffToggle={true} />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-800 rounded-3xl text-slate-500">
+              <Sparkles className="w-10 h-10 text-purple-400/40 mb-3 animate-pulse" />
+              <h4 className="text-sm font-bold text-slate-300 mb-1">Доска пока пуста</h4>
+              <p className="text-xs max-w-md text-slate-400 mb-4">
+                Спросите голосового напарника или попросите его показать пример: «Напиши на доске пример для этого класса» — и код появится здесь с историей ревизий и подсветкой diff.
+              </p>
+              <button
+                onClick={() => setActiveWorkspaceView('editor')}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+              >
+                Вернуться в редактор кода
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */
+        <div 
+          className="flex-1 flex overflow-hidden relative font-mono text-xs"
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              void handleRunSandbox();
+            }
+          }}
+        >
+          <CodeMirror
+            value={currentFile.content}
+            height="100%"
+            className="w-full h-full custom-codemirror-container"
+            theme={luxuryPastelTheme}
+            extensions={[java()]}
+            readOnly={currentFile.readOnly}
+            editable={!currentFile.readOnly}
+            indentWithTab={true}
+            basicSetup={{
+              lineNumbers: true,
+              highlightActiveLineGutter: true,
+              highlightSpecialChars: true,
+              history: true,
+              foldGutter: true,
+              drawSelection: true,
+              dropCursor: true,
+              allowMultipleSelections: true,
+              indentOnInput: true,
+              syntaxHighlighting: true,
+              bracketMatching: true,
+              closeBrackets: true,
+              autocompletion: true,
+              rectangularSelection: true,
+              crosshairCursor: true,
+              highlightActiveLine: true,
+              highlightSelectionMatches: true,
+              closeBracketsKeymap: true,
+              defaultKeymap: true,
+              searchKeymap: true,
+              historyKeymap: true,
+              foldKeymap: true,
+              completionKeymap: true,
+              lintKeymap: true
+            }}
+            onChange={(value) => {
+              updateWorkspaceFileContent(activeWorkspaceFileIndex, value);
+            }}
+          />
+
+          {currentFile.readOnly && (
+            <div className="absolute top-3 right-5 bg-slate-900/90 text-slate-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-700 pointer-events-none flex items-center gap-1.5 shadow-md z-10">
+              <Lock className="w-3 h-3 text-amber-400" /> Контракт (Read-Only)
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Slide-Up In-Memory Sandbox Test Console (< 80ms) */}
       <SandboxTestConsole

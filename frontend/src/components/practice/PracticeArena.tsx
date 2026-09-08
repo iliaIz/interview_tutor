@@ -8,6 +8,7 @@ import { TransactionLabArena } from './TransactionLabArena';
 import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2, Compass, Bot } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { TestingCompassSheet } from './compass/TestingCompassSheet';
+import { LLDCompassSheet } from './compass/LLDCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 
 export const PracticeArena: React.FC = () => {
@@ -40,6 +41,10 @@ export const PracticeArena: React.FC = () => {
   if (!activePracticeChallenge) {
     return <PracticeCatalog />;
   }
+
+  const isLldChallenge =
+    activePracticeChallenge?.category === 'LLD & Machine Coding' ||
+    Boolean(activePracticeChallenge?.track?.startsWith('lld_'));
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg relative">
@@ -111,8 +116,16 @@ export const PracticeArena: React.FC = () => {
           {/* Compass & AI-Tutor Action Buttons */}
           <button
             onClick={() => toggleCompass()}
-            title="Testing Compass: 5 Золотых Заповедей (Ctrl + /)"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-2xs"
+            title={
+              isLldChallenge
+                ? 'LLD Compass: 5 Золотых Заповедей Архитектора (Ctrl + /)'
+                : 'Testing Compass: 5 Золотых Заповедей Инженера (Ctrl + /)'
+            }
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+              isLldChallenge
+                ? 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-600 hover:text-white'
+                : 'bg-pastel-rose text-pastel-accentRoseText border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white'
+            }`}
           >
             <Compass className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Компас</span>
@@ -187,8 +200,8 @@ export const PracticeArena: React.FC = () => {
         onRetry={() => setActivePracticeReport(null)}
       />
 
-      {/* Testing Compass Top Overlay */}
-      <TestingCompassSheet />
+      {/* Context-Aware Compass Top Overlay (LLD vs Testing) */}
+      {isLldChallenge ? <LLDCompassSheet /> : <TestingCompassSheet />}
 
       {/* Multimodal AI Pair-Programming Sidecar Drawer */}
       <PracticeTutorDrawer />
