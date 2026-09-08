@@ -469,23 +469,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 onBargeIn={audio.handleBargeIn}
                 onEndTurn={audio.finishManualTurn}
                 onToggleMic={audio.toggleMic}
-                onInstantRestEvalFallback={() => {
-                  // Instant REST eval fallback if needed
-                  fetch('/api/eval', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      questionId: batch.activeQuestionId,
-                      topic: batch.activeTopic,
-                      question: batch.activeQuestionText,
-                      referenceAnswer: batch.activeReferenceAnswer,
-                      userAnswer: coaching.liveTranscript || 'Устный ответ кандидата'
-                    })
-                  })
-                    .then((res) => res.json())
-                    .then((resData) => handleEvaluationFinalized(resData))
-                    .catch(() => {});
-                }}
                 speechCoachingMode={coaching.speechCoachingMode}
                 liveClarityMetrics={coaching.liveClarityMetrics}
                 questionStructure={questionStructure}

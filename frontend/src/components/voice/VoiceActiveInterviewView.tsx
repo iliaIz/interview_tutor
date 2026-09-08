@@ -8,7 +8,6 @@ import {
   RotateCcw,
   CheckCircle2,
   Loader2,
-  Zap,
   Clock,
   Send,
   WifiOff,
@@ -39,7 +38,6 @@ export interface VoiceActiveInterviewViewProps {
   onBargeIn: () => void;
   onEndTurn: () => void;
   onToggleMic: () => void;
-  onInstantRestEvalFallback: () => void;
   speechCoachingMode: string;
   liveClarityMetrics: SpeechClarityMetrics | null;
   questionStructure: any;
@@ -75,7 +73,6 @@ export const VoiceActiveInterviewView: React.FC<VoiceActiveInterviewViewProps> =
   onBargeIn,
   onEndTurn,
   onToggleMic,
-  onInstantRestEvalFallback,
   speechCoachingMode,
   liveClarityMetrics,
   questionStructure,
@@ -293,15 +290,6 @@ export const VoiceActiveInterviewView: React.FC<VoiceActiveInterviewViewProps> =
                   >
                     <Mic className="w-3 h-3 text-emerald-600" />
                     <span>Продолжить говорить</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onInstantRestEvalFallback}
-                    className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shadow-2xs cursor-pointer flex items-center gap-1"
-                    title="Мгновенно запросить оценку через быстрый REST"
-                  >
-                    <Zap className="w-3 h-3 fill-current" />
-                    <span>Экспресс-оценка</span>
                   </button>
                 </div>
               )}

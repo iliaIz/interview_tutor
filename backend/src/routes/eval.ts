@@ -34,6 +34,16 @@ router.post('/', asyncHandler(async (req, res) => {
     throw new AppError('Missing required parameters: question, referenceAnswer, userAnswer', 400);
   }
 
+  const trimmedAnswer = typeof userAnswer === 'string' ? userAnswer.trim() : '';
+  const isDummyPlaceholder =
+    trimmedAnswer.length < 15 ||
+    trimmedAnswer.toLowerCase().includes('устный ответ кандидата') ||
+    trimmedAnswer.toLowerCase().includes('кандидат завершил ответ без звука');
+
+  if (isDummyPlaceholder) {
+    throw new AppError('Ответ кандидата отсутствует или не содержит содержательного текста для оценки', 422);
+  }
+
   const evaluation = await evaluateAnswerWithGemini(question, referenceAnswer, userAnswer, userGender || 'female');
 
   let decayResult = null;
@@ -107,6 +117,12 @@ router.post('/save', asyncHandler(async (req, res) => {
 
   const numScore = Math.round(Number(score));
   const passedBool = isPassed !== undefined ? !!isPassed : numScore >= 70;
+
+  const trimmedAnswer = typeof userAnswer === 'string' ? userAnswer.trim() : '';
+  const isDummyText = trimmedAnswer.length < 15 || trimmedAnswer.toLowerCase().includes('устный ответ кандидата');
+  if (numScore === 0 && isDummyText && !transcript) {
+    throw new AppError('Попытка сохранения фантомной нулевой оценки без содержательного ответа кандидата заблокирована', 422);
+  }
 
   const { evalId, progress } = recordEvaluationAndSyncProgress({
     userId,
