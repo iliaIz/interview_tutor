@@ -35,6 +35,10 @@ router.get('/challenges', asyncHandler(async (req, res) => {
 
   const rows = db.prepare(query).all(...params) as any[];
 
+  // Global stable task number mapping based on canonical DB creation ordering
+  const allIds = db.prepare('SELECT id FROM coding_challenges ORDER BY created_at ASC, id ASC').all() as { id: string }[];
+  const idToNumber = new Map(allIds.map((row, idx) => [row.id, idx + 1]));
+
   // Fetch submission status for the authenticated user
   const subStmt = db.prepare('SELECT challenge_id, status, score, updated_at FROM coding_submissions WHERE user_id = ?');
   const submissions = subStmt.all(userId) as any[];
@@ -44,6 +48,7 @@ router.get('/challenges', asyncHandler(async (req, res) => {
     const sub = subMap.get(r.id);
     return {
       ...r,
+      taskNumber: idToNumber.get(r.id) || 1,
       track: r.track || 'lld_bigtech',
       timeLimitMinutes: r.time_limit_minutes,
       targetStack: r.target_stack,
@@ -71,6 +76,11 @@ router.get('/challenges/:id', asyncHandler(async (req, res) => {
   if (!manifest) {
     throw new AppError('Corrupted challenge manifest data', 500);
   }
+
+  // Canonical task number
+  const allIds = db.prepare('SELECT id FROM coding_challenges ORDER BY created_at ASC, id ASC').all() as { id: string }[];
+  const idToNumber = new Map(allIds.map((r, idx) => [r.id, idx + 1]));
+  manifest.taskNumber = idToNumber.get(manifest.id) || 1;
 
   // Check if user has an active draft
   const draftRow = db.prepare('SELECT files_json, active_phase, status, score, evaluation_json, time_spent_seconds FROM coding_submissions WHERE challenge_id = ? AND user_id = ?')

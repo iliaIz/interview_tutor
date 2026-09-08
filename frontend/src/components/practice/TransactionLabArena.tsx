@@ -21,6 +21,7 @@ import {
   Bot
 } from 'lucide-react';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
+import { CodeViewer } from '../CodeViewer';
 import {
   TransactionScenario,
   TransactionAnnotationConfig,
@@ -436,9 +437,13 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
                         </div>
 
                         {/* Method Code Snippet */}
-                        <pre className="p-3 rounded-lg bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
-                          <code>{method.codeSnippet}</code>
-                        </pre>
+                        <div className="rounded-xl overflow-hidden border border-slate-800/80 shadow-xs">
+                          <CodeViewer
+                            code={method.codeSnippet}
+                            language="java"
+                            showLineNumbers={false}
+                          />
+                        </div>
                       </div>
                     );
                   })}

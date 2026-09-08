@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { luxuryPastelTheme } from '../../../theme/codeMirrorTheme';
 import confetti from 'canvas-confetti';
 import { MICRO_KATAS, MicroKata } from './MicroKatasCatalog';
 import { MarkdownRenderer } from '../../MarkdownRenderer';
@@ -163,11 +163,11 @@ export const MicroKataArena: React.FC<MicroKataArenaProps> = ({ initialKataId, o
                 Java 21 Virtual Threads
               </span>
             </div>
-            <div className="rounded-lg overflow-hidden border border-pastel-border text-xs">
+            <div className="rounded-lg overflow-hidden border border-pastel-border text-xs codeviewer-codemirror">
               <CodeMirror
                 value={activeKata.javaCodeSnippet}
                 extensions={[java()]}
-                theme={oneDark}
+                theme={luxuryPastelTheme}
                 readOnly
                 basicSetup={{
                   lineNumbers: true,

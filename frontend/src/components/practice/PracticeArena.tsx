@@ -76,6 +76,11 @@ export const PracticeArena: React.FC = () => {
           <div className="h-4 w-px bg-pastel-border shrink-0" />
 
           <div className="flex items-center gap-1.5 min-w-0">
+            {activePracticeChallenge.taskNumber && (
+              <span className="font-mono text-xs font-black px-1.5 py-0.5 rounded-md bg-slate-900 text-pastel-accentRose border border-slate-700/60 shrink-0">
+                #{String(activePracticeChallenge.taskNumber).padStart(2, '0')}
+              </span>
+            )}
             <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-xs">
               {activePracticeChallenge.title}
             </span>

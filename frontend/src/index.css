@@ -90,6 +90,51 @@
   color: #f472b6 !important;
 }
 
+/* CodeMirror SOTA Unified CodeViewer & Diff Styling */
+.codeviewer-codemirror .cm-editor {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.65 !important;
+  background-color: #121622 !important;
+}
+
+.codeviewer-codemirror .cm-scroller {
+  font-family: inherit !important;
+}
+
+.codeviewer-codemirror .cm-gutters {
+  border-right: 1px solid #1e2638 !important;
+  background-color: #121622 !important;
+  color: #64748b !important;
+}
+
+.codeviewer-codemirror .cm-gutterElement {
+  cursor: pointer !important;
+  transition: color 0.15s ease;
+}
+
+.codeviewer-codemirror .cm-gutterElement:hover {
+  color: #f472b6 !important;
+}
+
+/* Diff line highlighting */
+.cm-diff-added {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  border-left: 2.5px solid #10b981 !important;
+}
+
+.cm-diff-removed {
+  background-color: rgba(244, 63, 94, 0.15) !important;
+  border-left: 2.5px solid #f43f5e !important;
+}
+
+/* Deictic Grounding (AI Focus) line highlighting */
+.cm-focus-line {
+  background-color: rgba(167, 139, 250, 0.22) !important;
+  border-left: 2.5px solid #a78bfa !important;
+}
+
+
 /* Mobile Touch & Overscroll Containment (SOTA 2026 Mobile UX) */
 .modal-overscroll-contain {
   overscroll-behavior: contain !important;

@@ -15,7 +15,7 @@ import {
   Lock,
   Unlock
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '../MarkdownRenderer';
 
 export const ChallengeSpecPanel: React.FC = () => {
   const {
@@ -64,10 +64,17 @@ export const ChallengeSpecPanel: React.FC = () => {
       {/* Top Header info */}
       <div className="p-4 border-b border-pastel-border/60 bg-pastel-bg/50">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-            {challenge.badge}
-          </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-muted">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {challenge.taskNumber && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-slate-900 text-pastel-accentRose border border-slate-700/60 shrink-0">
+                #{String(challenge.taskNumber).padStart(2, '0')}
+              </span>
+            )}
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20 truncate">
+              {challenge.badge}
+            </span>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-muted shrink-0">
             {challenge.difficulty}
           </span>
         </div>
@@ -127,8 +134,8 @@ export const ChallengeSpecPanel: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs leading-relaxed custom-scrollbar">
         {activeTab === 'spec' && (
           <div className="space-y-4">
-            <div className="prose prose-xs max-w-none text-pastel-text prose-headings:text-pastel-text prose-strong:text-pastel-text prose-code:text-pastel-accentViolet prose-code:bg-pastel-bg prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
-              <ReactMarkdown>{challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''}</ReactMarkdown>
+            <div className="max-w-none text-pastel-text">
+              <MarkdownRenderer content={challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''} />
             </div>
 
             {/* Invariants and Scoring Rules */}
@@ -164,9 +171,9 @@ export const ChallengeSpecPanel: React.FC = () => {
                   <span>{activePracticePhase === 2 ? 'Фаза 2 активна' : 'Активировать Фазу 2 вручную'}</span>
                 </button>
               </div>
-              <p className="text-xs leading-relaxed">
-                {phasedReq.descriptionMarkdown}
-              </p>
+              <div className="text-xs leading-relaxed">
+                <MarkdownRenderer content={phasedReq.descriptionMarkdown} compact={true} />
+              </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-white border border-pastel-border space-y-2">

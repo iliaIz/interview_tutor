@@ -13,6 +13,7 @@ import {
   Zap,
   BookOpen
 } from 'lucide-react';
+import { CodeViewer } from '../../CodeViewer';
 
 interface TransactionCompassSheetProps {
   isOpen: boolean;
@@ -236,9 +237,13 @@ export const TransactionCompassSheet: React.FC<TransactionCompassSheetProps> = (
                     <Flame className="w-3.5 h-3.5 text-rose-500" />
                     Ключевая формула / Архитектурный паттерн:
                   </span>
-                  <pre className="p-3 rounded-xl bg-slate-900 text-violet-300 font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800">
-                    <code>{activeRule.formulaOrCode}</code>
-                  </pre>
+                  <div className="rounded-xl overflow-hidden border border-slate-800 shadow-xs">
+                    <CodeViewer
+                      code={activeRule.formulaOrCode}
+                      language="java"
+                      showLineNumbers={false}
+                    />
+                  </div>
                 </div>
               )}
 

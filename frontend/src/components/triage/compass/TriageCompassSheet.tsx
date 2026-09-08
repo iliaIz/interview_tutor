@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Lock
 } from 'lucide-react';
+import { CodeViewer } from '../../CodeViewer';
 
 interface TriageCompassSheetProps {
   isOpen: boolean;
@@ -333,9 +334,13 @@ export const TriageCompassSheet: React.FC<TriageCompassSheetProps> = ({
                   <Terminal className="w-3.5 h-3.5 text-rose-600" />
                   <span>Диагностический код & Формула:</span>
                 </h4>
-                <pre className="p-3.5 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto border border-slate-800 leading-relaxed shadow-inner">
-                  {currentRule.formulaOrCode}
-                </pre>
+                <div className="rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
+                  <CodeViewer
+                    code={currentRule.formulaOrCode}
+                    language="java"
+                    showLineNumbers={false}
+                  />
+                </div>
               </div>
             )}
 

@@ -107,6 +107,7 @@ export interface CodingChallenge {
   id: string;
   slug: string;
   title: string;
+  taskNumber?: number;
   category: string;
   track?: string;
   badge: string;

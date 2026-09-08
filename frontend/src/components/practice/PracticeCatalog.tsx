@@ -25,10 +25,67 @@ import {
   Play,
   Bug,
   Database,
-  Crosshair
+  Crosshair,
+  ChevronDown,
+  ChevronUp,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
+
+export type GradeLevel = 'all' | 'junior' | 'middle' | 'senior' | 'lead';
+
+export interface GradeConfig {
+  id: GradeLevel;
+  label: string;
+  badge: string;
+  dotColor: string;
+  colorClass: string;
+  description: string;
+}
+
+export const GRADE_CONFIGS: Record<Exclude<GradeLevel, 'all'>, GradeConfig> = {
+  junior: {
+    id: 'junior',
+    label: 'Junior',
+    badge: '🟢 Junior',
+    dotColor: 'bg-emerald-500',
+    colorClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    description: 'Базовые структуры данных, примитивы, чистые алгоритмы и юнит-тесты L0'
+  },
+  middle: {
+    id: 'middle',
+    label: 'Middle',
+    badge: '🔵 Middle',
+    dotColor: 'bg-blue-500',
+    colorClass: 'bg-blue-100 text-blue-800 border-blue-300',
+    description: 'Транзакции, многопоточность, паттерны проектирования, моки Mockito 5'
+  },
+  senior: {
+    id: 'senior',
+    label: 'Senior',
+    badge: '🔴 Senior',
+    dotColor: 'bg-rose-500',
+    colorClass: 'bg-rose-100 text-rose-800 border-rose-300',
+    description: 'Высоконагруженные распределенные примитивы, Loom, мутации L2-L3, FinTech'
+  },
+  lead: {
+    id: 'lead',
+    label: 'Lead / Staff',
+    badge: '🟣 Lead',
+    dotColor: 'bg-purple-500',
+    colorClass: 'bg-purple-100 text-purple-800 border-purple-300',
+    description: 'Архитектура систем, распределенные саги, zero-allocation буферы, стейт-машины'
+  }
+};
+
+export const normalizeGrade = (diff?: string): Exclude<GradeLevel, 'all'> => {
+  const lower = (diff || '').toLowerCase().trim();
+  if (lower === 'lead' || lower === 'staff' || lower === 'principal') return 'lead';
+  if (lower === 'senior') return 'senior';
+  if (lower === 'middle') return 'middle';
+  return 'junior';
+};
 
 const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
@@ -59,9 +116,24 @@ export const PracticeCatalog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory>('all');
   const [selectedArchetype, setSelectedArchetype] = useState<string>('all');
+  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>('all');
+  const [isGroupedByGrade, setIsGroupedByGrade] = useState<boolean>(false);
+  const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({
+    junior: true,
+    middle: true,
+    senior: true,
+    lead: true
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const toggleGradeSection = (gradeKey: string) => {
+    setExpandedGrades((prev) => ({
+      ...prev,
+      [gradeKey]: !prev[gradeKey]
+    }));
+  };
 
   const fetchChallenges = async () => {
     try {
@@ -86,6 +158,31 @@ export const PracticeCatalog: React.FC = () => {
     fetchChallenges();
   }, []);
 
+  // Stable canonical numbering map based on initial list order
+  const challengeNumberMap = useMemo(() => {
+    const map = new Map<string, number>();
+    challenges.forEach((ch, idx) => {
+      map.set(ch.id, ch.taskNumber || idx + 1);
+    });
+    return map;
+  }, [challenges]);
+
+  // Overall grade statistics for counters
+  const gradeStats = useMemo(() => {
+    const stats: Record<GradeLevel, number> = {
+      all: challenges.length,
+      junior: 0,
+      middle: 0,
+      senior: 0,
+      lead: 0
+    };
+    challenges.forEach((c) => {
+      const g = normalizeGrade(c.difficulty);
+      stats[g] = (stats[g] || 0) + 1;
+    });
+    return stats;
+  }, [challenges]);
+
   const filteredChallenges = useMemo(() => {
     return challenges.filter((c) => {
       const isMutationKata =
@@ -103,6 +200,11 @@ export const PracticeCatalog: React.FC = () => {
 
       if (!matchesCategory) return false;
 
+      if (selectedGrade !== 'all') {
+        const g = normalizeGrade(c.difficulty);
+        if (g !== selectedGrade) return false;
+      }
+
       if (selectedCategory === 'testing_mutation' && selectedArchetype !== 'all') {
         const arch = TESTING_ARCHETYPES.find(a => a.id === selectedArchetype);
         if (arch && arch.match.length > 0) {
@@ -119,7 +221,22 @@ export const PracticeCatalog: React.FC = () => {
         (c.targetStack && c.targetStack.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesSearch;
     });
-  }, [challenges, selectedCategory, selectedArchetype, searchQuery]);
+  }, [challenges, selectedCategory, selectedGrade, selectedArchetype, searchQuery]);
+
+  // Grouped challenges for structured accordion view
+  const groupedChallenges = useMemo(() => {
+    const groups: Record<Exclude<GradeLevel, 'all'>, CodingChallenge[]> = {
+      junior: [],
+      middle: [],
+      senior: [],
+      lead: []
+    };
+    filteredChallenges.forEach((ch) => {
+      const g = normalizeGrade(ch.difficulty);
+      groups[g].push(ch);
+    });
+    return groups;
+  }, [filteredChallenges]);
 
   // Keep selectedId valid
   useEffect(() => {
@@ -142,7 +259,8 @@ export const PracticeCatalog: React.FC = () => {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
       const data = await res.json();
-      openPracticeChallenge(data.challenge, data.savedDraft);
+      const taskNum = data.challenge?.taskNumber || challengeNumberMap.get(challengeId) || 1;
+      openPracticeChallenge({ ...data.challenge, taskNumber: taskNum }, data.savedDraft);
     } catch (err: any) {
       console.error('Error loading challenge details:', err);
       showToast({
@@ -195,6 +313,71 @@ export const PracticeCatalog: React.FC = () => {
       default:
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
     }
+  };
+
+  const renderChallengeCard = (ch: CodingChallenge) => {
+    const isSelected = selectedId === ch.id;
+    const isCompleted = ch.isCompleted;
+    const taskNum = ch.taskNumber || challengeNumberMap.get(ch.id) || 1;
+
+    return (
+      <div
+        key={ch.id}
+        onClick={() => setSelectedId(ch.id)}
+        className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-2.5 relative select-none ${
+          isSelected
+            ? 'bg-white border-pastel-accentRose shadow-sm ring-2 ring-pastel-accentRose/30'
+            : 'bg-white/80 hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs'
+        }`}
+      >
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-mono font-bold text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-pastel-accentRose border border-slate-700/60 shadow-2xs shrink-0">
+                #{String(taskNum).padStart(2, '0')}
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-pastel-bg text-pastel-muted border border-pastel-border truncate">
+                {ch.badge}
+              </span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md border ${getDifficultyColor(ch.difficulty)}`}>
+                {ch.difficulty}
+              </span>
+            </div>
+
+            {isCompleted ? (
+              <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shrink-0">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>{ch.lastScore || 85}б</span>
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono text-pastel-muted flex items-center gap-1 shrink-0">
+                <Clock className="w-3 h-3 text-pastel-accentViolet" />
+                <span>{ch.timeLimitMinutes}м</span>
+              </span>
+            )}
+          </div>
+
+          <h3 className={`font-bold text-xs sm:text-sm transition-colors ${isSelected ? 'text-pastel-accentRose' : 'text-pastel-text'}`}>
+            {ch.title}
+          </h3>
+
+          <p className="text-xs text-pastel-muted line-clamp-2 mt-1 leading-snug">
+            {ch.shortDescription}
+          </p>
+        </div>
+
+        {/* Footer stack chips */}
+        <div className="flex items-center justify-between pt-2 border-t border-pastel-border/50 text-[11px]">
+          <span className="text-pastel-muted font-mono text-[10px] truncate max-w-[200px]">
+            🛠️ {ch.targetStack}
+          </span>
+          <span className="font-bold text-pastel-accentRose flex items-center gap-0.5 text-[10px]">
+            <span>Обзор</span>
+            <ArrowRight className="w-3 h-3" />
+          </span>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -387,6 +570,76 @@ export const PracticeCatalog: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* Grade Filter Pills & Grouping Toggle */}
+        {selectedCategory !== 'spring_transactions' && (
+          <div className="mt-3 pt-3 border-t border-pastel-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-fade-in">
+            {/* Grade Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+              <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-purple-600" />
+                Грейды:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedGrade('all')}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  selectedGrade === 'all'
+                    ? 'bg-pastel-text text-white shadow-2xs'
+                    : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
+                }`}
+              >
+                <span>Все грейды</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${selectedGrade === 'all' ? 'bg-white/20 text-white' : 'bg-pastel-card text-pastel-muted'}`}>
+                  {gradeStats.all}
+                </span>
+              </button>
+              {(['junior', 'middle', 'senior', 'lead'] as const).map((gradeKey) => {
+                const cfg = GRADE_CONFIGS[gradeKey];
+                const count = gradeStats[gradeKey];
+                const isSelected = selectedGrade === gradeKey;
+                return (
+                  <button
+                    key={gradeKey}
+                    type="button"
+                    onClick={() => setSelectedGrade(gradeKey)}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-pastel-text text-white shadow-2xs'
+                        : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${cfg.dotColor}`} />
+                    <span>{cfg.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isSelected ? 'bg-white/20 text-white' : 'bg-pastel-card text-pastel-muted'}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Grouping Toggle */}
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setIsGroupedByGrade(!isGroupedByGrade)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                  isGroupedByGrade
+                    ? 'bg-purple-50 text-purple-800 border-purple-300 shadow-2xs ring-1 ring-purple-300/50'
+                    : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/70'
+                }`}
+                title="Группировать задачи по уровням Junior / Middle / Senior / Lead"
+              >
+                <Layers className={`w-3.5 h-3.5 ${isGroupedByGrade ? 'text-purple-600' : 'text-pastel-muted'}`} />
+                <span>Группировка по грейдам</span>
+                {isGroupedByGrade && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. MASTER-DETAIL SPLIT STUDIO LAYOUT (SOTA 2026) */}
@@ -481,67 +734,58 @@ export const PracticeCatalog: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column: Master Challenges List (5 cols / 42%) */}
           <div className="lg:col-span-5 space-y-2.5 max-h-[750px] overflow-y-auto pr-1 no-scrollbar">
-          {filteredChallenges.map((ch) => {
-            const isSelected = selectedId === ch.id;
-            const isCompleted = ch.isCompleted;
+            {isGroupedByGrade ? (
+              <div className="space-y-3">
+                {(['junior', 'middle', 'senior', 'lead'] as const).map((gradeKey) => {
+                  const list = groupedChallenges[gradeKey];
+                  if (list.length === 0) return null;
+                  const cfg = GRADE_CONFIGS[gradeKey];
+                  const isExpanded = expandedGrades[gradeKey] ?? true;
+                  const completedCount = list.filter((c) => c.isCompleted).length;
 
-            return (
-              <div
-                key={ch.id}
-                onClick={() => setSelectedId(ch.id)}
-                className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-2.5 relative select-none ${
-                  isSelected
-                    ? 'bg-white border-pastel-accentRose shadow-sm ring-2 ring-pastel-accentRose/30'
-                    : 'bg-white/80 hover:bg-white border-pastel-border/80 hover:border-pastel-accentRose/40 shadow-2xs'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-pastel-bg text-pastel-muted border border-pastel-border truncate">
-                        {ch.badge}
-                      </span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md border ${getDifficultyColor(ch.difficulty)}`}>
-                        {ch.difficulty}
-                      </span>
+                  return (
+                    <div
+                      key={gradeKey}
+                      className="rounded-2xl border border-pastel-border/80 bg-white/95 overflow-hidden shadow-2xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleGradeSection(gradeKey)}
+                        className="w-full px-3.5 py-2.5 flex items-center justify-between hover:bg-pastel-bg/60 transition cursor-pointer text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${cfg.dotColor} shrink-0`} />
+                          <span className="font-bold text-xs text-pastel-text">{cfg.label}</span>
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-pastel-bg text-pastel-muted border border-pastel-border">
+                            {list.length}
+                          </span>
+                          {completedCount > 0 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              ✓ {completedCount}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-pastel-muted">
+                          <span className="text-[10px] text-pastel-muted hidden sm:inline max-w-[170px] truncate">
+                            {cfg.description}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="p-2 space-y-2 border-t border-pastel-border/50 bg-pastel-bg/25">
+                          {list.map(renderChallengeCard)}
+                        </div>
+                      )}
                     </div>
-
-                    {isCompleted ? (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shrink-0">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>{ch.lastScore || 85}б</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-pastel-muted flex items-center gap-1 shrink-0">
-                        <Clock className="w-3 h-3 text-pastel-accentViolet" />
-                        <span>{ch.timeLimitMinutes}м</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className={`font-bold text-xs sm:text-sm transition-colors ${isSelected ? 'text-pastel-accentRose' : 'text-pastel-text'}`}>
-                    {ch.title}
-                  </h3>
-
-                  <p className="text-xs text-pastel-muted line-clamp-2 mt-1 leading-snug">
-                    {ch.shortDescription}
-                  </p>
-                </div>
-
-                {/* Footer stack chips */}
-                <div className="flex items-center justify-between pt-2 border-t border-pastel-border/50 text-[11px]">
-                  <span className="text-pastel-muted font-mono text-[10px] truncate max-w-[200px]">
-                    🛠️ {ch.targetStack}
-                  </span>
-                  <span className="font-bold text-pastel-accentRose flex items-center gap-0.5 text-[10px]">
-                    <span>Обзор</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            ) : (
+              filteredChallenges.map(renderChallengeCard)
+            )}
+          </div>
 
         {/* Right Column: Live Challenge Passport / Inspector (7 cols / 58%) */}
         {activeChallenge && (
@@ -550,6 +794,9 @@ export const PracticeCatalog: React.FC = () => {
             <div className="space-y-2 pb-4 border-b border-pastel-border/60">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-slate-900 text-pastel-accentRose border border-slate-700/60 shadow-2xs">
+                    Задача #{String(activeChallenge.taskNumber || challengeNumberMap.get(activeChallenge.id) || 1).padStart(2, '0')}
+                  </span>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
                     {activeChallenge.badge}
                   </span>
