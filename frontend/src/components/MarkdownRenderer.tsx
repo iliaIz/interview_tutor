@@ -17,12 +17,17 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   if (!content) return null;
 
   const markdownComponents = useMemo(() => ({
+    pre({ children }: any) {
+      return <>{children}</>;
+    },
     code({ inline, className: codeClass, children, ...props }: any) {
       const match = /language-(\w+)/.exec(codeClass || '');
-      const language = match ? match[1] : 'java';
       const rawCode = String(children).replace(/\n$/, '');
+      const hasNewline = rawCode.includes('\n');
+      const isBlock = Boolean(codeClass) || hasNewline;
 
-      if (!inline) {
+      if (isBlock) {
+        const language = match ? match[1] : 'java';
         const isDiff = language === 'diff' || language === 'patch';
         return (
           <div className="my-2.5">
@@ -38,7 +43,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
 
       return (
         <code
-          className="px-1.5 py-0.5 mx-0.5 rounded-md bg-pastel-lavender/50 text-pastel-accentViolet font-mono text-[0.88em] font-semibold border border-pastel-accentViolet/25 shadow-2xs"
+          className="px-1.5 py-0.5 mx-0.5 rounded-md bg-pastel-lavender/50 text-pastel-accentViolet font-mono text-[0.88em] font-semibold border border-pastel-accentViolet/25 shadow-2xs inline-block align-baseline"
           {...props}
         >
           {children}

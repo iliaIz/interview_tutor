@@ -388,6 +388,7 @@ const getTutorModeLabel = (mode: string) => {
                         td: ({ node, ...props }) => (
                           <td className="px-4 py-3 border-b border-pastel-border/50 align-top" {...props} />
                         ),
+                        pre: ({ children }: any) => <>{children}</>,
                         code: ({ node, inline, className, children, ...props }: any) => {
                           const codeStr = String(children).replace(/\n$/, '');
                           const match = /language-(\w+)/.exec(className || '');
