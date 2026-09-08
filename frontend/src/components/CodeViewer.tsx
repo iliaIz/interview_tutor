@@ -21,6 +21,8 @@ export interface CodeViewerProps {
   revisionIndex?: number;
   revisionTitle?: string;
   revisionId?: string;
+  hideHeader?: boolean;
+  embedded?: boolean;
 }
 
 /**
@@ -40,6 +42,8 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
   revisionIndex,
   revisionTitle,
   revisionId,
+  hideHeader = false,
+  embedded = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const { activeFocus, setFocus, clearFocus } = useSelectionFocusStore();
@@ -190,57 +194,65 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
     <div
       data-selection-zone="code"
       data-revision-index={revisionIndex}
-      className={`relative overflow-hidden rounded-2xl border border-[#1e2638] bg-[#121622] font-mono text-xs shadow-xl modal-overscroll-contain codeviewer-codemirror ${className}`}
+      className={
+        embedded
+          ? `relative overflow-hidden font-mono text-xs codeviewer-codemirror w-full h-full flex flex-col ${className}`
+          : `relative overflow-hidden rounded-2xl border border-[#1e2638] bg-[#121622] font-mono text-xs shadow-xl modal-overscroll-contain codeviewer-codemirror ${className}`
+      }
     >
-      {/* Header bar with macOS window dots and copy button */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#171c2c] border-b border-[#1e2638] select-none">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex gap-1.5 shrink-0">
-            <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shadow-xs" />
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80 shadow-xs" />
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-xs" />
-          </div>
-          {title && (
-            <span className="text-[11px] font-sans font-medium text-slate-300 tracking-wide ml-2 truncate">
-              {title}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {searchQuery && totalMatches > 0 && (
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-              <Search className="w-3 h-3" />
-              <span>{totalMatches} совп.</span>
-            </span>
-          )}
-          <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
-            {isDiff ? 'Unified Diff' : language}
-          </span>
-          <button
-            onClick={handleCopy}
-            title="Скопировать код"
-            className="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-white transition-colors bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-lg border border-slate-700/60 cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-semibold">Скопировано</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Копировать</span>
-              </>
+      {/* Header bar with macOS window dots and copy button (hidden when embedded or hideHeader) */}
+      {!hideHeader && !embedded && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#171c2c] border-b border-[#1e2638] select-none">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex gap-1.5 shrink-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shadow-xs" />
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80 shadow-xs" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-xs" />
+            </div>
+            {title && (
+              <span className="text-[11px] font-sans font-medium text-slate-300 tracking-wide ml-2 truncate">
+                {title}
+              </span>
             )}
-          </button>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {searchQuery && totalMatches > 0 && (
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                <Search className="w-3 h-3" />
+                <span>{totalMatches} совп.</span>
+              </span>
+            )}
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
+              {isDiff ? 'Unified Diff' : language}
+            </span>
+            <button
+              onClick={handleCopy}
+              title="Скопировать код"
+              className="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-white transition-colors bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-lg border border-slate-700/60 cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-semibold">Скопировано</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Копировать</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* CodeMirror 6 Viewport */}
-      <div className={`overflow-hidden ${maxHeight ? `${maxHeight} overflow-y-auto` : ''}`}>
+      <div className={`overflow-hidden ${embedded ? 'flex-1 h-full w-full' : maxHeight ? `${maxHeight} overflow-y-auto` : ''}`}>
         <CodeMirror
           value={code || ''}
+          height={embedded ? '100%' : undefined}
+          className={embedded ? 'h-full w-full custom-codemirror-container' : undefined}
           theme={luxuryPastelTheme}
           extensions={extensions}
           readOnly={true}
@@ -282,7 +294,9 @@ export const CodeViewer = React.memo(CodeViewerComponent, (prev, next) => {
     prev.searchQuery === next.searchQuery &&
     prev.revisionIndex === next.revisionIndex &&
     prev.revisionTitle === next.revisionTitle &&
-    prev.revisionId === next.revisionId
+    prev.revisionId === next.revisionId &&
+    prev.hideHeader === next.hideHeader &&
+    prev.embedded === next.embedded
   );
 });
 

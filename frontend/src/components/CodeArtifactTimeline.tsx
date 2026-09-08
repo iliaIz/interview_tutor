@@ -10,7 +10,8 @@ import {
   User,
   Eye,
   FileCode,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
 
@@ -18,12 +19,16 @@ export interface CodeArtifactTimelineProps {
   className?: string;
   onSelectRevision?: (rev: CodeArtifactRevision) => void;
   showDiffToggle?: boolean;
+  embedded?: boolean;
+  onApplyToWorkspace?: (code: string) => void;
 }
 
 export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
   className = '',
   onSelectRevision,
-  showDiffToggle = true
+  showDiffToggle = true,
+  embedded = false,
+  onApplyToWorkspace
 }) => {
   const {
     codeRevisions,
@@ -105,12 +110,12 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div className={embedded ? `flex-1 h-full w-full flex flex-col overflow-hidden bg-[#121622] ${className}` : `space-y-3 ${className}`}>
       {/* Header Bar with Version Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 text-xs shadow-lg">
+      <div className={embedded ? "flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-[#151a27] border-b border-[#1e2638] text-xs shrink-0 select-none" : "flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 text-xs shadow-lg"}>
         {/* Left: Revisions Timeline Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-pastel-accentViolet px-2 py-1 rounded-lg bg-pastel-accentViolet/10 mr-1 shrink-0">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-pastel-accentViolet px-2 py-0.5 rounded-lg bg-pastel-accentViolet/10 mr-1 shrink-0">
             <History className="w-3.5 h-3.5" />
             <span>Версии ({codeRevisions.length}/10):</span>
           </span>
@@ -142,7 +147,7 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
           })}
         </div>
 
-        {/* Right: Actions (Diff View & Copy) */}
+        {/* Right: Actions (Diff View & Copy & Apply) */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           {showDiffToggle && prevRev && (
             <button
@@ -156,6 +161,17 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
             >
               <GitCompare className="w-3.5 h-3.5" />
               <span>{viewMode === 'diff' ? 'Чистый код' : `Дифф с v${prevRev.index}`}</span>
+            </button>
+          )}
+
+          {onApplyToWorkspace && activeRev && (
+            <button
+              onClick={() => onApplyToWorkspace(activeRev.code)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-pastel-accentRose text-white hover:opacity-90 transition cursor-pointer shadow-2xs"
+              title="Вставить код с доски в текущий файл редактора"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>Применить к коду</span>
             </button>
           )}
 
@@ -181,49 +197,37 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
 
       {/* Active Revision Info Banner */}
       {activeRev && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-pastel-lavender/30 rounded-xl border border-pastel-accentViolet/20 text-[11px] text-pastel-text">
+        <div className={embedded ? "flex items-center justify-between px-3 py-1.5 bg-[#181d2e] border-b border-[#1e2638] text-[10px] text-slate-400 shrink-0" : "flex items-center justify-between px-3 py-1.5 bg-pastel-lavender/30 rounded-xl border border-pastel-accentViolet/20 text-[11px] text-pastel-text"}>
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-bold text-pastel-accentViolet shrink-0 font-mono">
               [v{activeRev.index}] {activeRev.title}
             </span>
-            <span className="text-slate-400 truncate text-[10px]">
+            <span className="text-slate-500 truncate text-[10px]">
               • {new Date(activeRev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
-            <Eye className="w-3 h-3 text-emerald-600" />
-            <span>ИИ видит эту версию в контексте</span>
+          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-800/40 shrink-0">
+            <Eye className="w-3 h-3 text-emerald-400" />
+            <span>В фокусе ИИ</span>
           </div>
         </div>
       )}
 
       {/* Code / Diff Body View */}
       {activeRev && (
-        <div>
-          {viewMode === 'diff' && prevRev ? (
-            <CodeViewer
-              code={unifiedDiff}
-              language={activeRev.language}
-              isDiff={true}
-              title={`Дифф: v${prevRev.index} ➔ v${activeRev.index} (${activeRev.title})`}
-              showLineNumbers={true}
-              revisionIndex={activeRev.index}
-              revisionTitle={activeRev.title}
-              revisionId={activeRev.id}
-            />
-          ) : (
-            <CodeViewer
-              code={activeRev.code}
-              language={activeRev.language}
-              isDiff={false}
-              title={`Версия ${activeRev.index}: ${activeRev.title}`}
-              showLineNumbers={true}
-              revisionIndex={activeRev.index}
-              revisionTitle={activeRev.title}
-              revisionId={activeRev.id}
-            />
-          )}
+        <div className={embedded ? "flex-1 h-full w-full overflow-hidden" : ""}>
+          <CodeViewer
+            code={viewMode === 'diff' && prevRev ? unifiedDiff : activeRev.code}
+            language={activeRev.language}
+            isDiff={viewMode === 'diff' && Boolean(prevRev)}
+            title={embedded ? undefined : (viewMode === 'diff' ? `Дифф: v${prevRev?.index} ➔ v${activeRev.index}` : `Версия ${activeRev.index}: ${activeRev.title}`)}
+            showLineNumbers={true}
+            embedded={embedded}
+            revisionIndex={activeRev.index}
+            revisionTitle={activeRev.title}
+            revisionId={activeRev.id}
+          />
         </div>
       )}
     </div>

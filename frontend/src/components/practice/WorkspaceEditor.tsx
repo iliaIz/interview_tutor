@@ -410,55 +410,53 @@ export const WorkspaceEditor: React.FC = () => {
 
       {/* Main Workspace Area: Either Whiteboard Surface or Code Editor */}
       {activeWorkspaceView === 'whiteboard' ? (
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#121622] text-slate-200 p-4 custom-scrollbar">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#121622] text-slate-200">
           {/* Whiteboard Header Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/90 rounded-2xl border border-purple-500/30 shadow-lg mb-3 shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
-                <Sparkles className="w-4 h-4" />
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#171c2c] border-b border-[#1e2638] shrink-0 select-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-xs text-white truncate">
-                    {activeWhiteboardState?.title || 'Интерактивная доска напарника'}
-                  </h3>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
-                    {activeWhiteboardState?.action === 'patch'
-                      ? '🔧 Diff / Изменения'
-                      : activeWhiteboardState?.action === 'highlight'
-                      ? '🔍 Разбор строк'
-                      : '✨ Демонстрация ИИ'}
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400 truncate">
-                  {activeWhiteboardState?.language?.toUpperCase() || 'JAVA 21'} • Интерактивный артефакт в реальном времени
-                </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-bold text-xs text-white truncate">
+                  {activeWhiteboardState?.title || 'Интерактивная доска напарника'}
+                </h3>
+                <span className="text-[10px] font-semibold px-2 py-0.2 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                  {activeWhiteboardState?.action === 'patch'
+                    ? '🔧 Diff / Изменения'
+                    : activeWhiteboardState?.action === 'highlight'
+                    ? '🔍 Разбор строк'
+                    : '✨ Демонстрация ИИ'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                  {activeWhiteboardState?.language?.toUpperCase() || 'JAVA 21'}
+                </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setActiveWorkspaceView('editor')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
                 title="Вернуться к коду задачи (Esc или Alt+W)"
               >
-                <span>← Вернуться к коду</span>
-                <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 font-mono">Esc</kbd>
+                <span>← К коду задачи</span>
+                <kbd className="text-[10px] px-1 py-0.2 rounded bg-slate-900 text-slate-400 font-mono">Esc</kbd>
               </button>
             </div>
           </div>
 
           {/* Optional Explanation Callout */}
           {activeWhiteboardState?.explanation && (
-            <div className="mb-3 px-4 py-2.5 bg-gradient-to-r from-purple-950/40 via-[#141220] to-indigo-950/40 border border-purple-500/30 rounded-2xl flex items-start gap-2 text-xs text-slate-300 leading-relaxed shadow-xs shrink-0">
-              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-              <p className="text-[11px]">{activeWhiteboardState.explanation}</p>
+            <div className="px-3 py-1.5 bg-purple-950/40 border-b border-purple-500/30 flex items-center gap-2 text-xs text-purple-200 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <p className="text-[11px] truncate">{activeWhiteboardState.explanation}</p>
             </div>
           )}
 
           {/* Highlight Lines Notification */}
           {activeWhiteboardState?.highlightLines && activeWhiteboardState.highlightLines.length > 0 && (
-            <div className="mb-3 px-4 py-1.5 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-center gap-2 text-[10px] text-amber-300 shrink-0">
+            <div className="px-3 py-1.5 bg-amber-950/40 border-b border-amber-500/30 flex items-center gap-2 text-[10px] text-amber-300 shrink-0">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Фокус на строках: {activeWhiteboardState.highlightLines.join(', ')}</span>
             </div>
@@ -466,15 +464,39 @@ export const WorkspaceEditor: React.FC = () => {
 
           {/* Code Artifact Revisions Timeline & Diff Viewer */}
           {codeRevisions && codeRevisions.length > 0 ? (
-            <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
-              <CodeArtifactTimeline showDiffToggle={true} />
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <CodeArtifactTimeline
+                embedded={true}
+                showDiffToggle={true}
+                onApplyToWorkspace={(newCode) => {
+                  updateWorkspaceFileContent(activeWorkspaceFileIndex, newCode);
+                  setActiveWorkspaceView('editor');
+                  showToast({
+                    type: 'success',
+                    title: 'Код применен',
+                    message: 'Код с доски напарника успешно вставлен в ваш файл воркспейса.'
+                  });
+                }}
+              />
             </div>
           ) : activeWhiteboardState?.code ? (
-            <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
-              <CodeArtifactTimeline showDiffToggle={true} />
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <CodeArtifactTimeline
+                embedded={true}
+                showDiffToggle={true}
+                onApplyToWorkspace={(newCode) => {
+                  updateWorkspaceFileContent(activeWorkspaceFileIndex, newCode);
+                  setActiveWorkspaceView('editor');
+                  showToast({
+                    type: 'success',
+                    title: 'Код применен',
+                    message: 'Код с доски напарника успешно вставлен в ваш файл воркспейса.'
+                  });
+                }}
+              />
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-800 rounded-3xl text-slate-500">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-800 m-4 rounded-3xl text-slate-500">
               <Sparkles className="w-10 h-10 text-purple-400/40 mb-3 animate-pulse" />
               <h4 className="text-sm font-bold text-slate-300 mb-1">Доска пока пуста</h4>
               <p className="text-xs max-w-md text-slate-400 mb-4">
