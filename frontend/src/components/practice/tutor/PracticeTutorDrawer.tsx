@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePracticeTutorStore, TutorPersona } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { PracticeVoiceHUD } from './PracticeVoiceHUD';
-import { TutorContextActions } from './TutorContextActions';
+import { TutorWorkspaceTools, TutorPromptShelf } from './TutorContextActions';
 import { getChallengeDomain, ChallengeDomain } from '../../../utils/challengeDomain';
 import {
   X,
@@ -123,7 +123,53 @@ export const PracticeTutorDrawer: React.FC = () => {
   } = useAppStore();
 
   const [inputVal, setInputVal] = useState('');
+  const [isRiprOpen, setIsRiprOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Responsive Resizable Drawer Width (SOTA Pro-IDE Drag-to-Resize)
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('practice_tutor_width');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 380 && parsed <= 850) return parsed;
+      }
+      return window.innerWidth >= 1536 ? 560 : window.innerWidth >= 1280 ? 520 : 480;
+    }
+    return 500;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(380, Math.min(window.innerWidth * 0.55, window.innerWidth - e.clientX));
+      setDrawerWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        try {
+          localStorage.setItem('practice_tutor_width', String(Math.round(drawerWidth)));
+        } catch {}
+      }
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, drawerWidth]);
 
   const domain = getChallengeDomain(activePracticeChallenge);
   const personaLabels = getPersonaLabels(domain);
@@ -169,7 +215,24 @@ export const PracticeTutorDrawer: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[420px] bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+    <div
+      style={{
+        width: typeof window !== 'undefined' && window.innerWidth >= 640 ? `${drawerWidth}px` : '100%',
+        maxWidth: '100vw'
+      }}
+      className={`fixed inset-y-0 right-0 z-40 bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 ${
+        isResizing ? 'cursor-ew-resize select-none' : ''
+      }`}
+    >
+      {/* Left Border Drag-to-Resize Handle */}
+      <div
+        onMouseDown={startResizing}
+        title="Потяните для изменения ширины AI-напарника"
+        className="hidden sm:block absolute top-0 bottom-0 left-0 w-2 hover:w-3 bg-transparent hover:bg-pastel-accentRose/30 active:bg-pastel-accentRose/60 cursor-ew-resize z-50 transition-all group"
+      >
+        <div className="h-10 w-1 bg-slate-300 group-hover:bg-pastel-accentRose rounded-full absolute top-1/2 -translate-y-1/2 left-0.5" />
+      </div>
+
       {/* Drawer Header */}
       <div className="px-4 py-3 border-b border-pastel-border/70 bg-gradient-to-r from-[#FFF0F5] via-white to-pastel-lavender/30 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -248,14 +311,14 @@ export const PracticeTutorDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Dynamic Context-Aware Quick Action Chips Bar */}
-      <TutorContextActions
+      {/* Top Workspace Tools Bar (Pinned Persistent Navigation) */}
+      <TutorWorkspaceTools
         domain={domain}
         onOpenCompass={() => toggleCompass(true)}
         onOpenWhiteboard={() => setActiveWorkspaceView('whiteboard')}
         hasUnseenWhiteboardUpdate={hasUnseenWhiteboardUpdate}
-        onSendMessage={(text) => sendMessage(text, currentContext)}
-        onRequestHintTier={(tier) => requestHint(tier, currentContext)}
+        isRiprOpen={isRiprOpen}
+        onToggleRipr={() => setIsRiprOpen(!isRiprOpen)}
       />
 
       {/* Main Messages & Voice HUD Area */}
@@ -329,6 +392,18 @@ export const PracticeTutorDrawer: React.FC = () => {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Suggested Quick Prompts Shelf (Flex-wrap, non-truncated) */}
+      <TutorPromptShelf
+        domain={domain}
+        onSendMessage={(text) => sendMessage(text, currentContext)}
+        isRiprOpen={isRiprOpen}
+        onRequestHintTier={(tier) => {
+          requestHint(tier, currentContext);
+          setIsRiprOpen(false);
+        }}
+        onCloseRipr={() => setIsRiprOpen(false)}
+      />
 
       {/* Drawer Input Footer */}
       <div className="p-3 border-t border-pastel-border/60 bg-white/80 shrink-0">
