@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/voice-dialogue-sota-hardening
+      - refactor/unified-voice-architecture
   workflow_dispatch:
 
 permissions:

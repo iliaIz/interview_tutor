@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { MutantDefinition } from '../types/practice';
+import { ChallengeDomain } from '../utils/challengeDomain';
 
 export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
 
@@ -47,6 +48,7 @@ interface PracticeTutorState {
   setModality: (modality: 'text' | 'voice') => void;
   setPersona: (persona: TutorPersona) => void;
   setAssistanceLevel: (level: number) => void;
+  initContextWelcome: (domain: ChallengeDomain, challengeTitle?: string) => void;
   clearMessages: () => void;
   abortGeneration: () => void;
 
@@ -86,6 +88,27 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     else if (level === 3) persona = 'senior_socratic';
     else if (level === 4) persona = 'faang_interviewer';
     set({ assistanceLevel: level, persona });
+  },
+  initContextWelcome: (domain: ChallengeDomain, challengeTitle?: string) => {
+    let welcomeContent = '👋 Привет! Я твой AI-напарник по парному программированию. Чем помочь?';
+    if (domain === 'lld') {
+      welcomeContent = `👋 Привет! Я твой AI-напарник по архитектурному проектированию (LLD & Machine Coding) для задачи «${challengeTitle || 'на экране'}». Помогу спроектировать чистые интерфейсы, проверить соблюдение SOLID, настроить инжекцию Clock, BigDecimal или безопасный захват блокировок. С чего начнем?`;
+    } else if (domain === 'transactions') {
+      welcomeContent = `👋 Привет! Я твой AI-напарник по транзакциям Spring и базам данных для задачи «${challengeTitle || 'на экране'}». Помогу разобрать уровни изоляции, аномалии конкурентного доступа и предотвратить Self-Invocation. Чем помочь?`;
+    } else {
+      welcomeContent = `👋 Привет! Я твой AI-напарник по парному программированию и тестированию для задачи «${challengeTitle || 'на экране'}». Могу объяснить устройство теста, подсказать граничные случаи по модели RIPR или проверить код по Тестинг-Компасу (Ctrl + /). Чем помочь?`;
+    }
+
+    set({
+      messages: [
+        {
+          id: `welcome_${Date.now()}`,
+          role: 'assistant',
+          content: welcomeContent,
+          timestamp: Date.now()
+        }
+      ]
+    });
   },
   clearMessages: () => set({
     messages: [

@@ -4,6 +4,7 @@ import {
   getPersonaPromptDirectives
 } from '../../prompts/personas';
 import { CandidateGap } from '../vectorMemoryService';
+import { getChallengeDomain } from '../../utils/challengeDomain';
 
 /**
  * Extracts up to 10 semantic evaluation anchors from reference answer
@@ -298,39 +299,97 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
     }
 
     if (tutorMode === 'practice_pair') {
+      const domain = getChallengeDomain({ category: challengeCategory, track: challengeTrack, slug: bugTitle });
+      const isLld = domain === 'lld';
+      const isTx = domain === 'transactions';
+      const isConcurrency = domain === 'concurrency';
+
       let personaInstruction = '';
-      if (persona === 'junior_explainer') {
-        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER ===
+      if (isLld) {
+        if (persona === 'junior_explainer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (LLD) ===
+- Объясняй принципы ООП и SOLID простыми жизненными аналогиями.
+- Помогай с проектированием классов, рекордов и интерфейсов по шагам.
+- Предлагай понятные скелеты интерфейсов и DTO/Records на доске (update_whiteboard).`;
+        } else if (persona === 'senior_socratic') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (LLD) ===
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО диктовать готовое архитектурное решение или код кандидату!
+- Задавай наводящие вопросы по декомпозиции, контрактам и расширяемости: «Как система поведет себя при добавлении нового канала?», «Почему этот класс нарушает SRP?».
+- Учи проектировать устойчивый домен и чистые границы.`;
+        } else if (persona === 'faang_interviewer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (LLD) ===
+- Высокая планка: потокобезопасность (ConcurrentHashMap, StampedLock), отсутствие дедлоков, масштабируемость, zero-alloc и защита от утечек памяти.
+- Проверяй устойчивость к race conditions, инварианты времени и детерминизм бизнес-логики.`;
+        } else {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE PEER LLD) ===
+- Общайся на равных как надежный коллега-архитектор.
+- Направляй выбор паттернов GoF (Стратегия, Фабрика, Декоратор, Цепочка обязанностей).
+- Напоминай об инвариантах: инжекция java.time.Clock (без System.currentTimeMillis), BigDecimal с RoundingMode.HALF_EVEN для денег, упорядоченный захват блокировок.`;
+        }
+      } else if (isTx) {
+        if (persona === 'junior_explainer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (TRANSACTIONS) ===
+- Объясняй ACID и уровни изоляции на понятных жизненных аналогиях.
+- Разбирай сценарии транзакций по шагам.`;
+        } else if (persona === 'senior_socratic') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (TRANSACTIONS) ===
+- Задавай наводящие вопросы о блокировках строк, фантомных чтениях и аномалиях конкурентного доступа.`;
+        } else if (persona === 'faang_interviewer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (TRANSACTIONS) ===
+- Высокая планка: распределенные транзакции, Transactional Outbox, CDC, двухфазный коммит.`;
+        } else {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE DB PEER) ===
+- Анализируй распространение транзакций (@Transactional propagation).
+- Разбирай ловушку Self-Invocation прокси Spring и пессимистические блокировки.`;
+        }
+      } else {
+        if (persona === 'junior_explainer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (TESTING) ===
 - Объясняй концепции юнит-тестирования простыми жизненными аналогиями.
 - Разбирай ошибки спокойно и по шагам, хвали за прогресс и верные шаги.
 - Предлагай понятные шаблоны кода с пояснениями.`;
-      } else if (persona === 'senior_socratic') {
-        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD ===
+        } else if (persona === 'senior_socratic') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (TESTING) ===
 - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО диктовать готовое решение тестов кандидату!
 - Задавай наводящие вопросы по модели RIPR (Reachability -> Infection -> Propagation).
 - Учи тестировать инварианты и поведение, а не строки кода.`;
-      } else if (persona === 'faang_interviewer') {
-        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT ===
+        } else if (persona === 'faang_interviewer') {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (TESTING) ===
 - Фокусируйся на архитектуре тестов, виртуальном времени через java.time.Clock, изоляции и законе моков Фаулера.
 - Обращай внимание на blast radius и антипаттерны тестирования.`;
-      } else {
-        personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE PEER) ===
+        } else {
+          personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE PEER TESTING) ===
 - Общайся на равных как надежный коллега по парному программированию.
 - Обращай внимание на граничные условия, выразительный API AssertJ (.isEqualByComparingTo, .satisfies) и правильную настройку Mockito.`;
+        }
       }
 
-      const greeting = isFemale
-        ? (userGender === 'neutral'
-            ? 'Здравствуйте! Я Ваша напарница по этой задаче. Внимательно смотрю на Ваш код и готова обсуждать любые идеи или подсказать граничные случаи. С чего начнем?'
-            : 'Привет! Я твоя напарница по этой задаче. Внимательно смотрю на твой код и готова обсуждать любые идеи или подсказать граничные случаи. С чего начнем?')
-        : (userGender === 'neutral'
-            ? 'Здравствуйте! Я Ваш напарник по этой задаче. Внимательно смотрю на Ваш код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?'
-            : 'Привет! Я твой напарник по этой задаче. Внимательно смотрю на твой код и готов обсуждать любые идеи или подсказать граничные случаи. С чего начнем?');
-
-      const cat = (challengeCategory || '').toLowerCase();
-      const trk = (challengeTrack || '').toLowerCase();
-      const isLld = ['lld', 'machine_coding', 'concurrency', 'refactoring'].some(k => cat.includes(k) || trk.includes(k));
-      const isTx = cat.includes('transaction') || trk.includes('transaction');
+      let greeting = '';
+      if (isLld) {
+        greeting = isFemale
+          ? (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваша напарница по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?'
+              : 'Привет! Я твоя напарница по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?')
+          : (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваш напарник по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?'
+              : 'Привет! Я твой напарник по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?');
+      } else if (isTx) {
+        greeting = isFemale
+          ? (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваша напарница по транзакциям Spring. Какой сценарий аномалий БД разберем?'
+              : 'Привет! Я твоя напарница по транзакциям Spring. Какой сценарий аномалий БД разберем?')
+          : (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваш напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?'
+              : 'Привет! Я твой напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?');
+      } else {
+        greeting = isFemale
+          ? (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваша напарница по тестированию. Внимательно смотрю на код и готова обсуждать граничные случаи. С чего начнем?'
+              : 'Привет! Я твоя напарница по тестированию. Внимательно смотрю на код и готова обсуждать граничные случаи. С чего начнем?')
+          : (userGender === 'neutral'
+              ? 'Здравствуйте! Я Ваш напарник по тестированию. Внимательно смотрю на код и готов обсуждать граничные случаи. С чего начнем?'
+              : 'Привет! Я твой напарник по тестированию. Внимательно смотрю на код и готов обсуждать граничные случаи. С чего начнем?');
+      }
 
       let roleHeader = `=== 1. РОЛЬ: MULTIMODAL AI PAIR-PROGRAMMER & TESTING COACH ===
 Ты доброжелательный и опытный ${isFemale ? 'напарник по парному программированию (женщина)' : 'напарник по парному программированию (мужчина)'}.
@@ -357,7 +416,7 @@ ${personaInstruction}
 
 === 2. СИМБИОЗ "ГОЛОС ОБЪЯСНЯЕТ, ЭКРАН ПОКАЗЫВАЕТ" (MULTIMODAL SYMBIOSIS) ===
 1. ГОЛОС ДЛЯ СУТИ И МЫШЛЕНИЯ: Голосом объясняй логику, концепции, инварианты и граничные условия краткими фразами (2-3 предложения, до 30 слов).
-2. КОД НА ДОСКЕ/ЭКРАНЕ: Если нужно показать конкретную структуру классов, синтаксис AssertJ, рекорды или паттерны, вызови \`update_whiteboard\` с кодом, а голосом скажи: «Я вывела нужную конструкцию на доску».
+2. КОД НА ДОСКЕ/ЭКРАНЕ: Если нужно показать конкретную структуру классов, сигнатуры методов, рекорды или паттерны, вызови \`update_whiteboard\` с кодом, а голосом скажи: «Я вывела нужную конструкцию на доску».
 3. НЕ ЗАЧИТЫВАЙ КОД БУКВА ЗА БУКВОЙ: Пользователь видит экран перед глазами.
 4. ПРАВИЛО СОКРАТА: Не вываливай готовое решение целиком. Направляй через вопросы и подсказки.
 

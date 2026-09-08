@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePracticeTutorStore, TutorPersona } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { PracticeVoiceHUD } from './PracticeVoiceHUD';
+import { TutorContextActions } from './TutorContextActions';
+import { getChallengeDomain, ChallengeDomain } from '../../../utils/challengeDomain';
 import {
   X,
   MessageSquare,
@@ -9,36 +11,86 @@ import {
   Send,
   Sparkles,
   ShieldAlert,
-  Compass,
-  Lightbulb,
   Trash2,
   Square,
   User,
-  Bot,
-  ChevronDown
+  Bot
 } from 'lucide-react';
 
-const PERSONA_LABELS: Record<TutorPersona, { name: string; desc: string; badge: string }> = {
-  junior_explainer: {
-    name: 'Junior Explainer',
-    desc: 'Теплый наставник, простые аналогии, готовые шаблоны AssertJ',
-    badge: '🟢 L1: Начинающий'
-  },
-  middle_scaffold: {
-    name: 'Middle Peer-Programmer',
-    desc: 'Опытный коллега, наводящие подсказки, лучшие практики',
-    badge: '🟡 L2: Коллега'
-  },
-  senior_socratic: {
-    name: 'Senior Socratic',
-    desc: 'Строгий Сократ: никакого готового кода, только наводящие вопросы',
-    badge: '🟣 L3: Сократ'
-  },
-  faang_interviewer: {
-    name: 'FAANG Staff Interviewer',
-    desc: 'Высокая планка: blast radius, детерминизм, архитектура тестов',
-    badge: '🔴 L4: Архитектор'
+const getPersonaLabels = (domain: ChallengeDomain): Record<TutorPersona, { name: string; desc: string; badge: string }> => {
+  if (domain === 'lld') {
+    return {
+      junior_explainer: {
+        name: 'Junior Explainer',
+        desc: 'Теплый наставник, простые аналогии, скелеты классов и рекордов Java 21',
+        badge: '🟢 L1: Начинающий'
+      },
+      middle_scaffold: {
+        name: 'Middle Peer-Programmer',
+        desc: 'Опытный коллега, паттерны GoF, Clock injection, BigDecimal',
+        badge: '🟡 L2: Коллега'
+      },
+      senior_socratic: {
+        name: 'Senior Socratic',
+        desc: 'Строгий Сократ: архитектурные инварианты, декомпозиция, чистые интерфейсы',
+        badge: '🟣 L3: Сократ'
+      },
+      faang_interviewer: {
+        name: 'FAANG Staff Architect',
+        desc: 'Высокая планка: потокобезопасность, OCP, масштабируемость и zero-alloc',
+        badge: '🔴 L4: Архитектор'
+      }
+    };
   }
+
+  if (domain === 'transactions') {
+    return {
+      junior_explainer: {
+        name: 'Junior Explainer',
+        desc: 'Теплый наставник, понятные примеры ACID и аномалий БД',
+        badge: '🟢 L1: Начинающий'
+      },
+      middle_scaffold: {
+        name: 'Middle Peer-Programmer',
+        desc: 'Опытный коллега, уровни изоляции, Self-Invocation, блокировки',
+        badge: '🟡 L2: Коллега'
+      },
+      senior_socratic: {
+        name: 'Senior Socratic',
+        desc: 'Строгий Сократ: дедлоки в БД, фантомные чтения, propagation',
+        badge: '🟣 L3: Сократ'
+      },
+      faang_interviewer: {
+        name: 'FAANG Staff Architect',
+        desc: 'Высокая планка: распределенные транзакции, 2PC, Outbox, CDC',
+        badge: '🔴 L4: Архитектор'
+      }
+    };
+  }
+
+  // Default: testing
+  return {
+    junior_explainer: {
+      name: 'Junior Explainer',
+      desc: 'Теплый наставник, простые аналогии, готовые шаблоны AssertJ',
+      badge: '🟢 L1: Начинающий'
+    },
+    middle_scaffold: {
+      name: 'Middle Peer-Programmer',
+      desc: 'Опытный коллега, наводящие подсказки, лучшие практики',
+      badge: '🟡 L2: Коллега'
+    },
+    senior_socratic: {
+      name: 'Senior Socratic',
+      desc: 'Строгий Сократ: никакого готового кода, только наводящие вопросы',
+      badge: '🟣 L3: Сократ'
+    },
+    faang_interviewer: {
+      name: 'FAANG Staff Interviewer',
+      desc: 'Высокая планка: blast radius, детерминизм, архитектура тестов',
+      badge: '🔴 L4: Архитектор'
+    }
+  };
 };
 
 export const PracticeTutorDrawer: React.FC = () => {
@@ -58,18 +110,30 @@ export const PracticeTutorDrawer: React.FC = () => {
     sendMessage,
     requestHint,
     abortGeneration,
-    clearMessages
+    clearMessages,
+    initContextWelcome
   } = usePracticeTutorStore();
 
   const {
     activePracticeChallenge,
     practiceWorkspaceFiles,
-    activeWorkspaceFileIndex
+    activeWorkspaceFileIndex,
+    setActiveWorkspaceView,
+    hasUnseenWhiteboardUpdate
   } = useAppStore();
 
   const [inputVal, setInputVal] = useState('');
-  const [showHintTiersMenu, setShowHintTiersMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const domain = getChallengeDomain(activePracticeChallenge);
+  const personaLabels = getPersonaLabels(domain);
+
+  // Initialize context-aware welcome message when opening new challenge
+  useEffect(() => {
+    if (activePracticeChallenge && messages.length <= 1 && messages[0]?.id.startsWith('welcome')) {
+      initContextWelcome(domain, activePracticeChallenge.title);
+    }
+  }, [activePracticeChallenge?.id, domain]);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
@@ -104,11 +168,6 @@ export const PracticeTutorDrawer: React.FC = () => {
     }
   };
 
-  const handleSelectHintTier = (tier: number) => {
-    setShowHintTiersMenu(false);
-    requestHint(tier, currentContext);
-  };
-
   return (
     <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[420px] bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
       {/* Drawer Header */}
@@ -121,7 +180,7 @@ export const PracticeTutorDrawer: React.FC = () => {
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-xs text-slate-800">AI-Напарник (Co-Pilot)</span>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-pastel-accentRoseText border border-pastel-accentRose/20">
-                {PERSONA_LABELS[persona].badge}
+                {personaLabels[persona].badge}
               </span>
             </div>
             <p className="text-[10px] text-slate-500">Парное программирование & Socratic Tutor</p>
@@ -167,7 +226,7 @@ export const PracticeTutorDrawer: React.FC = () => {
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Степень подсказок:</span>
           <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
-            <span>{PERSONA_LABELS[persona].name}</span>
+            <span>{personaLabels[persona].name}</span>
           </div>
         </div>
 
@@ -189,77 +248,15 @@ export const PracticeTutorDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Action Chips Bar */}
-      <div className="px-3 py-2 border-b border-pastel-border/40 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0 no-scrollbar">
-        {/* Progressive Hint Dropdown Button */}
-        <div className="relative">
-          <button
-            onClick={() => setShowHintTiersMenu(!showHintTiersMenu)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 text-[11px] font-bold transition shrink-0 cursor-pointer"
-          >
-            <Lightbulb className="w-3 h-3 text-amber-600" />
-            <span>Подсказка (RIPR)</span>
-            <ChevronDown className="w-3 h-3 opacity-60" />
-          </button>
-
-          {showHintTiersMenu && (
-            <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-1 z-50 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
-              <button
-                onClick={() => handleSelectHintTier(0)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 0: Синтаксис</div>
-                <div className="text-[10px] text-slate-400">Импорты, типы и компиляция</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(1)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 1: Достижимость</div>
-                <div className="text-[10px] text-slate-400">Какую ветку кода нужно вызвать</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(2)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 2: Заражение (Infection)</div>
-                <div className="text-[10px] text-slate-400">Какое состояние портит мутант</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(3)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 3: Контрпример</div>
-                <div className="text-[10px] text-slate-400">Граничный входной параметр</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(4)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 4: Изоморфный пример</div>
-                <div className="text-[10px] text-slate-400">Паттерн теста из другой сферы</div>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Compass Trigger Chip */}
-        <button
-          onClick={() => toggleCompass(true)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pastel-rose text-pastel-accentRoseText hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/30 text-[11px] font-bold transition shrink-0 cursor-pointer"
-        >
-          <Compass className="w-3 h-3" />
-          <span>Компас (Ctrl+/)</span>
-        </button>
-
-        <button
-          onClick={() => sendMessage('Объясни, почему выжили мутанты в моем тесте и как их поймать?', currentContext)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
-        >
-          <Sparkles className="w-3 h-3 text-slate-500" />
-          <span>Мутанты</span>
-        </button>
-      </div>
+      {/* Dynamic Context-Aware Quick Action Chips Bar */}
+      <TutorContextActions
+        domain={domain}
+        onOpenCompass={() => toggleCompass(true)}
+        onOpenWhiteboard={() => setActiveWorkspaceView('whiteboard')}
+        hasUnseenWhiteboardUpdate={hasUnseenWhiteboardUpdate}
+        onSendMessage={(text) => sendMessage(text, currentContext)}
+        onRequestHintTier={(tier) => requestHint(tier, currentContext)}
+      />
 
       {/* Main Messages & Voice HUD Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5">

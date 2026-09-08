@@ -2,6 +2,7 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { liveSessionRegistry, getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleLiveToolCall } from './liveToolDispatcher';
+import { getChallengeDomain } from '../../utils/challengeDomain';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -242,10 +243,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               } else if (tutorMode === 'eli5') {
                 greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
               } else if (tutorMode === 'practice_pair') {
-                const cat = (challengeCategory || session.challengeCategory || '').toLowerCase();
-                const trk = (challengeTrack || session.challengeTrack || '').toLowerCase();
-                const isLld = ['lld', 'machine_coding', 'concurrency', 'refactoring'].some(k => cat.includes(k) || trk.includes(k));
-                const isTx = cat.includes('transaction') || trk.includes('transaction');
+                const domain = getChallengeDomain({
+                  category: challengeCategory || session.challengeCategory,
+                  track: challengeTrack || session.challengeTrack,
+                  slug: bugTitle
+                });
+                const isLld = domain === 'lld';
+                const isTx = domain === 'transactions';
                 if (isLld) {
                   greetingText = `Привет! Я твоя напарница по проектированию архитектуры задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и спроси, с каких интерфейсов или доменной модели начнем проектирование.`;
                 } else if (isTx) {

@@ -6,6 +6,8 @@
  * and Testing Compass 5 Golden Rules Grounding.
  */
 
+import { getChallengeDomain } from '../utils/challengeDomain';
+
 export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
 
 export type HintTier = 0 | 1 | 2 | 3 | 4;
@@ -134,9 +136,9 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     hintTier
   } = context;
 
-  const cat = (kataCategory || '').toLowerCase();
-  const isLld = ['lld', 'machine_coding', 'concurrency', 'refactoring'].some(k => cat.includes(k));
-  const isTx = cat.includes('transaction');
+  const domain = getChallengeDomain({ category: kataCategory, slug: kataTitle });
+  const isLld = domain === 'lld';
+  const isTx = domain === 'transactions';
 
   // 1. Persona Directives
   let personaDirectives = '';

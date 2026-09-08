@@ -10,6 +10,7 @@ import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { TestingCompassSheet } from './compass/TestingCompassSheet';
 import { LLDCompassSheet } from './compass/LLDCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
+import { getChallengeDomain } from '../../utils/challengeDomain';
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -42,9 +43,8 @@ export const PracticeArena: React.FC = () => {
     return <PracticeCatalog />;
   }
 
-  const isLldChallenge =
-    activePracticeChallenge?.category === 'LLD & Machine Coding' ||
-    Boolean(activePracticeChallenge?.track?.startsWith('lld_'));
+  const domain = getChallengeDomain(activePracticeChallenge);
+  const isLldChallenge = domain === 'lld';
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg relative">

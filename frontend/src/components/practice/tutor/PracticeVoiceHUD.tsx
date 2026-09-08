@@ -3,6 +3,7 @@ import { useLiveAudioSession } from '../../../hooks/useLiveAudioSession';
 import { useAppStore } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
+import { getChallengeDomain } from '../../../utils/challengeDomain';
 import { Mic, MicOff, Volume2, PhoneOff, Radio, Sparkles, Send, Loader2 } from 'lucide-react';
 
 interface PracticeVoiceHUDProps {
@@ -44,16 +45,13 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     const startLiveTutor = async () => {
       try {
         const turnMode = interviewConfig.turnMode || 'auto';
-        const isLld =
-          activePracticeChallenge?.category === 'LLD & Machine Coding' ||
-          activePracticeChallenge?.track?.startsWith('lld_');
-        const isTx =
-          activePracticeChallenge?.category === 'Transaction Lab' ||
-          activePracticeChallenge?.track?.startsWith('tx_');
-        const topic = isLld
+        const domain = getChallengeDomain(activePracticeChallenge);
+        const topic = domain === 'lld'
           ? `LLD Архитектура и Machine Coding: ${activePracticeChallenge?.title}`
-          : isTx
+          : domain === 'transactions'
           ? `Транзакции и Concurrency Lab: ${activePracticeChallenge?.title}`
+          : domain === 'concurrency'
+          ? `Многопоточность и Project Loom: ${activePracticeChallenge?.title}`
           : `Юнит-тестирование и мутации: ${activePracticeChallenge?.title || 'Java 21'}`;
 
         await startSession({
