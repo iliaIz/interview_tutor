@@ -1,5 +1,7 @@
 export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation' | 'spring_transactions';
 
+export type GradeLevel = 'all' | 'junior' | 'middle' | 'senior' | 'lead';
+
 export interface MutantDefinition {
   id: string;
   name: string;

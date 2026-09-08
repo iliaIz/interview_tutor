@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { CodingChallenge, ChallengeCategory } from '../../types/practice';
+import { CodingChallenge, ChallengeCategory, GradeLevel } from '../../types/practice';
 import {
   Code2,
   Cpu,
@@ -33,7 +33,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 
-export type GradeLevel = 'all' | 'junior' | 'middle' | 'senior' | 'lead';
+export type { GradeLevel } from '../../types/practice';
 
 export interface GradeConfig {
   id: GradeLevel;
@@ -111,13 +111,24 @@ export const TESTING_ARCHETYPES = [
 ];
 
 export const PracticeCatalog: React.FC = () => {
-  const { openPracticeChallenge, openTransactionLab, showToast } = useAppStore();
+  const {
+    openPracticeChallenge,
+    openTransactionLab,
+    showToast,
+    practiceSelectedCategory: selectedCategory,
+    setPracticeSelectedCategory: setSelectedCategory,
+    practiceSelectedArchetype: selectedArchetype,
+    setPracticeSelectedArchetype: setSelectedArchetype,
+    practiceSelectedGrade: selectedGrade,
+    setPracticeSelectedGrade: setSelectedGrade,
+    practiceIsGroupedByGrade: isGroupedByGrade,
+    setPracticeIsGroupedByGrade: setIsGroupedByGrade,
+    practiceSelectedChallengeId: selectedId,
+    setPracticeSelectedChallengeId: setSelectedId
+  } = useAppStore();
+
   const [challenges, setChallenges] = useState<CodingChallenge[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory>('all');
-  const [selectedArchetype, setSelectedArchetype] = useState<string>('all');
-  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>('all');
-  const [isGroupedByGrade, setIsGroupedByGrade] = useState<boolean>(false);
   const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({
     junior: true,
     middle: true,
@@ -125,7 +136,6 @@ export const PracticeCatalog: React.FC = () => {
     lead: true
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
 
   const toggleGradeSection = (gradeKey: string) => {
@@ -142,8 +152,11 @@ export const PracticeCatalog: React.FC = () => {
         const data = await res.json();
         if (Array.isArray(data)) {
           setChallenges(data);
-          if (data.length > 0 && !selectedId) {
-            setSelectedId(data[0].id);
+          if (data.length > 0) {
+            const stillExists = selectedId && data.some((c: CodingChallenge) => c.id === selectedId);
+            if (!stillExists) {
+              setSelectedId(data[0].id);
+            }
           }
         }
       }

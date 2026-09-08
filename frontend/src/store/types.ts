@@ -1,4 +1,4 @@
-import { CodingChallenge, FileNode, EvaluationResult } from '../types/practice';
+import { CodingChallenge, FileNode, EvaluationResult, ChallengeCategory, GradeLevel } from '../types/practice';
 import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
 
 export interface Question {
@@ -231,6 +231,17 @@ export interface PracticeSlice {
   setIsPracticeEvaluating: (isEval: boolean) => void;
   setActivePracticeReport: (report: EvaluationResult | null) => void;
   setPracticeElapsedSeconds: (sec: number | ((prev: number) => number)) => void;
+  practiceSelectedCategory: ChallengeCategory;
+  practiceSelectedGrade: GradeLevel;
+  practiceSelectedArchetype: string;
+  practiceIsGroupedByGrade: boolean;
+  practiceSelectedChallengeId: string | null;
+
+  setPracticeSelectedCategory: (category: ChallengeCategory) => void;
+  setPracticeSelectedGrade: (grade: GradeLevel) => void;
+  setPracticeSelectedArchetype: (archetype: string) => void;
+  setPracticeIsGroupedByGrade: (isGrouped: boolean) => void;
+  setPracticeSelectedChallengeId: (id: string | null) => void;
 }
 
 export interface WhiteboardSlice {

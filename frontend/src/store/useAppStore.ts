@@ -41,6 +41,12 @@ export const useAppStore = create<AppState>()(
         currentBatch: state.currentBatch,
         currentQuestionIndex: state.currentQuestionIndex,
         activeBatchSession: state.activeBatchSession,
+        // Practice filter persistence across catalog navigation & page reloads
+        practiceSelectedCategory: state.practiceSelectedCategory,
+        practiceSelectedGrade: state.practiceSelectedGrade,
+        practiceSelectedArchetype: state.practiceSelectedArchetype,
+        practiceIsGroupedByGrade: state.practiceIsGroupedByGrade,
+        practiceSelectedChallengeId: state.practiceSelectedChallengeId,
       }),
       onRehydrateStorage: () => (state) => {
         // Sanitize legacy corrupted localStorage topicsProgress

@@ -11,6 +11,18 @@ export const createPracticeSlice: StateCreator<AppState, [], [], PracticeSlice> 
   activePracticeReport: null,
   practiceElapsedSeconds: 0,
 
+  practiceSelectedCategory: 'all',
+  practiceSelectedGrade: 'all',
+  practiceSelectedArchetype: 'all',
+  practiceIsGroupedByGrade: false,
+  practiceSelectedChallengeId: null,
+
+  setPracticeSelectedCategory: (category) => set({ practiceSelectedCategory: category }),
+  setPracticeSelectedGrade: (grade) => set({ practiceSelectedGrade: grade }),
+  setPracticeSelectedArchetype: (archetype) => set({ practiceSelectedArchetype: archetype }),
+  setPracticeIsGroupedByGrade: (isGrouped) => set({ practiceIsGroupedByGrade: isGrouped }),
+  setPracticeSelectedChallengeId: (id) => set({ practiceSelectedChallengeId: id }),
+
   openPracticeChallenge: (challenge: CodingChallenge, draftFiles?: FileNode[]) => {
     const filesToUse = (draftFiles && draftFiles.length > 0)
       ? draftFiles
