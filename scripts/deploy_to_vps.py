@@ -86,12 +86,15 @@ def deploy():
 
     echo "Building backend container..."
     docker compose -f docker-compose.prod.yml build backend
+
+    echo "Building caddy container..."
+    docker compose -f docker-compose.prod.yml build caddy
     
-    echo "Recreating backend & sandbox services..."
+    echo "Recreating services..."
     docker compose -f docker-compose.prod.yml up -d --remove-orphans
     
     echo "Reloading Caddy reverse proxy..."
-    docker exec interview-caddy-ssl caddy reload || docker compose -f docker-compose.prod.yml restart caddy
+    docker compose -f docker-compose.prod.yml restart caddy
     """
 
     stdin, stdout, stderr = ssh.exec_command(deploy_script)

@@ -262,7 +262,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
             highlightActiveLineGutter: false,
             highlightSpecialChars: true,
             history: false,
-            foldGutter: false,
+            foldGutter: embedded ? true : false,
             drawSelection: true,
             dropCursor: false,
             allowMultipleSelections: false,

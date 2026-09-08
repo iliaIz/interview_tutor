@@ -411,41 +411,6 @@ export const WorkspaceEditor: React.FC = () => {
       {/* Main Workspace Area: Either Whiteboard Surface or Code Editor */}
       {activeWorkspaceView === 'whiteboard' ? (
         <div className="flex-1 flex flex-col overflow-hidden bg-[#121622] text-slate-200">
-          {/* Whiteboard Header Bar */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-[#171c2c] border-b border-[#1e2638] shrink-0 select-none">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-bold text-xs text-white truncate">
-                  {activeWhiteboardState?.title || 'Интерактивная доска напарника'}
-                </h3>
-                <span className="text-[10px] font-semibold px-2 py-0.2 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
-                  {activeWhiteboardState?.action === 'patch'
-                    ? '🔧 Diff / Изменения'
-                    : activeWhiteboardState?.action === 'highlight'
-                    ? '🔍 Разбор строк'
-                    : '✨ Демонстрация ИИ'}
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
-                  {activeWhiteboardState?.language?.toUpperCase() || 'JAVA 21'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setActiveWorkspaceView('editor')}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
-                title="Вернуться к коду задачи (Esc или Alt+W)"
-              >
-                <span>← К коду задачи</span>
-                <kbd className="text-[10px] px-1 py-0.2 rounded bg-slate-900 text-slate-400 font-mono">Esc</kbd>
-              </button>
-            </div>
-          </div>
-
           {/* Optional Explanation Callout */}
           {activeWhiteboardState?.explanation && (
             <div className="px-3 py-1.5 bg-purple-950/40 border-b border-purple-500/30 flex items-center gap-2 text-xs text-purple-200 shrink-0">
@@ -468,6 +433,7 @@ export const WorkspaceEditor: React.FC = () => {
               <CodeArtifactTimeline
                 embedded={true}
                 showDiffToggle={true}
+                onClose={() => setActiveWorkspaceView('editor')}
                 onApplyToWorkspace={(newCode) => {
                   updateWorkspaceFileContent(activeWorkspaceFileIndex, newCode);
                   setActiveWorkspaceView('editor');
@@ -484,6 +450,7 @@ export const WorkspaceEditor: React.FC = () => {
               <CodeArtifactTimeline
                 embedded={true}
                 showDiffToggle={true}
+                onClose={() => setActiveWorkspaceView('editor')}
                 onApplyToWorkspace={(newCode) => {
                   updateWorkspaceFileContent(activeWorkspaceFileIndex, newCode);
                   setActiveWorkspaceView('editor');
