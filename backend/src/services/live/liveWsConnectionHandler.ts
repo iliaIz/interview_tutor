@@ -434,15 +434,24 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         return;
       }
 
-      if (parsed.clientContent?.turns && session.sessionId) {
-        for (const turn of parsed.clientContent.turns) {
-          if (turn.parts) {
-            const turnText = turn.parts.map((p: any) => p.text || '').join('').trim();
-            if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ')) {
-              const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-              mem.turns.push({ role: 'user', text: turnText });
-              mem.lastSpeaker = 'user';
-              mem.updatedAt = Date.now();
+      if (parsed.clientContent?.turns) {
+        // Release any pending tool call gates upon client input / barge-in
+        session.isToolCallPending = false;
+        if (session.toolCallSafetyTimeout) {
+          clearTimeout(session.toolCallSafetyTimeout);
+          session.toolCallSafetyTimeout = null;
+        }
+
+        if (session.sessionId) {
+          for (const turn of parsed.clientContent.turns) {
+            if (turn.parts) {
+              const turnText = turn.parts.map((p: any) => p.text || '').join('').trim();
+              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ')) {
+                const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+                mem.turns.push({ role: 'user', text: turnText });
+                mem.lastSpeaker = 'user';
+                mem.updatedAt = Date.now();
+              }
             }
           }
         }

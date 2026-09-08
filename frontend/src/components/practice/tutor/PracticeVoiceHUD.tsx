@@ -30,6 +30,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     startSession,
     disconnectSession,
     toggleMic,
+    handleBargeIn,
     finishManualTurn,
     playoutManagerRef
   } = useLiveAudioSession({
@@ -95,8 +96,8 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
       // Prevent accidental double clicks or muting while Gemini is processing response
       return;
     }
-    if (isAiSpeaking && playoutManagerRef.current) {
-      playoutManagerRef.current.handleInterruption();
+    if (isAiSpeaking) {
+      handleBargeIn();
     } else if (interviewConfig.turnMode === 'manual' && isRecording) {
       finishManualTurn();
     } else if (isRecording) {

@@ -354,6 +354,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // Barge-in interruption during AI speech
         if (parsed.serverContent?.interrupted) {
+          session.isToolCallPending = false;
+          if (session.toolCallSafetyTimeout) {
+            clearTimeout(session.toolCallSafetyTimeout);
+            session.toolCallSafetyTimeout = null;
+          }
           if (session.sessionId) {
             const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
             if (session.currentAiTurnText) {
@@ -454,7 +459,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               }
             }
           } finally {
-            // session.isToolCallPending remains TRUE until parsed.serverContent.modelTurn arrives
+            // Once all tool responses have been dispatched to Gemini, release toolCall pending gate
+            session.isToolCallPending = false;
+            if (session.toolCallSafetyTimeout) {
+              clearTimeout(session.toolCallSafetyTimeout);
+              session.toolCallSafetyTimeout = null;
+            }
           }
         }
       } catch {}

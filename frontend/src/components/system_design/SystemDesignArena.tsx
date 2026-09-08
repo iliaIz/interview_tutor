@@ -112,6 +112,7 @@ export const SystemDesignArena: React.FC = () => {
     toggleMic,
     finishManualTurn,
     sendCanvasDelta,
+    handleBargeIn,
     playoutManagerRef
   } = useLiveAudioSession({
     onChaosInjected: (payload) => {
@@ -428,8 +429,8 @@ export const SystemDesignArena: React.FC = () => {
             onFinishTurn={finishManualTurn}
             onDisconnect={disconnectVoiceSession}
             onBargeIn={() => {
-              if (isAiSpeaking && playoutManagerRef.current) {
-                playoutManagerRef.current.handleInterruption();
+              if (isAiSpeaking) {
+                handleBargeIn();
               }
             }}
           />

@@ -70,6 +70,7 @@ export function useLiveAudioSession(
   const isSessionPausedRef = useRef(false);
   const isUserSpeakingRef = useRef(false);
   const lastAiSpeechEndedAtRef = useRef<number>(0);
+  const lastBargeInAtRef = useRef<number>(0);
   const isServerTurnCompleteRef = useRef(false);
   const speechStartTimeRef = useRef<number | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -208,6 +209,7 @@ export function useLiveAudioSession(
   // Tactile Barge-In
   const handleBargeIn = useCallback((reason?: string) => {
     if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+      lastBargeInAtRef.current = Date.now();
       playoutManagerRef.current?.handleInterruption();
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
@@ -595,6 +597,7 @@ export function useLiveAudioSession(
             const { modelTurn, turnComplete, interrupted } = data.serverContent;
 
             if (interrupted) {
+              lastBargeInAtRef.current = 0;
               playout.handleInterruption();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;
@@ -604,6 +607,12 @@ export function useLiveAudioSession(
             }
 
             if (modelTurn?.parts) {
+              // In-Flight Audio Guard: ignore trailing audio chunks from a turn interrupted < 600ms ago
+              if (Date.now() - lastBargeInAtRef.current < 600) {
+                console.log('[LiveAudio] 🛡️ Dropped trailing in-flight audio chunk after barge-in');
+                return;
+              }
+
               for (const part of modelTurn.parts) {
                 const pcmData = part.inlineData?.data || (part as any).inline_data?.data;
                 if (pcmData) {
@@ -632,6 +641,7 @@ export function useLiveAudioSession(
             }
 
             if (turnComplete) {
+              lastBargeInAtRef.current = 0;
               console.log('[LiveAudio] 🏁 Model turnComplete received. playout.isPlaying() =', playout.isPlaying());
               isServerTurnCompleteRef.current = true;
               playout.notifyTurnComplete();
