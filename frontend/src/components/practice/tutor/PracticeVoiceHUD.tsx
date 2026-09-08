@@ -11,10 +11,9 @@ interface PracticeVoiceHUDProps {
 }
 
 export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscriptUpdate }) => {
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const { activePracticeChallenge } = useAppStore();
   const { config: interviewConfig } = useInterviewConfig();
   const { persona: tutorPersona } = usePracticeTutorStore();
-  const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
   const {
     isConnected,
@@ -42,8 +41,14 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
   });
 
   // Reusable session starter for mount and 1-click re-connect
+  // Reads code snapshot on demand without subscribing to keystroke events
   const startLiveTutor = useCallback(async () => {
     try {
+      const state = useAppStore.getState();
+      const files = state.practiceWorkspaceFiles || [];
+      const fileIdx = state.activeWorkspaceFileIndex || 0;
+      const currentFile = files[fileIdx] || files[0];
+
       const turnMode = interviewConfig.turnMode || 'auto';
       const domain = getChallengeDomain(activePracticeChallenge);
       const topic = domain === 'lld'
@@ -74,16 +79,17 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     } catch (err) {
       console.error('Failed to start Live Tutor session:', err);
     }
-  }, [interviewConfig, activePracticeChallenge, currentFile, tutorPersona, startSession]);
+  }, [interviewConfig, activePracticeChallenge, tutorPersona, startSession]);
 
-  // Start live session on mount
+  // Start live session once on mount or when switching challenge (never on keystrokes)
+  const challengeId = activePracticeChallenge?.id;
   useEffect(() => {
     void startLiveTutor();
 
     return () => {
       disconnectSession();
     };
-  }, [startLiveTutor, disconnectSession]);
+  }, [challengeId]);
 
   useEffect(() => {
     if (aiTranscript && onAiTranscriptUpdate) {
