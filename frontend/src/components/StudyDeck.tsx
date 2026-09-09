@@ -166,8 +166,9 @@ const getTutorModeLabel = (mode: string) => {
     );
   }
 
-  const currentQ = currentBatch[currentQuestionIndex];
-  const isLast = currentQuestionIndex === currentBatch.length - 1;
+  const currentQ = currentBatch[currentQuestionIndex] || currentBatch[0];
+  if (!currentQ) return null;
+  const isLast = currentQuestionIndex >= currentBatch.length - 1;
 
   const handleCopyCode = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -610,9 +611,11 @@ const getTutorModeLabel = (mode: string) => {
           initialTutorMode={voiceModalTutorMode}
           customPromptOverride={customPromptForTutor}
           onBatchComplete={(evaluations: Record<string, any>) => {
+            if (!evaluations) return;
             Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
+              if (!evalData) return;
               const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;
-              const isMastered = evalData.isPassed && numScore >= 8;
+              const isMastered = Boolean(evalData.isPassed && numScore >= 8);
               setQuestionEvaluation(qId, evalData);
               if (selectedTopicId) {
                 updateTopicProgress(selectedTopicId, qId, isMastered, currentBatch.length);

@@ -136,6 +136,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Finalize Evaluation & Decide Next Screen
   const handleEvaluationFinalized = useCallback(
     (evalData: EvaluationResult) => {
+      if (!evalData) {
+        console.warn('[VoiceModal] ⚠️ Received null or undefined evaluation data');
+        return;
+      }
       setEvaluation(evalData);
       const recorded = batch.recordEvaluationResult(batch.activeQuestionId, evalData, batch.activeBatchIndex);
       onEvaluationComplete?.(evalData);
@@ -157,7 +161,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         triggerSuccessConfetti();
       } else {
         setStage('verdict');
-        if ((evalData.score ?? 0) >= 80) triggerSuccessConfetti();
+        if ((evalData?.score ?? 0) >= 80) triggerSuccessConfetti();
       }
     },
     [batch, audio, coaching, onEvaluationComplete]

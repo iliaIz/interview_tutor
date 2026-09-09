@@ -568,7 +568,12 @@ export function useLiveAudioSession(
 
           if (data.type === 'evaluation_completed' || data.type === 'evaluation_result') {
             clearAllWatchdogs();
-            optionsRef.current.onEvaluationCompleted?.(data.payload as VoiceEvaluationResult);
+            const evalResult = (data.payload || data.evaluation) as VoiceEvaluationResult;
+            if (evalResult) {
+              optionsRef.current.onEvaluationCompleted?.(evalResult);
+            } else {
+              console.warn('[LiveAudio] ⚠️ evaluation_completed received without payload or evaluation field');
+            }
             return;
           }
 
@@ -588,7 +593,8 @@ export function useLiveAudioSession(
           }
 
           if (data.type === 'hiring_committee_verdict') {
-            optionsRef.current.onHiringCommitteeVerdict?.(data.payload);
+            const verdictPayload = data.payload || data.packet || data;
+            optionsRef.current.onHiringCommitteeVerdict?.(verdictPayload);
             return;
           }
 

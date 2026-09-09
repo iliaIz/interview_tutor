@@ -21,12 +21,52 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
   personaId = 'mentor'
 }) => {
   const persona = FAANG_PERSONAS[personaId] || FAANG_PERSONAS.mentor;
-  const targetGradeInfo = TARGET_GRADES[scorecard.targetGrade] || TARGET_GRADES.L5_SENIOR;
-  const calibratedGradeInfo = TARGET_GRADES[scorecard.calibratedGrade] || targetGradeInfo;
+  const targetGradeInfo = (scorecard && TARGET_GRADES[scorecard.targetGrade]) || TARGET_GRADES.L5_SENIOR;
+  const calibratedGradeInfo = (scorecard && TARGET_GRADES[scorecard.calibratedGrade]) || targetGradeInfo;
+
+  // Safe polymorphic extraction for dimension scores (supports both number and { score, comment } formats)
+  const getDimScore = (dim: any, fallback = 70): number => {
+    if (typeof dim === 'number') return Math.min(100, Math.max(0, Math.round(dim)));
+    if (dim && typeof dim.score === 'number') return Math.min(100, Math.max(0, Math.round(dim.score)));
+    return fallback;
+  };
+
+  const getDimComment = (dim: any, fallback: string): string => {
+    if (dim && typeof dim.comment === 'string' && dim.comment.trim()) return dim.comment;
+    return fallback;
+  };
+
+  const domainScore = getDimScore(scorecard?.dimensionScores?.domainDepth, 75);
+  const domainComment = getDimComment(scorecard?.dimensionScores?.domainDepth, 'Глубина понимания механизмов JVM и Core');
+
+  const archScore = getDimScore(scorecard?.dimensionScores?.systemArchitecture, 70);
+  const archComment = getDimComment(scorecard?.dimensionScores?.systemArchitecture, 'Осознание компромиссов и точек отказа');
+
+  const commScore = getDimScore(scorecard?.dimensionScores?.communicationStar, 75);
+  const commComment = getDimComment(scorecard?.dimensionScores?.communicationStar, 'Структура ответа и аргументация');
+
+  const opsScore = getDimScore(scorecard?.dimensionScores?.operationalExcellence, 70);
+  const opsComment = getDimComment(scorecard?.dimensionScores?.operationalExcellence, 'Учет аварий, отказов и мониторинга');
+
+  const rawStrengths = Array.isArray(scorecard?.strengths) 
+    ? scorecard.strengths 
+    : typeof scorecard?.strengths === 'string' 
+    ? [scorecard.strengths] 
+    : [];
+
+  const rawRedFlags = Array.isArray(scorecard?.redFlags) 
+    ? scorecard.redFlags 
+    : typeof scorecard?.redFlags === 'string' 
+    ? [scorecard.redFlags] 
+    : [];
+
+  const percentile = typeof scorecard?.percentile === 'number' 
+    ? Math.min(100, Math.max(0, Math.round(scorecard.percentile))) 
+    : 75;
 
   // Verdict Styling & Visual Stamp
   const getVerdictBadge = () => {
-    switch (scorecard.verdict) {
+    switch (scorecard?.verdict) {
       case 'STRONG_HIRE':
         return {
           title: 'STRONG HIRE',
@@ -101,7 +141,7 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
             </div>
             <p className="text-[11px] text-pastel-muted">
               Калибровка грейда: <strong className="text-pastel-text">{targetGradeInfo.label}</strong>
-              {scorecard.calibratedGrade !== scorecard.targetGrade && (
+              {scorecard?.calibratedGrade !== scorecard?.targetGrade && (
                 <span> ➔ подтверждено: <strong className="text-emerald-700">{calibratedGradeInfo.label}</strong></span>
               )}
             </p>
@@ -125,7 +165,7 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
             Рынoчный персентиль кандидата
           </span>
           <span className="font-extrabold text-pastel-accentRose">
-            Топ {100 - scorecard.percentile}% (Опережает {scorecard.percentile}% коллег)
+            Топ {100 - percentile}% (Опережает {percentile}% коллег)
           </span>
         </div>
         
@@ -133,12 +173,12 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
         <div className="relative w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${scorecard.percentile}%` }}
+            animate={{ width: `${percentile}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
             className={`h-full rounded-full ${
-              scorecard.percentile >= 80 
+              percentile >= 80 
                 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' 
-                : scorecard.percentile >= 60 
+                : percentile >= 60 
                 ? 'bg-gradient-to-r from-blue-400 to-indigo-500' 
                 : 'bg-gradient-to-r from-amber-400 to-rose-400'
             }`}
@@ -161,17 +201,17 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
               1. Domain Depth (JVM / Core)
             </span>
             <span className="font-extrabold text-xs text-rose-700">
-              {scorecard.dimensionScores.domainDepth.score}%
+              {domainScore}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-rose-500 rounded-full" 
-              style={{ width: `${scorecard.dimensionScores.domainDepth.score}%` }} 
+              className="h-full bg-rose-500 rounded-full transition-all duration-500" 
+              style={{ width: `${domainScore}%` }} 
             />
           </div>
           <p className="text-[10px] text-pastel-muted leading-tight">
-            {scorecard.dimensionScores.domainDepth.comment || 'Глубина понимания механизмов JVM'}
+            {domainComment}
           </p>
         </div>
 
@@ -183,17 +223,17 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
               2. System Architecture & Scale
             </span>
             <span className="font-extrabold text-xs text-blue-700">
-              {scorecard.dimensionScores.systemArchitecture.score}%
+              {archScore}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-blue-500 rounded-full" 
-              style={{ width: `${scorecard.dimensionScores.systemArchitecture.score}%` }} 
+              className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+              style={{ width: `${archScore}%` }} 
             />
           </div>
           <p className="text-[10px] text-pastel-muted leading-tight">
-            {scorecard.dimensionScores.systemArchitecture.comment || 'Осознание компромиссов и точек отказа'}
+            {archComment}
           </p>
         </div>
 
@@ -205,17 +245,17 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
               3. Communication (STAR / PREP)
             </span>
             <span className="font-extrabold text-xs text-purple-700">
-              {scorecard.dimensionScores.communicationStar.score}%
+              {commScore}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-purple-500 rounded-full" 
-              style={{ width: `${scorecard.dimensionScores.communicationStar.score}%` }} 
+              className="h-full bg-purple-500 rounded-full transition-all duration-500" 
+              style={{ width: `${commScore}%` }} 
             />
           </div>
           <p className="text-[10px] text-pastel-muted leading-tight">
-            {scorecard.dimensionScores.communicationStar.comment || 'Структура ответа и аргументация'}
+            {commComment}
           </p>
         </div>
 
@@ -227,17 +267,17 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
               4. Operational Excellence
             </span>
             <span className="font-extrabold text-xs text-amber-700">
-              {scorecard.dimensionScores.operationalExcellence.score}%
+              {opsScore}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-amber-500 rounded-full" 
-              style={{ width: `${scorecard.dimensionScores.operationalExcellence.score}%` }} 
+              className="h-full bg-amber-500 rounded-full transition-all duration-500" 
+              style={{ width: `${opsScore}%` }} 
             />
           </div>
           <p className="text-[10px] text-pastel-muted leading-tight">
-            {scorecard.dimensionScores.operationalExcellence.comment || 'Учет аварий, отказов и мониторинга'}
+            {opsComment}
           </p>
         </div>
       </div>
@@ -245,14 +285,14 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
       {/* Strengths & Red Flags */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
         {/* Strengths */}
-        {scorecard.strengths && scorecard.strengths.length > 0 && (
+        {rawStrengths.length > 0 && (
           <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl space-y-1">
             <span className="text-[11px] font-extrabold text-emerald-800 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               Сильные стороны (Strengths):
             </span>
             <ul className="space-y-1 text-[11px] text-emerald-950">
-              {scorecard.strengths.map((s, idx) => (
+              {rawStrengths.map((s, idx) => (
                 <li key={idx} className="flex items-start gap-1.5">
                   <span className="text-emerald-500 font-bold shrink-0">•</span>
                   <span>{s}</span>
@@ -263,14 +303,14 @@ export const HiringCommitteeCard: React.FC<HiringCommitteeCardProps> = ({
         )}
 
         {/* Red Flags / Risk areas */}
-        {scorecard.redFlags && scorecard.redFlags.length > 0 ? (
+        {rawRedFlags.length > 0 ? (
           <div className="p-3 bg-rose-50/70 border border-rose-200/80 rounded-2xl space-y-1">
             <span className="text-[11px] font-extrabold text-rose-800 flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
               Зоны риска комитета (Red Flags):
             </span>
             <ul className="space-y-1 text-[11px] text-rose-950">
-              {scorecard.redFlags.map((rf, idx) => (
+              {rawRedFlags.map((rf, idx) => (
                 <li key={idx} className="flex items-start gap-1.5">
                   <span className="text-rose-500 font-bold shrink-0">•</span>
                   <span>{rf}</span>

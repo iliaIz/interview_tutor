@@ -261,13 +261,31 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
       questionType
     });
 
+    // SOTA Helper: Safely normalize dimension scores whether provided as primitive numbers or objects
+    const normalizeDim = (dim: any, fallback: { score: number; comment: string }) => {
+      if (typeof dim === 'number') {
+        return { score: Math.min(100, Math.max(0, Math.round(dim))), comment: fallback.comment };
+      }
+      if (dim && typeof dim === 'object') {
+        const s = typeof dim.score === 'number' ? dim.score : fallback.score;
+        const c = typeof dim.comment === 'string' && dim.comment.trim() ? dim.comment : fallback.comment;
+        return { score: Math.min(100, Math.max(0, Math.round(s))), comment: c };
+      }
+      return fallback;
+    };
+
+    const rawDims = args.faangScorecard?.dimensionScores || {};
+    const normalizedDims = {
+      domainDepth: normalizeDim(rawDims.domainDepth, calculatedScorecard.dimensionScores.domainDepth),
+      systemArchitecture: normalizeDim(rawDims.systemArchitecture, calculatedScorecard.dimensionScores.systemArchitecture),
+      communicationStar: normalizeDim(rawDims.communicationStar, calculatedScorecard.dimensionScores.communicationStar),
+      operationalExcellence: normalizeDim(rawDims.operationalExcellence, calculatedScorecard.dimensionScores.operationalExcellence)
+    };
+
     const faangScorecard = args.faangScorecard ? {
       ...calculatedScorecard,
       ...args.faangScorecard,
-      dimensionScores: {
-        ...calculatedScorecard.dimensionScores,
-        ...(args.faangScorecard.dimensionScores || {})
-      }
+      dimensionScores: normalizedDims
     } : calculatedScorecard;
 
     let savedEvalId = '';
@@ -368,27 +386,30 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
       geminiSocket.send(JSON.stringify(toolResponse));
     }
 
-    // Notify frontend client with evaluation data
+    const evaluationPayload = {
+      id: savedEvalId,
+      score,
+      isPassed,
+      positivePoints,
+      missingPoints,
+      feedback,
+      spokenFeedback: feedback,
+      questionType,
+      speechCoaching,
+      faangScorecard,
+      criteriaBreakdown,
+      deductions,
+      upgradeSnippet,
+      assistanceLevel,
+      knowledgeUpdate: decayResult
+    };
+
+    // Notify frontend client with evaluation data (Dual-Payload: evaluation + payload for robust contract)
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({
         type: 'evaluation_completed',
-        evaluation: {
-          id: savedEvalId,
-          score,
-          isPassed,
-          positivePoints,
-          missingPoints,
-          feedback,
-          spokenFeedback: feedback,
-          questionType,
-          speechCoaching,
-          faangScorecard,
-          criteriaBreakdown,
-          deductions,
-          upgradeSnippet,
-          assistanceLevel,
-          knowledgeUpdate: decayResult
-        }
+        evaluation: evaluationPayload,
+        payload: evaluationPayload
       }));
     }
 
@@ -564,6 +585,7 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
         type: 'hiring_committee_verdict',
         submissionId,
         packet,
+        payload: packet,
         timestamp: Date.now()
       }));
     }
