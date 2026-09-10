@@ -340,13 +340,13 @@ export class AudioPlayoutManager {
     if (this.autoDrainTimer) {
       clearTimeout(this.autoDrainTimer);
     }
-    // Auto-drain fallback if turnComplete is delayed by network
+    // Auto-drain fallback if turnComplete is delayed by network (1500ms accommodates natural pauses and jitter)
     this.autoDrainTimer = setTimeout(() => {
       this.autoDrainTimer = null;
       if (this.workletNode && this.isWorkletPlaying) {
         this.workletNode.port.postMessage({ type: 'drain' });
       }
-    }, 600);
+    }, 1500);
   }
 
   /**

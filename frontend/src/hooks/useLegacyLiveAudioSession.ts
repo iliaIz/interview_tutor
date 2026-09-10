@@ -313,8 +313,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                   if (!silenceTimerRef.current) {
                     const vadPauseMs = currentParamsRef.current.vadPauseMs ?? 1800;
                     silenceTimerRef.current = setTimeout(() => {
-                      console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
-                      triggerEndTurn();
+                      setIsPauseHolding(false);
+                      silenceTimerRef.current = null;
                     }, vadPauseMs);
                   }
                 }

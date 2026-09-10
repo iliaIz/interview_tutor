@@ -1297,6 +1297,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setIsThinking(false);
             isThinkingRef.current = false;
             setIsUserSpeaking(false);
+            setIsPauseHolding(false);
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
               silenceTimerRef.current = null;
@@ -2360,9 +2361,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     if (!silenceTimerRef.current) {
                       const vadPauseMs = currentCfg.vadPauseMs ?? 1800;
                       silenceTimerRef.current = setTimeout(() => {
-                        console.log(`🔇 Silence detected after candidate speech (${(vadPauseMs / 1000).toFixed(1)}s). Auto-triggering turnComplete...`);
                         setIsPauseHolding(false);
-                        triggerEndTurn();
+                        silenceTimerRef.current = null;
                       }, vadPauseMs);
                     }
                   }

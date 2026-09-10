@@ -13,22 +13,22 @@
 
 ```mermaid
 graph LR
-    Studio[✨ InterviewPrep AI Studio] --> M1[🧠 База Знаний & Голос]
-    Studio --> M2[🐛 Инциденты & Баги PROD]
-    Studio --> M3[🏛️ Machine Coding & LLD Arena]
+    Studio["✨ InterviewPrep AI Studio"] --> M1["🧠 База Знаний & Голос"]
+    Studio --> M2["🐛 Инциденты & Баги PROD"]
+    Studio --> M3["🏛️ Machine Coding & LLD Arena"]
 
-    M1 --> V1[816 вопросов по 24 темам]
-    M1 --> V2[Gemini Live 24kHz HD Voice]
-    M1 --> V3[Аудио-рекапы с Gemini TTS]
+    M1 --> V1["816 вопросов по 24 темам"]
+    M1 --> V2["Gemini Live 24kHz HD Voice"]
+    M1 --> V3["Аудио-рекапы с Gemini TTS"]
 
-    M2 --> I1[70 SOTA Инженерных Ката]
-    M2 --> I2[Full-Jitter Exponential Backoff]
-    M2 --> I3[TaskRecoveryCard (0 Blank Screens)]
+    M2 --> I1["70 SOTA Инженерных Ката"]
+    M2 --> I2["Full-Jitter Exponential Backoff"]
+    M2 --> I3["TaskRecoveryCard (0 Blank Screens)"]
 
-    M3 --> C1[15 BigTech LLD (Яндекс / Озон)]
-    M3 --> C2[10 FinTech & Ledger LLD (Т-Банк / Stripe)]
-    M3 --> C3[10 Concurrency Systems (Loom)]
-    M3 --> C4[8-Правильный AST Аудит & Clock.fixed]
+    M3 --> C1["15 BigTech LLD (Яндекс / Озон)"]
+    M3 --> C2["10 FinTech & Ledger LLD (Т-Банк / Stripe)"]
+    M3 --> C3["10 Concurrency Systems (Loom)"]
+    M3 --> C4["8-Правильный AST Аудит & Clock.fixed"]
 ```
 
 ---
