@@ -194,7 +194,7 @@ const getTutorModeLabel = (mode: string) => {
   const activeEvaluation = evaluationsMap[currentQ.id];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-2.5 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6">
       {/* Top Breadcrumb & Continuous Batch Info */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white/75 backdrop-blur-md px-4 py-3 rounded-2xl border border-pastel-border shadow-2xs">
         <div className="flex items-center gap-2">
@@ -244,7 +244,7 @@ const getTutorModeLabel = (mode: string) => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.2 }}
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-pastel-border shadow-sm relative overflow-hidden"
+          className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-6 md:p-8 border border-pastel-border shadow-sm relative overflow-hidden"
         >
           {/* Subtle Ambient Decorative Glow */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-pastel-rose/30 via-pastel-lavender/20 to-transparent rounded-full blur-2xl pointer-events-none -z-0" />
@@ -293,7 +293,7 @@ const getTutorModeLabel = (mode: string) => {
               </div>
             </div>
 
-            <h2 className="text-xl md:text-2xl font-bold text-pastel-text mb-5 leading-snug">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-pastel-text mb-4 sm:mb-5 leading-snug break-anywhere">
               {currentQ.question}
             </h2>
 
@@ -354,7 +354,7 @@ const getTutorModeLabel = (mode: string) => {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="prose prose-slate max-w-none text-sm md:text-base leading-relaxed text-pastel-text overflow-hidden"
+                    className="prose prose-slate max-w-none text-sm md:text-base leading-relaxed text-pastel-text break-anywhere"
                   >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -363,19 +363,19 @@ const getTutorModeLabel = (mode: string) => {
                           <h3 className="text-base font-bold text-pastel-accentViolet mt-5 mb-2 flex items-center gap-2" {...props} />
                         ),
                         p: ({ node, ...props }) => (
-                          <p className="mb-4 text-pastel-text/90 leading-relaxed" {...props} />
+                          <p className="mb-4 text-pastel-text/90 leading-relaxed break-anywhere" {...props} />
                         ),
                         strong: ({ node, ...props }) => (
                           <strong className="font-bold text-pastel-text" {...props} />
                         ),
                         ul: ({ node, ...props }) => (
-                          <ul className="list-disc list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1" {...props} />
+                          <ul className="list-disc list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1 break-anywhere" {...props} />
                         ),
                         ol: ({ node, ...props }) => (
-                          <ol className="list-decimal list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1" {...props} />
+                          <ol className="list-decimal list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1 break-anywhere" {...props} />
                         ),
                         table: ({ node, ...props }) => (
-                          <div className="overflow-x-auto my-6 rounded-2xl border border-pastel-border shadow-2xs">
+                          <div className="overflow-x-auto scroll-touch-x my-4 sm:my-6 rounded-2xl border border-pastel-border shadow-2xs">
                             <table className="w-full text-xs md:text-sm text-left border-collapse" {...props} />
                           </div>
                         ),
@@ -386,7 +386,7 @@ const getTutorModeLabel = (mode: string) => {
                           <th className="px-4 py-3 font-bold" {...props} />
                         ),
                         td: ({ node, ...props }) => (
-                          <td className="px-4 py-3 border-b border-pastel-border/50 align-top" {...props} />
+                          <td className="px-3 sm:px-4 py-2 sm:py-3 border-b border-pastel-border/50 align-top break-anywhere" {...props} />
                         ),
                         code: ({ node, inline, className, children, ...props }: any) => {
                           const codeStr = String(children).replace(/\n$/, '');
@@ -405,7 +405,7 @@ const getTutorModeLabel = (mode: string) => {
                             );
                           }
                           return (
-                            <code className="px-1.5 py-0.5 rounded-md bg-pastel-lavender/60 text-pastel-accentViolet font-mono text-xs font-semibold" {...props}>
+                            <code className="px-1.5 py-0.5 rounded-md bg-pastel-lavender/60 text-pastel-accentViolet font-mono text-[11px] sm:text-xs font-semibold break-anywhere [word-break:break-word]" {...props}>
                               {children}
                             </code>
                           );

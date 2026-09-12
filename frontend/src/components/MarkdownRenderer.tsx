@@ -38,7 +38,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
 
       return (
         <code
-          className="px-1.5 py-0.5 mx-0.5 rounded-md bg-pastel-lavender/50 text-pastel-accentViolet font-mono text-[0.88em] font-semibold border border-pastel-accentViolet/25 shadow-2xs"
+          className="px-1.5 py-0.5 mx-0.5 rounded-md bg-pastel-lavender/50 text-pastel-accentViolet font-mono text-[0.88em] font-semibold border border-pastel-accentViolet/25 shadow-2xs break-anywhere [word-break:break-word]"
           {...props}
         >
           {children}
@@ -46,7 +46,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
       );
     },
     p({ children }: any) {
-      return <p className={`my-1.5 ${compact ? 'text-xs' : 'text-sm'}`}>{children}</p>;
+      return <p className={`my-1.5 break-anywhere ${compact ? 'text-xs' : 'text-sm'}`}>{children}</p>;
     },
     ul({ children }: any) {
       return (
@@ -63,7 +63,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
       );
     },
     li({ children }: any) {
-      return <li className="leading-relaxed">{children}</li>;
+      return <li className="leading-relaxed break-anywhere">{children}</li>;
     },
     h1({ children }: any) {
       return <h1 className="text-base font-bold text-pastel-text mt-3 mb-1.5">{children}</h1>;
@@ -83,7 +83,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
     },
     table({ children }: any) {
       return (
-        <div className="overflow-x-auto my-2 rounded-xl border border-pastel-border shadow-2xs">
+        <div className="overflow-x-auto scroll-touch-x my-2 rounded-xl border border-pastel-border shadow-2xs">
           <table className="min-w-full text-xs text-left divide-y divide-pastel-border">
             {children}
           </table>
@@ -94,7 +94,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
       return <th className="px-3 py-2 bg-pastel-card font-bold text-pastel-text">{children}</th>;
     },
     td({ children }: any) {
-      return <td className="px-3 py-1.5 border-t border-pastel-border/60">{children}</td>;
+      return <td className="px-3 py-1.5 border-t border-pastel-border/60 break-anywhere">{children}</td>;
     },
     strong({ children }: any) {
       return <strong className="font-bold text-pastel-text">{children}</strong>;
@@ -114,7 +114,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   }), [compact]);
 
   return (
-    <div className={`markdown-content leading-relaxed ${className}`}>
+    <div className={`markdown-content leading-relaxed break-anywhere ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={markdownComponents}

@@ -290,7 +290,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
     <div
       data-selection-zone="code"
       data-revision-index={revisionIndex}
-      className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-xs md:text-sm shadow-xl modal-overscroll-contain ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-[11.5px] sm:text-xs md:text-sm shadow-xl ${className}`}
       style={{ contain: 'content' }}
     >
       {/* Header bar with macOS window dots and copy button */}
@@ -347,7 +347,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
       >
         {({ className: highlightClass, style, tokens, getLineProps, getTokenProps }) => (
           <pre
-            className={`${highlightClass} m-0 overflow-x-auto p-0 selection:bg-[#3D3558] modal-overscroll-contain ${maxHeight ? maxHeight : ''}`}
+            className={`${highlightClass} m-0 overflow-x-auto p-0 selection:bg-[#3D3558] scroll-touch-x ${maxHeight ? maxHeight : ''}`}
             style={{ ...style, backgroundColor: '#0B0C10' }}
           >
             <code className="block min-w-full py-3">
@@ -392,7 +392,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = ({
                           onClick={(e) => handleGutterClick(lineNum, e)}
                           title="Нажмите, чтобы указать ИИ на эту строку"
                           data-line-number={lineNum}
-                          className={`w-9 flex-shrink-0 select-none pr-3 text-right font-mono text-[11px] tabular-nums cursor-pointer transition-colors duration-150 ${
+                          className={`w-7 sm:w-9 flex-shrink-0 select-none pr-1.5 sm:pr-3 text-right font-mono text-[10px] sm:text-[11px] tabular-nums cursor-pointer transition-colors duration-150 ${
                             inFocus ? 'text-pastel-accentViolet font-bold' : 'text-[#7E7796] hover:text-pastel-accentViolet'
                           }`}
                         >

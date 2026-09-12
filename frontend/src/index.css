@@ -11,20 +11,26 @@
   }
 }
 
-/* Custom Luxury Scrollbar */
-::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #E8E2D9;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #D8D0C3;
+/* Custom Luxury Scrollbar - Desktop / Precision Pointer Only (SOTA 2026 Media Query) */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #E8E2D9 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #E8E2D9;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #D8D0C3;
+  }
 }
 
 /* Glassmorphism utility */
@@ -129,3 +135,22 @@
   -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
 }
 
+
+/* Horizontal & Bidirectional Touch Scrolling (Code, Tables, Horizontal Carousels) */
+.scroll-touch-x {
+  overscroll-behavior-x: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x pan-y !important;
+}
+
+/* SOTA 2026 Token Safety: Safe break for long Java packages, Spring annotations, class names */
+.break-anywhere {
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+/* SOTA 2026 Scroll Affordance Hint: Right edge gradient fade for horizontal overflow */
+.mask-fade-end {
+  mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+}

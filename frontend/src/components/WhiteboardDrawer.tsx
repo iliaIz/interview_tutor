@@ -68,10 +68,15 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 100 }}
           transition={{ type: 'spring', damping: 26, stiffness: 240 }}
-          className={`fixed top-4 bottom-4 right-4 z-50 rounded-3xl bg-[#121622]/95 backdrop-blur-2xl border border-pastel-accentViolet/30 shadow-2xl flex flex-col overflow-hidden text-slate-200 ${
-            isExpanded ? 'w-[calc(100vw-2rem)] max-w-4xl' : 'w-full max-w-lg'
+          className={`fixed z-50 bg-[#121622]/95 backdrop-blur-2xl border-t md:border border-pastel-accentViolet/30 shadow-2xl flex flex-col overflow-hidden text-slate-200 transition-all duration-300 inset-x-0 bottom-0 top-12 rounded-t-3xl md:inset-auto md:top-4 md:bottom-4 md:right-4 md:rounded-3xl ${
+            isExpanded ? 'md:w-[calc(100vw-2rem)] md:max-w-4xl' : 'md:w-full md:max-w-lg'
           }`}
         >
+          {/* Mobile Drag Handle */}
+          <div className="md:hidden flex items-center justify-center pt-2.5 pb-1 select-none">
+            <div className="w-10 h-1.5 rounded-full bg-slate-600/80" />
+          </div>
+
           {/* Header Bar */}
           <div className="flex items-center justify-between px-5 py-3.5 bg-[#181E2E]/90 border-b border-[#2A344E] select-none">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -140,7 +145,7 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           )}
 
           {/* Code Artifact History & Viewer Body */}
-          <div className="flex-1 overflow-y-auto p-3.5 custom-scrollbar modal-overscroll-contain space-y-3">
+          <div className="flex-1 overflow-y-auto p-2.5 sm:p-3.5 custom-scrollbar space-y-3">
             <CodeArtifactTimeline showDiffToggle={true} />
             
             {/* If no revisions exist yet, fallback to direct CodeViewer */}

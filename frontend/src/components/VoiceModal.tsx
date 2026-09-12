@@ -2825,15 +2825,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const passedCount = evaluatedKeys.filter((k) => allResults[k]?.isPassed).length;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto modal-overscroll-contain">
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-1 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.94, opacity: 0, y: 15 }}
         transition={{ duration: 0.25 }}
-        className={`bg-white rounded-3xl p-3.5 sm:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 modal-overscroll-contain ${
+        className={`bg-white rounded-3xl p-2.5 sm:p-6 border border-pastel-border shadow-2xl relative overflow-hidden flex flex-col my-auto transition-all duration-300 ${
           sessionType === 'tutor'
-            ? 'max-w-5xl w-full max-h-[96dvh] sm:max-h-[92vh]'
+            ? 'max-w-5xl w-full h-[96dvh] sm:h-auto sm:max-h-[92vh]'
             : 'max-w-xl w-full max-h-[96dvh] sm:max-h-[92vh]'
         }`}
       >

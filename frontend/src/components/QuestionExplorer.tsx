@@ -344,7 +344,7 @@ export const QuestionExplorer: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 pb-32">
+    <div className="max-w-5xl mx-auto px-2.5 sm:px-4 py-4 sm:py-8 pb-32">
       {/* Top Breadcrumb & Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-2">
@@ -662,7 +662,7 @@ export const QuestionExplorer: React.FC = () => {
                     {/* Question Text */}
                     <h3
                       onClick={(e) => handleItemSelect(q.id, idx, e)}
-                      className="text-sm md:text-base font-bold text-pastel-text leading-snug cursor-pointer select-none hover:text-pastel-accentRose transition-colors"
+                      className="text-sm md:text-base font-bold text-pastel-text leading-snug cursor-pointer select-none hover:text-pastel-accentRose transition-colors break-anywhere"
                     >
                       {q.question}
                     </h3>
@@ -693,7 +693,7 @@ export const QuestionExplorer: React.FC = () => {
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="mt-3 pt-3 border-t border-pastel-border/60 text-xs text-pastel-text/90 leading-relaxed bg-pastel-bg/60 p-3.5 rounded-xl"
+                          className="mt-3 pt-3 border-t border-pastel-border/60 text-xs text-pastel-text/90 leading-relaxed bg-pastel-bg/60 p-2.5 sm:p-3.5 rounded-xl break-anywhere"
                         >
                           <div className="text-[11px] font-bold uppercase tracking-wider text-pastel-muted mb-2 flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-pastel-accentRose" /> Эталонный ответ:
