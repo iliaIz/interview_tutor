@@ -580,7 +580,8 @@ export const QuestionExplorer: React.FC = () => {
                 }`}
               >
 
-                <div className="p-4 flex items-start gap-3">
+                <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-start gap-2.5 sm:gap-3">
+                <div className="flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0 w-full">
                   {/* Row Checkbox (with Shift-click handler) */}
                   <button
                     onClick={(e) => handleItemSelect(q.id, idx, e)}
@@ -706,8 +707,10 @@ export const QuestionExplorer: React.FC = () => {
                     </AnimatePresence>
                   </div>
 
+                  </div>
+
                   {/* Individual Row Action Buttons */}
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1.5 self-end sm:self-start shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-pastel-border/40 w-full sm:w-auto justify-end">
                     <button
                       onClick={() => handleStartVoice([q])}
                       title="Пройти голосовое собеседование по этому вопросу"

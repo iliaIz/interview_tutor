@@ -17,6 +17,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   if (!content) return null;
 
   const markdownComponents = useMemo(() => ({
+    pre({ children }: any) {
+      return <div className="my-2.5 w-full max-w-full min-w-0">{children}</div>;
+    },
     code({ inline, className: codeClass, children, ...props }: any) {
       const match = /language-(\w+)/.exec(codeClass || '');
       const language = match ? match[1] : 'java';
@@ -25,7 +28,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
       if (!inline) {
         const isDiff = language === 'diff' || language === 'patch';
         return (
-          <div className="my-2.5">
+          <div className="my-2.5 w-full max-w-full min-w-0">
             <CodeViewer
               code={rawCode}
               language={isDiff ? 'java' : language}
@@ -83,7 +86,7 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
     },
     table({ children }: any) {
       return (
-        <div className="overflow-x-auto scroll-touch-x my-2 rounded-xl border border-pastel-border shadow-2xs">
+        <div className="overflow-x-auto scroll-touch-x my-2 rounded-xl border border-pastel-border shadow-2xs w-full max-w-full min-w-0">
           <table className="min-w-full text-xs text-left divide-y divide-pastel-border">
             {children}
           </table>

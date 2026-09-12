@@ -194,7 +194,7 @@ const getTutorModeLabel = (mode: string) => {
   const activeEvaluation = evaluationsMap[currentQ.id];
 
   return (
-    <div className="max-w-4xl mx-auto px-2.5 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full max-w-5xl lg:max-w-6xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6 min-w-0">
       {/* Top Breadcrumb & Continuous Batch Info */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white/75 backdrop-blur-md px-4 py-3 rounded-2xl border border-pastel-border shadow-2xs">
         <div className="flex items-center gap-2">
@@ -244,56 +244,60 @@ const getTutorModeLabel = (mode: string) => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.2 }}
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-6 md:p-8 border border-pastel-border shadow-sm relative overflow-hidden"
+          className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-6 md:p-8 border border-pastel-border shadow-sm relative overflow-hidden w-full min-w-0"
         >
           {/* Subtle Ambient Decorative Glow */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-pastel-rose/30 via-pastel-lavender/20 to-transparent rounded-full blur-2xl pointer-events-none -z-0" />
 
-          <div className="relative z-10">
+          <div className="relative z-10 w-full min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <span className="text-xs font-bold text-pastel-muted uppercase tracking-wider">
                 Вопрос #{currentQ.num}
               </span>
 
               {/* Action Buttons: Voice Interview, AI Tutor & Audio Recap */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <button
                   onClick={() => openVoiceSession('interview', currentQuestionIndex, '')}
-                  className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition cursor-pointer shadow-2xs active:scale-95"
+                  className="flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white hover:opacity-95 transition cursor-pointer shadow-2xs active:scale-95 touch-manipulation"
                   title="Пройти устное собеседование по этому вопросу с оценкой"
                 >
-                  <Mic className="w-3.5 h-3.5" /> Собеседование
+                  <Mic className="w-3.5 h-3.5 shrink-0" />
+                  <span>Собеседование</span>
                 </button>
 
                 <button
                   onClick={() => openVoiceSession('tutor', currentQuestionIndex, '')}
-                  className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95"
-                  title="Обсудить вопрос голосом с AI-тьютором без оценок (режим обучения)"
+                  className="flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-pastel-lavender/80 text-pastel-accentViolet border border-pastel-accentViolet/30 hover:bg-pastel-accentViolet hover:text-white transition cursor-pointer shadow-2xs active:scale-95 touch-manipulation"
+                  title="Обсудить голосом с AI-тьютором с доской (режим обучения)"
                 >
-                  <Brain className="w-3.5 h-3.5" /> Тьютор ({getTutorModeLabel(voiceModalTutorMode)})
+                  <Brain className="w-3.5 h-3.5 shrink-0" />
+                  <span>Тьютор <span className="hidden sm:inline">({getTutorModeLabel(voiceModalTutorMode)})</span></span>
                 </button>
 
                 {activeEvaluation && (
                   <button
                     onClick={() => openReportModal(activeEvaluation)}
-                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
+                    className="flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer active:scale-95 touch-manipulation"
                     title="Посмотреть отчет последнего ответа"
                   >
-                    <Award className="w-3.5 h-3.5 text-emerald-600" /> Отчет ({activeEvaluation.score}/10)
+                    <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Отчет ({activeEvaluation.score}/10)</span>
                   </button>
                 )}
 
                 <button
                   onClick={handleRecapCurrentQuestion}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer"
-                  title="Сгенерировать аудиопересказ для этого вопроса"
+                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer active:scale-95 touch-manipulation"
+                  title="Сгенерировать аудиоподкаст по этому вопросу"
                 >
-                  <Headphones className="w-3.5 h-3.5" /> Озвучить
+                  <Headphones className="w-3.5 h-3.5 shrink-0" />
+                  <span>Подкаст</span>
                 </button>
               </div>
             </div>
 
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-pastel-text mb-4 sm:mb-5 leading-snug break-anywhere">
+            <h2 className="text-base sm:text-xl md:text-2xl font-bold text-pastel-text mb-3 sm:mb-5 leading-snug break-anywhere w-full">
               {currentQ.question}
             </h2>
 
@@ -354,11 +358,14 @@ const getTutorModeLabel = (mode: string) => {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="prose prose-slate max-w-none text-sm md:text-base leading-relaxed text-pastel-text break-anywhere"
+                    className="w-full min-w-0 text-sm md:text-base leading-relaxed text-pastel-text break-anywhere"
                   >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
+                        pre: ({ children }: any) => (
+                          <div className="my-3 w-full max-w-full min-w-0">{children}</div>
+                        ),
                         h3: ({ node, ...props }) => (
                           <h3 className="text-base font-bold text-pastel-accentViolet mt-5 mb-2 flex items-center gap-2" {...props} />
                         ),
@@ -375,7 +382,7 @@ const getTutorModeLabel = (mode: string) => {
                           <ol className="list-decimal list-inside my-3 space-y-1.5 text-pastel-text/90 pl-1 break-anywhere" {...props} />
                         ),
                         table: ({ node, ...props }) => (
-                          <div className="overflow-x-auto scroll-touch-x my-4 sm:my-6 rounded-2xl border border-pastel-border shadow-2xs">
+                          <div className="overflow-x-auto scroll-touch-x my-4 sm:my-6 rounded-2xl border border-pastel-border shadow-2xs w-full max-w-full min-w-0">
                             <table className="w-full text-xs md:text-sm text-left border-collapse" {...props} />
                           </div>
                         ),
@@ -383,7 +390,7 @@ const getTutorModeLabel = (mode: string) => {
                           <thead className="bg-pastel-rose/60 text-pastel-text font-bold uppercase text-[11px] tracking-wider border-b border-pastel-border" {...props} />
                         ),
                         th: ({ node, ...props }) => (
-                          <th className="px-4 py-3 font-bold" {...props} />
+                          <th className="px-3 sm:px-4 py-2 sm:py-3 font-bold" {...props} />
                         ),
                         td: ({ node, ...props }) => (
                           <td className="px-3 sm:px-4 py-2 sm:py-3 border-b border-pastel-border/50 align-top break-anywhere" {...props} />
@@ -395,7 +402,7 @@ const getTutorModeLabel = (mode: string) => {
 
                           if (!inline && (className || codeStr.includes('\n'))) {
                             return (
-                              <div className="my-4">
+                              <div className="my-2.5 w-full max-w-full min-w-0">
                                 <CodeViewer
                                   code={codeStr}
                                   language={lang}
@@ -419,9 +426,9 @@ const getTutorModeLabel = (mode: string) => {
               </AnimatePresence>
 
               {/* Quick Ask AI Tutor Bar with Visible Mode Chips */}
-              <div className="mt-5 pt-4 border-t border-pastel-border/60 space-y-2">
+              <div className="mt-5 pt-4 border-t border-pastel-border/60 space-y-2 w-full min-w-0">
                 {/* Contextual Mode Micro-Chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto scroll-touch-x no-scrollbar py-0.5 w-full min-w-0">
                   <span className="text-[10px] font-bold text-pastel-muted uppercase tracking-wider shrink-0 mr-1">Режим:</span>
                   {TUTOR_MODES.map((m) => {
                     const isSelected = voiceModalTutorMode === m.id;
@@ -431,7 +438,7 @@ const getTutorModeLabel = (mode: string) => {
                         type="button"
                         onClick={() => handleSelectTutorMode(m.id)}
                         title={m.desc}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shrink-0 active:scale-95 ${
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shrink-0 active:scale-95 touch-manipulation ${
                           isSelected
                             ? 'bg-pastel-accentViolet text-white shadow-xs border border-pastel-accentViolet'
                             : 'bg-white/80 hover:bg-white text-pastel-muted hover:text-pastel-text border border-pastel-border'
@@ -444,8 +451,8 @@ const getTutorModeLabel = (mode: string) => {
                   })}
                 </div>
 
-                <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-pastel-lavender/30 border border-pastel-accentViolet/20 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/30 focus-within:border-pastel-accentViolet/50 transition-all">
-                  <Brain className="w-4 h-4 text-pastel-accentViolet ml-2 shrink-0" />
+                <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-pastel-lavender/30 border border-pastel-accentViolet/20 shadow-2xs focus-within:ring-2 focus-within:ring-pastel-accentViolet/30 focus-within:border-pastel-accentViolet/50 transition-all w-full min-w-0">
+                  <Brain className="w-4 h-4 text-pastel-accentViolet ml-1.5 sm:ml-2 shrink-0" />
                   <input
                     type="text"
                     value={quickQuestionText}
@@ -455,16 +462,17 @@ const getTutorModeLabel = (mode: string) => {
                         handleLaunchTutorWithPrompt(quickQuestionText.trim());
                       }
                     }}
-                    placeholder={`💬 Спросить Тьютора [${getTutorModeLabel(voiceModalTutorMode)}] текстом или в наушники...`}
-                    className="flex-1 px-2 py-1 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none"
+                    placeholder={`💬 Спросить Тьютора [${getTutorModeLabel(voiceModalTutorMode)}]...`}
+                    className="flex-1 min-w-0 px-2 py-1 text-xs text-pastel-text bg-transparent placeholder:text-pastel-sub focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => handleLaunchTutorWithPrompt(quickQuestionText.trim())}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 touch-manipulation"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Спросить ({getTutorModeLabel(voiceModalTutorMode)})</span>
+                    <span>Спросить</span>
+                    <span className="hidden sm:inline">({getTutorModeLabel(voiceModalTutorMode)})</span>
                   </button>
                 </div>
               </div>
