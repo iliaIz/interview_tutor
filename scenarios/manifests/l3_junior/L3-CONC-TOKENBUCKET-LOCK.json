@@ -1,0 +1,112 @@
+{
+  "canonical_id": "L3-CONC-TOKENBUCKET-LOCK",
+  "legacy_aliases": [
+    "hld-micro-04",
+    "kata-04-rate-limiter",
+    "token-bucket-lock"
+  ],
+  "version": "1.0.0",
+  "target_level": "L3_JUNIOR",
+  "archetype": "CONCURRENCY_CONTROL",
+  "title": "Token Bucket Rate Limiter with Local In-Memory Lock Contention",
+  "subtitle": "Eliminating Spinlock Degradation via Lock-Free Atomic CAS and Striped Counters",
+  "problem_statement": "An in-memory rate limiter protecting an authentication endpoint under 25,000 RPS experiences severe CPU saturation. Thread profiling indicates 92% of CPU time is spent in thread parking and lock synchronization inside the TokenBucket.tryConsume() method.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/limiter/TokenBucket.java",
+        "content": "public class TokenBucket {\n    private final long capacity;\n    private final double refillRatePerNano;\n    private double tokens;\n    private long lastRefillTime;\n\n    public TokenBucket(long capacity, double refillRatePerSecond) {\n        this.capacity = capacity;\n        this.refillRatePerNano = refillRatePerSecond / 1e9;\n        this.tokens = capacity;\n        this.lastRefillTime = System.nanoTime();\n    }\n\n    // BUG: Synchronized keyword creates severe lock contention and thread parking across cores\n    public synchronized boolean tryConsume(int requested) {\n        long now = System.nanoTime();\n        double elapsed = now - lastRefillTime;\n        tokens = Math.min(capacity, tokens + elapsed * refillRatePerNano);\n        lastRefillTime = now;\n        if (tokens >= requested) {\n            tokens -= requested;\n            return True;\n        }\n        return false;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 15,
+      "description": "Coarse synchronized method serializes all worker threads, generating massive CPU cache line invalidations.",
+      "bug_pattern": "COARSE_LOCK_CONTENTION"
+    },
+    "correct_fix_diff": "- public synchronized boolean tryConsume(int requested) {\n+ // Use AtomicReference with optimistic CAS loop or Striped64\n+ public boolean tryConsume(int requested) {\n+     while (True) {\n+         BucketState current = stateRef.get();\n+         BucketState next = calculateRefill(current, requested);\n+         if (stateRef.compareAndSet(current, next)) return next.isAllowed();\n+     }\n+ }",
+    "ast_rule_invariants": [
+      "no-synchronized-in-highload-path"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "threads": 64
+          }
+        },
+        {
+          "id": "limiter_service",
+          "type": "app_service",
+          "title": "Rate Limiter Filter",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "algorithm": "CAS_LOCK_FREE",
+            "capacity": 10000
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "limiter_service",
+          "protocol": "http_rest"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 2.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 25000.0,
+      "inter_arrival_cv": 0.4,
+      "read_ratio": 1.0
+    },
+    "invariants": [
+      {
+        "id": "inv_limiter_overhead",
+        "description": "Limiter overhead at P99 must not exceed 2ms under 25k RPS.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how MESI cache coherence protocol handles write invalidations when 64 CPU cores attempt to update a single AtomicLong counter simultaneously.",
+      "stage_2_tightening": "If 100,000 requests/sec arrive and the CAS loop repeatedly fails due to high contention, what latency degradation occurs?",
+      "stage_3_adversarial": "How does clock drift or an NTP step adjustment affect System.nanoTime() vs System.currentTimeMillis() in rate limiting?",
+      "stage_4_squeeze": "We must distribute this rate limiter across 10 independent Kubernetes pods without centralized Redis to avoid network latency. How do you design local token quotas?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "put it in redis",
+        "trigger_regex": "(?i)put.*in.*redis|use.*redis.*limiter",
+        "counter_question": "Each Redis call over the network introduces at least 0.5ms to 1.5ms of round-trip latency. If your total request SLA is 2ms, how can you afford a network round-trip for every single check?",
+        "expected_staff_answer": "Local in-memory token buckets with periodic asynchronous batch synchronization or token leasing from Redis should be used to avoid synchronous network overhead per request."
+      }
+    ]
+  }
+}

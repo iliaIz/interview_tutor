@@ -1,0 +1,147 @@
+{
+  "canonical_id": "DIST-SYS-002",
+  "legacy_aliases": [
+    "hld-scenario-02",
+    "macro-02-global-financial-ledger",
+    "crdt-editor"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "COLLABORATIVE_SYSTEMS",
+  "title": "Real-Time Collaborative Document Canvas with CRDT",
+  "subtitle": "Conflict-Free Replicated Data Types (Fugue/RGA) and Peer-to-Peer State Convergence",
+  "problem_statement": "A Figma-like collaborative design canvas allows 10,000 concurrent designers to edit canvas vectors simultaneously. Using Operational Transformation (OT) requires a single central sequencer, which becomes a planetary bottleneck with 400ms cross-region latency. The system must migrate to a Conflict-Free Replicated Data Type (CRDT) architecture guaranteeing eventual convergence without a single leader.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "typescript",
+    "source_files": [
+      {
+        "path": "src/crdt/LWWRegister.ts",
+        "content": "export class LWWElementSet<T> {\n  private addSet = new Map<string, { value: T; timestamp: number }>();\n  private removeSet = new Map<string, number>();\n\n  public add(id: string, value: T, timestamp: number): void {\n    const existing = this.addSet.get(id);\n    if (!existing || timestamp > existing.timestamp) {\n      this.addSet.set(id, { value, timestamp });\n    }\n  }\n\n  public remove(id: string, timestamp: number): void {\n    const existing = this.removeSet.get(id) || 0;\n    if (timestamp > existing) {\n      this.removeSet.set(id, timestamp);\n    }\n  }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "LWW (Last-Write-Wins) timestamp register discards concurrent operations on text sequences, causing text interleaving anomalies.",
+      "bug_pattern": "LWW_TEXT_INTERLEAVING"
+    },
+    "correct_fix_diff": "+ // Migrate from naive LWW to Fugue/RGA fractional indexing with tree causality\n+ export class FugueSequenceNode { id: NodeID; parentId: NodeID; rightOrigin: NodeID; value: string; }",
+    "ast_rule_invariants": [
+      "no-wall-clock-lww-for-sequences"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "edge_us",
+          "type": "api_gateway",
+          "title": "Edge Gateway (US)",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "region": "us-east"
+          }
+        },
+        {
+          "id": "edge_eu",
+          "type": "api_gateway",
+          "title": "Edge Gateway (EU)",
+          "grid_position": {
+            "col": 0,
+            "row": 1
+          },
+          "params": {
+            "region": "eu-central"
+          }
+        },
+        {
+          "id": "crdt_sync",
+          "type": "worker_pool",
+          "title": "CRDT Delta Merger",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "protocol": "Fugue_CRDT"
+          }
+        },
+        {
+          "id": "doc_store",
+          "type": "nosql_document",
+          "title": "Document Snapshot DB",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "snapshot_interval_ops": 1000
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "edge_us",
+          "target": "crdt_sync",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "edge_eu",
+          "target": "crdt_sync",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "crdt_sync",
+          "target": "doc_store",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 25.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 3500.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 8000.0,
+      "inter_arrival_cv": 1.1,
+      "read_ratio": 0.6
+    },
+    "invariants": [
+      {
+        "id": "inv_crdt_convergence",
+        "description": "All active replicas must reach identical state vector within 500ms of quiet period.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "What is the mathematical definition of a semilattice in CRDTs? Why must merge operations be commutative, associative, and idempotent?",
+      "stage_2_tightening": "If 500 designers continuously draw lines for 6 hours, how do you prevent CRDT metadata (tombstones and ID vectors) from consuming gigabytes of memory?",
+      "stage_3_adversarial": "Two users offline on airplanes make 5,000 overlapping edits to the same paragraph and reconnect simultaneously. How does Fugue CRDT resolve sequence interleaving?",
+      "stage_4_squeeze": "WebSocket connection state consumes 8KB per user. How do you handle 500,000 active connections on a single cluster without Linux file descriptor exhaustion?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "operational transformation",
+        "trigger_regex": "(?i)operational.*transformation|google.*docs.*ot",
+        "counter_question": "OT requires a centralized server to linearize the operation log. What happens to local editing latency for users in Sydney connecting to an OT server in Frankfurt?",
+        "expected_staff_answer": "Round-trip latency exceeds 300ms, creating unacceptable typing lag. CRDTs enable instant local mutation with background peer-to-peer or edge-delta convergence."
+      }
+    ]
+  }
+}

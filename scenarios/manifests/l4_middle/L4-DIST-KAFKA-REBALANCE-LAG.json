@@ -1,0 +1,131 @@
+{
+  "canonical_id": "L4-DIST-KAFKA-REBALANCE-LAG",
+  "legacy_aliases": [
+    "hld-micro-08",
+    "kata-08-saga-orchestration",
+    "kafka-rebalance-lag"
+  ],
+  "version": "1.0.0",
+  "target_level": "L4_MIDDLE",
+  "archetype": "MESSAGING_STREAMING",
+  "title": "Kafka Consumer Group Rebalance Lag & Static Membership",
+  "subtitle": "Tuning Cooperative Sticky Assignors, Heartbeat Threads and max.poll.interval.ms",
+  "problem_statement": "A telemetry processing pipeline consumes from 64 Kafka partitions using 16 worker pods. During a garbage collection pause of 35 seconds or slow database batch inserts, the consumer exceeds max.poll.interval.ms. The Kafka group coordinator considers the consumer dead and triggers an eager Stop-The-World rebalance, halting all 16 workers and compounding consumer lag exponentially.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/kafka/TelemetryConsumer.java",
+        "content": "@Component\npublic class TelemetryConsumer {\n    @Autowired private DatabaseService db;\n\n    @KafkaListener(topics = \"telemetry-events\", groupId = \"telemetry-processor\")\n    public void listen(List<ConsumerRecord<String, byte[]>> records, Acknowledgment ack) {\n        // BUG: Heavy synchronous database write inside poll loop blocks the consumer thread,\n        // causing max.poll.interval.ms (default 300s) to be exceeded during spikes\n        for (ConsumerRecord<String, byte[]> r : records) {\n            db.heavyPersist(r.value());\n        }\n        ack.acknowledge();\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 9,
+      "description": "Synchronous record-by-record processing inside poll loop risks exceeding max.poll.interval.ms and triggering consumer rebalance.",
+      "bug_pattern": "CONSUMER_HEAVY_PROCESSING_BLOCK"
+    },
+    "correct_fix_diff": "- for (ConsumerRecord<String, byte[]> r : records) {\n-     db.heavyPersist(r.value());\n+ // Batch insert and offload heavy processing to bounded worker pool\n+ db.batchPersistAsync(records).thenRun(ack::acknowledge);\n+ // Configure partition.assignment.strategy = CooperativeStickyAssignor\n+ // Configure group.instance.id for static membership",
+    "ast_rule_invariants": [
+      "no-synchronous-io-in-kafka-poll-thread"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "kafka",
+          "type": "kafka_topic",
+          "title": "Kafka Telemetry Topic",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "partitions": 64,
+            "producers_rps": 12000
+          }
+        },
+        {
+          "id": "consumer_group",
+          "type": "worker_pool",
+          "title": "Consumer Group (16 Pods)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "assignor": "CooperativeSticky",
+            "static_membership": true
+          }
+        },
+        {
+          "id": "storage",
+          "type": "lsm_key_value",
+          "title": "Cassandra / ScyllaDB",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "batch_write_rps": 15000
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "kafka",
+          "target": "consumer_group",
+          "protocol": "async_event"
+        },
+        {
+          "id": "e2",
+          "source": "consumer_group",
+          "target": "storage",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 250.0,
+      "availability_target_nines": 99.9,
+      "monthly_budget_max_usd": 3000.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 12000.0,
+      "inter_arrival_cv": 1.2,
+      "read_ratio": 0.0
+    },
+    "invariants": [
+      {
+        "id": "inv_consumer_lag_bound",
+        "description": "Consumer lag must remain bounded without triggering stop-the-world eager rebalances.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == true"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the difference between heartbeat thread (`session.timeout.ms`) and the polling thread (`max.poll.interval.ms`) in Kafka Consumer architecture.",
+      "stage_2_tightening": "During rolling deployments in Kubernetes, 16 pods are restarted one by one. With default Eager Assignor, how many rebalances occur and what is the cumulative downtime?",
+      "stage_3_adversarial": "A poison pill message causes consumer thread to crash repeatedly. How do you isolate this message to a Dead Letter Queue (DLQ) without losing partition ordering?",
+      "stage_4_squeeze": "Network egress costs between Kafka brokers and consumers across AWS Availability Zones cost $10,000/month. How do you optimize partition rack awareness?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "increase session timeout",
+        "trigger_regex": "(?i)increase.*(session.*timeout|poll.*interval)",
+        "counter_question": "If you increase `max.poll.interval.ms` to 30 minutes, what happens when a consumer node genuinely dies due to hardware power loss? How long does that partition sit unconsumed?",
+        "expected_staff_answer": "Increasing timeout delays failure detection of real dead nodes. The correct solution is static membership (group.instance.id) and offloading processing to bounded worker pools while keeping poll() loop active."
+      }
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "canonical_id": "FIN-CELL-8092",
+  "legacy_aliases": [
+    "hld-scenario-11",
+    "fin-cell-8092",
+    "cellular-architecture"
+  ],
+  "version": "1.0.0",
+  "target_level": "L7_PRINCIPAL",
+  "archetype": "PLANETARY_CELLULAR",
+  "title": "Cellular Architecture with Zero Blast-Radius for Planetary Financial Settlement",
+  "subtitle": "Cell-Based Partitioning (100 Cells), Blast-Radius Containment and Poison-Pill Isolation",
+  "problem_statement": "A global core-banking settlement engine handles $4.5 trillion daily across 100 million accounts. An unhandled numeric overflow poison-pill transaction propagates through global shared queues, crashing downstream ledger services simultaneously across all 3 cloud regions. The system must be re-architected into 100 autonomous cellular units with zero shared-state and maximum 1% blast radius.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/cell/CellRouter.java",
+        "content": "@Service\npublic class CellRouter {\n    // Cellular mapping via consistent hash of accountId\n    public int resolveCellId(String accountId) {\n        return Math.abs(accountId.hashCode() % 100);\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 5,
+      "description": "Cross-cell transaction coordination via shared central database breaches cellular blast-radius isolation.",
+      "bug_pattern": "SHARED_GLOBAL_STATE_LEAK"
+    },
+    "correct_fix_diff": "+ // Implement Two-Phase Transfer Protocol between isolated Cell Routers with zero global DB dependency\n+ public void transferCrossCell(CellTx tx) { cellA.debit(tx); cellB.credit(tx); }",
+    "ast_rule_invariants": [
+      "no-cross-cell-database-joins"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "cell_router",
+          "type": "cell_router",
+          "title": "Anycast Cell Router",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "total_cells": 100
+          }
+        },
+        {
+          "id": "cell_01",
+          "type": "microservice",
+          "title": "Cell 01 (1% Accounts)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "cell_id": 1,
+            "blast_radius_percent": 1.0
+          }
+        },
+        {
+          "id": "cell_02",
+          "type": "microservice",
+          "title": "Cell 02 (1% Accounts)",
+          "grid_position": {
+            "col": 1,
+            "row": 1
+          },
+          "params": {
+            "cell_id": 2,
+            "blast_radius_percent": 1.0
+          }
+        },
+        {
+          "id": "cell_01_db",
+          "type": "rdbms_primary",
+          "title": "Cell 01 Isolated DB",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "max_connections": 50
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "cell_router",
+          "target": "cell_01",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "cell_router",
+          "target": "cell_02",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e3",
+          "source": "cell_01",
+          "target": "cell_01_db",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 20.0,
+      "availability_target_nines": 99.9999,
+      "monthly_budget_max_usd": 120000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 100000.0,
+      "inter_arrival_cv": 0.4,
+      "read_ratio": 0.3
+    },
+    "invariants": [
+      {
+        "id": "inv_blast_radius",
+        "description": "Failure of any single cell must never affect more than 1% of total system availability.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the architectural principles of Cell-Based Architecture as implemented by AWS and Stripe. What constitutes a strict cellular boundary?",
+      "stage_2_tightening": "How does a cross-cell transaction (Account in Cell 12 transfers money to Account in Cell 88) execute without a global coordinator that re-introduces a single point of failure?",
+      "stage_3_adversarial": "A poisoned payload triggers a fatal JVM crash in Cell 12. How does the Cell Router instantly isolate Cell 12 while keeping the other 99 cells at 100% operational throughput?",
+      "stage_4_squeeze": "Running 100 distinct database clusters multiplies base infrastructure idle cost by 5x. How do you consolidate storage hardware without compromising failure domain isolation?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "global coordinator",
+        "trigger_regex": "(?i)global.*coordinator|central.*orchestrator",
+        "counter_question": "If your cell architecture relies on a central global coordinator for cross-cell transactions, what is the blast radius when that central coordinator fails?",
+        "expected_staff_answer": "100% blast radius. A true cellular architecture uses peer-to-peer 2-phase transfers with outbox pattern and escrow accounts between cells, eliminating any central coordinator."
+      }
+    ]
+  }
+}

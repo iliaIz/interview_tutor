@@ -1,0 +1,130 @@
+{
+  "canonical_id": "L3-NET-NGINX-BUFFERING",
+  "legacy_aliases": [
+    "hld-micro-05",
+    "kata-05-lru-cache",
+    "nginx-buffering"
+  ],
+  "version": "1.0.0",
+  "target_level": "L3_JUNIOR",
+  "archetype": "NETWORK_INFRASTRUCTURE",
+  "title": "Nginx Reverse Proxy Buffer Overflow and Upstream Load Shedding",
+  "subtitle": "Client Body Buffer Tuning, Disk Spooling Penalties and Zero-Copy TCP Optimization",
+  "problem_statement": "An API Gateway using Nginx in front of Python/Java microservices handles 2,000 RPS. When mobile clients on slow 3G connections request 2MB JSON reports, upstream app server workers remain blocked for 15+ seconds per client because proxy buffering was disabled to 'save memory', exhausting application worker threads.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "nginx",
+    "source_files": [
+      {
+        "path": "nginx/conf.d/gateway.conf",
+        "content": "upstream app_backend {\n    server 127.0.0.1:8080 max_fails=3 fail_timeout=10s;\n    keepalive 32;\n}\n\nserver {\n    listen 80;\n    server_name api.platform.com;\n\n    location /api/ {\n        proxy_pass http://app_backend;\n        \n        # BUG: Disabling proxy buffering forces upstream app servers to hold threads for slow clients\n        proxy_buffering off;\n        proxy_read_timeout 60s;\n        proxy_send_timeout 60s;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 15,
+      "description": "proxy_buffering off causes upstream app workers to be tied to client transmission speed (Slowloris effect).",
+      "bug_pattern": "NGINX_BUFFERING_DISABLED_STARVATION"
+    },
+    "correct_fix_diff": "- proxy_buffering off;\n+ proxy_buffering on;\n+ proxy_buffer_size 16k;\n+ proxy_buffers 8 64k;\n+ proxy_busy_buffers_size 128k;\n+ proxy_max_temp_file_size 0; -- Avoid SSD write thrashing if RAM permits",
+    "ast_rule_invariants": [
+      "enforce-proxy-buffering-for-slow-clients"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "clients",
+          "type": "dns",
+          "title": "Global Mobile Clients",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "slow_client_ratio": 0.4
+          }
+        },
+        {
+          "id": "nginx",
+          "type": "load_balancer",
+          "title": "Nginx Edge Proxy",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "proxy_buffering": true,
+            "worker_connections": 10240
+          }
+        },
+        {
+          "id": "app_upstream",
+          "type": "app_service",
+          "title": "App Server Pool",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "max_workers": 64
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "clients",
+          "target": "nginx",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "nginx",
+          "target": "app_upstream",
+          "protocol": "http_rest"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 40.0,
+      "availability_target_nines": 99.9,
+      "monthly_budget_max_usd": 800.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 2000.0,
+      "inter_arrival_cv": 0.9,
+      "read_ratio": 0.9
+    },
+    "invariants": [
+      {
+        "id": "inv_upstream_worker_saturation",
+        "description": "Upstream application workers must not exceed 80% saturation due to slow client reads.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how epoll in Nginx decouples client socket reads from upstream keepalive TCP connections.",
+      "stage_2_tightening": "If proxy_buffering is ON and the response size is 50MB, what does Nginx do when proxy_buffers are filled? What is the impact on NVMe drive lifespan?",
+      "stage_3_adversarial": "An attacker sends HTTP POST requests with Content-Length 1000000 at 1 byte every 10 seconds. How does your reverse proxy protect the upstream services?",
+      "stage_4_squeeze": "How do you configure zero-copy transfer (`sendfile` and `tcp_nopush`) for static assets to bypass user-space memory copies?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "just scale pods",
+        "trigger_regex": "(?i)scale.*(pods|containers|instances)",
+        "counter_question": "If the issue is slow TCP window draining by client cellular networks, scaling upstream app pods costs $5,000/month in idle JVMs. Why not let Nginx buffer the payload in RAM in 2ms?",
+        "expected_staff_answer": "Proxy buffering allows the upstream application to complete in 2ms and return to the pool, while Nginx handles the slow 10-second client drain with negligible kernel memory."
+      }
+    ]
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "canonical_id": "DIST-SYS-003",
+  "legacy_aliases": [
+    "hld-scenario-03",
+    "macro-03-distributed-kv",
+    "lsm-timeseries"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "DATA_STORAGE",
+  "title": "High-Throughput Time-Series Engine with LSM Compaction Tiering",
+  "subtitle": "MemTable Sizing, SSTable Compaction Strategies and Bloom Filter Sizing",
+  "problem_statement": "An IoT telemetry platform ingests 250,000 metric datapoints per second. The storage engine experiences periodic 5-second write stalls (write-stalls) whenever MemTables fill up faster than background threads can perform Leveled Compaction, causing client buffers to overflow.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/lsm/LsmEngine.java",
+        "content": "public class LsmEngine {\n    private final ConcurrentSkipListMap<byte[], byte[]> memTable = new ConcurrentSkipListMap<>(Bytes::compare);\n    private final long maxMemTableSize = 64 * 1024 * 1024; // 64MB\n\n    public void put(byte[] key, byte[] value) {\n        // BUG: Synchronous flush on write thread when MemTable is full blocks write path\n        if (memTable.size() >= maxMemTableSize) {\n            flushToDiskSynchronous();\n        }\n        memTable.put(key, value);\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Synchronous disk flushing on caller thread during MemTable saturation triggers massive write stalls.",
+      "bug_pattern": "SYNCHRONOUS_LSM_FLUSH_STALL"
+    },
+    "correct_fix_diff": "- if (memTable.size() >= maxMemTableSize) { flushToDiskSynchronous(); }\n+ // Double buffering: switch active MemTable to ImmutableMemTable and dispatch async background flush\n+ if (memTable.size() >= maxMemTableSize) {\n+     rotateMemTableAndTriggerAsyncFlush();\n+ }",
+    "ast_rule_invariants": [
+      "no-synchronous-io-in-write-path"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "Kafka / Ingress Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 300000
+          }
+        },
+        {
+          "id": "lsm_nodes",
+          "type": "lsm_key_value",
+          "title": "LSM Storage Nodes (RocksDB)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "compaction": "UniversalCompaction",
+            "memtable_mb": 128,
+            "bloom_bits_per_key": 10
+          }
+        },
+        {
+          "id": "s3_archive",
+          "type": "object_storage_s3",
+          "title": "Cold S3 Storage",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "tier": "GLACIER"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "lsm_nodes",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "lsm_nodes",
+          "target": "s3_archive",
+          "protocol": "http_rest"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 10.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 5000.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 250000.0,
+      "inter_arrival_cv": 0.8,
+      "read_ratio": 0.02
+    },
+    "invariants": [
+      {
+        "id": "inv_zero_write_stall",
+        "description": "LSM write stall count must be zero across peak ingest bursts.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Compare Leveled Compaction vs Size-Tiered (Universal) Compaction in terms of Write Amplification, Space Amplification, and Read Amplification.",
+      "stage_2_tightening": "If SSD write endurance is 1 DWPD (Drive Writes Per Day), how does a Write Amplification Factor of 25 impact NVMe hardware lifespan under 250,000 writes/sec?",
+      "stage_3_adversarial": "A query requests metrics for a non-existent sensor ID. Without Bloom filters, how many disk seeks does an LSM read require across 6 levels?",
+      "stage_4_squeeze": "We must retain 1 year of metrics. Design downsampling tiers (raw 1s -> 1m -> 1h rollups) that cut storage costs by 85%."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "b-tree for time series",
+        "trigger_regex": "(?i)use.*postgres.*b-tree|b-tree.*time.*series",
+        "counter_question": "Why do traditional B-Trees suffer catastrophic write amplification and random disk I/O when inserting append-heavy time series data at scale?",
+        "expected_staff_answer": "B-Trees require in-place page updates, causing random I/O and page splits. LSM-trees convert random writes into sequential append-only disk writes via MemTable flushes."
+      }
+    ]
+  }
+}

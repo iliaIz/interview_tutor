@@ -4,6 +4,7 @@
   "description": "Backend API and Gemini Live WebSocket Proxy for Interview Prep Platform",
   "main": "dist/server.js",
   "scripts": {
+    "prebuild": "npm --prefix ../shared run build",
     "build": "tsc",
     "build:sandbox": "node -e \"const { execSync } = require('child_process'), fs = require('fs'), path = require('path'); function walk(dir) { let r = []; for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); if (fs.statSync(p).isDirectory()) r = r.concat(walk(p)); else if (p.endsWith('.java')) r.push(p); } return r; } const files = walk('src/services/sandbox/runner').join(' '); execSync('javac -d bin ' + files, { stdio: 'inherit' });\"",
     "start": "node dist/server.js",
@@ -11,7 +12,8 @@
   },
   "dependencies": {
     "@google/genai": "*",
-    "better-sqlite3": "^11.8.1",
+    "@interview-prep/shared": "file:../shared",
+    "better-sqlite3": "12.11.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

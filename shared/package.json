@@ -1,0 +1,17 @@
+{
+  "name": "@interview-prep/shared",
+  "version": "1.0.0",
+  "description": "Shared SSOT TypeBox schemas, invariants, and validation engine for InterviewPrep AI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
+    "cel-js": "^0.8.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "canonical_id": "DIST-SYS-005",
+  "legacy_aliases": [
+    "hld-scenario-05",
+    "macro-05-social-network",
+    "borg-temporal"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "WORKFLOW_ORCHESTRATION",
+  "title": "Distributed Workflow Orchestration with Event-Sourced State Machines",
+  "subtitle": "Temporal/Borg Architecture, Activity Heartbeats and Deterministic Event Replay",
+  "problem_statement": "A customer onboarding workflow spans 7 asynchronous steps including external KYC verification, credit card billing, and SIM card activation, taking up to 3 days to complete. The current implementation uses ad-hoc cron jobs and database status flags, leading to duplicate billing when workers restart and lost workflows during server deployments.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/workflow/CustomerWorkflowImpl.java",
+        "content": "public class CustomerWorkflowImpl implements CustomerWorkflow {\n    @Override\n    public void execute(CustomerData data) {\n        // BUG: Non-deterministic call inside workflow logic breaks event replay\n        String correlationId = UUID.randomUUID().toString();\n        long startTime = System.currentTimeMillis();\n        \n        Activities.chargeUser(data.getUserId(), data.getAmount());\n        Activities.provisionAccount(data.getUserId());\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 5,
+      "description": "Calling non-deterministic functions (UUID.randomUUID, System.currentTimeMillis) inside event-sourced workflow logic causes replay mismatches.",
+      "bug_pattern": "NON_DETERMINISTIC_WORKFLOW_REPLAY"
+    },
+    "correct_fix_diff": "- String correlationId = UUID.randomUUID().toString();\n- long startTime = System.currentTimeMillis();\n+ // Use Temporal deterministic workflow APIs\n+ String correlationId = Workflow.randomUUID().toString();\n+ long startTime = Workflow.currentTimeMillis();",
+    "ast_rule_invariants": [
+      "enforce-clock-injection",
+      "no-non-deterministic-workflow-methods"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 5000
+          }
+        },
+        {
+          "id": "temporal_cluster",
+          "type": "worker_pool",
+          "title": "Temporal History Service",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "shards": 64
+          }
+        },
+        {
+          "id": "activity_workers",
+          "type": "worker_pool",
+          "title": "Activity Worker Fleet",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "heartbeat_seconds": 10
+          }
+        },
+        {
+          "id": "history_db",
+          "type": "rdbms_primary",
+          "title": "Cassandra History Store",
+          "grid_position": {
+            "col": 3,
+            "row": 0
+          },
+          "params": {
+            "retention_days": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "temporal_cluster",
+          "protocol": "grpc"
+        },
+        {
+          "id": "e2",
+          "source": "temporal_cluster",
+          "target": "activity_workers",
+          "protocol": "grpc"
+        },
+        {
+          "id": "e3",
+          "source": "temporal_cluster",
+          "target": "history_db",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 50.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 4500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 2500.0,
+      "inter_arrival_cv": 0.5,
+      "read_ratio": 0.3
+    },
+    "invariants": [
+      {
+        "id": "inv_workflow_determinism",
+        "description": "Workflow execution history must be strictly replayable with zero non-deterministic divergence.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how Temporal's event-sourcing model reconstructs the state of a suspended workflow without holding thread memory.",
+      "stage_2_tightening": "If a long-running activity worker pod is killed mid-execution, how does the heartbeat mechanism prevent duplicate execution of non-idempotent operations?",
+      "stage_3_adversarial": "A developer deploys a new version of the workflow code that reorders two activity calls. What happens to in-flight workflows started on the old code?",
+      "stage_4_squeeze": "History events for a complex workflow exceed 50,000 events. How does Temporal continue-as-new prevent execution history bloating?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "database polling",
+        "trigger_regex": "(?i)poll.*db|status.*column|cron.*job",
+        "counter_question": "Polling database status tables with cron jobs leads to thundering herds, race conditions between workers, and zombie jobs when workers die. How does an event-driven task queue solve this?",
+        "expected_staff_answer": "Event-driven matching engines with long-polling worker pools and deterministic history logs guarantee exactly-once task handoff and automatic failure recovery without database polling."
+      }
+    ]
+  }
+}

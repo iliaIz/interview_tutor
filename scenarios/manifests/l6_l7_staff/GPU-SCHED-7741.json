@@ -1,0 +1,161 @@
+{
+  "canonical_id": "GPU-SCHED-7741",
+  "legacy_aliases": [
+    "hld-scenario-13",
+    "gpu-sched-7741",
+    "gpu-cluster-gang"
+  ],
+  "version": "1.0.0",
+  "target_level": "L7_PRINCIPAL",
+  "archetype": "PLANETARY_COMPUTE",
+  "title": "10,000-GPU Fleet Gang-Scheduler with NVLink / InfiniBand RoCE Cross-Rack Topology",
+  "subtitle": "Distributed Training Topology-Aware Gang-Scheduling, Straggler Mitigation and Checkpoint I/O",
+  "problem_statement": "A frontier AI research lab trains 1-trillion parameter MoE models across 10,000 NVIDIA H100 GPUs. The cluster suffers 42% MFU (Model Flops Utilization) losses due to fragmented node scheduling (non-contiguous rack allocation), straggler GPUs with degraded PCIe links, and 45-minute checkpoint write stalls.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "python",
+    "source_files": [
+      {
+        "path": "scheduler/gang_scheduler.py",
+        "content": "class TopologyAwareGangScheduler:\n    def __init__(self, rack_topology):\n        self.topology = rack_topology # Node -> Switch -> Spine\n\n    # Gang scheduling: all N GPUs must be allocated contiguously within the same InfiniBand rail\n    def schedule_job(self, job_gpu_count: int):\n        # BUG: Naive greedy allocation splits job across non-uniform fat-tree network paths\n        selected_nodes = self.greedy_alloc(job_gpu_count)\n        return selected_nodes",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Greedy non-topology-aware allocation splits Ring-AllReduce ranks across oversubscribed spine switches, multiplying communication latency.",
+      "bug_pattern": "TOPOLOGY_UNAWARE_GANG_SCHEDULING"
+    },
+    "correct_fix_diff": "+ // Implement Rail-Aligned, Non-Blocking Fat-Tree Switch Allocator\n+ selected_nodes = self.allocate_rail_aligned_clique(job_gpu_count)",
+    "ast_rule_invariants": [
+      "enforce-rail-aligned-topology-allocation"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "borg_scheduler",
+          "type": "orchestrator_agent",
+          "title": "Borg Gang Scheduler",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "cluster_gpus": 10240
+          }
+        },
+        {
+          "id": "nvlink_rack_01",
+          "type": "gpu_inference_node",
+          "title": "NVLink Pod 01 (512 H100)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "tflops": 989,
+            "bw_tb_s": 3.35
+          }
+        },
+        {
+          "id": "nvlink_rack_02",
+          "type": "gpu_inference_node",
+          "title": "NVLink Pod 02 (512 H100)",
+          "grid_position": {
+            "col": 1,
+            "row": 1
+          },
+          "params": {
+            "tflops": 989,
+            "bw_tb_s": 3.35
+          }
+        },
+        {
+          "id": "infiniband_spine",
+          "type": "ebpf_stream_ingest",
+          "title": "Quantum-2 400Gb/s IB Fabric",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "rail_optimized": true
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "borg_scheduler",
+          "target": "nvlink_rack_01",
+          "protocol": "grpc"
+        },
+        {
+          "id": "e2",
+          "source": "borg_scheduler",
+          "target": "nvlink_rack_02",
+          "protocol": "grpc"
+        },
+        {
+          "id": "e3",
+          "source": "nvlink_rack_01",
+          "target": "infiniband_spine",
+          "protocol": "nvlink_roce"
+        },
+        {
+          "id": "e4",
+          "source": "nvlink_rack_02",
+          "target": "infiniband_spine",
+          "protocol": "nvlink_roce"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 12.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 850000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 1000.0,
+      "inter_arrival_cv": 0.2,
+      "read_ratio": 0.0
+    },
+    "roofline_params": {
+      "peak_flops_tflops": 989.0,
+      "memory_bandwidth_tb_s": 3.35,
+      "weight_bits": 16.0,
+      "kv_bits": 16.0
+    },
+    "invariants": [
+      {
+        "id": "inv_mfu_utilization",
+        "description": "Model FLOPs Utilization (MFU) across the 10,000 GPU cluster must remain >= 60%.",
+        "severity": "ERROR",
+        "category": "HARDWARE_RESOURCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the difference between Tensor Parallelism (TP), Pipeline Parallelism (PP), and Data Parallelism (DP/FSDP). Which require NVLink vs InfiniBand?",
+      "stage_2_tightening": "If a single GPU out of 10,000 suffers memory throttling and slows down by 15%, what happens to the entire training run under synchronous All-Reduce?",
+      "stage_3_adversarial": "Checkpointing 1 Terabyte of model weights every 30 minutes halts training. How does asynchronous asynchronous distributed checkpointing to NVMe over Fabrics (NVMe-oF) eliminate write stalls?",
+      "stage_4_squeeze": "A 10,000 GPU cluster consumes 12 Megawatts of power. How do you design an automated straggler detection and node eviction engine that saves $50,000 per hour of wasted training?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "ethernet for llm training",
+        "trigger_regex": "(?i)standard.*ethernet|tcp.*for.*training",
+        "counter_question": "Standard TCP Ethernet has packet drops, kernel buffer copies, and tail latency under incast congestion. Why does large-scale distributed training require RDMA over Converged Ethernet (RoCE v2) or InfiniBand?",
+        "expected_staff_answer": "TCP kernel overhead and buffer drops devastate Ring-AllReduce throughput. RoCE v2 with Priority Flow Control (PFC) and Explicit Congestion Notification (ECN) provides hardware zero-copy bypass and deterministic latency."
+      }
+    ]
+  }
+}

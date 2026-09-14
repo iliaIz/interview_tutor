@@ -1,0 +1,161 @@
+{
+  "canonical_id": "HA-MCLOUD-5520",
+  "legacy_aliases": [
+    "hld-scenario-15",
+    "ha-mcloud-5520",
+    "multicloud-active-active"
+  ],
+  "version": "1.0.0",
+  "target_level": "L6_STAFF",
+  "archetype": "DISASTER_RECOVERY",
+  "title": "Multi-Cloud Active-Active Disaster Recovery RPO=0 / RTO<30s",
+  "subtitle": "Cross-Cloud Network Partition Arbitration, Dual-Provider BGP and Reversible Failover",
+  "problem_statement": "A critical financial infrastructure must survive the catastrophic total collapse of an entire primary cloud provider (e.g. AWS us-east-1 outage) with zero data loss (RPO = 0) and automatic traffic redirection in under 30 seconds (RTO < 30s) across AWS and Google Cloud.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/dr/witness.go",
+        "content": "package dr\n\n// Third-party independent witness quorum arbitrator in Equinix Metal\ntype MultiCloudWitness struct {\n    awsHealth bool\n    gcpHealth bool\n}\n\nfunc (w *MultiCloudWitness) DecidePrimary(awsOk, gcpOk bool) string {\n    if awsOk { return \"AWS\" }\n    if gcpOk { return \"GCP\" }\n    return \"SPLIT_BRAIN_HALT\"\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 10,
+      "description": "Two-party arbitration without neutral third-party witness causes split-brain active-active data corruption during WAN partition.",
+      "bug_pattern": "TWO_NODE_SPLIT_BRAIN"
+    },
+    "correct_fix_diff": "+ // Require 3-party independent quorum (AWS + GCP + Azure/Equinix witness) before failover\n+ if !quorumWitness.ConfirmIsolated(failedCloud) { return abortFailover() }",
+    "ast_rule_invariants": [
+      "enforce-tripartite-quorum-in-dr"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "bgp_anycast",
+          "type": "dns",
+          "title": "Multi-Cloud Cloudflare BGP",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "healthcheck_interval_s": 5
+          }
+        },
+        {
+          "id": "aws_cluster",
+          "type": "app_service",
+          "title": "AWS Primary Region",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "cloud": "AWS",
+            "sync_active": true
+          }
+        },
+        {
+          "id": "gcp_cluster",
+          "type": "app_service",
+          "title": "GCP Active Region",
+          "grid_position": {
+            "col": 1,
+            "row": 1
+          },
+          "params": {
+            "cloud": "GCP",
+            "sync_active": true
+          }
+        },
+        {
+          "id": "witness",
+          "type": "api_gateway",
+          "title": "Neutral Witness (Equinix)",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "cloud": "Equinix"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "bgp_anycast",
+          "target": "aws_cluster",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "bgp_anycast",
+          "target": "gcp_cluster",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e3",
+          "source": "aws_cluster",
+          "target": "gcp_cluster",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e4",
+          "source": "aws_cluster",
+          "target": "witness",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e5",
+          "source": "gcp_cluster",
+          "target": "witness",
+          "protocol": "tcp_socket"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 30.0,
+      "availability_target_nines": 99.9999,
+      "monthly_budget_max_usd": 150000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 50000.0,
+      "inter_arrival_cv": 0.4,
+      "read_ratio": 0.7
+    },
+    "invariants": [
+      {
+        "id": "inv_dr_rpo_zero",
+        "description": "RPO must strictly equal 0 (zero lost transactions) and RTO < 30s during total cloud failure.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the physical mechanics of synchronous replication across AWS DirectConnect and GCP Interconnect. What is the minimum network latency imposed by the speed of light in fiber?",
+      "stage_2_tightening": "If the inter-cloud WAN link is severed, but both AWS and GCP are internally healthy, how do you prevent Split-Brain (both clouds accepting contradictory writes)?",
+      "stage_3_adversarial": "AWS begins flapping (up 10 seconds, down 5 seconds). How does hysteresis dampening prevent flapping failovers that destroy database consistency?",
+      "stage_4_squeeze": "Running identical 100% compute capacity in two clouds doubles infrastructure costs. Design an asymmetric warm-standby architecture that satisfies RTO < 30s."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "async replication for rpo=0",
+        "trigger_regex": "(?i)async.*replication.*rpo.*0|asynchronous.*zero.*loss",
+        "counter_question": "Asynchronous replication implies data is acknowledged to the client before it reaches the secondary cloud. If the primary cloud vaporizes, where does the in-flight un-replicated data go?",
+        "expected_staff_answer": "It is lost forever. RPO=0 mathematically requires synchronous quorum acknowledgment (at least 2 of 3 nodes/regions confirming disk commit) before acknowledging the client."
+      }
+    ]
+  }
+}

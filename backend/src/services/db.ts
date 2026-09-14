@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { seedCanonicalManifests } from './scenarioLoader';
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/interview.db');
 
@@ -236,6 +237,44 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS system_design_manifests (
+    canonical_id TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    target_level TEXT NOT NULL,
+    archetype TEXT NOT NULL,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    problem_statement TEXT NOT NULL,
+    pedagogical_mode TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS system_design_aliases (
+    alias TEXT PRIMARY KEY,
+    canonical_id TEXT NOT NULL,
+    FOREIGN KEY (canonical_id) REFERENCES system_design_manifests(canonical_id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS user_progress_ledger (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default_user',
+    canonical_id TEXT NOT NULL,
+    studio_stage TEXT NOT NULL,
+    status TEXT NOT NULL,
+    score INTEGER,
+    artifacts_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (canonical_id) REFERENCES system_design_manifests(canonical_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sd_manifests_level ON system_design_manifests(target_level);
+  CREATE INDEX IF NOT EXISTS idx_sd_manifests_archetype ON system_design_manifests(archetype);
+  CREATE INDEX IF NOT EXISTS idx_sd_aliases_canonical ON system_design_aliases(canonical_id);
+  CREATE INDEX IF NOT EXISTS idx_sd_progress_user ON user_progress_ledger(user_id, canonical_id);
 
   CREATE TABLE IF NOT EXISTS production_triage_challenges (
     id TEXT PRIMARY KEY,
@@ -731,6 +770,9 @@ export function seedNextGenCatalogs() {
       syncSd(scenarios);
       console.log(`✅ Seeded ${scenarios.length} System Design scenarios into SQLite`);
     }
+
+    // 1b. SSOT Canonical Manifests (26 Scenarios across L3-L7 with Dual-Key Alias Resolution)
+    seedCanonicalManifests(db);
 
     // 2. Production Triage
     const triagePath = resolveJsonPath('production_triage_challenges.json');

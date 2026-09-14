@@ -1,0 +1,153 @@
+{
+  "canonical_id": "L4-DIST-LOCK-FENCING",
+  "legacy_aliases": [
+    "hld-faded-01",
+    "faded-checkout",
+    "lock-fencing-tokens"
+  ],
+  "version": "1.0.0",
+  "target_level": "L4_MIDDLE",
+  "archetype": "DISTRIBUTED_CONSENSUS",
+  "title": "Distributed Lock with Fencing Tokens vs Redlock Split-Brain",
+  "subtitle": "Preventing Stale Writes under Asynchronous Network Delays and Stop-The-World GC",
+  "problem_statement": "A distributed file processing system uses Redis distributed locks (Redlock algorithm with 10-second TTL) to ensure only one worker modifies a shared S3 object at a time. Worker A acquires the lock, but encounters a 15-second full GC pause. The lock expires in Redis and is acquired by Worker B. Worker A wakes up and writes its stale buffer to S3, overwriting Worker B's fresh updates.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/storage/ExclusiveFileUpdater.java",
+        "content": "@Service\npublic class ExclusiveFileUpdater {\n    @Autowired private RedissonClient redisson;\n    @Autowired private S3Client s3;\n\n    public void updateFile(String key, byte[] content) {\n        RLock lock = redisson.getLock(\"lock:\" + key);\n        lock.lock(10, TimeUnit.SECONDS);\n        try {\n            // BUG: Long GC pause or slow I/O can outlive the 10-second lock TTL\n            // No fencing token is sent to S3 to validate ownership\n            s3.putObject(PutObjectRequest.builder().bucket(\"data\").key(key).build(), RequestBody.fromBytes(content));\n        } finally {\n            if (lock.isHeldByCurrentThread()) {\n                lock.unlock();\n            }\n        }\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 11,
+      "description": "Mutating shared external storage using leased lock without monotonically increasing fencing token.",
+      "bug_pattern": "LEASE_EXPIRATION_RACE"
+    },
+    "correct_fix_diff": "- s3.putObject(...);\n+ // Acquire monotonically increasing fencing token from consensus store (Zookeeper/etcd)\n+ long fencingToken = lockService.acquireFencingToken(key);\n+ s3.putObject(b -> b.metadata(Map.of(\"fencing-token\", String.valueOf(fencingToken))));",
+    "ast_rule_invariants": [
+      "enforce-fencing-tokens-on-distributed-locks"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "worker_1",
+          "type": "worker_pool",
+          "title": "Worker Pod 1 (GC Pause)",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "gc_pause_ms": 15000
+          }
+        },
+        {
+          "id": "worker_2",
+          "type": "worker_pool",
+          "title": "Worker Pod 2",
+          "grid_position": {
+            "col": 0,
+            "row": 1
+          },
+          "params": {
+            "gc_pause_ms": 0
+          }
+        },
+        {
+          "id": "lock_mgr",
+          "type": "redis_cache",
+          "title": "Redis Lock Manager",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "ttl_ms": 10000
+          }
+        },
+        {
+          "id": "s3_storage",
+          "type": "object_storage_s3",
+          "title": "S3 Storage (Fencing Guarded)",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "versioning": true
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "worker_1",
+          "target": "lock_mgr",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "worker_2",
+          "target": "lock_mgr",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "worker_1",
+          "target": "s3_storage",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e4",
+          "source": "worker_2",
+          "target": "s3_storage",
+          "protocol": "http_rest"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 50.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 1500.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 500.0,
+      "inter_arrival_cv": 1.0,
+      "read_ratio": 0.5
+    },
+    "invariants": [
+      {
+        "id": "inv_linearizable_updates",
+        "description": "Zero stale writes allowed: storage must reject writes with smaller fencing tokens than last committed.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == true"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain Martin Kleppmann's critique of the Redlock algorithm. Under what physical assumptions regarding clocks and network delays does Redlock fail?",
+      "stage_2_tightening": "What is a fencing token? How does the storage engine enforce that Client A's write with token 33 is rejected after Client B wrote with token 34?",
+      "stage_3_adversarial": "If the storage engine (e.g. standard file system) does NOT natively support atomic check-and-set or version precondition checks, how can you guarantee mutual exclusion?",
+      "stage_4_squeeze": "Why not use an active-active transactional consensus database (CockroachDB / Spanner) instead of maintaining distributed locks?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "redlock",
+        "trigger_regex": "(?i)redlock|redis.*quorum",
+        "counter_question": "Redlock relies on physical time elapsed across multiple Redis nodes. If one node's physical clock drifts forwards due to NTP jumps, can two clients hold the lock simultaneously?",
+        "expected_staff_answer": "Yes. Redlock depends on physical time assumptions. Without monotonic fencing tokens validated by the resource server, no asynchronous lock algorithm can guarantee safety under GC pauses."
+      }
+    ]
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "canonical_id": "DB-CONS-9104",
+  "legacy_aliases": [
+    "hld-scenario-12",
+    "db-cons-9104",
+    "hlc-multimaster"
+  ],
+  "version": "1.0.0",
+  "target_level": "L6_STAFF",
+  "archetype": "DISTRIBUTED_CONSENSUS",
+  "title": "Planetary Multi-Master Database with Hybrid Logical Clocks (HLC)",
+  "subtitle": "Spanner-like Linearizability, Clock Scew Bounding and Multi-Region Active-Active Consensus",
+  "problem_statement": "A multi-region active-active database deployed across US, Europe, and Asia allows local concurrent writes. Due to NTP clock drift between AWS regions (exceeding 80ms), Last-Write-Wins (LWW) conflict resolution causes newer financial transactions to be overwritten by older transactions, violating causal consistency.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/hlc/clock.go",
+        "content": "package hlc\n\ntype HybridLogicalClock struct {\n    physicalTime int64\n    logicalCount int32\n}\n\n// Updates clock state on message receive\nfunc (c *HybridLogicalClock) Update(msgPhysical int64, msgLogical int32) {\n    now := getPhysicalTime()\n    if now > c.physicalTime && now > msgPhysical {\n        c.physicalTime = now\n        c.logicalCount = 0\n    } else {\n        maxPhysical := max(c.physicalTime, msgPhysical)\n        c.physicalTime = maxPhysical\n        c.logicalCount++\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Physical time step drift without max-skew bound checking permits unbounded logical clock inflation.",
+      "bug_pattern": "HLC_UNBOUNDED_SKEW_DRIFT"
+    },
+    "correct_fix_diff": "+ if abs(msgPhysical - now) > MAX_CLOCK_OFFSET_MS { panic(\"NTP clock skew exceeded safety threshold\") }",
+    "ast_rule_invariants": [
+      "enforce-hlc-skew-bounds"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "node_us",
+          "type": "rdbms_primary",
+          "title": "CockroachDB Region US",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "hlc_max_skew_ms": 250
+          }
+        },
+        {
+          "id": "node_eu",
+          "type": "rdbms_primary",
+          "title": "CockroachDB Region EU",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "hlc_max_skew_ms": 250
+          }
+        },
+        {
+          "id": "node_ap",
+          "type": "rdbms_primary",
+          "title": "CockroachDB Region AP",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "hlc_max_skew_ms": 250
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "node_us",
+          "target": "node_eu",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "node_eu",
+          "target": "node_ap",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "node_us",
+          "target": "node_ap",
+          "protocol": "tcp_socket"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 45.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 40000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 20000.0,
+      "inter_arrival_cv": 0.5,
+      "read_ratio": 0.8
+    },
+    "invariants": [
+      {
+        "id": "inv_strict_serializability",
+        "description": "Causal ordering must be preserved: if event A causes event B, HLC(A) < HLC(B) globally.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the difference between Google Spanner's TrueTime API (using atomic clocks and GPS) and CockroachDB's Hybrid Logical Clocks (HLC).",
+      "stage_2_tightening": "If two nodes in US and EU have a physical clock skew of 200ms, how does the uncertainty interval `[t.earliest, t.latest]` ensure serializability during read-only transactions?",
+      "stage_3_adversarial": "An NTP daemon on node EU goes rogue and reports a timestamp 10 years in the future. How do HLC consensus protocols prevent the entire cluster clock from jumping forward?",
+      "stage_4_squeeze": "Cross-region consensus requires WAN round-trips (70ms US-EU). How do Multi-Raft leaseholders enable single-region 2ms reads without cross-region coordinator communication?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "just use ntp",
+        "trigger_regex": "(?i)standard.*ntp|ntp.*is.*enough",
+        "counter_question": "NTP over commodity internet routinely experiences 50ms to 250ms of jitter and asymmetric network routes. Can standard NTP guarantee linearizable ordering in a multi-master distributed DB?",
+        "expected_staff_answer": "No. Commodity NTP cannot guarantee bounded error. A multi-master DB requires TrueTime hardware uncertainty bounds or HLC (Hybrid Logical Clocks) with strict maximum offset abort thresholds."
+      }
+    ]
+  }
+}

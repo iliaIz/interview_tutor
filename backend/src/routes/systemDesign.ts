@@ -4,10 +4,76 @@ import { envConfig } from '../config/env';
 
 export const systemDesignRouter = Router();
 
+/**
+ * Разрешает манифест сценария за O(1):
+ * 1. Проверяет таблицу system_design_aliases (дуальные ключи, 49 historic roadmap IDs)
+ * 2. Проверяет каноническую таблицу system_design_manifests
+ * 3. Fallback на legacy system_design_challenges для обратной совместимости
+ */
+export function resolveScenarioManifest(scenarioId: string): any | null {
+  // 1. Dual-key alias lookup
+  const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
+  const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
+
+  // 2. Canonical manifests table lookup
+  const manifestRow = db.prepare('SELECT manifest_json FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId) as any;
+  if (manifestRow) {
+    try {
+      return JSON.parse(manifestRow.manifest_json);
+    } catch {
+      return null;
+    }
+  }
+
+  // 3. Fallback to legacy challenges table
+  const legacyRow = db.prepare('SELECT manifest_json FROM system_design_challenges WHERE id = ? OR slug = ?').get(scenarioId, scenarioId) as any;
+  if (legacyRow) {
+    try {
+      return JSON.parse(legacyRow.manifest_json);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 // GET /api/system-design/scenarios
 systemDesignRouter.get('/scenarios', (req: Request, res: Response) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, level } = req.query;
+
+    const countRow = db.prepare('SELECT COUNT(*) as count FROM system_design_manifests').get() as any;
+    if (countRow && countRow.count > 0) {
+      let query = 'SELECT canonical_id, target_level, archetype, title, subtitle, pedagogical_mode, manifest_json FROM system_design_manifests WHERE 1=1';
+      const params: any[] = [];
+
+      if (level && typeof level === 'string' && level !== 'all') {
+        query += ' AND target_level = ?';
+        params.push(level.toUpperCase());
+      }
+      if (category && typeof category === 'string' && category !== 'all') {
+        query += ' AND (archetype = ? OR target_level = ?)';
+        params.push(category, category);
+      }
+      if (search && typeof search === 'string' && search.trim()) {
+        query += ' AND (title LIKE ? OR problem_statement LIKE ? OR archetype LIKE ?)';
+        params.push(`%${search.trim()}%`, `%${search.trim()}%`, `%${search.trim()}%`);
+      }
+
+      query += ' ORDER BY target_level ASC, canonical_id ASC';
+      const rows = db.prepare(query).all(...params) as any[];
+      const scenarios = rows.map(r => {
+        try {
+          return JSON.parse(r.manifest_json);
+        } catch {
+          return r;
+        }
+      });
+      return res.json(scenarios);
+    }
+
+    // Fallback if no canonical manifests
     let query = 'SELECT id, scenario_number, slug, title, category, difficulty, manifest_json FROM system_design_challenges WHERE 1=1';
     const params: any[] = [];
 
@@ -41,11 +107,12 @@ systemDesignRouter.get('/scenarios', (req: Request, res: Response) => {
 // GET /api/system-design/scenarios/:id
 systemDesignRouter.get('/scenarios/:id', (req: Request, res: Response) => {
   try {
-    const row = db.prepare('SELECT manifest_json FROM system_design_challenges WHERE id = ? OR slug = ?').get(req.params.id, req.params.id) as any;
-    if (!row) {
-      return res.status(404).json({ error: 'Scenario not found' });
+    const scenarioId = String(req.params.id);
+    const scenario = resolveScenarioManifest(scenarioId);
+    if (!scenario) {
+      return res.status(404).json({ error: 'Scenario not found', requestedId: scenarioId });
     }
-    res.json(JSON.parse(row.manifest_json));
+    res.json(scenario);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to fetch scenario details', message: err.message });
   }
@@ -55,9 +122,7 @@ systemDesignRouter.get('/scenarios/:id', (req: Request, res: Response) => {
 systemDesignRouter.post('/probe', async (req: Request, res: Response) => {
   try {
     const { scenarioId, userMessage, conversationHistory } = req.body;
-    const row = db.prepare('SELECT manifest_json FROM system_design_challenges WHERE id = ?').get(scenarioId) as any;
-    
-    const scenario = row ? JSON.parse(row.manifest_json) : null;
+    const scenario = resolveScenarioManifest(scenarioId);
     const context = scenario ? `
 Контекст задачи: ${scenario.title} (${scenario.category})
 Трафик: ${JSON.stringify(scenario.trafficProfile)}
@@ -126,8 +191,7 @@ ${context}`;
 systemDesignRouter.post('/evaluate', async (req: Request, res: Response) => {
   try {
     const { scenarioId, architectureMermaid, notesMarkdown, canvasTopology } = req.body;
-    const row = db.prepare('SELECT manifest_json FROM system_design_challenges WHERE id = ?').get(scenarioId) as any;
-    const scenario = row ? JSON.parse(row.manifest_json) : {};
+    const scenario = resolveScenarioManifest(scenarioId) || {};
 
     let topologySection = architectureMermaid || 'Не предоставлена';
     if (canvasTopology) {

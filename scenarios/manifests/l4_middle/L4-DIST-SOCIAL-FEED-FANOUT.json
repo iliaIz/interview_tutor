@@ -1,0 +1,148 @@
+{
+  "canonical_id": "L4-DIST-SOCIAL-FEED-FANOUT",
+  "legacy_aliases": [
+    "hld-faded-02",
+    "faded-auction",
+    "social-feed-fanout"
+  ],
+  "version": "1.0.0",
+  "target_level": "L4_MIDDLE",
+  "archetype": "DATA_PARTITIONING",
+  "title": "Read-Heavy Social Feed with Hot Partition Fan-Out",
+  "subtitle": "Hybrid Fan-out-on-Write vs Fan-out-on-Read with Celebrity Partitioning",
+  "problem_statement": "A social network platform with 100 million users generates user timelines. The system uses a pure Fan-Out-On-Write (push) model where every new post is copied into all followers' timeline lists in Redis. When a celebrity account with 40 million followers posts, the write pipeline spikes by 40 million insert operations, exhausting Redis memory and lagging normal users' feeds by 45 minutes.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/feed/FeedFanoutService.java",
+        "content": "@Service\npublic class FeedFanoutService {\n    @Autowired private FollowerRepository followerRepo;\n    @Autowired private RedisTemplate<String, String> redis;\n\n    public void fanoutPost(String authorId, String postId) {\n        // BUG: Pure fanout-on-write attempts to insert into millions of user lists synchronously\n        List<String> followerIds = followerRepo.findFollowerIds(authorId);\n        for (String followerId : followerIds) {\n            redis.opsForList().leftPush(\"feed:\" + followerId, postId);\n            redis.opsForList().trim(\"feed:\" + followerId, 0, 800);\n        }\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Unconditional push fan-out for accounts with millions of followers creates massive write amplification and Redis starvation.",
+      "bug_pattern": "CELEBRITY_FANOUT_WRITE_AMPLIFICATION"
+    },
+    "correct_fix_diff": "- List<String> followerIds = followerRepo.findFollowerIds(authorId);\n- for (String followerId : followerIds) { ... }\n+ // Hybrid model: if followers > 25,000, mark as Celebrity and fan-out on READ\n+ if (followerCount > CELEBRITY_THRESHOLD) {\n+     celebrityPostRepo.save(authorId, postId);\n+ } else {\n+     asyncWorkerPool.fanoutToFollowers(followerIds, postId);\n+ }",
+    "ast_rule_invariants": [
+      "no-unbounded-loop-in-transaction"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 30000
+          }
+        },
+        {
+          "id": "feed_svc",
+          "type": "app_service",
+          "title": "Hybrid Feed Engine",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "celebrity_threshold": 25000
+          }
+        },
+        {
+          "id": "redis_cluster",
+          "type": "redis_cache",
+          "title": "Timeline Redis Shards",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "shards": 8,
+            "max_memory_gb": 64
+          }
+        },
+        {
+          "id": "post_store",
+          "type": "nosql_document",
+          "title": "Cassandra Posts Table",
+          "grid_position": {
+            "col": 2,
+            "row": 1
+          },
+          "params": {
+            "read_repair": false
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "feed_svc",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "feed_svc",
+          "target": "redis_cluster",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "feed_svc",
+          "target": "post_store",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 30.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 4000.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 20000.0,
+      "inter_arrival_cv": 1.4,
+      "read_ratio": 0.98
+    },
+    "invariants": [
+      {
+        "id": "inv_feed_p99_latency",
+        "description": "Feed retrieval P99 latency must not exceed 30ms even during celebrity post publish.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Compare Fan-Out-On-Write (push) vs Fan-Out-On-Read (pull) models in terms of write latency, storage cost, and timeline assembly time.",
+      "stage_2_tightening": "How does your hybrid engine merge a user's pre-computed Redis inbox with 15 followed celebrity timelines at request time in less than 20ms?",
+      "stage_3_adversarial": "A user follows 2,000 celebrities. During a major sporting event, all 2,000 celebrities post concurrently. How do you prevent K-way merge degradation?",
+      "stage_4_squeeze": "Inactive users (who haven't opened the app in 30 days) consume 80% of your Redis RAM in pre-computed feeds. Design a timeline eviction and cold-storage hydration tier."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "fan-out on write",
+        "trigger_regex": "(?i)fan.*out.*on.*write|push.*model.*only",
+        "counter_question": "When an account with 50M followers posts, you must execute 50M write operations. At 100,000 writes/sec, that takes 500 seconds. How do you explain an 8-minute delay for followers?",
+        "expected_staff_answer": "Push-only model collapses on asymmetric follow graphs. A hybrid architecture that treats accounts with >25k followers as pull-based and executes an in-memory merge at read time is mandatory."
+      }
+    ]
+  }
+}

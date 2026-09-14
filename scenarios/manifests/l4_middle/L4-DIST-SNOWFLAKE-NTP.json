@@ -1,0 +1,155 @@
+{
+  "canonical_id": "L4-DIST-SNOWFLAKE-NTP",
+  "legacy_aliases": [
+    "hld-micro-06",
+    "kata-06-bloom-filter",
+    "snowflake-ntp"
+  ],
+  "version": "1.0.0",
+  "target_level": "L4_MIDDLE",
+  "archetype": "DISTRIBUTED_ALGORITHMS",
+  "title": "Distributed Unique ID Generator with NTP Clock Rollback Protection",
+  "subtitle": "Twitter Snowflake Bit-Packing, Leap Seconds and Clock Backward Drift Mitigation",
+  "problem_statement": "A distributed ID generator service produces 64-bit monotonically increasing identifiers across 32 nodes. During an NTP synchronization step-jump, the physical clock on node 14 rolls backward by 180 milliseconds. The service continues generating IDs, leading to duplicate primary keys and corrupted transactional ledgers.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/snowflake/SnowflakeIdGenerator.java",
+        "content": "public class SnowflakeIdGenerator {\n    private final long workerId;\n    private long sequence = 0L;\n    private long lastTimestamp = -1L;\n\n    public SnowflakeIdGenerator(long workerId) {\n        this.workerId = workerId;\n    }\n\n    public synchronized long nextId() {\n        long timestamp = System.currentTimeMillis();\n        \n        // BUG: Inadequate clock rollback handling. Throws runtime exception or generates duplicate if ignored\n        if (timestamp < lastTimestamp) {\n            throw new RuntimeException(\"Clock moved backwards! Refusing to generate id for \" + (lastTimestamp - timestamp) + \"ms\");\n        }\n\n        if (lastTimestamp == timestamp) {\n            sequence = (sequence + 1) & 4095;\n            if (sequence == 0) {\n                timestamp = tilNextMillis(lastTimestamp);\n            }\n        } else {\n            sequence = 0L;\n        }\n        lastTimestamp = timestamp;\n        return ((timestamp - 1288834974657L) << 22) | (workerId << 12) | sequence;\n    }\n\n    private long tilNextMillis(long lastTimestamp) {\n        long timestamp = System.currentTimeMillis();\n        while (timestamp <= lastTimestamp) {\n            timestamp = System.currentTimeMillis();\n        }\n        return timestamp;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 13,
+      "description": "Throwing an exception upon NTP clock rollback crashes the worker node rather than slewing or borrowing sequence tokens.",
+      "bug_pattern": "CLOCK_ROLLBACK_CRASH"
+    },
+    "correct_fix_diff": "- if (timestamp < lastTimestamp) {\n-     throw new RuntimeException(...);\n+ long offset = lastTimestamp - timestamp;\n+ if (offset <= 5) { // Small drift: spin-wait\n+     timestamp = tilNextMillis(lastTimestamp);\n+ } else { // Borrow sequence or switch to fallback logical counter\n+     timestamp = handleBackwardClockDrift(lastTimestamp, offset);\n+ }",
+    "ast_rule_invariants": [
+      "enforce-monotonic-time-source"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "lb",
+          "type": "load_balancer",
+          "title": "Load Balancer",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "algorithm": "round_robin"
+          }
+        },
+        {
+          "id": "snowflake_node_1",
+          "type": "worker_pool",
+          "title": "Snowflake Node 1",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "worker_id": 1,
+            "ntp_slew": true
+          }
+        },
+        {
+          "id": "snowflake_node_2",
+          "type": "worker_pool",
+          "title": "Snowflake Node 2",
+          "grid_position": {
+            "col": 1,
+            "row": 1
+          },
+          "params": {
+            "worker_id": 2,
+            "ntp_slew": true
+          }
+        },
+        {
+          "id": "storage",
+          "type": "rdbms_primary",
+          "title": "Database Consumer",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "require_unique_pk": true
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "lb",
+          "target": "snowflake_node_1",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "lb",
+          "target": "snowflake_node_2",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e3",
+          "source": "snowflake_node_1",
+          "target": "storage",
+          "protocol": "db_protocol"
+        },
+        {
+          "id": "e4",
+          "source": "snowflake_node_2",
+          "target": "storage",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 1.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 600.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 50000.0,
+      "inter_arrival_cv": 0.3,
+      "read_ratio": 1.0
+    },
+    "invariants": [
+      {
+        "id": "inv_unique_ids",
+        "description": "Zero duplicate IDs must be generated even during physical clock rollbacks.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the 64-bit layout of a Snowflake ID: timestamp bits, datacenter/worker bits, and sequence bits. Why is 4096 sequence numbers per millisecond sufficient?",
+      "stage_2_tightening": "During VM live migration in AWS/GCP, physical clocks can jump backwards by 200ms. If you spin-wait for 200ms on every thread, what happens to P99 latency and incoming TCP backlogs?",
+      "stage_3_adversarial": "Two worker nodes are accidentally assigned the same `worker_id` by Kubernetes during a split-brain deployment. How do you detect and prevent collision?",
+      "stage_4_squeeze": "Why not use UUIDv7 instead of maintaining a custom Snowflake cluster? Compare 128-bit index fragmentation in B-Trees with 64-bit Snowflake IDs."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "UUIDv4",
+        "trigger_regex": "(?i)use.*uuid|uuidv4",
+        "counter_question": "UUIDv4 is 128-bit and randomly distributed. What happens to database B-Tree index cache hit rate and page split frequency when inserting 1 billion rows with random UUIDs?",
+        "expected_staff_answer": "Random UUIDs cause massive random I/O and B-Tree page splits because new rows do not append to the right edge. 64-bit monotonically increasing Snowflake IDs append sequentially with 99%+ page fill factor."
+      }
+    ]
+  }
+}

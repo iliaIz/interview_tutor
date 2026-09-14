@@ -1,0 +1,129 @@
+{
+  "canonical_id": "STREAM-FIN-6218",
+  "legacy_aliases": [
+    "hld-scenario-14",
+    "stream-fin-6218",
+    "ebpf-finops-stream"
+  ],
+  "version": "1.0.0",
+  "target_level": "L6_STAFF",
+  "archetype": "STREAMING_INGESTION",
+  "title": "500 Tbps Real-Time FinOps Streaming Pipeline with Zero-Copy eBPF",
+  "subtitle": "Kernel-Bypass Ingestion, 95th Percentile Bandwidth Billing Optimization and SIMD Parsing",
+  "problem_statement": "A global capital markets transaction logging platform ingests 500 Terabits per second of raw order streams across 12 exchanges. User-space Linux socket packet copies and cloud provider inter-region network egress costs create an unsustainable $1.8M/month cloud bill and trigger kernel packet drops.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/ebpf/packet_filter.go",
+        "content": "package ebpf\n\n// Loads eBPF XDP (eXpress Data Path) kernel filter for zero-copy packet redirection\nfunc LoadXdpFilter(interfaceName string) error {\n    // Bypasses Linux TCP/IP network stack entirely at the NIC driver layer\n    return attachXdpProgram(interfaceName)\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 6,
+      "description": "Processing streaming packets in user-space requires multiple memory copies between kernel ring buffers and JVM heap.",
+      "bug_pattern": "USER_SPACE_PACKET_COPY_OVERHEAD"
+    },
+    "correct_fix_diff": "+ // Attach eBPF XDP program directly to network interface ring buffer\n+ xdp.Attach(dev, xdp.WithFlags(xdp.DriverMode))",
+    "ast_rule_invariants": [
+      "enforce-kernel-bypass-for-high-throughput"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "market_feeds",
+          "type": "ebpf_stream_ingest",
+          "title": "Global Market Feeds",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "bandwidth_tbps": 500
+          }
+        },
+        {
+          "id": "xdp_filter",
+          "type": "app_service",
+          "title": "eBPF XDP Kernel Ingress",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "kernel_bypass": true
+          }
+        },
+        {
+          "id": "finops_tier",
+          "type": "lsm_key_value",
+          "title": "NVMe Flash Ring Buffer",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "compression": "ZSTD_SIMD"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "market_feeds",
+          "target": "xdp_filter",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "xdp_filter",
+          "target": "finops_tier",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 1.5,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 350000.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 500000.0,
+      "inter_arrival_cv": 0.3,
+      "read_ratio": 0.0
+    },
+    "invariants": [
+      {
+        "id": "inv_finops_budget_cap",
+        "description": "95th percentile egress bandwidth and compute cost must remain strictly under monthly budget cap.",
+        "severity": "ERROR",
+        "category": "FINANCIAL_BUDGET",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.monthly_cost_usd <= manifest.studio_2_simulation.slos.monthly_budget_max_usd"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how eBPF XDP (eXpress Data Path) processes packets at the NIC driver layer before allocating an `sk_buff` in the Linux kernel.",
+      "stage_2_tightening": "How does 95th-percentile (burstable) bandwidth billing work? How does your ingestion scheduling shave the top 5% peak spikes to save hundreds of thousands of dollars?",
+      "stage_3_adversarial": "Under a 500 Tbps UDP flood, how does XDP drop malicious packets without consuming CPU cycles in userspace?",
+      "stage_4_squeeze": "Design SIMD-accelerated JSON/binary parsing using AVX-512 instructions to eliminate CPU deserialization bottlenecks."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "userspace microservices",
+        "trigger_regex": "(?i)standard.*node\\.js|python.*streaming",
+        "counter_question": "At 500 Terabits per second, user-space context switches and memory copies saturate CPU cache lines within milliseconds. How can user-space runtimes handle this volume?",
+        "expected_staff_answer": "They cannot. At hundreds of Tbps, kernel-bypass technologies (eBPF XDP, DPDK, AF_XDP) and hardware NIC offloads are mandatory to achieve zero-copy packet processing."
+      }
+    ]
+  }
+}

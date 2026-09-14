@@ -1,0 +1,124 @@
+{
+  "canonical_id": "AI-INFRA-001",
+  "legacy_aliases": [
+    "hld-scenario-06",
+    "macro-06-web-crawler",
+    "vllm-continuous-batching"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "AI_INFRASTRUCTURE",
+  "title": "vLLM Continuous Batching Serving Gateway",
+  "subtitle": "Roofline Inference Physics: Prefill (FLOPs) vs Decode (HBM) and Iteration-Level Scheduling",
+  "problem_statement": "An AI inference cluster serving a 70B parameter LLM experiences severe GPU underutilization (18% compute utilization) and high P99 Time-To-First-Token (TTFT > 3.8s) under static batching. When requests with variable prompt lengths (100 tokens vs 8,000 tokens) are grouped together, shorter requests sit idle waiting for the longest request to finish generation.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "python",
+    "source_files": [
+      {
+        "path": "serving/continuous_batcher.py",
+        "content": "class ContinuousBatchScheduler:\n    def __init__(self, max_batch_size: int, max_tokens: int):\n        self.max_batch_size = max_batch_size\n        self.max_tokens = max_tokens\n        self.running_batch = []\n        self.waiting_queue = []\n\n    # Iteration-level scheduling: inject new prompts into the batch at every token generation step\n    def step(self):\n        # BUG: Static batching blocks until all sequences complete\n        if any(not req.is_finished() for req in self.running_batch):\n            return self.forward_decode()\n        self.running_batch = self.waiting_queue[:self.max_batch_size]\n        return self.forward_prefill()",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 9,
+      "description": "Static batching holds completed sequence slots idle until the longest sequence finishes.",
+      "bug_pattern": "STATIC_BATCHING_IDLE_SLOTS"
+    },
+    "correct_fix_diff": "- if any(not req.is_finished() for req in self.running_batch): return self.forward_decode()\n+ # Dynamic continuous batching: evict finished sequences and inject new prefill prompts each step\n+ self.running_batch = [r for r in self.running_batch if not r.is_finished()]\n+ while len(self.running_batch) < self.max_batch_size and self.waiting_queue:\n+     self.running_batch.append(self.waiting_queue.pop(0))",
+    "ast_rule_invariants": [
+      "no-static-batching-in-llm-serving"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "LLM Ingress Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 1000
+          }
+        },
+        {
+          "id": "gpu_cluster",
+          "type": "gpu_inference_node",
+          "title": "8x NVIDIA H100 Fleet",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "model_params_billions": 70,
+            "gpu_count": 8,
+            "tensor_parallel": 8,
+            "hbm_bandwidth_tb_s": 3.35,
+            "tflops_fp16": 989,
+            "continuous_batching": true
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "gpu_cluster",
+          "protocol": "grpc"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 250.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 25000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 400.0,
+      "inter_arrival_cv": 0.9,
+      "read_ratio": 1.0,
+      "prompt_tokens_mean": 512.0,
+      "generation_tokens_mean": 128.0
+    },
+    "roofline_params": {
+      "peak_flops_tflops": 989.0,
+      "memory_bandwidth_tb_s": 3.35,
+      "weight_bits": 16.0,
+      "kv_bits": 16.0
+    },
+    "invariants": [
+      {
+        "id": "inv_ttft_bound",
+        "description": "TTFT at P99 must remain under 250ms and Inter-Token Latency (ITL) under 25ms.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the arithmetic intensity difference between the Prefill phase (GEMM, compute-bound) and the Decode phase (GEMV, memory-bandwidth bound).",
+      "stage_2_tightening": "If batch size is increased from 16 to 128, why does TTFT degrade while overall system token throughput (tokens/sec) increases?",
+      "stage_3_adversarial": "A user submits a 32,000 token prompt during peak traffic. How do chunked prefills prevent this request from starving in-flight decode streams?",
+      "stage_4_squeeze": "Cloud GPU instances cost $3.50/GPU-hour. How do you implement speculative decoding to achieve 2.5x speedup without accuracy degradation?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "just add more gpus",
+        "trigger_regex": "(?i)more.*gpus|scale.*gpu.*cluster",
+        "counter_question": "A single 70B model in FP16 requires 140GB of VRAM. An 8x H100 node has 640GB. If memory bandwidth is saturated during decode, why does adding more nodes NOT improve single-stream latency?",
+        "expected_staff_answer": "Decode phase is memory-bandwidth bound. Single-stream latency is constrained by memory clock speed, not raw FLOPS. Speculative decoding or FP8 KV-cache quantization is required to reduce memory traffic."
+      }
+    ]
+  }
+}

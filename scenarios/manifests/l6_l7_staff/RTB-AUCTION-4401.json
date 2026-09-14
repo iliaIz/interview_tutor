@@ -1,0 +1,132 @@
+{
+  "canonical_id": "RTB-AUCTION-4401",
+  "legacy_aliases": [
+    "hld-scenario-16",
+    "hld-scenario-17",
+    "hld-scenario-18",
+    "rtb-auction-4401",
+    "global-rtb-bidding"
+  ],
+  "version": "1.0.0",
+  "target_level": "L6_STAFF",
+  "archetype": "REAL_TIME_BIDDING",
+  "title": "Global 10M QPS Real-Time Bidding Ad Auction with 10ms Hard Deadline",
+  "subtitle": "Tail Latency Amplification Mitigation, Request Hedging and Budget Pacing",
+  "problem_statement": "An ad-tech exchange executes 10 million real-time bidding auctions per second. For each impression, the exchange fans out bid requests to 50 downstream Demand-Side Platforms (DSPs). Downstream DSPs have variable tail latencies, causing 35% of auctions to miss the strict 10-millisecond hard deadline, resulting in zero revenue.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/auction/bid_fanout.go",
+        "content": "package auction\n\nimport (\n    \"context\"\n    \"time\"\n)\n\ntype BidCollector struct {\n    timeout time.Duration\n}\n\nfunc (bc *BidCollector) CollectBids(ctx context.Context, dsps []string) []Bid {\n    ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)\n    defer cancel()\n    \n    // Asynchronous fanout with strict 10ms hard deadline\n    ch := make(chan Bid, len(dsps))\n    for _, dsp := range dsps {\n        go func(endpoint string) {\n            bid := callDsp(ctx, endpoint)\n            ch <- bid\n        }(dsp)\n    }\n    return gatherUntilDeadline(ctx, ch)\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 15,
+      "description": "Waiting for slow DSPs synchronously without dynamic outlier shedding drops entire auction revenue.",
+      "bug_pattern": "TAIL_LATENCY_AMPLIFICATION"
+    },
+    "correct_fix_diff": "+ // Implement dynamic circuit breaking: skip DSPs whose rolling P99 exceeds 8ms\n+ if dspHealth.IsDegraded(dsp) { continue }",
+    "ast_rule_invariants": [
+      "enforce-hard-deadline-cancellation"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ad_exchange",
+          "type": "api_gateway",
+          "title": "RTB Exchange Ingress",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 10000000
+          }
+        },
+        {
+          "id": "auction_engine",
+          "type": "app_service",
+          "title": "Auction Engine Core",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "deadline_ms": 10
+          }
+        },
+        {
+          "id": "dsp_pool",
+          "type": "worker_pool",
+          "title": "50 External DSP Bidders",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "dsps_count": 50,
+            "p99_latency_ms": 8
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ad_exchange",
+          "target": "auction_engine",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "auction_engine",
+          "target": "dsp_pool",
+          "protocol": "http_rest"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 10.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 180000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 10000000.0,
+      "inter_arrival_cv": 0.3,
+      "read_ratio": 1.0
+    },
+    "invariants": [
+      {
+        "id": "inv_rtb_hard_deadline",
+        "description": "Auction must execute and return winning bid in <= 10.0ms at P99.99.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the Tail Latency Amplification formula: $P(\\text{system delayed}) = 1 - (1 - p)^N$. Why does fanning out to 50 DSPs with $p=99\\%$ yield a $40\\%$ system-wide delay probability?",
+      "stage_2_tightening": "How do you implement Request Hedging or tied-requests with cancellation without doubling traffic on downstream bidders?",
+      "stage_3_adversarial": "A bidder has an algorithmic bug and always returns bids at 10.01ms. How does your adaptive score ranker evict slow DSPs to protect auction yield?",
+      "stage_4_squeeze": "How do you maintain real-time advertiser budget pacing (spending $100,000 evenly across 24 hours) across 10M QPS without lock contention?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "wait for all dsps",
+        "trigger_regex": "(?i)wait.*for.*all|gather.*all.*bids",
+        "counter_question": "If you wait for all 50 DSPs, your latency is dictated by the single slowest server in the entire internet ecosystem. What happens to your 10ms publisher SLA?",
+        "expected_staff_answer": "The SLA will be breached in 40%+ of cases. An RTB exchange must enforce a hard cut-off timer at 9ms, auctioning among whoever replied in time and pruning chronic stragglers."
+      }
+    ]
+  }
+}

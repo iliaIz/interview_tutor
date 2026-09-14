@@ -1,0 +1,150 @@
+{
+  "canonical_id": "L3-PERF-CACHE-STAMPEDE",
+  "legacy_aliases": [
+    "hld-micro-02",
+    "kata-02-cache-aside",
+    "cache-stampede-xfetch"
+  ],
+  "version": "1.0.0",
+  "target_level": "L3_JUNIOR",
+  "archetype": "CACHING_STRATEGY",
+  "title": "Cache Stampede Prevention with Probabilistic Early Expiration (XFetch)",
+  "subtitle": "Mitigating Thundering Herd via Optimal Probabilistic Recomputation vs Mutex Locks",
+  "problem_statement": "An e-commerce product catalog caches hot inventory data in Redis with a 10-minute TTL. At peak traffic (5,000 RPS), the TTL of the top 5 product keys expires simultaneously. Thousands of concurrent requests experience cache misses and simultaneously hammer PostgreSQL, causing connection pool exhaustion and a cascading outage.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/cache/ProductCacheService.java",
+        "content": "@Service\npublic class ProductCacheService {\n    @Autowired private RedisTemplate<String, Product> redis;\n    @Autowired private ProductRepository db;\n\n    public Product getProduct(String id) {\n        // BUG: Standard naive Cache-Aside prone to thundering herd upon TTL expiry\n        Product cached = redis.opsForValue().get(\"product:\" + id);\n        if (cached == null) {\n            cached = db.findById(id).orElseThrow();\n            redis.opsForValue().set(\"product:\" + id, cached, Duration.ofMinutes(10));\n        }\n        return cached;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Synchronous cache miss fallback allows thundering herd to bypass cache simultaneously upon key expiration.",
+      "bug_pattern": "CACHE_STAMPEDE_THUNDERING_HERD"
+    },
+    "correct_fix_diff": "- if (cached == null) {\n-     cached = db.findById(id).orElseThrow();\n-     redis.opsForValue().set(\"product:\" + id, cached, Duration.ofMinutes(10));\n+ // Implement XFetch probabilistic early expiration algorithm\n+ if (cached == null || shouldRecomputeEarly(cached.getDelta(), cached.getTtl(), 1.0)) {\n+     asyncRefreshCache(id);\n+ }",
+    "ast_rule_invariants": [
+      "no-raw-cache-aside-without-stampede-protection"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 10000
+          }
+        },
+        {
+          "id": "product_svc",
+          "type": "app_service",
+          "title": "Catalog Service",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "xfetch_beta": 1.0
+          }
+        },
+        {
+          "id": "redis",
+          "type": "redis_cache",
+          "title": "Redis Cluster",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "hit_rate_baseline": 0.98,
+            "ttl_seconds": 600,
+            "xfetch_enabled": true
+          }
+        },
+        {
+          "id": "postgres",
+          "type": "rdbms_primary",
+          "title": "PostgreSQL Primary",
+          "grid_position": {
+            "col": 2,
+            "row": 1
+          },
+          "params": {
+            "max_iops": 3000,
+            "capacity_rps": 600
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "product_svc",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "product_svc",
+          "target": "redis",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "product_svc",
+          "target": "postgres",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 20.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 1200.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 5000.0,
+      "inter_arrival_cv": 1.5,
+      "read_ratio": 0.95
+    },
+    "invariants": [
+      {
+        "id": "inv_cache_stampede_protection",
+        "description": "Cache must implement probabilistic early refresh or mutex lock to prevent database saturation.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms && simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the exact sequence of events when a cached item's TTL expires at 12:00:00.000 while 2,000 requests are in flight.",
+      "stage_2_tightening": "We have 100,000 keys. If we use distributed locks in Redis (SETNX) to guard recomputation, what happens if the holder process pauses for 800ms during GC?",
+      "stage_3_adversarial": "A flash sale starts. 50,000 users query the exact same newly added product which is NOT yet in the cache. How does your solution handle cold-start stampede?",
+      "stage_4_squeeze": "We cannot afford an in-memory Redis cluster with replica auto-failover. How can we achieve stampede resilience using local JVM memory only?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "distributed lock",
+        "trigger_regex": "(?i)distributed.*lock|redlock|setnx",
+        "counter_question": "If 5,000 concurrent threads block on a distributed Redis lock waiting for one worker to compute, what happens to your application server connection pool and thread queue?",
+        "expected_staff_answer": "Thread starvation and queue buildup occur. XFetch (probabilistic early expiration) or SingleFlight in-memory mutex avoids blocking readers while recomputation runs asynchronously."
+      }
+    ]
+  }
+}

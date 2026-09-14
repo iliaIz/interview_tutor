@@ -1,0 +1,147 @@
+{
+  "canonical_id": "DIST-SYS-004",
+  "legacy_aliases": [
+    "hld-scenario-04",
+    "macro-04-video-streaming",
+    "edge-cdn"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "CONTENT_DELIVERY",
+  "title": "Global Edge CDN with Dynamic Cache Invalidation & Anycast Routing",
+  "subtitle": "BGP Anycast Ingress, Origin Shield Architecture and Surrogate-Key Purges",
+  "problem_statement": "A global media streaming platform experiences origin database collapse whenever breaking news breaks. CDN edge caches miss simultaneously across 80 Points of Presence (PoPs), sending 100,000 concurrent requests to the origin shield within 200ms. Purging stale content takes 12 minutes to propagate globally.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "typescript",
+    "source_files": [
+      {
+        "path": "src/cdn/CachePurgeHandler.ts",
+        "content": "export class CdnPurgeService {\n  // BUG: Polling-based invalidation with URL wildcard scanning\n  public async purgeByPrefix(prefix: string): Promise<void> {\n    const edges = await this.getEdgeNodes();\n    for (const edge of edges) {\n      await fetch(`${edge}/purge?prefix=${prefix}`, { method: 'POST' });\n    }\n  }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 5,
+      "description": "Sequential synchronous purge over hundreds of edge nodes causes severe latency and race conditions.",
+      "bug_pattern": "SEQUENTIAL_GLOBAL_PURGE"
+    },
+    "correct_fix_diff": "- for (const edge of edges) { await fetch(...); }\n+ // Publish Surrogate-Key purge event to global pub/sub topic for instant sub-second fanout\n+ await this.pubsub.publish('cdn-purge', { surrogateKey: key, timestamp: Date.now() });",
+    "ast_rule_invariants": [
+      "no-synchronous-fanout-over-network"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "anycast_dns",
+          "type": "dns",
+          "title": "BGP Anycast Edge",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "pops": 80
+          }
+        },
+        {
+          "id": "cdn_edge",
+          "type": "cdn",
+          "title": "Edge PoP Cache",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "cache_hit_rate": 0.96
+          }
+        },
+        {
+          "id": "origin_shield",
+          "type": "redis_cache",
+          "title": "Origin Shield Tier",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "request_collapsing": true
+          }
+        },
+        {
+          "id": "origin_db",
+          "type": "rdbms_primary",
+          "title": "Origin Database",
+          "grid_position": {
+            "col": 3,
+            "row": 0
+          },
+          "params": {
+            "max_rps": 2000
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "anycast_dns",
+          "target": "cdn_edge",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "cdn_edge",
+          "target": "origin_shield",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e3",
+          "source": "origin_shield",
+          "target": "origin_db",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 15.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 8000.0
+    },
+    "traffic_profile": {
+      "pattern": "BURSTY",
+      "lambda_mean_rps": 80000.0,
+      "inter_arrival_cv": 1.6,
+      "read_ratio": 0.99
+    },
+    "invariants": [
+      {
+        "id": "inv_origin_protection",
+        "description": "Origin shield must collapse concurrent identical misses so origin receives at most 1 query per key.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how BGP Anycast routes user TCP packets to the geographically closest Point of Presence without DNS TTL caching delays.",
+      "stage_2_tightening": "If BGP flapping occurs between two Tier-1 transit providers, how do ongoing TCP/TLS connections behave without stateful session resets?",
+      "stage_3_adversarial": "A breaking news event updates a headline every 15 seconds. How do Surrogate-Keys (Cache-Tags) enable sub-100ms global cache purging?",
+      "stage_4_squeeze": "Bandwidth egress from AWS S3 origin costs $0.09/GB, while Cloudflare CDN egress is free. Design an Origin Shield tier that achieves 99.8% offload."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "dns load balancing",
+        "trigger_regex": "(?i)geo.*dns|dns.*based.*routing",
+        "counter_question": "Clients and ISP recursive resolvers cache DNS records for minutes or ignore TTLs completely. Why is Geo-DNS alone inadequate for instant DDoS traffic redirection compared to BGP Anycast?",
+        "expected_staff_answer": "Recursive DNS resolvers honor or modify TTL unpredictably, meaning DNS failover takes 5-15 minutes. BGP Anycast routes at the IP packet layer, converging globally in seconds."
+      }
+    ]
+  }
+}

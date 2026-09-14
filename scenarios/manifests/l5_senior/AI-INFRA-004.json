@@ -1,0 +1,129 @@
+{
+  "canonical_id": "AI-INFRA-004",
+  "legacy_aliases": [
+    "hld-scenario-09",
+    "macro-09-stock-exchange",
+    "multimodal-streaming"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "STREAMING_INGESTION",
+  "title": "Multimodal Streaming Ingestion Pipeline with Backpressure",
+  "subtitle": "Zero-Copy Byte Buffering, Chunked Audio/Video Tokenization and Queue Throttling",
+  "problem_statement": "A multimodal ingestion pipeline processes live video, audio, and text streams from 10,000 concurrent IoT cameras. The pipeline experiences Out-Of-Memory crashes and 30-second pipeline lag because upstream WebSocket ingestion buffers payloads in heap memory without backpressure when downstream GPU vision encoders throttle.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/ingest/video_stream.go",
+        "content": "package ingest\n\ntype VideoChunkProcessor struct {\n    inputChan chan []byte // BUG: Unbounded channel causes OOM under backpressure\n}\n\nfunc (vp *VideoChunkProcessor) ProcessChunk(chunk []byte) {\n    vp.inputChan <- chunk\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 4,
+      "description": "Unbounded in-memory queue buffers video chunks during GPU encoding spikes, triggering container OOM.",
+      "bug_pattern": "UNBOUNDED_QUEUE_OOM"
+    },
+    "correct_fix_diff": "- inputChan chan []byte\n+ // Bounded channel with reactive backpressure and client-side drop policy\n+ inputChan make(chan []byte, 100)\n+ select { case vp.inputChan <- chunk: default: vp.shedLoadAndNotifyClient() }",
+    "ast_rule_invariants": [
+      "no-unbounded-channel-allocations"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "cameras",
+          "type": "dns",
+          "title": "10,000 IoT Video Streams",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "bitrate_kbps": 2000
+          }
+        },
+        {
+          "id": "ingest_proxy",
+          "type": "api_gateway",
+          "title": "Zero-Copy TCP Ingress",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "backpressure_enabled": true
+          }
+        },
+        {
+          "id": "gpu_vision",
+          "type": "gpu_inference_node",
+          "title": "Vision Encoder Cluster",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "max_fps": 30000
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "cameras",
+          "target": "ingest_proxy",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e2",
+          "source": "ingest_proxy",
+          "target": "gpu_vision",
+          "protocol": "nvlink_roce"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 100.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 12000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 10000.0,
+      "inter_arrival_cv": 0.5,
+      "read_ratio": 0.0
+    },
+    "invariants": [
+      {
+        "id": "inv_backpressure_enforcement",
+        "description": "Ingest buffer must propagate TCP zero-window backpressure to clients rather than crashing OOM.",
+        "severity": "ERROR",
+        "category": "HARDWARE_RESOURCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain how TCP receive window scaling and flow control signal backpressure from server kernel to camera hardware.",
+      "stage_2_tightening": "If a camera ignores TCP backpressure, what load-shedding policy (dropping B-frames vs dropping I-frames) preserves stream coherence?",
+      "stage_3_adversarial": "How do you handle zero-copy transfer of 4K video frames from Linux network buffers to GPU VRAM via GPUDirect Storage / RDMA?",
+      "stage_4_squeeze": "Bandwidth ingestion for 10,000 streams consumes 20 Gbps. How do you implement client-side edge motion detection to transmit only delta frames?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "unbounded buffer",
+        "trigger_regex": "(?i)buffer.*in.*memory|unbounded.*queue",
+        "counter_question": "If incoming network bandwidth is 10Gbps and downstream processing slows to 2Gbps, how many seconds before a 64GB RAM node crashes with OOM?",
+        "expected_staff_answer": "Approximately 60 seconds. All queues in highload distributed systems MUST be strictly bounded, with reactive TCP backpressure or explicit load-shedding."
+      }
+    ]
+  }
+}

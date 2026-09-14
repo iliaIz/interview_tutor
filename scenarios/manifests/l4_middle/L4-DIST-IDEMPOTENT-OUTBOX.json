@@ -1,0 +1,150 @@
+{
+  "canonical_id": "L4-DIST-IDEMPOTENT-OUTBOX",
+  "legacy_aliases": [
+    "hld-micro-07",
+    "kata-07-token-bucket",
+    "idempotent-outbox",
+    "incident-01-payment-deadlock"
+  ],
+  "version": "1.0.0",
+  "target_level": "L4_MIDDLE",
+  "archetype": "DISTRIBUTED_TRANSACTIONS",
+  "title": "Idempotent Payment Processing with Transactional Outbox Pattern",
+  "subtitle": "Dual-Write Elimination, CDC Log Tailing via Debezium & Consumer Deduplication",
+  "problem_statement": "An e-commerce order checkout service updates the order status in PostgreSQL and immediately makes an HTTP call to Stripe, followed by publishing an event to Kafka. When the application container is terminated by an OOM-killer between the database commit and Kafka publish, the order is marked paid but fulfillment events are lost forever.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/payment/CheckoutService.java",
+        "content": "@Service\npublic class CheckoutService {\n    @Autowired private OrderRepository orderRepo;\n    @Autowired private KafkaTemplate<String, OrderPaidEvent> kafka;\n\n    @Transactional\n    public void completeCheckout(String orderId) {\n        Order order = orderRepo.findById(orderId).orElseThrow();\n        order.setStatus(\"PAID\");\n        orderRepo.save(order);\n\n        // BUG: Dual-write hazard. If network fails or JVM dies right here, Kafka event is lost\n        kafka.send(\"order-paid-topic\", new OrderPaidEvent(orderId, order.getAmount()));\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 13,
+      "description": "Publishing to Kafka inside or immediately after a relational transaction without an outbox table violates dual-write consistency.",
+      "bug_pattern": "DUAL_WRITE_NON_ATOMIC"
+    },
+    "correct_fix_diff": "- kafka.send(\"order-paid-topic\", new OrderPaidEvent(...));\n+ // Persist outbox event in the same ACID transaction\n+ outboxRepo.save(new OutboxEvent(\"ORDER_PAID\", orderId, payload));\n+ // Debezium CDC or background transactional publisher picks it up",
+    "ast_rule_invariants": [
+      "no-direct-external-publish-in-transactional"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "gateway",
+          "type": "api_gateway",
+          "title": "Payment Ingress",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "idempotency_enforced": true
+          }
+        },
+        {
+          "id": "order_svc",
+          "type": "app_service",
+          "title": "Checkout Service",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "outbox_pattern": true
+          }
+        },
+        {
+          "id": "order_db",
+          "type": "rdbms_primary",
+          "title": "PostgreSQL (Orders + Outbox)",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "cdc_enabled": true
+          }
+        },
+        {
+          "id": "kafka",
+          "type": "kafka_topic",
+          "title": "Kafka: order-events",
+          "grid_position": {
+            "col": 3,
+            "row": 0
+          },
+          "params": {
+            "partitions": 8,
+            "replication_factor": 3
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "gateway",
+          "target": "order_svc",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "order_svc",
+          "target": "order_db",
+          "protocol": "db_protocol"
+        },
+        {
+          "id": "e3",
+          "source": "order_db",
+          "target": "kafka",
+          "protocol": "async_event"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 35.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 2500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 800.0,
+      "inter_arrival_cv": 0.7,
+      "read_ratio": 0.1
+    },
+    "invariants": [
+      {
+        "id": "inv_zero_dual_write",
+        "description": "Direct async event publish from app service to Kafka without outbox table is strictly forbidden.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "NO_DIRECT_ACCESS",
+        "config": {
+          "from_type": "app_service",
+          "to_type": "kafka_topic"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "What is the dual-write problem? Why cannot 2-Phase Commit (2PC) between PostgreSQL and Kafka solve it in high-throughput cloud environments?",
+      "stage_2_tightening": "If you use a polling worker on the outbox table (`SELECT * FROM outbox WHERE sent = false FOR UPDATE SKIP LOCKED`), what is the polling delay and database CPU overhead at 5,000 writes/sec?",
+      "stage_3_adversarial": "Kafka consumers receive the same `OrderPaid` event twice due to a network re-transmit. How does the downstream Inventory Service prevent double decrementing stock?",
+      "stage_4_squeeze": "Outbox table accumulates 50 million processed records per week. Design a zero-downtime partitioning and pruning strategy that prevents table bloat."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "two-phase commit",
+        "trigger_regex": "(?i)2pc|two.*phase.*commit|xa.*transaction",
+        "counter_question": "XA transactions require all participants to hold locks while waiting for coordinator confirmation. What happens to database transaction latency when network latency fluctuates across cloud availability zones?",
+        "expected_staff_answer": "XA/2PC is blocking and introduces catastrophic latency amplification and lock contention. The Transactional Outbox pattern with eventual consistency and consumer idempotency is the industry standard."
+      }
+    ]
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "canonical_id": "DIST-SYS-001",
+  "legacy_aliases": [
+    "hld-scenario-01",
+    "macro-01-llm-gateway-serving",
+    "raft-ledger"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "DISTRIBUTED_CONSENSUS",
+  "title": "Multi-Raft Partitioned Transaction Ledger",
+  "subtitle": "Linearizable Consensus, Log Compaction and Leader Leases under WAN Partitions",
+  "problem_statement": "A distributed financial ledger shards transaction ranges into 128 independent Raft consensus groups. During cross-datacenter WAN link flapping, heartbeats are delayed, causing frequent leader elections, split-vote thundering herds, and tail latency spikes exceeding 1,200ms.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "go",
+    "source_files": [
+      {
+        "path": "pkg/consensus/raft_node.go",
+        "content": "package consensus\n\ntype RaftNode struct {\n    currentTerm int64\n    votedFor    string\n    log         []LogEntry\n    commitIndex int64\n    lastApplied int64\n    state       NodeState // Follower, Candidate, Leader\n}\n\n// PreVote protocol prevents disrupted nodes from forcing election\nfunc (rn *RaftNode) HandlePreVote(req *PreVoteRequest) *PreVoteResponse {\n    if req.Term > rn.currentTerm && req.LastLogIndex >= rn.getLastLogIndex() {\n        return &PreVoteResponse{VoteGranted: true}\n    }\n    return &PreVoteResponse{VoteGranted: false}\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 12,
+      "description": "Missing randomized election timeout and pre-vote phase causes repeated split votes during network partitions.",
+      "bug_pattern": "RAFT_SPLIT_VOTE_THRASHING"
+    },
+    "correct_fix_diff": "+ rn.electionTimeout = baseTimeout + rand.Int63n(timeoutJitter)\n+ if !rn.runPreVoteQuorum() { return }",
+    "ast_rule_invariants": [
+      "enforce-randomized-election-timeouts"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 15000
+          }
+        },
+        {
+          "id": "raft_leader",
+          "type": "app_service",
+          "title": "Raft Leader (Region A)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "is_leader": true,
+            "election_timeout_ms": 300
+          }
+        },
+        {
+          "id": "raft_follower_1",
+          "type": "app_service",
+          "title": "Raft Follower (Region B)",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "is_leader": false
+          }
+        },
+        {
+          "id": "raft_follower_2",
+          "type": "app_service",
+          "title": "Raft Follower (Region C)",
+          "grid_position": {
+            "col": 2,
+            "row": 1
+          },
+          "params": {
+            "is_leader": false
+          }
+        },
+        {
+          "id": "wal_storage",
+          "type": "lsm_key_value",
+          "title": "RocksDB WAL Engine",
+          "grid_position": {
+            "col": 3,
+            "row": 0
+          },
+          "params": {
+            "sync_wal": true
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "raft_leader",
+          "protocol": "grpc"
+        },
+        {
+          "id": "e2",
+          "source": "raft_leader",
+          "target": "raft_follower_1",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e3",
+          "source": "raft_leader",
+          "target": "raft_follower_2",
+          "protocol": "tcp_socket"
+        },
+        {
+          "id": "e4",
+          "source": "raft_leader",
+          "target": "wal_storage",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 35.0,
+      "availability_target_nines": 99.999,
+      "monthly_budget_max_usd": 6500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 10000.0,
+      "inter_arrival_cv": 0.6,
+      "read_ratio": 0.7
+    },
+    "chaos_scenarios": [
+      {
+        "id": "wan_partition",
+        "name": "Cross-Region WAN Partition",
+        "trigger_second": 8,
+        "duration_second": 4,
+        "fault_type": "RAFT_LEADER_ELECTION",
+        "target_node_id": "raft_leader",
+        "impact_multiplier": 8.0
+      }
+    ],
+    "invariants": [
+      {
+        "id": "inv_raft_linearizability",
+        "description": "Quorum acknowledgement (majority = 2/3) must precede all read/write commits.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the difference between standard Raft read through state machine log commit vs ReadIndex / LeaseRead optimization.",
+      "stage_2_tightening": "If leader election takes 300ms, how do you handle incoming client transactions during the gap? Does your gateway buffer or return 503?",
+      "stage_3_adversarial": "A partitioned leader continues serving reads because its local lease has not expired, but physical clock drifted forward. Can stale reads occur?",
+      "stage_4_squeeze": "Cross-datacenter bandwidth costs $0.02 per GB. How do you compress and batch append entries without violating the 35ms P99 SLA?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "raft consensus",
+        "trigger_regex": "(?i)raft.*replicates.*everything",
+        "counter_question": "If you replicate every single analytical query through the Raft log, what happens to disk I/O and Raft log compaction frequency?",
+        "expected_staff_answer": "Read queries must NOT be appended to the log. ReadIndex or time-bounded leader leases (validated with monotonic clocks) provide linearizable reads with zero write amplification."
+      }
+    ]
+  }
+}

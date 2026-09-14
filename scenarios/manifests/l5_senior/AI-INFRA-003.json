@@ -1,0 +1,132 @@
+{
+  "canonical_id": "AI-INFRA-003",
+  "legacy_aliases": [
+    "hld-scenario-08",
+    "macro-08-ride-sharing",
+    "vector-hnsw-rrf"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "AI_INFRASTRUCTURE",
+  "title": "Distributed Vector Database with HNSW Index & Reciprocal Rank Fusion",
+  "subtitle": "Hierarchical Navigable Small World Graphs, DiskANN (Vamana) and Dense/Sparse RRF Merging",
+  "problem_statement": "An AI semantic search engine indexing 500 million embeddings (1536 dimensions) suffers high query latency (P99 > 850ms) and prohibitive RAM costs ($45,000/month for in-memory HNSW). The system must maintain 95%+ recall while slashing RAM by 70% using Product Quantization and hybrid BM25 + dense RRF.",
+  "pedagogical_mode": "INDEPENDENT_DESIGN",
+  "studio_1_runtime": {
+    "language": "python",
+    "source_files": [
+      {
+        "path": "vector/hnsw_index.py",
+        "content": "class HybridVectorSearch:\n    def __init__(self, dense_index, sparse_index):\n        self.dense = dense_index\n        self.sparse = sparse_index\n\n    # Reciprocal Rank Fusion (RRF) combines dense vector and BM25 rankings\n    def search(self, query_vec, query_text, k: int = 10, rrf_k: int = 60):\n        dense_hits = self.dense.search(query_vec, efSearch=64, top_k=50)\n        sparse_hits = self.sparse.search(query_text, top_k=50)\n        scores = {}\n        for rank, hit in enumerate(dense_hits):\n            scores[hit.id] = scores.get(hit.id, 0.0) + 1.0 / (rrf_k + rank + 1)\n        for rank, hit in enumerate(sparse_hits):\n            scores[hit.id] = scores.get(hit.id, 0.0) + 1.0 / (rrf_k + rank + 1)\n        return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "Unquantized FP32 embeddings in RAM exhaust node memory at 500M vectors.",
+      "bug_pattern": "UNQUANTIZED_VECTOR_MEMORY_BLOAT"
+    },
+    "correct_fix_diff": "+ // Enable Product Quantization (IVF-PQ) or Scalar Quantization (SQ8) with DiskANN (Vamana graph)\n+ self.dense.enable_diskann_with_pq(code_bytes=32);",
+    "ast_rule_invariants": [
+      "no-uncompressed-fp32-embeddings-at-scale"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "Search API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 5000
+          }
+        },
+        {
+          "id": "embedding_svc",
+          "type": "gpu_inference_node",
+          "title": "Embedding Inference",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "batch_size": 32
+          }
+        },
+        {
+          "id": "vector_db",
+          "type": "vector_database",
+          "title": "Qdrant / Milvus Cluster",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "algorithm": "HNSW_SQ8",
+            "dimensions": 1536,
+            "efSearch": 64,
+            "shards": 16
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "embedding_svc",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "embedding_svc",
+          "target": "vector_db",
+          "protocol": "grpc"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 30.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 7000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 3500.0,
+      "inter_arrival_cv": 0.7,
+      "read_ratio": 0.95
+    },
+    "invariants": [
+      {
+        "id": "inv_vector_search_latency",
+        "description": "End-to-end vector search P99 latency must remain under 30ms with Recall@10 > 95%.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the hierarchical layers in an HNSW graph. How does the beam search parameter `efSearch` balance recall vs query latency?",
+      "stage_2_tightening": "How does Product Quantization (PQ) compress 1536-dimensional vectors into 64 bytes? What is the mathematical origin of quantization distortion?",
+      "stage_3_adversarial": "A user searches with metadata filtering: `category = 'finance' AND date > 2026-01-01`. Why does post-filtering cause recall collapse when the filter matches <1% of documents?",
+      "stage_4_squeeze": "Compare in-memory HNSW with NVMe SSD-based DiskANN (Vamana). How does asynchronous I/O (`io_uring`) keep P99 latency under 15ms?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "post-filtering",
+        "trigger_regex": "(?i)post.*filter|filter.*after.*search",
+        "counter_question": "If your HNSW search returns the top 100 nearest neighbors, but your metadata post-filter matches only 0.5% of total documents, how many results will the user receive?",
+        "expected_staff_answer": "Zero or near-zero results (recall collapse). Filtered vector search must use Single-Stage Iterative HNSW or Pre-filtered inverted lists to traverse only nodes that satisfy the predicate."
+      }
+    ]
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "canonical_id": "L3-PERF-HIKARICP-STARVATION",
+  "legacy_aliases": [
+    "hld-micro-01",
+    "kata-01-consistent-hashing",
+    "hikari-starvation",
+    "incident-02-connection-leak"
+  ],
+  "version": "1.0.0",
+  "target_level": "L3_JUNIOR",
+  "archetype": "PERFORMANCE_TUNING",
+  "title": "HikariCP Connection Pool Exhaustion and Thread Starvation",
+  "subtitle": "Sizing Database Connection Pools under Little's Law and Virtual Thread Pinning",
+  "problem_statement": "A Spring Boot microservice running under 1,500 RPS begins dropping requests with HikariPool ConnectionTimeoutException (timeout=250ms). A developer attempted to fix the issue by increasing maximumPoolSize from 10 to 500, but database throughput plummeted by 70% due to CPU context-switch thrashing, and virtual threads began pinning carrier threads.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/platform/service/OrderService.java",
+        "content": "@Service\npublic class OrderService {\n    @Autowired private DataSource dataSource;\n    @Autowired private RestTemplate restTemplate;\n\n    @Transactional\n    public OrderResult processOrder(OrderRequest request) {\n        // BUG: Holding JDBC connection across slow external network call\n        String fraudCheck = restTemplate.getForObject(\"http://fraud-service/check/\" + request.userId(), String.class);\n        try (Connection conn = dataSource.getConnection()) {\n            PreparedStatement ps = conn.prepareStatement(\"INSERT INTO orders (id, user_id, amount) VALUES (?, ?, ?)\");\n            ps.setString(1, request.id());\n            ps.setString(2, request.userId());\n            ps.setBigDecimal(3, request.amount());\n            ps.executeUpdate();\n        } catch (SQLException e) {\n            throw new RuntimeException(e);\n        }\n        return new OrderResult(request.id(), \"PROCESSED\");\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 8,
+      "description": "JDBC connection acquired inside @Transactional boundary and held idle during external HTTP call, starving pool.",
+      "bug_pattern": "CONNECTION_LEAK_IN_TRANSACTION"
+    },
+    "correct_fix_diff": "- @Transactional\n  public OrderResult processOrder(OrderRequest request) {\n-     String fraudCheck = restTemplate.getForObject(...);\n+ public OrderResult processOrder(OrderRequest request) {\n+     String fraudCheck = restTemplate.getForObject(...); // Outside DB transaction\n+     saveOrderTransactional(request);\n+ }",
+    "ast_rule_invariants": [
+      "no-io-inside-transactional",
+      "enforce-clock-injection"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "API Gateway",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 2000
+          }
+        },
+        {
+          "id": "order_svc",
+          "type": "app_service",
+          "title": "Order Service (Java 21)",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "hikari_pool_size": 10,
+            "connection_timeout_ms": 250,
+            "cores": 8
+          }
+        },
+        {
+          "id": "postgres_db",
+          "type": "rdbms_primary",
+          "title": "PostgreSQL Primary",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "max_connections": 100,
+            "query_latency_mean_ms": 3.5
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "order_svc",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "order_svc",
+          "target": "postgres_db",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 50.0,
+      "availability_target_nines": 99.9,
+      "monthly_budget_max_usd": 1500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 1500.0,
+      "inter_arrival_cv": 0.8,
+      "read_ratio": 0.2
+    },
+    "chaos_scenarios": [
+      {
+        "id": "chaos_db_stall",
+        "name": "Database Disk IO Stall",
+        "trigger_second": 5,
+        "duration_second": 3,
+        "fault_type": "DISK_IOPS_STALL",
+        "target_node_id": "postgres_db",
+        "impact_multiplier": 5.0
+      }
+    ],
+    "invariants": [
+      {
+        "id": "inv_pool_sizing",
+        "description": "Connection pool size must satisfy Little's Law without exceeding 2x CPU cores.",
+        "severity": "ERROR",
+        "category": "HARDWARE_RESOURCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True && simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      },
+      {
+        "id": "inv_no_direct_client_db",
+        "description": "Ingress cannot connect directly to RDBMS without app service.",
+        "severity": "ERROR",
+        "category": "TOPOLOGY_GRAPH",
+        "rule_type": "NO_DIRECT_ACCESS",
+        "config": {
+          "from_type": "api_gateway",
+          "to_type": "rdbms_primary"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Trace a JDBC connection lifecycle from HikariCP borrow to release. What exact state machine does a thread undergo when the pool is exhausted?",
+      "stage_2_tightening": "Traffic jumps from 1,500 RPS to 10,000 RPS in 2 seconds. The database host has 16 physical cores. Why does setting maximumPoolSize=500 cause throughput collapse rather than scaling?",
+      "stage_3_adversarial": "A slow third-party payment gateway takes 4.5 seconds to respond. How do you prevent thread starvation in the upstream web server without spinning up additional containers?",
+      "stage_4_squeeze": "Your infrastructure bill shows $3,000/month for provisioned database IOPS. We must cut it by 60% without violating the 50ms P99 SLO."
+    },
+    "counter_probes": [
+      {
+        "buzzword": "increase pool size",
+        "trigger_regex": "(?i)increase.*pool.*(size|to)|make.*pool.*bigger",
+        "counter_question": "According to Little's Law and PostgreSQL's process-per-connection model, what is the physical consequence of having 500 active OS processes contending for 16 CPU cores?",
+        "expected_staff_answer": "Context-switch thrashing, CPU cache invalidation, and lock contention on shared memory buffers degrade actual throughput. The optimal pool size is Cores * 2 + SpindleCount."
+      },
+      {
+        "buzzword": "virtual threads",
+        "trigger_regex": "(?i)virtual.*thread|project.*loom",
+        "counter_question": "If your JDBC driver or logging framework uses synchronized blocks around socket IO, what happens to the underlying ForkJoinPool carrier thread?",
+        "expected_staff_answer": "The carrier thread becomes pinned (synchronized blocks prevent unmounting in Java 21). When all carrier threads are pinned, all other virtual threads starve."
+      }
+    ]
+  }
+}

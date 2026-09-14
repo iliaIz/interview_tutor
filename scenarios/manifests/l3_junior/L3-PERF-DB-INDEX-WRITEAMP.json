@@ -1,0 +1,131 @@
+{
+  "canonical_id": "L3-PERF-DB-INDEX-WRITEAMP",
+  "legacy_aliases": [
+    "hld-micro-03",
+    "kata-03-db-sharding",
+    "db-indexing-writeamp"
+  ],
+  "version": "1.0.0",
+  "target_level": "L3_JUNIOR",
+  "archetype": "DATA_STORAGE",
+  "title": "Database Indexing Trade-offs under High Write Volume",
+  "subtitle": "B-Tree Fill Factor Tuning, Write Amplification Elimination & Covering Indexes",
+  "problem_statement": "A financial transaction ingestion table handles 4,000 writes/sec and 200 reads/sec. Developers added 8 different indexes on the table to speed up ad-hoc operational queries. As a result, disk write IOPS spiked 7x, WAL generation overloaded replication, and insert latency degraded from 2ms to 45ms.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "sql",
+    "source_files": [
+      {
+        "path": "schema/V1__transactions_table.sql",
+        "content": "CREATE TABLE transactions (\n    id UUID PRIMARY KEY,\n    user_id BIGINT NOT NULL,\n    account_id BIGINT NOT NULL,\n    merchant_id BIGINT NOT NULL,\n    status VARCHAR(32) NOT NULL,\n    amount NUMERIC(15, 2) NOT NULL,\n    currency VARCHAR(3) NOT NULL,\n    created_at TIMESTAMP WITH TIME ZONE NOT NULL\n);\n\n-- BUG: Redundant and overlapping B-Tree indexes multiplying write cost by 8x\nCREATE INDEX idx_tx_user ON transactions(user_id);\nCREATE INDEX idx_tx_user_created ON transactions(user_id, created_at);\nCREATE INDEX idx_tx_account ON transactions(account_id);\nCREATE INDEX idx_tx_merchant ON transactions(merchant_id);\nCREATE INDEX idx_tx_status ON transactions(status); -- Low cardinality index\nCREATE INDEX idx_tx_created ON transactions(created_at);\nCREATE INDEX idx_tx_currency ON transactions(currency); -- 3 distinct values only\nCREATE INDEX idx_tx_amount ON transactions(amount);",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 14,
+      "description": "Low-cardinality and overlapping indexes multiplying write amplification on every insert.",
+      "bug_pattern": "INDEX_WRITE_AMPLIFICATION"
+    },
+    "correct_fix_diff": "- CREATE INDEX idx_tx_status ON transactions(status);\n- CREATE INDEX idx_tx_currency ON transactions(currency);\n- CREATE INDEX idx_tx_user ON transactions(user_id); -- Covered by (user_id, created_at)\n+ -- Keep only high-selectivity composite indexes\n+ CREATE INDEX idx_tx_user_created ON transactions(user_id, created_at DESC) INCLUDE (amount, status);",
+    "ast_rule_invariants": [
+      "no-low-cardinality-btree-index",
+      "no-redundant-prefix-index"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "ingress",
+          "type": "api_gateway",
+          "title": "Ingress API",
+          "grid_position": {
+            "col": 0,
+            "row": 0
+          },
+          "params": {
+            "rate_limit_rps": 6000
+          }
+        },
+        {
+          "id": "tx_writer",
+          "type": "worker_pool",
+          "title": "Transaction Writer Pool",
+          "grid_position": {
+            "col": 1,
+            "row": 0
+          },
+          "params": {
+            "workers": 16
+          }
+        },
+        {
+          "id": "pg_primary",
+          "type": "rdbms_primary",
+          "title": "PostgreSQL Primary",
+          "grid_position": {
+            "col": 2,
+            "row": 0
+          },
+          "params": {
+            "max_iops": 5000,
+            "wal_buffer_mb": 64
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "ingress",
+          "target": "tx_writer",
+          "protocol": "http_rest"
+        },
+        {
+          "id": "e2",
+          "source": "tx_writer",
+          "target": "pg_primary",
+          "protocol": "db_protocol"
+        }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 15.0,
+      "availability_target_nines": 99.95,
+      "monthly_budget_max_usd": 2000.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 4000.0,
+      "inter_arrival_cv": 0.5,
+      "read_ratio": 0.05
+    },
+    "invariants": [
+      {
+        "id": "inv_write_latency",
+        "description": "P99 insert latency must remain below 15ms under 4000 writes/sec.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Walk through what PostgreSQL's storage engine does on disk when a row is inserted into a table with 8 B-Tree indexes.",
+      "stage_2_tightening": "If random UUIDv4 keys are used as the primary key, why does write throughput collapse once the table size exceeds available RAM?",
+      "stage_3_adversarial": "We must support query by `status = 'PENDING'` (which is 0.1% of rows) and `created_at`. How do you index this with zero write amplification on completed rows?",
+      "stage_4_squeeze": "Cloud provider disk IOPS limits are exceeded. How do you tune PostgreSQL fillfactor and HOT (Heap-Only Tuples) updates to reduce page splits?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "add index",
+        "trigger_regex": "(?i)just.*add.*index|create.*index.*on.*status",
+        "counter_question": "Status has only 4 distinct values: PENDING, COMPLETED, FAILED, CANCELLED. Why will the PostgreSQL query planner ignore a standard B-Tree index on status for 99% of queries?",
+        "expected_staff_answer": "B-Tree indexes on low-cardinality columns have poor selectivity; a sequential scan or bitmap scan is cheaper. Partial index (WHERE status = 'PENDING') should be used instead."
+      }
+    ]
+  }
+}
