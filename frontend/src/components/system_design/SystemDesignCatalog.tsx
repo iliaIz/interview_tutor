@@ -90,16 +90,25 @@ export const SystemDesignCatalog: React.FC = () => {
     return ['all', ...Array.from(cats)];
   }, [safeScenarios]);
 
+  const levelCounts = useMemo(() => {
+    return {
+      all: safeScenarios.length,
+      L3: safeScenarios.filter(s => s.target_level === 'L3_JUNIOR').length,
+      L4: safeScenarios.filter(s => s.target_level === 'L4_MIDDLE').length,
+      L5_L7: safeScenarios.filter(s => ['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(s.target_level || '')).length,
+    };
+  }, [safeScenarios]);
+
   const filteredScenarios = useMemo(() => {
     return safeScenarios.filter(s => {
-      // Level filter
+      // Level filter (strict target_level match)
       let matchesLevel = true;
       if (selectedLevel === 'L3') {
-        matchesLevel = s.target_level === 'L3_JUNIOR' || s.pedagogical_mode === 'WORKED_EXAMPLE';
+        matchesLevel = s.target_level === 'L3_JUNIOR';
       } else if (selectedLevel === 'L4') {
-        matchesLevel = s.target_level === 'L4_MIDDLE' || s.pedagogical_mode === 'FADED_COMPLETION';
+        matchesLevel = s.target_level === 'L4_MIDDLE';
       } else if (selectedLevel === 'L5_L7') {
-        matchesLevel = ['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(s.target_level || '') || s.pedagogical_mode === 'INDEPENDENT_DESIGN';
+        matchesLevel = ['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(s.target_level || '');
       }
 
       // Category filter
@@ -236,26 +245,44 @@ export const SystemDesignCatalog: React.FC = () => {
             </p>
           </div>
 
-          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-pastel-bg border border-pastel-border text-xs text-pastel-muted font-mono shrink-0">
-            <span>Навигация:</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">↑</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">↓</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">Enter</kbd>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsMathCoachOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-xs hover:shadow-md transition active:scale-95 cursor-pointer"
+              title="Открыть интерактивный тренажер Back-of-the-Envelope расчетов емкости"
+            >
+              <Calculator className="w-4 h-4" />
+              <span>🧮 Math Coach: Расчеты на салфетке</span>
+              <span className="text-[10px] px-1.5 py-0.2 bg-white/20 rounded-md font-mono">10 кейсов</span>
+            </button>
+
+            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-pastel-bg border border-pastel-border text-xs text-pastel-muted font-mono shrink-0">
+              <span>Навигация:</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">↑</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">↓</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-white border border-pastel-border text-[10px] font-bold text-pastel-text">Enter</kbd>
+            </div>
           </div>
         </div>
 
-        {/* Cognitive Ladder (L3 -> L1 Math -> L4 -> L5-L7) */}
+        {/* Cognitive Ladder (Clean Level Taxonomy with Live Counters) */}
         <div className="mt-4 flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-xs">
           <button
             type="button"
             onClick={() => setSelectedLevel('all')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
               selectedLevel === 'all'
                 ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Все сценарии ({scenarios.length})
+            <span>Все сценарии</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              selectedLevel === 'all' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/60 text-slate-600'
+            }`}>
+              {levelCounts.all}
+            </span>
           </button>
           
           <button
@@ -268,17 +295,12 @@ export const SystemDesignCatalog: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>L3: Микро-примитивы (Worked Examples)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsMathCoachOpen(true)}
-            className="px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 shadow-2xs active:scale-95"
-            title="Открыть тренажер прикидок на салфетке (Back-of-the-Envelope)"
-          >
-            <Calculator className="w-3.5 h-3.5" />
-            <span>🧮 L1: Math Coach (Тренажер)</span>
+            <span>L3: Микро-примитивы</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              selectedLevel === 'L3' ? 'bg-emerald-700/80 text-white' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {levelCounts.L3}
+            </span>
           </button>
 
           <button
@@ -291,7 +313,12 @@ export const SystemDesignCatalog: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>L4: Устранение сбоев (Faded Scaffolding)</span>
+            <span>L4: Устранение сбоев</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              selectedLevel === 'L4' ? 'bg-amber-700/80 text-white' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {levelCounts.L4}
+            </span>
           </button>
 
           <button
@@ -305,6 +332,11 @@ export const SystemDesignCatalog: React.FC = () => {
           >
             <span className="w-2 h-2 rounded-full bg-violet-400" />
             <span>L5–L7: Combat Arenas (Senior & Staff)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              selectedLevel === 'L5_L7' ? 'bg-violet-700/80 text-white' : 'bg-violet-100 text-violet-800'
+            }`}>
+              {levelCounts.L5_L7}
+            </span>
           </button>
         </div>
 

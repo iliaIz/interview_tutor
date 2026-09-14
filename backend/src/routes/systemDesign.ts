@@ -118,24 +118,121 @@ systemDesignRouter.get('/scenarios/:id', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/system-design/probe (Staff AI Interactive Socratic Probing)
+// POST /api/system-design/probe (Universal Multi-Mode AI Tutor Probing)
 systemDesignRouter.post('/probe', async (req: Request, res: Response) => {
   try {
-    const { scenarioId, userMessage, conversationHistory } = req.body;
-    const scenario = resolveScenarioManifest(scenarioId);
-    const context = scenario ? `
-Контекст задачи: ${scenario.title} (${scenario.category})
-Трафик: ${JSON.stringify(scenario.trafficProfile)}
-Узкие места и сбои: ${scenario.bottlenecksMarkdown}
+    const { 
+      scenarioId, 
+      userMessage, 
+      conversationHistory,
+      mode = 'free_chat',
+      contextType = 'scenario',
+      mathContext
+    } = req.body;
+
+    let systemPrompt = '';
+
+    if (contextType === 'math_coach') {
+      const mc = mathContext || {};
+      const mathDetails = `
+Сценарий расчетов: «${mc.scenarioTitle || 'Capacity Estimation'}»
+DAU: ${mc.dau?.toLocaleString() || 'не указан'}
+Записей на пользователя в день: ${mc.writesPerUser ?? 'не указан'}
+Чтений на пользователя в день: ${mc.readsPerUser ?? 'не указан'}
+Размер записи: ${mc.avgWriteBytes ? `${mc.avgWriteBytes} байт` : 'не указан'}
+Размер чтения: ${mc.avgReadBytes ? `${mc.avgReadBytes} байт` : 'не указан'}
+Срок хранения: ${mc.retentionYears ? `${mc.retentionYears} лет` : 'не указан'}
+Текущие расчеты кандидата:
+- RPS записи: ${mc.calculatedMetrics?.writeRps ?? '—'}
+- RPS чтения: ${mc.calculatedMetrics?.readRps ?? '—'}
+- Трафик записи: ${mc.calculatedMetrics?.writeBandwidth ?? '—'}
+- Трафик чтения: ${mc.calculatedMetrics?.readBandwidth ?? '—'}
+- Хранилище: ${mc.calculatedMetrics?.storage ?? '—'}
+- Память кэша (80/20): ${mc.calculatedMetrics?.cacheRam ?? '—'}
+`;
+
+      const modeDirectives: Record<string, string> = {
+        eli5: `РЕЖИМ: «👶 На пальцах (ELI5)»
+Твоя задача — объяснить суть расчетов емкости и нагрузки на простых, житейских и наглядных аналогиях (очереди на кассе, книжные полки, почтовые ящики).
+Избегай сухого академического жаргона. Если вводишь термин (RPS, пропускная способность, репликация) — сразу поясняй его бытовым примером.
+Будь теплым, поддерживающим наставником.`,
+
+        deep_dive: `РЕЖИМ: «🔬 Под капотом (Deep Dive)»
+Твоя задача — разобрать физику вычислений на уровне реальных дата-центров и железа:
+- Почему секунда округляется до 86 400 (или 100 000 для запаса);
+- Зачем и откуда берется пиковый коэффициент неравномерности нагрузки (Peak Factor 2x-3x);
+- Учет тройной репликации (3x replication factor) в распределенных СУБД (Raft/Paxos/Cassandra) и оверхед дисковых метаданных/индексов (LSM compaction/B-Tree);
+- Память под кэш по закону Парето (правило 80/20: кэшируем 20% суточного объема запросов чтения);
+- Закон Литтла (L = λ * W) для оценки concurrency и пулов соединений. Давай точные формулы и строгую инженерную аргументацию.`,
+
+        socratic: `РЕЖИМ: «💡 Сократ (Socratic Probing)»
+Твоя задача — вести сократический диалог.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО давать готовые расчеты или прямые ответы!
+Задавай кандидату один точечный, развивающий вопрос, побуждающий его проверить свои допущения:
+- «Учел ли ты пиковую нагрузку или посчитал только средний суточный RPS?»
+- «Что произойдет с требуемым объемом диска, если в распределенной базе включена репликация?»
+- «Как ты перевел суточный объем запросов в секунды?»
+Заставляй кандидата думать и находить правильный ответ самостоятельно.`,
+
+        free_chat: `РЕЖИМ: «💬 Просто тьютор (Free Chat)»
+Твоя задача — быть дружелюбным, открытым и квалифицированным Senior System Architect ментором.
+Отвечай емко, по делу, помогай кандидату разобраться в формулах, проверяй его вычисления и давай понятные практические советы.`
+      };
+
+      systemPrompt = `Ты — экспертный AI-тьютор по расчетам масштабирования (Back-of-the-Envelope Capacity Estimation) в System Design.
+${modeDirectives[mode] || modeDirectives.free_chat}
+
+Контекст активного тренажера расчетов:
+${mathDetails}
+
+Всегда отвечай на русском языке. Ответ должен быть компактным (2-4 абзаца или емкий список), структурированным и прямо отвечать на вопрос кандидата.`;
+
+    } else {
+      // Scenario-based System Design tutor
+      const scenario = resolveScenarioManifest(scenarioId);
+      const context = scenario ? `
+Контекст задачи: ${scenario.title} (${scenario.category || scenario.archetype || 'System Design'})
+Целевой уровень: ${scenario.target_level || 'L4_MIDDLE'}
+Трафик: ${JSON.stringify(scenario.trafficProfile || {})}
+Узкие места и сбои: ${scenario.bottlenecksMarkdown || '—'}
 Эталонные вопросы Staff-интервьюера:
-${scenario.tradeOffProbes?.map((p: any) => `- Вопрос: ${p.question}\n  Эталон: ${p.modelAnswer}`).join('\n')}
+${scenario.tradeOffProbes?.map((p: any) => `- Вопрос: ${p.question}\n  Эталон: ${p.modelAnswer}`).join('\n') || '—'}
 ` : '';
 
-    const systemPrompt = `Ты — ведущий Staff/Principal Архитектор и интервьюер в BigTech (Яндекс, Т-Банк, Stripe).
-Твоя цель: проводить глубокое, требовательное и реалистичное собеседование по System Design.
-Подвергай сомнению архитектурные решения кандидата: находи Single Point of Failure (SPOF), спрашивай про поведение при Network Partition (CAP), Cache Stampede, Dual-Write, Backpressure, и шардирование БД.
-Отвечай кратко, емко, задавай один точечный технический контр-вопрос.
-${context}`;
+      const modeDirectives: Record<string, string> = {
+        eli5: `РЕЖИМ: «👶 На пальцах (ELI5)»
+Объясняй архитектурные концепции (кэширование, очереди, шардирование, консистентность) на простых бытовых и наглядных аналогиях (почта, библиотека, дорожные развязки, склады).
+Не перегружай кандидата академическими терминами без наглядных примеров. Будь терпеливым и доброжелательным наставником.`,
+
+        deep_dive: `РЕЖИМ: «🔬 Под капотом (Deep Dive)»
+Веди глубокий разбор технической физики процессов:
+- Поведение СУБД: LSM-деревья, B-Tree, WAL, Page Cache, Write Amplification;
+- Сетевой стек: epoll, TCP Keepalive, HTTP/2 multiplexing, gRPC, head-of-line blocking;
+- Распределенный консенсус: Raft, Paxos, Quorum (W + R > N), Split-Brain, Fencing Tokens;
+- Пул потоков и JVM: Carrier Threads, Virtual Threads pinning, STW-паузы GC, off-heap buffers.
+Разбирай крайние случаи (edge cases), деградацию и blast radius.`,
+
+        socratic: `РЕЖИМ: «💡 Сократ (Socratic Probing)»
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО давать готовые архитектурные схемы или готовые решения!
+Твоя цель — находить слабые места в архитектуре или рассуждениях кандидата и задавать 1-2 точечных контр-вопроса:
+- Наличие SPOF (Single Point of Failure);
+- Что будет при Network Partition (CAP-теорема);
+- Угроза Cache Stampede при падении кэша;
+- Проблема Dual-Write между СУБД и Kafka;
+- Горячие шарды (hot keys). Побуждай кандидата самого найти уязвимость.`,
+
+        free_chat: `РЕЖИМ: «💬 Просто тьютор (Free Chat)»
+Ты — опытный Staff/Principal Архитектор и доброжелательный ментор.
+Помогай кандидату структурировать мысли, отвечай на любые вопросы по архитектуре, подсказывай trade-offs и лучшие практики современных распределенных систем.`
+      };
+
+      systemPrompt = `Ты — ведущий Staff/Principal Архитектор и личный AI-наставник по System Design в BigTech (Яндекс, Т-Банк, Stripe, Netflix).
+${modeDirectives[mode] || modeDirectives.free_chat}
+
+${context}
+
+Всегда отвечай на русском языке. Ответ должен быть емким, профессиональным и соответствовать выбранному стилю общения.`;
+    }
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -166,10 +263,31 @@ ${context}`;
         body: JSON.stringify({
           model: modelName,
           messages,
-          temperature: 0.7,
-          max_tokens: 800
+          temperature: mode === 'deep_dive' ? 0.4 : mode === 'socratic' ? 0.7 : 0.6,
+          max_tokens: 1000
         })
       });
+    } catch (err: any) {
+      if (endpointUrl.includes('host.docker.internal')) {
+        const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
+        console.log(`🔄 Retrying LiteLLM Proxy with local URL: ${localUrl}`);
+        response = await fetch(localUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${proxyApiKey}`
+          },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            model: modelName,
+            messages,
+            temperature: mode === 'deep_dive' ? 0.4 : mode === 'socratic' ? 0.7 : 0.6,
+            max_tokens: 1000
+          })
+        });
+      } else {
+        throw err;
+      }
     } finally {
       clearTimeout(timeoutId);
     }
@@ -179,8 +297,8 @@ ${context}`;
     }
 
     const data: any = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Как ваша система гарантирует идемпотентность при сетевых повторах?';
-    res.json({ reply });
+    const reply = data.choices?.[0]?.message?.content || 'Не удалось сформировать ответ тьютора. Попробуйте уточнить вопрос.';
+    res.json({ reply, mode });
   } catch (err: any) {
     console.error('System design probe error:', err);
     res.status(500).json({ error: 'AI probe failed', message: err.message });
