@@ -65,6 +65,6 @@
    - [x] **Track B1:** Open-Source Repositories, University Curricula & Production Outages Benchmark (`B1_Global-State-of-the-Art-...md` синтезирован: 9 академических микро-кат CMU/MIT/Stanford, 10 канонических аварий BigTech, 3-этапный Clean-Room IP протокол).
    - [x] **Track B2:** Junior (L3) & Middle (L4) Single-Box & Composed Scenario Manifests (`B2_Specification-Bank-...md` синтезирован: 10 полных спецификаций L3/L4 с математикой $M/M/c$, $M/G/1$, дефектами в коде Java/Nginx/SQL и CEL-инвариантами).
    - [x] **Track B3:** Senior (L5) Partitioned Distributed & AI Serving Manifests (`B3_Спецификация_...md` синтезирован: 10 полных спецификаций L5 с Roofline GPU, vLLM непрерывным батчингом, PagedAttention, HNSW, Raft, CRDT, LSM time-series и CEL-инвариантами).
-   - [ ] **Track B4:** Staff (L6/L7) Planetary Cell-Based, FinOps & Multi-Cloud Disaster Recovery.
+   - [x] **Track B4:** Staff (L6/L7) Planetary Cell-Based, FinOps & Multi-Cloud Disaster Recovery (`B4_Спецификация_...md` синтезирован: 6 планетарных спецификаций L6/L7: клеточный процессинг, мульти-мастер HLC, распределенный 10k GPU шедулер, 500 Tbps 95th-percentile FinOps, multi-cloud RPO=0/RTO<30s, 10M QPS RTB аукцион).
    - [ ] **Track B5:** Principal Bar-Raiser Socratic Trees, Chaos Fault Injections & Rubric Scoring.
 7. [ ] Генерация канонических JSON-манифестов (`scenarios/manifests/*.json`) и запуск кодовой реализации Stage 1.
