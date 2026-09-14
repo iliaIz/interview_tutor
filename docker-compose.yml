@@ -24,7 +24,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - backend_data:/app/data
-      - ./json:/json:ro
+      - ./json:/app/json:ro
+      - ./scenarios:/app/scenarios:ro
     restart: unless-stopped
 
   frontend:

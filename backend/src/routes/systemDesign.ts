@@ -90,11 +90,27 @@ systemDesignRouter.get('/scenarios', (req: Request, res: Response) => {
     const rows = db.prepare(query).all(...params) as any[];
     
     const scenarios = rows.map(r => {
+      let item: any;
       try {
-        return JSON.parse(r.manifest_json);
+        item = JSON.parse(r.manifest_json);
       } catch {
-        return r;
+        item = r;
       }
+      if (!item.target_level) {
+        const lvl = item.level || '';
+        const diff = (item.difficulty || '').toLowerCase();
+        const id = (item.canonical_id || item.id || '').toLowerCase();
+        if (lvl === 'L0' || diff === 'junior' || id.startsWith('hld-micro')) {
+          item.target_level = 'L3_JUNIOR';
+        } else if (lvl === 'L2' || id.includes('faded')) {
+          item.target_level = 'L4_MIDDLE';
+        } else if (lvl === 'L3' || diff === 'senior' || diff === 'lead' || id.startsWith('hld-scenario')) {
+          item.target_level = diff === 'lead' ? 'L6_STAFF' : 'L5_SENIOR';
+        } else {
+          item.target_level = 'L5_SENIOR';
+        }
+      }
+      return item;
     });
 
     res.json(scenarios);

@@ -9,7 +9,43 @@ import {
 } from 'lucide-react';
 import { CapacityMathCoach } from './CapacityMathCoach';
 
-type LevelFilter = 'all' | 'L3' | 'L4' | 'L5_L7';
+export type ScenarioRung = 'L3' | 'L4' | 'L5_L7';
+export type LevelFilter = 'all' | ScenarioRung;
+
+export function getScenarioRung(s: any): ScenarioRung {
+  const targetLevel = s?.target_level || '';
+  if (targetLevel === 'L3_JUNIOR') return 'L3';
+  if (targetLevel === 'L4_MIDDLE') return 'L4';
+  if (['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(targetLevel)) return 'L5_L7';
+
+  // Legacy mappings from SQLite system_design_challenges
+  const lvl = s?.level || '';
+  const diff = (s?.difficulty || '').toLowerCase();
+  const id = (s?.canonical_id || s?.id || '').toLowerCase();
+
+  if (lvl === 'L0' || diff === 'junior' || id.startsWith('hld-micro')) return 'L3';
+  if (lvl === 'L2' || id.includes('faded')) return 'L4';
+  if (lvl === 'L3' || diff === 'senior' || diff === 'lead' || id.startsWith('hld-scenario')) return 'L5_L7';
+
+  return 'L5_L7';
+}
+
+export function getLevelBadge(s: any) {
+  const rung = getScenarioRung(s);
+  if (s?.target_level === 'L7_PRINCIPAL') {
+    return { label: 'L7 Principal', bg: 'bg-rose-50 text-rose-800 border-rose-200' };
+  }
+  if (s?.target_level === 'L6_STAFF' || (s?.difficulty || '').toLowerCase() === 'lead') {
+    return { label: 'L6 Staff', bg: 'bg-purple-50 text-purple-800 border-purple-200' };
+  }
+  if (rung === 'L3') {
+    return { label: 'L3 Junior', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+  }
+  if (rung === 'L4') {
+    return { label: 'L4 Middle', bg: 'bg-amber-50 text-amber-800 border-amber-200' };
+  }
+  return { label: 'L5 Senior', bg: 'bg-blue-50 text-blue-800 border-blue-200' };
+}
 
 export const SystemDesignCatalog: React.FC = () => {
   const { openSystemDesignById, openSystemDesignScenario } = useAppStore();
@@ -91,25 +127,18 @@ export const SystemDesignCatalog: React.FC = () => {
   }, [safeScenarios]);
 
   const levelCounts = useMemo(() => {
-    return {
-      all: safeScenarios.length,
-      L3: safeScenarios.filter(s => s.target_level === 'L3_JUNIOR').length,
-      L4: safeScenarios.filter(s => s.target_level === 'L4_MIDDLE').length,
-      L5_L7: safeScenarios.filter(s => ['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(s.target_level || '')).length,
-    };
+    const counts = { all: safeScenarios.length, L3: 0, L4: 0, L5_L7: 0 };
+    safeScenarios.forEach(s => {
+      const rung = getScenarioRung(s);
+      counts[rung]++;
+    });
+    return counts;
   }, [safeScenarios]);
 
   const filteredScenarios = useMemo(() => {
     return safeScenarios.filter(s => {
-      // Level filter (strict target_level match)
-      let matchesLevel = true;
-      if (selectedLevel === 'L3') {
-        matchesLevel = s.target_level === 'L3_JUNIOR';
-      } else if (selectedLevel === 'L4') {
-        matchesLevel = s.target_level === 'L4_MIDDLE';
-      } else if (selectedLevel === 'L5_L7') {
-        matchesLevel = ['L5_SENIOR', 'L6_STAFF', 'L7_PRINCIPAL'].includes(s.target_level || '');
-      }
+      // Level filter (strict rung matching via SSOT)
+      const matchesLevel = selectedLevel === 'all' || getScenarioRung(s) === selectedLevel;
 
       // Category filter
       const matchesCat = selectedCategory === 'all' || s.archetype === selectedCategory || s.category === selectedCategory;
@@ -178,25 +207,6 @@ export const SystemDesignCatalog: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-
-  const getLevelBadge = (level?: string) => {
-    switch (level) {
-      case 'L3_JUNIOR':
-      case 'L0':
-        return { label: 'L3 Junior', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
-      case 'L4_MIDDLE':
-      case 'L2':
-        return { label: 'L4 Middle', bg: 'bg-amber-50 text-amber-800 border-amber-200' };
-      case 'L5_SENIOR':
-        return { label: 'L5 Senior', bg: 'bg-blue-50 text-blue-800 border-blue-200' };
-      case 'L6_STAFF':
-        return { label: 'L6 Staff', bg: 'bg-purple-50 text-purple-800 border-purple-200' };
-      case 'L7_PRINCIPAL':
-        return { label: 'L7 Principal', bg: 'bg-rose-50 text-rose-800 border-rose-200' };
-      default:
-        return { label: level || 'L5', bg: 'bg-slate-50 text-slate-700 border-slate-200' };
-    }
-  };
 
   const getPedagogicalModeBadge = (mode?: string) => {
     switch (mode) {
@@ -401,7 +411,7 @@ export const SystemDesignCatalog: React.FC = () => {
             {filteredScenarios.map((scenario) => {
               const id = scenario.canonical_id || scenario.id || '';
               const isSelected = selectedScenarioId === id;
-              const levelBadge = getLevelBadge(scenario.target_level || scenario.level);
+              const levelBadge = getLevelBadge(scenario);
               const modeBadge = getPedagogicalModeBadge(scenario.pedagogical_mode);
 
               const peakRps = scenario.studio_2_simulation?.traffic_profile?.lambda_mean_rps 
@@ -480,8 +490,8 @@ export const SystemDesignCatalog: React.FC = () => {
               <div className="space-y-2 pb-4 border-b border-pastel-border/60">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${getLevelBadge(activeScenario.target_level).bg}`}>
-                      {getLevelBadge(activeScenario.target_level).label}
+                    <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${getLevelBadge(activeScenario).bg}`}>
+                      {getLevelBadge(activeScenario).label}
                     </span>
                     <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-pastel-accentViolet border border-purple-200">
                       {activeScenario.archetype || activeScenario.category || 'Distributed Systems'}

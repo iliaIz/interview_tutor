@@ -9,6 +9,8 @@ function findManifestDir(): string | null {
     path.resolve(__dirname, '../../../scenarios/manifests'),
     path.resolve(__dirname, '../../scenarios/manifests'),
     path.resolve(__dirname, '../scenarios/manifests'),
+    '/app/scenarios/manifests',
+    '/scenarios/manifests',
   ];
   for (const cand of candidates) {
     if (fs.existsSync(cand) && fs.statSync(cand).isDirectory()) {

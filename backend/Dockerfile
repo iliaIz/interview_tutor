@@ -46,6 +46,10 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY backend/package*.json ./
 
+# Copy canonical manifests and seed JSONs into container
+COPY scenarios/ ./scenarios/
+COPY json/ ./json/
+
 # Expose internal API port
 EXPOSE 5000
 
@@ -53,3 +57,4 @@ EXPOSE 5000
 RUN mkdir -p /app/data /app/storage
 
 CMD ["node", "dist/server.js"]
+
