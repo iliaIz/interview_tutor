@@ -62,7 +62,7 @@
 4. [x] Разработка и утверждение генерального архитектурного документа **`04_MASTER_SYSTEM_DESIGN_RFC.md`**.
 5. [x] Декомпозиция на этапы реализации со спецификациями Definition of Done (DoD) (`STAGE_01` $\rightarrow$ `STAGE_04`).
 6. [ ] **Текущая цель (Phase B):** Запуск и синтез специализированной батареи ресерча контента и сценариев (`05_CONTENT_AND_SCENARIO_INQUIRY_SUITE.md`):
-   - [ ] **Track B1:** Open-Source Repositories, University Curricula & Production Outages Benchmark.
+   - [x] **Track B1:** Open-Source Repositories, University Curricula & Production Outages Benchmark (`B1_Global-State-of-the-Art-...md` синтезирован: 9 академических микро-кат CMU/MIT/Stanford, 10 канонических аварий BigTech, 3-этапный Clean-Room IP протокол).
    - [ ] **Track B2:** Junior (L3) & Middle (L4) Single-Box & Composed Scenario Manifests.
    - [ ] **Track B3:** Senior (L5) Partitioned Distributed & AI Serving Manifests.
    - [ ] **Track B4:** Staff (L6/L7) Planetary Cell-Based, FinOps & Multi-Cloud Disaster Recovery.
