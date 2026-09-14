@@ -37,6 +37,17 @@ def create_tarball():
             if os.path.exists(fp):
                 tar.add(fp, arcname=f"backend/{f}")
 
+        # Shared package
+        shared_dir = os.path.join(root_dir, "shared")
+        if os.path.exists(shared_dir):
+            for f in ["package.json", "package-lock.json", "tsconfig.json"]:
+                fp = os.path.join(shared_dir, f)
+                if os.path.exists(fp):
+                    tar.add(fp, arcname=f"shared/{f}")
+            shared_src = os.path.join(shared_dir, "src")
+            if os.path.exists(shared_src):
+                tar.add(shared_src, arcname="shared/src")
+
         # JSON data files (Questions, 70 Katas, 35 LLD challenges)
         json_dir = os.path.join(root_dir, "json")
         if os.path.exists(json_dir):

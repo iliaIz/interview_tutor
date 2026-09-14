@@ -29,8 +29,8 @@ services:
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/iliaiz/interview_tutor-backend:latest}
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/Dockerfile
     container_name: interview-backend-api
     restart: unless-stopped
     expose:

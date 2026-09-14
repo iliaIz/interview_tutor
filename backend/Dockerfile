@@ -1,7 +1,5 @@
-# Multi-Stage Production Dockerfile for InterviewPrep Backend (SOTA 2026 Single-Pass Native Build)
+# Multi-Stage Production Dockerfile for InterviewPrep Backend (SOTA 2026 Native Build)
 FROM node:22-bookworm-slim AS builder
-
-WORKDIR /app
 
 # Install build tools for native SQLite bindings
 RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
@@ -10,17 +8,25 @@ RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json tsconfig.json ./
+# 1. Build shared contract library
+WORKDIR /shared
+COPY shared/package*.json shared/tsconfig.json ./
 RUN npm ci
+COPY shared/src/ ./src/
+RUN npm run build
+RUN npm prune --omit=dev
 
-COPY src/ ./src/
+# 2. Build backend application
+WORKDIR /app
+COPY backend/package*.json backend/tsconfig.json ./
+RUN npm ci
+COPY backend/src/ ./src/
 RUN npm run build
 RUN npm prune --omit=dev
 
 # Stage 2: Hardened Production Runtime
 FROM node:22-bookworm-slim AS runner
 
-WORKDIR /app
 ENV NODE_ENV=production
 
 # Install minimal runtime dependencies (curl for healthcheck)
@@ -28,12 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-built production node_modules (with compiled better-sqlite3 native bindings)
-COPY --from=builder /app/node_modules ./node_modules
-COPY package*.json ./
+# Copy pre-built shared dist and production dependencies
+WORKDIR /shared
+COPY --from=builder /shared/dist ./dist
+COPY --from=builder /shared/package*.json ./
+COPY --from=builder /shared/node_modules ./node_modules
 
-# Copy compiled JavaScript output
+# Copy pre-built backend dist and production dependencies
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY backend/package*.json ./
 
 # Expose internal API port
 EXPOSE 5000

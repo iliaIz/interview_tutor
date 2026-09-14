@@ -40,7 +40,7 @@ jobs:
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
           file: ./backend/Dockerfile
           push: true
           tags: |
@@ -66,7 +66,14 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            shared/package-lock.json
+
+      - name: Install & Build Shared Package
+        run: |
+          npm --prefix shared ci
+          npm --prefix shared run build
 
       - name: Build Frontend SPA (Native Bare-Metal)
         working-directory: frontend
