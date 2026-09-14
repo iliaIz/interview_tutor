@@ -1,7 +1,7 @@
 # 🛠️ Stage 2 Specification: Discrete-Event Simulation (DES) Web Worker Kernel
 
 > **Статус:** `SPECIFICATION_LOCKED`  
-> **Версия:** `1.0.0`  
+> **Версия:** `1.1.0-RECONCILED` (Полная синхронизация с математическими моделями B2, B3, B4)  
 > **Дата:** 14 сентября 2026 г.  
 > **Программа:** Wave 05 — System & AI Evolution  
 > **Родительский RFC:** [`04_MASTER_SYSTEM_DESIGN_RFC.md`](04_MASTER_SYSTEM_DESIGN_RFC.md)  
@@ -12,101 +12,124 @@
 ## 1. Executive Summary & Hardware Physics
 
 ### 1.1. Назначение этапа
-Реализовать изолированный, многопоточный **дискретно-событийный симулятор (DES Engine)** в выделенном Web Worker (`frontend/src/workers/desSimulator.worker.ts`).
-Симулятор производит динамический расчёт задержек, очередей, пропускной способности и финансовой стоимости спроектированных топологий под стохастической нагрузкой в реальном времени.
+Реализовать многопоточное вычислительное ядро **дискретно-событийного симулятора (DES Engine)** в выделенном Web Worker (`frontend/src/workers/desSimulator.worker.ts`).
+Ядро производит расчет очередей, сквозных задержек ($P50, P99, P99.9$), аппаратной утилизации и финансовой стоимости (FinOps) для всех 26 канонических сценариев (от односерверных микро-кат L3 до планетарных ячеистых систем L7).
 
 ### 1.2. Архитектурные требования
-* **Zero Main-Thread Jitter (60 FPS UI):** 100% математических вычислений выполняются в Web Worker. Передача телеметрии в основной поток осуществляется через структурированные сообщения `postMessage` (с поддержкой `Transferable ArrayBuffer` для временных рядов).
-* **Субмиллисекундная итерация ($<0.5\text{ мс}$):** Для мгновенного отклика UI при изменении ползунков параметров вместо эмпирического отслеживания миллионов отдельных событий симулятор использует замкнутые аналитические модели очередей и квантильные разложения.
-* **Абсолютная физическая достоверность:** Запрещена генерация случайных псевдозадержек через `Math.random() * 100`. Каждая задержка вычисляется из характеристик оборудования (FLOPs, HBM Bandwidth, IOPS, сетевые RTT).
+* **Zero Main-Thread Jitter (60 FPS UI):** 100% математических вычислений выполняются в Web Worker. Передача телеметрии в UI-поток осуществляется через `postMessage` (с поддержкой `Transferable ArrayBuffer` для временных рядов).
+* **Субмиллисекундная итерация ($<0.5\text{ мс}$ на шаг):** Мгновенный отклик при перетаскивании ползунков параметров за счет замкнутых аналитических формул (Поллачек-Хинчин, Аллен-Каннин, аппроксимация Кимуры и разложение Корниша-Фишера).
+* **Абсолютная физическая достоверность (INV-04):** Никаких случайных псевдозадержек через `Math.random() * 100`. Задержки рассчитываются строго по физическим характеристикам оборудования:
+  * Для микро-уровня (L3/L4): переключение контекста ядер CPU ($\tau_{\text{cs}}$), пиннинг carrier-потоков Java 21, дисковый сброс буферов Nginx, Little's Law пулов соединений.
+  * Для AI-инфраструктуры (L5): Roofline-модели FLOPs/BW, фрагментация страниц PagedAttention, время обхода графа HNSW, сходимость алгоритма XFetch.
+  * Для планетарных систем (L6/L7): радиус поражения ячеек ($\frac{1}{N_{\text{cells}}}$), задержки all-reduce на NVLink/RoCE, дрейф физических часов HLC, пропускная способность zero-copy eBPF.
 
 ---
 
-## 2. Математические модули вычислительного ядра
+## 2. Архитектура модулей вычислительного ядра
 
 ```
 frontend/src/workers/des/
-├── desSimulator.worker.ts        # Точка входа воркера (message dispatcher)
+├── desSimulator.worker.ts            # Точка входа воркера (message dispatcher)
+├── solvers/
+│   ├── singleBoxResourceSolver.ts    # L3/L4: HikariCP, Virtual Threads, Nginx Buffers, Token Bucket
+│   ├── distributedQueueSolver.ts     # L4/L5: M/G/1, G/G/c, Kimura P99, Cornish-Fisher Quantiles
+│   ├── aiRooflineSolver.ts           # L5: Prefill (FLOPs), Decode (HBM), Continuous Batching
+│   ├── vectorAndCacheSolver.ts       # L5: HNSW ANN, Hybrid RRF, XFetch Probabilistic Cache
+│   └── planetaryCellularSolver.ts    # L6/L7: Cell Blast-Radius, NVLink/RoCE, HLC Clock Drift, eBPF
 ├── engines/
-│   ├── llmRooflineEngine.ts      # Физика Prefill (FLOPs) и Decode (HBM)
-│   ├── continuousBatching.ts     # Итерационный шедулер и PagedAttention
-│   ├── vectorDbEngine.ts         # HNSW, IVF-PQ, DiskANN, Hybrid RRF
-│   ├── semanticCacheEngine.ts    # Косинусное сходство и алгоритм XFetch
-│   ├── analyticalQueueSolvers.ts # Erlang-C, M/G/1, G/G/c, Kimura, Cornish-Fisher
-│   └── chaosMonkeyEngine.ts      # Инъекция сбоев (network drop, disk stall)
+│   ├── chaosMonkeyEngine.ts          # Инъекция сбоев (network partition, disk stall, leader failover)
+│   └── finOpsCostEngine.ts           # Посекундный расчет TCO (vCPU, RAM, HBM, Egress WAN, IOPS)
 └── types/
-    └── workerMessages.ts         # Типизированные контракты сообщений
+    └── workerMessages.ts             # Строго типизированные интерфейсы запросов и телеметрии
 ```
 
-### 2.1. Модуль `llmRooflineEngine.ts`: Двухфазный инференс LLM
-Задержка инференса разделяется на две несимметричные фазы:
+---
 
-#### 1. Prefill Phase (Compute-Bound, расчёт TTFT)
-Вычисление всех $T_{\text{in}}$ токенов входного промпта:
-$$T_{\text{prefill}} = \max\left(\frac{2 \cdot P \cdot T_{\text{in}}}{\Phi_{\text{peak}}}, \frac{P \cdot b_{\text{param}}}{BW_{\text{mem}}}\right)$$
-* $P$ — активное число параметров (например, $70 \times 10^9$).
-* $\Phi_{\text{peak}}$ — пиковая производительность тензорных ядер (например, для H100 SXM5: $989 \times 10^{12}\text{ FLOP/s}$ FP16).
-* $BW_{\text{mem}}$ — пропускная способность памяти HBM (H100: $3.35 \times 10^{12}\text{ Б/с}$).
-* $b_{\text{param}}$ — размер веса (2 байта для FP16, 1 байт для FP8).
+## 3. Математическая физика подсистем (B2, B3, B4)
 
-#### 2. Decode Phase (Memory-Bandwidth-Bound, расчёт TPOT / ITL)
-Авторегрессионная генерация токена:
-$$T_{\text{decode}} = \frac{P \cdot b_{\text{param}} + 2 \cdot b_{\text{kv}} \cdot L \cdot d_{\text{model}} \cdot S_{\text{ctx}}}{BW_{\text{mem}}}$$
-* $L$ — число слоев Transformer (например, 80).
-* $d_{\text{model}}$ — размер скрытого слоя (например, 8192).
-* $S_{\text{ctx}}$ — суммарная длина контекста в KV-кэше.
-* $b_{\text{kv}}$ — разрядность KV-кэша.
+### 3.1. Модуль `singleBoxResourceSolver.ts` (L3 / L4 Физика микро-уровня)
 
-### 2.2. Модуль `continuousBatching.ts`: Пагинация PagedAttention
-* **Лимит памяти KV-кэша:**
-  $$M_{\text{available\_kv}} = M_{\text{HBM\_total}} - (P \cdot b_{\text{param}} + M_{\text{cuda\_runtime}})$$
-* **Динамический размер батча $B_t$:**
-  $$B_t = \min\left(B_{\text{max}}, \left\lfloor \frac{M_{\text{available\_kv}}}{2 \cdot b_{\text{kv}} \cdot L \cdot d_{\text{model}} \cdot \bar{S}_{\text{ctx}}} \right\rfloor\right)$$
-* **Вытеснение (Preemption):** Если в момент времени $t$ требуемая память превышает $M_{\text{available\_kv}}$, запросы с наименьшим приоритетом переводятся в состояние `PREEMPTED`, их KV-блоки сбрасываются или выгружаются в host-память, а клиенту симулируется пауза (inter-token stall).
+#### 1. Sizing пула соединений HikariCP (Формула Литтла и оверхед CPU)
+* **Закон Литтла:** Необходимый базовый размер пула:
+  $$C_{\text{opt}} = \lambda \cdot \mathbb{E}[S_{\text{db}}]$$
+  где $\lambda$ — входящий RPS, $\mathbb{E}[S_{\text{db}}]$ — среднее время выполнения SQL-запроса.
+* **Деградация при переразмеренном пуле ($C > 2 \times \text{CoreCount}$):**
+  Увеличение числа активных потоков СУБД свыше физических ядер вызывает context-switch thrashing. Эффективное время обслуживания запроса деградирует:
+  $$\mathbb{E}[S_{\text{db}}](C) = \mathbb{E}[S_{\text{db\_base}}] \cdot \left(1 + \alpha_{\text{cs}} \cdot \max(0, C - 2 \cdot N_{\text{cores}})\right)$$
+  где $\alpha_{\text{cs}} \approx 0.04$ — коэффициент замедления на каждое лишнее соединение.
 
-### 2.3. Модуль `vectorDbEngine.ts`: ANN-поиск и гибридное слияние
-* **HNSW (Hierarchical Navigable Small World):**
-  $$T_{\text{HNSW}} \approx T_{\text{hop}} \cdot M \cdot \ln(N) \cdot \frac{efSearch}{M}$$
-  Точность поиска (Recall): $\text{Recall} \approx 1 - \exp(-\alpha \cdot efSearch^{\beta})$.
-* **IVF-PQ (Inverted File + Product Quantization):**
-  Моделирование задержки поиска центроидов $\mathcal{O}(k_{\text{centroids}} \cdot D)$ + асимметричное вычисление расстояний по таблице (ADC) с квантизационным шумом.
-* **DiskANN (Vamana):**
-  Учет задержек случайного чтения с NVMe SSD: $T_{\text{DiskANN}} = N_{\text{beam\_hops}} \times T_{\text{NVMe\_read}}$ ($T_{\text{NVMe\_read}} \approx 12\text{ мкс}$).
-* **Reciprocal Rank Fusion (RRF):**
-  $$RRF\_Score(d) = \sum_{m \in \{\text{dense}, \text{sparse}\}} \frac{1}{60 + r_m(d)}$$
+#### 2. Пиннинг виртуальных потоков Java 21 (ForkJoinPool Starvation)
+* Если в методе используется блок `synchronized (lock) { ioOperation(); }`, виртуальный поток привязывается к несущему OS-потоку (carrier thread) пула `ForkJoinPool.commonPool()` (размер пула по умолчанию равен числу ядер $N_{\text{cores}}$).
+* При $N_{\text{pinned}} \ge N_{\text{cores}}$ весь пул carrier-потоков блокируется. Время ожидания в очереди для остальных $M$ виртуальных потоков растет скачкообразно:
+  $$W_{\text{carrier\_queue}} = \frac{M - N_{\text{cores}}}{N_{\text{cores}}} \cdot T_{\text{blocking\_io}}$$
+  В симуляции отображается всплеск задержки до секунд и генерация события `VirtualThreadPinnedException`.
+* Переключение на `ReentrantLock` или рантайм Java 24 (JEP 491) устраняет пиннинг ($W_{\text{carrier\_queue}} \approx 0$).
 
-### 2.4. Модуль `semanticCacheEngine.ts`: Семантическое кэширование и XFetch
-* **Косинусное соответствие:** Попадание в кэш $\iff 1 - \cos(\vec{u}, \vec{v}) \le \tau$ (типичный $\tau = 0.08$–$0.12$).
-* **Предотвращение Cache Stampede (XFetch Algorithm):**
-  Упреждающее асинхронное перевычисление горячего ответа в фоне до наступления физического TTL:
+#### 3. Переполнение буферов Nginx (Disk Spooling Penalty)
+* Если размер тела ответа $S_{\text{resp}} > \text{proxy\_buffer\_size}$, Nginx сбрасывает остаток во временный файл на диск (`proxy_temp_path`):
+  $$T_{\text{nginx\_resp}} = \begin{cases} 
+    T_{\text{network\_ram}}, & \text{если } S_{\text{resp}} \le \text{proxy\_buffer\_size} \\
+    T_{\text{network\_ram}} + \frac{S_{\text{resp}} - \text{proxy\_buffer\_size}}{BW_{\text{disk\_write}}} + T_{\text{fs\_sync}}, & \text{если } S_{\text{resp}} > \text{proxy\_buffer\_size}
+  \end{cases}$$
+  где $T_{\text{fs\_sync}} \approx 12\text{ мс}$ (задержка обращения к SSD под нагрузкой).
+
+---
+
+### 3.2. Модуль `aiRooflineSolver.ts` и `vectorAndCacheSolver.ts` (L5 AI Инфраструктура)
+
+#### 1. Двухфазный Roofline инференса LLM
+* **Prefill Phase (Compute-Bound, расчет TTFT):**
+  $$T_{\text{prefill}} = \max\left(\frac{2 \cdot P \cdot T_{\text{in}}}{\Phi_{\text{peak}}}, \frac{P \cdot b_{\text{param}}}{BW_{\text{mem}}}\right)$$
+* **Decode Phase (Memory-Bandwidth-Bound, расчет TPOT / ITL):**
+  $$T_{\text{decode}} = \frac{P \cdot b_{\text{param}} + 2 \cdot b_{\text{kv}} \cdot L \cdot d_{\text{model}} \cdot S_{\text{ctx}}}{BW_{\text{mem}}}$$
+  где для H100 SXM5: $\Phi_{\text{peak}} = 989\text{ TFLOPS}$ (FP16), $BW_{\text{mem}} = 3.35\text{ ТБ/с}$.
+
+#### 2. PagedAttention и непрерывный батчинг
+* Посекундная симуляция памяти KV-кэша с блоками по 16 токенов.
+* Внешняя фрагментация снижается с 60% (статический буфер) до $<4\%$ (PagedAttention).
+* При исчерпании доступной HBM памяти активируется механизм `Preemption` (вытеснение запросов с наименьшим приоритетом с сохранением блоков в хост-памяти RAM через PCIe 5.0).
+
+#### 3. Штампоустойчивость кэша: Алгоритм XFetch
+* Упреждающее асинхронное перевычисление ключа в фоне до наступления физического TTL:
   $$\text{Recompute} \iff t - \beta \cdot \delta \cdot \ln(\text{rand}()) > \text{expiry}$$
-  где $\delta$ — задержка генерации ответа моделью, $\beta = 1.0$ — параметр упреждения.
+  где $\delta$ — задержка генерации ответа LLM, $\beta = 1.0$ — параметр агрессивности упреждения.
 
-### 2.5. Модуль `analyticalQueueSolvers.ts`: Замкнутые солверы очередей
-Для обеспечения субмиллисекундного расчёта очередей симулятор вычисляет квантили через первые три момента распределения:
+---
+
+### 3.3. Модуль `planetaryCellularSolver.ts` (L6 / L7 Планетарные системы)
+
+#### 1. Ячеистая изоляция и радиус поражения (Cell Blast-Radius)
+* В случае катастрофического сбоя внутри одной ячейки (например, порча страниц данных или каскадный отказ пула) доля затронутых пользователей платформы строго ограничена:
+  $$\text{BlastRadius} = \frac{1}{N_{\text{cells}}}$$
+* При $N_{\text{cells}} = 100$ глобальная доступность платформы сохраняется на уровне $99.0\%$ даже при 100% уничтожении отдельной ячейки.
+
+#### 2. Задержка All-Reduce на кластерах 10 000 GPU (Ring-AllReduce)
+* Время синхронизации градиентов распределенного обучения через сетевую иерархию:
+  $$T_{\text{AllReduce}} = 2 \cdot \left(\frac{N-1}{N}\right) \cdot \frac{M}{BW_{\text{effective}}} + 2 \cdot (N-1) \cdot \alpha$$
+  где внутри узла используется NVLink ($900\text{ ГБ/с}$), а между стойками — InfiniBand / RoCE ($400\text{ Гбит/с}$).
+
+---
+
+### 3.4. Модуль `distributedQueueSolver.ts`: Замкнутые солверы очередей
+
 * **$M/G/1$ (Pollaczek-Khinchine):**
   $$W_q = \frac{\rho}{\mu(1-\rho)} \cdot \left(\frac{1 + C_s^2}{2}\right),\quad C_s^2 = \frac{\sigma_s^2}{(\mathbb{E}[S])^2}$$
 * **$G/G/c$ (Allen-Cunneen):**
   $$W_q \approx \frac{P_c}{c\mu(1-\rho)} \cdot \left(\frac{C_a^2 + C_s^2}{2}\right)$$
-* **Квантили $P99$ и $P99.9$ (Аппроксимация Кимуры и разложение Корниша-Фишера):**
+* **Аналитический расчет хвостовых задержек $P99$ и $P99.9$ (Аппроксимация Кимуры и Корниш-Фишер):**
   $$P_{99} \approx \mathbb{E}[T] + \sigma_T \cdot \left(z_{0.99} + \frac{\gamma_1}{6}(z_{0.99}^2 - 1)\right)$$
-  где $z_{0.99} = 2.326$, $\gamma_1$ — коэффициент асимметрии (skewness) времени обслуживания.
-
-### 2.6. Модуль `chaosMonkeyEngine.ts`: Инъекция сбоев
-Поддерживает расписание сбоев из манифеста (`chaos_schedule`):
-1. `PACKET_LOSS_SPIKE`: увеличение RTT ребра и рост коэффициента вариации прибытия $C_a$.
-2. `RAFT_LEADER_ELECTION`: полная недоступность узла на $150$–$300\text{ мс}$ с последующим наплывом накопившейся очереди.
-3. `DISK_IOPS_STALL`: деградация времени обслуживания узла хранилища в 10 раз.
-4. `GPU_OOM_PREEMPTION`: принудительное переполнение памяти KV-кэша.
+  где $z_{0.99} = 2.326$, $\gamma_1$ — асимметрия распределения (skewness).
 
 ---
 
-## 3. Контракты сообщений Web Worker (`types/workerMessages.ts`)
+## 4. Контракты сообщений Web Worker (`types/workerMessages.ts`)
 
 ```typescript
 export interface SimulationRequestMessage {
   type: 'RUN_SIMULATION';
   requestId: string;
+  scenario_id: string;
+  target_level: 'L3_JUNIOR' | 'L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF' | 'L7_PRINCIPAL';
   topology: {
     nodes: Array<{
       id: string;
@@ -121,11 +144,18 @@ export interface SimulationRequestMessage {
     }>;
   };
   traffic: {
-    pattern: 'POISSON' | 'BURSTY';
+    pattern: 'POISSON' | 'BURSTY' | 'DIURNAL';
     lambda_mean_rps: number;
-    ca_coefficient: number;
+    inter_arrival_cv: number;
+    read_ratio: number;
     prompt_tokens_mean?: number;
     generation_tokens_mean?: number;
+  };
+  roofline?: {
+    peak_flops_tflops?: number;
+    memory_bandwidth_tb_s?: number;
+    weight_bits?: number;
+    kv_bits?: number;
   };
   duration_seconds: number;
   enable_chaos?: boolean;
@@ -143,7 +173,7 @@ export interface NodeTelemetry {
   utilization_percent: number;
   cost_monthly_usd: number;
   dropped_requests_count: number;
-  // Специфично для LLM
+  // Специфично для LLM & GPU
   ttft_p99_ms?: number;
   tpot_p99_ms?: number;
   kv_cache_utilization_percent?: number;
@@ -151,6 +181,12 @@ export interface NodeTelemetry {
   // Специфично для Cache
   cache_hit_rate_percent?: number;
   xfetch_early_refreshes_count?: number;
+  // Специфично для Single-Box Runtime
+  carrier_thread_pinned?: boolean;
+  hikari_pool_exhausted?: boolean;
+  nginx_disk_spool_active?: boolean;
+  // Специфично для Planetary Systems
+  cell_blast_radius_percent?: number;
 }
 
 export interface SimulationResponseMessage {
@@ -164,6 +200,8 @@ export interface SimulationResponseMessage {
     total_monthly_cost_usd: number;
     is_stable: boolean;
     bottleneck_node_id: string | null;
+    active_invariants_passed: string[];
+    active_invariants_failed: string[];
   };
   node_telemetry: Record<string, NodeTelemetry>;
   timeline_samples: Array<{
@@ -177,15 +215,14 @@ export interface SimulationResponseMessage {
 
 ---
 
-## 4. Definition of Done (DoD) для Stage 2
+## 5. Definition of Done (DoD) для Stage 2
 
-Этап считается завершенным **только** при выполнении следующих критериев:
-
-1. [ ] **Worker Compilation:** Файл `frontend/src/workers/desSimulator.worker.ts` собирается Vite без ошибок и корректно инициализируется через `new Worker(new URL(...))`.
-2. [ ] **Sub-Millisecond Execution Benchmark:** Время выполнения одной полной симуляции для графа из 15 узлов на 10 000 виртуальных запросов составляет $<10\text{ мс}$ в Web Worker.
-3. [ ] **Mathematical Unit Tests:** Модульные тесты подтверждают совпадение расчётов:
-   * Prefill/Decode задержек H100 с теоретическими аппаратными пределами.
-   * Формул Поллачека-Хинчина и Аллена-Каннина с эталонными математическими таблицами.
-   * XFetch сходимости с Monte-Carlo симуляцией stampede.
-4. [ ] **Chaos Injection Verification:** Тест симуляции подтверждает скачок задержки $P99$ при разрыве линка Raft-лидера и возврат к норме после завершения сбоя.
-5. [ ] **Zero Main-Thread Blocking:** Профайлер Chrome DevTools подтверждает отсутствие Long Tasks ($>50\text{ мс}$) в основном UI-потоке во время непрерывной симуляции.
+1. [ ] **Worker Compilation:** Файл `frontend/src/workers/desSimulator.worker.ts` собирается бандлером Vite без ошибок TypeScript.
+2. [ ] **Sub-Millisecond Benchmark:** Полный расчет графа из 15 узлов на 10 000 запросов занимает $<10\text{ мс}$ в Web Worker.
+3. [ ] **Mathematical Test Suite:**
+   * Проверка совпадения формул Поллачека-Хинчина и Аллена-Каннина с эталонными математическими расчетами ($R^2 > 0.999$).
+   * Проверка Roofline модели: Prefill масштабируется линейно с $T_{\text{in}}$, Decode масштабируется обратно пропорционально $BW_{\text{mem}}$.
+   * Проверка Little's Law и деградации пула HikariCP при превышении $2 \times \text{Cores}$.
+   * Проверка сходимости XFetch с вероятностной моделью раннего вытеснения.
+4. [ ] **Chaos Injection Verification:** Симуляция фиксирует разрыв сетевого линка, временный всплеск $P99$ и автоматическое восстановление после завершения фазы сбоя.
+5. [ ] **Zero Main-Thread Blocking:** Профайлер подтверждает отсутствие Long Tasks ($>50\text{ мс}$) в UI-потоке браузера.
