@@ -27,6 +27,8 @@
 | **DEC-13** | **Стандарт манифестов TypeBox (Draft-07 + TS)** | Отказ от Zod в пользу `@sinclair/typebox`. Разделение Transport DAG (семантика) и Presentation Model (координаты сетки React Flow). Единый JSON Schema контракт для клиента и SQLite. | Report 04 | 🔒 LOCKED |
 | **DEC-14** | **Изоморфная двухуровневая валидация (Graph + CEL)** | Проверка инвариантов студента выполняется идентично на клиенте и сервере: Уровень 1 — топологические алгоритмы (циклы, связность); Уровень 2 — песочница Common Expression Language (CEL). | Report 04 | 🔒 LOCKED |
 
+| **DEC-15** | **Декомпозиция контент-ресерча (Антипаттерн Single-Prompt)** | Запрещено объединять бенчмарк репозиториев, 30 сценариев L3–L6 с их точной физикой и CEL-правилами, и рубрики Bar-Raiser в один промпт Deep Research. Утверждена модульная батарея Phase B из 5 изолированных треков (B1–B5) для максимизации технической плотности. | Phase B Ingestion Plan | 🔒 LOCKED |
+
 ---
 
 ## 2. 🏁 Разрешенные гипотезы исследования (Resolved Hypotheses)
@@ -57,5 +59,12 @@
 1. [x] Проведение эмпирического аудита кодовой базы (`01_BASELINE_DEFECT_AUDIT.md`).
 2. [x] Формирование и выполнение батареи Deep Research (`02_RESEARCH_INQUIRY_SUITE.md`).
 3. [x] Фиксация журнала решений (`03_DECISIONS_AND_HYPOTHESES_LOG.md`).
-4. [ ] **Текущая цель:** Разработка и утверждение генерального архитектурного документа **`04_MASTER_SYSTEM_DESIGN_RFC.md`**.
-5. [ ] Декомпозиция на этапы реализации со спецификациями Definition of Done (DoD) (`stage_01_...md` $\rightarrow$ `stage_04_...md`).
+4. [x] Разработка и утверждение генерального архитектурного документа **`04_MASTER_SYSTEM_DESIGN_RFC.md`**.
+5. [x] Декомпозиция на этапы реализации со спецификациями Definition of Done (DoD) (`STAGE_01` $\rightarrow$ `STAGE_04`).
+6. [ ] **Текущая цель (Phase B):** Запуск и синтез специализированной батареи ресерча контента и сценариев (`05_CONTENT_AND_SCENARIO_INQUIRY_SUITE.md`):
+   - [ ] **Track B1:** Open-Source Repositories, University Curricula & Production Outages Benchmark.
+   - [ ] **Track B2:** Junior (L3) & Middle (L4) Single-Box & Composed Scenario Manifests.
+   - [ ] **Track B3:** Senior (L5) Partitioned Distributed & AI Serving Manifests.
+   - [ ] **Track B4:** Staff (L6/L7) Planetary Cell-Based, FinOps & Multi-Cloud Disaster Recovery.
+   - [ ] **Track B5:** Principal Bar-Raiser Socratic Trees, Chaos Fault Injections & Rubric Scoring.
+7. [ ] Генерация канонических JSON-манифестов (`scenarios/manifests/*.json`) и запуск кодовой реализации Stage 1.
