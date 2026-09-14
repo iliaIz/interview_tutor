@@ -157,11 +157,34 @@ export function validateInvariants(context: ValidationContext): InvariantValidat
 
 /**
  * Алгоритм Кана для поиска циклов в синхронных ребрах графа.
+ * Исключает асинхронные ребра и брокеры сообщений (Kafka, AMQP, Outbox),
+ * легитимно используемые в событийно-ориентированных архитектурах (Saga).
  */
 function detectCycles(nodes: TransportNode[], edges: TransportEdge[]): { hasCycle: boolean; cyclePath: string[] } {
-  // Учитываем только синхронные RPC-вызовы (http_rest, grpc, tcp_socket)
-  const syncProtocols = new Set(['http_rest', 'grpc', 'tcp_socket', 'db_protocol']);
-  const syncEdges = edges.filter(e => syncProtocols.has(e.protocol));
+  const syncProtocols = new Set(['http_rest', 'grpc', 'tcp_socket', 'db_protocol', 'nvlink_roce']);
+  const asyncProtocols = new Set(['kafka_topic', 'amqp_queue', 'redis_stream', 'event_bridge', 'async_event', 'message_queue']);
+
+  const nodeTypeMap = new Map<string, string>();
+  for (const n of nodes) {
+    nodeTypeMap.set(n.id, n.type);
+  }
+
+  const syncEdges = edges.filter(e => {
+    if (e.is_async === true) return false;
+    if ((e.config as any)?.isAsync === true) return false;
+    const proto = (e.protocol || '').toLowerCase();
+    if (asyncProtocols.has(proto)) return false;
+
+    // Decoupled message queues or event streams do not form synchronous blocking RPC loops
+    const srcType = nodeTypeMap.get(e.source);
+    const tgtType = nodeTypeMap.get(e.target);
+    if (srcType === 'message_queue' || tgtType === 'message_queue' || srcType === 'ebpf_stream_ingest') {
+      return false;
+    }
+
+    return syncProtocols.has(proto) || !proto;
+  });
+
 
   const adj = new Map<string, string[]>();
   const inDegree = new Map<string, number>();

@@ -297,57 +297,58 @@ ${notesMarkdown || 'Не предоставлена'}
     const userId = (req as any).user?.id || 'default_user';
     const submissionId = `sd_${scenarioId}_${userId}_${Date.now()}`;
 
-    // 1. Persist into legacy system_design_submissions table
+    // Atomic Dual-Persistence via db.transaction
     try {
-      db.prepare(`
-        INSERT INTO system_design_submissions (
-          id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(
-        submissionId,
-        scenarioId,
-        userId,
-        canvasTopology ? JSON.stringify(canvasTopology) : (architectureMermaid || ''),
-        notesMarkdown || '',
-        JSON.stringify(parsed)
-      );
-    } catch (persistErr) {
-      console.warn('Could not persist system design submission:', persistErr);
-    }
-
-    // 2. Persist into SSOT user_progress_ledger with dual-key canonical resolution
-    try {
-      const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
-      const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
-      const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId);
-
-      if (manifestRow) {
-        const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.overall_score ? Math.round(parsed.overall_score * 20) : 75);
-        const status = score >= 70 ? 'PASSED' : 'FAILED';
-        const studioStage = canvasTopology ? 'STUDIO_2_SIMULATION' : 'STUDIO_3_DEFENSE';
-        const ledgerId = `prog_${canonicalId}_${userId}_${Date.now()}`;
-
+      const persistDualTx = db.transaction(() => {
+        // 1. Persist into legacy system_design_submissions table
         db.prepare(`
-          INSERT INTO user_progress_ledger (
-            id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO system_design_submissions (
+            id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `).run(
-          ledgerId,
+          submissionId,
+          scenarioId,
           userId,
-          canonicalId,
-          studioStage,
-          status,
-          score,
-          JSON.stringify({
-            submissionId,
-            scenarioId,
-            parsedEvaluation: parsed
-          })
+          canvasTopology ? JSON.stringify(canvasTopology) : (architectureMermaid || ''),
+          notesMarkdown || '',
+          JSON.stringify(parsed)
         );
-        console.log(`📊 [Ledger] Evaluation persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
-      }
-    } catch (ledgerErr) {
-      console.warn('⚠️ [Ledger] Could not persist to user_progress_ledger:', ledgerErr);
+
+        // 2. Persist into SSOT user_progress_ledger with dual-key canonical resolution
+        const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
+        const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
+        const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId);
+
+        if (manifestRow) {
+          const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.overall_score ? Math.round(parsed.overall_score * 20) : 75);
+          const status = score >= 70 ? 'PASSED' : 'FAILED';
+          const studioStage = canvasTopology ? 'STUDIO_2_SIMULATION' : 'STUDIO_3_DEFENSE';
+          const ledgerId = `prog_${canonicalId}_${userId}_${Date.now()}`;
+
+          db.prepare(`
+            INSERT INTO user_progress_ledger (
+              id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            ledgerId,
+            userId,
+            canonicalId,
+            studioStage,
+            status,
+            score,
+            JSON.stringify({
+              submissionId,
+              scenarioId,
+              parsedEvaluation: parsed
+            })
+          );
+          console.log(`📊 [Ledger] Evaluation atomically persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
+        }
+      });
+
+      persistDualTx();
+    } catch (persistErr) {
+      console.warn('Could not atomically persist system design submission / ledger:', persistErr);
     }
 
     res.json(parsed);

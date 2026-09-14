@@ -25,6 +25,7 @@ interface ForensicCodeEditorProps {
   correctFixDiff?: string;
   astRuleInvariants?: string[];
   onCodeChange?: (content: string) => void;
+  onRuntimeFixApplied?: (fixed: boolean) => void;
 }
 
 export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
@@ -32,7 +33,8 @@ export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
   fadedBug,
   correctFixDiff,
   astRuleInvariants = [],
-  onCodeChange
+  onCodeChange,
+  onRuntimeFixApplied
 }) => {
   const defaultFile = files[0] || {
     path: 'src/main/java/Service.java',
@@ -43,10 +45,21 @@ export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
   const [code, setCode] = useState(defaultFile.content);
   const [isDiffExpanded, setIsDiffExpanded] = useState(false);
 
+  const checkIsFixed = (currentCode: string): boolean => {
+    if (!fadedBug) return true;
+    if (!fadedBug.bug_pattern) return true;
+    return !currentCode.includes(fadedBug.bug_pattern);
+  };
+
+  const [isBugFixed, setIsBugFixed] = useState(() => checkIsFixed(defaultFile.content));
+
   useEffect(() => {
     const f = files.find(item => item.path === activeFilePath) || files[0];
     if (f) {
       setCode(f.content);
+      const fixed = checkIsFixed(f.content);
+      setIsBugFixed(fixed);
+      onRuntimeFixApplied?.(fixed);
     }
   }, [files, activeFilePath]);
 
@@ -55,12 +68,18 @@ export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
     if (f) {
       setCode(f.content);
       onCodeChange?.(f.content);
+      const fixed = checkIsFixed(f.content);
+      setIsBugFixed(fixed);
+      onRuntimeFixApplied?.(fixed);
     }
   };
 
   const handleChange = (val: string) => {
     setCode(val);
     onCodeChange?.(val);
+    const fixed = checkIsFixed(val);
+    setIsBugFixed(fixed);
+    onRuntimeFixApplied?.(fixed);
   };
 
   return (
@@ -98,22 +117,43 @@ export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
 
       {/* 2. Faded Bug Banner if present */}
       {fadedBug && (
-        <div className="flex items-start justify-between gap-3 px-4 py-2.5 bg-amber-950/40 border-b border-amber-600/30 text-amber-200 text-xs">
+        <div className={`flex items-start justify-between gap-3 px-4 py-2.5 border-b text-xs transition-colors ${
+          isBugFixed
+            ? 'bg-emerald-950/40 border-emerald-600/30 text-emerald-200'
+            : 'bg-amber-950/40 border-amber-600/30 text-amber-200'
+        }`}>
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            {isBugFixed ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            )}
             <div>
-              <div className="font-semibold text-amber-300">
-                Дефект в строке {fadedBug.line_number} [{fadedBug.bug_pattern}]:
+              <div className="font-semibold flex items-center gap-2">
+                <span className={isBugFixed ? 'text-emerald-300' : 'text-amber-300'}>
+                  {isBugFixed ? 'Дефект устранен' : `Дефект в строке ${fadedBug.line_number}`} [{fadedBug.bug_pattern}]:
+                </span>
+                {isBugFixed && (
+                  <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 border border-emerald-700/50">
+                    Студия 2: Пенальти снят
+                  </span>
+                )}
               </div>
-              <div className="text-amber-200/90 text-[11px] mt-0.5">
-                {fadedBug.description}
+              <div className={`text-[11px] mt-0.5 ${isBugFixed ? 'text-emerald-200/90' : 'text-amber-200/90'}`}>
+                {isBugFixed
+                  ? 'Код успешно модифицирован без антипаттерна. Архитектурный пенальти в симуляции деактивирован.'
+                  : fadedBug.description}
               </div>
             </div>
           </div>
           {correctFixDiff && (
             <button
               onClick={() => setIsDiffExpanded(!isDiffExpanded)}
-              className="text-[11px] px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 shrink-0 transition"
+              className={`text-[11px] px-2 py-1 rounded border shrink-0 transition ${
+                isBugFixed
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30'
+              }`}
             >
               {isDiffExpanded ? 'Скрыть подсказку' : 'Подсказка фикса'}
             </button>

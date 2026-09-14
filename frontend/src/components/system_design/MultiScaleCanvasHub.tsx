@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Wrench, Layers, Radio, ArrowLeft, ShieldCheck, 
   Sparkles, Award, Cpu, BookOpen, ChevronRight 
@@ -22,6 +22,7 @@ export const MultiScaleCanvasHub: React.FC = () => {
   } = useAppStore();
 
   const [studio1SubTab, setStudio1SubTab] = useState<'code' | 'hikari' | 'virtual_threads' | 'paged_attention'>('code');
+  const [isRuntimeFixApplied, setIsRuntimeFixApplied] = useState(false);
 
   if (!activeSystemDesignScenario) {
     return null;
@@ -37,6 +38,15 @@ export const MultiScaleCanvasHub: React.FC = () => {
       closeSystemDesignScenario();
     }
   };
+
+  useEffect(() => {
+    if (activeTriStudioMode === 'topology') {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTriStudioMode]);
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] w-full bg-slate-950 text-slate-100 relative overflow-hidden font-sans select-none">
@@ -113,109 +123,111 @@ export const MultiScaleCanvasHub: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Studio Viewport */}
+      {/* Main Studio Viewport with Persistent DOM Mounting */}
       <main className="flex-1 w-full h-[calc(100%-3.5rem)] relative overflow-hidden">
         {/* Studio 1: Runtime & Forensics Workbench */}
-        {activeTriStudioMode === 'runtime' && (
-          <div className="flex flex-col h-full w-full bg-slate-950 p-6 overflow-hidden">
-            {/* Sub-tabs bar */}
-            <div className="flex items-center gap-2 pb-4 shrink-0 overflow-x-auto">
-              <button
-                onClick={() => setStudio1SubTab('code')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  studio1SubTab === 'code'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                <span>Код и антипаттерны</span>
-                {runtimeSpec?.faded_bug && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setStudio1SubTab('hikari')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  studio1SubTab === 'hikari'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                <span>HikariCP Little's Law</span>
-              </button>
-
-              <button
-                onClick={() => setStudio1SubTab('virtual_threads')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  studio1SubTab === 'virtual_threads'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                <span>Virtual Threads Pinning</span>
-              </button>
-
-              <button
-                onClick={() => setStudio1SubTab('paged_attention')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  studio1SubTab === 'paged_attention'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                <span>PagedAttention KV-Cache</span>
-              </button>
-            </div>
-
-            {/* Sub-tab content */}
-            <div className="flex-1 h-[calc(100%-3rem)] overflow-y-auto">
-              {studio1SubTab === 'code' && (
-                <ForensicCodeEditor
-                  files={runtimeSpec?.source_files}
-                  fadedBug={runtimeSpec?.faded_bug}
-                  correctFixDiff={runtimeSpec?.correct_fix_diff}
-                  astRuleInvariants={runtimeSpec?.ast_rule_invariants}
-                />
+        <div className={`h-full w-full bg-slate-950 p-6 overflow-hidden ${activeTriStudioMode === 'runtime' ? 'flex flex-col' : 'hidden'}`}>
+          {/* Sub-tabs bar */}
+          <div className="flex items-center gap-2 pb-4 shrink-0 overflow-x-auto">
+            <button
+              onClick={() => setStudio1SubTab('code')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                studio1SubTab === 'code'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              <span>Код и антипаттерны</span>
+              {runtimeSpec?.faded_bug && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               )}
+            </button>
 
-              {studio1SubTab === 'hikari' && (
-                <div className="max-w-4xl mx-auto">
-                  <HikariPoolVisualizer />
-                </div>
-              )}
+            <button
+              onClick={() => setStudio1SubTab('hikari')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                studio1SubTab === 'hikari'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              <span>HikariCP Little's Law</span>
+            </button>
 
-              {studio1SubTab === 'virtual_threads' && (
-                <div className="max-w-4xl mx-auto">
-                  <VirtualThreadPinningLab />
-                </div>
-              )}
+            <button
+              onClick={() => setStudio1SubTab('virtual_threads')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                studio1SubTab === 'virtual_threads'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              <span>Virtual Threads Pinning</span>
+            </button>
 
-              {studio1SubTab === 'paged_attention' && (
-                <div className="max-w-4xl mx-auto">
-                  <PagedAttentionVisualizer />
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setStudio1SubTab('paged_attention')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                studio1SubTab === 'paged_attention'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              <span>PagedAttention KV-Cache</span>
+            </button>
           </div>
-        )}
 
-        {/* Studio 2: Topology Canvas & DES Simulation */}
-        {activeTriStudioMode === 'topology' && (
+          {/* Sub-tab content */}
+          <div className="flex-1 h-[calc(100%-3rem)] overflow-y-auto">
+            {studio1SubTab === 'code' && (
+              <ForensicCodeEditor
+                files={runtimeSpec?.source_files}
+                fadedBug={runtimeSpec?.faded_bug}
+                correctFixDiff={runtimeSpec?.correct_fix_diff}
+                astRuleInvariants={runtimeSpec?.ast_rule_invariants}
+                onRuntimeFixApplied={setIsRuntimeFixApplied}
+              />
+            )}
+
+            {studio1SubTab === 'hikari' && (
+              <div className="max-w-4xl mx-auto">
+                <HikariPoolVisualizer />
+              </div>
+            )}
+
+            {studio1SubTab === 'virtual_threads' && (
+              <div className="max-w-4xl mx-auto">
+                <VirtualThreadPinningLab />
+              </div>
+            )}
+
+            {studio1SubTab === 'paged_attention' && (
+              <div className="max-w-4xl mx-auto">
+                <PagedAttentionVisualizer />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Studio 2: Topology Canvas & DES Simulation (Kept mounted for state preservation) */}
+        <div className={`h-full w-full ${activeTriStudioMode === 'topology' ? 'block' : 'hidden'}`}>
           <TopologyCanvas
             scenarioManifest={scenario}
             onProceedToDefense={() => setActiveTriStudioMode('defense')}
+            isRuntimeFixApplied={isRuntimeFixApplied}
+            isActive={activeTriStudioMode === 'topology'}
           />
-        )}
+        </div>
 
-        {/* Studio 3: Voice Bar-Raiser Defense Arena */}
-        {activeTriStudioMode === 'defense' && (
+        {/* Studio 3: Voice Bar-Raiser Defense Arena (Kept mounted for transcript preservation) */}
+        <div className={`h-full w-full ${activeTriStudioMode === 'defense' ? 'block' : 'hidden'}`}>
           <VoiceDefenseArena
             scenarioManifest={scenario}
             onBackToTopology={() => setActiveTriStudioMode('topology')}
           />
-        )}
+        </div>
       </main>
     </div>
   );
 };
+

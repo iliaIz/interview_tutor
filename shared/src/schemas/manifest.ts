@@ -57,6 +57,8 @@ export const TransportEdgeSchema = Type.Object({
     Type.Literal('db_protocol'),
     Type.Literal('nvlink_roce')
   ]),
+  is_async: Type.Optional(Type.Boolean({ default: false })),
+  config: Type.Optional(Type.Record(Type.String(), Type.Any())),
   is_locked: Type.Optional(Type.Boolean({ default: false }))
 });
 

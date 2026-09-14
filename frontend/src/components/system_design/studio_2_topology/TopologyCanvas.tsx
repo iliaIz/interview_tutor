@@ -11,7 +11,8 @@ import {
   Connection,
   Edge,
   Node,
-  ReactFlowProvider
+  ReactFlowProvider,
+  useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { 
@@ -48,11 +49,15 @@ const customEdgeTypes = {
 export interface TopologyCanvasProps {
   scenarioManifest: any;
   onProceedToDefense?: () => void;
+  isRuntimeFixApplied?: boolean;
+  isActive?: boolean;
 }
 
 const TopologyCanvasInner: React.FC<TopologyCanvasProps> = ({
   scenarioManifest,
-  onProceedToDefense
+  onProceedToDefense,
+  isRuntimeFixApplied,
+  isActive
 }) => {
   const simSpec = scenarioManifest?.studio_2_simulation || {};
   const topology = simSpec.topology || { nodes: [], edges: [] };
@@ -145,18 +150,46 @@ const TopologyCanvasInner: React.FC<TopologyCanvasProps> = ({
   const [isChaosEnabled, setIsChaosEnabled] = useState(false);
   const [isForensicsDrawerOpen, setIsForensicsDrawerOpen] = useState(false);
 
+  const { fitView } = useReactFlow();
+
+  // Re-fit canvas viewport when tab becomes active or on window resize
+  useEffect(() => {
+    if (isActive !== false) {
+      const timer = setTimeout(() => {
+        fitView({ duration: 300, padding: 0.15 });
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [isActive, fitView]);
+
+  const effectiveManifest = useMemo(() => {
+    if (!isRuntimeFixApplied) return scenarioManifest;
+    const cloned = JSON.parse(JSON.stringify(scenarioManifest));
+    const manifestNodes = cloned.studio_2_simulation?.topology?.nodes || [];
+    for (const node of manifestNodes) {
+      if (node.params) {
+        if (node.params.thread_pinning_risk) node.params.thread_pinning_risk = false;
+        if (node.params.connection_pool_bottleneck) node.params.connection_pool_bottleneck = false;
+        if (node.params.processing_time_ms && node.params.processing_time_ms > 40) {
+          node.params.processing_time_ms = Math.round(node.params.processing_time_ms * 0.4);
+        }
+      }
+    }
+    return cloned;
+  }, [scenarioManifest, isRuntimeFixApplied]);
+
   const handleStartSimulationClick = () => {
     if (!userHypothesisId) {
       setIsPredictModalOpen(true);
     } else {
-      runSimulation(scenarioManifest, { enableChaos: isChaosEnabled });
+      runSimulation(effectiveManifest, { enableChaos: isChaosEnabled });
     }
   };
 
   const handleConfirmPrediction = (hypoId: string) => {
     setUserHypothesisId(hypoId);
     setIsPredictModalOpen(false);
-    runSimulation(scenarioManifest, { enableChaos: isChaosEnabled });
+    runSimulation(effectiveManifest, { enableChaos: isChaosEnabled });
   };
 
   return (
@@ -173,6 +206,14 @@ const TopologyCanvasInner: React.FC<TopologyCanvasProps> = ({
               {scenarioManifest?.target_level || 'L5'}
             </span>
           </div>
+
+          {/* Runtime fix status pill */}
+          {isRuntimeFixApplied && (
+            <div className="px-3 py-1.5 rounded-2xl bg-emerald-950/80 border border-emerald-600/60 backdrop-blur-md text-xs font-semibold text-emerald-300 flex items-center gap-1.5 shadow-lg">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Runtime-фикс активен: пенальти снят</span>
+            </div>
+          )}
 
           {/* Invariant status pill */}
           {validationResult.violations.length > 0 ? (
