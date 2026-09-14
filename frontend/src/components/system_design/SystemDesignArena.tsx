@@ -16,6 +16,7 @@ import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
 import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
 import { SystemDesignVoiceHUD } from './defense/SystemDesignVoiceHUD';
 import { HiringCommitteeVerdictModal, HiringCommitteePacket } from './defense/HiringCommitteeVerdictModal';
+import { VoiceModal } from '../VoiceModal';
 
 const cleanScenarioText = (text?: string): string => {
   if (!text) return '';
@@ -96,6 +97,57 @@ export const SystemDesignArena: React.FC = () => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Gemini Live Voice Tutor State (Teaching / Socratic dialogue, non-evaluative)
+  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
+  const [voiceTutorSessionId, setVoiceTutorSessionId] = useState<string | null>(null);
+
+  const handleStartVoiceTutor = () => {
+    if (!activeSystemDesignScenario) return;
+    if (isVoiceConnected) {
+      disconnectVoiceSession();
+    }
+    setVoiceTutorSessionId(`voice_sd_tutor_${activeSystemDesignScenario.id}_${Date.now()}`);
+    setIsVoiceTutorOpen(true);
+  };
+
+  const systemDesignVoicePrompt = useMemo(() => {
+    if (!activeSystemDesignScenario) return '';
+    const rps = activeSystemDesignScenario.studio_2_simulation?.traffic_profile?.lambda_mean_rps
+      ? `${activeSystemDesignScenario.studio_2_simulation.traffic_profile.lambda_mean_rps.toLocaleString()} RPS`
+      : (activeSystemDesignScenario.trafficProfile?.estimatedPeakRPS || 'Высокая нагрузка');
+    const p99 = activeSystemDesignScenario.studio_2_simulation?.slos?.p99_latency_max_ms
+      ? `${activeSystemDesignScenario.studio_2_simulation.slos.p99_latency_max_ms} мс`
+      : '50 мс';
+    const sla = activeSystemDesignScenario.studio_2_simulation?.slos?.availability_target_nines || 99.99;
+
+    return `=== КОНТЕКСТ СЕССИИ: ГОЛОСОВОЙ AI-ТЬЮТОР SYSTEM DESIGN (L3–L7) ===
+Ты — доброжелательный, опытный Staff/Principal инженер и наставник по системному проектированию распределенных систем.
+Кандидат проектирует систему в интерактивной арене.
+
+СЦЕНАРИЙ: «${activeSystemDesignScenario.title}»
+Категория: ${activeSystemDesignScenario.archetype || activeSystemDesignScenario.category || 'High-Load Systems'}
+Целевой грейд: ${activeSystemDesignScenario.target_level || activeSystemDesignScenario.level || 'L5_SENIOR'}
+
+АРХИТЕКТУРНЫЕ ТРЕБОВАНИЯ И SLO:
+- Пиковый RPS: ${rps}
+- SLA доступности: ${sla}%
+- Допустимая задержка p99: ≤ ${p99}
+- Описание задачи: ${cleanScenarioText(activeSystemDesignScenario.problem_statement || activeSystemDesignScenario.contextMarkdown || '')}
+
+ТЕКУЩИЙ РЕЖИМ МЕНТОРСТВА: ${
+  tutorMode === 'eli5' ? '«👶 На пальцах» (простые бытовые аналогии, минимум академизма)' :
+  tutorMode === 'deep_dive' ? '«🔬 Под капотом» (LSM/B-Tree, epoll, репликация, консенсус Raft, сетевые сбои)' :
+  tutorMode === 'socratic' ? '«💡 Сократ» (точечные наводящие вопросы без готовых решений)' :
+  '«💬 Просто тьютор» (поддерживающий профессиональный диалог)'
+}
+
+ДИРЕКТИВЫ:
+1. Поздоровайся голосом, назови сценарий «${activeSystemDesignScenario.title}».
+2. Спроси, какую часть системы кандидат хочет обсудить прямо сейчас: выбор БД (SQL vs NoSQL), стратегию кэширования, шардирование или устойчивость к сетевым сбоям (Partition Tolerance).
+3. ИНВАРИАНТ: Ты НЕ оцениваешь кандидата и НЕ ставишь баллов! Ты — напарник-архитектор.`;
+  }, [activeSystemDesignScenario, tutorMode]);
+
   // Evaluation State
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<SystemDesignEvaluation | null>(null);
@@ -681,26 +733,38 @@ export const SystemDesignArena: React.FC = () => {
                 </div>
               </div>
 
-              {/* 4 Mode Switcher Pills */}
-              <div className="flex items-center bg-white p-0.5 rounded-xl border border-pastel-border shadow-2xs gap-0.5 overflow-x-auto no-scrollbar shrink-0">
-                {[
-                  { id: 'free_chat' as const, label: '💬 Просто тьютор' },
-                  { id: 'deep_dive' as const, label: '🔬 Под капотом' },
-                  { id: 'eli5' as const, label: '👶 На пальцах' },
-                  { id: 'socratic' as const, label: '💡 Сократ' }
-                ].map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => setTutorMode(m.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                      tutorMode === m.id
-                        ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white shadow-xs'
-                        : 'text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* 4 Mode Switcher Pills */}
+                <div className="flex items-center bg-white p-0.5 rounded-xl border border-pastel-border shadow-2xs gap-0.5 overflow-x-auto no-scrollbar">
+                  {[
+                    { id: 'free_chat' as const, label: '💬 Просто тьютор' },
+                    { id: 'deep_dive' as const, label: '🔬 Под капотом' },
+                    { id: 'eli5' as const, label: '👶 На пальцах' },
+                    { id: 'socratic' as const, label: '💡 Сократ' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => setTutorMode(m.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                        tutorMode === m.id
+                          ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white shadow-xs'
+                          : 'text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleStartVoiceTutor}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold transition shadow-xs hover:opacity-95 active:scale-95 cursor-pointer shrink-0"
+                  title="Запустить двусторонний голосовой диалог с Gemini Live Тьютором"
+                >
+                  <Radio className="w-3.5 h-3.5 animate-pulse text-white" />
+                  <span className="hidden sm:inline">Live Голос</span>
+                </button>
               </div>
             </div>
 
@@ -880,6 +944,24 @@ export const SystemDesignArena: React.FC = () => {
           setInputMessage(`Объясните подробнее золотое правило «${ruleTitle}» в контексте нашей системы «${activeSystemDesignScenario.title}»:\n${ruleSummary}`);
         }}
       />
+
+      {/* Live Voice Tutor Modal */}
+      {isVoiceTutorOpen && voiceTutorSessionId && activeSystemDesignScenario && (
+        <VoiceModal
+          key={voiceTutorSessionId}
+          isOpen={isVoiceTutorOpen}
+          onClose={() => {
+            setIsVoiceTutorOpen(false);
+            setVoiceTutorSessionId(null);
+          }}
+          topic={`System Design: ${activeSystemDesignScenario.title}`}
+          currentQuestionText={activeSystemDesignScenario.problem_statement || activeSystemDesignScenario.title}
+          referenceAnswer={activeSystemDesignScenario.contextMarkdown}
+          initialSessionType="tutor"
+          initialTutorMode={tutorMode}
+          customPromptOverride={systemDesignVoicePrompt}
+        />
+      )}
     </div>
   );
 };

@@ -18,8 +18,11 @@ import {
   User,
   ChevronDown,
   RefreshCw,
-  Lightbulb
+  Lightbulb,
+  Radio,
+  Mic
 } from 'lucide-react';
+import { VoiceModal } from '../VoiceModal';
 
 export type TutorMode = 'free_chat' | 'deep_dive' | 'eli5' | 'socratic';
 
@@ -208,6 +211,56 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Gemini Live Voice Tutor State
+  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+
+  const handleStartVoiceTutor = () => {
+    setVoiceSessionId(`voice_math_${scenario.id}_${Date.now()}`);
+    setIsVoiceTutorOpen(true);
+  };
+
+  const mathVoicePrompt = useMemo(() => {
+    return `=== КОНТЕКСТ СЕССИИ: ГОЛОСОВОЙ ТЬЮТОР CAPACITY MATH COACH (L1) ===
+Ты — дружелюбный голосовой AI-тьютор по расчетам емкости и нагрузки на салфетке (Back-of-the-Envelope Estimation).
+Кандидат тренируется в интерактивном симуляторе.
+
+ТЕКУЩИЙ СЦЕНАРИЙ: «${scenario.title}»
+Описание: ${scenario.description}
+
+ВХОДНЫЕ ПАРАМЕТРЫ СИСТЕМЫ:
+- DAU (активные пользователи в день): ${scenario.dau.toLocaleString()}
+- Записей на пользователя в сутки: ${scenario.writesPerUser}
+- Чтений на пользователя в сутки: ${scenario.readsPerUser}
+- Средний размер записи (Write Payload): ${scenario.avgWriteBytes} байт
+- Средний размер чтения (Read Payload): ${scenario.avgReadBytes} байт
+- Срок хранения данных (Retention): ${scenario.retentionYears} лет
+
+ЭТАЛОННЫЕ ИНЖЕНЕРНЫЕ РАСЧЕТЫ:
+- Суточных записей: ${mathResults.totalWritesDay.toLocaleString()}
+- Суточных чтений: ${mathResults.totalReadsDay.toLocaleString()}
+- Средний QPS записи: ~${mathResults.avgWriteQps.toLocaleString()} (Пиковый с Peak Factor 3x: ~${mathResults.peakWriteQps.toLocaleString()} QPS)
+- Средний QPS чтения: ~${mathResults.avgReadQps.toLocaleString()} (Пиковый с Peak Factor 3x: ~${mathResults.peakReadQps.toLocaleString()} QPS)
+- Суммарный пиковый QPS: ~${mathResults.peakTotalQps.toLocaleString()} QPS
+- Суточный прирост хранилища: ~${mathResults.dailyStorageGb.toFixed(1)} GB
+- Итоговое хранилище на ${scenario.retentionYears} лет (с +20% на индексы и метаданные): ~${mathResults.totalStorageTb.toFixed(1)} TB
+- Горячий кэш RAM (правило 80/20 от суточного чтения): ~${mathResults.hotRamGb.toFixed(1)} GB
+- Сетевая пропускная способность: ~${mathResults.networkGbps.toFixed(2)} Gbps
+
+ЧТО ВВЕЛ КАНДИДАТ В СИМУЛЯТОРЕ:
+- Введенный Пиковый QPS: ${userPeakQps ? `${userPeakQps} QPS` : 'пока не ввел'}
+- Введенное Хранилище: ${userStorageTb ? `${userStorageTb} TB` : 'пока не ввел'}
+- Введенный Кэш RAM: ${userHotRamGb ? `${userHotRamGb} GB` : 'пока не ввел'}
+
+ВЫБРАННЫЙ РЕЖИМ МЕНТОРСТВА: ${TUTOR_MODES_CONFIG[tutorMode].label} (${TUTOR_MODES_CONFIG[tutorMode].desc})
+
+ДИРЕКТИВЫ ДЛЯ ПЕРВОГО ОТВЕТА (ПРИВЕТСТВИЕ):
+1. Сразу поздоровайся теплым голосом.
+2. Скажи, что ты здесь, чтобы помочь с расчетами для «${scenario.title}».
+3. Кратко упомяни ключевую цифру (например, масштаб DAU ${scenario.dau.toLocaleString()}) и спроси, с чего кандидат хочет начать: разобрать формулу QPS на пальцах, прикинуть память под кэш или проверить его текущие введенные цифры.
+4. Помни: НИКАКИХ баллов, оценок и вердиктов найма! Твоя цель — чистое обучение и уверенность кандидата в расчетах.`;
+  }, [scenario, mathResults, userPeakQps, userStorageTb, userHotRamGb, tutorMode]);
 
   // Auto-scroll messages
   useEffect(() => {
@@ -467,9 +520,22 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5 text-violet-600" />
-            <span>AI-Наставник по расчетам</span>
+            <span>AI-Наставник (Чат)</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-violet-200/80 font-mono text-violet-900 font-bold">
               4 режима
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleStartVoiceTutor}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-xs hover:shadow-md active:scale-95"
+            title="Запустить двусторонний голосовой диалог с Gemini Live"
+          >
+            <Radio className="w-3.5 h-3.5 animate-pulse text-violet-200" />
+            <span>Live Голос</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/20 font-mono font-bold">
+              Gemini Live
             </span>
           </button>
         </div>
@@ -526,26 +592,39 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
               </div>
             </div>
 
-            {/* 4 Modes Switcher Pills */}
-            <div className="flex items-center bg-white p-1 rounded-2xl border border-violet-200 shadow-2xs gap-1 overflow-x-auto no-scrollbar">
-              {(Object.keys(TUTOR_MODES_CONFIG) as TutorMode[]).map((modeKey) => {
-                const cfg = TUTOR_MODES_CONFIG[modeKey];
-                const isSelected = tutorMode === modeKey;
-                return (
-                  <button
-                    key={modeKey}
-                    type="button"
-                    onClick={() => setTutorMode(modeKey)}
-                    className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
-                      isSelected
-                        ? 'bg-violet-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{cfg.label}</span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* 4 Modes Switcher Pills */}
+              <div className="flex items-center bg-white p-1 rounded-2xl border border-violet-200 shadow-2xs gap-1 overflow-x-auto no-scrollbar">
+                {(Object.keys(TUTOR_MODES_CONFIG) as TutorMode[]).map((modeKey) => {
+                  const cfg = TUTOR_MODES_CONFIG[modeKey];
+                  const isSelected = tutorMode === modeKey;
+                  return (
+                    <button
+                      key={modeKey}
+                      type="button"
+                      onClick={() => setTutorMode(modeKey)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-violet-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{cfg.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleStartVoiceTutor}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+                title="Перейти в двусторонний голосовой диалог с Gemini Live"
+              >
+                <Radio className="w-3.5 h-3.5 animate-pulse text-violet-200" />
+                <span className="hidden sm:inline">В Live Голос</span>
+                <span className="sm:hidden">Голос</span>
+              </button>
             </div>
           </div>
 
@@ -678,6 +757,24 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
           </div>
         </div>
       </div>
+
+      {/* Live Voice Modal */}
+      {isVoiceTutorOpen && voiceSessionId && (
+        <VoiceModal
+          key={voiceSessionId}
+          isOpen={isVoiceTutorOpen}
+          onClose={() => {
+            setIsVoiceTutorOpen(false);
+            setVoiceSessionId(null);
+          }}
+          topic={`Math Coach: ${scenario.title}`}
+          currentQuestionText={`Расчет емкости для ${scenario.title}. DAU: ${scenario.dau.toLocaleString()}, срок: ${scenario.retentionYears} лет.`}
+          referenceAnswer={`Пиковый QPS: ${mathResults.peakTotalQps}, Хранилище: ${mathResults.totalStorageTb} TB, Кэш RAM: ${mathResults.hotRamGb} GB.`}
+          initialSessionType="tutor"
+          initialTutorMode={tutorMode}
+          customPromptOverride={mathVoicePrompt}
+        />
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ import {
   Calculator, X, Terminal, Radio, Sparkles
 } from 'lucide-react';
 import { CapacityMathCoach } from './CapacityMathCoach';
+import { VoiceModal } from '../VoiceModal';
 
 export type ScenarioRung = 'L3' | 'L4' | 'L5_L7';
 export type LevelFilter = 'all' | ScenarioRung;
@@ -71,6 +72,49 @@ export const SystemDesignCatalog: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<LevelFilter>(initialParams.level);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(initialParams.scenario);
   const [isMathCoachOpen, setIsMathCoachOpen] = useState(false);
+
+  // Gemini Live Voice Brief State
+  const [isVoiceBriefOpen, setIsVoiceBriefOpen] = useState(false);
+  const [voiceBriefSessionId, setVoiceBriefSessionId] = useState<string | null>(null);
+  const [voiceBriefScenario, setVoiceBriefScenario] = useState<SystemDesignScenario | null>(null);
+
+  const handleStartVoiceBrief = (scenario: SystemDesignScenario) => {
+    setVoiceBriefScenario(scenario);
+    setVoiceBriefSessionId(`voice_brief_${scenario.canonical_id || scenario.id}_${Date.now()}`);
+    setIsVoiceBriefOpen(true);
+  };
+
+  const voiceBriefPrompt = useMemo(() => {
+    if (!voiceBriefScenario) return '';
+    const rps = voiceBriefScenario.studio_2_simulation?.traffic_profile?.lambda_mean_rps
+      ? `${voiceBriefScenario.studio_2_simulation.traffic_profile.lambda_mean_rps.toLocaleString()} RPS`
+      : (voiceBriefScenario.trafficProfile?.estimatedPeakRPS || 'Высокая нагрузка');
+    const p99 = voiceBriefScenario.studio_2_simulation?.slos?.p99_latency_max_ms
+      ? `${voiceBriefScenario.studio_2_simulation.slos.p99_latency_max_ms} мс`
+      : '50 мс';
+    const sla = voiceBriefScenario.studio_2_simulation?.slos?.availability_target_nines || 99.99;
+
+    return `=== КОНТЕКСТ СЕССИИ: ГОЛОСОВОЙ БРИФ ПО СЦЕНАРИЮ SYSTEM DESIGN ===
+Ты — доброжелательный, опытный Staff-архитектор и наставник.
+Кандидат находится в каталоге архитектурных задач и запросил вводный экспресс-разбор (бриф) перед проектированием.
+
+СЦЕНАРИЙ: «${voiceBriefScenario.title}»
+Подзаголовок: ${voiceBriefScenario.subtitle || ''}
+Категория / Архетип: ${voiceBriefScenario.archetype || voiceBriefScenario.category || 'Distributed Systems'}
+Целевой уровень: ${voiceBriefScenario.target_level || voiceBriefScenario.level || 'L5_SENIOR'}
+
+ТРЕБОВАНИЯ И НАГРУЗКА:
+- Пиковый RPS: ${rps}
+- SLA доступности: ${sla}%
+- Задержка p99: ≤ ${p99}
+- Описание задачи: ${(voiceBriefScenario.problem_statement || voiceBriefScenario.contextMarkdown || '').slice(0, 500)}
+
+ДИРЕКТИВЫ ДЛЯ ПЕРВОГО ОТВЕТА:
+1. Поздоровайся голосом и тепло поприветствуй кандидата.
+2. Кратко (за 2-3 предложения) выдели самую главную архитектурную сложность этого сценария «${voiceBriefScenario.title}» (например, консистентность при сбоях, узкие места базы данных или пиковый трафик).
+3. Спроси, какую часть кандидат хочет кратко проговорить голосом перед запуском студии.
+4. ИНВАРИАНТ: Никаких оценок и вердиктов найма! Режим чистого наставничества.`;
+  }, [voiceBriefScenario]);
 
   // Sync state changes to URL query parameters for deep linking
   useEffect(() => {
@@ -594,14 +638,24 @@ export const SystemDesignCatalog: React.FC = () => {
                 </div>
               </div>
 
-              {/* Primary Action Button */}
-              <div className="pt-2">
+              {/* Primary Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <button
                   onClick={() => handleLaunchScenario(activeScenario)}
-                  className="w-full py-3 px-5 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet hover:opacity-95 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95 touch-manipulation"
+                  className="flex-1 py-3 px-5 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet hover:opacity-95 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95 touch-manipulation"
                 >
                   <Play className="w-4 h-4 fill-white" />
                   <span>Открыть Multi-Scale Studio (Enter)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleStartVoiceBrief(activeScenario)}
+                  className="py-3 px-4 rounded-2xl font-bold text-xs bg-purple-50 hover:bg-purple-100 text-pastel-accentViolet border border-purple-200 transition flex items-center justify-center gap-2 shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                  title="Запустить голосовой вводный бриф сценария с AI-Тьютором"
+                >
+                  <Radio className="w-4 h-4 animate-pulse text-pastel-accentViolet" />
+                  <span>Live Бриф с Тьютором</span>
                 </button>
               </div>
             </div>
@@ -628,6 +682,25 @@ export const SystemDesignCatalog: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Live Voice Brief Modal */}
+      {isVoiceBriefOpen && voiceBriefSessionId && voiceBriefScenario && (
+        <VoiceModal
+          key={voiceBriefSessionId}
+          isOpen={isVoiceBriefOpen}
+          onClose={() => {
+            setIsVoiceBriefOpen(false);
+            setVoiceBriefSessionId(null);
+            setVoiceBriefScenario(null);
+          }}
+          topic={`System Design: ${voiceBriefScenario.title}`}
+          currentQuestionText={voiceBriefScenario.problem_statement || voiceBriefScenario.title}
+          referenceAnswer={voiceBriefScenario.contextMarkdown}
+          initialSessionType="tutor"
+          initialTutorMode="free_chat"
+          customPromptOverride={voiceBriefPrompt}
+        />
       )}
     </div>
   );
