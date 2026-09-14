@@ -79,3 +79,11 @@
 - **Reference-Counted Scroll Lock:** `useBodyScrollLock` tracks `activeLocksCount`. Nested modals or drawers (e.g. Memory Radar over Bug Hunt Modal) never prematurely unlock `document.body` when child components unmount.
 - **100dvh Viewport Standard:** All full-screen arenas and modals use `100dvh` (`h-[calc(100dvh-4rem)]`) to prevent viewport jumping when mobile virtual keyboards activate.
 - **120 FPS Virtualization:** Catalogs of 800+ items use CSS `content-visibility: auto` with `contain-intrinsic-size: 0 90px`.
+
+---
+
+## 7. Multi-Faceted Research-Driven Architecture (MFRDA) Invariant
+- **Zero Premature Planning:** Never generate speculative execution roadmaps or "locked" phase files before empirical baseline fact-checking and external Deep Research verification.
+- **Unconstrained Inquiry (Zero Anchoring):** Never restrict Deep Research prompts to pre-selected arbitrary choices (e.g., "Option A vs Option B"). Always mandate the discovery of emergent SOTA paradigms as of September 2026.
+- **Empirical Codebase Verification First:** Before proposing any architectural refactoring, verify the As-Is state directly in the code (DB schemas, routing, types, scripts) to prevent hallucinated assumptions.
+- **Living Documentation & SSOT:** All high-level plans, verified defects, research prompts, and decisions MUST be persistently maintained in `docs/roadmap/wave_05_system_and_ai_evolution/`.
