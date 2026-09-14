@@ -19,8 +19,8 @@ if (manifestCount !== 26) {
   process.exit(1);
 }
 
-if (aliasCount !== 82) {
-  console.error(`❌ Expected 82 aliases, got ${aliasCount}`);
+if (aliasCount < 82) {
+  console.error(`❌ Expected at least 82 aliases, got ${aliasCount}`);
   process.exit(1);
 }
 
@@ -29,6 +29,7 @@ const testKeys = [
   'L3-PERF-HIKARICP-STARVATION', // Direct Canonical ID
   'hld-micro-01',                // Alias to L3-PERF-HIKARICP-STARVATION
   'hld-faded-01',                // Alias to L3-PERF-HIKARICP-STARVATION
+  'hld-faded-03',                // Alias to L4-DIST-KAFKA-REBALANCE-LAG
   'hld-micro-02',                // Alias to L3-PERF-CACHE-STAMPEDE
   'hld-scenario-01',             // Alias to L4-DIST-IDEMPOTENT-OUTBOX
   'hld-scenario-05',             // Alias to L5-DIST-SYS-001

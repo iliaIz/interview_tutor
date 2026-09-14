@@ -156,8 +156,11 @@ interface AppState {
   launchAcademyStepTarget: (step: RoadmapStep, courseId: string, courseTitle: string) => Promise<void>;
 
   // System Design Studio State
-  activeSystemDesignScenario: SystemDesignScenario | null;
-  openSystemDesignScenario: (scenario: SystemDesignScenario) => void;
+  activeSystemDesignScenario: any | null;
+  activeTriStudioMode: 'runtime' | 'topology' | 'defense';
+  setActiveTriStudioMode: (mode: 'runtime' | 'topology' | 'defense') => void;
+  openSystemDesignById: (scenarioIdOrAlias: string, preferredStudio?: 'runtime' | 'topology' | 'defense') => Promise<void>;
+  openSystemDesignScenario: (scenario: any) => void;
   closeSystemDesignScenario: () => void;
 
   // Production Incident Triage Lab State
@@ -463,21 +466,7 @@ export const useAppStore = create<AppState>()(
           get().openTransactionLab(scenId);
         } else if (targetArena === 'system_design' || targetArena === 'hld') {
           const scenId = targetScenarioId || step.coreRequirements?.hldScenarioId || 'hld-scenario-01';
-          try {
-            const res = await fetch('/api/system-design/scenarios', { credentials: 'include' });
-            if (res.ok) {
-              const scenarios = await res.json();
-              const found = scenarios.find((s: any) => s.id === scenId || s.slug === scenId);
-              if (found) {
-                get().openSystemDesignScenario(found);
-                set({ currentStudioTab: 'system_design' });
-                return;
-              }
-            }
-          } catch (e) {
-            console.error('Failed to load system design scenario:', e);
-          }
-          set({ currentStudioTab: 'system_design' });
+          await get().openSystemDesignById(scenId);
         } else if (targetArena === 'incident_triage' || targetArena === 'triage') {
           const incId = targetScenarioId || step.coreRequirements?.triageIncidentId || 'triage-l0-01';
           try {
@@ -528,9 +517,42 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // System Design
+      // System Design & Tri-Studio
       activeSystemDesignScenario: null,
-      openSystemDesignScenario: (scenario) => set({ activeSystemDesignScenario: scenario }),
+      activeTriStudioMode: 'topology',
+      setActiveTriStudioMode: (mode) => set({ activeTriStudioMode: mode }),
+      openSystemDesignById: async (scenarioIdOrAlias: string, preferredStudio?: 'runtime' | 'topology' | 'defense') => {
+        try {
+          const res = await fetch(`/api/system-design/scenarios/${encodeURIComponent(scenarioIdOrAlias)}`, { credentials: 'include' });
+          if (!res.ok) {
+            console.error(`Scenario not found: ${scenarioIdOrAlias}`);
+            set({ currentStudioTab: 'system_design' });
+            return;
+          }
+          const manifest = await res.json();
+          let activeStudio: 'runtime' | 'topology' | 'defense' = preferredStudio || 'topology';
+          if (!preferredStudio) {
+            if (manifest.target_level === 'L3_JUNIOR' && manifest.studio_1_runtime) {
+              activeStudio = 'runtime';
+            } else if (manifest.target_level === 'L7_PRINCIPAL' || manifest.archetype === 'PLANETARY_CELLULAR') {
+              activeStudio = 'topology';
+            }
+          }
+          set({
+            activeSystemDesignScenario: manifest,
+            currentStudioTab: 'system_design',
+            activeTriStudioMode: activeStudio
+          });
+        } catch (err) {
+          console.error('Failed to resolve system design scenario:', err);
+          set({ currentStudioTab: 'system_design' });
+        }
+      },
+      openSystemDesignScenario: (scenario) => set({ 
+        activeSystemDesignScenario: scenario,
+        currentStudioTab: 'system_design',
+        activeTriStudioMode: (scenario?.target_level === 'L3_JUNIOR' && scenario?.studio_1_runtime) ? 'runtime' : 'topology'
+      }),
       closeSystemDesignScenario: () => set({ activeSystemDesignScenario: null }),
 
       // Triage Lab

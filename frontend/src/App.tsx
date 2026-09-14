@@ -11,6 +11,7 @@ const AcademyStudio = lazy(() => import('./components/academy/AcademyStudio').th
 const PracticeArena = lazy(() => import('./components/practice/PracticeArena').then(m => ({ default: m.PracticeArena })));
 const SystemDesignCatalog = lazy(() => import('./components/system_design/SystemDesignCatalog').then(m => ({ default: m.SystemDesignCatalog })));
 const SystemDesignArena = lazy(() => import('./components/system_design/SystemDesignArena').then(m => ({ default: m.SystemDesignArena })));
+const MultiScaleCanvasHub = lazy(() => import('./components/system_design/MultiScaleCanvasHub').then(m => ({ default: m.MultiScaleCanvasHub })));
 const IncidentTriageCatalog = lazy(() => import('./components/triage/IncidentTriageCatalog').then(m => ({ default: m.IncidentTriageCatalog })));
 const IncidentTriageStudio = lazy(() => import('./components/triage/IncidentTriageStudio').then(m => ({ default: m.IncidentTriageStudio })));
 const TopicSelector = lazy(() => import('./components/TopicSelector').then(m => ({ default: m.TopicSelector })));
@@ -134,7 +135,15 @@ export const App: React.FC = () => {
           )}
 
           {currentStudioTab === 'system_design' && (
-            activeSystemDesignScenario ? <SystemDesignArena /> : <SystemDesignCatalog />
+            activeSystemDesignScenario ? (
+              activeSystemDesignScenario.canonical_id || activeSystemDesignScenario.studio_2_simulation ? (
+                <MultiScaleCanvasHub />
+              ) : (
+                <SystemDesignArena />
+              )
+            ) : (
+              <SystemDesignCatalog />
+            )
           )}
 
           {currentStudioTab === 'triage' && (

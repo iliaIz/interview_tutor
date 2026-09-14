@@ -3,7 +3,9 @@
   "legacy_aliases": [
     "hld-micro-08",
     "kata-08-saga-orchestration",
-    "kafka-rebalance-lag"
+    "kafka-rebalance-lag",
+    "hld-faded-03",
+    "faded-iot"
   ],
   "version": "1.0.0",
   "target_level": "L4_MIDDLE",

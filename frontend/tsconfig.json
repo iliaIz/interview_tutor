@@ -11,6 +11,10 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@interview-prep/shared": ["../shared/src/index.ts"]
+    },
     "noEmit": true,
     "jsx": "react-jsx",
 
