@@ -298,7 +298,43 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
       } catch (dbErr) {
         console.error('Error saving Live evaluation to DB:', dbErr);
       }
+
+      // If this session is for a System Design scenario, persist into user_progress_ledger
+      try {
+        const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(session.questionId) as any;
+        const canonicalId = aliasRow ? aliasRow.canonical_id : session.questionId;
+        const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId) as any;
+        if (manifestRow) {
+          const ledgerId = `prog_live_${canonicalId}_${session.userId || 'default_user'}_${Date.now()}`;
+          const status = isPassed ? 'PASSED' : 'FAILED';
+          db.prepare(`
+            INSERT INTO user_progress_ledger (
+              id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            ledgerId,
+            session.userId || 'default_user',
+            canonicalId,
+            'STUDIO_3_DEFENSE',
+            status,
+            score,
+            JSON.stringify({
+              savedEvalId,
+              feedback,
+              positivePoints,
+              missingPoints,
+              faangScorecard,
+              criteriaBreakdown,
+              deductions
+            })
+          );
+          console.log(`📊 [Ledger] Live evaluation persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
+        }
+      } catch (ledgerErr) {
+        console.warn('⚠️ [Ledger] Could not persist live evaluation to user_progress_ledger:', ledgerErr);
+      }
     }
+
 
     // Determine assistance level for knowledge tracing
     const probes = session.probesCount || 0;

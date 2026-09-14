@@ -187,6 +187,28 @@ export const ChallengeManifestSchema = Type.Object({
   studio_3_bar_raiser: Studio3BarRaiserSchema
 });
 
+// 9. Контракт Оценки Bar-Raiser (Studio 3 & POST /evaluate)
+export const BarRaiserEvaluationReportSchema = Type.Object({
+  evaluation_id: Type.String(),
+  canonical_id: Type.String(),
+  overall_score: Type.Number({ minimum: 1, maximum: 5 }),
+  competency_scores: Type.Object({
+    architecture_depth: Type.Number({ minimum: 1, maximum: 5 }),
+    quantitative_rigor: Type.Number({ minimum: 1, maximum: 5 }),
+    failure_mode_analysis: Type.Number({ minimum: 1, maximum: 5 }),
+    production_readiness: Type.Number({ minimum: 1, maximum: 5 })
+  }),
+  critical_failures_detected: Type.Array(Type.String()),
+  operational_readiness: Type.Union([
+    Type.Literal('READY_FOR_PRODUCTION'),
+    Type.Literal('NEEDS_REFINEMENT'),
+    Type.Literal('CRITICAL_REDESIGN_REQUIRED')
+  ]),
+  recommendations: Type.Array(Type.String()),
+  recommended_katas: Type.Array(Type.String()),
+  timestamp: Type.String()
+});
+
 export type ChallengeManifest = Static<typeof ChallengeManifestSchema>;
 export type SemanticNodeType = Static<typeof SemanticNodeType>;
 export type TransportNode = Static<typeof TransportNodeSchema>;
@@ -195,3 +217,5 @@ export type InvariantRule = Static<typeof InvariantRuleSchema>;
 export type Studio1Runtime = Static<typeof Studio1RuntimeSchema>;
 export type Studio2Simulation = Static<typeof Studio2SimulationSchema>;
 export type Studio3BarRaiser = Static<typeof Studio3BarRaiserSchema>;
+export type BarRaiserEvaluationReport = Static<typeof BarRaiserEvaluationReportSchema>;
+

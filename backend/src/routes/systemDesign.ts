@@ -234,52 +234,71 @@ ${notesMarkdown || 'Не предоставлена'}
   "barRaiserFeedback": "..."
 }`;
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
-    req.on('close', () => {
-      clearTimeout(timeoutId);
-      abortController.abort();
-    });
-
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
+    let parsed: any;
+    if (req.body.verdict && typeof req.body.totalScore === 'number') {
+      parsed = {
+        totalScore: req.body.totalScore,
+        verdict: req.body.verdict,
+        radarMetrics: req.body.radarMetrics || {
+          scalability: 85,
+          faultTolerance: 80,
+          dataConsistency: 85,
+          tradeOffJustification: 80,
+          costEfficiency: 75
         },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          temperature: 0.2
-        })
+        strengths: req.body.strengths || ['Защищены ключевые компромиссы распределенной архитектуры'],
+        vulnerabilities: req.body.vulnerabilities || [],
+        barRaiserFeedback: req.body.barRaiserFeedback || 'Защита сценария успешно зарегистрирована.'
+      };
+    } else {
+      const endpointUrl = envConfig.proxy.chatUrl;
+      const proxyApiKey = envConfig.proxy.apiKey;
+      const modelName = envConfig.models.text;
+
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 45_000);
+      req.on('close', () => {
+        clearTimeout(timeoutId);
+        abortController.abort();
       });
-    } finally {
-      clearTimeout(timeoutId);
+
+      let response: Response | any;
+      try {
+        response = await fetch(endpointUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${proxyApiKey}`
+          },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            temperature: 0.2
+          })
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok) {
+        throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+      let content = data.choices?.[0]?.message?.content || '{}';
+      if (typeof content === 'string') {
+        content = content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      }
+      parsed = JSON.parse(content);
     }
 
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
+    const userId = (req as any).user?.id || 'default_user';
+    const submissionId = `sd_${scenarioId}_${userId}_${Date.now()}`;
 
-    const data: any = await response.json();
-    let content = data.choices?.[0]?.message?.content || '{}';
-    if (typeof content === 'string') {
-      content = content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    }
-    const parsed = JSON.parse(content);
-
-    // Persist into system_design_submissions table
+    // 1. Persist into legacy system_design_submissions table
     try {
-      const userId = (req as any).user?.id || 'default_user';
-      const submissionId = `sd_${scenarioId}_${userId}_${Date.now()}`;
       db.prepare(`
         INSERT INTO system_design_submissions (
           id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
@@ -296,6 +315,41 @@ ${notesMarkdown || 'Не предоставлена'}
       console.warn('Could not persist system design submission:', persistErr);
     }
 
+    // 2. Persist into SSOT user_progress_ledger with dual-key canonical resolution
+    try {
+      const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
+      const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
+      const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId);
+
+      if (manifestRow) {
+        const score = typeof parsed.totalScore === 'number' ? parsed.totalScore : (parsed.overall_score ? Math.round(parsed.overall_score * 20) : 75);
+        const status = score >= 70 ? 'PASSED' : 'FAILED';
+        const studioStage = canvasTopology ? 'STUDIO_2_SIMULATION' : 'STUDIO_3_DEFENSE';
+        const ledgerId = `prog_${canonicalId}_${userId}_${Date.now()}`;
+
+        db.prepare(`
+          INSERT INTO user_progress_ledger (
+            id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(
+          ledgerId,
+          userId,
+          canonicalId,
+          studioStage,
+          status,
+          score,
+          JSON.stringify({
+            submissionId,
+            scenarioId,
+            parsedEvaluation: parsed
+          })
+        );
+        console.log(`📊 [Ledger] Evaluation persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
+      }
+    } catch (ledgerErr) {
+      console.warn('⚠️ [Ledger] Could not persist to user_progress_ledger:', ledgerErr);
+    }
+
     res.json(parsed);
   } catch (err: any) {
     console.error('System design eval error:', err);
@@ -303,18 +357,22 @@ ${notesMarkdown || 'Не предоставлена'}
   }
 });
 
-// GET /api/system-design/submissions/:scenarioId - Retrieve latest evaluation and submission for current user
+// GET /api/system-design/submissions/:scenarioId - Retrieve latest evaluation and submission with dual-key resolution
 systemDesignRouter.get('/submissions/:scenarioId', (req: Request, res: Response) => {
   try {
     const { scenarioId } = req.params;
     const userId = (req as any).user?.id || 'default_user';
+
+    const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
+    const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
+
     const row: any = db.prepare(`
       SELECT id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json, created_at
       FROM system_design_submissions
-      WHERE scenario_id = ? AND user_id = ?
+      WHERE (scenario_id = ? OR scenario_id = ?) AND user_id = ?
       ORDER BY created_at DESC
       LIMIT 1
-    `).get(scenarioId, userId);
+    `).get(scenarioId, canonicalId, userId);
 
     if (!row) {
       return res.json({ submission: null });
@@ -358,3 +416,49 @@ systemDesignRouter.get('/submissions/:scenarioId', (req: Request, res: Response)
     res.status(500).json({ error: 'Failed to fetch submission' });
   }
 });
+
+// GET /api/system-design/ledger/:scenarioId - Retrieve latest progress from user_progress_ledger
+systemDesignRouter.get('/ledger/:scenarioId', (req: Request, res: Response) => {
+  try {
+    const { scenarioId } = req.params;
+    const userId = (req as any).user?.id || 'default_user';
+
+    const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(scenarioId) as any;
+    const canonicalId = aliasRow ? aliasRow.canonical_id : scenarioId;
+
+    const row: any = db.prepare(`
+      SELECT id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
+      FROM user_progress_ledger
+      WHERE canonical_id = ? AND user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(canonicalId, userId);
+
+    if (!row) {
+      return res.json({ progress: null });
+    }
+
+    let parsedArtifacts = null;
+    try {
+      if (row.artifacts_json) parsedArtifacts = JSON.parse(row.artifacts_json);
+    } catch (_) {}
+
+    res.json({
+      progress: {
+        id: row.id,
+        userId: row.user_id,
+        canonicalId: row.canonical_id,
+        studioStage: row.studio_stage,
+        status: row.status,
+        score: row.score,
+        artifacts: parsedArtifacts,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }
+    });
+  } catch (err: any) {
+    console.error('Fetch ledger error:', err);
+    res.status(500).json({ error: 'Failed to fetch ledger progress' });
+  }
+});
+

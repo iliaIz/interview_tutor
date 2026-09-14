@@ -738,41 +738,9 @@ export function seedNextGenCatalogs() {
       return paths.find(p => fs.existsSync(p));
     };
 
-    // 1. System Design
-    const sdPath = resolveJsonPath('system_design_scenarios.json');
-    if (sdPath) {
-      const scenarios = JSON.parse(fs.readFileSync(sdPath, 'utf-8'));
-      const upsertSd = db.prepare(`
-        INSERT INTO system_design_challenges (id, scenario_number, slug, title, category, difficulty, manifest_json, updated_at)
-        VALUES (@id, @scenario_number, @slug, @title, @category, @difficulty, @manifest_json, CURRENT_TIMESTAMP)
-        ON CONFLICT(id) DO UPDATE SET
-          scenario_number = excluded.scenario_number,
-          slug = excluded.slug,
-          title = excluded.title,
-          category = excluded.category,
-          difficulty = excluded.difficulty,
-          manifest_json = excluded.manifest_json,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-      const syncSd = db.transaction((items: any[]) => {
-        for (const sc of items) {
-          upsertSd.run({
-            id: sc.id,
-            scenario_number: sc.scenarioNumber || 1,
-            slug: sc.slug || sc.id,
-            title: sc.title,
-            category: sc.category || 'Distributed Systems',
-            difficulty: sc.difficulty || 'senior',
-            manifest_json: JSON.stringify(sc)
-          });
-        }
-      });
-      syncSd(scenarios);
-      console.log(`✅ Seeded ${scenarios.length} System Design scenarios into SQLite`);
-    }
-
-    // 1b. SSOT Canonical Manifests (26 Scenarios across L3-L7 with Dual-Key Alias Resolution)
+    // 1. System Design: SSOT Canonical Manifests (26 Scenarios across L3-L7 with Dual-Key Alias Resolution)
     seedCanonicalManifests(db);
+
 
     // 2. Production Triage
     const triagePath = resolveJsonPath('production_triage_challenges.json');

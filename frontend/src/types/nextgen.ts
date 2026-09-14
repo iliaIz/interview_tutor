@@ -12,20 +12,31 @@ export interface TradeOffProbe {
 }
 
 export interface SystemDesignScenario {
-  id: string;
-  scenarioNumber: number;
-  slug: string;
+  id?: string;
+  canonical_id?: string;
+  legacy_aliases?: string[];
+  version?: string;
+  scenarioNumber?: number;
+  slug?: string;
   title: string;
-  category: string;
-  difficulty: 'junior' | 'middle' | 'senior' | 'lead';
-  level?: 'L0' | 'L1' | 'L2' | 'L3';
-  trafficProfile: TrafficProfile;
-  contextMarkdown: string;
-  calculationsMarkdown: string;
-  topologyMarkdown: string;
-  bottlenecksMarkdown: string;
-  initialMermaid: string;
-  tradeOffProbes: TradeOffProbe[];
+  subtitle?: string;
+  category?: string;
+  archetype?: string;
+  difficulty?: 'junior' | 'middle' | 'senior' | 'lead' | string;
+  level?: 'L0' | 'L1' | 'L2' | 'L3' | string;
+  target_level?: 'L3_JUNIOR' | 'L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF' | 'L7_PRINCIPAL' | string;
+  pedagogical_mode?: 'WORKED_EXAMPLE' | 'FADED_COMPLETION' | 'INDEPENDENT_DESIGN' | string;
+  trafficProfile?: TrafficProfile;
+  contextMarkdown?: string;
+  problem_statement?: string;
+  calculationsMarkdown?: string;
+  topologyMarkdown?: string;
+  bottlenecksMarkdown?: string;
+  initialMermaid?: string;
+  tradeOffProbes?: TradeOffProbe[];
+  studio_1_runtime?: any;
+  studio_2_simulation?: any;
+  studio_3_bar_raiser?: any;
 }
 
 export interface SystemDesignEvaluation {
