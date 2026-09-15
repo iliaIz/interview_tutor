@@ -5,6 +5,7 @@ import { TreeEditDistanceGuard } from '../services/sandbox/TreeEditDistanceGuard
 import {
   buildPracticeTutorSystemPrompt,
   TESTING_COMPASS_RULES,
+  LLD_COMPASS_RULES,
   TutorPersona,
   HintTier,
   PracticeTutorContext
@@ -27,6 +28,13 @@ function getChallengeCanonicalSolutions(challengeId: string): string[] {
 router.get('/compass-rules', (_req: Request, res: Response) => {
   res.json({
     rules: Object.values(TESTING_COMPASS_RULES)
+  });
+});
+
+// GET /api/practice-tutor/lld-compass-rules
+router.get('/lld-compass-rules', (_req: Request, res: Response) => {
+  res.json({
+    rules: Object.values(LLD_COMPASS_RULES)
   });
 });
 
@@ -310,7 +318,7 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
       survivingMutants
     } = req.body;
 
-    const rule = TESTING_COMPASS_RULES[ruleId];
+    const rule = LLD_COMPASS_RULES[ruleId] || TESTING_COMPASS_RULES[ruleId];
     if (!rule) {
       res.status(400).json({ error: `Unknown ruleId: ${ruleId}` });
       return;
@@ -320,7 +328,7 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
       persona: 'middle_scaffold',
       assistanceLevel: 2,
       kataTitle: kataTitle || kataId,
-      kataCategory: 'Testing & Mutation Katas',
+      kataCategory: req.body.kataCategory || (LLD_COMPASS_RULES[ruleId] ? 'Low-Level Design (LLD)' : 'Testing & Mutation Katas'),
       kataInstructions: '',
       activeFilePath: activeFilePath || 'src/test/java/Test.java',
       activeFileContent: activeFileContent || '',
@@ -329,7 +337,7 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
     };
 
     const systemPrompt = buildPracticeTutorSystemPrompt(context);
-    const userPrompt = `Проверь мой код на соответствие правилу Тестинг-Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
+    const userPrompt = `Проверь мой код на соответствие правилу Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
 
     const requestPayload = {
       model: envConfig.models.text,

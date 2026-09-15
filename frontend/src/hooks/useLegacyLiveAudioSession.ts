@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { useInterviewConfig } from './useInterviewConfig';
+import { useAppStore } from '../store/useAppStore';
 
 export interface LiveAudioSessionParams {
   sessionType?: 'interview' | 'tutor' | 'system_design';
@@ -34,6 +35,9 @@ export interface LiveAudioSessionParams {
   sessionId?: string;
   isResumed?: boolean;
   ticket?: string;
+  challengeCategory?: string;
+  challengeTrack?: string;
+  challengeDomain?: string;
 }
 
 export interface DialogueTurn {
@@ -48,6 +52,7 @@ export interface UseLiveAudioSessionOptions {
   onChaosInjected?: (payload: any) => void;
   onCandidateObservationRecorded?: (observation: any) => void;
   onHiringCommitteeVerdict?: (verdict: any) => void;
+  onWhiteboardUpdate?: (payload: any) => void;
   onError?: (errorMsg: string) => void;
   onDisconnect?: () => void;
 }
@@ -198,6 +203,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     }
     if (params.isResumed !== undefined) query.set('isResumed', String(params.isResumed));
     if (params.ticket) query.set('ticket', params.ticket);
+    if (params.challengeCategory) query.set('challengeCategory', params.challengeCategory);
+    if (params.challengeTrack) query.set('challengeTrack', params.challengeTrack);
+    if (params.challengeDomain) query.set('challengeDomain', params.challengeDomain);
     if (params.tutorPersona) query.set('persona', params.tutorPersona);
     else if (params.persona) query.set('persona', params.persona);
 
@@ -556,6 +564,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
           if (data.type === 'hiring_committee_verdict') {
             optionsRef.current.onHiringCommitteeVerdict?.(data);
+            return;
+          }
+
+          if (data.type === 'whiteboard_update') {
+            useAppStore.getState().setWhiteboardState(data.payload);
+            optionsRef.current.onWhiteboardUpdate?.(data.payload);
             return;
           }
 

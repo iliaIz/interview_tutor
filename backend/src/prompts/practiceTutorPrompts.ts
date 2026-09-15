@@ -1,16 +1,16 @@
 /**
  * practiceTutorPrompts.ts
  *
- * SOTA 2026 Multimodal AI Pair-Programming Co-Pilot & Testing Compass Prompt Engine.
- * Supports 4 Cognitive Personas, RIPR Progressive Hint Escalation Ladder (Tiers 0..4),
- * and Testing Compass 5 Golden Rules Grounding.
+ * SOTA 2026 Multimodal AI Pair-Programming Co-Pilot & Compass Prompt Engine.
+ * Supports Domain-Adaptive prompts (LLD, Concurrency, Transactions, Testing),
+ * 4 Cognitive Personas, Progressive Hint Ladders, and Golden Rules Grounding.
  */
 
 export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
 
 export type HintTier = 0 | 1 | 2 | 3 | 4;
 
-export interface TestingCompassRule {
+export interface CompassRule {
   id: string;
   name: string;
   shortFormula: string;
@@ -18,7 +18,7 @@ export interface TestingCompassRule {
   actionableChecklist: string[];
 }
 
-export const TESTING_COMPASS_RULES: Record<string, TestingCompassRule> = {
+export const TESTING_COMPASS_RULES: Record<string, CompassRule> = {
   AAA_PATTERN: {
     id: 'AAA_PATTERN',
     name: '1. Паттерн AAA (Arrange — Act — Assert)',
@@ -91,6 +91,72 @@ export const TESTING_COMPASS_RULES: Record<string, TestingCompassRule> = {
   }
 };
 
+export const LLD_COMPASS_RULES: Record<string, CompassRule> = {
+  CLOCK_INJECTION: {
+    id: 'CLOCK_INJECTION',
+    name: '1. Инжекция Виртуального Времени (Clock)',
+    shortFormula: 'Никаких System.currentTimeMillis() и Thread.sleep(). Время инжектируется через java.time.Clock.',
+    fullPrinciple: `В сервисах с временными окнами (Rate Limiter, TTL Cache, Token Bucket, Sliding Window) запрещено напрямую опрашивать системные часы.
+- \`Clock\` передается через конструктор сервиса.
+- В unit-тестах используется \`Clock.fixed(instant, zone)\` или \`Clock.offset(...)\`. Тест выполняется за 0 мс детерминированно без Thread.sleep().`,
+    actionableChecklist: [
+      'В доменных классах отсутствует прямой вызов System.currentTimeMillis() и Instant.now()?',
+      'Clock инжектируется через конструктор сервиса?',
+      'Тесты проверяют истечение окон без реального Thread.sleep()?'
+    ]
+  },
+  MONEY_PRECISION: {
+    id: 'MONEY_PRECISION',
+    name: '2. Финансовая Точность (BigDecimal)',
+    shortFormula: 'Никаких double и float для денег. Строгий BigDecimal с явным масштабом и RoundingMode.HALF_EVEN.',
+    fullPrinciple: `Числа с плавающей точкой IEEE-754 накапливают ошибки округления.
+- Все балансы, цены, комиссии и курсы валют обязаны использовать \`BigDecimal\`.
+- Сравнение выполняется через \`compareTo() == 0\` или \`.isEqualByComparingTo()\`.
+- Деление выполняется с обязательным указанием масштаба (scale) и \`RoundingMode.HALF_EVEN\` (Banker’s rounding).`,
+    actionableChecklist: [
+      'В денежных структурах нет типов double и float?',
+      'При делении всегда указан явный scale и RoundingMode.HALF_EVEN?',
+      'Сравнение балансов использует compareTo() == 0?'
+    ]
+  },
+  DEADLOCK_FREE_ORDERING: {
+    id: 'DEADLOCK_FREE_ORDERING',
+    name: '3. Иерархический Захват Блокировок (Lock Ordering)',
+    shortFormula: 'При операциях между двумя ресурсами захватывайте замки строго по порядку ID: min(id1, id2) -> max(id1, id2).',
+    fullPrinciple: `Если поток A переводит с аккаунта #1 на #2, а поток B — с #2 на #1, одновременный захват lock1 и lock2 вызывает циклический дедлок.
+Сортировка ID перед захватом гарантирует глобальный порядок блокировок и предотвращает дедлоки.`,
+    actionableChecklist: [
+      'Ресурсы сортируются перед захватом: min(id1, id2), затем max(id1, id2)?',
+      'Используется try-finally блок для гарантированного unlock()?',
+      'Корректно обработан пограничный случай id1 == id2 (перевод самому себе)?'
+    ]
+  },
+  SOLID_BOUNDARIES: {
+    id: 'SOLID_BOUNDARIES',
+    name: '4. Чистые Границы SOLID и GoF Паттерны',
+    shortFormula: 'Проектируйте от интерфейсов и доменных инвариантов. Используйте Стратегию, Фабрику и Records.',
+    fullPrinciple: `Бизнес-правила (стратегии списания, алгоритмы матчинга, фильтры) инкапсулируются в интерфейсы (Strategy Pattern).
+Неизменяемые структуры и события объявляются через Java 21 Records. Классы компактны и соблюдают Single Responsibility.`,
+    actionableChecklist: [
+      'Выделены ли интерфейсы для вариативных алгоритмов (Strategy)?',
+      'Являются ли DTO и события иммутабельными Java 21 Records?',
+      'Отсутствуют ли God-объекты с сотнями строк смешанной ответственности?'
+    ]
+  },
+  THREAD_SAFETY_AND_MEMORY: {
+    id: 'THREAD_SAFETY_AND_MEMORY',
+    name: '5. Потокобезопасность и Видимость Памяти',
+    shortFormula: 'Используйте ConcurrentHashMap.compute(), AtomicLong, StampedLock и volatile.',
+    fullPrinciple: `HashMap не потокобезопасен. Избегайте грубых synchronized на весь метод:
+применяйте \`ConcurrentHashMap\` с атомарными операциями \`computeIfAbsent/compute\`, атомики (\`AtomicLong\`, \`AtomicReference\`) или \`StampedLock/ReentrantReadWriteLock\`.`,
+    actionableChecklist: [
+      'Используются ли потокобезопасные структуры данных (ConcurrentHashMap)?',
+      'Атомарно ли изменение состояния (compute, compareAndSet)?',
+      'Обеспечена ли видимость разделяемых флагов через volatile/Happens-Before?'
+    ]
+  }
+};
+
 export interface PracticeTutorContext {
   persona: TutorPersona;
   assistanceLevel: number; // 1 (Junior) to 4 (Staff)
@@ -119,7 +185,6 @@ export interface PracticeTutorContext {
 export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): string {
   const {
     persona,
-    assistanceLevel,
     kataTitle,
     kataCategory,
     kataInstructions,
@@ -134,117 +199,198 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     hintTier
   } = context;
 
-  // 1. Persona Directives
+  const cat = (kataCategory || '').toLowerCase();
+  const tit = (kataTitle || '').toLowerCase();
+
+  const isLld =
+    cat.includes('lld') ||
+    cat.includes('machine coding') ||
+    tit.includes('rate limiter') ||
+    tit.includes('matching engine') ||
+    tit.includes('parking lot') ||
+    tit.includes('cache') ||
+    tit.includes('sliding window');
+
+  const isTx = cat.includes('transaction');
+
+  // 1. Persona Directives (Domain-Adaptive)
   let personaDirectives = '';
-  switch (persona) {
-    case 'junior_explainer':
-      personaDirectives = `
-РОЛЬ: ЗАБОТЛИВЫЙ И ПОДДЕРЖИВАЮЩИЙ AI-НАСТАВНИК ДЛЯ НАЧИНАЮЩИХ (Junior Explainer).
-ТОНАЛЬНОСТЬ: Теплая, вдохновляющая, понятная. Без снобизма и заумного академизма.
+  if (isLld) {
+    switch (persona) {
+      case 'junior_explainer':
+        personaDirectives = `
+РОЛЬ: ЗАБОТЛИВЫЙ AI-НАСТАВНИК ПО LLD АРХИТЕКТУРЕ (Junior Explainer).
+ТОНАЛЬНОСТЬ: Теплая, вдохновляющая, понятная.
 ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
-- Объясняй сложные концепции тестирования простыми жизненными аналогиями (например, тест как чек-лист перед вылетом самолета).
-- Разбирай ошибки компиляции по шагам: что означает ошибка, в какой строке она произошла, и как ее поправить.
-- Предлагай готовые шаблоны и заготовки кода с понятными комментариями, где студенту нужно лишь заполнить пропуски (Faded Examples).
-- Обязательно хвали за правильные шаги и прогресс.`;
-      break;
-
-    case 'middle_scaffold':
-      personaDirectives = `
-РОЛЬ: ОПЫТНЫЙ КОЛЛЕГА-РАЗРАБОТЧИК НА ПАРНОМ ПРОГРАММИРОВАНИИ (Middle Peer Programmer).
-ТОНАЛЬНОСТЬ: Деловая, конструктивная, ориентированная на качество кода и надежность тестов.
+- Объясняй принципы ООП, паттерны GoF и структуры данных простыми жизненными аналогиями.
+- Помогай с проектированием классов, интерфейсов и рекордов по шагам.
+- Предлагай заготовки сигнатур методов и каркасы классов для заполнения пропусков.`;
+        break;
+      case 'middle_scaffold':
+        personaDirectives = `
+РОЛЬ: ОПЫТНЫЙ КОЛЛЕГА-АРХИТЕКТОР НА ПАРНОМ ПРОГРАММИРОВАНИИ (Middle Peer LLD).
+ТОНАЛЬНОСТЬ: Деловая, конструктивная, ориентированная на качество архитектуры и надежность контрактов.
 ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
-- Не пиши решение целиком, но точно указывай на пропущенный кейс или граничное условие.
-- Напоминай о богатом API AssertJ (например, .isEqualByComparingTo для BigDecimal, .hasMessageContaining, .satisfies).
-- Помогай правильно настроить моки (when/thenReturn) и верифицировать побочные эффекты (verify, ArgumentCaptor).
-- Если студент застрял, покажи компактный фрагмент кода (1-3 строки) или сигнатуру нужного метода библиотеки.`;
-      break;
-
-    case 'senior_socratic':
-      personaDirectives = `
-РОЛЬ: ТРЕБОВАТЕЛЬНЫЙ SENIOR TECH LEAD И СОКРАТИЧЕСКИЙ ТЬЮТОР (Senior Socratic Mentor).
+- Направляй выбор паттернов GoF (Стратегия, Фабрика, Декоратор, Цепочка обязанностей).
+- Напоминай об инвариантах: инжекция java.time.Clock (без System.currentTimeMillis), BigDecimal с RoundingMode.HALF_EVEN для денег, упорядоченный захват блокировок.
+- Если кандидат застрял, покажи компактный интерфейс или метод-образец (2-3 строки).`;
+        break;
+      case 'senior_socratic':
+        personaDirectives = `
+РОЛЬ: ТРЕБОВАТЕЛЬНЫЙ SENIOR TECH LEAD И СОКРАТИЧЕСКИЙ АРХИТЕКТОР (Senior Socratic Mentor).
 ТОНАЛЬНОСТЬ: Профессиональная, аналитичная, развивающая глубокое инженерное мышление.
 ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
-- ПРИНЦИП КРАЙНЕЙ СДЕРЖАННОСТИ: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать готовый код решения студенту!
-- Задавай наводящие вопросы по модели RIPR (Reachability -> Infection -> Propagation).
-- Помогай студенту обнаружить ментальный разрыв: «Что произойдет, если баланс станет ровно 1000.00? Какая ветка выполнится?».
-- Учи тестировать поведение и инварианты, а не строчки кода.`;
-      break;
-
-    case 'faang_interviewer':
-      personaDirectives = `
-РОЛЬ: PRINCIPAL ARCHITECT & FAANG BAR-RAISER (Staff/L6+ Interviewer).
-ТОНАЛЬНОСТЬ: Высокая планка, фокус на масштабируемости, многопоточности, детерминизме и анти-паттернах.
+- ПРИНЦИП КРАЙНЕЙ СДЕРЖАННОСТИ: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать готовый код решения кандидату!
+- Задавай наводящие вопросы по декомпозиции, контрактам и расширяемости: «Как система поведет себя при добавлении нового алгоритма?», «Почему этот класс нарушает Single Responsibility?».
+- Учи проектировать устойчивый домен и чистые границы.`;
+        break;
+      case 'faang_interviewer':
+        personaDirectives = `
+РОЛЬ: PRINCIPAL ARCHITECT & FAANG L6+ BAR-RAISER (LLD System Architect).
+ТОНАЛЬНОСТЬ: Высокая планка: потокобезопасность, отсутствие дедлоков, масштабируемость, zero-alloc и детерминизм.
 ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
-- Оценивай решение по критериям отказоустойчивости, изоляции и скорости выполнения (0 мс execution time).
-- Требуй соблюдения принципов Clean Architecture: чистый Clock вместо Thread.sleep, отсутствие избыточного мокирования, защита от Flaky-тестов.
-- Указывай на запах кода (Code Smells): Over-Mocking, Assert-Free Tests, Time-coupling, Fragile Tests.
-- Никакого готового кода тестов. Только инженерные вопросы, выявляющие архитектурные пробелы.`;
-      break;
-  }
-
-  // 2. RIPR Ladder Directive (if hintTier requested)
-  let hintLadderDirective = '';
-  if (hintTier !== undefined) {
-    switch (hintTier) {
-      case 0:
-        hintLadderDirective = `
-РЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 0 (Синтаксис и компиляция).
-Фокусируйся ТОЛЬКО на синтаксических ошибках, правильности импортов и типах параметров. Не раскрывай логику теста.`;
+- Оценивай архитектуру по критериям отказоустойчивости, изоляции и скорости выполнения (0 мс execution time).
+- Проверяй устойчивость к race conditions, инварианты времени и детерминизм бизнес-логики.
+- Указывай на Code Smells: God Objects, Time-coupling, Unsynchronized Shared State.`;
         break;
-      case 1:
-        hintLadderDirective = `
-РЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 1 (Reachability / Достижимость).
-Объясни, какой метод или ветку условия необходимо вызвать, чтобы поток управления дошел до подозрительного участка кода.`;
+    }
+  } else if (isTx) {
+    switch (persona) {
+      case 'junior_explainer':
+        personaDirectives = `
+РОЛЬ: НАСТАВНИК ПО ТРАНЗАКЦИЯМ И БАЗАМ ДАННЫХ (Junior Explainer).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Объясняй ACID и уровни изоляции на понятных жизненных аналогиях.
+- Разбирай сценарии транзакций и распространения (@Transactional propagation) по шагам.`;
         break;
-      case 2:
-        hintLadderDirective = `
-РЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 2 (Infection / Заражение состояния).
-Поясни, какое внутреннее состояние объекта или аргумент метода искажается при наличии бага (мутанта).`;
+      default:
+        personaDirectives = `
+РОЛЬ: ЭКСПЕРТ ПО ТРАНЗАКЦИЯМ SPRING BOOT И РЕЛЯЦИОННЫМ СУБД.
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Анализируй уровни изоляции, распространение транзакций (REQUIRED, REQUIRES_NEW), ловушку Self-Invocation прокси Spring и пессимистические блокировки.`;
         break;
-      case 3:
-        hintLadderDirective = `
-РЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 3 (Propagation / Контрпример).
-Назови конкретный граничный входной параметр (контрпример), на котором мутант выдаст неверный результат и упадет assert.`;
+    }
+  } else {
+    // Testing & Mutation Katas
+    switch (persona) {
+      case 'junior_explainer':
+        personaDirectives = `
+РОЛЬ: ЗАБОТЛИВЫЙ AI-НАСТАВНИК ПО ТЕСТИРОВАНИЮ (Junior Explainer).
+ТОНАЛЬНОСТЬ: Теплая, понятная, вдохновляющая.
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Объясняй концепции юнит-тестирования простыми аналогиями.
+- Предлагай готовые шаблоны AssertJ и подсказывай правильные ассерты.`;
         break;
-      case 4:
-        hintLadderDirective = `
-РЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 4 (Faded Worked Example / Изоморфный пример).
-Покажи пример решения АНАЛОГИЧНОЙ задачи из ДРУГОЙ предметной области (например, проверка отправки SMS вместо Email), чтобы студент увидел паттерн теста, но не скопировал ответ для текущей задачи.`;
+      case 'middle_scaffold':
+        personaDirectives = `
+РОЛЬ: ОПЫТНЫЙ КОЛЛЕГА ПО НАПИСАНИЮ ТЕСТОВ (Middle Peer Testing).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Обращай внимание на граничные условия, выразительный API AssertJ (.isEqualByComparingTo, .satisfies) и правильную настройку Mockito.`;
+        break;
+      case 'senior_socratic':
+        personaDirectives = `
+РОЛЬ: SENIOR SOCRATIC TECH LEAD (TESTING).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО диктовать готовое решение тестов кандидату!
+- Задавай наводящие вопросы по модели RIPR (Reachability -> Infection -> Propagation).
+- Учи тестировать инварианты и поведение, а не строки кода.`;
+        break;
+      case 'faang_interviewer':
+        personaDirectives = `
+РОЛЬ: FAANG PRINCIPAL ARCHITECT (TESTING & RELIABILITY).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Фокусируйся на архитектуре тестов, виртуальном времени через java.time.Clock, изоляции и законе моков Фаулера.`;
         break;
     }
   }
 
-  // 3. Testing Compass Grounding Directive
+  // 2. Hint Ladder Directive
+  let hintLadderDirective = '';
+  if (hintTier !== undefined) {
+    if (isLld) {
+      switch (hintTier) {
+        case 0:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 0 (Синтаксис & Контракты).\nФокусируйся на сигнатурах методов, типах данных и Java 21 Records.`;
+          break;
+        case 1:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 1 (Архитектурные границы).\nОбъясни, как применить паттерн Стратегия или разделить обязанности по SOLID.`;
+          break;
+        case 2:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 2 (Потокобезопасность).\nУкажи на место возможной гонки данных (race condition) и подходящую структуру (ConcurrentHashMap, AtomicLong).`;
+          break;
+        case 3:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 3 (Виртуальное Время & Детерминизм).\nПокажи, как инжектировать java.time.Clock для проверки временных окон за 0 мс.`;
+          break;
+        case 4:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 4 (Изоморфный пример).\nПокажи аналогичный архитектурный шаблон из другой предметной области.`;
+          break;
+      }
+    } else {
+      switch (hintTier) {
+        case 0:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 0 (Синтаксис и компиляция).\nФокусируйся на синтаксических ошибках, типах и импортах.`;
+          break;
+        case 1:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 1 (Reachability / Достижимость).\nОбъясни, какую ветку условия необходимо вызвать для достижения кода.`;
+          break;
+        case 2:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 2 (Infection / Заражение состояния).\nПоясни, какое состояние объекта искажается при наличии бага.`;
+          break;
+        case 3:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 3 (Propagation / Контрпример).\nНазови конкретный граничный входной параметр (контрпример).`;
+          break;
+        case 4:
+          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 4 (Изоморфный пример).\nПокажи пример теста аналогичной задачи из другой сферы.`;
+          break;
+      }
+    }
+  }
+
+  // 3. Compass Rule Grounding
   let compassDirective = '';
-  if (activeCompassRuleId && TESTING_COMPASS_RULES[activeCompassRuleId]) {
-    const rule = TESTING_COMPASS_RULES[activeCompassRuleId];
+  const activeRulesMap = isLld ? LLD_COMPASS_RULES : TESTING_COMPASS_RULES;
+  if (activeCompassRuleId && activeRulesMap[activeCompassRuleId]) {
+    const rule = activeRulesMap[activeCompassRuleId];
     compassDirective = `
-АКТИВНОЕ ПРАВИЛО ТЕСТИНГ-КОМПАСА:
+АКТИВНОЕ ПРАВИЛО КОМПАСА:
 Правило: "${rule.name}"
 Суть: "${rule.shortFormula}"
 Описание: ${rule.fullPrinciple}
 Чек-лист для проверки:
-${rule.actionableChecklist.map(c => `- ${c}`).join('\n')}
+${rule.actionableChecklist.map((c) => `- ${c}`).join('\n')}
 
 ИНСТРУКЦИЯ ПО ПРИМЕНЕНИЮ ПРАВИЛА:
-Внимательно проанализируй текущий код студента через призму этого правила.
+Внимательно проанализируй текущий код кандидата через призму этого правила.
 Укажи, где в его коде нарушается это правило и как конкретно его применить прямо сейчас.`;
   }
 
-  // 4. Surviving Mutants Context
-  let mutantsContext = 'Мутанты не обнаружены или тест еще не запускался.';
+  // 4. Mutants / Defects Context (if applicable)
+  let mutantsContext = '';
   if (survivingMutants && survivingMutants.length > 0) {
-    mutantsContext = survivingMutants.map((m, idx) => `
+    mutantsContext = `
+ВЫЖИВШИЕ МУТАНТЫ (НЕУБИТЫЕ ТЕСТАМИ):
+${survivingMutants
+  .map(
+    (m, idx) => `
 [Мутант #${idx + 1}] ID: ${m.id} (${m.name})
 Описание: ${m.description}
 Файл: ${m.file} (строка ${m.line})
 Мутированный фрагмент:
 ${m.mutatedContent}
-`).join('\n');
+`
+  )
+  .join('\n')}`;
+  }
+
+  let roleSummary = `Ты — интеллектуальный наставник и парный программист (AI Pair-Programming Co-Pilot) по написанию юнит-тестов и мутационному тестированию в экосистеме Java 21 LTS, Spring Boot, JUnit 5, AssertJ и Mockito.`;
+  if (isLld) {
+    roleSummary = `Ты — интеллектуальный наставник и парный архитектор (AI Pair-Programming LLD Architect) по низкоуровневому проектированию, чистой архитектуре, структурам данных и потокобезопасности на Java 21 LTS.`;
+  } else if (isTx) {
+    roleSummary = `Ты — эксперт по транзакциям Spring Boot, уровням изоляции и базам данных.`;
   }
 
   return `
-Ты — интеллектуальный наставник и парный программист (AI Pair-Programming Co-Pilot) по написанию юнит-тестов и мутационному тестированию в экосистеме Java 21 LTS, Spring Boot, JUnit 5, AssertJ и Mockito.
+${roleSummary}
 
 ${personaDirectives}
 
@@ -270,15 +416,14 @@ ${activeFileContent}
 
 СТАТУС ВЫПОЛНЕНИЯ:
 ${compilerError ? `❌ ОШИБКА КОМПИЛЯЦИИ:\n${compilerError}\n` : ''}
-${testFailureMessage ? `❌ ОШИБКА ТЕСТА:\n${testFailureMessage}\n` : ''}
-ВЫЖИВШИЕ МУТАНТЫ (НЕУБИТЫЕ ТЕСТАМИ):
+${testFailureMessage ? `❌ ОШИБКА ТЕСТА / ПРОВЕРКИ:\n${testFailureMessage}\n` : ''}
 ${mutantsContext}
 
 ОБЩИЕ ПРАВИЛА ОТВЕТА:
 1. Отвечай на русском языке, доброжелательно, четко и структурировано.
 2. Используй Markdown. Форматируй код в блоках \`\`\`java.
 3. Говори кратко и по существу (максимум 2-4 абзаца). Разработчик находится в процессе написания кода, длинные лекции отвлекают.
-4. Если пользователь задает общий вопрос по Java/тестированию — ответь емко с примером.
-5. Соблюдай педагогический баланс: студент должен научиться думать самостоятельно.
+4. Если пользователь задает общий вопрос по Java/архитектуре — ответь емко с примером.
+5. Соблюдай педагогический баланс: кандидат должен научиться думать и проектировать самостоятельно.
 `.trim();
 }

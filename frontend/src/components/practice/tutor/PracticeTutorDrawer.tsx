@@ -15,7 +15,8 @@ import {
   Square,
   User,
   Bot,
-  ChevronDown
+  ChevronDown,
+  Clock
 } from 'lucide-react';
 
 const PERSONA_LABELS: Record<TutorPersona, { name: string; desc: string; badge: string }> = {
@@ -80,12 +81,32 @@ export const PracticeTutorDrawer: React.FC = () => {
 
   if (!isOpen) return null;
 
+  const category = (activePracticeChallenge?.category || '').toLowerCase();
+  const track = (activePracticeChallenge?.track || '').toLowerCase();
+  const title = (activePracticeChallenge?.title || '').toLowerCase();
+
+  let currentDomain = 'testing';
+  if (
+    category.includes('lld') ||
+    track.includes('lld') ||
+    category.includes('machine coding') ||
+    title.includes('rate limiter') ||
+    title.includes('matching engine') ||
+    title.includes('parking lot') ||
+    title.includes('cache') ||
+    title.includes('sliding window')
+  ) {
+    currentDomain = 'lld';
+  } else if (category.includes('transaction') || track.includes('transaction')) {
+    currentDomain = 'transactions';
+  }
+
   const currentContext = {
     kataId: activePracticeChallenge?.id || 'kata',
-    kataTitle: activePracticeChallenge?.title || 'Testing Kata',
-    kataCategory: activePracticeChallenge?.category || 'Testing & Mutation',
+    kataTitle: activePracticeChallenge?.title || (currentDomain === 'lld' ? 'LLD Architecture Challenge' : 'Testing Kata'),
+    kataCategory: activePracticeChallenge?.category || (currentDomain === 'lld' ? 'Low-Level Design (LLD)' : currentDomain === 'transactions' ? 'Transactions' : 'Testing & Mutation'),
     kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
-    activeFilePath: currentFile?.path || 'src/test/java/Test.java',
+    activeFilePath: currentFile?.path || (currentDomain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
     activeFileContent: currentFile?.content || '',
     survivingMutants: activePracticeChallenge?.mutants
   };
@@ -198,47 +219,89 @@ export const PracticeTutorDrawer: React.FC = () => {
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 text-[11px] font-bold transition shrink-0 cursor-pointer"
           >
             <Lightbulb className="w-3 h-3 text-amber-600" />
-            <span>Подсказка (RIPR)</span>
+            <span>{currentDomain === 'lld' ? 'Подсказка (LLD)' : currentDomain === 'transactions' ? 'Подсказка (ACID)' : 'Подсказка (RIPR)'}</span>
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
 
           {showHintTiersMenu && (
-            <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-1 z-50 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
-              <button
-                onClick={() => handleSelectHintTier(0)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 0: Синтаксис</div>
-                <div className="text-[10px] text-slate-400">Импорты, типы и компиляция</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(1)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 1: Достижимость</div>
-                <div className="text-[10px] text-slate-400">Какую ветку кода нужно вызвать</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(2)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 2: Заражение (Infection)</div>
-                <div className="text-[10px] text-slate-400">Какое состояние портит мутант</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(3)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 3: Контрпример</div>
-                <div className="text-[10px] text-slate-400">Граничный входной параметр</div>
-              </button>
-              <button
-                onClick={() => handleSelectHintTier(4)}
-                className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
-              >
-                <div className="font-bold text-slate-800">Уровень 4: Изоморфный пример</div>
-                <div className="text-[10px] text-slate-400">Паттерн теста из другой сферы</div>
-              </button>
+            <div className="absolute left-0 top-full mt-1 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-1 z-50 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
+              {currentDomain === 'lld' ? (
+                <>
+                  <button
+                    onClick={() => handleSelectHintTier(0)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 0: Контракты & Синтаксис</div>
+                    <div className="text-[10px] text-slate-400">Сигнатуры методов, Records и типы</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(1)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 1: Архитектурные границы</div>
+                    <div className="text-[10px] text-slate-400">Паттерн Стратегия, SOLID & SRP</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(2)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 2: Потокобезопасность</div>
+                    <div className="text-[10px] text-slate-400">Защита от race conditions и блокировки</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(3)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 3: Инжекция Clock</div>
+                    <div className="text-[10px] text-slate-400">Детерминизм времени за 0 мс</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(4)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 4: Изоморфный пример</div>
+                    <div className="text-[10px] text-slate-400">Архитектурный шаблон решения</div>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleSelectHintTier(0)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 0: Синтаксис</div>
+                    <div className="text-[10px] text-slate-400">Импорты, типы и компиляция</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(1)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 1: Достижимость</div>
+                    <div className="text-[10px] text-slate-400">Какую ветку кода нужно вызвать</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(2)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 2: Заражение (Infection)</div>
+                    <div className="text-[10px] text-slate-400">Какое состояние портит мутант</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(3)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 3: Контрпример</div>
+                    <div className="text-[10px] text-slate-400">Граничный входной параметр</div>
+                  </button>
+                  <button
+                    onClick={() => handleSelectHintTier(4)}
+                    className="text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">Уровень 4: Изоморфный пример</div>
+                    <div className="text-[10px] text-slate-400">Паттерн теста из другой сферы</div>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -252,13 +315,40 @@ export const PracticeTutorDrawer: React.FC = () => {
           <span>Компас (Ctrl+/)</span>
         </button>
 
-        <button
-          onClick={() => sendMessage('Объясни, почему выжили мутанты в моем тесте и как их поймать?', currentContext)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
-        >
-          <Sparkles className="w-3 h-3 text-slate-500" />
-          <span>Мутанты</span>
-        </button>
+        {currentDomain === 'lld' ? (
+          <>
+            <button
+              onClick={() => sendMessage('Как правильно применить инжекцию java.time.Clock в текущий класс для детерминированного 0мс тестирования?', currentContext)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+            >
+              <Clock className="w-3 h-3 text-indigo-500" />
+              <span>Virtual Clock</span>
+            </button>
+            <button
+              onClick={() => sendMessage('Как обеспечить потокобезопасность и защититься от дедлоков в этом сценарии?', currentContext)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3 text-purple-500" />
+              <span>Concurrency</span>
+            </button>
+          </>
+        ) : currentDomain === 'transactions' ? (
+          <button
+            onClick={() => sendMessage('Объясни механику распространения транзакций (@Transactional propagation) в этом сценарии.', currentContext)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-violet-500" />
+            <span>Propagation</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => sendMessage('Объясни, почему выжили мутанты в моем тесте и как их поймать?', currentContext)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-slate-500" />
+            <span>Мутанты</span>
+          </button>
+        )}
       </div>
 
       {/* Main Messages & Voice HUD Area */}

@@ -32,6 +32,7 @@ import { ExecutionFlameChart } from './ExecutionFlameChart';
 import { HikariPoolSlotMeter } from './HikariPoolSlotMeter';
 import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
+import { WhiteboardDrawer } from '../WhiteboardDrawer';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -46,7 +47,13 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   onBack,
   onStartVoiceDefense
 }) => {
-  const { academyBreadcrumbContext, toggleAcademyStepProgress } = useAppStore();
+  const {
+    academyBreadcrumbContext,
+    toggleAcademyStepProgress,
+    activeWhiteboardState,
+    isWhiteboardOpen,
+    setIsWhiteboardOpen
+  } = useAppStore();
 
   // Practice Tutor Store (Socratic AI Tutor & Compass)
   const {
@@ -232,6 +239,24 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
           >
             <Compass className="w-3.5 h-3.5 text-violet-600 animate-spin-slow" />
             <span className="hidden sm:inline">Transaction Compass</span>
+          </button>
+
+          {/* AI Whiteboard Button */}
+          <button
+            type="button"
+            onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+            className={`py-2 px-3 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+              isWhiteboardOpen
+                ? 'bg-purple-600 text-white border-purple-700'
+                : 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700'
+            }`}
+            title="Открыть интерактивную доску ИИ"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <span className="hidden sm:inline">Доска ИИ</span>
+            {activeWhiteboardState?.code && (
+              <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
+            )}
           </button>
 
           {/* AI-Tutor Button */}
@@ -529,6 +554,13 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
       {/* Socratic AI Tutor Drawer */}
       <PracticeTutorDrawer />
+
+      {/* Interactive AI Whiteboard Drawer */}
+      <WhiteboardDrawer
+        isOpen={isWhiteboardOpen}
+        onClose={() => setIsWhiteboardOpen(false)}
+        state={activeWhiteboardState}
+      />
     </div>
   );
 };

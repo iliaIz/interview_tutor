@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
-import { useLiveAudioSession } from '../../../hooks/useLiveAudioSession';
+import { usePracticeVoice } from './PracticeVoiceContext';
 import { useAppStore } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
-import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { Mic, MicOff, Volume2, PhoneOff, Radio, Sparkles, Send, Loader2 } from 'lucide-react';
 
 interface PracticeVoiceHUDProps {
@@ -10,10 +9,7 @@ interface PracticeVoiceHUDProps {
 }
 
 export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscriptUpdate }) => {
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
   const { config: interviewConfig } = useInterviewConfig();
-  const { persona: tutorPersona } = usePracticeTutorStore();
-  const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
   const {
     isConnected,
@@ -25,63 +21,23 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     rmsDb,
     statusMessage,
     aiTranscript,
-    startSession,
     disconnectSession,
-    toggleMic,
-    finishManualTurn,
-    playoutManagerRef
-  } = useLiveAudioSession({
-    onError: (err) => console.error('Live voice error:', err)
-  });
+    startPracticeSession,
+    handleCentralButtonClick
+  } = usePracticeVoice();
 
-  // Start live session when mounted, seamlessly inheriting user settings
+  // Auto-start live session on mount if not yet connected
   useEffect(() => {
-    const startLiveTutor = async () => {
-      try {
-        const turnMode = interviewConfig.turnMode || 'auto';
-        await startSession({
-          sessionType: 'tutor',
-          tutorMode: 'practice_pair',
-          topic: 'Юнит-тестирование и мутации Java 21',
-          bugTitle: activePracticeChallenge?.title || 'Практическая задача',
-          bugExplanation: activePracticeChallenge?.instructionsMarkdown?.slice(0, 500) || '',
-          codeSnippet: currentFile?.content || '',
-          voice: interviewConfig.voice || 'Kore',
-          userGender: interviewConfig.userGender || 'female',
-          turnMode,
-          liveModel: interviewConfig.liveModel,
-          vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
-          tutorPersona,
-          strategy: 'socratic_tutoring'
-        });
-      } catch (err) {
-        console.error('Failed to start Live Tutor session:', err);
-      }
-    };
-
-    startLiveTutor();
-
-    return () => {
-      disconnectSession();
-    };
-  }, []);
+    if (!isConnected) {
+      void startPracticeSession();
+    }
+  }, [isConnected, startPracticeSession]);
 
   useEffect(() => {
     if (aiTranscript && onAiTranscriptUpdate) {
       onAiTranscriptUpdate(aiTranscript);
     }
   }, [aiTranscript, onAiTranscriptUpdate]);
-
-  // Tactile Barge-In & Turn Controller
-  const handleCentralButtonClick = () => {
-    if (isAiSpeaking && playoutManagerRef.current) {
-      playoutManagerRef.current.handleInterruption();
-    } else if (interviewConfig.turnMode === 'manual' && isRecording) {
-      finishManualTurn();
-    } else {
-      toggleMic();
-    }
-  };
 
   const isManualMode = interviewConfig.turnMode === 'manual';
 
