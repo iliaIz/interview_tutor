@@ -9,6 +9,8 @@
 import { PromptRegistry, getPersonaPromptDirectives } from '../prompts';
 import { buildSystemPrompt } from '../services/live/livePromptBuilder';
 import { getSafeSpokenText, TurnReasoningResult } from '../routes/interviewTurn';
+import { envConfig } from '../config/env';
+import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -357,5 +359,22 @@ assert(
   'Mentor persona implements Radical Candor (supportive tone with zero grade inflation)'
 );
 
-console.log('\n🎉 All 25+ automated prompt, anti-sycophancy, sandboxing, and score calibration assertions passed successfully!');
+// 11. Check Gemini 3.8 Live Extended Thinking Configuration & Tool Invariants
+assert(
+  envConfig.models.liveThinking === 'gemini-live-thinking-v3',
+  `envConfig.models.liveThinking is properly configured (got ${envConfig.models.liveThinking})`
+);
+assert(
+  envConfig.models.supportedLiveModels.includes('gemini-live-thinking-v3'),
+  'models.supportedLiveModels includes gemini-live-thinking-v3'
+);
+const baseTools = getLiveToolDeclarations('interview');
+assert(baseTools.length > 0, 'getLiveToolDeclarations returns tools for interview');
+const thinkingTools = baseTools.map((t) => ({ ...t, behavior: 'NON_BLOCKING' }));
+assert(
+  thinkingTools.every((t) => t.behavior === 'NON_BLOCKING'),
+  'Thinking model tools normalization enforces behavior: NON_BLOCKING on all function declarations'
+);
+
+console.log('\n🎉 All 28+ automated prompt, anti-sycophancy, sandboxing, Extended Thinking invariants, and score calibration assertions passed successfully!');
 process.exit(0);

@@ -98,6 +98,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const wakeLockRef = useRef<any>(null);
   const currentParamsRef = useRef<LiveAudioSessionParams>({});
   const isServerTurnCompleteRef = useRef(false);
+  const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
   const pendingTextMessageRef = useRef<string | null>(null);
   const resumeAttemptsRef = useRef<number>(0);
 
@@ -442,8 +443,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       playoutManager.setMuted(isMutedRef.current);
       playoutManager.onPlaybackFinished = () => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isCleaningUpRef.current) {
-          // Dual-Sided Handshake: only transition to recording when server turnComplete has arrived
-          if (isServerTurnCompleteRef.current) {
+          const isInteractionIdle = !interactionStatusRef.current || interactionStatusRef.current === 'IDLE';
+          // Dual-Sided Handshake: only transition to recording when terminal server turnComplete has arrived
+          if (isServerTurnCompleteRef.current && isInteractionIdle) {
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
             setIsRecording(true);
@@ -588,6 +590,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           }
 
           if (data.serverContent) {
+            if (data.serverContent.interactionStatus) {
+              interactionStatusRef.current = data.serverContent.interactionStatus;
+            }
+
             // Barge-in interruption
             if (data.serverContent.interrupted) {
               const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
@@ -595,6 +601,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                 console.warn('🛡️ Suppressed false server-side Barge-In interruption in session hook.');
                 return;
               }
+              interactionStatusRef.current = 'IDLE';
               playoutManagerRef.current?.handleInterruption();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;
@@ -631,6 +638,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               setStatusMessage('🔊 AI говорит...');
 
               for (const part of data.serverContent.modelTurn.parts) {
+                // SOTA 2026: Isolate reasoning thought parts from candidate audio playout
+                if ((part as any).thought) {
+                  console.log('🧠 [THOUGHT_PART] Filtered reasoning thought token from audio playout in session hook');
+                  continue;
+                }
+
                 if (part.text) {
                   setAiTranscript((prev) => (prev ? `${prev} ${part.text}` : part.text));
                   setDialogueTurns((prev) => {
@@ -650,23 +663,32 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately
             if (data.serverContent.turnComplete) {
-              isServerTurnCompleteRef.current = true;
-              playoutManagerRef.current?.notifyTurnComplete();
-              lastAiSpeechEndedAtRef.current = Date.now();
-              hasSpokenInTurnRef.current = false;
-              setIsPauseHolding(false);
-              if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = null;
-              }
-              console.log('AI turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
+              const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 
-              if (!playoutManagerRef.current?.isPlaying() && !isCleaningUpRef.current) {
-                setIsAiSpeaking(false);
-                isAiSpeakingRef.current = false;
-                setIsRecording(true);
-                isRecordingRef.current = true;
-                setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+              if (isInteractionIdle) {
+                interactionStatusRef.current = 'IDLE';
+                isServerTurnCompleteRef.current = true;
+                playoutManagerRef.current?.notifyTurnComplete();
+                lastAiSpeechEndedAtRef.current = Date.now();
+                hasSpokenInTurnRef.current = false;
+                setIsPauseHolding(false);
+                if (silenceTimerRef.current) {
+                  clearTimeout(silenceTimerRef.current);
+                  silenceTimerRef.current = null;
+                }
+                console.log('AI terminal turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
+
+                if (!playoutManagerRef.current?.isPlaying() && !isCleaningUpRef.current) {
+                  setIsAiSpeaking(false);
+                  isAiSpeakingRef.current = false;
+                  setIsRecording(true);
+                  isRecordingRef.current = true;
+                  setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+                }
+              } else {
+                console.log(`⏳ Conversational filler complete in hook, but interactionStatus=${data.serverContent.interactionStatus}. Reasoning continues...`);
+                isServerTurnCompleteRef.current = false;
+                setStatusMessage('🧠 AI рассуждает (Extended Thinking)...');
               }
             }
           }

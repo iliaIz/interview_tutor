@@ -218,6 +218,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const gainAnchorRef = useRef<GainNode | null>(null);
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
+  const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
 
   // Mount tracking & In-flight request cancellation (SOTA 2026 Resilience)
   const isMountedRef = useRef<boolean>(true);
@@ -947,6 +948,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
     hasSpokenInTurnRef.current = false;
     isServerTurnCompleteRef.current = false;
+    interactionStatusRef.current = 'IDLE';
     setIsConnected(false);
     setIsAiSpeaking(false);
     isAiSpeakingRef.current = false;
@@ -1076,8 +1078,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     // Attach playback finished callback to playout manager for instant mic transition
     if (playoutManagerRef.current) {
       playoutManagerRef.current.onPlaybackFinished = () => {
-        if (isServerTurnCompleteRef.current && !isEvaluationFinalizedRef.current) {
-          console.log('🔊 Audio playback finished in speakers. Instantly activating candidate microphone...');
+        const isInteractionIdle = !interactionStatusRef.current || interactionStatusRef.current === 'IDLE';
+        if (isServerTurnCompleteRef.current && isInteractionIdle && !isEvaluationFinalizedRef.current) {
+          console.log('🔊 Audio playback finished in speakers (terminal turn). Instantly activating candidate microphone...');
           setIsAiSpeaking(false);
           isAiSpeakingRef.current = false;
           setIsThinking(false);
@@ -1286,6 +1289,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           setIsRecording(true);
           isRecordingRef.current = true;
         } else if (data.serverContent) {
+          if (data.serverContent.interactionStatus) {
+            interactionStatusRef.current = data.serverContent.interactionStatus;
+          }
+
           // Barge-in interruption
           if (data.serverContent.interrupted) {
             const isUserLoudlySpeaking = isUserSpeaking && rmsDb > -26;
@@ -1298,6 +1305,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               return;
             }
 
+            interactionStatusRef.current = 'IDLE';
             playoutManagerRef.current?.handleInterruption();
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
@@ -1337,6 +1345,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             }
 
             for (const part of data.serverContent.modelTurn.parts) {
+              // SOTA 2026: Isolate reasoning thought parts from candidate audio playout
+              if ((part as any).thought) {
+                console.log('🧠 [THOUGHT_PART] Filtered reasoning thought token from audio playout in VoiceModal');
+                continue;
+              }
+
               if (part.text) {
                 transcriptRef.current += ` AI: ${part.text}`;
                 setDialogueTurns((prev) => {
@@ -1355,34 +1369,44 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           }
 
           if (data.serverContent.turnComplete) {
-            isServerTurnCompleteRef.current = true;
-            playoutManagerRef.current?.notifyTurnComplete();
-            console.log('AI turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
+            const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 
-            // Dual-Sided Handshake: If audio playout already finished or no audio was received, activate mic immediately
-            if (!playoutManagerRef.current?.isPlaying() && !isEvaluationFinalizedRef.current) {
-              console.log('🔊 Audio queue already drained on turnComplete. Instantly activating candidate microphone...');
-              setIsAiSpeaking(false);
-              isAiSpeakingRef.current = false;
-              setIsThinking(false);
-              isThinkingRef.current = false;
-              clearAllTurnWatchdogs();
-              lastAiSpeechEndedAtRef.current = Date.now();
-              setIsRecording(true);
-              isRecordingRef.current = true;
-              hasSpokenInTurnRef.current = false;
-              if (isFocusInjectedInCurrentTurnRef.current) {
-                isFocusInjectedInCurrentTurnRef.current = false;
-                useSelectionFocusStore.getState().clearFocus();
+            if (isInteractionIdle) {
+              interactionStatusRef.current = 'IDLE';
+              isServerTurnCompleteRef.current = true;
+              playoutManagerRef.current?.notifyTurnComplete();
+              console.log('AI terminal turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
+
+              // Dual-Sided Handshake: If audio playout already finished or no audio was received, activate mic immediately
+              if (!playoutManagerRef.current?.isPlaying() && !isEvaluationFinalizedRef.current) {
+                console.log('🔊 Audio queue already drained on terminal turnComplete. Instantly activating candidate microphone...');
+                setIsAiSpeaking(false);
+                isAiSpeakingRef.current = false;
+                setIsThinking(false);
+                isThinkingRef.current = false;
+                clearAllTurnWatchdogs();
+                lastAiSpeechEndedAtRef.current = Date.now();
+                setIsRecording(true);
+                isRecordingRef.current = true;
+                hasSpokenInTurnRef.current = false;
+                if (isFocusInjectedInCurrentTurnRef.current) {
+                  isFocusInjectedInCurrentTurnRef.current = false;
+                  useSelectionFocusStore.getState().clearFocus();
+                }
+                setDialogueTurns((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.text.includes('Ваша очередь')) return prev;
+                  return [
+                    ...prev,
+                    { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
+                  ];
+                });
               }
-              setDialogueTurns((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last.text.includes('Ваша очередь')) return prev;
-                return [
-                  ...prev,
-                  { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
-                ];
-              });
+            } else {
+              console.log(`⏳ Conversational filler completed, but interactionStatus=${data.serverContent.interactionStatus}. AI reasoning in progress...`);
+              isServerTurnCompleteRef.current = false;
+              setIsThinking(true);
+              isThinkingRef.current = true;
             }
           }
         }

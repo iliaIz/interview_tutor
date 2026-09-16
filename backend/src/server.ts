@@ -84,6 +84,7 @@ app.get('/api/config', (req, res) => {
     models: {
       defaultLiveModel: envConfig.models.live,
       defaultLivePreviewModel: envConfig.models.livePreview,
+      defaultLiveThinkingModel: envConfig.models.liveThinking,
       defaultTtsModel: envConfig.models.tts,
       defaultTextModel: envConfig.models.text,
       defaultFastModel: envConfig.models.fast,

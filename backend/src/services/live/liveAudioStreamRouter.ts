@@ -338,20 +338,25 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // AI finished generating turn: commit to session turn history
         if (parsed.serverContent?.turnComplete) {
-          console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini turn generation complete (session: ${session.sessionId || 'anon'})`);
-          session.isAiGenerating = false;
-          session.firstAudioChunkLogged = false;
-          session.isToolCallPending = false;
-          if (session.toolCallSafetyTimeout) {
-            clearTimeout(session.toolCallSafetyTimeout);
-            session.toolCallSafetyTimeout = null;
-          }
-          if (session.currentAiTurnText && session.sessionId) {
-            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-            mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-            mem.lastSpeaker = 'model';
-            mem.updatedAt = Date.now();
-            session.currentAiTurnText = '';
+          const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
+          if (isInteractionIdle) {
+            console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini terminal turn generation complete (session: ${session.sessionId || 'anon'})`);
+            session.isAiGenerating = false;
+            session.firstAudioChunkLogged = false;
+            session.isToolCallPending = false;
+            if (session.toolCallSafetyTimeout) {
+              clearTimeout(session.toolCallSafetyTimeout);
+              session.toolCallSafetyTimeout = null;
+            }
+            if (session.currentAiTurnText && session.sessionId) {
+              const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+              mem.lastSpeaker = 'model';
+              mem.updatedAt = Date.now();
+              session.currentAiTurnText = '';
+            }
+          } else {
+            console.log(`⏳ [MODEL_FILLER_COMPLETE] Utterance chunk complete, but interactionStatus=${parsed.serverContent.interactionStatus} (session: ${session.sessionId || 'anon'}). Waiting for terminal answer...`);
           }
         }
 
@@ -371,6 +376,16 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             }
             mem.lastSpeaker = 'user';
             mem.updatedAt = Date.now();
+          }
+        }
+
+        // Handle toolCallCancellation
+        if (parsed.toolCallCancellation?.ids) {
+          console.log('🚫 [TOOL_CALL_CANCELLED] Upstream Gemini cancelled tool calls:', parsed.toolCallCancellation.ids);
+          session.isToolCallPending = false;
+          if (session.toolCallSafetyTimeout) {
+            clearTimeout(session.toolCallSafetyTimeout);
+            session.toolCallSafetyTimeout = null;
           }
         }
 

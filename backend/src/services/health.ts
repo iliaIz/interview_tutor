@@ -17,6 +17,7 @@ export interface SystemHealthStatus {
     models: {
       textModel: { name: string; ready: boolean };
       liveModel: { name: string; ready: boolean };
+      liveThinkingModel?: { name: string; ready: boolean };
       ttsModel: { name: string; ready: boolean };
       embeddingModel: { name: string; ready: boolean };
       allReady: boolean;
@@ -57,6 +58,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   const textModelName = envConfig.models.text;
   const liveModelName = envConfig.models.live;
   const livePreviewModelName = envConfig.models.livePreview;
+  const liveThinkingModelName = envConfig.models.liveThinking;
   const ttsModelName = envConfig.models.tts;
   const embeddingModelName = envConfig.models.embedding;
 
@@ -68,6 +70,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
   let textModelReady = false;
   let liveModelReady = false;
   let livePreviewModelReady = false;
+  let liveThinkingModelReady = false;
   let ttsModelReady = false;
   let embeddingModelReady = false;
 
@@ -110,6 +113,9 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
                                 availableInProxy.includes(livePreviewModelName) ||
                                 availableInProxy.includes('gemini-live-v2') ||
                                 availableInProxy.includes('gemini-live-v3');
+        liveThinkingModelReady = availableInProxy.includes(liveThinkingModelName) ||
+                                 availableInProxy.includes('gemini-live-thinking-v3') ||
+                                 availableInProxy.includes('gemini-3.8-live-extended-thinking');
         ttsModelReady = availableInProxy.includes(ttsModelName) ||
                         availableInProxy.includes('gemini-tts-v3');
         embeddingModelReady = availableInProxy.includes(embeddingModelName) ||
@@ -166,6 +172,7 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
       models: {
         textModel: { name: textModelName, ready: textModelReady },
         liveModel: { name: liveModelName, ready: liveModelReady },
+        liveThinkingModel: { name: liveThinkingModelName, ready: liveThinkingModelReady },
         ttsModel: { name: ttsModelName, ready: ttsModelReady },
         embeddingModel: { name: embeddingModelName, ready: embeddingModelReady },
         allReady: allModelsReady,

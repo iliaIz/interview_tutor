@@ -268,31 +268,45 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   });
 
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);
+  const isThinkingModel = liveModel.includes('thinking') || liveModel === 'gemini-live-thinking-v3';
+
+  const normalizedTools = isThinkingModel
+    ? toolDeclarations.map((t) => ({ ...t, behavior: 'NON_BLOCKING' }))
+    : toolDeclarations;
+
+  const generationConfig: any = {
+    responseModalities: ['AUDIO'],
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: {
+          voiceName: ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voiceName) ? voiceName : 'Kore'
+        }
+      }
+    },
+    temperature: sessionType === 'tutor' ? 0.3 : (strategy === 'socratic_tutoring' ? 0.4 : 0.2)
+  };
+
+  if (isThinkingModel) {
+    generationConfig.thinkingConfig = {
+      thinkingLevel: 'MEDIUM',
+      includeThoughts: true
+    };
+  }
 
   const setupMessage: any = {
     setup: {
       model: `models/${liveModel}`,
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voiceName) ? voiceName : 'Kore'
-            }
-          }
-        },
-        temperature: sessionType === 'tutor' ? 0.3 : (strategy === 'socratic_tutoring' ? 0.4 : 0.2)
-      },
+      generationConfig,
       systemInstruction: {
         parts: [{ text: systemPromptText }]
       }
     }
   };
 
-  if (toolDeclarations.length > 0) {
+  if (normalizedTools.length > 0) {
     setupMessage.setup.tools = [
       {
-        functionDeclarations: toolDeclarations
+        functionDeclarations: normalizedTools
       }
     ];
   }

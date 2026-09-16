@@ -49,7 +49,7 @@ export const AVAILABLE_VOICES: VoiceOption[] = [
 
 export type UserGender = 'female' | 'male' | 'neutral';
 export type TurnMode = 'manual' | 'auto';
-export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3';
+export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3' | 'gemini-live-thinking-v3';
 export type InterviewLanguage = 'ru' | 'en';
 export type StudyModality = 'voice' | 'text';
 

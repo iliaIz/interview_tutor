@@ -26,11 +26,14 @@ export const envConfig = {
     fast: process.env.GEMINI_FAST_MODEL || 'gemini-fast',
     live: process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3',
     livePreview: process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v2',
+    liveThinking: process.env.GEMINI_LIVE_THINKING_MODEL || 'gemini-live-thinking-v3',
     supportedLiveModels: [
       process.env.GEMINI_LIVE_MODEL || 'gemini-live-v3',
       process.env.GEMINI_LIVE_PREVIEW_MODEL || 'gemini-live-v2',
+      process.env.GEMINI_LIVE_THINKING_MODEL || 'gemini-live-thinking-v3',
       'gemini-live-v2',
-      'gemini-live-v3'
+      'gemini-live-v3',
+      'gemini-live-thinking-v3'
     ].filter(Boolean),
     tts: process.env.GEMINI_TTS_MODEL || 'gemini-tts-v3',
     embedding: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding'
