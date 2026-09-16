@@ -54,7 +54,7 @@ import {
   QuestionStructureFormat
 } from '../services/AcousticTelemetryService';
 import { triggerSuccessConfetti } from '../utils/confetti';
-import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
+import { InterviewConfig, GeminiVoiceName, LiveModelChoice } from '../types/interviewConfig';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
 import { StudioErrorBoundary } from './StudioErrorBoundary';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
@@ -201,6 +201,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   }, [interviewConfig]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRadarOpen, setIsRadarOpen] = useState(false);
+  const [fallbackModelSuggestion, setFallbackModelSuggestion] = useState<{
+    originalModel: string;
+    suggestedModel: LiveModelChoice;
+    message: string;
+  } | null>(null);
+  const isNonRetryableErrorRef = useRef<boolean>(false);
 
   // Pause ambient audio (e.g. AudioPlayerBar) upon opening VoiceModal to prevent crosstalk
   useEffect(() => {
@@ -997,6 +1003,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       hostWithPort = `${window.location.hostname}:8091`;
     }
 
+    isNonRetryableErrorRef.current = false;
+    setFallbackModelSuggestion(null);
+
     const params = new URLSearchParams({
       sessionId: sessionIdRef.current,
       questionId: targetQ.id,
@@ -1280,15 +1289,40 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           finalizeEvaluation(evalData, targetQ.id, qIndex);
         } else if (data.error) {
           clearAllTurnWatchdogs();
-          setDialogueTurns((prev) => [...prev, { role: 'system', text: `❌ Ошибка: ${data.error}` }]);
+          const errText = String(data.error);
+          const isForbidden =
+            data.errorCode === 'FORBIDDEN_MODEL_ACCESS' ||
+            data.retryable === false ||
+            errText.toLowerCase().includes('forbidden') ||
+            errText.toLowerCase().includes('invalid or blocked virtual key');
+
+          if (isForbidden) {
+            isNonRetryableErrorRef.current = true;
+            const currentModel = interviewConfig.liveModel || 'gemini-live-thinking-v3';
+            const fallback = (data.suggestedFallbackModel as LiveModelChoice) || 'gemini-live-v3';
+            setFallbackModelSuggestion({
+              originalModel: currentModel,
+              suggestedModel: fallback,
+              message: `Модель «${currentModel}» недоступна в шлюзе. Переключитесь на «${fallback}» в один клик.`
+            });
+            setDialogueTurns((prev) => [
+              ...prev,
+              { role: 'system', text: `⚠️ Доступ к модели «${currentModel}» ограничен шлюзом. Предложено переключение на «${fallback}».` }
+            ]);
+            setIsRecording(false);
+            isRecordingRef.current = false;
+          } else {
+            setDialogueTurns((prev) => [...prev, { role: 'system', text: `❌ Ошибка: ${data.error}` }]);
+            setIsRecording(true);
+            isRecordingRef.current = true;
+          }
+
           setIsThinking(false);
           isThinkingRef.current = false;
           setThinkingStage('idle');
           setIsAiSpeaking(false);
           isAiSpeakingRef.current = false;
           setIsSubmitting(false);
-          setIsRecording(true);
-          isRecordingRef.current = true;
         } else if (data.serverContent) {
           if (data.serverContent.interactionStatus) {
             interactionStatusRef.current = data.serverContent.interactionStatus;
@@ -1440,7 +1474,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       const isSessionActive = stage === 'active' && !isEvaluationFinalizedRef.current && !!targetQ.question;
       const isDeliberateAbort = ev.code === 1000 && ev.reason === 'client_abort';
 
-      if (isSessionActive && !isDeliberateAbort) {
+      if (isSessionActive && !isDeliberateAbort && !isNonRetryableErrorRef.current) {
         if (resumeAttemptsRef.current < 5) {
           resumeAttemptsRef.current++;
           console.log(`🔄 Session dropped (code ${ev.code}). Auto-resuming attempt ${resumeAttemptsRef.current}/5 with state snapshot...`);
@@ -2526,6 +2560,37 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setRmsDb(-60);
   };
 
+  const handleApplyFallbackModel = (targetModel: LiveModelChoice = 'gemini-live-v3') => {
+    console.log(`🔄 Switching live model from ${interviewConfig.liveModel} to ${targetModel} via 1-Click Fallback`);
+    setInterviewConfig({
+      ...interviewConfig,
+      liveModel: targetModel
+    });
+    try {
+      localStorage.setItem('interview_live_model', targetModel);
+    } catch {}
+    setFallbackModelSuggestion(null);
+    isNonRetryableErrorRef.current = false;
+    resumeAttemptsRef.current = 0;
+    showToast({
+      type: 'info',
+      title: 'Модель переключена',
+      message: `Переключено на ${targetModel}. Запуск сессии...`
+    });
+
+    const targetQ = (questionsBatch && questionsBatch[activeBatchIndex]) || {
+      id: activeQuestionId,
+      topic: activeTopic,
+      question: activeQuestionText,
+      answer: activeReferenceAnswer
+    };
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        void connectLiveWebSocket(activeBatchIndex, targetQ, false, false);
+      }
+    }, 100);
+  };
+
   const toggleMic = async () => {
     if (playoutManagerRef.current) {
       await playoutManagerRef.current.resume();
@@ -3142,6 +3207,30 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 font-mono font-normal">Space</span>
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* SOTA 2026 1-Click Fallback Recovery Banner */}
+                {fallbackModelSuggestion && (
+                  <div className="mt-2.5 mx-0.5 p-3.5 rounded-2xl bg-gradient-to-r from-rose-50/95 via-purple-50/95 to-amber-50/95 border border-rose-300/80 shadow-md shadow-rose-200/40 flex flex-wrap items-center justify-between gap-3 text-xs animate-fade-in shrink-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xl shrink-0">💡</span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-rose-800">
+                          Модель «{fallbackModelSuggestion.originalModel}» недоступна
+                        </p>
+                        <p className="text-slate-600 text-[11px] leading-snug">
+                          Шлюз ограничил доступ к этой модели. Переключитесь на «{fallbackModelSuggestion.suggestedModel}» в один клик без потери темы.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyFallbackModel(fallbackModelSuggestion.suggestedModel)}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white font-semibold text-xs shadow-sm shadow-rose-950/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    >
+                      ⚡ Переключить на {fallbackModelSuggestion.suggestedModel}
+                    </button>
                   </div>
                 )}
 

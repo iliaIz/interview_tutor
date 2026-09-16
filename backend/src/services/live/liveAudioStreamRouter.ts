@@ -57,10 +57,43 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     challengeTrack = ''
   } = options;
 
+  const isNonRetryableUpstreamError = (text?: string, code?: number): boolean => {
+    if (code === 1008 || code === 4001 || code === 4003 || code === 4403) return true;
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return (
+      lower.includes('forbidden') ||
+      lower.includes('invalid or blocked virtual key') ||
+      lower.includes('unauthorized') ||
+      lower.includes('not allowed') ||
+      lower.includes('no active models or api keys') ||
+      lower.includes('thinking level must be specified')
+    );
+  };
+
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;
     session.isAiGenerating = false;
-    console.warn(`⚠️ Upstream Gemini Live WS disconnected [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
+    const reasonStr = reason ? reason.toString() : '';
+    console.warn(`⚠️ Upstream Gemini Live WS disconnected [${source}], code=${code}, reason=${reasonStr || 'none'}`);
+
+    const isNonRetryable = session.hasTerminalError || isNonRetryableUpstreamError(reasonStr, code);
+
+    if (isNonRetryable) {
+      console.error(`🛑 Upstream Gemini Live encountered non-retryable error [${source}, code=${code}]. Halting session without reconnect.`);
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        try {
+          clientSocket.send(JSON.stringify({
+            error: reasonStr || 'Голосовой шлюз отклонил подключение модели (Forbidden / Config Error).',
+            errorCode: session.terminalErrorCode || 'FORBIDDEN_MODEL_ACCESS',
+            retryable: false,
+            suggestedFallbackModel: 'gemini-live-v3'
+          }));
+        } catch {}
+      }
+      terminate(source, code, reason);
+      return;
+    }
 
     if (clientSocket.readyState === WebSocket.OPEN) {
       if ((session.reconnectAttempts || 0) < 3) {
@@ -89,7 +122,9 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         console.error(`❌ Upstream Hot Reconnect attempts exhausted (3/3) for session ${session.sessionId}. Terminating session.`);
         try {
           clientSocket.send(JSON.stringify({
-            error: 'Голосовой шлюз временно недоступен после повторных попыток переподключения.'
+            error: 'Голосовой шлюз временно недоступен после повторных попыток переподключения.',
+            errorCode: 'RECONNECT_ATTEMPTS_EXHAUSTED',
+            retryable: false
           }));
         } catch {}
       }
@@ -136,6 +171,28 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
       try {
         const parsed = JSON.parse(str);
+
+        // Intercept upstream error payload from LiteLLM / Gemini Gateway
+        if (parsed.error) {
+          const errString = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+          console.error(`❌ Upstream Gemini Live emitted error frame: ${errString}`);
+
+          if (isNonRetryableUpstreamError(errString)) {
+            session.hasTerminalError = true;
+            const isForbidden = errString.toLowerCase().includes('forbidden') || errString.toLowerCase().includes('virtual key');
+            session.terminalErrorCode = isForbidden ? 'FORBIDDEN_MODEL_ACCESS' : 'UPSTREAM_CONFIGURATION_ERROR';
+
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              clientSocket.send(JSON.stringify({
+                error: errString,
+                errorCode: session.terminalErrorCode,
+                retryable: false,
+                suggestedFallbackModel: 'gemini-live-v3'
+              }));
+            }
+            return;
+          }
+        }
 
         // Handle setupComplete from Google Gemini
         if (parsed.setupComplete) {

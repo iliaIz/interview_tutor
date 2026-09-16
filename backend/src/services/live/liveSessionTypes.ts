@@ -46,4 +46,6 @@ export interface ProxySession {
   challengeCategory?: string;
   challengeTrack?: string;
   isAiGenerating?: boolean;
+  hasTerminalError?: boolean;
+  terminalErrorCode?: string;
 }

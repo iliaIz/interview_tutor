@@ -101,6 +101,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
   const pendingTextMessageRef = useRef<string | null>(null);
   const resumeAttemptsRef = useRef<number>(0);
+  const isNonRetryableErrorRef = useRef<boolean>(false);
 
   // VAD & Turn Taking Refs
   const speechStartTimeRef = useRef<number | null>(null);
@@ -412,6 +413,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
       // 0. Acquire Screen Wake Lock for mobile devices
       void acquireWakeLock();
+      isNonRetryableErrorRef.current = false;
 
       // Zero-Trust WebSocket Ticket prefetch with graceful cookie fallback
       let ticketParam = '';
@@ -584,6 +586,16 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
           }
 
           if (data.error) {
+            const errText = String(data.error);
+            const isForbidden =
+              data.errorCode === 'FORBIDDEN_MODEL_ACCESS' ||
+              data.retryable === false ||
+              errText.toLowerCase().includes('forbidden') ||
+              errText.toLowerCase().includes('virtual key');
+
+            if (isForbidden) {
+              isNonRetryableErrorRef.current = true;
+            }
             setStatusMessage(`❌ ${data.error}`);
             optionsRef.current.onError?.(data.error);
             return;
@@ -704,7 +716,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         isRecordingRef.current = false;
 
         // Auto-reconnect if dropped unexpectedly (e.g. transient network drop)
-        const isDeliberate = isCleaningUpRef.current || (ev.code === 1000 && ev.reason === 'client_abort');
+        const isDeliberate = isCleaningUpRef.current || (ev.code === 1000 && ev.reason === 'client_abort') || isNonRetryableErrorRef.current;
         if (!isDeliberate && currentParamsRef.current && resumeAttemptsRef.current < 3) {
           resumeAttemptsRef.current++;
           setStatusMessage(`🔄 Переподключение к шлюзу (попытка ${resumeAttemptsRef.current}/3)...`);
