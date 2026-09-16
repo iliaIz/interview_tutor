@@ -12,6 +12,7 @@ import { PracticeCompassSheet } from './compass/PracticeCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { PracticeVoiceProvider } from './tutor/PracticeVoiceContext';
 import { AmbientVoicePill } from './tutor/AmbientVoicePill';
+import { StudioErrorBoundary } from '../StudioErrorBoundary';
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -50,8 +51,13 @@ export const PracticeArena: React.FC = () => {
   }
 
   return (
-    <PracticeVoiceProvider>
-      <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg relative">
+    <StudioErrorBoundary
+      fallbackTitle="Ошибка рабочей области Арены"
+      fallbackDescription="Не удалось отобразить файлы задачи или редактор. Вы можете вернуться к каталогу задач."
+      onReset={closePracticeChallenge}
+    >
+      <PracticeVoiceProvider>
+        <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg relative">
         {/* Top Workspace Navigation Bar */}
         <div className="h-12 border-b border-pastel-border/80 bg-white/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-10 shadow-2xs gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -229,6 +235,7 @@ export const PracticeArena: React.FC = () => {
         <AmbientVoicePill />
       </div>
     </PracticeVoiceProvider>
+    </StudioErrorBoundary>
   );
 };
 

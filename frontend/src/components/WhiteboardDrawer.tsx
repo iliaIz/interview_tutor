@@ -34,21 +34,33 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  const {
-    practiceWorkspaceFiles,
-    activeWorkspaceFileIndex,
-    updateWorkspaceFileContent,
-    showToast,
-    codeRevisions
-  } = useAppStore();
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
+  const updateWorkspaceFileContent = useAppStore((s) => s.updateWorkspaceFileContent);
+  const showToast = useAppStore((s) => s.showToast);
+  const codeRevisions = useAppStore((s) => s.codeRevisions);
+  const activeRevisionId = useAppStore((s) => s.activeRevisionId);
+  const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
 
-  const activeArtifact = useAppStore(selectActiveWhiteboardArtifact);
+  // SOTA 2026: Memoized derived artifact based on atomic selectors — prevents render loops in Zustand 5 / Strict Mode
+  const activeArtifact = React.useMemo(
+    () => selectActiveWhiteboardArtifact({ codeRevisions, activeRevisionId, activeWhiteboardState }),
+    [codeRevisions, activeRevisionId, activeWhiteboardState]
+  );
 
-  const activeCode = activeArtifact?.code || state?.code || '';
+  const activeCode = typeof activeArtifact?.code === 'string'
+    ? activeArtifact.code
+    : typeof state?.code === 'string'
+    ? state.code
+    : '';
   const activeTitle = activeArtifact?.title || state?.title || 'Интерактивная доска ИИ';
   const activeLanguage = activeArtifact?.language || state?.language || 'java';
   const activeExplanation = activeArtifact?.explanation || state?.explanation;
-  const activeHighlightLines = activeArtifact?.highlightLines || state?.highlightLines || [];
+  const activeHighlightLines = Array.isArray(activeArtifact?.highlightLines)
+    ? activeArtifact.highlightLines
+    : Array.isArray(state?.highlightLines)
+    ? state.highlightLines
+    : [];
   const activeAction = activeArtifact?.action || state?.action || 'write';
 
   const { toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
@@ -63,8 +75,8 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const hasCode = Boolean(activeCode && activeCode.trim().length > 0);
-  const hasRevisions = Boolean(codeRevisions && codeRevisions.length > 0);
+  const hasCode = Boolean(typeof activeCode === 'string' && activeCode.trim().length > 0);
+  const hasRevisions = Boolean(Array.isArray(codeRevisions) && codeRevisions.length > 0);
 
   const isDiff = activeAction === 'patch';
   const actionLabel =
@@ -224,7 +236,7 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
             {hasCode && (
               <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between pt-1">
                 <span>Интерактивный артефакт ИИ</span>
-                <span>Строк: {activeCode.split('\n').length}</span>
+                <span>Строк: {typeof activeCode === 'string' ? activeCode.split('\n').length : 0}</span>
               </div>
             )}
           </div>

@@ -134,33 +134,38 @@ export function selectActiveWhiteboardArtifact(state: {
   activeRevisionId?: string | null;
   activeWhiteboardState?: WhiteboardState | null;
 }): ActiveWhiteboardArtifact | null {
-  const revs = state.codeRevisions || [];
+  const revs = Array.isArray(state?.codeRevisions) ? state.codeRevisions : [];
   if (revs.length > 0) {
     const rev =
-      (state.activeRevisionId ? revs.find((r) => r.id === state.activeRevisionId) : null) ||
+      (state?.activeRevisionId ? revs.find((r) => r && r.id === state.activeRevisionId) : null) ||
       revs[revs.length - 1];
-    if (rev && rev.code && rev.code.trim().length > 0) {
+    if (rev && typeof rev.code === 'string' && rev.code.trim().length > 0) {
       return {
-        id: rev.id,
-        title: rev.title,
+        id: rev.id || 'rev_active',
+        title: rev.title || 'Артефакт кода',
         language: rev.language || 'java',
         code: rev.code,
-        explanation: rev.explanation || state.activeWhiteboardState?.explanation,
-        highlightLines: rev.highlightLines || state.activeWhiteboardState?.highlightLines || [],
-        action: state.activeWhiteboardState?.action || 'write'
+        explanation: rev.explanation || state?.activeWhiteboardState?.explanation,
+        highlightLines: Array.isArray(rev.highlightLines)
+          ? rev.highlightLines
+          : Array.isArray(state?.activeWhiteboardState?.highlightLines)
+          ? state.activeWhiteboardState.highlightLines
+          : [],
+        action: state?.activeWhiteboardState?.action || 'write'
       };
     }
   }
 
-  if (state.activeWhiteboardState?.code && state.activeWhiteboardState.code.trim().length > 0) {
+  const wb = state?.activeWhiteboardState;
+  if (wb && typeof wb.code === 'string' && wb.code.trim().length > 0) {
     return {
-      id: state.activeRevisionId || 'initial',
-      title: state.activeWhiteboardState.title || 'Демонстрация кода',
-      language: state.activeWhiteboardState.language || 'java',
-      code: state.activeWhiteboardState.code,
-      explanation: state.activeWhiteboardState.explanation,
-      highlightLines: state.activeWhiteboardState.highlightLines || [],
-      action: state.activeWhiteboardState.action || 'write'
+      id: state?.activeRevisionId || 'initial',
+      title: wb.title || 'Демонстрация кода',
+      language: wb.language || 'java',
+      code: wb.code,
+      explanation: wb.explanation,
+      highlightLines: Array.isArray(wb.highlightLines) ? wb.highlightLines : [],
+      action: wb.action || 'write'
     };
   }
 
@@ -1139,9 +1144,16 @@ export const useAppStore = create<AppState>()(
         activeBatchSession: state.activeBatchSession,
       }),
       onRehydrateStorage: () => (state) => {
-        // Sanitize legacy corrupted localStorage topicsProgress
+        // Sanitize legacy corrupted localStorage topicsProgress & codeRevisions
         if (state) {
           state.topicsProgress = {};
+          if (!Array.isArray(state.codeRevisions)) {
+            state.codeRevisions = [];
+          } else {
+            state.codeRevisions = state.codeRevisions.filter(
+              (r) => r && typeof r.id === 'string' && typeof r.code === 'string'
+            );
+          }
           // Ensure currentQuestionIndex is strictly bounded within currentBatch length
           if (Array.isArray(state.currentBatch) && state.currentBatch.length > 0) {
             const maxIdx = state.currentBatch.length - 1;

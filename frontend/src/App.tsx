@@ -4,6 +4,7 @@ import { StudioHeader } from './components/StudioHeader';
 import { AuthGateModal } from './components/auth/AuthGateModal';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { Toast } from './components/Toast';
+import { StudioErrorBoundary } from './components/StudioErrorBoundary';
 import { Heart, Loader2 } from 'lucide-react';
 
 // Code Splitting & Dynamic Imports for Ultra-Fast Initial Render (180kB initial chunk)
@@ -123,55 +124,62 @@ export const App: React.FC = () => {
       {/* Studio Segmented Navigation Header */}
       <StudioHeader />
 
-      {/* Main Content Area wrapped in Suspense */}
-      <main className="flex-1 flex flex-col">
-        <Suspense fallback={<StudioSuspenseLoader />}>
-          {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
-          
-          {currentStudioTab === 'practice' && <PracticeArena />}
+      {/* Main Content Area wrapped in Resilient Error Boundary & Suspense */}
+      <StudioErrorBoundary
+        fallbackTitle="Студия временно восстанавливает отображение"
+        fallbackDescription="Произошел сбой при отрисовке модуля. Вы можете повторить попытку или перейти в другой раздел."
+      >
+        <main className="flex-1 flex flex-col">
+          <Suspense fallback={<StudioSuspenseLoader />}>
+            {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
+            
+            {currentStudioTab === 'practice' && <PracticeArena />}
 
-          {currentStudioTab === 'incidents' && (
-            activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />
-          )}
+            {currentStudioTab === 'incidents' && (
+              activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />
+            )}
 
-          {currentStudioTab === 'system_design' && (
-            activeSystemDesignScenario ? (
-              activeSystemDesignScenario.canonical_id || activeSystemDesignScenario.studio_2_simulation ? (
-                <MultiScaleCanvasHub />
+            {currentStudioTab === 'system_design' && (
+              activeSystemDesignScenario ? (
+                activeSystemDesignScenario.canonical_id || activeSystemDesignScenario.studio_2_simulation ? (
+                  <MultiScaleCanvasHub />
+                ) : (
+                  <SystemDesignArena />
+                )
               ) : (
-                <SystemDesignArena />
+                <SystemDesignCatalog />
               )
-            ) : (
-              <SystemDesignCatalog />
-            )
-          )}
+            )}
 
-          {currentStudioTab === 'triage' && (
-            activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
-          )}
+            {currentStudioTab === 'triage' && (
+              activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
+            )}
 
-          {currentStudioTab === 'theory' && (
-            <>
-              {currentView === 'topics' && <TopicSelector />}
-              {currentView === 'questions' && <QuestionExplorer />}
-              {currentView === 'study' && <StudyDeck />}
-              {currentView === 'quiz' && <ExamQuiz />}
-            </>
-          )}
-        </Suspense>
-      </main>
+            {currentStudioTab === 'theory' && (
+              <>
+                {currentView === 'topics' && <TopicSelector />}
+                {currentView === 'questions' && <QuestionExplorer />}
+                {currentView === 'study' && <StudyDeck />}
+                {currentView === 'quiz' && <ExamQuiz />}
+              </>
+            )}
+          </Suspense>
+        </main>
+      </StudioErrorBoundary>
 
       {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
-      <Suspense fallback={null}>
-        <AudioRecapModal />
-        <InterviewReportModal
-          isOpen={Boolean(activeReportModal)}
-          onClose={closeReportModal}
-          report={activeReportModal}
-        />
-        <ProfileEditModal />
-        <AdminInvitesModal />
-      </Suspense>
+      <StudioErrorBoundary fallbackTitle="Ошибка отображения диалога">
+        <Suspense fallback={null}>
+          <AudioRecapModal />
+          <InterviewReportModal
+            isOpen={Boolean(activeReportModal)}
+            onClose={closeReportModal}
+            report={activeReportModal}
+          />
+          <ProfileEditModal />
+          <AdminInvitesModal />
+        </Suspense>
+      </StudioErrorBoundary>
 
       <AudioPlayerBar />
       <Toast />

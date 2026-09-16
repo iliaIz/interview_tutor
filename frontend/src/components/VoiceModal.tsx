@@ -56,6 +56,7 @@ import {
 import { triggerSuccessConfetti } from '../utils/confetti';
 import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
+import { StudioErrorBoundary } from './StudioErrorBoundary';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
 import { Question, useAppStore, selectActiveWhiteboardArtifact } from '../store/useAppStore';
@@ -2887,7 +2888,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const passedCount = evaluatedKeys.filter((k) => allResults[k]?.isPassed).length;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9000] flex items-center justify-center p-1 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
+    <StudioErrorBoundary
+      fallbackTitle="Голосовой интерфейс восстанавливает сессию"
+      fallbackDescription="Произошла непредвиденная ошибка в голосовом модуле. Вы можете закрыть окно и попробовать снова."
+      onReset={onClose}
+    >
+      <div className="fixed inset-0 z-[9000] flex items-center justify-center p-1 sm:p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -3825,7 +3831,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         onClose={() => setIsWhiteboardOpen(false)}
         state={activeWhiteboardState}
       />
-    </div>,
+    </div>
+    </StudioErrorBoundary>,
     document.body
   );
 };
