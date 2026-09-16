@@ -363,6 +363,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const dialogueTurnsRef = useRef<Array<{ role: 'ai' | 'user' | 'system'; text: string }>>([]);
   const turnCountRef = useRef(0);
   const resumeAttemptsRef = useRef(0);
+  const generationEpochRef = useRef<number>(0);
+  const isTactileInterruptedRef = useRef<boolean>(false);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -709,12 +711,22 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   const handleClientBargeIn = (customPrompt?: string) => {
-    if (playoutManagerRef.current?.isPlaying() || isAiSpeakingRef.current) {
+    const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
+    if (isPlaying || isAiSpeakingRef.current || isThinkingRef.current) {
+      console.log('🛑 [TACTILE_BARGE_IN] Candidate clicked Stop / Barge-In. Aborting AI generation & reclaiming mic.');
+
+      generationEpochRef.current += 1;
+      isTactileInterruptedRef.current = true;
+
       playoutManagerRef.current?.handleInterruption();
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
-      lastAiSpeechEndedAtRef.current = Date.now();
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      setThinkingStage('idle');
       clearAllTurnWatchdogs();
+      lastAiSpeechEndedAtRef.current = Date.now();
+
       setIsRecording(true);
       isRecordingRef.current = true;
       hasSpokenInTurnRef.current = false;
@@ -722,9 +734,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       // Clean worklet state on Barge-In
       workletNodeRef.current?.port.postMessage({ type: 'RESET' });
 
-      // Signal upstream Gemini Live Proxy to abort the monologue
+      // Signal backend and upstream Gemini Live Proxy to abort the monologue
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try {
+          // 1. Dedicated control frame for backend connection handler
+          wsRef.current.send(JSON.stringify({
+            type: 'barge_in',
+            epoch: generationEpochRef.current
+          }));
+
+          // 2. Upstream abort turn frame
           wsRef.current.send(JSON.stringify({
             clientContent: {
               turns: [
@@ -737,7 +756,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             }
           }));
         } catch (e) {
-          console.warn('Failed to dispatch upstream barge-in frame:', e);
+          console.warn('Failed to dispatch upstream barge-in frames:', e);
         }
       }
     }
@@ -1330,22 +1349,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           // Barge-in interruption
           if (data.serverContent.interrupted) {
+            const isTactile = isTactileInterruptedRef.current;
             const isUserLoudlySpeaking = isUserSpeaking && rmsDb > -26;
             const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
 
             // SOTA Protection: If candidate is not actively speaking loudly and audio is currently playing,
-            // this is an echo-induced false interruption from Google Live. Suppress it!
-            if (!isUserLoudlySpeaking && isPlaying) {
+            // and this was NOT an explicit tactile button press, it's an echo-induced false interruption from Google Live. Suppress it!
+            if (!isTactile && !isUserLoudlySpeaking && isPlaying) {
               console.warn('🛡️ Suppressed false server-side Barge-In interruption (acoustic echo). Continuing audio playout.');
               return;
             }
 
+            isTactileInterruptedRef.current = false;
             interactionStatusRef.current = 'IDLE';
             playoutManagerRef.current?.handleInterruption();
             setIsAiSpeaking(false);
             isAiSpeakingRef.current = false;
             setIsThinking(false);
             isThinkingRef.current = false;
+            setThinkingStage('idle');
             clearAllTurnWatchdogs();
             lastAiSpeechEndedAtRef.current = Date.now();
             setIsRecording(true);
@@ -1356,6 +1378,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           // AI Speech turn
           if (data.serverContent.modelTurn?.parts) {
+            // SOTA Epoch Fencing: Drop any late in-flight model audio chunks arriving after tactile barge-in
+            if (isTactileInterruptedRef.current) {
+              console.log('🛡️ [BARGE_IN_EPOCH] Discarded late in-flight modelTurn chunk after tactile barge-in.');
+              return;
+            }
+
             // SOTA Double-Lock Protection: In manual mode, if candidate is recording and has not committed turn,
             // suppress unprompted server modelTurn.
             const isManualMode = (interviewConfig.turnMode || localStorage.getItem('interview_turn_mode')) !== 'auto';
@@ -1404,6 +1432,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           }
 
           if (data.serverContent.turnComplete) {
+            isTactileInterruptedRef.current = false;
             const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 
             if (isInteractionIdle) {
@@ -1795,6 +1824,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
    * Completes candidate's current speaking turn and triggers AI response
    */
   const triggerEndTurn = async () => {
+    generationEpochRef.current += 1;
+    isTactileInterruptedRef.current = false;
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -2248,7 +2279,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         void toggleSessionPause();
       } else if (e.code === 'Escape') {
         e.preventDefault();
-        if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+        if (isAiSpeakingRef.current || isThinkingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
           handleClientBargeIn();
         }
       }
@@ -2460,6 +2491,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                       silenceTimerRef.current = setTimeout(() => {
                         setIsPauseHolding(false);
                         silenceTimerRef.current = null;
+                        if (isRecordingRef.current && !isAiSpeakingRef.current && !isThinkingRef.current && hasSpokenInTurnRef.current) {
+                          console.log('🎙️ [AUTO-VAD] Silence threshold reached. Automatically committing candidate turn...');
+                          void triggerEndTurn();
+                        }
                       }, vadPauseMs);
                     }
                   }
@@ -2616,8 +2651,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       return;
     }
 
-    // 2. If AI is currently speaking, clicking the mic allows the candidate to barge-in immediately
-    if (isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
+    // 2. If AI is currently speaking or thinking, clicking the mic allows the candidate to barge-in immediately
+    if (isAiSpeakingRef.current || isThinkingRef.current || (playoutManagerRef.current?.isPlaying() ?? false)) {
       handleClientBargeIn();
     }
 

@@ -102,6 +102,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const pendingTextMessageRef = useRef<string | null>(null);
   const resumeAttemptsRef = useRef<number>(0);
   const isNonRetryableErrorRef = useRef<boolean>(false);
+  const generationEpochRef = useRef<number>(0);
+  const isTactileInterruptedRef = useRef<boolean>(false);
 
   // VAD & Turn Taking Refs
   const speechStartTimeRef = useRef<number | null>(null);
@@ -226,6 +228,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
    * Completes candidate's current speaking turn and triggers AI response over WebSocket
    */
   const triggerEndTurn = useCallback(() => {
+    generationEpochRef.current += 1;
+    isTactileInterruptedRef.current = false;
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -250,6 +254,49 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       wsRef.current.send(JSON.stringify(turnCompleteMsg));
       console.log('📤 Sent clientContent.turnComplete to Gemini Live');
       setStatusMessage('⏳ ИИ осмысливает ответ...');
+    }
+  }, []);
+
+  /**
+   * Immediately silences AI, cancels pending monologue, and re-activates candidate microphone
+   */
+  const handleBargeIn = useCallback((customPrompt?: string) => {
+    const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
+    if (isPlaying || isAiSpeakingRef.current) {
+      console.log('🛑 [BARGE_IN] Candidate triggered tactile barge-in in useLegacyLiveAudioSession.');
+      generationEpochRef.current += 1;
+      isTactileInterruptedRef.current = true;
+      playoutManagerRef.current?.handleInterruption();
+      setIsAiSpeaking(false);
+      isAiSpeakingRef.current = false;
+      isServerTurnCompleteRef.current = false;
+      lastAiSpeechEndedAtRef.current = Date.now();
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      hasSpokenInTurnRef.current = false;
+      setStatusMessage('🎙️ Вы перебили ИИ. Говорите...');
+      workletNodeRef.current?.port.postMessage({ type: 'RESET' });
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({
+            type: 'barge_in',
+            epoch: generationEpochRef.current
+          }));
+          wsRef.current.send(JSON.stringify({
+            clientContent: {
+              turns: [
+                {
+                  role: 'user',
+                  parts: [{ text: customPrompt || '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]: Передай слово кандидату.' }]
+                }
+              ],
+              turnComplete: false
+            }
+          }));
+        } catch (e) {
+          console.warn('Failed to dispatch barge-in frame in hook:', e);
+        }
+      }
     }
   }, []);
 
@@ -333,6 +380,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                     silenceTimerRef.current = setTimeout(() => {
                       setIsPauseHolding(false);
                       silenceTimerRef.current = null;
+                      if (isRecordingRef.current && !isAiSpeakingRef.current && hasSpokenInTurnRef.current) {
+                        console.log('🎙️ [AUTO-VAD] Silence timeout reached in hook. Auto-committing turn...');
+                        triggerEndTurn();
+                      }
                     }, vadPauseMs);
                   }
                 }
@@ -608,17 +659,22 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Barge-in interruption
             if (data.serverContent.interrupted) {
+              const isTactile = isTactileInterruptedRef.current;
               const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
-              if (isPlaying && !isRecordingRef.current) {
+              if (!isTactile && isPlaying && !isRecordingRef.current) {
                 console.warn('🛡️ Suppressed false server-side Barge-In interruption in session hook.');
                 return;
               }
+              isTactileInterruptedRef.current = false;
               interactionStatusRef.current = 'IDLE';
               playoutManagerRef.current?.handleInterruption();
               setIsAiSpeaking(false);
               isAiSpeakingRef.current = false;
               isServerTurnCompleteRef.current = false;
               lastAiSpeechEndedAtRef.current = Date.now();
+              setIsRecording(true);
+              isRecordingRef.current = true;
+              hasSpokenInTurnRef.current = false;
               setDialogueTurns((prev) => [
                 ...prev,
                 { role: 'system', text: '⚡ Речь прервана кандидатом (Barge-in).' }
@@ -627,6 +683,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Model Speech turn
             if (data.serverContent.modelTurn?.parts) {
+              if (isTactileInterruptedRef.current) {
+                console.log('🛡️ [BARGE_IN_EPOCH] Discarded late in-flight modelTurn chunk in session hook.');
+                return;
+              }
               isServerTurnCompleteRef.current = false;
               // SOTA Protection: In manual mode, if candidate is recording and has not committed turn, suppress modelTurn
               const isManualMode = (currentParamsRef.current.turnMode || 'auto') === 'manual';
@@ -675,6 +735,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
             // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately
             if (data.serverContent.turnComplete) {
+              isTactileInterruptedRef.current = false;
               const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 
               if (isInteractionIdle) {
@@ -945,6 +1006,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     setMuted,
     finishManualTurn,
     triggerEndTurn,
+    handleBargeIn,
     setStatusMessage,
     setDialogueTurns,
     setAiTranscript,

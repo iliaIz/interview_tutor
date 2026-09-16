@@ -10,6 +10,7 @@ import { CodeViewer } from '../CodeViewer';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { DialogueTurn } from '../../hooks/useLiveAudioSession';
 import { useSelectionFocusStore } from '../../store/useSelectionFocusStore';
+import { InterviewConfig } from '../../types/interviewConfig';
 
 export interface VoiceTutorViewProps {
   stage: 'lobby' | 'active';
@@ -25,7 +26,7 @@ export interface VoiceTutorViewProps {
   startLiveInterview: () => void;
   systemHealth: { isAiReady: boolean };
   setIsSettingsOpen: (open: boolean) => void;
-  interviewConfig: { voice?: string; vadPauseMs?: number };
+  interviewConfig: InterviewConfig;
   isAiSpeaking: boolean;
   isThinking: boolean;
   thinkingStage: 'critical' | 'delayed' | 'idle' | 'processing';
@@ -510,7 +511,7 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          if (isAiSpeaking) {
+                          if (isAiSpeaking || isThinking) {
                             onInterruption();
                           } else {
                             toggleMic();
@@ -518,8 +519,8 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                         }}
                         className="w-16 h-16 rounded-full bg-white flex flex-col items-center justify-center text-pastel-text shadow-inner transition hover:scale-105 active:scale-95 cursor-pointer touch-manipulation"
                         title={
-                          isAiSpeaking
-                            ? 'Нажмите, чтобы перебить речь ИИ (Barge-in)'
+                          isAiSpeaking || isThinking
+                            ? 'Нажмите, чтобы остановить ИИ (Barge-in)'
                             : isRecording
                             ? 'Нажмите, чтобы отключить микрофон'
                             : 'Нажмите, чтобы включить микрофон'
@@ -543,14 +544,14 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                     type="button"
                     onClick={onInterruption}
                     disabled={!isAiSpeaking && !isThinking}
-                    title={isAiSpeaking ? "Прервать ответ ИИ (Esc)" : isThinking ? "Остановить генерацию" : "ИИ не говорит"}
+                    title={isAiSpeaking ? "Прервать ответ ИИ (Esc)" : isThinking ? "Остановить генерацию (Esc)" : "ИИ не говорит"}
                     className={`flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border transition-all duration-200 shadow-2xs touch-manipulation ${
                       isAiSpeaking || isThinking
                         ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-300 ring-2 ring-rose-200 cursor-pointer active:scale-95'
                         : 'bg-slate-50 text-slate-300 border-slate-200 opacity-40 cursor-not-allowed'
                     }`}
                   >
-                    <Square className={`w-4 h-4 sm:w-5 sm:h-5 ${isAiSpeaking ? 'fill-rose-500 text-rose-500 animate-pulse' : ''}`} />
+                    <Square className={`w-4 h-4 sm:w-5 sm:h-5 ${isAiSpeaking || isThinking ? 'fill-rose-500 text-rose-500 animate-pulse' : ''}`} />
                     <span className="text-[9px] font-bold mt-0.5">Стоп</span>
                   </button>
 
@@ -598,26 +599,55 @@ export const VoiceTutorView: React.FC<VoiceTutorViewProps> = ({
                       <span>Слышу вас: говорите...</span>
                     </span>
                   ) : isRecording && isPauseHolding ? (
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1 animate-pulse">
-                      <Clock className="w-3 h-3 text-amber-600" />
-                      <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
-                    </span>
-                  ) : isRecording ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-300 flex items-center gap-1">
-                        <Mic className="w-3 h-3 text-emerald-600 animate-pulse" />
-                        <span>Говорите в микрофон...</span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1 animate-pulse">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
                       </span>
                       <button
                         type="button"
                         onClick={triggerEndTurn}
-                        className="px-2 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold transition shadow-2xs flex items-center gap-0.5 cursor-pointer"
-                        title="Отправить реплику сразу, не дожидаясь автопаузы"
+                        className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-[9px] font-bold transition border border-amber-300 flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                        title="Отправить реплику сразу, не дожидаясь окончания автопаузы"
                       >
-                        <Zap className="w-2.5 h-2.5 fill-current" />
-                        <span>Готово</span>
+                        <Zap className="w-2.5 h-2.5 text-amber-700 fill-current" />
+                        <span>Отправить сейчас</span>
                       </button>
                     </div>
+                  ) : isRecording ? (
+                    interviewConfig.turnMode === 'auto' ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-300 flex items-center gap-1">
+                          <Mic className="w-3 h-3 text-emerald-600 animate-pulse" />
+                          <span>Говорите (Авто-VAD)...</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={triggerEndTurn}
+                          className="px-2 py-0.5 rounded-full bg-pastel-card hover:bg-emerald-50 text-pastel-sub hover:text-emerald-700 text-[9px] font-medium transition border border-pastel-border flex items-center gap-0.5 cursor-pointer"
+                          title="Отправить реплику сразу, не дожидаясь автопаузы"
+                        >
+                          <Zap className="w-2.5 h-2.5 text-emerald-600 fill-current" />
+                          <span>Готово</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 flex items-center gap-1">
+                          <Mic className="w-3 h-3 text-blue-600" />
+                          <span>По очереди:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={triggerEndTurn}
+                          className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-xs flex items-center gap-1 cursor-pointer animate-pulse"
+                          title="Завершить реплику и отправить ответ ИИ"
+                        >
+                          <Zap className="w-3 h-3 fill-current" />
+                          <span>Готово ➔</span>
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <span className="px-2.5 py-0.5 rounded-full bg-pastel-card text-pastel-muted text-[10px] border border-pastel-border flex items-center gap-1">
                       <MicOff className="w-3 h-3 text-slate-400" />

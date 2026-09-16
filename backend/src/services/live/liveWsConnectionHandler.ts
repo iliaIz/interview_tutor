@@ -407,6 +407,25 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         return;
       }
 
+      if (parsed.type === 'barge_in') {
+        session.isAiGenerating = false;
+        session.currentAiTurnText = '';
+        if (session.nudgeWatchdog) {
+          clearTimeout(session.nudgeWatchdog);
+          session.nudgeWatchdog = null;
+        }
+        console.log(`🛑 [BARGE_IN] Client triggered tactile barge-in (epoch ${parsed.epoch || 0}) for session ${session.sessionId || 'anon'}`);
+        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+          session.geminiSocket.send(JSON.stringify({
+            clientContent: {
+              turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]: Передай слово кандидату.' }] }],
+              turnComplete: false
+            }
+          }));
+        }
+        return;
+      }
+
       if (parsed.type === 'session_hold') {
         session.isOnHold = Boolean(parsed.paused);
         session.lastActivityAt = Date.now();
@@ -472,7 +491,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           for (const turn of parsed.clientContent.turns) {
             if (turn.parts) {
               const turnText = turn.parts.map((p: any) => p.text || '').join('').trim();
-              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ') && !turnText.startsWith('📌 [КОНТЕКСТ ЭКРАНА') && !turnText.startsWith('🎯 [ФОКУС ВНИМАНИЯ')) {
+              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ') && !turnText.startsWith('📌 [КОНТЕКСТ ЭКРАНА') && !turnText.startsWith('🎯 [ФОКУС ВНИМАНИЯ') && !turnText.startsWith('[КАНДИДАТ ПРЕРВАЛ')) {
                 const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
                 mem.turns.push({ role: 'user', text: turnText });
                 mem.lastSpeaker = 'user';
