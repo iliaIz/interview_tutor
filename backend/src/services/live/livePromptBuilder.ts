@@ -296,7 +296,8 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         questionText,
         bugExplanation,
         referenceAnswer,
-        codeSnippet: activeCodeArtifact?.code || codeSnippet
+        codeSnippet,
+        activeCodeArtifact
       });
     }
 

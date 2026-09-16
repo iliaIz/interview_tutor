@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePracticeTutorStore, TutorPersona } from '../../../store/usePracticeTutorStore';
-import { useAppStore } from '../../../store/useAppStore';
+import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { PracticeVoiceHUD } from './PracticeVoiceHUD';
 import { PracticeVoiceErrorBoundary } from './PracticeVoiceErrorBoundary';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
@@ -201,7 +201,18 @@ export const PracticeTutorDrawer: React.FC = () => {
         : currentFile?.content || '',
     survivingMutants: activePracticeChallenge?.mutants,
     compilerError,
-    testFailureMessage
+    testFailureMessage,
+    activeWhiteboardSnippet: (() => {
+      const wb = selectActiveWhiteboardArtifact(useAppStore.getState());
+      if (wb?.code && wb.code.trim().length > 0) {
+        return {
+          title: wb.title,
+          code: wb.code,
+          language: wb.language
+        };
+      }
+      return undefined;
+    })()
   };
 
   const handleSend = () => {

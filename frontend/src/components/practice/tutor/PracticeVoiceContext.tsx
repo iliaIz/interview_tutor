@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
 import { useLiveAudioSession, LiveAudioSessionParams } from '../../../hooks/useLiveAudioSession';
-import { useAppStore } from '../../../store/useAppStore';
+import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
@@ -102,6 +102,10 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      const activeArtifact = selectActiveWhiteboardArtifact(useAppStore.getState());
+      const revs = useAppStore.getState().codeRevisions || [];
+      const revSummary = revs.length > 0 ? revs.map((r) => ({ id: r.id, title: r.title })) : undefined;
+
       await startSession({
         sessionType: 'tutor',
         tutorMode: 'practice_pair',
@@ -112,6 +116,15 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         bugTitle,
         bugExplanation,
         codeSnippet,
+        activeCodeArtifact: activeArtifact
+          ? {
+              id: activeArtifact.id,
+              title: activeArtifact.title,
+              language: activeArtifact.language,
+              code: activeArtifact.code
+            }
+          : undefined,
+        codeRevisionsSummary: revSummary,
         voice: interviewConfig.voice || 'Kore',
         userGender: interviewConfig.userGender || 'female',
         turnMode,

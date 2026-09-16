@@ -38,6 +38,8 @@ export interface LiveAudioSessionParams {
   challengeCategory?: string;
   challengeTrack?: string;
   challengeDomain?: string;
+  activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string };
+  codeRevisionsSummary?: Array<{ id: string; title: string }>;
 }
 
 export interface DialogueTurn {
@@ -192,6 +194,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.bugTitle) query.set('bugTitle', params.bugTitle);
     if (params.bugExplanation) query.set('bugExplanation', params.bugExplanation);
     if (params.codeSnippet) query.set('codeSnippet', params.codeSnippet);
+    if (params.activeCodeArtifact) {
+      query.set('activeCodeArtifact', JSON.stringify(params.activeCodeArtifact));
+    }
+    if (params.codeRevisionsSummary && params.codeRevisionsSummary.length > 0) {
+      query.set('codeRevisionsSummary', JSON.stringify(params.codeRevisionsSummary));
+    }
     if (params.hints && params.hints.length > 0) {
       query.set('hints', JSON.stringify(params.hints));
     }

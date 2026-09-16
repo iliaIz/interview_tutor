@@ -111,6 +111,60 @@ export interface CodeArtifactRevision {
   timestamp: number;
   author: 'ai' | 'user';
   diffFromPrev?: string;
+  explanation?: string;
+  highlightLines?: number[];
+}
+
+export interface ActiveWhiteboardArtifact {
+  id: string;
+  title: string;
+  language: string;
+  code: string;
+  explanation?: string;
+  highlightLines?: number[];
+  action?: 'write' | 'patch' | 'highlight' | 'clear';
+}
+
+/**
+ * SOTA 2026 Canonical Selector: Resolves the active code artifact from Whiteboard / Revisions.
+ * Absolute SSOT: Timeline active revision takes strict precedence over fallback activeWhiteboardState.
+ */
+export function selectActiveWhiteboardArtifact(state: {
+  codeRevisions?: CodeArtifactRevision[];
+  activeRevisionId?: string | null;
+  activeWhiteboardState?: WhiteboardState | null;
+}): ActiveWhiteboardArtifact | null {
+  const revs = state.codeRevisions || [];
+  if (revs.length > 0) {
+    const rev =
+      (state.activeRevisionId ? revs.find((r) => r.id === state.activeRevisionId) : null) ||
+      revs[revs.length - 1];
+    if (rev && rev.code && rev.code.trim().length > 0) {
+      return {
+        id: rev.id,
+        title: rev.title,
+        language: rev.language || 'java',
+        code: rev.code,
+        explanation: rev.explanation || state.activeWhiteboardState?.explanation,
+        highlightLines: rev.highlightLines || state.activeWhiteboardState?.highlightLines || [],
+        action: state.activeWhiteboardState?.action || 'write'
+      };
+    }
+  }
+
+  if (state.activeWhiteboardState?.code && state.activeWhiteboardState.code.trim().length > 0) {
+    return {
+      id: state.activeRevisionId || 'initial',
+      title: state.activeWhiteboardState.title || 'Демонстрация кода',
+      language: state.activeWhiteboardState.language || 'java',
+      code: state.activeWhiteboardState.code,
+      explanation: state.activeWhiteboardState.explanation,
+      highlightLines: state.activeWhiteboardState.highlightLines || [],
+      action: state.activeWhiteboardState.action || 'write'
+    };
+  }
+
+  return null;
 }
 
 export interface TopicAccessMeta {
@@ -665,6 +719,8 @@ export const useAppStore = create<AppState>()(
                 title: wb.title || `Версия ${nextIndex}`,
                 language: wb.language || 'java',
                 code: wb.code,
+                explanation: wb.explanation,
+                highlightLines: wb.highlightLines,
                 timestamp: Date.now(),
                 author: 'ai'
               };
@@ -708,8 +764,30 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      setActiveRevision: (id) => set({ activeRevisionId: id }),
-      clearCodeRevisions: () => set({ codeRevisions: [], activeRevisionId: null }),
+      // SOTA 2026: Atomic SSOT synchronization between activeRevisionId and activeWhiteboardState
+      setActiveRevision: (id) => {
+        set((state) => {
+          const revs = state.codeRevisions || [];
+          const targetRev = revs.find((r) => r.id === id);
+          if (!targetRev) {
+            return { activeRevisionId: id };
+          }
+          const updatedWb: WhiteboardState = {
+            action: 'write',
+            title: targetRev.title,
+            language: targetRev.language || 'java',
+            code: targetRev.code,
+            explanation: targetRev.explanation ?? state.activeWhiteboardState?.explanation,
+            highlightLines: targetRev.highlightLines ?? [],
+            updatedAt: Date.now()
+          };
+          return {
+            activeRevisionId: id,
+            activeWhiteboardState: updatedWb
+          };
+        });
+      },
+      clearCodeRevisions: () => set({ codeRevisions: [], activeRevisionId: null, activeWhiteboardState: null }),
 
       // Practice Arena State
       activePracticeChallenge: null,

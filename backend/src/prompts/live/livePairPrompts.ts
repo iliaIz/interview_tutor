@@ -20,6 +20,7 @@ export interface LivePairPromptParams {
   bugExplanation?: string;
   referenceAnswer?: string;
   codeSnippet?: string;
+  activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string };
 }
 
 export function buildLivePairPrompt(params: LivePairPromptParams): string {
@@ -32,7 +33,8 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     questionText,
     bugExplanation,
     referenceAnswer,
-    codeSnippet
+    codeSnippet,
+    activeCodeArtifact
   } = params;
 
   const isLld = domain === 'lld';
@@ -182,8 +184,14 @@ ${personaInstruction}
 ИНСТРУКЦИЯ / ЦЕЛЬ:
 ${referenceAnswer || bugExplanation || (isLld ? 'Спроектируйте чистую и расширяемую LLD-архитектуру задачи.' : isTx ? 'Исследуйте поведение транзакций и устраните аномалию БД.' : 'Напишите надежные тесты и уничтожьте всех мутантов.')}
 
-КОД В РЕДАКТОРЕ ПОЛЬЗОВАТЕЛЯ:
-${wrapUntrustedContext('user_code_snippet', codeSnippet || '// Код задачи')}
+КОД В РЕДАКТОРЕ ПОЛЬЗОВАТЕЛЯ (ТЕКУЩЕЕ РЕШЕНИЕ):
+${wrapUntrustedContext('user_code_snippet', codeSnippet || '// Код задачи')}${
+  activeCodeArtifact?.code && activeCodeArtifact.code.trim().length > 0
+    ? `\n\nКОД НА ИНТЕРАКТИВНОЙ ДОСКЕ (${activeCodeArtifact.id || 'активная версия'}: "${activeCodeArtifact.title || 'Сниппет напарника'}"):
+${wrapUntrustedContext('active_whiteboard_artifact', activeCodeArtifact.code)}
+ДИРЕКТИВА: Пользователь видит этот сниппет на доске. Если он спрашивает про доску или строки на доске, ссылайся именно на этот артефакт.`
+    : ''
+}
 
 === 4. СЛУШАНИЕ И ВЗАИМОДЕЙСТВИЕ ===
 1. ПРИВЕТСТВИЕ: ${greeting}

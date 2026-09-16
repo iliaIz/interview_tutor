@@ -113,6 +113,7 @@ const practicePairLivePrompt = buildSystemPrompt({
   anchors: ['Classes', 'Locks'],
   tutorMode: 'practice_pair',
   challengeCategory: 'Low-Level Design (LLD)',
+  codeSnippet: 'class EditorParkingLot {}',
   activeCodeArtifact: { id: 'code1', title: 'ParkingLot.java', code: 'class ParkingLot {}' }
 });
 
@@ -122,7 +123,31 @@ assert(
 );
 assert(
   practicePairLivePrompt.includes('<user_code_snippet>'),
-  'buildSystemPrompt(tutorMode: practice_pair) passes activeCodeArtifact and wraps in XML sandbox delimiter'
+  'buildSystemPrompt(tutorMode: practice_pair) passes editor code and wraps in XML sandbox delimiter'
+);
+assert(
+  practicePairLivePrompt.includes('<active_whiteboard_artifact>'),
+  'buildSystemPrompt(tutorMode: practice_pair) preserves active whiteboard artifact in separate XML sandbox'
+);
+
+const tutorWithWhiteboardPrompt = PromptRegistry.buildTutorPrompt({
+  persona: 'middle_scaffold',
+  assistanceLevel: 2,
+  kataTitle: 'Rate Limiter',
+  kataCategory: 'Low-Level Design (LLD)',
+  kataInstructions: 'Implement solution',
+  activeFilePath: 'src/main/java/Service.java',
+  activeFileContent: 'public class Service {}',
+  activeWhiteboardSnippet: {
+    title: 'SlidingWindowRateLimiter',
+    code: 'public class SlidingWindowRateLimiter {}',
+    language: 'java'
+  }
+});
+
+assert(
+  tutorWithWhiteboardPrompt.includes('<active_whiteboard_code>'),
+  'Text tutor prompt wraps activeWhiteboardSnippet in XML sandbox tag'
 );
 
 const freeChatLivePrompt = buildSystemPrompt({

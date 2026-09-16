@@ -96,6 +96,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       compilerError,
       testFailureMessage,
       activeCompassRuleId,
+      activeWhiteboardSnippet,
       messages = [],
       stream = true
     } = req.body;
@@ -114,7 +115,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       survivingMutants,
       compilerError,
       testFailureMessage,
-      activeCompassRuleId
+      activeCompassRuleId,
+      activeWhiteboardSnippet
     };
 
     const systemPrompt = buildPracticeTutorSystemPrompt(context);
@@ -248,7 +250,8 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
       activeFileContent,
       survivingMutants,
       compilerError,
-      testFailureMessage
+      testFailureMessage,
+      activeWhiteboardSnippet
     } = req.body;
 
     const context: PracticeTutorContext = {
@@ -262,6 +265,7 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
       survivingMutants,
       compilerError,
       testFailureMessage,
+      activeWhiteboardSnippet,
       hintTier: Number(hintTier) as HintTier
     };
 

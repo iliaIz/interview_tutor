@@ -26,6 +26,11 @@ export interface PracticeTutorContextPayload {
   compilerError?: string;
   testFailureMessage?: string;
   activeCompassRuleId?: string;
+  activeWhiteboardSnippet?: {
+    title: string;
+    code: string;
+    language: string;
+  };
 }
 
 interface PracticeTutorState {

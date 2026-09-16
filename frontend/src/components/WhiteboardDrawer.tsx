@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
 import { CodeArtifactTimeline } from './CodeArtifactTimeline';
-import { WhiteboardState, useAppStore } from '../store/useAppStore';
+import { WhiteboardState, useAppStore, selectActiveWhiteboardArtifact } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { usePracticeTutorStore } from '../store/usePracticeTutorStore';
 
@@ -42,6 +42,15 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
     codeRevisions
   } = useAppStore();
 
+  const activeArtifact = useAppStore(selectActiveWhiteboardArtifact);
+
+  const activeCode = activeArtifact?.code || state?.code || '';
+  const activeTitle = activeArtifact?.title || state?.title || 'Интерактивная доска ИИ';
+  const activeLanguage = activeArtifact?.language || state?.language || 'java';
+  const activeExplanation = activeArtifact?.explanation || state?.explanation;
+  const activeHighlightLines = activeArtifact?.highlightLines || state?.highlightLines || [];
+  const activeAction = activeArtifact?.action || state?.action || 'write';
+
   const { toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
 
   // Close on Escape key press
@@ -54,30 +63,30 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const hasCode = Boolean(state?.code && state.code.trim().length > 0);
+  const hasCode = Boolean(activeCode && activeCode.trim().length > 0);
   const hasRevisions = Boolean(codeRevisions && codeRevisions.length > 0);
 
-  const isDiff = state?.action === 'patch';
+  const isDiff = activeAction === 'patch';
   const actionLabel =
-    state?.action === 'patch'
+    activeAction === 'patch'
       ? '🔧 Diff / Изменения'
-      : state?.action === 'highlight'
+      : activeAction === 'highlight'
       ? '🔍 Разбор строк'
       : hasCode
       ? '✨ Демонстрация ИИ'
       : '✨ Интерактивная доска';
 
   const handleCopy = () => {
-    if (state?.code) {
-      navigator.clipboard.writeText(state.code);
+    if (activeCode) {
+      navigator.clipboard.writeText(activeCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
   const handleInsertIntoEditor = () => {
-    if (state?.code && practiceWorkspaceFiles[activeWorkspaceFileIndex]) {
-      updateWorkspaceFileContent(activeWorkspaceFileIndex, state.code);
+    if (activeCode && practiceWorkspaceFiles[activeWorkspaceFileIndex]) {
+      updateWorkspaceFileContent(activeWorkspaceFileIndex, activeCode);
       showToast({
         type: 'success',
         title: 'Код перенесён',
@@ -112,14 +121,14 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-xs text-white truncate">
-                    {state?.title || 'Интерактивная доска ИИ'}
+                    {activeTitle}
                   </h3>
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pastel-accentViolet/20 text-pastel-accentViolet border border-pastel-accentViolet/30 shrink-0">
                     {actionLabel}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 truncate">
-                  {state?.language ? state.language.toUpperCase() : 'JAVA 21'} • Артефакты и код AI-Напарника
+                  {activeLanguage ? activeLanguage.toUpperCase() : 'JAVA 21'} • Артефакты и код AI-Напарника
                 </p>
               </div>
             </div>
@@ -169,18 +178,18 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           </div>
 
           {/* Optional Explanation Callout */}
-          {state?.explanation && (
+          {activeExplanation && (
             <div className="px-4 py-2.5 bg-gradient-to-r from-pastel-accentViolet/10 via-[#141220] to-pastel-accentRose/10 border-b border-[#2A243E] flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
               <Info className="w-3.5 h-3.5 text-pastel-accentViolet shrink-0 mt-0.5" />
-              <p className="text-[11px]">{state.explanation}</p>
+              <p className="text-[11px]">{activeExplanation}</p>
             </div>
           )}
 
           {/* Highlight Lines Badge (if any) */}
-          {state?.highlightLines && state.highlightLines.length > 0 && (
+          {activeHighlightLines && activeHighlightLines.length > 0 && (
             <div className="px-4 py-1.5 bg-[#12111E] border-b border-[#2A243E] flex items-center gap-2 text-[10px] text-amber-300">
               <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
-              <span>Обратите внимание на строки: {state.highlightLines.join(', ')}</span>
+              <span>Обратите внимание на строки: {activeHighlightLines.join(', ')}</span>
             </div>
           )}
 
@@ -189,7 +198,7 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
             {hasRevisions ? (
               <CodeArtifactTimeline showDiffToggle={true} />
             ) : hasCode ? (
-              <CodeViewer code={state!.code!} language={state?.language || 'java'} />
+              <CodeViewer code={activeCode} language={activeLanguage} />
             ) : (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6 sm:p-8 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800">
                 <div className="w-12 h-12 rounded-2xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-3 shadow-md">
@@ -215,7 +224,7 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
             {hasCode && (
               <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between pt-1">
                 <span>Интерактивный артефакт ИИ</span>
-                <span>Строк: {state!.code!.split('\n').length}</span>
+                <span>Строк: {activeCode.split('\n').length}</span>
               </div>
             )}
           </div>

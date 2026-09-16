@@ -434,19 +434,31 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         return;
       }
 
+      const isDeicticFrame = Boolean(
+        parsed.deictic ||
+        parsed.type === 'screen_context_sync' ||
+        parsed.clientContent?.turns?.some((t: any) =>
+          t.parts?.some((p: any) =>
+            typeof p.text === 'string' && (p.text.startsWith('📌 [КОНТЕКСТ ЭКРАНА') || p.text.startsWith('🎯 [ФОКУС ВНИМАНИЯ'))
+          )
+        )
+      );
+
       if (parsed.clientContent?.turns) {
-        // Release any pending tool call gates upon client input / barge-in
-        session.isToolCallPending = false;
-        if (session.toolCallSafetyTimeout) {
-          clearTimeout(session.toolCallSafetyTimeout);
-          session.toolCallSafetyTimeout = null;
+        // Release any pending tool call gates upon genuine client input / barge-in
+        if (!isDeicticFrame) {
+          session.isToolCallPending = false;
+          if (session.toolCallSafetyTimeout) {
+            clearTimeout(session.toolCallSafetyTimeout);
+            session.toolCallSafetyTimeout = null;
+          }
         }
 
-        if (session.sessionId) {
+        if (session.sessionId && !isDeicticFrame) {
           for (const turn of parsed.clientContent.turns) {
             if (turn.parts) {
               const turnText = turn.parts.map((p: any) => p.text || '').join('').trim();
-              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ')) {
+              if (turnText && !turnText.startsWith('[ВОЗОБНОВЛЕНИЕ') && !turnText.startsWith('[ТЕХНИЧЕСКАЯ') && !turnText.startsWith('📌 [КОНТЕКСТ ЭКРАНА') && !turnText.startsWith('🎯 [ФОКУС ВНИМАНИЯ')) {
                 const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
                 mem.turns.push({ role: 'user', text: turnText });
                 mem.lastSpeaker = 'user';
@@ -467,7 +479,13 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         return;
       }
 
-      if (parsed.clientContent?.turns || parsed.clientContent?.turnComplete || parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {
+      if (
+        (!isDeicticFrame && parsed.clientContent?.turns) ||
+        parsed.clientContent?.turnComplete ||
+        parsed.realtime_input?.audio ||
+        parsed.realtimeInput?.audio ||
+        parsed.realtimeInput?.mediaChunks
+      ) {
         session.hasCandidateResponded = true;
       }
 
@@ -513,6 +531,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           };
           payloadBuffer = Buffer.from(JSON.stringify(normalized));
         }
+      } else if (parsed.clientContent) {
+        payloadBuffer = Buffer.from(JSON.stringify({ clientContent: parsed.clientContent }));
       }
     } catch {}
 

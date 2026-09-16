@@ -42,6 +42,11 @@ export interface PracticeTutorContext {
   compilerError?: string;
   testFailureMessage?: string;
   activeCompassRuleId?: string;
+  activeWhiteboardSnippet?: {
+    title: string;
+    code: string;
+    language: string;
+  };
   hintTier?: HintTier;
 }
 
@@ -59,6 +64,7 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     compilerError,
     testFailureMessage,
     activeCompassRuleId,
+    activeWhiteboardSnippet,
     hintTier
   } = context;
 
@@ -288,7 +294,11 @@ ${cursorLine ? `Курсор пользователя на строке: ${curso
 ${selectedCodeSnippet ? `Выделенный фрагмент кода:\n\`\`\`java\n${selectedCodeSnippet}\n\`\`\`` : ''}
 
 ПОЛНЫЙ КОД АКТИВНОГО ФАЙЛА:
-${wrapUntrustedContext('active_file_code', activeFileContent)}
+${wrapUntrustedContext('active_file_code', activeFileContent)}${
+  activeWhiteboardSnippet?.code && activeWhiteboardSnippet.code.trim().length > 0
+    ? `\n\nАКТИВНЫЙ КОД НА ИНТЕРАКТИВНОЙ ДОСКЕ (${activeWhiteboardSnippet.title || 'Сниппет'}):\n${wrapUntrustedContext('active_whiteboard_code', activeWhiteboardSnippet.code)}\nДИРЕКТИВА: Пользователь сейчас открыл этот сниппет на доске справа от редактора. Если он задает вопрос по коду на доске или просит сопоставить его со своим файлом, опирайся на этот артефакт.`
+    : ''
+}
 
 СТАТУС ВЫПОЛНЕНИЯ:
 ${compilerError ? `❌ ОШИБКА КОМПИЛЯЦИИ:\n${compilerError}\n` : ''}

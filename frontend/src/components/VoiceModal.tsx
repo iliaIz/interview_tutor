@@ -58,7 +58,7 @@ import { InterviewConfig, GeminiVoiceName } from '../types/interviewConfig';
 import { VoiceSettingsDrawer } from './VoiceSettingsDrawer';
 import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
-import { Question, useAppStore } from '../store/useAppStore';
+import { Question, useAppStore, selectActiveWhiteboardArtifact } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import {
   InterviewPersonaId,
@@ -408,25 +408,39 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     };
   }, [isOpen, stage]);
 
-  // SOTA 2026 Scenario A: Silent Grounding Frame injection on Code Revision Switch
-  useEffect(() => {
-    if (stage !== 'active' || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    if (!activeRevisionId) return;
-    if (lastSyncedRevisionIdRef.current === activeRevisionId) return;
+  // SOTA 2026 Pre-Speech Deictic Grounding:
+  // When activeRevisionId changes, stage it in pendingWhiteboardRevisionIdRef instead of sending WebSocket frames mid-speech.
+  // This completely eliminates self-interruption (barge-in race) during AI speech generation.
+  const pendingWhiteboardRevisionIdRef = useRef<string | null>(null);
 
-    lastSyncedRevisionIdRef.current = activeRevisionId;
-    const currentRev = codeRevisions?.find((r) => r.id === activeRevisionId);
+  useEffect(() => {
+    if (activeRevisionId && activeRevisionId !== lastSyncedRevisionIdRef.current) {
+      pendingWhiteboardRevisionIdRef.current = activeRevisionId;
+    }
+  }, [activeRevisionId]);
+
+  const injectActiveWhiteboardGroundingFrame = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const targetRevId = pendingWhiteboardRevisionIdRef.current || activeRevisionId;
+    if (!targetRevId || targetRevId === lastSyncedRevisionIdRef.current) return;
+
+    const currentRev = codeRevisions?.find((r) => r.id === targetRevId);
     if (!currentRev) return;
 
-    console.log(`📡 [Scenario A Grounding] Injecting silent context frame for revision "${currentRev.title}" (${currentRev.id})`);
-    const silentGroundingFrame = {
+    lastSyncedRevisionIdRef.current = targetRevId;
+    pendingWhiteboardRevisionIdRef.current = null;
+
+    console.log(`📡 [Pre-Speech Grounding] Injecting screen context frame for revision "${currentRev.title}" (${currentRev.id})`);
+    const deicticGroundingFrame = {
+      type: 'screen_context_sync',
+      deictic: true,
       clientContent: {
         turns: [
           {
             role: 'user',
             parts: [
               {
-                text: `📌 [КОНТЕКСТ ЭКРАНА: ВЕРСИЯ "${currentRev.title}"]:\n\`\`\`${currentRev.language || 'java'}\n${currentRev.code}\n\`\`\`\n(Системная директива: кандидат сейчас смотрит на эту ревизию кода на экране. Не отвечай сейчас вслух, просто учитывай этот код как активный контекст при следующем вопросе или ответе).`
+                text: `📌 [КОНТЕКСТ ЭКРАНА: ВЕРСИЯ "${currentRev.title}"]:\n\`\`\`${currentRev.language || 'java'}\n${currentRev.code}\n\`\`\`\n(Системная директива: кандидат сейчас смотрит на эту ревизию кода на экране. Учитывай этот код как активный контекст при ответе).`
               }
             ]
           }
@@ -435,11 +449,22 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
     };
     try {
-      wsRef.current.send(JSON.stringify(silentGroundingFrame));
+      wsRef.current.send(JSON.stringify(deicticGroundingFrame));
     } catch (err) {
-      console.warn('Failed to send silent grounding frame:', err);
+      console.warn('Failed to send deictic whiteboard grounding frame:', err);
     }
-  }, [activeRevisionId, codeRevisions, stage]);
+  }, [activeRevisionId, codeRevisions]);
+
+  const getActiveArtifactPayload = useCallback(() => {
+    const artifact = selectActiveWhiteboardArtifact(useAppStore.getState());
+    if (!artifact) return undefined;
+    return {
+      id: artifact.id,
+      title: artifact.title,
+      language: artifact.language,
+      code: artifact.code
+    };
+  }, []);
 
   // SOTA 2026 Deictic Grounding: Inject active selection context before user voice audio
   const isFocusInjectedInCurrentTurnRef = useRef(false);
@@ -997,16 +1022,24 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       probesCount: String(turnCountRef.current)
     });
 
-    // Scenario A: Pass currently active code snippet on connection startup
-    const currentStartupCode = activeWhiteboardState?.code || codeRevisions?.find((r) => r.id === activeRevisionId)?.code;
-    if (currentStartupCode) {
-      const activeArtifactPayload = {
-        id: activeRevisionId || 'initial',
-        title: activeWhiteboardState?.title || 'Исходный код',
-        language: activeWhiteboardState?.language || 'java',
-        code: currentStartupCode
-      };
-      params.set('activeCodeArtifact', JSON.stringify(activeArtifactPayload));
+    // SOTA 2026: Pass canonical active code artifact and revisions summary on connection startup
+    const activeArtifact = selectActiveWhiteboardArtifact(useAppStore.getState());
+    if (activeArtifact) {
+      params.set(
+        'activeCodeArtifact',
+        JSON.stringify({
+          id: activeArtifact.id,
+          title: activeArtifact.title,
+          language: activeArtifact.language,
+          code: activeArtifact.code
+        })
+      );
+      lastSyncedRevisionIdRef.current = activeArtifact.id;
+    }
+
+    if (codeRevisions && codeRevisions.length > 0) {
+      const revSummary = codeRevisions.map((r) => ({ id: r.id, title: r.title }));
+      params.set('codeRevisionsSummary', JSON.stringify(revSummary));
     }
 
     // SOTA 2026: Prefetch One-Time WS Ticket for Zero-Trust Gemini Live Handshake
@@ -1474,7 +1507,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             deepDive: !!interviewConfig.deepDive,
             liveCoaching: !!interviewConfig.liveCoaching,
             voice: interviewConfig.voice,
-            userGender: interviewConfig.userGender || 'female'
+            userGender: interviewConfig.userGender || 'female',
+            activeCodeArtifact: getActiveArtifactPayload()
           })
         });
 
@@ -1630,7 +1664,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           deepDive: !!interviewConfig.deepDive,
           liveCoaching: !!interviewConfig.liveCoaching,
           voice: interviewConfig.voice,
-          userGender: interviewConfig.userGender || 'female'
+          userGender: interviewConfig.userGender || 'female',
+          activeCodeArtifact: getActiveArtifactPayload()
         })
       });
 
@@ -1721,6 +1756,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     // SOTA Priority: If Live WebSocket is open, send turnComplete frame immediately!
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      injectActiveWhiteboardGroundingFrame();
       if (!isFocusInjectedInCurrentTurnRef.current) {
         injectActiveFocusGroundingFrame();
       }
@@ -1786,7 +1822,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             deepDive: !!interviewConfig.deepDive,
             liveCoaching: !!interviewConfig.liveCoaching,
             voice: interviewConfig.voice,
-            userGender: interviewConfig.userGender || 'female'
+            userGender: interviewConfig.userGender || 'female',
+            activeCodeArtifact: getActiveArtifactPayload()
           })
         });
 
@@ -2341,6 +2378,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 if (speechDuration >= 150) {
                   if (!hasSpokenInTurnRef.current) {
                     hasSpokenInTurnRef.current = true;
+                    injectActiveWhiteboardGroundingFrame();
                     injectActiveFocusGroundingFrame();
                   }
                 }
