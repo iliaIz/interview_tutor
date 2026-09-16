@@ -11,6 +11,7 @@ import { ANTI_SYCOPHANCY_DIRECTIVES } from './core/antiSycophancy';
 import { JAVA21_PLATFORM_INVARIANTS } from './core/platformInvariants';
 import { TESTING_COMPASS_RULES, CompassRule } from './tutor/testingCompassRules';
 import { LLD_COMPASS_RULES } from './tutor/lldCompassRules';
+import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from './core/sandboxDirectives';
 
 // Re-export for 100% backward compatibility across backend routes
 export { TESTING_COMPASS_RULES, LLD_COMPASS_RULES, CompassRule };
@@ -263,6 +264,8 @@ ${m.mutatedContent}
   return `
 ${roleSummary}
 
+${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 
 ${JAVA21_PLATFORM_INVARIANTS}
@@ -285,9 +288,7 @@ ${cursorLine ? `Курсор пользователя на строке: ${curso
 ${selectedCodeSnippet ? `Выделенный фрагмент кода:\n\`\`\`java\n${selectedCodeSnippet}\n\`\`\`` : ''}
 
 ПОЛНЫЙ КОД АКТИВНОГО ФАЙЛА:
-\`\`\`java
-${activeFileContent}
-\`\`\`
+${wrapUntrustedContext('active_file_code', activeFileContent)}
 
 СТАТУС ВЫПОЛНЕНИЯ:
 ${compilerError ? `❌ ОШИБКА КОМПИЛЯЦИИ:\n${compilerError}\n` : ''}

@@ -8,6 +8,7 @@
 import { VOICE_ANTI_SYCOPHANCY_DIRECTIVES } from '../core/antiSycophancy';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../core/genderDirectives';
 import { JAVA21_PLATFORM_INVARIANTS } from '../core/platformInvariants';
+import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../core/sandboxDirectives';
 
 export interface LivePairPromptParams {
   domain: 'lld' | 'transactions' | 'concurrency' | 'testing';
@@ -158,6 +159,8 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
   const candidateGender = getCandidateGenderDirective(userGender);
 
   return `${roleHeader}
+${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+
 ${aiGender}
 ${candidateGender}
 
@@ -180,9 +183,7 @@ ${personaInstruction}
 ${referenceAnswer || bugExplanation || (isLld ? 'Спроектируйте чистую и расширяемую LLD-архитектуру задачи.' : isTx ? 'Исследуйте поведение транзакций и устраните аномалию БД.' : 'Напишите надежные тесты и уничтожьте всех мутантов.')}
 
 КОД В РЕДАКТОРЕ ПОЛЬЗОВАТЕЛЯ:
-\`\`\`java
-${codeSnippet || '// Код задачи'}
-\`\`\`
+${wrapUntrustedContext('user_code_snippet', codeSnippet || '// Код задачи')}
 
 === 4. СЛУШАНИЕ И ВЗАИМОДЕЙСТВИЕ ===
 1. ПРИВЕТСТВИЕ: ${greeting}

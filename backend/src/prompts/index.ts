@@ -9,8 +9,14 @@
 export {
   ANTI_SYCOPHANCY_DIRECTIVES,
   VOICE_ANTI_SYCOPHANCY_DIRECTIVES,
-  EXAM_ANTI_SYCOPHANCY_DIRECTIVES
+  EXAM_ANTI_SYCOPHANCY_DIRECTIVES,
+  SOCRATIC_FORWARD_PROBING_DIRECTIVES
 } from './core/antiSycophancy';
+
+export {
+  wrapUntrustedContext,
+  PROMPT_INJECTION_DEFENSE_DIRECTIVE
+} from './core/sandboxDirectives';
 
 export {
   getAiGenderDirective,
@@ -53,12 +59,46 @@ export {
   getPersonaPromptDirectives
 } from './personas';
 
+// System Design Prompts
+export {
+  buildSystemDesignProbePrompt,
+  buildSystemDesignEvaluationPrompt,
+  SystemDesignTutorMode,
+  SystemDesignProbeParams,
+  SystemDesignEvalParams
+} from './systemDesign/systemDesignPrompts';
+
+// Production Incident Triage Prompts
+export {
+  buildTriageEvaluationPrompt,
+  buildTriageProbePrompt,
+  TriageEvaluationParams,
+  TriageProbeParams
+} from './triage/triagePrompts';
+
 import { buildPracticeTutorSystemPrompt, PracticeTutorContext } from './practiceTutorPrompts';
 import { buildLivePairPrompt, LivePairPromptParams } from './live/livePairPrompts';
 import { TESTING_COMPASS_RULES } from './tutor/testingCompassRules';
 import { LLD_COMPASS_RULES } from './tutor/lldCompassRules';
-import { ANTI_SYCOPHANCY_DIRECTIVES, VOICE_ANTI_SYCOPHANCY_DIRECTIVES } from './core/antiSycophancy';
+import {
+  ANTI_SYCOPHANCY_DIRECTIVES,
+  VOICE_ANTI_SYCOPHANCY_DIRECTIVES,
+  SOCRATIC_FORWARD_PROBING_DIRECTIVES
+} from './core/antiSycophancy';
+import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from './core/sandboxDirectives';
 import { JAVA21_PLATFORM_INVARIANTS } from './core/platformInvariants';
+import {
+  buildSystemDesignProbePrompt,
+  buildSystemDesignEvaluationPrompt,
+  SystemDesignProbeParams,
+  SystemDesignEvalParams
+} from './systemDesign/systemDesignPrompts';
+import {
+  buildTriageEvaluationPrompt,
+  buildTriageProbePrompt,
+  TriageEvaluationParams,
+  TriageProbeParams
+} from './triage/triagePrompts';
 
 /**
  * High-Level Prompt Registry Facade
@@ -82,10 +122,32 @@ export const PromptRegistry = {
     return buildLivePairPrompt(params);
   },
 
+  buildSystemDesignProbePrompt(params: SystemDesignProbeParams): string {
+    return buildSystemDesignProbePrompt(params);
+  },
+
+  buildSystemDesignEvaluationPrompt(params: SystemDesignEvalParams): string {
+    return buildSystemDesignEvaluationPrompt(params);
+  },
+
+  buildTriageEvaluationPrompt(params: TriageEvaluationParams): { systemPrompt: string; userPrompt: string } {
+    return buildTriageEvaluationPrompt(params);
+  },
+
+  buildTriageProbePrompt(params: TriageProbeParams): string {
+    return buildTriageProbePrompt(params);
+  },
+
+  wrapUntrustedContext(tag: string, content: string): string {
+    return wrapUntrustedContext(tag, content);
+  },
+
   getInvariants() {
     return {
       antiSycophancy: ANTI_SYCOPHANCY_DIRECTIVES,
       voiceAntiSycophancy: VOICE_ANTI_SYCOPHANCY_DIRECTIVES,
+      socraticForwardProbing: SOCRATIC_FORWARD_PROBING_DIRECTIVES,
+      promptInjectionDefense: PROMPT_INJECTION_DEFENSE_DIRECTIVE,
       platformInvariants: JAVA21_PLATFORM_INVARIANTS
     };
   }

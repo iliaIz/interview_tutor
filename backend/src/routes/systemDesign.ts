@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
+import {
+  buildSystemDesignProbePrompt,
+  buildSystemDesignEvaluationPrompt,
+  SystemDesignTutorMode
+} from '../prompts/systemDesign/systemDesignPrompts';
+import { wrapUntrustedContext } from '../prompts/core/sandboxDirectives';
 
 export const systemDesignRouter = Router();
 
@@ -146,114 +152,24 @@ systemDesignRouter.post('/probe', async (req: Request, res: Response) => {
       mathContext
     } = req.body;
 
-    let systemPrompt = '';
-
-    if (contextType === 'math_coach') {
-      const mc = mathContext || {};
-      const mathDetails = `
-Сценарий расчетов: «${mc.scenarioTitle || 'Capacity Estimation'}»
-DAU: ${mc.dau?.toLocaleString() || 'не указан'}
-Записей на пользователя в день: ${mc.writesPerUser ?? 'не указан'}
-Чтений на пользователя в день: ${mc.readsPerUser ?? 'не указан'}
-Размер записи: ${mc.avgWriteBytes ? `${mc.avgWriteBytes} байт` : 'не указан'}
-Размер чтения: ${mc.avgReadBytes ? `${mc.avgReadBytes} байт` : 'не указан'}
-Срок хранения: ${mc.retentionYears ? `${mc.retentionYears} лет` : 'не указан'}
-Текущие расчеты кандидата:
-- RPS записи: ${mc.calculatedMetrics?.writeRps ?? '—'}
-- RPS чтения: ${mc.calculatedMetrics?.readRps ?? '—'}
-- Трафик записи: ${mc.calculatedMetrics?.writeBandwidth ?? '—'}
-- Трафик чтения: ${mc.calculatedMetrics?.readBandwidth ?? '—'}
-- Хранилище: ${mc.calculatedMetrics?.storage ?? '—'}
-- Память кэша (80/20): ${mc.calculatedMetrics?.cacheRam ?? '—'}
-`;
-
-      const modeDirectives: Record<string, string> = {
-        eli5: `РЕЖИМ: «👶 На пальцах (ELI5)»
-Твоя задача — объяснить суть расчетов емкости и нагрузки на простых, житейских и наглядных аналогиях (очереди на кассе, книжные полки, почтовые ящики).
-Избегай сухого академического жаргона. Если вводишь термин (RPS, пропускная способность, репликация) — сразу поясняй его бытовым примером.
-Будь теплым, поддерживающим наставником.`,
-
-        deep_dive: `РЕЖИМ: «🔬 Под капотом (Deep Dive)»
-Твоя задача — разобрать физику вычислений на уровне реальных дата-центров и железа:
-- Почему секунда округляется до 86 400 (или 100 000 для запаса);
-- Зачем и откуда берется пиковый коэффициент неравномерности нагрузки (Peak Factor 2x-3x);
-- Учет тройной репликации (3x replication factor) в распределенных СУБД (Raft/Paxos/Cassandra) и оверхед дисковых метаданных/индексов (LSM compaction/B-Tree);
-- Память под кэш по закону Парето (правило 80/20: кэшируем 20% суточного объема запросов чтения);
-- Закон Литтла (L = λ * W) для оценки concurrency и пулов соединений. Давай точные формулы и строгую инженерную аргументацию.`,
-
-        socratic: `РЕЖИМ: «💡 Сократ (Socratic Probing)»
-Твоя задача — вести сократический диалог.
-КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО давать готовые расчеты или прямые ответы!
-Задавай кандидату один точечный, развивающий вопрос, побуждающий его проверить свои допущения:
-- «Учел ли ты пиковую нагрузку или посчитал только средний суточный RPS?»
-- «Что произойдет с требуемым объемом диска, если в распределенной базе включена репликация?»
-- «Как ты перевел суточный объем запросов в секунды?»
-Заставляй кандидата думать и находить правильный ответ самостоятельно.`,
-
-        free_chat: `РЕЖИМ: «💬 Просто тьютор (Free Chat)»
-Твоя задача — быть дружелюбным, открытым и квалифицированным Senior System Architect ментором.
-Отвечай емко, по делу, помогай кандидату разобраться в формулах, проверяй его вычисления и давай понятные практические советы.`
-      };
-
-      systemPrompt = `Ты — экспертный AI-тьютор по расчетам масштабирования (Back-of-the-Envelope Capacity Estimation) в System Design.
-${modeDirectives[mode] || modeDirectives.free_chat}
-
-Контекст активного тренажера расчетов:
-${mathDetails}
-
-Всегда отвечай на русском языке. Ответ должен быть компактным (2-4 абзаца или емкий список), структурированным и прямо отвечать на вопрос кандидата.`;
-
-    } else {
-      // Scenario-based System Design tutor
-      const scenario = resolveScenarioManifest(scenarioId);
-      const context = scenario ? `
-Контекст задачи: ${scenario.title} (${scenario.category || scenario.archetype || 'System Design'})
-Целевой уровень: ${scenario.target_level || 'L4_MIDDLE'}
-Трафик: ${JSON.stringify(scenario.trafficProfile || {})}
-Узкие места и сбои: ${scenario.bottlenecksMarkdown || '—'}
-Эталонные вопросы Staff-интервьюера:
-${scenario.tradeOffProbes?.map((p: any) => `- Вопрос: ${p.question}\n  Эталон: ${p.modelAnswer}`).join('\n') || '—'}
-` : '';
-
-      const modeDirectives: Record<string, string> = {
-        eli5: `РЕЖИМ: «👶 На пальцах (ELI5)»
-Объясняй архитектурные концепции (кэширование, очереди, шардирование, консистентность) на простых бытовых и наглядных аналогиях (почта, библиотека, дорожные развязки, склады).
-Не перегружай кандидата академическими терминами без наглядных примеров. Будь терпеливым и доброжелательным наставником.`,
-
-        deep_dive: `РЕЖИМ: «🔬 Под капотом (Deep Dive)»
-Веди глубокий разбор технической физики процессов:
-- Поведение СУБД: LSM-деревья, B-Tree, WAL, Page Cache, Write Amplification;
-- Сетевой стек: epoll, TCP Keepalive, HTTP/2 multiplexing, gRPC, head-of-line blocking;
-- Распределенный консенсус: Raft, Paxos, Quorum (W + R > N), Split-Brain, Fencing Tokens;
-- Пул потоков и JVM: Carrier Threads, Virtual Threads pinning, STW-паузы GC, off-heap buffers.
-Разбирай крайние случаи (edge cases), деградацию и blast radius.`,
-
-        socratic: `РЕЖИМ: «💡 Сократ (Socratic Probing)»
-КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО давать готовые архитектурные схемы или готовые решения!
-Твоя цель — находить слабые места в архитектуре или рассуждениях кандидата и задавать 1-2 точечных контр-вопроса:
-- Наличие SPOF (Single Point of Failure);
-- Что будет при Network Partition (CAP-теорема);
-- Угроза Cache Stampede при падении кэша;
-- Проблема Dual-Write между СУБД и Kafka;
-- Горячие шарды (hot keys). Побуждай кандидата самого найти уязвимость.`,
-
-        free_chat: `РЕЖИМ: «💬 Просто тьютор (Free Chat)»
-Ты — опытный Staff/Principal Архитектор и доброжелательный ментор.
-Помогай кандидату структурировать мысли, отвечай на любые вопросы по архитектуре, подсказывай trade-offs и лучшие практики современных распределенных систем.`
-      };
-
-      systemPrompt = `Ты — ведущий Staff/Principal Архитектор и личный AI-наставник по System Design в BigTech (Яндекс, Т-Банк, Stripe, Netflix).
-${modeDirectives[mode] || modeDirectives.free_chat}
-
-${context}
-
-Всегда отвечай на русском языке. Ответ должен быть емким, профессиональным и соответствовать выбранному стилю общения.`;
-    }
+    const scenario = contextType === 'scenario' ? resolveScenarioManifest(scenarioId) : null;
+    const systemPrompt = buildSystemDesignProbePrompt({
+      scenarioTitle: scenario?.title,
+      category: scenario?.category,
+      archetype: scenario?.archetype,
+      targetLevel: scenario?.target_level,
+      trafficProfile: scenario?.trafficProfile,
+      bottlenecksMarkdown: scenario?.bottlenecksMarkdown,
+      tradeOffProbes: scenario?.tradeOffProbes,
+      mode: mode as SystemDesignTutorMode,
+      contextType: contextType as 'scenario' | 'math_coach',
+      mathContext
+    });
 
     const messages = [
       { role: 'system', content: systemPrompt },
       ...(conversationHistory || []),
-      { role: 'user', content: userMessage }
+      { role: 'user', content: wrapUntrustedContext('user_message', userMessage) }
     ];
 
     const endpointUrl = envConfig.proxy.chatUrl;
@@ -342,31 +258,13 @@ systemDesignRouter.post('/evaluate', async (req: Request, res: Response) => {
 `;
     }
 
-    const prompt = `Ты — комитет оценки System Design собеседований (Staff Bar-Raiser).
-Оцени архитектурное решение кандидата для задачи: ${scenario.title || scenarioId}.
-
-ТЗ и профиль: ${JSON.stringify(scenario.trafficProfile || {})}
-Предложенная архитектура:
-${topologySection}
-
-Пояснительная записка кандидата:
-${notesMarkdown || 'Не предоставлена'}
-
-Верни СТРОГИЙ JSON формат:
-{
-  "totalScore": 85,
-  "verdict": "STRONG_HIRE | HIRE | LEANING_HIRE | NO_HIRE",
-  "radarMetrics": {
-    "scalability": 90,
-    "faultTolerance": 80,
-    "dataConsistency": 85,
-    "tradeOffJustification": 80,
-    "costEfficiency": 75
-  },
-  "strengths": ["...", "..."],
-  "vulnerabilities": ["...", "..."],
-  "barRaiserFeedback": "..."
-}`;
+    const prompt = buildSystemDesignEvaluationPrompt({
+      scenarioTitle: scenario.title || scenarioId,
+      scenarioCategory: scenario.category,
+      trafficProfile: scenario.trafficProfile,
+      topologySection,
+      notesMarkdown
+    });
 
     let parsed: any;
     if (req.body.verdict && typeof req.body.totalScore === 'number') {

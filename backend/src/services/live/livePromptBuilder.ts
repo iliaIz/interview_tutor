@@ -8,6 +8,7 @@ import { getChallengeDomain } from '../../utils/challengeDomain';
 import { buildLivePairPrompt } from '../../prompts/live/livePairPrompts';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../../prompts/core/genderDirectives';
 import { VOICE_ANTI_SYCOPHANCY_DIRECTIVES, EXAM_ANTI_SYCOPHANCY_DIRECTIVES } from '../../prompts/core/antiSycophancy';
+import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../../prompts/core/sandboxDirectives';
 
 /**
  * Extracts up to 10 semantic evaluation anchors from reference answer
@@ -166,9 +167,7 @@ export function buildSystemPrompt(params: {
 
   const activeArtifactSection = activeCodeArtifact?.code
     ? `\n=== АКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.id || 'активная версия'}: "${activeCodeArtifact.title || 'Сниппет'}") ===
-\`\`\`${activeCodeArtifact.language || 'java'}
-${activeCodeArtifact.code}
-\`\`\`
+${wrapUntrustedContext('active_code_artifact', activeCodeArtifact.code)}
 ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ ВЕРСИИ КОДА В ИСТОРИИ СЕССИИ (Кандидат сейчас просматривает версию ${activeCodeArtifact.id || 'активную'}):\n${codeRevisionsSummary.map((r: any) => `  - [${r.id}] ${r.title} ${r.id === activeCodeArtifact?.id ? '(АКТИВНА)' : ''}`).join('\n')}\n` : ''}
 ДИРЕКТИВА ПО КОНТЕКСТУ КОДА: Кандидат сейчас смотрит на версию ${activeCodeArtifact.id || 'активную'}. Если он задает вопрос по коду или строкам («почему тут так?», «что в 5-й строке?»), отвечай применительно именно к этому сниппету.\n`
     : '';
@@ -297,7 +296,7 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         questionText,
         bugExplanation,
         referenceAnswer,
-        codeSnippet
+        codeSnippet: activeCodeArtifact?.code || codeSnippet
       });
     }
 

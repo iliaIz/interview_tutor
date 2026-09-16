@@ -14,6 +14,10 @@ import {
   getPersonaPromptDirectives,
   calculateFaangScorecard
 } from '../prompts/personas';
+import {
+  wrapUntrustedContext,
+  PROMPT_INJECTION_DEFENSE_DIRECTIVE
+} from '../prompts/core/sandboxDirectives';
 
 const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
 
@@ -21,16 +25,43 @@ function sanitizeVoice(v: unknown): string {
   return typeof v === 'string' && VALID_VOICES.includes(v as any) ? v : 'Kore';
 }
 
+export interface DeductionItem {
+  criterionId?: string;
+  reason: string;
+  penalty: number;
+}
+
 export interface TurnReasoningResult {
   action: 'probe' | 'evaluate';
   replyText?: string;
   score?: number;
   isPassed?: boolean;
+  deductions?: DeductionItem[];
   positivePoints?: string[];
   missingPoints?: string[];
   feedback?: string;
   spokenFeedback?: string;
   faangScorecard?: any;
+}
+
+/**
+ * Returns safe, concise spoken text for TTS synthesis (<= 35-40 words).
+ * Prevents runaway multi-paragraph essay playback in voice audio.
+ */
+export function getSafeSpokenText(reasoningResult: TurnReasoningResult): string {
+  if (reasoningResult.action === 'probe') {
+    return reasoningResult.replyText || 'Расскажи подробнее об этой части.';
+  }
+  if (reasoningResult.spokenFeedback && reasoningResult.spokenFeedback.trim().length > 0) {
+    const trimmed = reasoningResult.spokenFeedback.trim();
+    const words = trimmed.split(/\s+/);
+    if (words.length <= 40) {
+      return trimmed;
+    }
+    return words.slice(0, 38).join(' ') + '... Подробный разбор открыт на экране.';
+  }
+  const score = reasoningResult.score ?? 0;
+  return `Спасибо за ответ! Я зафиксировал результаты и выставил оценку ${score} баллов. Подробный разбор открыт на экране.`;
 }
 
 /**
@@ -328,7 +359,7 @@ router.post('/turn', async (req: Request, res: Response) => {
       : 'Обращайся уважительно на «Вы».';
 
     const activeCodeSection = activeCodeArtifact?.code
-      ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n\`\`\`${activeCodeArtifact.language || 'java'}\n${activeCodeArtifact.code}\n\`\`\`\n`
+      ? `\nАКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.title || 'Сниппет'}):\n${wrapUntrustedContext('active_code_artifact', activeCodeArtifact.code)}\n`
       : '';
 
     const isTutorMode = sessionType === 'tutor';
@@ -346,6 +377,8 @@ router.post('/turn', async (req: Request, res: Response) => {
    -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).`;
 
     const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
+${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+
 ${personaDirectives.roleDirective}
 ${personaDirectives.gradeExpectationDirective}
 ${personaDirectives.evaluationRubricDirective}
@@ -375,10 +408,13 @@ ${decisionRules}
   "action": "evaluate",
   "score": number (0-100),
   "isPassed": boolean (score >= 70),
+  "deductions": [
+    { "criterionId": "string", "reason": "Конкретная фактическая ошибка или пропуск", "penalty": number }
+  ],
   "positivePoints": [список из 1-3 пунктов того, что отвечено верно],
   "missingPoints": [список из 1-3 упущенных нюансов или терминов],
-  "feedback": "Подробный текстовый фидбек на 2-3 предложения",
-  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)",
+  "feedback": "Подробный текстовый фидбек на 2-3 предложения с обоснованием вычетов",
+  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, строго до 35 слов, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)",
   "faangScorecard": {
     "verdict": "STRONG_HIRE | HIRE | LEANING_HIRE | LEANING_NO_HIRE | STRONG_NO_HIRE",
     "calibratedGrade": "L4_MIDDLE | L5_SENIOR | L6_STAFF",
@@ -389,15 +425,22 @@ ${decisionRules}
       "operationalExcellence": number (0-100)
     }
   }
-}`;
+}
+
+МАТЕМАТИЧЕСКАЯ КАЛИБРОВКА БАЛЛОВ (ZERO-PHANTOM-DEDUCTIONS):
+- Стартовая оценка = 100 баллов.
+- Любое снижение балла ОБЯЗАНО быть отражено в массиве "deductions".
+- Сумма штрафов sum(penalty) обязана быть строго равна: 100 - score. Запрещено штрафовать без явного указания причины в deductions.`;
+
+    const wrappedCandidateText = wrapUntrustedContext('candidate_transcript', candidateText);
 
     const conversationTurns = [
       { role: 'system', content: systemPrompt },
       ...history.map((h: any) => ({
         role: h.role === 'ai' ? 'assistant' : 'user',
-        content: h.text
+        content: h.role === 'ai' ? h.text : wrapUntrustedContext('candidate_transcript', h.text)
       })),
-      { role: 'user', content: candidateText }
+      { role: 'user', content: wrappedCandidateText }
     ];
 
     const proxyRes = await fetchWithFullJitterRetry(
@@ -437,13 +480,8 @@ ${decisionRules}
       return res.status(499).end();
     }
 
-    // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3 with retry
-    let textToVoice = '';
-    if (reasoningResult.action === 'probe') {
-      textToVoice = reasoningResult.replyText || 'Расскажи подробнее об этой части.';
-    } else {
-      textToVoice = reasoningResult.spokenFeedback || reasoningResult.feedback || 'Спасибо за ответ! Оценка сформирована.';
-    }
+    // 3. Audio Synthesis Phase: Synthesize response via Gemini TTS v3 with safe clamped speech
+    const textToVoice = getSafeSpokenText(reasoningResult);
 
     const { buffer: ttsBuf } = await synthesizeTTSWithRetry(textToVoice, voice);
     const audioBase64Out = ttsBuf.toString('base64');
@@ -536,6 +574,7 @@ ${decisionRules}
       evaluation: reasoningResult.action === 'evaluate' ? {
         score: reasoningResult.score || 0,
         isPassed: !!reasoningResult.isPassed,
+        deductions: reasoningResult.deductions || [],
         positivePoints: reasoningResult.positivePoints || [],
         missingPoints: reasoningResult.missingPoints || [],
         feedback: reasoningResult.feedback || '',
