@@ -191,3 +191,33 @@ export interface EvaluationResult {
   evaluationTimestamp: string;
   astSignalsSummary: string[];
 }
+
+export interface SandboxExecutionResponse {
+  success: boolean;
+  isCompilable: boolean;
+  compilationTimeMs: number;
+  executionTimeMs: number;
+  totalDurationMs: number;
+  passedCount: number;
+  failedCount: number;
+  testResults: Array<{
+    testName: string;
+    status: 'PASSED' | 'FAILED' | 'ERROR';
+    durationMs: number;
+    failureReason?: string;
+  }>;
+  concurrencyHarness?: {
+    threadsRan: number;
+    deadlockDetected: boolean;
+    raceConditionDetected: boolean;
+  };
+  syntaxErrors?: Array<{ lineNumber: number; errorMessage: string }>;
+  securityViolations?: Array<{
+    rule: string;
+    file: string;
+    lineNumber: number;
+    snippet: string;
+    message: string;
+  }>;
+  error?: string;
+}

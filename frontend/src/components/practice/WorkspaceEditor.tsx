@@ -26,8 +26,7 @@ import { SandboxTestConsole, SandboxExecutionResponse } from './SandboxTestConso
 import { MutationExecutionResponse } from '../../types/practice';
 import { evaluateAstRules } from '../../utils/astRules';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { CodeArtifactTimeline } from '../CodeArtifactTimeline';
-import { CodeViewer } from '../CodeViewer';
+import { usePracticeVoice } from './tutor/PracticeVoiceContext';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -73,11 +72,13 @@ export const WorkspaceEditor: React.FC = () => {
     showToast,
     academyBreadcrumbContext,
     toggleAcademyStepProgress,
-    activeWhiteboardState,
-    codeRevisions
+    codeRevisions,
+    setLatestSandboxResult,
+    setLatestMutationResult
   } = useAppStore();
 
-  const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
+  const { isConnected: isVoiceConnected, sendTextMessage } = usePracticeVoice();
+
   const [isDiffOpen, setIsDiffOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -258,6 +259,15 @@ export const WorkspaceEditor: React.FC = () => {
 
         const data: MutationExecutionResponse = await res.json();
         setMutationResult(data);
+        setLatestMutationResult(data);
+
+        if (isVoiceConnected) {
+          if (data.baselinePassed && data.passedThreshold) {
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил мутационные тесты. Все мутанты уничтожены (${data.killedCount}/${data.totalMutants}), мутационный скор ${data.mutationScore.toFixed(0)}%.`);
+          } else {
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил мутационные тесты. Мутационный скор ${data.mutationScore.toFixed(0)}%. Выжило мутантов: ${data.survivedCount} из ${data.totalMutants}.`);
+          }
+        }
 
         if (data.passedThreshold) {
           showToast({
@@ -292,6 +302,19 @@ export const WorkspaceEditor: React.FC = () => {
 
         const data: SandboxExecutionResponse = await res.json();
         setSandboxResult(data);
+        setLatestSandboxResult(data);
+
+        if (isVoiceConnected) {
+          if (data.success) {
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил тесты. Все ${data.passedCount} тестов успешно пройдены за ${data.executionTimeMs}мс.`);
+          } else if (!data.isCompilable) {
+            const errDetails = data.syntaxErrors?.map((e) => `строка ${e.lineNumber}: ${e.errorMessage}`).join('; ') || data.error || 'Ошибка компиляции';
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Ошибка компиляции кода кандидата: ${errDetails}`);
+          } else {
+            const failedDetails = data.testResults.filter((t) => t.status !== 'PASSED').map((t) => `${t.testName}: ${t.failureReason || 'провален'}`).join('; ');
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Тесты кандидата завершились с ошибками. Провалено ${data.failedCount} из ${data.testResults.length} тестов. Ошибки: ${failedDetails}`);
+          }
+        }
 
         if (data.success) {
           showToast({
@@ -333,14 +356,13 @@ export const WorkspaceEditor: React.FC = () => {
       <div className="flex items-center justify-between bg-slate-900 border-b border-slate-800 px-3 py-1.5 gap-2 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x py-0.5">
           {practiceWorkspaceFiles.map((file, idx) => {
-            const isActive = !isWhiteboardActive && activeWorkspaceFileIndex === idx;
+            const isActive = activeWorkspaceFileIndex === idx;
             const fileName = file.path.split('/').pop() || file.path;
 
             return (
               <button
                 key={file.path}
                 onClick={() => {
-                  setIsWhiteboardActive(false);
                   setActiveWorkspaceFileIndex(idx);
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
@@ -359,38 +381,10 @@ export const WorkspaceEditor: React.FC = () => {
               </button>
             );
           })}
-
-          {/* AI Whiteboard First-Class Tab */}
-          <button
-            onClick={() => setIsWhiteboardActive(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer shrink-0 min-h-[36px] border ${
-              isWhiteboardActive
-                ? 'bg-gradient-to-r from-violet-900/60 to-purple-900/60 text-purple-200 border-purple-400/60 font-bold shadow-2xs'
-                : 'text-purple-300/80 hover:text-purple-100 hover:bg-purple-950/30 border-purple-500/20'
-            }`}
-            title="Интерактивная доска ИИ-напарника"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-            <span>Доска ИИ</span>
-            {activeWhiteboardState?.code && (
-              <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
-            )}
-          </button>
         </div>
 
         {/* Timer & Status in Header */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
-          {/* Compass Quick Button */}
-          <button
-            onClick={() => toggleCompass()}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-pastel-accentRose border border-pastel-accentRose/30 text-[11px] font-bold transition cursor-pointer shadow-2xs"
-            title="Компас (Ctrl + /)"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span className="hidden xl:inline">Компас</span>
-            <kbd className="hidden lg:inline text-[9px] px-1 rounded bg-slate-900 text-slate-400 font-mono">Ctrl+/</kbd>
-          </button>
-
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
             <Clock className="w-3 h-3 text-pastel-accentRose animate-pulse" />
             <span>{formatTime(practiceElapsedSeconds)}</span>
@@ -404,96 +398,16 @@ export const WorkspaceEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Workspace Body: AI Whiteboard or CodeMirror 6 Editor */}
-      {isWhiteboardActive ? (
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#121622] p-4 text-slate-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet flex items-center justify-center text-white shadow-xs">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-xs text-white">
-                    {activeWhiteboardState?.title || 'Интерактивная доска ИИ'}
-                  </h3>
-                  {activeWhiteboardState?.action && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pastel-accentViolet/20 text-pastel-accentViolet border border-pastel-accentViolet/30">
-                      {activeWhiteboardState.action === 'patch' ? '🔧 Diff / Патч' : activeWhiteboardState.action === 'highlight' ? '🔍 Разбор строк' : '✨ Артефакт ИИ'}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  {activeWhiteboardState?.language ? activeWhiteboardState.language.toUpperCase() : 'JAVA 21'} • Демонстрационный код и подсказки ИИ-тьютора
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {activeWhiteboardState?.code && (
-                <button
-                  onClick={() => {
-                    if (activeWhiteboardState.code) {
-                      updateWorkspaceFileContent(activeWorkspaceFileIndex, activeWhiteboardState.code);
-                      setIsWhiteboardActive(false);
-                      showToast({
-                        type: 'success',
-                        title: 'Код перенесён',
-                        message: 'Код с доски вставлен в активный файл редактора'
-                      });
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-pastel-rose text-pastel-accentRoseText hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/30 transition cursor-pointer shadow-2xs"
-                  title="Заменить содержимое активного файла кодом с доски"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Вставить в активный файл</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {activeWhiteboardState?.explanation && (
-            <div className="mb-3 px-3 py-2 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-slate-300 shrink-0">
-              <p className="text-[11px] leading-relaxed">{activeWhiteboardState.explanation}</p>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {codeRevisions && codeRevisions.length > 0 ? (
-              <CodeArtifactTimeline showDiffToggle={true} />
-            ) : activeWhiteboardState?.code ? (
-              <CodeViewer code={activeWhiteboardState.code} language={activeWhiteboardState.language || 'java'} />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
-                <div className="w-12 h-12 rounded-2xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-3">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h4 className="font-bold text-sm text-slate-200 mb-1">Доска пока пуста</h4>
-                <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-4">
-                  Попросите ИИ-напарника голосом или в чате показать сигнатуру класса, пример реализации паттерна или структуру тестов.
-                </p>
-                <button
-                  onClick={() => setIsWhiteboardActive(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer border border-slate-700"
-                >
-                  ← Вернуться к коду
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */
-        <div 
-          className="flex-1 flex overflow-hidden relative font-mono text-xs"
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-              e.preventDefault();
-              void handleRunSandbox();
-            }
-          }}
-        >
+      {/* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */}
+      <div 
+        className="flex-1 flex overflow-hidden relative font-mono text-xs"
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            void handleRunSandbox();
+          }
+        }}
+      >
           <CodeMirror
             value={currentFile.content}
             height="100%"
@@ -540,7 +454,6 @@ export const WorkspaceEditor: React.FC = () => {
             </div>
           )}
         </div>
-      )}
 
       {/* Slide-Up In-Memory Sandbox Test Console (< 80ms) */}
       <SandboxTestConsole

@@ -40,7 +40,10 @@ export const AmbientVoicePill: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
         transition={{ duration: 0.2 }}
-        className="fixed bottom-4 right-4 z-40 flex items-center gap-2.5 p-2 pr-3 bg-slate-900/95 backdrop-blur-xl border border-pastel-accentRose/40 shadow-2xl rounded-2xl text-slate-100 ring-1 ring-white/10"
+        drag
+        dragConstraints={{ left: -350, right: 350, top: -450, bottom: 20 }}
+        dragElastic={0.08}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 p-2 pr-3 bg-slate-900/95 backdrop-blur-xl border border-pastel-accentRose/40 shadow-2xl rounded-2xl text-slate-100 ring-1 ring-white/10 select-none cursor-grab active:cursor-grabbing"
       >
         {/* Dynamic Glowing Status Circle Button */}
         <button

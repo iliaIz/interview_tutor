@@ -4,6 +4,7 @@ import { useAppStore } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
+import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -19,6 +20,7 @@ interface PracticeVoiceContextType {
   disconnectSession: () => void;
   toggleMic: () => void;
   finishManualTurn: () => void;
+  sendTextMessage: (text: string, displayText?: string) => void;
   playoutManagerRef: React.MutableRefObject<AudioPlayoutManager | null>;
   startPracticeSession: () => Promise<void>;
   handleCentralButtonClick: () => void;
@@ -27,7 +29,12 @@ interface PracticeVoiceContextType {
 const PracticeVoiceContext = createContext<PracticeVoiceContextType | null>(null);
 
 export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const {
+    activePracticeChallenge,
+    practiceWorkspaceFiles,
+    activeWorkspaceFileIndex,
+    activeTransactionLabScenarioId
+  } = useAppStore();
   const { config: interviewConfig } = useInterviewConfig();
   const { persona: tutorPersona, setModality } = usePracticeTutorStore();
 
@@ -43,6 +50,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     disconnectSession,
     toggleMic,
     finishManualTurn,
+    sendTextMessage,
     playoutManagerRef
   } = session;
 
@@ -51,38 +59,59 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
       const turnMode = interviewConfig.turnMode || 'auto';
 
-      const category = (activePracticeChallenge?.category || '').toLowerCase();
-      const track = (activePracticeChallenge?.track || '').toLowerCase();
-      const title = (activePracticeChallenge?.title || '').toLowerCase();
-
       let topic = 'Юнит-тестирование и мутации Java 21';
       let domain = 'testing';
-      if (
-        category.includes('lld') ||
-        track.includes('lld') ||
-        title.includes('rate limiter') ||
-        title.includes('matching engine') ||
-        title.includes('parking lot') ||
-        title.includes('cache') ||
-        category.includes('machine coding')
-      ) {
-        domain = 'lld';
-        topic = 'LLD архитектура и чистое проектирование на Java 21';
-      } else if (category.includes('transaction') || track.includes('transaction')) {
+      let challengeCategory = activePracticeChallenge?.category || domain;
+      let challengeTrack = activePracticeChallenge?.track || domain;
+      let bugTitle = activePracticeChallenge?.title || 'Практическая задача';
+      let bugExplanation = activePracticeChallenge?.instructionsMarkdown?.slice(0, 800) || '';
+      let codeSnippet = currentFile?.content || '';
+
+      if (activeTransactionLabScenarioId) {
+        const txScenario =
+          TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) ||
+          TRANSACTION_LAB_SCENARIOS[0];
         domain = 'transactions';
-        topic = 'Транзакции Spring Boot и аномалии БД';
+        topic = 'Транзакции Spring Boot, распространение и аномалии БД';
+        challengeCategory = 'Spring Transactions';
+        challengeTrack = 'spring_transactions';
+        bugTitle = txScenario.title;
+        bugExplanation = txScenario.problemStatement?.slice(0, 800) || '';
+        codeSnippet = txScenario.services
+          .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
+          .join('\n\n');
+      } else {
+        const category = (activePracticeChallenge?.category || '').toLowerCase();
+        const track = (activePracticeChallenge?.track || '').toLowerCase();
+        const title = (activePracticeChallenge?.title || '').toLowerCase();
+
+        if (
+          category.includes('lld') ||
+          track.includes('lld') ||
+          title.includes('rate limiter') ||
+          title.includes('matching engine') ||
+          title.includes('parking lot') ||
+          title.includes('cache') ||
+          category.includes('machine coding')
+        ) {
+          domain = 'lld';
+          topic = 'LLD архитектура и чистое проектирование на Java 21';
+        } else if (category.includes('transaction') || track.includes('transaction')) {
+          domain = 'transactions';
+          topic = 'Транзакции Spring Boot и аномалии БД';
+        }
       }
 
       await startSession({
         sessionType: 'tutor',
         tutorMode: 'practice_pair',
         topic,
-        challengeCategory: activePracticeChallenge?.category || domain,
-        challengeTrack: activePracticeChallenge?.track || domain,
+        challengeCategory,
+        challengeTrack,
         challengeDomain: domain,
-        bugTitle: activePracticeChallenge?.title || 'Практическая задача',
-        bugExplanation: activePracticeChallenge?.instructionsMarkdown?.slice(0, 800) || '',
-        codeSnippet: currentFile?.content || '',
+        bugTitle,
+        bugExplanation,
+        codeSnippet,
         voice: interviewConfig.voice || 'Kore',
         userGender: interviewConfig.userGender || 'female',
         turnMode,
@@ -99,6 +128,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     activePracticeChallenge,
     practiceWorkspaceFiles,
     activeWorkspaceFileIndex,
+    activeTransactionLabScenarioId,
     interviewConfig,
     tutorPersona,
     startSession,
@@ -119,6 +149,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     <PracticeVoiceContext.Provider
       value={{
         ...session,
+        sendTextMessage,
         startPracticeSession,
         handleCentralButtonClick
       }}
@@ -135,3 +166,4 @@ export const usePracticeVoice = (): PracticeVoiceContextType => {
   }
   return ctx;
 };
+

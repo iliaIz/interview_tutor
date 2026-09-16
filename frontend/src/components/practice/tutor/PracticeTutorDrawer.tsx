@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePracticeTutorStore, TutorPersona } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { PracticeVoiceHUD } from './PracticeVoiceHUD';
+import { PracticeVoiceErrorBoundary } from './PracticeVoiceErrorBoundary';
+import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
 import {
   X,
   MessageSquare,
@@ -65,7 +67,11 @@ export const PracticeTutorDrawer: React.FC = () => {
   const {
     activePracticeChallenge,
     practiceWorkspaceFiles,
-    activeWorkspaceFileIndex
+    activeWorkspaceFileIndex,
+    activeTransactionLabScenarioId,
+    latestSandboxResult,
+    latestMutationResult,
+    latestTxEvaluation
   } = useAppStore();
 
   const [inputVal, setInputVal] = useState('');
@@ -86,7 +92,13 @@ export const PracticeTutorDrawer: React.FC = () => {
   const title = (activePracticeChallenge?.title || '').toLowerCase();
 
   let currentDomain = 'testing';
-  if (
+  let txScenario = null;
+  if (activeTransactionLabScenarioId) {
+    currentDomain = 'transactions';
+    txScenario =
+      TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) ||
+      TRANSACTION_LAB_SCENARIOS[0];
+  } else if (
     category.includes('lld') ||
     track.includes('lld') ||
     category.includes('machine coding') ||
@@ -101,14 +113,95 @@ export const PracticeTutorDrawer: React.FC = () => {
     currentDomain = 'transactions';
   }
 
+  // Format real-time compiler errors from latest test execution
+  let compilerError: string | undefined = undefined;
+  if (latestSandboxResult && !latestSandboxResult.isCompilable) {
+    if (latestSandboxResult.syntaxErrors && latestSandboxResult.syntaxErrors.length > 0) {
+      compilerError = latestSandboxResult.syntaxErrors
+        .map((e) => `Строка ${e.lineNumber}: ${e.errorMessage}`)
+        .join('\n');
+    } else if (latestSandboxResult.error) {
+      compilerError = latestSandboxResult.error;
+    }
+  }
+
+  // Format test failures, concurrency hazards, AST violations, and transaction violations
+  const failureParts: string[] = [];
+  if (latestSandboxResult) {
+    const failedTests = latestSandboxResult.testResults?.filter((t) => t.status !== 'PASSED') || [];
+    if (failedTests.length > 0) {
+      failureParts.push(
+        `Упавшие тесты (${failedTests.length}/${latestSandboxResult.testResults.length}):\n` +
+          failedTests.map((t) => `• [${t.testName}] ${t.failureReason || 'провален'}`).join('\n')
+      );
+    }
+    if (latestSandboxResult.concurrencyHarness?.deadlockDetected) {
+      failureParts.push('⚠️ КРИТИЧЕСКАЯ ОШИБКА: Обнаружен взаимный дедлок потоков (Deadlock Detected).');
+    }
+    if (latestSandboxResult.concurrencyHarness?.raceConditionDetected) {
+      failureParts.push('⚠️ ВНИМАНИЕ: Обнаружено состояние гонки данных (Race Condition Detected).');
+    }
+  }
+
+  if (latestMutationResult) {
+    if (!latestMutationResult.baselinePassed) {
+      failureParts.push(`⚠️ Baseline упал: ${latestMutationResult.error || 'Тесты не прошли даже на исходном сервисе'}`);
+    } else if (!latestMutationResult.passedThreshold) {
+      failureParts.push(
+        `⚠️ Мутации выжили: скор ${latestMutationResult.mutationScore.toFixed(0)}% (требуется >= ${latestMutationResult.requiredScore}%). Выжило мутантов: ${latestMutationResult.survivedCount} из ${latestMutationResult.totalMutants}.`
+      );
+    }
+  }
+
+  if (latestTxEvaluation && !latestTxEvaluation.isPassed) {
+    failureParts.push(
+      `⚠️ Архитектурные дефекты транзакций (Оценка: ${latestTxEvaluation.overallScore}/100):\n${latestTxEvaluation.summary}`
+    );
+    const methodViolations = Object.values(latestTxEvaluation.methodResults || {}).flatMap((m) =>
+      m.violations.map((v) => `• Метод ${m.methodId}: ${v}`)
+    );
+    if (methodViolations.length > 0) {
+      failureParts.push(methodViolations.join('\n'));
+    }
+  }
+
+  const testFailureMessage = failureParts.length > 0 ? failureParts.join('\n\n') : undefined;
+
   const currentContext = {
-    kataId: activePracticeChallenge?.id || 'kata',
-    kataTitle: activePracticeChallenge?.title || (currentDomain === 'lld' ? 'LLD Architecture Challenge' : 'Testing Kata'),
-    kataCategory: activePracticeChallenge?.category || (currentDomain === 'lld' ? 'Low-Level Design (LLD)' : currentDomain === 'transactions' ? 'Transactions' : 'Testing & Mutation'),
-    kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
-    activeFilePath: currentFile?.path || (currentDomain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
-    activeFileContent: currentFile?.content || '',
-    survivingMutants: activePracticeChallenge?.mutants
+    kataId: txScenario?.id || activePracticeChallenge?.id || 'kata',
+    kataTitle:
+      txScenario?.title ||
+      activePracticeChallenge?.title ||
+      (currentDomain === 'lld'
+        ? 'LLD Architecture Challenge'
+        : currentDomain === 'transactions'
+        ? 'Spring Transactions Challenge'
+        : 'Testing Kata'),
+    kataCategory:
+      txScenario
+        ? 'Spring Transactions'
+        : activePracticeChallenge?.category ||
+          (currentDomain === 'lld'
+            ? 'Low-Level Design (LLD)'
+            : currentDomain === 'transactions'
+            ? 'Transactions'
+            : 'Testing & Mutation'),
+    kataInstructions:
+      txScenario?.problemStatement || activePracticeChallenge?.instructionsMarkdown || '',
+    activeFilePath:
+      txScenario
+        ? `${txScenario.services[0]?.className}.java`
+        : currentFile?.path ||
+          (currentDomain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
+    activeFileContent:
+      txScenario
+        ? txScenario.services
+            .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
+            .join('\n\n')
+        : currentFile?.content || '',
+    survivingMutants: activePracticeChallenge?.mutants,
+    compilerError,
+    testFailureMessage
   };
 
   const handleSend = () => {
@@ -355,7 +448,9 @@ export const PracticeTutorDrawer: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
         {modality === 'voice' && (
           <div className="mb-4">
-            <PracticeVoiceHUD />
+            <PracticeVoiceErrorBoundary onFallbackToText={() => setModality('text')}>
+              <PracticeVoiceHUD />
+            </PracticeVoiceErrorBoundary>
           </div>
         )}
 

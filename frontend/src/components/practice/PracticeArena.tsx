@@ -5,7 +5,8 @@ import { ChallengeSpecPanel } from './ChallengeSpecPanel';
 import { WorkspaceEditor } from './WorkspaceEditor';
 import { PracticeEvaluationModal } from './PracticeEvaluationModal';
 import { TransactionLabArena } from './TransactionLabArena';
-import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2, Compass, Bot } from 'lucide-react';
+import { WhiteboardDrawer } from '../WhiteboardDrawer';
+import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2, Compass, Bot, Sparkles } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { PracticeCompassSheet } from './compass/PracticeCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
@@ -21,7 +22,10 @@ export const PracticeArena: React.FC = () => {
     academyBreadcrumbContext,
     returnToAcademyStep,
     activeTransactionLabScenarioId,
-    closeTransactionLab
+    closeTransactionLab,
+    activeWhiteboardState,
+    isWhiteboardOpen,
+    setIsWhiteboardOpen
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
@@ -30,12 +34,14 @@ export const PracticeArena: React.FC = () => {
 
   if (activeTransactionLabScenarioId !== null) {
     return (
-      <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
-        <TransactionLabArena
-          initialScenarioId={activeTransactionLabScenarioId}
-          onBack={closeTransactionLab}
-        />
-      </div>
+      <PracticeVoiceProvider>
+        <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
+          <TransactionLabArena
+            initialScenarioId={activeTransactionLabScenarioId}
+            onBack={closeTransactionLab}
+          />
+        </div>
+      </PracticeVoiceProvider>
     );
   }
 
@@ -109,7 +115,7 @@ export const PracticeArena: React.FC = () => {
 
           {/* Right: Score, Status Badge & Desktop Focus Mode */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Compass & AI-Tutor Action Buttons */}
+            {/* Compass Action Button */}
             <button
               onClick={() => toggleCompass()}
               title="Компас Архитектуры & Тестирования (Ctrl + /)"
@@ -119,6 +125,24 @@ export const PracticeArena: React.FC = () => {
               <span className="hidden sm:inline">Компас</span>
             </button>
 
+            {/* AI Whiteboard Action Button */}
+            <button
+              onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+              title="Интерактивная доска ИИ (код, диаграммы, diff)"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+                isWhiteboardOpen
+                  ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-purple-600'
+                  : 'bg-white text-slate-700 border-pastel-border hover:border-purple-400'
+              }`}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isWhiteboardOpen ? 'text-white' : 'text-purple-600'}`} />
+              <span className="hidden sm:inline">Доска ИИ</span>
+              {activeWhiteboardState?.code && (
+                <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
+              )}
+            </button>
+
+            {/* AI-Tutor (Co-Pilot) Action Button */}
             <button
               onClick={() => toggleTutorDrawer()}
               title="AI-Напарник (Парное программирование & подсказки)"
@@ -191,6 +215,13 @@ export const PracticeArena: React.FC = () => {
         {/* Domain-Adaptive Practice Compass Overlay */}
         <PracticeCompassSheet />
 
+        {/* Interactive AI Whiteboard Drawer */}
+        <WhiteboardDrawer
+          isOpen={isWhiteboardOpen}
+          onClose={() => setIsWhiteboardOpen(false)}
+          state={activeWhiteboardState}
+        />
+
         {/* Multimodal AI Pair-Programming Sidecar Drawer */}
         <PracticeTutorDrawer />
 
@@ -200,3 +231,4 @@ export const PracticeArena: React.FC = () => {
     </PracticeVoiceProvider>
   );
 };
+

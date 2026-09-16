@@ -35,6 +35,8 @@ import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { WhiteboardDrawer } from '../WhiteboardDrawer';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
+import { usePracticeVoice } from './tutor/PracticeVoiceContext';
+import { AmbientVoicePill } from './tutor/AmbientVoicePill';
 
 interface TransactionLabArenaProps {
   initialScenarioId?: string;
@@ -52,8 +54,11 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     toggleAcademyStepProgress,
     activeWhiteboardState,
     isWhiteboardOpen,
-    setIsWhiteboardOpen
+    setIsWhiteboardOpen,
+    setLatestTxEvaluation
   } = useAppStore();
+
+  const { isConnected: isVoiceConnected, sendTextMessage } = usePracticeVoice();
 
   // Practice Tutor Store (Socratic AI Tutor & Compass)
   const {
@@ -144,6 +149,15 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   const handleRunEvaluation = () => {
     const result = TransactionValidator.evaluateScenario(scenario, userConfigs, threads);
     setEvalResult(result);
+    setLatestTxEvaluation(result);
+
+    if (isVoiceConnected) {
+      if (result.isPassed) {
+        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Архитектурная проверка транзакций успешно пройдена (100/100).`);
+      } else {
+        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Обнаружены архитектурные дефекты транзакций (${result.overallScore}/100): ${result.summary}`);
+      }
+    }
 
     if (result.isPassed) {
       // Async record submission to backend SQLite
@@ -204,55 +218,55 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-br from-slate-50 via-pastel-bg/30 to-violet-50/20 overflow-y-auto relative">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 px-4 sm:px-6 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shadow-2xs">
-        <div className="flex items-center gap-3">
+      <header className="h-12 border-b border-pastel-border/80 bg-white/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-30 shadow-2xs gap-2 sticky top-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={onBack}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
+            className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2 py-1.5 rounded-xl hover:bg-pastel-bg transition cursor-pointer shrink-0"
             title="Назад к практике"
           >
             <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Назад</span>
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${getLevelBadgeClass(scenario.level)}`}>
-                {scenario.level || 'L0'} &bull; {scenario.difficulty}
-              </span>
-              <span className="text-xs text-slate-400">/</span>
-              <span className="text-xs font-semibold text-slate-500">{scenario.domain}</span>
-            </div>
-            <h1 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+
+          <div className="h-4 w-px bg-pastel-border shrink-0" />
+
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${getLevelBadgeClass(scenario.level)} shrink-0`}>
+              {scenario.level || 'L0'}
+            </span>
+            <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-xs">
               {scenario.title}
-            </h1>
+            </span>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Compass Quick Button */}
           <button
             type="button"
             onClick={() => toggleCompass()}
-            className="py-2 px-3 rounded-xl border border-violet-200 bg-violet-50/80 hover:bg-violet-100 text-violet-700 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-2xs"
             title="Transaction Compass: 5 Золотых Заповедей (Ctrl + /)"
           >
-            <Compass className="w-3.5 h-3.5 text-violet-600 animate-spin-slow" />
-            <span className="hidden sm:inline">Transaction Compass</span>
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Компас</span>
           </button>
 
           {/* AI Whiteboard Button */}
           <button
             type="button"
             onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-            className={`py-2 px-3 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
               isWhiteboardOpen
-                ? 'bg-purple-600 text-white border-purple-700'
-                : 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700'
+                ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-purple-600'
+                : 'bg-white text-slate-700 border-pastel-border hover:border-purple-400'
             }`}
-            title="Открыть интерактивную доску ИИ"
+            title="Интерактивная доска ИИ"
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <Sparkles className={`w-3.5 h-3.5 ${isWhiteboardOpen ? 'text-white' : 'text-purple-600'}`} />
             <span className="hidden sm:inline">Доска ИИ</span>
             {activeWhiteboardState?.code && (
               <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
@@ -263,25 +277,25 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
           <button
             type="button"
             onClick={() => toggleTutorDrawer()}
-            className={`py-2 px-3 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
               isTutorOpen
-                ? 'bg-rose-500 text-white border-rose-600'
-                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
+                : 'bg-white text-slate-700 border-pastel-border hover:border-pastel-accentRose/50'
             }`}
-            title="Открыть диалог с Socratic AI-тьютором"
+            title="AI-Напарник (Парное проектирование транзакций)"
           >
             <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
-            <span className="hidden sm:inline">ИИ-Тьютор</span>
+            <span className="hidden sm:inline">AI-Напарник</span>
           </button>
 
           {/* AST Run Button */}
           <button
             type="button"
             onClick={handleRunEvaluation}
-            className="py-2 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Проверить архитектуру (AST)</span>
+            <span>Проверить AST</span>
           </button>
 
           {onStartVoiceDefense && (
@@ -291,11 +305,11 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
                 const q = scenario.probingQuestions[0]?.question || 'Защитите выбранные параметры транзакций.';
                 onStartVoiceDefense(scenario, q);
               }}
-              className="py-2 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold text-xs shadow-2xs transition cursor-pointer active:scale-95"
               title="Запустить голосовую защиту с ИИ-экзаменатором"
             >
               <Volume2 className="w-3.5 h-3.5" />
-              <span>Защитить с ИИ</span>
+              <span className="hidden md:inline">Защитить с ИИ</span>
             </button>
           )}
         </div>
@@ -561,6 +575,9 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         onClose={() => setIsWhiteboardOpen(false)}
         state={activeWhiteboardState}
       />
+
+      {/* Floating Ambient Voice Pill for tactile control when drawer is closed */}
+      <AmbientVoicePill />
     </div>
   );
 };

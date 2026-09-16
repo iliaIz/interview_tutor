@@ -1,10 +1,22 @@
 import React from 'react';
 import { useAppStore } from '../../../store/useAppStore';
+import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { TestingCompassSheet } from './TestingCompassSheet';
 import { LldCompassSheet } from './LldCompassSheet';
+import { TransactionCompassSheet } from './TransactionCompassSheet';
 
 export const PracticeCompassSheet: React.FC = () => {
-  const { activePracticeChallenge } = useAppStore();
+  const { activePracticeChallenge, activeTransactionLabScenarioId } = useAppStore();
+  const { isCompassOpen, toggleCompass } = usePracticeTutorStore();
+
+  if (activeTransactionLabScenarioId) {
+    return (
+      <TransactionCompassSheet
+        isOpen={isCompassOpen}
+        onClose={() => toggleCompass(false)}
+      />
+    );
+  }
 
   const category = (activePracticeChallenge?.category || '').toLowerCase();
   const track = (activePracticeChallenge?.track || '').toLowerCase();
@@ -24,5 +36,15 @@ export const PracticeCompassSheet: React.FC = () => {
     return <LldCompassSheet />;
   }
 
+  if (category.includes('transaction') || track.includes('transaction')) {
+    return (
+      <TransactionCompassSheet
+        isOpen={isCompassOpen}
+        onClose={() => toggleCompass(false)}
+      />
+    );
+  }
+
   return <TestingCompassSheet />;
 };
+

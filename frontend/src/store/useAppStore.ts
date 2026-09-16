@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CodingChallenge, FileNode, EvaluationResult } from '../types/practice';
+import { CodingChallenge, FileNode, EvaluationResult, SandboxExecutionResponse, MutationExecutionResponse } from '../types/practice';
+import { ScenarioEvaluationResult } from '../types/transactionLab';
 import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
 
 export interface Question {
@@ -214,6 +215,14 @@ interface AppState {
   isPracticeEvaluating: boolean;
   activePracticeReport: EvaluationResult | null;
   practiceElapsedSeconds: number;
+
+  // Real-Time Practice Execution Results (Sandbox, Mutations, Transactions)
+  latestSandboxResult: SandboxExecutionResponse | null;
+  latestMutationResult: MutationExecutionResponse | null;
+  latestTxEvaluation: ScenarioEvaluationResult | null;
+  setLatestSandboxResult: (res: SandboxExecutionResponse | null) => void;
+  setLatestMutationResult: (res: MutationExecutionResponse | null) => void;
+  setLatestTxEvaluation: (res: ScenarioEvaluationResult | null) => void;
 
   openPracticeChallenge: (challenge: CodingChallenge, draftFiles?: FileNode[]) => void;
   closePracticeChallenge: () => void;
@@ -711,6 +720,14 @@ export const useAppStore = create<AppState>()(
       activePracticeReport: null,
       practiceElapsedSeconds: 0,
 
+      // Practice Runtime Execution Results
+      latestSandboxResult: null,
+      latestMutationResult: null,
+      latestTxEvaluation: null,
+      setLatestSandboxResult: (res) => set({ latestSandboxResult: res }),
+      setLatestMutationResult: (res) => set({ latestMutationResult: res }),
+      setLatestTxEvaluation: (res) => set({ latestTxEvaluation: res }),
+
       openPracticeChallenge: (challenge, draftFiles) => {
         const filesToUse = (draftFiles && draftFiles.length > 0)
           ? draftFiles
@@ -725,6 +742,9 @@ export const useAppStore = create<AppState>()(
           activeWorkspaceFileIndex: mainIndex >= 0 ? mainIndex : 0,
           activePracticePhase: 1,
           activePracticeReport: null,
+          latestSandboxResult: null,
+          latestMutationResult: null,
+          latestTxEvaluation: null,
           isPracticeEvaluating: false,
           practiceElapsedSeconds: 0
         });
@@ -735,16 +755,23 @@ export const useAppStore = create<AppState>()(
         activePracticeChallenge: null,
         practiceWorkspaceFiles: [],
         activeWorkspaceFileIndex: 0,
-        activePracticeReport: null
+        activePracticeReport: null,
+        latestSandboxResult: null,
+        latestMutationResult: null,
+        latestTxEvaluation: null
       }),
 
       // Spring Transaction Playground (@Transactional Lab)
       activeTransactionLabScenarioId: null,
       openTransactionLab: (scenarioId) => set({
         activeTransactionLabScenarioId: scenarioId || 'self_invocation_bypass',
-        currentStudioTab: 'practice'
+        currentStudioTab: 'practice',
+        latestTxEvaluation: null
       }),
-      closeTransactionLab: () => set({ activeTransactionLabScenarioId: null }),
+      closeTransactionLab: () => set({
+        activeTransactionLabScenarioId: null,
+        latestTxEvaluation: null
+      }),
 
       updateWorkspaceFileContent: (index, content) => set((state) => {
         const updated = [...state.practiceWorkspaceFiles];
