@@ -2517,13 +2517,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           // Continuous Smooth Realtime Streaming (SOTA 2026 Invariant):
           // Stream standard 100ms PCM chunks while candidate is recording and AI is not speaking.
           // In 'manual' mode, turnComplete is withheld until candidate clicks "Передать ответ ➔".
+          const isInteractionIdle = !interactionStatusRef.current || interactionStatusRef.current === 'IDLE';
           const shouldTransmit =
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
             !isAiCurrentlySpeaking &&
+            !isThinkingRef.current &&
             !isReverbCooldownActive &&
-            !isSessionPausedRef.current;
+            !isSessionPausedRef.current &&
+            isInteractionIdle;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const base64Audio = uint8ArrayToBase64(new Uint8Array(pcmBuffer));

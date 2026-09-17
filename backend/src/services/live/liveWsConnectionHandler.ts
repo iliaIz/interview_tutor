@@ -288,7 +288,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
 
   if (isThinkingModel) {
     generationConfig.thinkingConfig = {
-      thinkingLevel: 'MEDIUM',
+      thinkingLevel: 'LOW',
       includeThoughts: true
     };
   }

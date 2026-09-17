@@ -7,7 +7,7 @@
  */
 
 import { PromptRegistry, getPersonaPromptDirectives } from '../prompts';
-import { buildSystemPrompt } from '../services/live/livePromptBuilder';
+import { buildSystemPrompt, LIVE_TOOL_CAPABILITY_DIRECTIVES } from '../services/live/livePromptBuilder';
 import { getSafeSpokenText, TurnReasoningResult } from '../routes/interviewTurn';
 import { envConfig } from '../config/env';
 import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
@@ -376,5 +376,56 @@ assert(
   'Thinking model tools normalization enforces behavior: NON_BLOCKING on all function declarations'
 );
 
-console.log('\n🎉 All 28+ automated prompt, anti-sycophancy, sandboxing, Extended Thinking invariants, and score calibration assertions passed successfully!');
+// 12. Check Tool Capability Invariants & Negative Sandboxing in Live Prompts
+assert(
+  LIVE_TOOL_CAPABILITY_DIRECTIVES.includes('update_whiteboard'),
+  'LIVE_TOOL_CAPABILITY_DIRECTIVES specifies update_whiteboard'
+);
+assert(
+  LIVE_TOOL_CAPABILITY_DIRECTIVES.includes('НЕТ ДОСТУПА К СЕРВЕРУ, BASH ИЛИ RUNTIME'),
+  'LIVE_TOOL_CAPABILITY_DIRECTIVES forbids server, bash and runtime execution'
+);
+assert(
+  LIVE_TOOL_CAPABILITY_DIRECTIVES.includes('НЕТ ДОСТУПА В ИНТЕРНЕТ'),
+  'LIVE_TOOL_CAPABILITY_DIRECTIVES explicitly defines no internet in live voice mode'
+);
+assert(
+  LIVE_TOOL_CAPABILITY_DIRECTIVES.includes('КАТЕГОРИЧЕСКИЙ ЗАПРЕТ ДЕЛЕГИРОВАНИЯ И ВЫЗОВА ФАНТОМНЫХ ТУЛОВ'),
+  'LIVE_TOOL_CAPABILITY_DIRECTIVES strictly forbids phantom tool delegation'
+);
+
+const deepDivePrompt = buildSystemPrompt({
+  sessionType: 'tutor',
+  tutorMode: 'deep_dive',
+  topic: 'JVM Internals',
+  questionText: 'How does JMM handle volatile memory barriers?',
+  referenceAnswer: 'LoadLoad, LoadStore, StoreStore, StoreLoad barriers.'
+});
+assert(
+  deepDivePrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
+  'Deep-dive tutor prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
+);
+
+const freeChatPrompt = buildSystemPrompt({
+  sessionType: 'tutor',
+  tutorMode: 'free_chat',
+  topic: 'Spring Framework',
+  questionText: 'Explain @Transactional proxy mechanisms'
+});
+assert(
+  freeChatPrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
+  'Free chat tutor prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
+);
+
+const interviewPrompt = buildSystemPrompt({
+  sessionType: 'interview',
+  topic: 'Java Concurrency',
+  questionText: 'Explain volatile semantics'
+});
+assert(
+  interviewPrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
+  'Interview prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
+);
+
+console.log('\n🎉 All 35+ automated prompt, anti-sycophancy, sandboxing, Extended Thinking invariants, tool boundaries, and score calibration assertions passed successfully!');
 process.exit(0);

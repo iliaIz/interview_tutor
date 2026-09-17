@@ -245,6 +245,11 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     isUserSpeakingRef.current = false;
     speechStartTimeRef.current = null;
 
+    // SOTA Mic Gate: Turn completed, immediately gate candidate mic off to prevent audio leakage while AI is thinking
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    interactionStatusRef.current = 'IN_PROGRESS';
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const turnCompleteMsg = {
         clientContent: {
@@ -398,12 +403,15 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
 
           // Continuous Smooth Realtime Streaming (SOTA 2026 Invariant):
           // Stream standard 100ms PCM chunks while candidate is recording and AI is not speaking.
+          // Gate audio transmission strictly: never stream when interactionStatus is IN_PROGRESS (AI thinking / tool running)
+          const isInteractionIdle = !interactionStatusRef.current || interactionStatusRef.current === 'IDLE';
           const shouldTransmit =
             wsRef.current &&
             wsRef.current.readyState === WebSocket.OPEN &&
             isRecordingRef.current &&
             !isAiCurrentlySpeaking &&
-            !isReverbCooldownActive;
+            !isReverbCooldownActive &&
+            isInteractionIdle;
 
           if (shouldTransmit && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const bytes = new Uint8Array(pcmBuffer);

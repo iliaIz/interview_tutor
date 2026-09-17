@@ -10,6 +10,13 @@ import { getAiGenderDirective, getCandidateGenderDirective } from '../../prompts
 import { VOICE_ANTI_SYCOPHANCY_DIRECTIVES, EXAM_ANTI_SYCOPHANCY_DIRECTIVES } from '../../prompts/core/antiSycophancy';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../../prompts/core/sandboxDirectives';
 
+export const LIVE_TOOL_CAPABILITY_DIRECTIVES = `=== СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ (TOOL CAPABILITY INVARIANTS) ===
+1. ДОСТУПНЫЕ ИНСТРУМЕНТЫ: Твой единственный рабочий инструмент взаимодействия с экраном — update_whiteboard (для показа, обновления и подсветки кода или архитектурных схем на интерактивной доске).
+2. НЕТ ДОСТУПА К СЕРВЕРУ, BASH ИЛИ RUNTIME: У тебя НЕТ доступа к терминалу хоста, операционной системе, серверным ресурсам, bash, файловой системе или прямому запуску Java-кода.
+3. НЕТ ДОСТУПА В ИНТЕРНЕТ: В режиме живого голосового сокета у тебя нет веб-поиска или внешних сетевых API.
+4. КАТЕГОРИЧЕСКИЙ ЗАПРЕТ ДЕЛЕГИРОВАНИЯ И ВЫЗОВА ФАНТОМНЫХ ТУЛОВ: Все объяснения байткода, структур данных, алгоритмов, JMM, Spring или сборки мусора выполняй ИСКЛЮЧИТЕЛЬНО силой своего встроенного интеллекта и базы знаний. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать несуществующие инструменты или пытаться делегировать выполнение внешнему серверу.
+5. Если кандидат просит продемонстрировать пример или разобрать байткод — объясняй голосом и при необходимости наглядно оформляй фрагмент на интерактивной доске через update_whiteboard.`;
+
 /**
  * Extracts up to 10 semantic evaluation anchors from reference answer
  */
@@ -86,13 +93,13 @@ export function buildWeightedRubric(referenceAnswer: string, questionText: strin
 export function buildSystemPrompt(params: {
   topic: string;
   questionText: string;
-  referenceAnswer: string;
-  strategy: 'adaptive_probing' | 'socratic_tutoring';
-  voiceName: string;
+  referenceAnswer?: string;
+  strategy?: 'adaptive_probing' | 'socratic_tutoring';
+  voiceName?: string;
   userGender?: 'female' | 'male' | 'neutral';
   turnMode?: 'manual' | 'auto';
-  maxProbes: number;
-  anchors: string[];
+  maxProbes?: number;
+  anchors?: string[];
   deepDive?: boolean;
   liveCoaching?: boolean;
   customPromptOverride?: string;
@@ -117,13 +124,13 @@ export function buildSystemPrompt(params: {
   const {
     topic,
     questionText,
-    referenceAnswer,
-    strategy,
-    voiceName,
+    referenceAnswer = '',
+    strategy = 'adaptive_probing',
+    voiceName = 'Kore',
     userGender = 'female',
     turnMode = 'manual',
-    maxProbes,
-    anchors,
+    maxProbes = 3,
+    anchors = [],
     deepDive,
     liveCoaching,
     customPromptOverride,
@@ -232,13 +239,17 @@ ${anchorsFormatted}
    ВАЖНЕЙШИЙ ИНВАРИАНТ (FIRST-TURN LOCKDOWN): КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать submit_hiring_committee_verdict на первом ходу приветствия!
 
 === 6. ПЕРВЫЙ ХОД (GREETING & CHALLENGE) ===
-При первом запуске: кратко представься в роли Bar-Raiser (1 предложение), четко сформулируй архитектурный вызов системы «${questionText || topic}» и пригласи кандидата начать с уточнения требований и масштаба нагрузок. Никаких оценок на старте!`;
+При первом запуске: кратко представься в роли Bar-Raiser (1 предложение), четко сформулируй архитектурный вызов системы «${questionText || topic}» и пригласи кандидата начать с уточнения требований и масштаба нагрузок. Никаких оценок на старте!
+
+${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
   }
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor' || tutorMode === 'practice_pair' || tutorMode === 'bug_hunt' || tutorMode === 'free_chat') {
+    let tutorPrompt = '';
+
     if (customPromptOverride && customPromptOverride.trim().length > 20) {
-      return `${customPromptOverride.trim()}
+      tutorPrompt = `${customPromptOverride.trim()}
 
 ${genderRule}
 
@@ -250,10 +261,8 @@ ${referenceAnswer}
 === ПРАВИЛА ОБУЧЕНИЯ (AI-ТЬЮТОР) ===
 1. Отвечай на вопросы кандидата, дружелюбно объясняй тему и демонстрируй примеры на доске (update_whiteboard).
 2. Категорически ЗАПРЕЩЕНО выставлять оценки, баллы и вызывать функцию submit_interview_evaluation.`;
-    }
-
-    if (tutorMode === 'bug_hunt') {
-      return `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
+    } else if (tutorMode === 'bug_hunt') {
+      tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
 Ты опытный, доброжелательный ${isFemale ? 'техлид (женщина)' : 'техлид (мужчина)'}. Ты проводишь с кандидатом интерактивное устное код-ревью.
 ${genderRule}
 
@@ -283,11 +292,9 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
    - Если кандидат нашел второстепенную проблему: мягко подтверди и направь на корневой баг (подсказка 1).
    - Если кандидат застрял или просит подсказку: дай компактную подсказку (подсказка 1 или 2).
    - Если кандидат точно нашел ошибку и объяснил причину: похвали, в 1-2 предложениях резюмируй правильный фикс и вызови функцию \`mark_bug_solved(isSolved=true, feedback="...", keyInsight="...")\`.`;
-    }
-
-    if (tutorMode === 'practice_pair') {
+    } else if (tutorMode === 'practice_pair') {
       const domain = getChallengeDomain({ category: challengeCategory, track: challengeTrack, slug: bugTitle });
-      return buildLivePairPrompt({
+      tutorPrompt = buildLivePairPrompt({
         domain,
         persona: typeof persona === 'string' ? persona : 'middle_scaffold',
         isFemale,
@@ -299,10 +306,8 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         codeSnippet,
         activeCodeArtifact
       });
-    }
-
-    if (tutorMode === 'free_chat') {
-      return `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
+    } else if (tutorMode === 'free_chat') {
+      tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
 Ты доброжелательный, высококвалифицированный Senior Java/Spring архитектор ${isFemale ? '(женщина)' : '(мужчина)'} и напарник по парному программированию.
 ${genderRule}
 
@@ -320,10 +325,8 @@ ${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''
 2. ПРЯМЫЕ И ЧЕТКИЕ ОТВЕТЫ: Если кандидат спрашивает «как это работает?», «почему тут ошибка?» или «объясни 10-ю строку» — отвечай прямо, дружелюбно, профессионально и по существу, приводя лучшие инженерные практики.
 3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай емко (2-4 предложения за раз), без бесконечных академических лекций.
 4. ПОДДЕРЖКА И НЕПРЕРЫВНЫЙ ДИАЛОГ: Всегда поддерживай, отвечай на вопросы и после каждого ответа переходи в режим прослушивания кандидата. НЕ пытайся завершить диалог самостоятельно.`;
-    }
-
-    if (tutorMode === 'deep_dive') {
-      return `=== 1. РОЛЬ: DEEP-DIVE AI-ТЬЮТОР (ПОД КАПОТ JVM / SPRING) ===
+    } else if (tutorMode === 'deep_dive') {
+      tutorPrompt = `=== 1. РОЛЬ: DEEP-DIVE AI-ТЬЮТОР (ПОД КАПОТ JVM / SPRING) ===
 Ты глубокий технический эксперт ${isFemale ? '(женщина)' : '(мужчина)'} по Java, JVM internals, Spring Framework, многопоточности и базам данных.
 ${genderRule}
 
@@ -339,10 +342,8 @@ ${referenceAnswer}
 2. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай 2-3 емкими предложениями за раз. Заканчивай мини-вопросом или предложением углубиться («Хочешь разобрать, как это устроено в памяти?»).
 3. НЕ ЗАЧИТЫВАЙ длинные простыни текста. Веди живую, интерактивную беседу.
 4. НЕПРЕРЫВНОЕ СЛУШАНИЕ: После каждого ответа обязательно делай паузу и слушай микрофон кандидата. Диалог завершается только по явной команде пользователя.`;
-    }
-
-    if (tutorMode === 'socratic') {
-      return `=== 1. РОЛЬ: СОКРАТИЧЕСКИЙ МЕНТОР ===
+    } else if (tutorMode === 'socratic') {
+      tutorPrompt = `=== 1. РОЛЬ: СОКРАТИЧЕСКИЙ МЕНТОР ===
 Ты доброжелательный наставник ${isFemale ? '(женщина)' : '(мужчина)'}. Твоя цель — не давать готовых ответов, а короткими наводящими вопросами помогать кандидату самостоятельно дойти до истины.
 ${genderRule}
 
@@ -358,10 +359,8 @@ ${referenceAnswer}
 2. Задавай 1 короткий наводящий вопрос в ответ на реплику кандидата.
 3. Длина ответа: строго 1-2 предложения.
 4. Слушай ответ кандидата после каждого вопроса.`;
-    }
-
-    if (tutorMode === 'eli5') {
-      return `=== 1. РОЛЬ: ELI5 ТЬЮТОР (ПРОСТЫМИ СЛОВАМИ И АНАЛОГИЯМИ) ===
+    } else if (tutorMode === 'eli5') {
+      tutorPrompt = `=== 1. РОЛЬ: ELI5 ТЬЮТОР (ПРОСТЫМИ СЛОВАМИ И АНАЛОГИЯМИ) ===
 Ты умеешь объяснять сложнейшие концепции архитектуры, многопоточности и баз данных на простых жизненных аналогиях (как библиотекарь, кассир в банке, почтальон).
 ${genderRule}
 
@@ -377,10 +376,9 @@ ${referenceAnswer}
 2. Без заумного академизма и перегруженного синтаксиса.
 3. Длина: 2-3 коротких предложения.
 4. После аналогии спроси: «Понятна ли аналогия или разобрать на другом примере?» и слушай ответ.`;
-    }
-
-    // Default tutor mode: quick_qa
-    return `=== 1. РОЛЬ: ЭКСПРЕСС-КОНСУЛЬТАНТ (QUICK Q&A) ===
+    } else {
+      // Default tutor mode: quick_qa
+      tutorPrompt = `=== 1. РОЛЬ: ЭКСПРЕСС-КОНСУЛЬТАНТ (QUICK Q&A) ===
 Ты лаконичный и точный технический консультант ${isFemale ? '(женщина)' : '(мужчина)'}.
 ${genderRule}
 
@@ -395,6 +393,9 @@ ${referenceAnswer}
 1. Отвечай прямо, точно и без лишней «воды».
 2. Длина ответа: строго 2 предложения.
 3. Слушай дальнейшие вопросы кандидата.`;
+    }
+
+    return `${tutorPrompt}\n\n${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
   }
 
   // === INTERVIEW SESSION LOGIC (FAANG Mock Assessment) ===
@@ -600,5 +601,7 @@ ${anchorsFormatted}
           * dimensionScores: { domainDepth: 0-100, systemArchitecture: 0-100, communicationStar: 0-100, operationalExcellence: 0-100 }.
           * strengths: список из 1-3 ключевых преимуществ с цитатами.
           * redFlags: список из 1-3 критических недочетов.
-          * hiringRecommendation: 1-2 развернутых предложения.`;
+          * hiringRecommendation: 1-2 развернутых предложения.
+
+${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
 }

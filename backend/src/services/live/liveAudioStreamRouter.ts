@@ -168,9 +168,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       const buffer = toRawBuffer(data);
       const str = buffer.toString('utf8');
       let isToolCallProcessed = false;
+      let parsed: any = null;
 
       try {
-        const parsed = JSON.parse(str);
+        parsed = JSON.parse(str);
 
         // Intercept upstream error payload from LiteLLM / Gemini Gateway
         if (parsed.error) {
@@ -448,7 +449,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // Handle Function Calling / toolCall
         if (parsed.toolCall?.functionCalls) {
-          session.isAiGenerating = false;
           isToolCallProcessed = true;
           session.isToolCallPending = true;
           session.lastActivityAt = Date.now();
@@ -505,7 +505,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               }
 
               try {
-                await handleLiveToolCall({
+                const isHandled = await handleLiveToolCall({
                   call,
                   clientSocket,
                   geminiSocket,
@@ -513,6 +513,27 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                   parsedHints,
                   liveCoaching
                 });
+
+                if (!isHandled) {
+                  console.warn(`⚠️ Unhandled or unsupported tool call [${call.name}]. Emitting graceful negative toolResponse to prevent Gemini Bidi hang.`);
+                  if (geminiSocket.readyState === WebSocket.OPEN) {
+                    geminiSocket.send(JSON.stringify({
+                      toolResponse: {
+                        functionResponses: [
+                          {
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                              result: {
+                                error: `Tool '${call.name}' is not supported in this session. You do not have access to server execution, bash, or external networks. Please explain verbally or use update_whiteboard.`
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }));
+                  }
+                }
               } catch (toolErr) {
                 const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
                 console.error(`❌ Error executing tool ${call.name}:`, toolErr);
@@ -546,7 +567,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
       } catch {}
 
-      if (!isToolCallProcessed && clientSocket.readyState === WebSocket.OPEN) {
+      const shouldForwardToClient = !isToolCallProcessed || Boolean(parsed?.serverContent);
+      if (shouldForwardToClient && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(str);
       }
     });
