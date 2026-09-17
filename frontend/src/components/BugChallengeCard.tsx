@@ -76,6 +76,7 @@ interface BugChallengeCardProps {
   onGenerateVariation?: () => void;
   isGeneratingVariation?: boolean;
   variantNumber?: number;
+  onActionNotification?: (actionText: string) => void;
 }
 
 /**
@@ -131,6 +132,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
   onGenerateVariation,
   isGeneratingVariation = false,
   variantNumber,
+  onActionNotification,
 }) => {
   const [showSolution, setShowSolution] = useState(false);
   const [openHintIndex, setOpenHintIndex] = useState<number | null>(null);
@@ -331,6 +333,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
+                data-selection-zone="incident"
                 className="px-4 pb-4 pt-1 border-t border-pink-100 space-y-3 text-xs bg-white/70 font-sans"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
@@ -404,7 +407,13 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                   className="rounded-2xl border border-pink-200/70 bg-white/90 backdrop-blur-sm overflow-hidden shadow-2xs transition-all"
                 >
                   <button
-                    onClick={() => setOpenHintIndex(isOpen ? null : idx)}
+                    onClick={() => {
+                      const nextOpen = isOpen ? null : idx;
+                      setOpenHintIndex(nextOpen);
+                      if (nextOpen !== null) {
+                        onActionNotification?.(`💡 [ДЕЙСТВИЕ: Кандидат открыл на экране подсказку №${idx + 1}]: «${hint}»`);
+                      }
+                    }}
                     className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-semibold text-[#2D1B4E] hover:bg-pink-50/50 transition-colors cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5">
@@ -426,6 +435,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
+                        data-selection-zone="hint"
                         className="px-4 pb-3 pt-1 border-t border-pink-100 text-xs text-[#4A326D] bg-pink-50/30 leading-relaxed font-sans font-normal"
                       >
                         {hint}
@@ -442,7 +452,13 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
       {/* Solution Section (Golden Master, Diff & Takeaways) */}
       <div className="pt-2">
         <button
-          onClick={() => setShowSolution(!showSolution)}
+          onClick={() => {
+            const nextShow = !showSolution;
+            setShowSolution(nextShow);
+            if (nextShow) {
+              onActionNotification?.(`🔍 [ДЕЙСТВИЕ: Кандидат открыл блок эталонного решения (режим: ${solutionViewMode === 'diff' ? 'Diff изменений' : solutionViewMode === 'fixed' ? 'Код решения' : 'JUnit 5 Тест'})]`);
+            }
+          }}
           className={`w-full py-3 px-4 rounded-2xl border flex items-center justify-center gap-2 text-xs md:text-sm font-bold transition-all cursor-pointer shadow-2xs hover:scale-[1.005] active:scale-[0.995] ${
             showSolution
               ? 'bg-gradient-to-r from-[#4A1E6D] to-[#3B1754] text-white border-[#3B1754] shadow-xs'
@@ -468,6 +484,7 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
+              data-selection-zone="reference_answer"
               className="mt-3 p-4 rounded-2xl bg-gradient-to-br from-[#F0FDF4] via-white to-[#F5F3FF] border border-emerald-200/80 shadow-xs space-y-4 overflow-hidden"
             >
               {/* Bug Explanation Card */}
@@ -490,7 +507,10 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
 
                   <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-emerald-200/80 shadow-2xs">
                     <button
-                      onClick={() => setSolutionViewMode('diff')}
+                      onClick={() => {
+                        setSolutionViewMode('diff');
+                        onActionNotification?.('🔍 [ДЕЙСТВИЕ: Кандидат переключился на вкладку Diff изменений решения]');
+                      }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         solutionViewMode === 'diff'
                           ? 'bg-[#4A1E6D] text-white shadow-xs'
@@ -501,7 +521,10 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                       <span>Diff изменений</span>
                     </button>
                     <button
-                      onClick={() => setSolutionViewMode('fixed')}
+                      onClick={() => {
+                        setSolutionViewMode('fixed');
+                        onActionNotification?.('🔍 [ДЕЙСТВИЕ: Кандидат переключился на вкладку Код эталонного решения]');
+                      }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         solutionViewMode === 'fixed'
                           ? 'bg-[#4A1E6D] text-white shadow-xs'
@@ -513,7 +536,10 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
                     </button>
                     {challenge.testSuite && (
                       <button
-                        onClick={() => setSolutionViewMode('test')}
+                        onClick={() => {
+                          setSolutionViewMode('test');
+                          onActionNotification?.('🔍 [ДЕЙСТВИЕ: Кандидат переключился на вкладку Воспроизводящий JUnit 5 Тест]');
+                        }}
                         className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           solutionViewMode === 'test'
                             ? 'bg-[#4A1E6D] text-white shadow-xs'

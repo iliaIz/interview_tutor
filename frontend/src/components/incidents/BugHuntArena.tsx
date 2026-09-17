@@ -151,9 +151,11 @@ export const BugHuntArena: React.FC = () => {
     startSession,
     disconnectSession,
     sendTextMessage,
+    sendActionEventMessage,
     toggleMic,
     toggleMute
   } = useLiveAudioSession({
+    enableGlobalSelection: true,
     onBugSolved: () => {
       setIsSolved(true);
       setSessionSolvedCount((prev) => prev + 1);
@@ -262,8 +264,13 @@ export const BugHuntArena: React.FC = () => {
     }
   };
 
+  const visitedChallengesRef = useRef<Set<string>>(new Set());
+
   const handleGenerateVariation = async () => {
     if (!challenge) return;
+    if (isConnected) {
+      disconnectSession();
+    }
     setIsLoadingVariation(true);
     try {
       const res = await fetch('/api/tutor/bug-challenge', {
@@ -295,16 +302,38 @@ export const BugHuntArena: React.FC = () => {
     }
   };
 
-  const startBugVoiceSession = () => {
+  const startBugVoiceSession = (targetChallenge?: BugChallenge | null) => {
+    const ch = targetChallenge || challenge;
+    if (!ch) return;
+
+    const chId = ch.id;
+    const isRevisit = visitedChallengesRef.current.has(chId);
+    visitedChallengesRef.current.add(chId);
+
+    const bridgeMessage = isRevisit
+      ? `[ВОЗВРАТ К ПРЕДЫДУЩЕМУ КЕЙСУ «${ch.title}»]: Кандидат вернулся назад к этой задаче. Кратко (1 предложение в доброжелательной манере напарника) напомни, какую гипотезу мы обсуждали, и спроси, готов ли он продолжить.`
+      : undefined;
+
     return startSession({
       sessionType: 'tutor',
       tutorMode: tutorRole,
       topic: topicName,
-      bugTitle: challenge?.title || '',
-      bugExplanation: challenge?.bugExplanation || '',
-      codeSnippet: challenge?.codeSnippet || '',
-      hints: challenge?.hints || [],
-      questionId: challenge?.id || ''
+      bugTitle: ch.title || '',
+      bugExplanation: ch.bugExplanation || '',
+      codeSnippet: ch.codeSnippet || '',
+      fixedCode: ch.fixedCode || '',
+      unitTest: ch.testSuite || '',
+      incidentContext: ch.productionContext ? {
+        systemName: ch.productionContext.systemName,
+        architectureType: ch.productionContext.architectureType,
+        incidentSymptoms: ch.productionContext.incidentSymptoms,
+        businessImpact: ch.productionContext.businessImpact,
+        prReviewContext: ch.productionContext.prReviewContext
+      } : undefined,
+      hints: ch.hints || [],
+      questionId: chId,
+      sessionId: chId ? `session_bughunt_${chId}` : undefined,
+      initialUserMessage: bridgeMessage
     });
   };
 
@@ -474,6 +503,11 @@ export const BugHuntArena: React.FC = () => {
               onGenerateVariation={handleGenerateVariation}
               isGeneratingVariation={isLoadingVariation}
               variantNumber={currentVariantNumber}
+              onActionNotification={(actionText) => {
+                if (isConnected) {
+                  sendActionEventMessage(actionText);
+                }
+              }}
             />
 
             {/* Socratic AI Voice Mentor Station */}

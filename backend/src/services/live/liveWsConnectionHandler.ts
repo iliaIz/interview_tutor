@@ -57,6 +57,14 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   const bugTitle = (query.bugTitle as string) || '';
   const bugExplanation = (query.bugExplanation as string) || '';
   const codeSnippet = (query.codeSnippet as string) || '';
+  const fixedCode = (query.fixedCode as string) || '';
+  const unitTest = (query.unitTest as string) || '';
+  let incidentContext: any = null;
+  if (query.incidentContext) {
+    try {
+      incidentContext = JSON.parse(query.incidentContext as string);
+    } catch {}
+  }
   let parsedHints: string[] = [];
   if (query.hints) {
     try {
@@ -255,6 +263,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     bugTitle,
     bugExplanation,
     codeSnippet,
+    fixedCode,
+    unitTest,
+    incidentContext,
     hints: parsedHints,
     targetSeniority: userProfile.targetSeniority,
     primaryStack: userProfile.primaryStack,

@@ -37,6 +37,16 @@ export interface LiveAudioSessionParams {
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
+  fixedCode?: string;
+  unitTest?: string;
+  incidentContext?: {
+    systemName?: string;
+    architectureType?: string;
+    incidentSymptoms?: string;
+    businessImpact?: string;
+    prReviewContext?: string;
+    stackTrace?: string;
+  };
   hints?: string[];
   initialUserMessage?: string;
   sessionId?: string;
@@ -222,6 +232,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (params.bugTitle) query.set('bugTitle', params.bugTitle);
     if (params.bugExplanation) query.set('bugExplanation', params.bugExplanation);
     if (params.codeSnippet) query.set('codeSnippet', params.codeSnippet);
+    if (params.fixedCode) query.set('fixedCode', params.fixedCode);
+    if (params.unitTest) query.set('unitTest', params.unitTest);
+    if (params.incidentContext) query.set('incidentContext', JSON.stringify(params.incidentContext));
     if (params.activeCodeArtifact) {
       query.set('activeCodeArtifact', JSON.stringify(params.activeCodeArtifact));
     }
@@ -982,6 +995,31 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   }, []);
 
   /**
+   * SOTA 2026 Action Event Frame: Sends non-interrupting UI action event with turnComplete: false
+   */
+  const sendActionEventMessage = useCallback((text: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const actionFrame = {
+      deictic: true,
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text }]
+          }
+        ],
+        turnComplete: false
+      }
+    };
+    try {
+      wsRef.current.send(JSON.stringify(actionFrame));
+      console.log('📡 [Action Event] Sent non-blocking deictic action frame:', text);
+    } catch (e) {
+      console.warn('Failed to send action event frame:', e);
+    }
+  }, []);
+
+  /**
    * Clean Disconnect with resource teardown
    */
   const disconnectSession = useCallback(() => {
@@ -1141,6 +1179,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     disconnectSession,
     resetSessionStateOnly,
     sendTextMessage,
+    sendActionEventMessage,
     sendCanvasDelta,
     toggleMic,
     toggleMute,

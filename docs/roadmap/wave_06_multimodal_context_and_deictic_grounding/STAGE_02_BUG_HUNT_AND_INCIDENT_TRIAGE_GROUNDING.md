@@ -1,6 +1,6 @@
 # Stage 02: Bug Hunt & Incident Triage Grounding
 
-> **Статус:** ⬜ ЗАПЛАНИРОВАНО  
+> **Статус:** ✅ ЗАВЕРШЕНО  
 > **Ответственные файлы:**
 > - [BugHuntArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx)
 > - [BugChallengeCard.tsx](file:///c:/projects/interview_tutor/frontend/src/components/BugChallengeCard.tsx)
@@ -70,9 +70,9 @@ ${unitTest}
 
 ## 3. Чек-лист реализации
 
-- [ ] **2.1.** Добавить `incidentContext`, `fixedCode`, `unitTest` в параметры `startBugVoiceSession` в [BugHuntArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx).
-- [ ] **2.2.** Интегрировать эти поля в генератор промпта [livePromptBuilder.ts](file:///c:/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts) для режимов `bug_hunt` и `free_chat`.
-- [ ] **2.3.** Добавить отправку событий раскрытия подсказок и переключения вкладок решения (Diff/Fixed/Test) в [BugChallengeCard.tsx](file:///c:/projects/interview_tutor/frontend/src/components/BugChallengeCard.tsx).
-- [ ] **2.4.** Исправить десинхронизацию в `handleGenerateVariation`: плавно завершать текущую сессию и стартовать новую под свежую вариацию.
-- [ ] **2.5.** Реализовать `Episodic Bridge Navigation` при переходах «Предыдущий» / «Следующий» с сохранением истории диалога по ID кейса.
-- [ ] **2.6.** Подключить зону выделения `[data-selection-zone="code"]` в `BugChallengeCard` к `useSelectionFocusStore`.
+- [x] **2.1.** Добавить `incidentContext`, `fixedCode`, `unitTest` в параметры `startBugVoiceSession` в [BugHuntArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx).
+- [x] **2.2.** Интегрировать эти поля в генератор промпта [livePromptBuilder.ts](file:///c:/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts) для режимов `bug_hunt` и `free_chat`.
+- [x] **2.3.** Добавить отправку событий раскрытия подсказок и переключения вкладок решения (Diff/Fixed/Test) в [BugChallengeCard.tsx](file:///c:/projects/interview_tutor/frontend/src/components/BugChallengeCard.tsx).
+- [x] **2.4.** Исправить десинхронизацию в `handleGenerateVariation`: плавно завершать текущую сессию и стартовать новую под свежую вариацию.
+- [x] **2.5.** Реализовать `Episodic Bridge Navigation` при переходах «Предыдущий» / «Следующий» с сохранением истории диалога по ID кейса.
+- [x] **2.6.** Подключить зоны выделения `[data-selection-zone="incident"]` и `[data-selection-zone="hint"]` в `BugChallengeCard` к `useSelectionFocusStore`.

@@ -110,6 +110,16 @@ export function buildSystemPrompt(params: {
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
+  fixedCode?: string;
+  unitTest?: string;
+  incidentContext?: {
+    systemName?: string;
+    architectureType?: string;
+    incidentSymptoms?: string;
+    businessImpact?: string;
+    prReviewContext?: string;
+    stackTrace?: string;
+  };
   hints?: string[];
   targetSeniority?: string;
   primaryStack?: string;
@@ -141,6 +151,9 @@ export function buildSystemPrompt(params: {
     bugTitle,
     bugExplanation,
     codeSnippet,
+    fixedCode,
+    unitTest,
+    incidentContext,
     hints,
     primaryStack = 'Java 21, Spring Boot 3.3',
     candidateGaps = [],
@@ -262,6 +275,31 @@ ${referenceAnswer}
 1. Отвечай на вопросы кандидата, дружелюбно объясняй тему и демонстрируй примеры на доске (update_whiteboard).
 2. Категорически ЗАПРЕЩЕНО выставлять оценки, баллы и вызывать функцию submit_interview_evaluation.`;
     } else if (tutorMode === 'bug_hunt') {
+      const incidentBlock = incidentContext
+        ? `\n=== КОНТЕКСТ ПРОДАКШЕН-ИНЦИДЕНТА & ТЕЛЕМЕТРИЯ ===
+СИСТЕМА: ${incidentContext.systemName || 'Production Service'} (${incidentContext.architectureType || 'Микросервис'})
+СИМПТОМЫ / АЛЕРТЫ:
+"""
+${incidentContext.incidentSymptoms || 'Аномалия в логах/метриках'}
+"""
+БИЗНЕС-ВОЗДЕЙСТВИЕ: ${incidentContext.businessImpact || 'Замедление или сбой обработки запросов'}
+${incidentContext.prReviewContext ? `ПРЕДЫСТОРИЯ PR: ${incidentContext.prReviewContext}\n` : ''}${incidentContext.stackTrace ? `СТЕК-ТРЕЙС / ЛОГ:\n\`\`\`\n${incidentContext.stackTrace}\n\`\`\`\n` : ''}`
+        : '';
+
+      const solutionBlock = fixedCode
+        ? `\n=== ЭТАЛОННОЕ ИСПРАВЛЕНИЕ (GOLDEN MASTER, ДЛЯ ТВОЕГО ЗНАНИЯ) ===
+\`\`\`java
+${fixedCode}
+\`\`\`\n`
+        : '';
+
+      const unitTestBlock = unitTest
+        ? `\n=== ВОСПРОИЗВОДЯЩИЙ UNIT-ТЕСТ ===
+\`\`\`java
+${unitTest}
+\`\`\`\n`
+        : '';
+
       tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
 Ты опытный, доброжелательный ${isFemale ? 'техлид (женщина)' : 'техлид (мужчина)'}. Ты проводишь с кандидатом интерактивное устное код-ревью.
 ${genderRule}
@@ -275,12 +313,12 @@ ${VOICE_ANTI_SYCOPHANCY_DIRECTIVES}
 """
 ${bugExplanation || 'Неочевидный баг в многопоточности, транзакциях или структурах данных.'}
 """
-
+${incidentBlock}
 КОД НА ЭКРАНЕ:
 \`\`\`
 ${codeSnippet || '// Код задачи'}
 \`\`\`
-
+${solutionBlock}${unitTestBlock}
 ПОДСКАЗКИ:
 ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
 
@@ -307,6 +345,12 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         activeCodeArtifact
       });
     } else if (tutorMode === 'free_chat') {
+      const incidentInfo = incidentContext
+        ? `\nПРОДАКШЕН-ИНЦИДЕНТ:\n- Система: ${incidentContext.systemName || ''}\n- Симптомы: ${incidentContext.incidentSymptoms || ''}\n`
+        : '';
+      const fixedInfo = fixedCode ? `\nЭТАЛОННЫЙ ФИКС:\n\`\`\`\n${fixedCode}\n\`\`\`\n` : '';
+      const hintsInfo = hints && hints.length > 0 ? `\nПОДСКАЗКИ:\n${hints.map((h, i) => `[${i + 1}] ${h}`).join('\n')}\n` : '';
+
       tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
 Ты доброжелательный, высококвалифицированный Senior Java/Spring архитектор ${isFemale ? '(женщина)' : '(мужчина)'} и напарник по парному программированию.
 ${genderRule}
@@ -316,9 +360,9 @@ ${VOICE_ANTI_SYCOPHANCY_DIRECTIVES}
 [КОНТЕКСТ ОБСУЖДЕНИЯ]
 ТЕМА: ${topic || 'Java & Spring'}
 ${questionText ? `ВОПРОС: "${questionText}"` : ''}
-${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer.slice(0, 800)}\n"""` : ''}
+${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer}\n"""` : ''}
 ${bugTitle ? `КЕЙС КОДА: "${bugTitle}"` : ''}
-${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}
+${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}${incidentInfo}${fixedInfo}${hintsInfo}
 
 === ПРАВИЛА СВОБОДНОГО ДИАЛОГА (CRITICAL INVARIANTS) ===
 1. БЕЗ ЭКЗАМЕНАЦИОННЫХ РАМОК И ЗАГАДОК: Кандидат пришел просто посоветоваться или спросить о непонятной детали.
