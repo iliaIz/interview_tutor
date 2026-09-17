@@ -306,14 +306,17 @@ export const WorkspaceEditor: React.FC = () => {
         setLatestSandboxResult(data);
 
         if (isVoiceConnected) {
+          const astWarning = liveAstViolations.length > 0
+            ? `\n⚠️ [НАРУШЕНИЯ АРХИТЕКТУРНЫХ ИНВАРИАНТОВ (${liveAstViolations.length})]:\n${liveAstViolations.map(v => `- ${v.text}`).join('\n')}`
+            : '';
           if (data.success) {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил тесты. Все ${data.passedCount} тестов успешно пройдены за ${data.executionTimeMs}мс.`);
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил тесты. Все ${data.passedCount} тестов успешно пройдены за ${data.executionTimeMs}мс.${astWarning}`);
           } else if (!data.isCompilable) {
             const errDetails = data.syntaxErrors?.map((e) => `строка ${e.lineNumber}: ${e.errorMessage}`).join('; ') || data.error || 'Ошибка компиляции';
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Ошибка компиляции кода кандидата: ${errDetails}`);
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Ошибка компиляции кода кандидата: ${errDetails}.${astWarning}`);
           } else {
             const failedDetails = data.testResults.filter((t) => t.status !== 'PASSED').map((t) => `${t.testName}: ${t.failureReason || 'провален'}`).join('; ');
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Тесты кандидата завершились с ошибками. Провалено ${data.failedCount} из ${data.testResults.length} тестов. Ошибки: ${failedDetails}`);
+            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Тесты кандидата завершились с ошибками. Провалено ${data.failedCount} из ${data.testResults.length} тестов. Ошибки: ${failedDetails}.${astWarning}`);
           }
         }
 

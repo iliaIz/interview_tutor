@@ -1,6 +1,6 @@
 # Stage 03: Machine Coding & Mutation Kata Arena Grounding
 
-> **Статус:** ⬜ ЗАПЛАНИРОВАНО  
+> **Статус:** ✅ ЗАВЕРШЕНО  
 > **Ответственные файлы:**
 > - [WorkspaceEditor.tsx](file:///c:/projects/interview_tutor/frontend/src/components/practice/WorkspaceEditor.tsx)
 > - [PracticeVoiceContext.tsx](file:///c:/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceContext.tsx)
@@ -61,9 +61,9 @@ const handleSelectFile = (index: number) => {
 
 ## 3. Чек-лист реализации
 
-- [ ] **3.1.** Подключить `onDidChangeCursorSelection` инстанса Monaco в `WorkspaceEditor` к дейктическому стору фокуса.
-- [ ] **3.2.** Реализовать синхронизацию смены вкладок файлов (`📂 [СМЕНА АКТИВНОГО ФАЙЛА]`) в `WorkspaceEditor`.
-- [ ] **3.3.** Реализовать Turn Handover Flush кода редактора в `PracticeVoiceContext`.
-- [ ] **3.4.** Добавить отправку `liveAstViolations` при коммите речевого хода кандидата.
-- [ ] **3.5.** Убрать ограничение `slice(0, 800)` на `instructionsMarkdown` в `PracticeVoiceContext`.
-- [ ] **3.6.** В [TransactionLabArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/practice/TransactionLabArena.tsx) добавить синхронизацию выбранного уровня изоляции и интерливинга SQL.
+- [x] **3.1.** Подключить слушатель выделения редактора кода (`onUpdate` в CodeMirror 6) в `WorkspaceEditor` к дейктическому стору фокуса.
+- [x] **3.2.** Реализовать синхронизацию смены вкладок файлов (`📂 [СМЕНА АКТИВНОГО ФАЙЛА]`) в `WorkspaceEditor`.
+- [x] **3.3.** Реализовать Turn Handover Flush кода редактора в `PracticeVoiceContext`.
+- [x] **3.4.** Добавить отправку `liveAstViolations` при прогоне тестов и дейктический захват терминала (`data-selection-zone="terminal"`).
+- [x] **3.5.** Убрать ограничение `slice(0, 800)` на `instructionsMarkdown` в `PracticeVoiceContext`.
+- [x] **3.6.** В [TransactionLabArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/practice/TransactionLabArena.tsx) добавить синхронизацию настроек аннотаций `@Transactional` и дефектов/опасностей дедлока.

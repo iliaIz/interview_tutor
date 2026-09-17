@@ -134,6 +134,15 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
       ...prev,
       [methodId]: newConfig
     }));
+    if (isVoiceConnected) {
+      const parts = [
+        newConfig.propagation ? `propagation=${newConfig.propagation}` : '',
+        newConfig.isolation ? `isolation=${newConfig.isolation}` : '',
+        newConfig.readOnly !== undefined ? `readOnly=${newConfig.readOnly}` : '',
+        newConfig.rollbackFor?.length ? `rollbackFor=[${newConfig.rollbackFor.join(',')}]` : ''
+      ].filter(Boolean).join(', ');
+      sendTextMessage(`⚙️ [НАСТРОЙКА ТРАНЗАКЦИЙ]: Метод «${methodId}» настроен: @Transactional(${parts || 'REQUIRED'})`);
+    }
     // Re-evaluate if already evaluated
     if (evalResult) {
       const reEvaluated = TransactionValidator.evaluateScenario(
@@ -153,9 +162,17 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
     if (isVoiceConnected) {
       if (result.isPassed) {
-        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Архитектурная проверка транзакций успешно пройдена (100/100).`);
+        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Архитектурная проверка транзакций успешно пройдена (100/100). Аномалий не обнаружено.`);
       } else {
-        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Обнаружены архитектурные дефекты транзакций (${result.overallScore}/100): ${result.summary}`);
+        const violations = Object.entries(result.methodResults)
+          .filter(([_, m]) => !m.isCorrect && m.violations.length > 0)
+          .flatMap(([id, m]) => m.violations.map((v) => `- [${id}]: ${v}`))
+          .join('\n');
+        const hazards = [
+          result.hasDeadlockHazard ? '- ⚠️ Опасность исчерпания и дедлока пула HikariCP' : '',
+          result.hasSelfInvocationHazard ? '- ⚠️ Обход динамического прокси Spring AOP (Self-Invocation)' : ''
+        ].filter(Boolean).join('\n');
+        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Обнаружены архитектурные дефекты транзакций (${result.overallScore}/100): ${result.summary}${violations ? `\nНарушения:\n${violations}` : ''}${hazards ? `\n${hazards}` : ''}`);
       }
     }
 

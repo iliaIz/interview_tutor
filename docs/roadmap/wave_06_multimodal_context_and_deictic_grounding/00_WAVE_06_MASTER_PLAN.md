@@ -38,8 +38,8 @@
 |---|---|---|---|
 | **Этап 1** | [STAGE_01_UNIFIED_DEICTIC_GROUNDING_ENGINE.md](STAGE_01_UNIFIED_DEICTIC_GROUNDING_ENGINE.md) | Ядро дейктики, Pre-Speech & Handover Flush, Monaco/DOM listeners, хэширование | ✅ ЗАВЕРШЕНО |
 | **Этап 2** | [STAGE_02_BUG_HUNT_AND_INCIDENT_TRIAGE_GROUNDING.md](STAGE_02_BUG_HUNT_AND_INCIDENT_TRIAGE_GROUNDING.md) | Bug Hunt: алерты инцидентов, подсказки, diff, unit-тесты, вариации, мостовая память | ✅ ЗАВЕРШЕНО |
-| **Этап 3** | [STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md](STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md) | Workspace: файлы, Monaco live handover, AST-инварианты, PITest, ТЗ без обрезания | 🟡 В РАБОТЕ |
-| **Этап 4** | [STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md](STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md) | System Design & Math: старт холста, Mermaid, заметки, аномалии телеметрии, live math | ⬜ ЗАПЛАНИРОВАНО |
+| **Этап 3** | [STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md](STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md) | Workspace: файлы, Monaco live handover, AST-инварианты, PITest, ТЗ без обрезания | ✅ ЗАВЕРШЕНО |
+| **Этап 4** | [STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md](STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md) | System Design & Math: старт холста, Mermaid, заметки, аномалии телеметрии, live math | 🟡 В РАБОТЕ |
 | **Этап 5** | [STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md](STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md) | Тесты, замеры задержки (<400мс), сквозное ревью, деплой на VPS | ⬜ ЗАПЛАНИРОВАНО |
 
 ---
@@ -47,4 +47,6 @@
 ## 4. Журнал коммитов и прогресса
 
 - `19921bb` — fix(live-thinking): eliminate phantom tool delegation and harden mic audio gating (Wave 05 closeout, merged to main).
-- *Следующие коммиты фиксируются по завершении каждого этапа Wave 06.*
+- `f0d35b0` — feat(wave-06): complete stage 01 unified deictic grounding engine
+- `241d286` — feat(wave-06): complete stage 02 bug hunt and incident triage grounding
+- *Stage 03: Machine coding and mutation kata grounding.*

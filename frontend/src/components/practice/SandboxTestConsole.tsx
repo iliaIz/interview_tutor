@@ -89,7 +89,7 @@ export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
   const deadlock = result?.concurrencyHarness?.deadlockDetected;
 
   return (
-    <div className="border-t border-slate-800 bg-slate-950 text-slate-100 flex flex-col max-h-72 select-none shadow-2xl transition-all duration-300">
+    <div className="border-t border-slate-800 bg-slate-950 text-slate-100 flex flex-col max-h-72 shadow-2xl transition-all duration-300">
       {/* Console Header Bar */}
       <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2.5">
@@ -162,7 +162,7 @@ export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
       </div>
 
       {/* Console Output Body */}
-      <div className="p-3 overflow-y-auto space-y-2 font-mono text-xs">
+      <div className="p-3 overflow-y-auto space-y-2 font-mono text-xs" data-selection-zone="terminal">
         {/* Security Violations Banner */}
         {hasSecurityViolation && result && (
           <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-800/60 space-y-1.5">
