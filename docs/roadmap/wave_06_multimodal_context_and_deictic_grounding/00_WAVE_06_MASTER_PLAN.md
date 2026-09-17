@@ -1,6 +1,6 @@
 # Wave 06: Symmetrical Multimodal Grounding, Epistemic Context & Deictic Invariants
 
-> **Статус программы:** 🟡 В РАБОТЕ (Инициализация и спецификация)  
+> **Статус программы:** ✅ ЗАВЕРШЕНО  
 > **Ветка:** `feat/wave-06-multimodal-context-and-deictic-grounding`  
 > **Дата старта:** Сентябрь 2026  
 > **Целевой стандарт:** SOTA September 2026 Multimodal Live Grounding (<400ms Voice Latency, Zero Referential Blindness)
@@ -40,7 +40,7 @@
 | **Этап 2** | [STAGE_02_BUG_HUNT_AND_INCIDENT_TRIAGE_GROUNDING.md](STAGE_02_BUG_HUNT_AND_INCIDENT_TRIAGE_GROUNDING.md) | Bug Hunt: алерты инцидентов, подсказки, diff, unit-тесты, вариации, мостовая память | ✅ ЗАВЕРШЕНО |
 | **Этап 3** | [STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md](STAGE_03_MACHINE_CODING_AND_MUTATION_KATA_ARENA.md) | Workspace: файлы, Monaco live handover, AST-инварианты, PITest, ТЗ без обрезания | ✅ ЗАВЕРШЕНО |
 | **Этап 4** | [STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md](STAGE_04_SYSTEM_DESIGN_AND_CAPACITY_MATH_GROUNDING.md) | System Design & Math: старт холста, Mermaid, заметки, аномалии телеметрии, live math | ✅ ЗАВЕРШЕНО |
-| **Этап 5** | [STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md](STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md) | Тесты, замеры задержки (<400мс), сквозное ревью, деплой на VPS | 🟡 В РАБОТЕ |
+| **Этап 5** | [STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md](STAGE_05_VERIFICATION_BENCHMARKS_AND_DEPLOYMENT.md) | Тесты, замеры задержки (<400мс), сквозное ревью, деплой на VPS | ✅ ЗАВЕРШЕНО |
 
 ---
 
@@ -50,4 +50,5 @@
 - `f0d35b0` — feat(wave-06): complete stage 01 unified deictic grounding engine
 - `241d286` — feat(wave-06): complete stage 02 bug hunt and incident triage grounding
 - `2520d69` — feat(wave-06): complete stage 03 machine coding and mutation kata arena grounding
-- *Stage 04: System design and capacity math grounding.*
+- `8216335` — feat(wave-06): complete stage 04 system design and capacity math grounding
+- *Stage 05: Verification, Benchmarks & Production VPS Deployment.*
