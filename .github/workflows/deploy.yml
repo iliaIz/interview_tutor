@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/gemini-3.8-live-extended-thinking
   workflow_dispatch:
 
 permissions:
