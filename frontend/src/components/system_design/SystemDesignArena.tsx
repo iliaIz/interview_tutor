@@ -14,6 +14,7 @@ import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
 import { CapacityMathCoach } from './CapacityMathCoach';
 import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
 import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
+import { fastHashCode } from '../../services/DeicticGroundingManager';
 import { SystemDesignVoiceHUD } from './defense/SystemDesignVoiceHUD';
 import { HiringCommitteeVerdictModal, HiringCommitteePacket } from './defense/HiringCommitteeVerdictModal';
 import { VoiceModal } from '../VoiceModal';
@@ -120,6 +121,9 @@ export const SystemDesignArena: React.FC = () => {
       ? `${activeSystemDesignScenario.studio_2_simulation.slos.p99_latency_max_ms} мс`
       : '50 мс';
     const sla = activeSystemDesignScenario.studio_2_simulation?.slos?.availability_target_nines || 99.99;
+    const currentTopology = architectureMode === 'canvas'
+      ? (canvasPayload?.architectureMermaid || mermaidCode)
+      : mermaidCode;
 
     return `=== КОНТЕКСТ СЕССИИ: ГОЛОСОВОЙ AI-ТЬЮТОР SYSTEM DESIGN (L3–L7) ===
 Ты — доброжелательный, опытный Staff/Principal инженер и наставник по системному проектированию распределенных систем.
@@ -134,7 +138,8 @@ export const SystemDesignArena: React.FC = () => {
 - SLA доступности: ${sla}%
 - Допустимая задержка p99: ≤ ${p99}
 - Описание задачи: ${cleanScenarioText(activeSystemDesignScenario.problem_statement || activeSystemDesignScenario.contextMarkdown || '')}
-
+${currentTopology ? `\n=== ТЕКУЩАЯ СХЕМА АРХИТЕКТУРЫ (MERMAID) ===\n\`\`\`mermaid\n${currentTopology}\n\`\`\`\n` : ''}
+${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА ===\n${candidateNotes.trim()}\n` : ''}
 ТЕКУЩИЙ РЕЖИМ МЕНТОРСТВА: ${
   tutorMode === 'eli5' ? '«👶 На пальцах» (простые бытовые аналогии, минимум академизма)' :
   tutorMode === 'deep_dive' ? '«🔬 Под капотом» (LSM/B-Tree, epoll, репликация, консенсус Raft, сетевые сбои)' :
@@ -146,7 +151,7 @@ export const SystemDesignArena: React.FC = () => {
 1. Поздоровайся голосом, назови сценарий «${activeSystemDesignScenario.title}».
 2. Спроси, какую часть системы кандидат хочет обсудить прямо сейчас: выбор БД (SQL vs NoSQL), стратегию кэширования, шардирование или устойчивость к сетевым сбоям (Partition Tolerance).
 3. ИНВАРИАНТ: Ты НЕ оцениваешь кандидата и НЕ ставишь баллов! Ты — напарник-архитектор.`;
-  }, [activeSystemDesignScenario, tutorMode]);
+  }, [activeSystemDesignScenario, tutorMode, architectureMode, canvasPayload, mermaidCode, candidateNotes]);
 
   // Evaluation State
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -174,6 +179,13 @@ export const SystemDesignArena: React.FC = () => {
     sendCanvasDelta,
     playoutManagerRef
   } = useLiveAudioSession({
+    getActiveCode: () => {
+      return architectureMode === 'canvas'
+        ? (canvasPayload?.architectureMermaid || mermaidCode)
+        : mermaidCode;
+    },
+    getActiveFileName: () => 'architecture.mmd',
+    enableGlobalSelection: true,
     onChaosInjected: (payload) => {
       setChaosAlert({
         failureType: payload.failureType,
@@ -200,12 +212,20 @@ export const SystemDesignArena: React.FC = () => {
   const handleStartVoiceDefense = async () => {
     if (!activeSystemDesignScenario) return;
     try {
+      const currentTopology = architectureMode === 'canvas'
+        ? (canvasPayload?.architectureMermaid || mermaidCode)
+        : mermaidCode;
+
       await startVoiceSession({
         sessionType: 'system_design',
         topic: activeSystemDesignScenario.title,
         questionText: activeSystemDesignScenario.title,
         referenceAnswer: activeSystemDesignScenario.contextMarkdown,
-        scenarioId: activeSystemDesignScenario.id
+        scenarioId: activeSystemDesignScenario.id,
+        codeSnippet: currentTopology,
+        customPrompt: candidateNotes.trim()
+          ? `=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА ПО АРХИТЕКТУРЕ ===\n${candidateNotes.trim()}\n`
+          : undefined
       });
       showToast({
         type: 'success',
@@ -220,6 +240,46 @@ export const SystemDesignArena: React.FC = () => {
       });
     }
   };
+
+  // SOTA 2026 Invariant: In-Flight Grounding of Mermaid Code & Candidate Design Notes
+  const lastSyncedMermaidHashRef = React.useRef<string>('');
+  const lastSyncedNotesHashRef = React.useRef<string>('');
+  const arenaSyncTimerRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    if (!isVoiceConnected) return;
+
+    if (arenaSyncTimerRef.current) {
+      clearTimeout(arenaSyncTimerRef.current);
+    }
+
+    arenaSyncTimerRef.current = setTimeout(() => {
+      if (architectureMode === 'mermaid' && mermaidCode) {
+        const mHash = fastHashCode(mermaidCode);
+        if (mHash !== lastSyncedMermaidHashRef.current) {
+          lastSyncedMermaidHashRef.current = mHash;
+          sendCanvasDelta({
+            mutationSummary: `[АКТУАЛЬНЫЙ MERMAID КОД ТОПОЛОГИИ]:\n\`\`\`mermaid\n${mermaidCode}\n\`\`\``,
+            architectureMermaid: mermaidCode
+          });
+        }
+      }
+
+      if (candidateNotes) {
+        const nHash = fastHashCode(candidateNotes);
+        if (nHash !== lastSyncedNotesHashRef.current) {
+          lastSyncedNotesHashRef.current = nHash;
+          sendCanvasDelta({
+            mutationSummary: `📝 [ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА]:\n${candidateNotes}`
+          });
+        }
+      }
+    }, 1200);
+
+    return () => {
+      if (arenaSyncTimerRef.current) clearTimeout(arenaSyncTimerRef.current);
+    };
+  }, [isVoiceConnected, architectureMode, mermaidCode, candidateNotes, sendCanvasDelta]);
 
   // Auto-restore saved draft and architecture from database
   React.useEffect(() => {
@@ -575,6 +635,13 @@ export const SystemDesignArena: React.FC = () => {
                 });
                 showToast({ type: 'success', title: 'Расчеты скопированы', message: 'Оценки добавлены в пояснительную записку' });
                 setActiveTab('architecture');
+              }}
+              onCalculationChange={(calcText) => {
+                if (isVoiceConnected) {
+                  sendCanvasDelta({
+                    mutationSummary: calcText
+                  });
+                }
               }}
             />
           </div>

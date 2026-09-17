@@ -195,6 +195,76 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     };
   }, [topologySignature, onDeicticContextChange]);
 
+  // SOTA Invariant 4: Semantic Anomaly Digest (No raw JSON flooding, 1-line pulse or urgent anomaly alerts)
+  const lastAnomalyTimeRef = useRef<number>(0);
+  const lastPulseTimeRef = useRef<number>(0);
+  const lastAnomalySignatureRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!telemetry || !onDeicticContextChange) return;
+
+    const now = Date.now();
+    const { nodeMetrics, globalErrorRate, globalInputRps, globalP99LatencyMs, antiPatterns } = telemetry;
+
+    // 1. Detect critical bottlenecks / hazards (drop > 5%, utilization >= 85%, failed/critical nodes)
+    const criticalAntiPattern = antiPatterns?.find(a => a.severity === 'critical');
+    let worstNode: { id: string; label: string; metrics: any } | null = null;
+
+    if (nodeMetrics) {
+      for (const [nodeId, m] of Object.entries(nodeMetrics)) {
+        if (m.errorRate > 0.05 || m.utilization >= 0.85 || m.health === 'failed' || m.health === 'critical') {
+          if (!worstNode || m.errorRate > worstNode.metrics.errorRate || m.utilization > worstNode.metrics.utilization) {
+            const nodeObj = nodes.find(n => n.id === nodeId);
+            worstNode = {
+              id: nodeId,
+              label: (nodeObj?.data?.label as string) || nodeId,
+              metrics: m
+            };
+          }
+        }
+      }
+    }
+
+    if (worstNode || criticalAntiPattern) {
+      const anomalySig = worstNode
+        ? `${worstNode.id}:${worstNode.metrics.health}:${worstNode.metrics.errorRate > 0.05}:${worstNode.metrics.utilization >= 0.85}`
+        : criticalAntiPattern?.id || '';
+
+      // Throttling: send immediately if signature changed, or if 15s elapsed
+      if (anomalySig !== lastAnomalySignatureRef.current || now - lastAnomalyTimeRef.current > 15000) {
+        lastAnomalyTimeRef.current = now;
+        lastAnomalySignatureRef.current = anomalySig;
+
+        let alertMsg = '';
+        if (worstNode) {
+          const m = worstNode.metrics;
+          const dropPct = (m.errorRate * 100).toFixed(1);
+          const utilPct = (m.utilization * 100).toFixed(0);
+          alertMsg = `🚨 [АНОМАЛИЯ ХОЛСТА: БОТЛНЕК НА УЗЛЕ "${worstNode.label}"]:\nНагрузка: ${m.currentRps} RPS, утилизация: ${utilPct}%, дроп: ${dropPct}% запросов! p99 задержка: ${m.p99Ms}мс.`;
+        } else if (criticalAntiPattern) {
+          alertMsg = `🚨 [КРИТИЧЕСКИЙ ДЕФЕКТ ТОПОЛОГИИ ХОЛСТА]: ${criticalAntiPattern.title} - ${criticalAntiPattern.description}`;
+        }
+
+        onDeicticContextChange({
+          mutationSummary: alertMsg
+        });
+      }
+    } else {
+      // Clear anomaly signature when system is healthy
+      lastAnomalySignatureRef.current = '';
+
+      // 2. Background pulse (once per 25s when all nodes are healthy and traffic is active)
+      if (now - lastPulseTimeRef.current > 25000 && globalInputRps > 0) {
+        lastPulseTimeRef.current = now;
+        const successRate = (100 * (1 - globalErrorRate)).toFixed(1);
+        const pulseMsg = `[ТЕЛЕМЕТРИЯ СЕТИ]: Входной поток: ${globalInputRps} RPS. Успешность: ${successRate}%. p99: ${globalP99LatencyMs}мс. Все узлы в норме.`;
+        onDeicticContextChange({
+          mutationSummary: pulseMsg
+        });
+      }
+    }
+  }, [telemetry, nodes, onDeicticContextChange]);
+
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     onDeicticContextChange?.({
       focusedElement: {

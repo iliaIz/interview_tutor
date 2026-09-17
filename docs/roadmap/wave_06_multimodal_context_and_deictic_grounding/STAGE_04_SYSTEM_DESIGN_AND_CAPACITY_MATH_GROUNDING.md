@@ -1,12 +1,13 @@
 # Stage 04: System Design & Capacity Math Grounding
 
-> **Статус:** ⬜ ЗАПЛАНИРОВАНО  
+> **Статус:** ✅ ЗАВЕРШЕНО  
 > **Ответственные файлы:**
 > - [SystemDesignArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/SystemDesignArena.tsx)
 > - [ArchitectureCanvas.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/canvas/ArchitectureCanvas.tsx)
 > - [LoadSimulationWorker.ts](file:///c:/projects/interview_tutor/frontend/src/components/system_design/simulation/LoadSimulationWorker.ts)
 > - [CapacityMathCoach.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/CapacityMathCoach.tsx)
 > - [liveWsConnectionHandler.ts](file:///c:/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts)
+> - [livePromptBuilder.ts](file:///c:/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts)
 
 ---
 
@@ -45,21 +46,21 @@ await startVoiceSession({
 ```
 
 ### 2.2. Двухуровневый семантический фильтр телеметрии (Semantic Anomaly Digest)
-1. **Фоновый пульс (раз в 20 секунд или при стабилизации топологии):**
+1. **Фоновый пульс (раз в 25 секунд или при стабилизации топологии):**
    ```text
    [ТЕЛЕМЕТРИЯ СЕТИ]: Входной поток: 50k RPS. Успешность: 99.4%. p99: 45мс. Все узлы в норме.
    ```
 2. **Аварийный триггер аномалий (отправляется мгновенно при пересечении порогов):**
    ```text
    🚨 [АНОМАЛИЯ ХОЛСТА: БОТЛНЕК НА УЗЛЕ "PostgreSQL Cluster"]:
-   Нагрузка: 18,000 RPS. Дроп: 38% запросов! 
-   Причина: исчерпан пул соединений, p99 задержка выросла до 2.4 сек.
+   Нагрузка: 18,000 RPS, утилизация: 92%, дроп: 38% запросов! p99 задержка: 2400мс.
    ```
 
 ### 2.3. Live Sync полей в Capacity Math Coach
 При изменении чисел в инпутах симулятора (с debounce 800 мс) отправлять короткий дейктический фрейм:
 ```text
-📊 [ОБНОВЛЕНИЕ РАСЧЕТОВ КАНДИДАТА НА ЭКРАНЕ]:
+📊 [ОБНОВЛЕНИЕ РАСЧЕТОВ КАНДИДАТА В CAPACITY MATH COACH]:
+Сценарий: «${scenario.title}»
 - Введенный Пиковый QPS: ${userPeakQps}
 - Введенное Хранилище: ${userStorageTb} TB
 - Введенный Кэш RAM: ${userHotRamGb} GB
@@ -69,7 +70,7 @@ await startVoiceSession({
 
 ## 3. Чек-лист реализации
 
-- [ ] **4.1.** Передавать начальную топологию графа и `designNotes` при старте устной защиты в [SystemDesignArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/SystemDesignArena.tsx).
-- [ ] **4.2.** Добавить дебаунс-синхронизацию изменений `mermaidCode` и `designNotes` в режиме ручного кода.
-- [ ] **4.3.** Реализовать в `LoadSimulationWorker` / `ArchitectureCanvas` детектор критических аномалий (дроп > 5%, насыщение > 85%) и отправку алерта через `sendCanvasDelta`.
-- [ ] **4.4.** Добавить в [CapacityMathCoach.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/CapacityMathCoach.tsx) отправку дельты введённых расчётов при редактировании полей.
+- [x] **4.1.** Передавать начальную топологию графа и `designNotes` при старте устной защиты в [SystemDesignArena.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/SystemDesignArena.tsx).
+- [x] **4.2.** Добавить дебаунс-синхронизацию изменений `mermaidCode` и `designNotes` в режиме ручного кода.
+- [x] **4.3.** Реализовать в `LoadSimulationWorker` / `ArchitectureCanvas` детектор критических аномалий (дроп > 5%, насыщение > 85%) и отправку алерта через `sendCanvasDelta`.
+- [x] **4.4.** Добавить в [CapacityMathCoach.tsx](file:///c:/projects/interview_tutor/frontend/src/components/system_design/CapacityMathCoach.tsx) отправку дельты введённых расчётов при редактировании полей.

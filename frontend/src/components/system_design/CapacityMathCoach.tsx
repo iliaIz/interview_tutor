@@ -110,9 +110,10 @@ const PRESET_SCENARIOS: MathScenario[] = [
 
 interface CapacityMathCoachProps {
   onApplyCalculations?: (summary: string) => void;
+  onCalculationChange?: (calcText: string) => void;
 }
 
-export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCalculations }) => {
+export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCalculations, onCalculationChange }) => {
   const [activeScenarioId, setActiveScenarioId] = useState<string>(PRESET_SCENARIOS[0].id);
   const scenario = useMemo(() => {
     return PRESET_SCENARIOS.find((s) => s.id === activeScenarioId) || PRESET_SCENARIOS[0];
@@ -123,6 +124,28 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
   const [userStorageTb, setUserStorageTb] = useState<string>('');
   const [userHotRamGb, setUserHotRamGb] = useState<string>('');
   const [isEvaluated, setIsEvaluated] = useState(false);
+
+  // SOTA 2026 Invariant: Live Grounding of candidate inputs into active voice session
+  const calcTimerRef = useRef<any>(null);
+  useEffect(() => {
+    if (!onCalculationChange) return;
+    if (calcTimerRef.current) clearTimeout(calcTimerRef.current);
+
+    calcTimerRef.current = setTimeout(() => {
+      if (userPeakQps || userStorageTb || userHotRamGb) {
+        const text = `📊 [ОБНОВЛЕНИЕ РАСЧЕТОВ КАНДИДАТА В CAPACITY MATH COACH]:
+Сценарий: «${scenario.title}»
+- Введенный Пиковый QPS: ${userPeakQps || 'не задан'}
+- Введенное Хранилище: ${userStorageTb ? `${userStorageTb} TB` : 'не задано'}
+- Введенный Кэш RAM: ${userHotRamGb ? `${userHotRamGb} GB` : 'не задан'}`;
+        onCalculationChange(text);
+      }
+    }, 800);
+
+    return () => {
+      if (calcTimerRef.current) clearTimeout(calcTimerRef.current);
+    };
+  }, [userPeakQps, userStorageTb, userHotRamGb, scenario.title, onCalculationChange]);
 
   // Exact calculations based on standard interview approximations
   const mathResults = useMemo(() => {
@@ -325,7 +348,10 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-white/95 rounded-3xl border border-pastel-border/80 shadow-sm space-y-6 font-sans">
+    <div
+      data-selection-zone="math"
+      className="p-4 sm:p-6 bg-white/95 rounded-3xl border border-pastel-border/80 shadow-sm space-y-6 font-sans"
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
@@ -562,7 +588,17 @@ export const CapacityMathCoach: React.FC<CapacityMathCoachProps> = ({ onApplyCal
 
           <button
             type="button"
-            onClick={() => setIsEvaluated(true)}
+            onClick={() => {
+              setIsEvaluated(true);
+              if (onCalculationChange) {
+                const text = `📊 [ПРОВЕРКА РАСЧЕТОВ КАНДИДАТА В CAPACITY MATH COACH]:
+Сценарий: «${scenario.title}»
+- Введенный Пиковый QPS: ${userPeakQps || 'не задан'} (Точный эталон: ~${mathResults.peakTotalQps.toLocaleString()} QPS)
+- Введенное Хранилище: ${userStorageTb ? `${userStorageTb} TB` : 'не задано'} (Точный эталон: ~${mathResults.totalStorageTb.toFixed(1)} TB)
+- Введенный Кэш RAM: ${userHotRamGb ? `${userHotRamGb} GB` : 'не задан'} (Точный эталон: ~${mathResults.hotRamGb.toFixed(1)} GB)`;
+                onCalculationChange(text);
+              }
+            }}
             className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5" />
