@@ -1,6 +1,6 @@
 # Stage 01: Unified Deictic Grounding Engine & Turn Handover Flush
 
-> **Статус:** 🟡 В РАБОТЕ  
+> **Статус:** ✅ ЗАВЕРШЕНО  
 > **Ответственные файлы:**
 > - [useLegacyLiveAudioSession.ts](file:///c:/projects/interview_tutor/frontend/src/hooks/useLegacyLiveAudioSession.ts)
 > - [VoiceModal.tsx](file:///c:/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
@@ -89,9 +89,9 @@ const triggerEndTurn = useCallback(() => {
 
 ## 3. Чек-лист реализации
 
-- [ ] **1.1.** Создать / расширить `useDeicticGrounding` внутри `useLegacyLiveAudioSession.ts` для поддержки всех арен.
-- [ ] **1.2.** Реализовать `fastHash` ($O(1)$ детерминированный хэш строки) для отслеживания изменений без оверхеда.
-- [ ] **1.3.** Внедрить **Turn Handover Flush** в `triggerEndTurn()` с гарантией отправки свежего кода перед `turnComplete: true`.
-- [ ] **1.4.** Внедрить фоновый **Debounced Idle Sync** (1.2с паузы в наборе текста) с флагом `turnComplete: false`.
-- [ ] **1.5.** Добавить слушатель выделения в Monaco Editor (`onDidChangeCursorSelection`) с пробросом в `useSelectionFocusStore`.
-- [ ] **1.6.** Убедиться на бэкенде в [liveWsConnectionHandler.ts](file:///c:/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), что дейктические фреймы (`screen_context_sync`, `canvas_delta`) не ломают стейт-машину `hasCandidateResponded`.
+- [x] **1.1.** Создать / расширить `useDeicticGrounding` внутри `useLegacyLiveAudioSession.ts` для поддержки всех арен.
+- [x] **1.2.** Реализовать `fastHash` ($O(1)$ детерминированный хэш строки) для отслеживания изменений без оверхеда.
+- [x] **1.3.** Внедрить **Turn Handover Flush** в `triggerEndTurn()` с гарантией отправки свежего кода перед `turnComplete: true`.
+- [x] **1.4.** Внедрить фоновый **Debounced Idle Sync** (1.2с паузы в наборе текста) с флагом `turnComplete: false`.
+- [x] **1.5.** Добавить слушатель выделения в редакторе кода (`onUpdate` в CodeMirror 6 / DOM listener) с пробросом в `useSelectionFocusStore`.
+- [x] **1.6.** Убедиться на бэкенде в [liveWsConnectionHandler.ts](file:///c:/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), что дейктические фреймы (`screen_context_sync`, `canvas_delta`, action markers) не ломают стейт-машину `hasCandidateResponded`.

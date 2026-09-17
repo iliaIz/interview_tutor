@@ -2,6 +2,13 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { useInterviewConfig } from './useInterviewConfig';
 import { useAppStore } from '../store/useAppStore';
+import {
+  fastHashCode,
+  createDeicticFocusPrompt,
+  createCodeFrame,
+  setupGlobalSelectionListener
+} from '../services/DeicticGroundingManager';
+import { useSelectionFocusStore } from '../store/useSelectionFocusStore';
 
 export interface LiveAudioSessionParams {
   sessionType?: 'interview' | 'tutor' | 'system_design';
@@ -57,6 +64,11 @@ export interface UseLiveAudioSessionOptions {
   onWhiteboardUpdate?: (payload: any) => void;
   onError?: (errorMsg: string) => void;
   onDisconnect?: () => void;
+  // SOTA 2026 Grounding Callbacks
+  getActiveCode?: () => string | undefined;
+  getActiveLanguage?: () => string | undefined;
+  getActiveFileName?: () => string | undefined;
+  enableGlobalSelection?: boolean;
 }
 
 export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
@@ -110,6 +122,18 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const silenceTimerRef = useRef<any>(null);
   const hasSpokenInTurnRef = useRef<boolean>(false);
   const isUserSpeakingRef = useRef<boolean>(false);
+
+  // SOTA 2026 Deictic Grounding & In-Flight Code Sync Refs
+  const lastSyncedCodeHashRef = useRef<string>('');
+  const isFocusInjectedInCurrentTurnRef = useRef<boolean>(false);
+  const debouncedCodeTimerRef = useRef<any>(null);
+
+  // Global Selection Listener for any on-screen [data-selection-zone]
+  useEffect(() => {
+    if (!isConnected || options.enableGlobalSelection === false) return;
+    const cleanup = setupGlobalSelectionListener();
+    return () => cleanup();
+  }, [isConnected, options.enableGlobalSelection]);
 
   // Screen Wake Lock API for Mobile (Android/iOS)
   const acquireWakeLock = async () => {
@@ -225,7 +249,74 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   };
 
   /**
+   * SOTA 2026 Deictic Grounding: Injects active selection focus frame into the Live WebSocket
+   */
+  const injectActiveFocusGroundingFrame = useCallback(() => {
+    if (isFocusInjectedInCurrentTurnRef.current) return;
+    const focus = useSelectionFocusStore.getState().activeFocus;
+    if (!focus || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    isFocusInjectedInCurrentTurnRef.current = true;
+    const textPrompt = createDeicticFocusPrompt(focus);
+
+    console.log('📡 [Deictic Grounding] Injected turn focus frame into live session:', textPrompt);
+    const focusFrame = {
+      type: 'screen_context_sync',
+      deictic: true,
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: textPrompt }]
+          }
+        ],
+        turnComplete: false
+      }
+    };
+    try {
+      wsRef.current.send(JSON.stringify(focusFrame));
+    } catch (e) {
+      console.warn('Failed to send deictic grounding frame:', e);
+    }
+  }, []);
+
+  /**
+   * SOTA 2026 In-Flight Code Sync: Debounced or immediate synchronization of editor code
+   */
+  const syncEditorCode = useCallback((code: string, fileName?: string, language?: string, immediate?: boolean) => {
+    if (!code) return;
+    const hash = fastHashCode(code);
+    if (hash === lastSyncedCodeHashRef.current) return;
+
+    const doSync = () => {
+      if (hash === lastSyncedCodeHashRef.current) return;
+      lastSyncedCodeHashRef.current = hash;
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const frame = createCodeFrame(code, fileName, language, false);
+        try {
+          wsRef.current.send(JSON.stringify(frame));
+          console.log(`📡 [Debounced Code Sync] Pushed editor code delta (${code.length} chars, file: ${fileName || 'active'})`);
+        } catch (e) {
+          console.warn('Failed to send debounced code sync:', e);
+        }
+      }
+    };
+
+    if (debouncedCodeTimerRef.current) {
+      clearTimeout(debouncedCodeTimerRef.current);
+      debouncedCodeTimerRef.current = null;
+    }
+
+    if (immediate) {
+      doSync();
+    } else {
+      debouncedCodeTimerRef.current = setTimeout(doSync, 1200);
+    }
+  }, []);
+
+  /**
    * Completes candidate's current speaking turn and triggers AI response over WebSocket
+   * Enforces SOTA 2026 Turn Handover Flush Invariant (0ms latency handover of in-flight code changes).
    */
   const triggerEndTurn = useCallback(() => {
     generationEpochRef.current += 1;
@@ -251,6 +342,30 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     interactionStatusRef.current = 'IN_PROGRESS';
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // 1. Handover Flush: Check if active code changed during user speech or reflection
+      const currentCode = optionsRef.current.getActiveCode?.();
+      if (currentCode) {
+        const hash = fastHashCode(currentCode);
+        if (hash !== lastSyncedCodeHashRef.current) {
+          lastSyncedCodeHashRef.current = hash;
+          const fileName = optionsRef.current.getActiveFileName?.();
+          const language = optionsRef.current.getActiveLanguage?.() || 'java';
+          const codeFrame = createCodeFrame(currentCode, fileName, language, true);
+          try {
+            wsRef.current.send(JSON.stringify(codeFrame));
+            console.log(`📡 [Handover Flush] Synced code changes before turn commit (${currentCode.length} chars, file: ${fileName || 'active'})`);
+          } catch (err) {
+            console.warn('Failed to send handover code frame:', err);
+          }
+        }
+      }
+
+      // 2. Pre-Turn Focus Grounding: Inject active selection context if not yet injected
+      if (!isFocusInjectedInCurrentTurnRef.current) {
+        injectActiveFocusGroundingFrame();
+      }
+
+      // 3. Commit turnComplete: true
       const turnCompleteMsg = {
         clientContent: {
           turnComplete: true
@@ -260,7 +375,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       console.log('📤 Sent clientContent.turnComplete to Gemini Live');
       setStatusMessage('⏳ ИИ осмысливает ответ...');
     }
-  }, []);
+  }, [injectActiveFocusGroundingFrame]);
 
   /**
    * Immediately silences AI, cancels pending monologue, and re-activates candidate microphone
@@ -279,6 +394,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       setIsRecording(true);
       isRecordingRef.current = true;
       hasSpokenInTurnRef.current = false;
+      isFocusInjectedInCurrentTurnRef.current = false;
       setStatusMessage('🎙️ Вы перебили ИИ. Говорите...');
       workletNodeRef.current?.port.postMessage({ type: 'RESET' });
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -364,6 +480,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               const speechDuration = Date.now() - speechStartTimeRef.current;
               if (speechDuration >= 150) {
                 hasSpokenInTurnRef.current = true;
+                if (!isFocusInjectedInCurrentTurnRef.current) {
+                  injectActiveFocusGroundingFrame();
+                }
               }
               setIsUserSpeaking(true);
               isUserSpeakingRef.current = true;
@@ -468,6 +587,13 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       };
       currentParamsRef.current = effectiveParams;
       isCleaningUpRef.current = false;
+      if (params.codeSnippet) {
+        lastSyncedCodeHashRef.current = fastHashCode(params.codeSnippet);
+      } else if (optionsRef.current.getActiveCode?.()) {
+        const initialCode = optionsRef.current.getActiveCode()!;
+        lastSyncedCodeHashRef.current = fastHashCode(initialCode);
+      }
+      isFocusInjectedInCurrentTurnRef.current = false;
       setStatusMessage('Подключение к голосовому каналу...');
 
       // 0. Acquire Screen Wake Lock for mobile devices
@@ -711,6 +837,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
               isUserSpeakingRef.current = false;
               setIsPauseHolding(false);
               hasSpokenInTurnRef.current = false;
+              isFocusInjectedInCurrentTurnRef.current = false;
               if (silenceTimerRef.current) {
                 clearTimeout(silenceTimerRef.current);
                 silenceTimerRef.current = null;
@@ -886,6 +1013,12 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    if (debouncedCodeTimerRef.current) {
+      clearTimeout(debouncedCodeTimerRef.current);
+      debouncedCodeTimerRef.current = null;
+    }
+    lastSyncedCodeHashRef.current = '';
+    isFocusInjectedInCurrentTurnRef.current = false;
     speechStartTimeRef.current = null;
     hasSpokenInTurnRef.current = false;
     setIsUserSpeaking(false);
@@ -1018,6 +1151,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     setStatusMessage,
     setDialogueTurns,
     setAiTranscript,
+    syncEditorCode,
+    injectActiveFocusGroundingFrame,
     playoutManagerRef
   };
 }

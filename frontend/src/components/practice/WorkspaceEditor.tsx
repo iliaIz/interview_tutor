@@ -27,6 +27,7 @@ import { MutationExecutionResponse } from '../../types/practice';
 import { evaluateAstRules } from '../../utils/astRules';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { usePracticeVoice } from './tutor/PracticeVoiceContext';
+import { useSelectionFocusStore } from '../../store/useSelectionFocusStore';
 
 // Bespoke Luxury Pastel Dark Theme for Java 21 CodeMirror 6
 const luxuryPastelTheme = createTheme({
@@ -77,7 +78,7 @@ export const WorkspaceEditor: React.FC = () => {
     setLatestMutationResult
   } = useAppStore();
 
-  const { isConnected: isVoiceConnected, sendTextMessage } = usePracticeVoice();
+  const { isConnected: isVoiceConnected, sendTextMessage, syncEditorCode } = usePracticeVoice();
 
   const [isDiffOpen, setIsDiffOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
@@ -364,6 +365,10 @@ export const WorkspaceEditor: React.FC = () => {
                 key={file.path}
                 onClick={() => {
                   setActiveWorkspaceFileIndex(idx);
+                  if (isVoiceConnected) {
+                    sendTextMessage(`📂 [СМЕНА АКТИВНОГО ФАЙЛА]: Кандидат переключился на файл «${fileName}» (${file.readOnly ? 'только для чтения / контракт тестов' : 'редактируемый рабочий код'}).`);
+                    syncEditorCode?.(file.content, fileName, 'java', true);
+                  }
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
                   isActive
@@ -401,6 +406,9 @@ export const WorkspaceEditor: React.FC = () => {
       {/* CodeMirror 6 Editor Body with Ctrl+Enter shortcut */}
       <div 
         className="flex-1 flex overflow-hidden relative font-mono text-xs"
+        data-selection-zone="code"
+        data-file-name={currentFile.path.split('/').pop() || currentFile.path}
+        data-language="java"
         onKeyDown={(e) => {
           if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -443,8 +451,33 @@ export const WorkspaceEditor: React.FC = () => {
               completionKeymap: true,
               lintKeymap: true
             }}
+            onUpdate={(viewUpdate) => {
+              if (viewUpdate.selectionSet) {
+                const main = viewUpdate.state.selection.main;
+                if (!main.empty) {
+                  const doc = viewUpdate.state.doc;
+                  const text = doc.sliceString(main.from, main.to).trim();
+                  if (text.length >= 2) {
+                    const startLine = doc.lineAt(main.from).number;
+                    const endLine = doc.lineAt(main.to).number;
+                    useSelectionFocusStore.getState().setFocus({
+                      zone: 'code',
+                      text,
+                      fileName: currentFile.path.split('/').pop() || currentFile.path,
+                      language: 'java',
+                      startLine: Math.min(startLine, endLine),
+                      endLine: Math.max(startLine, endLine),
+                      timestamp: Date.now()
+                    });
+                  }
+                }
+              }
+            }}
             onChange={(value) => {
               updateWorkspaceFileContent(activeWorkspaceFileIndex, value);
+              if (isVoiceConnected && syncEditorCode) {
+                syncEditorCode(value, currentFile.path.split('/').pop() || currentFile.path, 'java', false);
+              }
             }}
           />
 

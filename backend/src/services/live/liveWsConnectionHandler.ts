@@ -472,7 +472,14 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         parsed.type === 'screen_context_sync' ||
         parsed.clientContent?.turns?.some((t: any) =>
           t.parts?.some((p: any) =>
-            typeof p.text === 'string' && (p.text.startsWith('📌 [КОНТЕКСТ ЭКРАНА') || p.text.startsWith('🎯 [ФОКУС ВНИМАНИЯ'))
+            typeof p.text === 'string' && (
+              p.text.startsWith('📌 [КОНТЕКСТ ЭКРАНА') ||
+              p.text.startsWith('🎯 [ФОКУС ВНИМАНИЯ') ||
+              p.text.startsWith('📝 [АКТУАЛЬНЫЙ КОД') ||
+              p.text.startsWith('💡 [ДЕЙСТВИЕ') ||
+              p.text.startsWith('🔍 [ДЕЙСТВИЕ') ||
+              p.text.startsWith('📂 [СМЕНА')
+            )
           )
         )
       );

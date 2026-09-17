@@ -24,6 +24,8 @@ interface PracticeVoiceContextType {
   playoutManagerRef: React.MutableRefObject<AudioPlayoutManager | null>;
   startPracticeSession: () => Promise<void>;
   handleCentralButtonClick: () => void;
+  syncEditorCode?: (code: string, fileName?: string, language?: string, immediate?: boolean) => void;
+  injectActiveFocusGroundingFrame?: () => void;
 }
 
 const PracticeVoiceContext = createContext<PracticeVoiceContextType | null>(null);
@@ -39,7 +41,19 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   const { persona: tutorPersona, setModality } = usePracticeTutorStore();
 
   const session = useLiveAudioSession({
-    onError: (err) => console.error('Practice voice error:', err)
+    onError: (err) => console.error('Practice voice error:', err),
+    getActiveCode: () => {
+      const state = useAppStore.getState();
+      const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
+      return current?.content || '';
+    },
+    getActiveFileName: () => {
+      const state = useAppStore.getState();
+      const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
+      return current?.path?.split('/').pop() || current?.path || 'Solution.java';
+    },
+    getActiveLanguage: () => 'java',
+    enableGlobalSelection: true
   });
 
   const {
@@ -64,7 +78,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       let challengeCategory = activePracticeChallenge?.category || domain;
       let challengeTrack = activePracticeChallenge?.track || domain;
       let bugTitle = activePracticeChallenge?.title || 'Практическая задача';
-      let bugExplanation = activePracticeChallenge?.instructionsMarkdown?.slice(0, 800) || '';
+      let bugExplanation = activePracticeChallenge?.instructionsMarkdown || '';
       let codeSnippet = currentFile?.content || '';
 
       if (activeTransactionLabScenarioId) {
@@ -76,7 +90,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         challengeCategory = 'Spring Transactions';
         challengeTrack = 'spring_transactions';
         bugTitle = txScenario.title;
-        bugExplanation = txScenario.problemStatement?.slice(0, 800) || '';
+        bugExplanation = txScenario.problemStatement || '';
         codeSnippet = txScenario.services
           .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
           .join('\n\n');

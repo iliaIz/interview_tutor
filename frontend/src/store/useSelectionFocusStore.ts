@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 
 export interface SelectionFocus {
-  zone: 'question' | 'reference_answer' | 'code' | 'term';
+  zone: 'question' | 'reference_answer' | 'code' | 'term' | 'incident' | 'hint' | 'terminal';
   text: string;
   revisionIndex?: number;
   revisionTitle?: string;
   revisionId?: string;
+  fileName?: string;
   startLine?: number;
   endLine?: number;
   language?: string;
