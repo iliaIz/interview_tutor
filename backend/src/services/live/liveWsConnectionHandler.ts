@@ -305,9 +305,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);
   const isThinkingModel = liveModel.includes('thinking') || liveModel === 'gemini-live-thinking-v3';
 
-  const normalizedTools = isThinkingModel
-    ? toolDeclarations.map((t) => ({ ...t, behavior: 'NON_BLOCKING' }))
-    : toolDeclarations;
+  // SOTA 2026 Invariant: In Gemini Live Bidi WebSocket sessions, function calling is strictly synchronous.
+  // NON_BLOCKING is unsupported in Bidi Live and causes turn pipeline desynchronization.
+  const normalizedTools = toolDeclarations;
 
   const generationConfig: any = {
     responseModalities: ['AUDIO'],

@@ -227,6 +227,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const gainAnchorRef = useRef<GainNode | null>(null);
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
   const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
+  const isToolExecutingRef = useRef<boolean>(false);
 
   // Mount tracking & In-flight request cancellation (SOTA 2026 Resilience)
   const isMountedRef = useRef<boolean>(true);
@@ -440,6 +441,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
     lastSyncedRevisionIdRef.current = targetRevId;
     pendingWhiteboardRevisionIdRef.current = null;
+
+    // SOTA 2026 Self-Echo Suppression:
+    // If the revision was authored by AI ('ai'), the model itself generated this code via update_whiteboard.
+    // Re-injecting it as clientContent interrupts the model's post-tool audio explanation!
+    if (currentRev.author === 'ai') {
+      console.log(`🛡️ [Pre-Speech Grounding] Suppressed deictic injection for AI-authored revision "${currentRev.title}" (${currentRev.id})`);
+      return;
+    }
 
     console.log(`📡 [Pre-Speech Grounding] Injecting screen context frame for revision "${currentRev.title}" (${currentRev.id})`);
     const deicticGroundingFrame = {
@@ -662,6 +671,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isTactileInterruptedRef.current = true;
 
       playoutManagerRef.current?.handleInterruption();
+      isToolExecutingRef.current = false;
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
       setIsThinking(false);
@@ -915,6 +925,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    isToolExecutingRef.current = false;
     hasSpokenInTurnRef.current = false;
     isServerTurnCompleteRef.current = false;
     interactionStatusRef.current = 'IDLE';
@@ -1170,8 +1181,26 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           return;
         }
 
+        if (data.type === 'tool_executing') {
+          console.log('🛠️ [TOOL_EXECUTING] Backend reported tool execution in progress:', data.tools);
+          isToolExecutingRef.current = true;
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+          setIsPauseHolding(false);
+          setThinkingStage('processing');
+          return;
+        }
+
         // Live Whiteboard sync from AI
         if (data.type === 'whiteboard_update') {
+          isToolExecutingRef.current = true;
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+          setIsPauseHolding(false);
           const payload = data.payload;
           setWhiteboardState(payload);
           if (payload?.action !== 'clear') {
@@ -1377,6 +1406,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
           if (data.serverContent.turnComplete) {
             isTactileInterruptedRef.current = false;
+            isToolExecutingRef.current = false;
             const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 
             if (isInteractionIdle) {
@@ -2431,14 +2461,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   setIsUserSpeaking(false);
                   const currentCfg = interviewConfigRef.current;
                   const turnMode = currentCfg.turnMode || (localStorage.getItem('interview_turn_mode') as any) || 'manual';
-                  if (turnMode === 'auto') {
+                  if (turnMode === 'auto' && !isToolExecutingRef.current) {
                     setIsPauseHolding(true);
                     if (!silenceTimerRef.current) {
                       const vadPauseMs = currentCfg.vadPauseMs ?? 1800;
                       silenceTimerRef.current = setTimeout(() => {
                         setIsPauseHolding(false);
                         silenceTimerRef.current = null;
-                        if (isRecordingRef.current && !isAiSpeakingRef.current && !isThinkingRef.current && hasSpokenInTurnRef.current) {
+                        if (isRecordingRef.current && !isAiSpeakingRef.current && !isThinkingRef.current && !isToolExecutingRef.current && hasSpokenInTurnRef.current) {
                           console.log('🎙️ [AUTO-VAD] Silence threshold reached. Automatically committing candidate turn...');
                           void triggerEndTurn();
                         }

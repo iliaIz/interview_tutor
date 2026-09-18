@@ -461,10 +461,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           if (session.toolCallSafetyTimeout) clearTimeout(session.toolCallSafetyTimeout);
           session.toolCallSafetyTimeout = setTimeout(() => {
             if (session.isToolCallPending) {
-              console.warn('⚠️ Tool call safety timeout (7s) reached: releasing audio gate');
+              console.warn('⚠️ Tool call safety timeout (10s) reached: releasing audio gate');
               session.isToolCallPending = false;
             }
-          }, 7000);
+          }, 10000);
 
           if (clientSocket.readyState === WebSocket.OPEN) {
             clientSocket.send(JSON.stringify({
@@ -490,7 +490,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                             response: {
                               result: {
                                 status: 'SUCCESS',
-                                message: 'Интерактивная доска уже обновлена.'
+                                message: 'Интерактивная доска уже обновлена.',
+                                directive: 'Кратко (в 1-2 предложениях) поясни кандидату голосом показанный фрагмент. Не вызывай повторных инструментов.'
                               }
                             }
                           }
@@ -557,12 +558,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               }
             }
           } finally {
-            // Once all tool responses have been dispatched to Gemini, release toolCall pending gate
-            session.isToolCallPending = false;
-            if (session.toolCallSafetyTimeout) {
-              clearTimeout(session.toolCallSafetyTimeout);
-              session.toolCallSafetyTimeout = null;
-            }
+            // SOTA 2026 Invariant: Do NOT release session.isToolCallPending here!
+            // Dispatching toolResponse JSON to Gemini initiates the post-tool verbal response phase.
+            // Releasing the audio gate prematurely allows client mic PCM chunks to flood geminiSocket
+            // while Gemini processes the tool response, triggering upstream timeout crashes.
+            // session.isToolCallPending is symmetrically released when serverContent.turnComplete: true arrives,
+            // or upon client barge-in / cancellation / 10s safety timeout.
           }
         }
       } catch {}

@@ -57,7 +57,8 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             response: {
               result: {
                 status: 'SUCCESS',
-                message: 'Интерактивная доска обновлена на экране кандидата.'
+                message: 'Интерактивная доска обновлена на экране кандидата.',
+                directive: 'Кратко (в 1-2 предложениях) объясни кандидату голосом ключевые особенности показанного на доске фрагмента. Не вызывай повторных инструментов до ответа кандидата.'
               }
             }
           }
