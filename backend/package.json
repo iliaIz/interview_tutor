@@ -9,7 +9,13 @@
     "build:sandbox": "node -e \"const { execSync } = require('child_process'), fs = require('fs'), path = require('path'); function walk(dir) { let r = []; for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); if (fs.statSync(p).isDirectory()) r = r.concat(walk(p)); else if (p.endsWith('.java')) r.push(p); } return r; } const files = walk('src/services/sandbox/runner').join(' '); execSync('javac -d bin ' + files, { stdio: 'inherit' });\"",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "test:prompts": "ts-node src/scripts/verifyPrompts.ts"
+    "test:prompts": "ts-node src/scripts/verifyPrompts.ts",
+    "test:vad:unit": "ts-node src/scripts/testAcousticFixtures.ts",
+    "test:vad:pacer": "ts-node src/scripts/testRealtimePacer.ts",
+    "test:vad:fixtures": "ts-node src/scripts/runAcousticVadMatrix.ts --fixtures",
+    "test:vad:quick": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=standard",
+    "test:vad:thinking": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-thinking-v3 --scenario=thinking",
+    "test:vad:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=all --scenario=all"
   },
   "dependencies": {
     "@google/genai": "*",
