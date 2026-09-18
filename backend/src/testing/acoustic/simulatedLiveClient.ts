@@ -8,6 +8,7 @@
 
 import WebSocket from 'ws';
 import { envConfig } from '../../config/env';
+import { authService } from '../../services/authService';
 
 export interface SimulatedClientOptions {
   hostWithPort?: string;
@@ -55,6 +56,7 @@ export class SimulatedLiveClient {
   private candidateSpeechEndedAt: number | null = null;
   private interruptionTriggeredAt: number | null = null;
   private messageListeners: Array<(msg: any) => void> = [];
+  private closeListeners: Array<(code: number, reason: string) => void> = [];
 
   constructor(options: SimulatedClientOptions = {}) {
     this.options = {
@@ -76,7 +78,16 @@ export class SimulatedLiveClient {
    * Connects to the backend WebSocket proxy.
    */
   public async connect(timeoutMs: number = 10000): Promise<void> {
+    let ticket = '';
+    try {
+      ticket = authService.createWsTicket('user_master');
+    } catch {
+      // Ignored if DB cannot be accessed directly
+    }
+
     const params = new URLSearchParams({
+      ...(ticket ? { ticket } : {}),
+      ...(envConfig.proxy.apiKey ? { token: envConfig.proxy.apiKey } : {}),
       sessionId: `sim_session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       questionId: 'test_q_1',
       topic: this.options.topic || '',
@@ -97,6 +108,11 @@ export class SimulatedLiveClient {
     const url = `ws://${this.options.hostWithPort}/ws/live?${params.toString()}`;
 
     return new Promise((resolve, reject) => {
+      const headers: Record<string, string> = {};
+      if (envConfig.proxy.apiKey) {
+        headers['Authorization'] = `Bearer ${envConfig.proxy.apiKey}`;
+      }
+
       const timer = setTimeout(() => {
         if (this.ws) {
           this.ws.terminate();
@@ -104,7 +120,7 @@ export class SimulatedLiveClient {
         reject(new Error(`WebSocket connection to ${url} timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(url, { headers });
 
       this.ws.on('open', () => {
         clearTimeout(timer);
@@ -121,8 +137,12 @@ export class SimulatedLiveClient {
         reject(err);
       });
 
-      this.ws.on('close', () => {
+      this.ws.on('close', (code, reason) => {
         this.isConnected = false;
+        const reasonStr = reason ? reason.toString() : '';
+        for (const listener of this.closeListeners) {
+          try { listener(code, reasonStr); } catch {}
+        }
       });
     });
   }
@@ -242,12 +262,19 @@ export class SimulatedLiveClient {
         }
       };
 
+      const closeHandler = (code: number, reason: string) => {
+        cleanup();
+        reject(new Error(`WebSocket closed before greeting completed (code ${code}: ${reason || 'no reason'})`));
+      };
+
       const cleanup = () => {
         clearTimeout(timer);
         this.messageListeners = this.messageListeners.filter((l) => l !== listener);
+        this.closeListeners = this.closeListeners.filter((l) => l !== closeHandler);
       };
 
       this.messageListeners.push(listener);
+      this.closeListeners.push(closeHandler);
     });
   }
 
@@ -272,12 +299,19 @@ export class SimulatedLiveClient {
         }
       };
 
+      const closeHandler = (code: number, reason: string) => {
+        cleanup();
+        reject(new Error(`WebSocket closed before turn completed (code ${code}: ${reason || 'no reason'})`));
+      };
+
       const cleanup = () => {
         clearTimeout(timer);
         this.messageListeners = this.messageListeners.filter((l) => l !== listener);
+        this.closeListeners = this.closeListeners.filter((l) => l !== closeHandler);
       };
 
       this.messageListeners.push(listener);
+      this.closeListeners.push(closeHandler);
     });
   }
 

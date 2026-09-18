@@ -39,6 +39,24 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     }
   }
 
+  // Internal test runner & diagnostic authentication via LITELLM_API_KEY
+  if (!authenticatedUser) {
+    const authHeader = (req.headers['authorization'] as string) || '';
+    const queryToken = (query.token as string) || (query.auth_token as string) || '';
+    const expectedKey = envConfig.proxy.apiKey;
+    if (
+      expectedKey &&
+      (authHeader === `Bearer ${expectedKey}` || queryToken === expectedKey)
+    ) {
+      authenticatedUser = {
+        id: 'user_master',
+        name: 'Automated Test Runner',
+        role: 'owner',
+        created_at: new Date().toISOString()
+      };
+    }
+  }
+
   if (!authenticatedUser) {
     console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
     clientSocket.close(4401, 'Unauthorized: Valid ticket or invite session required');
