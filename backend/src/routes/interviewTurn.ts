@@ -18,6 +18,12 @@ import {
   wrapUntrustedContext,
   PROMPT_INJECTION_DEFENSE_DIRECTIVE
 } from '../prompts/core/sandboxDirectives';
+import {
+  TRIVIA_IMMUNITY_INVARIANT,
+  CONVERSATIONAL_ANTI_SYCOPHANCY_DIRECTIVES,
+  StrictnessLevel,
+  getStrictnessDirectives
+} from '../prompts/core/antiSycophancy';
 
 const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
 
@@ -304,12 +310,17 @@ router.post('/turn', async (req: Request, res: Response) => {
       activeCodeArtifact,
       persona = 'mentor',
       targetGrade = 'L5_SENIOR',
-      sessionType: rawSessionType = 'interview'
+      sessionType: rawSessionType = 'interview',
+      strictness: rawStrictness = 'standard'
     } = req.body;
 
     const voice = sanitizeVoice(rawVoice);
     const userGender = rawUserGender === 'male' || rawUserGender === 'neutral' ? rawUserGender : 'female';
     const sessionType = rawSessionType === 'tutor' ? 'tutor' : 'interview';
+    const strictness: StrictnessLevel = ['learning', 'standard', 'hardcore'].includes(rawStrictness)
+      ? (rawStrictness as StrictnessLevel)
+      : (sessionType === 'tutor' ? 'learning' : 'standard');
+    const strictnessDirective = getStrictnessDirectives(strictness);
 
     if (!questionText) {
       return res.status(400).json({ error: 'questionText is required' });
@@ -369,15 +380,24 @@ router.post('/turn', async (req: Request, res: Response) => {
 Ты доброжелательный Senior наставник по теме «${topic}».
 Кандидат задает вопросы, разбирается в тонкостях темы или просит подсказку.
 КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку или завершать сессию (action: "evaluate").
-ВСЕГДА выбирай action: "probe" и давай прямой, емкий, полезный ответ или наводящую подсказку кандидату голосом (2-3 предложения).`
+ВСЕГДА выбирай action: "probe" и давай прямой, емкий, полезный ответ или наводящую подсказку кандидату голосом (2-3 предложения).
+Если кандидат ошибся — не соглашайся из вежливости («вы правы»), а мягко покажи физику процесса под капотом.`
       : `ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ (СОБЕСЕДОВАНИЕ):
 1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
    -> Выбери action: "evaluate".
 2. Если ответ кандидата раскрывает только часть критериев, есть неточности или включен Deep Dive, и раундов ${turnCount} < ${maxProbes}:
-   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).`;
+   -> Выбери action: "probe" и сформулируй ОДИН четкий, глубокий наводящий вопрос (2-3 предложения), развивающий тему в манере твоей персоны (${personaDirectives.personaTitle}).
+   -> Если кандидат допустил фактическую или механическую ошибку: сформулируй точечный вопрос именно по этой механике без соглашательских фраз («вы правы», «отлично»).
+   -> Помни о TRIVIA IMMUNITY: не снижай оценку и не придирайся, если кандидат объясняет своими словами и не помнит точных длинных названий пропертей или классов.`;
 
     const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
 ${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+
+${TRIVIA_IMMUNITY_INVARIANT}
+
+${CONVERSATIONAL_ANTI_SYCOPHANCY_DIRECTIVES}
+
+${strictnessDirective}
 
 ${personaDirectives.roleDirective}
 ${personaDirectives.gradeExpectationDirective}
@@ -400,7 +420,7 @@ ${decisionRules}
 Если action == "probe":
 {
   "action": "probe",
-  "replyText": "Короткий полезный ответ или наводящий вопрос кандидату голосом (2-3 предложения)"
+  "replyText": "Короткий полезный ответ или наводящий вопрос кандидату голосом (2-3 предложения, без фальшивых кивков)"
 }
 
 Если action == "evaluate":
@@ -409,12 +429,12 @@ ${decisionRules}
   "score": number (0-100),
   "isPassed": boolean (score >= 70),
   "deductions": [
-    { "criterionId": "string", "reason": "Конкретная фактическая ошибка или пропуск", "penalty": number }
+    { "criterionId": "string", "reason": "Конкретная фактическая ошибка или пропуск физики процесса", "penalty": number }
   ],
   "positivePoints": [список из 1-3 пунктов того, что отвечено верно],
   "missingPoints": [список из 1-3 упущенных нюансов или терминов],
   "feedback": "Подробный текстовый фидбек на 2-3 предложения с обоснованием вычетов",
-  "spokenFeedback": "Краткое устное теплое резюме для озвучки голосом (1-2 предложения, строго до 35 слов, например: Отлично, ты хорошо разобралась в теме! Сейчас сформирую итоговую оценку.)",
+  "spokenFeedback": "Краткое устное объективное резюме для озвучки голосом (1-2 предложения, строго до 35 слов, например: Спасибо за ответ. Я сопоставил факты с критериями и сформировал оценку в калибровочном отчете.)",
   "faangScorecard": {
     "verdict": "STRONG_HIRE | HIRE | LEANING_HIRE | LEANING_NO_HIRE | STRONG_NO_HIRE",
     "calibratedGrade": "L4_MIDDLE | L5_SENIOR | L6_STAFF",

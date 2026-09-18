@@ -6,6 +6,7 @@ import { authService } from '../authService';
 import { parseCookies } from '../../middleware/auth';
 import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vectorMemoryService';
 import { TargetGrade } from '../../prompts/personas';
+import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
 import { extractDefaultAnchors, buildSystemPrompt } from './livePromptBuilder';
 import { getLiveToolDeclarations } from './liveToolDeclarations';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
@@ -87,6 +88,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
   const maxProbes = Math.max(1, Math.min(5, parseInt((query.maxProbes as string) || '3', 10) || 3));
   const deepDive = query.deepDive === 'true';
   const liveCoaching = query.liveCoaching === 'true';
+  const rawStrictness = ((query.strictness as string) || '').toLowerCase();
+  const strictness: StrictnessLevel | undefined = ['learning', 'standard', 'hardcore'].includes(rawStrictness)
+    ? (rawStrictness as StrictnessLevel)
+    : undefined;
   const customPromptOverride = (query.customPrompt as string) || '';
   const questionIndex = Math.max(0, parseInt((query.questionIndex as string) || '0', 10) || 0);
   const totalQuestions = Math.max(1, parseInt((query.totalQuestions as string) || '1', 10) || 1);
@@ -274,6 +279,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     codeRevisionsSummary,
     persona,
     targetGrade,
+    strictness,
     challengeCategory,
     challengeTrack
   });

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Settings2, Sparkles, GraduationCap, ShieldCheck, 
   Volume2, Bookmark, Plus, Trash2, Code2, ChevronDown, ChevronUp,
-  Microscope, Play, Loader2
+  Microscope, Play, Loader2, Scale
 } from 'lucide-react';
 import { 
   InterviewConfig, InterviewProfile, AVAILABLE_VOICES, GeminiVoiceName 
@@ -285,6 +285,81 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
                       Обучающий режим: поддержка, похвала за верные мысли и мягкие наводящие аналогии.
                     </p>
                   </button>
+                </div>
+              </div>
+
+              {/* Калибровка строгости и объективности (Strictness Level) */}
+              <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Scale className="w-3.5 h-3.5 text-pastel-accentViolet" />
+                    <span>Строгость и объективность оценки</span>
+                  </label>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    config.strictness === 'learning'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : config.strictness === 'hardcore'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}>
+                    {config.strictness === 'learning'
+                      ? '🟢 Обучение'
+                      : config.strictness === 'hardcore'
+                      ? '🔴 L6 Bar-Raiser'
+                      : '🟡 L5 Собеседование'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Устраняет эффект потакания (sycophancy) и ложного согласия с ошибками кандидата. Фокусируется на сути и причинно-следственных связях, игнорируя мелкие оговорки в названиях классов и свойств.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  {[
+                    {
+                      id: 'learning',
+                      label: '🟢 Обучение',
+                      subtitle: 'Мягкий ментор',
+                      desc: 'Подсказки без давления, дружелюбный тон, упор на понимание сути.'
+                    },
+                    {
+                      id: 'standard',
+                      label: '🟡 L5 Собеседование',
+                      subtitle: 'Стандарт FAANG',
+                      desc: 'Объективная проверка фактов и механики. Никакого поддакивания при ошибках.'
+                    },
+                    {
+                      id: 'hardcore',
+                      label: '🔴 L6 Bar-Raiser',
+                      subtitle: 'Максимальная планка',
+                      desc: 'Жесткий аудит архитектурных компромиссов, контрактов и краевых условий.'
+                    }
+                  ].map((level) => {
+                    const isSelected = (!config.strictness && level.id === 'standard') || config.strictness === level.id;
+                    return (
+                      <button
+                        key={level.id}
+                        type="button"
+                        onClick={() => {
+                          localStorage.setItem('interview_strictness_level', level.id);
+                          onChangeConfig({ ...config, strictness: level.id as any });
+                        }}
+                        className={`p-3 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? level.id === 'learning'
+                              ? 'bg-emerald-50/90 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
+                              : level.id === 'hardcore'
+                              ? 'bg-rose-50/90 border-rose-400 ring-1 ring-rose-400/40 shadow-xs'
+                              : 'bg-amber-50/90 border-amber-400 ring-1 ring-amber-400/40 shadow-xs'
+                            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">{level.label}</div>
+                          <div className="text-[10px] font-medium text-slate-500 mb-1">{level.subtitle}</div>
+                          <div className="text-[10px] text-slate-500 leading-snug">{level.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -11,7 +11,8 @@ import {
   Loader2,
   Settings2,
   Volume2,
-  Zap
+  Zap,
+  Scale
 } from 'lucide-react';
 import { InterviewConfig } from '../../types/interviewConfig';
 import { PersonaSelector } from '../PersonaSelector';
@@ -200,6 +201,50 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
               title="Отключить речевой анализ"
             >
               Выкл
+            </button>
+          </div>
+
+          {/* 3-Tier Calibration Spectrum (Strictness Level) */}
+          <div className="flex items-center gap-1 bg-white/90 p-1 rounded-2xl border border-pastel-border shadow-2xs">
+            <span className="text-[10px] font-bold text-pastel-muted pl-2 pr-1 flex items-center gap-1">
+              <Scale className="w-3 h-3 text-pastel-accentViolet" />
+              Строгость:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleConfigChange({ ...interviewConfig, strictness: 'learning' })}
+              className={`px-2 py-0.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                interviewConfig.strictness === 'learning'
+                  ? 'bg-emerald-500 text-white shadow-2xs font-extrabold'
+                  : 'text-pastel-muted hover:text-pastel-text'
+              }`}
+              title="🟢 Обучение: подсказки и поддержка без давления, акцент на понимание сути"
+            >
+              🟢 Обучение
+            </button>
+            <button
+              type="button"
+              onClick={() => handleConfigChange({ ...interviewConfig, strictness: 'standard' })}
+              className={`px-2 py-0.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                (!interviewConfig.strictness || interviewConfig.strictness === 'standard')
+                  ? 'bg-amber-500 text-white shadow-2xs font-extrabold'
+                  : 'text-pastel-muted hover:text-pastel-text'
+              }`}
+              title="🟡 Собеседование L5: объективная проверка без поддакивания, иммунитет к поверхностным оговоркам"
+            >
+              🟡 L5
+            </button>
+            <button
+              type="button"
+              onClick={() => handleConfigChange({ ...interviewConfig, strictness: 'hardcore' })}
+              className={`px-2 py-0.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                interviewConfig.strictness === 'hardcore'
+                  ? 'bg-rose-500 text-white shadow-2xs font-extrabold'
+                  : 'text-pastel-muted hover:text-pastel-text'
+              }`}
+              title="🔴 Bar-Raiser L6: бескомпромиссная проверка крайних случаев, архитектурных компромиссов и контрактов"
+            >
+              🔴 L6 Bar-Raiser
             </button>
           </div>
         </div>

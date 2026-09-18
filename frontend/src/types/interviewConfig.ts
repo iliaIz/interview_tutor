@@ -52,6 +52,7 @@ export type TurnMode = 'manual' | 'auto';
 export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3' | 'gemini-live-thinking-v3';
 export type InterviewLanguage = 'ru' | 'en';
 export type StudyModality = 'voice' | 'text';
+export type StrictnessLevel = 'learning' | 'standard' | 'hardcore';
 
 import { InterviewPersonaId, TargetGrade } from './personas';
 
@@ -59,6 +60,7 @@ export interface InterviewConfig {
   strategy: InterviewStrategy;
   voice: GeminiVoiceName;
   maxProbes: number; // 1..5
+  strictness?: StrictnessLevel; // ⚖️ Уровень строгости: 'learning' (обучение) | 'standard' (L5) | 'hardcore' (Bar-Raiser)
   language?: InterviewLanguage; // 🌐 'ru' (по умолчанию) | 'en' (для зарубежных мок-интервью)
   persona?: InterviewPersonaId; // 👔 Персона интервьюера (FAANG Bar-Raiser, Staff Architect, Yandex Core)
   targetGrade?: TargetGrade; // 🎯 Целевой грейд (L4 Middle+, L5 Senior, L6 Staff)

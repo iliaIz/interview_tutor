@@ -171,6 +171,7 @@ export function getActiveConfig(): InterviewConfig {
   const liveModel = (localStorage.getItem('interview_live_model') as any) || 'gemini-live-v3';
   const alwaysShowPreflight = localStorage.getItem('interview_always_show_preflight') === 'true';
   const studyModality = (localStorage.getItem('interview_study_modality') as any) || 'voice';
+  const strictness = (localStorage.getItem('interview_strictness_level') as any) || 'standard';
 
   try {
     const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
@@ -182,7 +183,8 @@ export function getActiveConfig(): InterviewConfig {
         turnMode: parsed.turnMode || turnMode,
         liveModel: parsed.liveModel || liveModel,
         alwaysShowPreflight: typeof parsed.alwaysShowPreflight === 'boolean' ? parsed.alwaysShowPreflight : alwaysShowPreflight,
-        studyModality: parsed.studyModality || studyModality
+        studyModality: parsed.studyModality || studyModality,
+        strictness: parsed.strictness || strictness
       };
     }
   } catch {}
@@ -192,7 +194,8 @@ export function getActiveConfig(): InterviewConfig {
     turnMode,
     liveModel,
     alwaysShowPreflight,
-    studyModality
+    studyModality,
+    strictness
   };
 }
 
@@ -212,6 +215,9 @@ export function saveActiveConfig(config: InterviewConfig): void {
     }
     if (config.studyModality) {
       localStorage.setItem('interview_study_modality', config.studyModality);
+    }
+    if (config.strictness) {
+      localStorage.setItem('interview_strictness_level', config.strictness);
     }
     localStorage.setItem(ACTIVE_CONFIG_KEY, JSON.stringify(config));
     if (typeof window !== 'undefined') {
