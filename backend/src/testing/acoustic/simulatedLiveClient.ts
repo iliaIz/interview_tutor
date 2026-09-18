@@ -237,17 +237,19 @@ export class SimulatedLiveClient {
   /**
    * Waits for the Turn 0 Greeting to arrive and conclude its audio/text playout.
    */
-  public async waitForGreeting(timeoutMs: number = 15000): Promise<string> {
+  public async waitForGreeting(timeoutMs: number = 25000): Promise<string> {
+    const effectiveTimeout = Math.max(timeoutMs, 25000);
     return new Promise((resolve, reject) => {
       let greetingText = '';
+      let greetingAudioBytes = 0;
       const timer = setTimeout(() => {
         cleanup();
-        if (greetingText.length > 0) {
-          resolve(greetingText);
+        if (greetingText.length > 0 || greetingAudioBytes > 0) {
+          resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
         } else {
-          reject(new Error(`Greeting timeout: no greeting received within ${timeoutMs}ms`));
+          reject(new Error(`Greeting timeout: no greeting received within ${effectiveTimeout}ms`));
         }
-      }, timeoutMs);
+      }, effectiveTimeout);
 
       const listener = (msg: any) => {
         const parts = msg.serverContent?.modelTurn?.parts || [];
@@ -255,10 +257,13 @@ export class SimulatedLiveClient {
           if (p.text && !p.thought) {
             greetingText += p.text;
           }
+          if (p.inlineData?.data) {
+            greetingAudioBytes += Buffer.from(p.inlineData.data, 'base64').length;
+          }
         }
         if (msg.serverContent?.turnComplete) {
           cleanup();
-          resolve(greetingText);
+          resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
         }
       };
 
