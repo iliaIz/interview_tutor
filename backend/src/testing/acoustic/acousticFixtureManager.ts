@@ -57,8 +57,7 @@ export const GOLDEN_FIXTURES: Record<string, FixtureDefinition> = {
     description: 'Вторая часть ответа после заминки (~2.0с)'
   }
 };
-
-const FIXTURES_DIR = path.resolve(__dirname, '../../../../backend/tests/fixtures/audio');
+const FIXTURES_DIR = process.env.FIXTURES_DIR || path.resolve(process.cwd(), 'tests/fixtures/audio');
 
 /**
  * Ensures the fixtures directory exists.

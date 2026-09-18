@@ -58,7 +58,7 @@ export class SimulatedLiveClient {
 
   constructor(options: SimulatedClientOptions = {}) {
     this.options = {
-      hostWithPort: options.hostWithPort || `localhost:${envConfig.server.backendPort}`,
+      hostWithPort: options.hostWithPort || process.env.TEST_BACKEND_HOST || `localhost:${envConfig.server.backendPort}`,
       topic: options.topic || 'Spring Caching',
       questionText: options.questionText || 'Как работает аннотация @CacheEvict?',
       referenceAnswer: options.referenceAnswer || 'Аннотация @CacheEvict удаляет запись из кэша по ключу.',

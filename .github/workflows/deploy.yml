@@ -15,8 +15,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality-gate:
+    name: Quality Gate & Invariant Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            shared/package-lock.json
+
+      - name: Install & Build Shared Package
+        run: |
+          npm --prefix shared ci
+          npm --prefix shared run build
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Prompt Invariant & Anti-Sycophancy Tests
+        working-directory: backend
+        run: npm run test:prompts
+
+      - name: Run Acoustic Fixture & Resampler Unit Tests
+        working-directory: backend
+        run: npm run test:vad:unit
+
+      - name: Run Realtime Audio Pacer Tests
+        working-directory: backend
+        run: npm run test:vad:pacer
+
+      - name: Verify Backend TypeScript Build
+        working-directory: backend
+        run: npm run build
+
   build-backend:
     name: Build & Push Backend Image
+    needs: [quality-gate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
@@ -51,6 +93,7 @@ jobs:
 
   build-caddy:
     name: Build & Push Caddy Image (Host Prebuild)
+    needs: [quality-gate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
@@ -107,6 +150,7 @@ jobs:
 
   build-sandbox:
     name: Build & Push Sandbox Image
+    needs: [quality-gate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
@@ -160,20 +204,70 @@ jobs:
           envs: GITHUB_ACTOR,GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA
           script: |
             set -e
-            echo "[1/4] Authenticating with GHCR on VPS..."
+            echo "[1/5] Authenticating with GHCR on VPS..."
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
             cd /home/djelu/spring
 
-            echo "[2/4] Syncing production docker-compose.prod.yml & Caddyfile..."
+            echo "[2/5] Syncing production docker-compose.prod.yml & Caddyfile..."
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/spring/docker-compose.prod.yml || true
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/Caddyfile" -o /home/djelu/spring/Caddyfile || true
 
-            echo "[3/4] Exporting deployment metadata & Pulling images..."
+            echo "[3/5] Exporting deployment metadata & Pulling images..."
             export GIT_COMMIT_SHA="$GITHUB_SHA"
             docker compose -f docker-compose.prod.yml pull
 
-            echo "[4/4] Recreating containers with zero downtime..."
+            echo "[4/5] Running Pre-Flight Canary Auto-VAD Verification on VPS..."
+            OWNER_LOWER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
+            CANARY_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}"
+
+            docker rm -f interview-backend-canary 2>/dev/null || true
+
+            echo "Starting ephemeral canary container on internal port 5005..."
+            docker run -d \
+              --name interview-backend-canary \
+              --network litellm_shared_network \
+              --env-file /home/djelu/spring/.env \
+              -e NODE_ENV=production \
+              -e PORT=5005 \
+              -e BACKEND_PORT=5005 \
+              -e TEST_BACKEND_HOST=localhost:5005 \
+              -e GIT_COMMIT_SHA="${GITHUB_SHA}" \
+              -e LITELLM_BASE_URL=http://litellm-gateway:4000/v1 \
+              "$CANARY_IMAGE"
+
+            echo "Waiting for canary container to initialize..."
+            CANARY_READY=false
+            for i in $(seq 1 12); do
+              if docker exec interview-backend-canary curl -s -f http://localhost:5005/api/health > /dev/null 2>&1; then
+                CANARY_READY=true
+                break
+              fi
+              echo "Canary initializing ($i/12), retrying in 2s..."
+              sleep 2
+            done
+
+            if [ "$CANARY_READY" != "true" ]; then
+              echo "❌ Canary server failed healthcheck on port 5005! Capturing logs..."
+              docker logs interview-backend-canary --tail 50
+              docker rm -f interview-backend-canary || true
+              echo "Deployment aborted! Production container was NOT touched."
+              exit 1
+            fi
+
+            echo "Running Live Auto-VAD Acoustic Turn Verification in Canary container..."
+            if ! docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --engine=gemini-live-v3 --scenario=standard; then
+              echo "❌ Canary Auto-VAD Verification FAILED! Capturing container logs..."
+              docker logs interview-backend-canary --tail 80
+              docker rm -f interview-backend-canary || true
+              echo "Deployment aborted! Production container was NOT touched."
+              exit 1
+            fi
+
+            echo "✅ Pre-Flight Canary Auto-VAD Verification PASSED! Cleaning up canary..."
+            docker rm -f interview-backend-canary || true
+
+            echo "[5/5] Recreating production containers with zero downtime..."
             GIT_COMMIT_SHA="$GITHUB_SHA" docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             echo "[Clean] Housekeeping dangling image layers..."
