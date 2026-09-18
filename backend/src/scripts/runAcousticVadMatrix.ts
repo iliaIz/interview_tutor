@@ -88,7 +88,7 @@ async function main() {
     for (const [id, bytes] of Object.entries(res)) {
       console.log(`  - ${id}: ${bytes} bytes (${(bytes / 32000).toFixed(2)}s)`);
     }
-    return;
+    return process.exit(0);
   }
 
   const enginesToTest = engine === 'all'
@@ -141,6 +141,7 @@ async function main() {
     process.exit(1);
   } else {
     console.log('\n🎉 All acoustic Auto-VAD scenarios passed successfully!');
+    process.exit(0);
   }
 }
 

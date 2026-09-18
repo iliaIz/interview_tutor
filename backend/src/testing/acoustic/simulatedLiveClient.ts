@@ -349,10 +349,13 @@ export class SimulatedLiveClient {
    * Closes connection cleanly.
    */
   public close(): void {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-      try { this.ws.close(); } catch {}
+    if (this.ws) {
+      try {
+        this.ws.terminate();
+      } catch {}
     }
     this.isConnected = false;
     this.messageListeners = [];
+    this.closeListeners = [];
   }
 }
