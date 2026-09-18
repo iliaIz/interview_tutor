@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/wave-08-acoustic-vad-harness
   workflow_dispatch:
 
 permissions:
