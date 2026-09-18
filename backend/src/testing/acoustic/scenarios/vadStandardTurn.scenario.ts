@@ -33,12 +33,14 @@ export async function runStandardTurnScenario(engine: string = 'gemini-live-v3')
     const candidatePcm = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
 
     console.log(`[Scenario: StandardTurn] Streaming candidate speech (${(candidatePcm.length / 32000).toFixed(2)}s) + 2.0s silence...`);
-    client.markCandidateSpeechEnd();
-
     // Stream speech + trailing silence (Auto-VAD will detect the silence)
-    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, candidatePcm, 2000, {
-      chunkDurationMs: 40
-    });
+    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+      client.ws!,
+      candidatePcm,
+      2000,
+      { chunkDurationMs: 40 },
+      () => client.markCandidateSpeechEnd()
+    );
 
     console.log('[Scenario: StandardTurn] Waiting for AI response turn...');
     const telemetry = await client.waitForTurnComplete(25000);

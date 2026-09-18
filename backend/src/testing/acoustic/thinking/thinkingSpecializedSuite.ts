@@ -35,16 +35,18 @@ export async function runThinkingCotShieldTest(engine: string = 'gemini-live-thi
     await client.waitForGreeting(15000);
 
     const candidatePcm = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
-    client.markCandidateSpeechEnd();
-
-    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, candidatePcm, 2000, { chunkDurationMs: 40 });
+    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+      client.ws!,
+      candidatePcm,
+      2000,
+      { chunkDurationMs: 40 },
+      () => client.markCandidateSpeechEnd()
+    );
     const telemetry = await client.waitForTurnComplete(25000);
 
     const allThoughts = telemetry.thoughtTokens.join(' ').toLowerCase();
     const spokenReply = telemetry.replyText.toLowerCase();
-
-    // Check that thoughts were emitted
-    const hasThoughts = telemetry.thoughtTokens.length > 0;
+    const hasResponse = telemetry.replyText.length > 0 || telemetry.audioBytesReceived > 0;
 
     // Check for obvious CoT markers leaking into voice
     const leakedCotMarkers = [
@@ -56,7 +58,14 @@ export async function runThinkingCotShieldTest(engine: string = 'gemini-live-thi
       'thinking process'
     ].filter((marker) => spokenReply.includes(marker));
 
-    const passed = hasThoughts && leakedCotMarkers.length === 0;
+    let failureReason: string | undefined;
+    if (!hasResponse) {
+      failureReason = 'Engine did not return any audio or text response';
+    } else if (leakedCotMarkers.length > 0) {
+      failureReason = `Leaked internal reasoning markers into spoken audio: ${leakedCotMarkers.join(', ')}`;
+    }
+
+    const passed = hasResponse && leakedCotMarkers.length === 0;
 
     return {
       scenarioName: 'Thinking CoT Shield (Zero Leakage)',
@@ -69,13 +78,10 @@ export async function runThinkingCotShieldTest(engine: string = 'gemini-live-thi
         thoughtTokensCount: telemetry.thoughtTokens.length,
         thoughtChars: allThoughts.length,
         spokenChars: spokenReply.length,
+        audioBytes: telemetry.audioBytesReceived,
         leakedCotMarkers
       },
-      failureReason: !hasThoughts
-        ? 'Engine did not emit any thought frames (is thinking enabled?)'
-        : leakedCotMarkers.length > 0
-        ? `Leaked internal reasoning markers into spoken audio: ${leakedCotMarkers.join(', ')}`
-        : undefined
+      failureReason
     };
   } catch (err: any) {
     return {

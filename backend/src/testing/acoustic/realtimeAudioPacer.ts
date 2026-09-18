@@ -12,6 +12,7 @@ import { generateSilence, SAMPLE_RATE, BYTES_PER_SAMPLE } from './silenceGenerat
 export interface PacerOptions {
   chunkDurationMs?: number; // default 40ms (1280 bytes)
   onChunkSent?: (chunkIndex: number, totalChunks: number, elapsedMs: number) => void;
+  onSpeechEnd?: () => void;
   signal?: AbortSignal;
 }
 
@@ -102,9 +103,15 @@ export class RealtimeAudioPacer {
     ws: WebSocket,
     speechPcm: Buffer,
     trailingSilenceMs: number = 2000,
-    options: PacerOptions = {}
+    options: PacerOptions = {},
+    onSpeechEndCallback?: () => void
   ): Promise<{ speechDurationMs: number; silenceDurationMs: number }> {
     const speechResult = await this.streamPcm(ws, speechPcm, options);
+    if (onSpeechEndCallback) {
+      onSpeechEndCallback();
+    } else if (options.onSpeechEnd) {
+      options.onSpeechEnd();
+    }
     const silenceBuffer = generateSilence(trailingSilenceMs);
     const silenceResult = await this.streamPcm(ws, silenceBuffer, options);
 

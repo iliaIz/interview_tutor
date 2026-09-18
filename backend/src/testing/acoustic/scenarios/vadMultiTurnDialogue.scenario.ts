@@ -54,10 +54,13 @@ export async function runMultiTurnDialogueScenario(
     // Turn 1: Basic Answer
     console.log('\n--- [Scenario: MultiTurn] Executing Turn 1 ---');
     const pcmTurn1 = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
-    client.markCandidateSpeechEnd();
-    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, pcmTurn1, 2000, {
-      chunkDurationMs: 40
-    });
+    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+      client.ws!,
+      pcmTurn1,
+      2000,
+      { chunkDurationMs: 40 },
+      () => client.markCandidateSpeechEnd()
+    );
     console.log('[Scenario: MultiTurn] Turn 1: Waiting for AI response...');
     const tel1 = await client.waitForTurnComplete(25000);
     turnMetrics.push({
@@ -76,10 +79,13 @@ export async function runMultiTurnDialogueScenario(
     if (turnsCount >= 2) {
       console.log('\n--- [Scenario: MultiTurn] Executing Turn 2 ---');
       const pcmTurn2 = await AcousticFixtureManager.getFixture('candidate_complex_architecture');
-      client.markCandidateSpeechEnd();
-      await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, pcmTurn2, 2000, {
-        chunkDurationMs: 40
-      });
+      await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+        client.ws!,
+        pcmTurn2,
+        2000,
+        { chunkDurationMs: 40 },
+        () => client.markCandidateSpeechEnd()
+      );
       console.log('[Scenario: MultiTurn] Turn 2: Waiting for AI follow-up response...');
       const tel2 = await client.waitForTurnComplete(25000);
       turnMetrics.push({
@@ -98,10 +104,13 @@ export async function runMultiTurnDialogueScenario(
     if (turnsCount >= 3) {
       console.log('\n--- [Scenario: MultiTurn] Executing Turn 3 ---');
       const pcmTurn3 = await AcousticFixtureManager.getFixture('candidate_hesitation_part1');
-      client.markCandidateSpeechEnd();
-      await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, pcmTurn3, 2000, {
-        chunkDurationMs: 40
-      });
+      await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+        client.ws!,
+        pcmTurn3,
+        2000,
+        { chunkDurationMs: 40 },
+        () => client.markCandidateSpeechEnd()
+      );
       console.log('[Scenario: MultiTurn] Turn 3: Waiting for AI concluding response...');
       const tel3 = await client.waitForTurnComplete(25000);
       turnMetrics.push({

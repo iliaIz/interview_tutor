@@ -37,10 +37,13 @@ export async function runVocalizedHesitationTest(engine: string = 'gemini-live-v
     const speechPcm = await AcousticFixtureManager.getFixture('candidate_vocalized_hesitation_java');
     console.log(`[Stress: VocalizedHesitation] Streaming speech with vocalized fillers (${(speechPcm.length / 32000).toFixed(2)}s) + 2.0s silence...`);
 
-    client.markCandidateSpeechEnd();
-    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, speechPcm, 2000, {
-      chunkDurationMs: 40
-    });
+    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+      client.ws!,
+      speechPcm,
+      2000,
+      { chunkDurationMs: 40 },
+      () => client.markCandidateSpeechEnd()
+    );
 
     console.log('[Stress: VocalizedHesitation] Awaiting AI response turn...');
     const telemetry = await client.waitForTurnComplete(25000);
@@ -97,10 +100,13 @@ export async function runTypingImmunityTest(engine: string = 'gemini-live-v3'): 
 
     console.log(`[Stress: TypingImmunity] Streaming speech mixed with keyboard transients (${(speechWithTypingPcm.length / 32000).toFixed(2)}s)...`);
 
-    client.markCandidateSpeechEnd();
-    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, speechWithTypingPcm, 2000, {
-      chunkDurationMs: 40
-    });
+    await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
+      client.ws!,
+      speechWithTypingPcm,
+      2000,
+      { chunkDurationMs: 40 },
+      () => client.markCandidateSpeechEnd()
+    );
 
     console.log('[Stress: TypingImmunity] Awaiting AI response turn...');
     const telemetry = await client.waitForTurnComplete(25000);
