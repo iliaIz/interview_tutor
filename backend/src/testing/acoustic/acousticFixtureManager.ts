@@ -55,6 +55,12 @@ export const GOLDEN_FIXTURES: Record<string, FixtureDefinition> = {
     text: 'чтобы все события одного аккаунта попадали в одну партицию.',
     voice: 'Puck',
     description: 'Вторая часть ответа после заминки (~2.0с)'
+  },
+  candidate_vocalized_hesitation_java: {
+    id: 'candidate_vocalized_hesitation_java',
+    text: 'Мы... э-э-э... используем ConcurrentHashMap, потому что... м-м-м... блокировка сегментирована.',
+    voice: 'Puck',
+    description: 'Ответ с реалистичными вокализованными заминками ("э-э-э", "м-м-м") для проверки устойчивости VAD (~4.0с)'
   }
 };
 const FIXTURES_DIR = process.env.FIXTURES_DIR || path.resolve(process.cwd(), 'tests/fixtures/audio');

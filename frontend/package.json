@@ -7,6 +7,7 @@
     "dev": "vite",
     "prebuild": "npm --prefix ../shared run build",
     "build": "tsc && vite build",
+    "test:e2e:voice": "playwright test e2e/voiceSession.spec.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.10.1",
     "@types/prismjs": "^1.26.6",

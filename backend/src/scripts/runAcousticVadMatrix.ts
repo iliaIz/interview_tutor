@@ -10,6 +10,12 @@ import { runStandardTurnScenario } from '../testing/acoustic/scenarios/vadStanda
 import { runHesitationScenario } from '../testing/acoustic/scenarios/vadHesitationTolerance.scenario';
 import { runBargeInScenario } from '../testing/acoustic/scenarios/vadBargeIn.scenario';
 import { runNoiseRejectionScenario } from '../testing/acoustic/scenarios/vadNoiseRejection.scenario';
+import { runMultiTurnDialogueScenario } from '../testing/acoustic/scenarios/vadMultiTurnDialogue.scenario';
+import {
+  runVocalizedHesitationTest,
+  runTypingImmunityTest,
+  runBreathRejectionTest
+} from '../testing/acoustic/scenarios/vadAcousticStress.scenario';
 import {
   runThinkingCotShieldTest,
   runThinkingPreVocalBargeInTest,
@@ -19,17 +25,21 @@ import { ScenarioResult } from '../testing/acoustic/scenarios/types';
 
 function parseArgs(): {
   fixturesOnly: boolean;
+  suite: string;
   engine: string;
   scenario: string;
 } {
   const args = process.argv.slice(2);
   let fixturesOnly = false;
+  let suite = '';
   let engine = 'gemini-live-v3';
   let scenario = 'all';
 
   for (const arg of args) {
     if (arg === '--fixtures' || arg === '--pre-generate-fixtures') {
       fixturesOnly = true;
+    } else if (arg.startsWith('--suite=')) {
+      suite = arg.split('=')[1];
     } else if (arg.startsWith('--engine=')) {
       engine = arg.split('=')[1];
     } else if (arg.startsWith('--scenario=')) {
@@ -37,7 +47,7 @@ function parseArgs(): {
     }
   }
 
-  return { fixturesOnly, engine, scenario };
+  return { fixturesOnly, suite, engine, scenario };
 }
 
 function printAsciiTable(results: ScenarioResult[]): void {
@@ -78,7 +88,7 @@ function printAsciiTable(results: ScenarioResult[]): void {
 }
 
 async function main() {
-  const { fixturesOnly, engine, scenario } = parseArgs();
+  const { fixturesOnly, suite, engine, scenario } = parseArgs();
 
   console.log('🎙️ [Acoustic Test Harness] Initializing fixture verification...');
   if (fixturesOnly) {
@@ -91,11 +101,36 @@ async function main() {
     return process.exit(0);
   }
 
+  const results: ScenarioResult[] = [];
+
+  // Dedicated Pre-Flight Canary Suite: tests both live-v3 and thinking-v3
+  if (suite === 'canary') {
+    console.log('\n======================================================');
+    console.log('🦅 RUNNING SOTA DUAL-ENGINE CANARY SUITE');
+    console.log('======================================================');
+
+    // 1. Multi-Turn Turn-Taking with Strict Latency SLA on gemini-live-v3
+    console.log('\n[Canary 1/2] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
+    results.push(await runMultiTurnDialogueScenario('gemini-live-v3', 2));
+
+    // 2. Extended Thinking CoT Shield Smoke Test on gemini-live-thinking-v3
+    console.log('\n[Canary 2/2] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
+    results.push(await runThinkingCotShieldTest('gemini-live-thinking-v3'));
+
+    printAsciiTable(results);
+    const allPassed = results.every((r) => r.passed);
+    if (!allPassed) {
+      console.error('\n❌ Pre-Flight Canary verification failed.');
+      process.exit(1);
+    } else {
+      console.log('\n🎉 SOTA Dual-Engine Canary passed successfully!');
+      process.exit(0);
+    }
+  }
+
   const enginesToTest = engine === 'all'
     ? ['gemini-live-v3', 'gemini-live-thinking-v3', 'gemini-live-v2']
     : [engine];
-
-  const results: ScenarioResult[] = [];
 
   for (const currentEngine of enginesToTest) {
     console.log(`\n======================================================`);
@@ -109,22 +144,35 @@ async function main() {
       results.push(await runStandardTurnScenario(currentEngine));
     }
 
-    // 2. Mid-Sentence Hesitation
+    // 2. Multi-Turn Dialogue
+    if (scenario === 'all' || scenario === 'multiturn') {
+      results.push(await runMultiTurnDialogueScenario(currentEngine, 3));
+    }
+
+    // 3. Mid-Sentence Hesitation
     if (scenario === 'all' || scenario === 'hesitation') {
       results.push(await runHesitationScenario(currentEngine));
     }
 
-    // 3. Acoustic Barge-In
+    // 4. Acoustic Barge-In
     if (scenario === 'all' || scenario === 'bargein') {
       results.push(await runBargeInScenario(currentEngine));
     }
 
-    // 4. Micro-Noise Rejection
+    // 5. Micro-Noise Rejection
     if (scenario === 'all' || scenario === 'noise') {
       results.push(await runNoiseRejectionScenario(currentEngine));
     }
 
-    // 5. Thinking Specialized Suite (runs for thinking model or if explicitly requested)
+    // 6. Acoustic Stress Suite (Vocalized hesitation, typing noise, breath rejection)
+    if (scenario === 'all' || scenario === 'stress') {
+      console.log(`\n⚡ Running Real-World Acoustic Stress Suite for [${currentEngine}]...`);
+      results.push(await runVocalizedHesitationTest(currentEngine));
+      results.push(await runTypingImmunityTest(currentEngine));
+      results.push(await runBreathRejectionTest(currentEngine));
+    }
+
+    // 7. Thinking Specialized Suite (runs for thinking model or if explicitly requested)
     if (isThinking || scenario === 'thinking') {
       console.log(`\n🧠 Running Extended Thinking Reasoning Suite for [${currentEngine}]...`);
       results.push(await runThinkingCotShieldTest(currentEngine));

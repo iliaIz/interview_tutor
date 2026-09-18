@@ -34,3 +34,50 @@ export function generateNoiseBurst(durationMs: number = 150, amplitude: number =
   }
   return buf;
 }
+
+/**
+ * Generates a soft breath/sigh noise burst (400ms low-pass filtered noise with smooth envelope).
+ * Used to verify that non-speech exhalations do NOT trigger false VAD speech events.
+ */
+export function generateBreathNoise(durationMs: number = 400, amplitude: number = 0.04): Buffer {
+  const numSamples = Math.floor((SAMPLE_RATE * durationMs) / 1000);
+  const buf = Buffer.alloc(numSamples * BYTES_PER_SAMPLE);
+  let lastVal = 0;
+
+  for (let i = 0; i < numSamples; i++) {
+    // Raised cosine bell envelope: fades in and fades out smoothly
+    const env = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (numSamples - 1)));
+    // Low-pass brownian filter to simulate warm breath
+    const white = Math.random() * 2 - 1;
+    lastVal = 0.9 * lastVal + 0.1 * white;
+    const sampleVal = Math.round(lastVal * env * amplitude * 32767);
+    buf.writeInt16LE(Math.max(-32768, Math.min(32767, sampleVal)), i * 2);
+  }
+  return buf;
+}
+
+/**
+ * Overlays randomized mechanical keyboard click transients onto an existing speech PCM buffer.
+ * Tests VAD immunity to concurrent typing sounds during an interview.
+ */
+export function generateTypingNoiseOverlay(speechPcm: Buffer, clicksPerSecond: number = 3): Buffer {
+  const output = Buffer.from(speechPcm); // Clone buffer
+  const totalSamples = Math.floor(output.length / BYTES_PER_SAMPLE);
+  const clickDurationSamples = Math.floor((SAMPLE_RATE * 20) / 1000); // 20ms click
+
+  const intervalSamples = Math.floor(SAMPLE_RATE / clicksPerSecond);
+  for (let pos = Math.floor(intervalSamples * 0.5); pos < totalSamples - clickDurationSamples; pos += intervalSamples + Math.floor((Math.random() - 0.5) * 2000)) {
+    for (let c = 0; c < clickDurationSamples; c++) {
+      const idx = (pos + c) * BYTES_PER_SAMPLE;
+      if (idx + 1 < output.length) {
+        const original = output.readInt16LE(idx);
+        // Exponential decay click transient
+        const clickAmp = Math.exp(-c / 50) * (Math.random() * 0.15);
+        const clickVal = Math.round(clickAmp * 32767);
+        const mixed = Math.max(-32768, Math.min(32767, original + clickVal));
+        output.writeInt16LE(mixed, idx);
+      }
+    }
+  }
+  return output;
+}

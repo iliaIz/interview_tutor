@@ -262,9 +262,9 @@ jobs:
               exit 1
             fi
 
-            echo "Running Live Auto-VAD Acoustic Turn Verification in Canary container..."
-            if ! docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --engine=gemini-live-v3 --scenario=standard; then
-              echo "❌ Canary Auto-VAD Verification FAILED! Capturing container logs..."
+            echo "Running SOTA Dual-Engine Pre-Flight Canary Verification (v3 + thinking-v3)..."
+            if ! docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
+              echo "❌ Canary Dual-Engine Verification FAILED! Capturing container logs..."
               docker logs interview-backend-canary --tail 80
               docker rm -f interview-backend-canary || true
               echo "Deployment aborted! Production container was NOT touched."
