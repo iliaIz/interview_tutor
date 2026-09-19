@@ -626,11 +626,16 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
       session.frameQueue.push(payloadBuffer);
     } else {
-      if (session.isToolCallPending) {
+      // SOTA 2026 Half-Duplex Acoustic Guard: Drop raw microphone audio while AI is actively speaking
+      // or executing tool calls, unless explicitly flagged with tactile barge-in.
+      // This prevents acoustic speaker bleed from triggering false upstream VAD interruptions.
+      if (session.isToolCallPending || session.isAiGenerating) {
         try {
           const parsedObj = JSON.parse(buffer.toString());
           if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
-            return;
+            if (!parsedObj.bargeIn && !parsedObj.barge_in) {
+              return;
+            }
           }
         } catch {}
       }

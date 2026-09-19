@@ -229,6 +229,17 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
   const isToolExecutingRef = useRef<boolean>(false);
 
+  // SOTA 2026 Half-Duplex Acoustic Gating: hardware-level mute/unmute of microphone track
+  const setHardwareMicEnabled = (enabled: boolean) => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getAudioTracks().forEach((track) => {
+        if (track.enabled !== enabled) {
+          track.enabled = enabled;
+        }
+      });
+    }
+  };
+
   // Mount tracking & In-flight request cancellation (SOTA 2026 Resilience)
   const isMountedRef = useRef<boolean>(true);
   const activeAbortControllersRef = useRef<Set<AbortController>>(new Set());
@@ -619,45 +630,46 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       try { navigator.vibrate(15); } catch {}
     }
 
-    // Tier 1: 3.5s - status update to 'delayed'
+    // Tier 1: 5.0s - status update to 'delayed'
     const t1 = setTimeout(() => {
       if (isThinkingRef.current) {
         setThinkingStage('delayed');
       }
-    }, 3500);
+    }, 5000);
 
-    // Tier 2: 6.5s - status update to 'critical' (shows recovery bar)
+    // Tier 2: 12.0s - status update to 'critical' (shows recovery bar)
     const t2 = setTimeout(() => {
       if (isThinkingRef.current) {
         setThinkingStage('critical');
       }
-    }, 6500);
+    }, 12000);
 
-    // Tier 3: 10.0s - auto-fallback to REST /api/eval (Only for interview scoring, NEVER in tutor mode!)
+    // Tier 3: 25.0s - auto-fallback to REST /api/eval (accommodates deep reasoning TTFT up to 18s)
     const t3 = setTimeout(() => {
       if (isThinkingRef.current && !isEvaluationFinalizedRef.current && sessionType !== 'tutor') {
-        console.warn('⏱️ 10s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
+        console.warn('⏱️ 25s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
         void executeInstantRestEvalFallback();
       } else if (isThinkingRef.current && sessionType === 'tutor') {
-        console.warn('⏱️ 10s Tutor Turn Watchdog expired. Sending sync ping to backend...');
+        console.warn('⏱️ 25s Tutor Turn Watchdog expired. Sending sync ping to backend...');
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           try {
             wsRef.current.send(JSON.stringify({ type: 'sync_ping', timestamp: Date.now() }));
           } catch {}
         }
-        // If after 14s still thinking in tutor mode, gently unfreeze thinking state to allow user to continue speaking
+        // If after 28s still thinking in tutor mode, gently unfreeze thinking state to allow user to continue speaking
         setTimeout(() => {
           if (isThinkingRef.current && sessionType === 'tutor') {
-            console.warn('⏱️ 14s Tutor Turn Watchdog hard recovery: unlocking microphone for candidate.');
+            console.warn('⏱️ 28s Tutor Turn Watchdog hard recovery: unlocking microphone for candidate.');
             setIsThinking(false);
             isThinkingRef.current = false;
             setThinkingStage('idle');
             setIsRecording(true);
             isRecordingRef.current = true;
+            setHardwareMicEnabled(true);
           }
-        }, 4000);
+        }, 3000);
       }
-    }, 10000);
+    }, 25000);
 
     turnWatchdogRef.current = [t1, t2, t3];
   };
@@ -683,6 +695,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setIsRecording(true);
       isRecordingRef.current = true;
       hasSpokenInTurnRef.current = false;
+      setHardwareMicEnabled(true);
 
       // Clean worklet state on Barge-In
       workletNodeRef.current?.port.postMessage({ type: 'RESET' });
@@ -1098,6 +1111,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           setIsRecording(true);
           isRecordingRef.current = true;
           hasSpokenInTurnRef.current = false;
+          setTimeout(() => {
+            if (isMountedRef.current && isRecordingRef.current && !isAiSpeakingRef.current) {
+              setHardwareMicEnabled(true);
+            }
+          }, 350);
           if (isFocusInjectedInCurrentTurnRef.current) {
             isFocusInjectedInCurrentTurnRef.current = false;
             useSelectionFocusStore.getState().clearFocus();
@@ -1348,11 +1366,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (data.serverContent.interrupted) {
             const isTactile = isTactileInterruptedRef.current;
             const isUserLoudlySpeaking = isUserSpeaking && rmsDb > -26;
-            const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
 
-            // SOTA Protection: If candidate is not actively speaking loudly and audio is currently playing,
-            // and this was NOT an explicit tactile button press, it's an echo-induced false interruption from Google Live. Suppress it!
-            if (!isTactile && !isUserLoudlySpeaking && isPlaying) {
+            // SOTA Protection: If candidate did NOT explicitly press tactile barge-in and is not speaking loudly,
+            // this is an echo-induced false interruption from Google Live. Suppress it!
+            if (!isTactile && !isUserLoudlySpeaking) {
               console.warn('🛡️ Suppressed false server-side Barge-In interruption (acoustic echo). Continuing audio playout.');
               return;
             }
@@ -1370,6 +1387,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setIsRecording(true);
             isRecordingRef.current = true;
             hasSpokenInTurnRef.current = false;
+            setHardwareMicEnabled(true);
             setDialogueTurns((prev) => [...prev, { role: 'system', text: '⚡ Речь прервана кандидатом (Barge-in).' }]);
           }
 
@@ -1390,6 +1408,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             }
 
             clearAllTurnWatchdogs();
+            setHardwareMicEnabled(false);
             isServerTurnCompleteRef.current = false;
             setIsAiSpeaking(true);
             isAiSpeakingRef.current = true;
@@ -1431,6 +1450,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           // Output Audio Transcription streaming from Gemini Live
           const outputTranscript = data.serverContent?.outputTranscription?.text || data.serverContent?.output_transcription?.text;
           if (outputTranscript) {
+            clearAllTurnWatchdogs();
+            setHardwareMicEnabled(false);
             transcriptRef.current += ` AI: ${outputTranscript}`;
             setDialogueTurns((prev) => {
               const last = prev[prev.length - 1];
@@ -1464,6 +1485,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 setIsRecording(true);
                 isRecordingRef.current = true;
                 hasSpokenInTurnRef.current = false;
+                setTimeout(() => {
+                  if (isMountedRef.current && isRecordingRef.current && !isAiSpeakingRef.current) {
+                    setHardwareMicEnabled(true);
+                  }
+                }, 350);
                 if (isFocusInjectedInCurrentTurnRef.current) {
                   isFocusInjectedInCurrentTurnRef.current = false;
                   useSelectionFocusStore.getState().clearFocus();
@@ -2154,6 +2180,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             setIsRecording(true);
             isRecordingRef.current = true;
             userPcmChunksRef.current = [];
+            setTimeout(() => {
+              if (isMountedRef.current && isRecordingRef.current && !isAiSpeakingRef.current) {
+                setHardwareMicEnabled(true);
+              }
+            }, 350);
             setDialogueTurns((prev) => [
               ...prev,
               { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
@@ -2161,6 +2192,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           };
 
           if (data.audioBase64) {
+            setHardwareMicEnabled(false);
             void playoutManagerRef.current.playBase64Audio(data.audioBase64);
           }
         }
@@ -2437,6 +2469,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
 
       mediaStreamRef.current = stream;
+
+      // SOTA 2026 Half-Duplex Acoustic Gating: Keep hardware mic track muted if AI is currently speaking
+      const isCurrentlySpeaking = isAiSpeakingRef.current || (playoutManagerRef.current?.isPlaying() ?? false);
+      if (isCurrentlySpeaking) {
+        stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+      }
 
       const audioCtx =
         playoutManagerRef.current?.getContext() ||
