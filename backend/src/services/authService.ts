@@ -273,7 +273,8 @@ export class AuthService {
 
 export const authService = new AuthService();
 
-// Auto cleanup every hour
-setInterval(() => {
+// Auto cleanup every hour (unref so one-off scripts and CLI commands can exit cleanly)
+const cleanupInterval = setInterval(() => {
   authService.cleanupExpired();
 }, 60 * 60 * 1000);
+cleanupInterval.unref();
