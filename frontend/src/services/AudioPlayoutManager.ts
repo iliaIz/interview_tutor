@@ -27,15 +27,46 @@ export class AudioPlayoutManager {
   private isResuming = false;
   private isWorkletPlaying = false;
   private isExplicitlyPaused = false;
+  private static sharedContext: AudioContext | null = null;
   private readonly isMobileDevice: boolean;
   public onPlaybackFinished?: () => void;
   public isMuted: boolean = false;
   private autoDrainTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /**
+   * SOTA 2026: Synchronously prime/unlock AudioContext during user gesture (onClick)
+   * before any asynchronous network boundary or React useEffect.
+   */
+  public static getOrCreateContext(): AudioContext {
+    if (typeof window === 'undefined') {
+      throw new Error('AudioContext unavailable outside browser environment');
+    }
+    if (!AudioPlayoutManager.sharedContext || AudioPlayoutManager.sharedContext.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      AudioPlayoutManager.sharedContext = new AudioCtx({ latencyHint: 'interactive' });
+    }
+    if (AudioPlayoutManager.sharedContext.state === 'suspended') {
+      void AudioPlayoutManager.sharedContext.resume().catch(() => {});
+    }
+    return AudioPlayoutManager.sharedContext;
+  }
+
+  public static warmup(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return AudioPlayoutManager.getOrCreateContext();
+    } catch (e) {
+      console.warn('AudioPlayoutManager.warmup notice:', e);
+      return null;
+    }
+  }
+
   constructor(existingContext?: AudioContext) {
+    // SOTA Invariant: Only genuine mobile OSes with telephony earpiece quirks require STREAM_MUSIC routing.
+    // NEVER treat Windows/macOS/Linux touchscreen laptops as mobile phones!
     this.isMobileDevice =
       typeof window !== 'undefined' &&
-      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+      /android|iphone|ipad|ipod/i.test(navigator.userAgent);
     this.ensureContext(existingContext);
   }
 
@@ -123,8 +154,7 @@ export class AudioPlayoutManager {
         void this.initWorklet(this.context);
       }
     } else if (!this.context || this.context.state === 'closed') {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      this.context = new AudioCtx({ latencyHint: 'interactive' });
+      this.context = AudioPlayoutManager.getOrCreateContext();
       this.setupMasterRouting(isMobile);
       void this.initWorklet(this.context);
     }
@@ -496,6 +526,9 @@ export class AudioPlayoutManager {
     }
 
     if (this.context && this.context.state !== 'closed') {
+      if (AudioPlayoutManager.sharedContext === this.context) {
+        AudioPlayoutManager.sharedContext = null;
+      }
       try {
         await this.context.close();
       } catch {}

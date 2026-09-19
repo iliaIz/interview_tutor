@@ -1,7 +1,37 @@
 import { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import { transcribeWithDeepgram } from '../services/deepgramService';
+import { db } from '../services/db';
 
 const router = Router();
+const STORAGE_DIR = process.env.STORAGE_DIR || path.join(process.cwd(), 'storage');
+
+function encodePcmToWav(pcmBuffer: Buffer, sampleRate = 16000, numChannels = 1, bitsPerSample = 16): Buffer {
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = pcmBuffer.length;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(byteRate, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  pcmBuffer.copy(buffer, 44);
+
+  return buffer;
+}
 
 // POST /api/stt/transcribe - Transcribe PCM audio buffer with Deepgram Nova-3 (Russian)
 router.post('/transcribe', async (req: Request, res: Response) => {
@@ -15,7 +45,6 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     } else if (req.body?.pcmBase64) {
       pcmBuffer = Buffer.from(req.body.pcmBase64, 'base64');
     } else if (Array.isArray(req.body?.samples)) {
-      // Float32 or Int16 array passed as JSON numbers
       const int16Array = new Int16Array(req.body.samples.length);
       for (let i = 0; i < req.body.samples.length; i++) {
         const val = req.body.samples[i];
@@ -31,6 +60,41 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     }
 
     const sampleRate = parseInt(req.query.sampleRate as string, 10) || 16000;
+    const sessionId = (req.body?.sessionId || req.query.sessionId || '').toString().replace(/[^a-zA-Z0-9_-]/g, '');
+    const questionId = (req.body?.questionId || req.query.questionId || '').toString().replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // SOTA 2026 Invariant: Persist physical audio WAV file to storage volume
+    let audioPath: string | null = null;
+    try {
+      if (!fs.existsSync(STORAGE_DIR)) {
+        fs.mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+      const wavBuffer = encodePcmToWav(pcmBuffer, sampleRate);
+      const fileName = `session_${sessionId || 'anon'}_${questionId || 'turn'}_${Date.now()}.wav`;
+      const fullPath = path.join(STORAGE_DIR, fileName);
+      await fs.promises.writeFile(fullPath, wavBuffer);
+      audioPath = fileName;
+      console.log(`💾 Saved candidate audio recording to storage: ${fileName} (${wavBuffer.length} bytes)`);
+
+      // Auto-link audio_path in question_evaluations if evaluation record already exists
+      if (questionId) {
+        try {
+          const updateStmt = db.prepare(`
+            UPDATE question_evaluations
+            SET audio_path = @audioPath, updated_at = CURRENT_TIMESTAMP
+            WHERE id = (
+              SELECT id FROM question_evaluations
+              WHERE question_id = @questionId
+              ORDER BY created_at DESC LIMIT 1
+            )
+          `);
+          updateStmt.run({ audioPath, questionId });
+        } catch {}
+      }
+    } catch (saveErr) {
+      console.warn('Could not persist audio WAV to storage volume:', saveErr);
+    }
+
     const result = await transcribeWithDeepgram(pcmBuffer, sampleRate);
 
     res.json({
@@ -39,7 +103,8 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       wordsCount: result.wordsCount,
       confidence: result.confidence,
       duration: result.duration,
-      words: result.words
+      words: result.words,
+      audioPath
     });
   } catch (err: any) {
     console.error('Error in /api/stt/transcribe:', err);

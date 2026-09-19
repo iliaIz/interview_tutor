@@ -22,6 +22,7 @@ import remarkGfm from 'remark-gfm';
 import { VoiceModal } from './VoiceModal';
 import { CodeViewer } from './CodeViewer';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
+import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 
 export const StudyDeck: React.FC = () => {
   const {
@@ -92,6 +93,7 @@ const getTutorModeLabel = (mode: string) => {
   const [customPromptForTutor, setCustomPromptForTutor] = useState('');
 
   const openVoiceSession = (type: 'interview' | 'tutor', initialIdx: number, prompt: string = '') => {
+    AudioPlayoutManager.warmup();
     setVoiceInitialIndex(initialIdx);
     setVoiceModalSessionType(type);
     setCustomPromptForTutor(prompt);

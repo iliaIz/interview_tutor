@@ -613,28 +613,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       void acquireWakeLock();
       isNonRetryableErrorRef.current = false;
 
-      // Zero-Trust WebSocket Ticket prefetch with graceful cookie fallback
-      let ticketParam = '';
-      try {
-        const ticketRes = await fetch('/api/auth/ws-ticket', {
-          method: 'POST',
-          credentials: 'include'
-        });
-        if (ticketRes.ok) {
-          const ticketData = await ticketRes.json();
-          if (ticketData.ticket) {
-            ticketParam = ticketData.ticket;
-            effectiveParams.ticket = ticketParam;
-            currentParamsRef.current = effectiveParams;
-          }
-        }
-      } catch (e) {
-        console.warn('Could not prefetch WS ticket in useLiveAudioSession, relying on cookie auth:', e);
-      }
-
-      if (isCleaningUpRef.current) return;
-
-      // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
+      // 1. SOTA Invariant: Initialize & Resume AudioPlayoutManager DIRECTLY within user gesture (BEFORE any await fetch)!
+      AudioPlayoutManager.warmup();
       let playoutManager = playoutManagerRef.current;
       if (!playoutManager) {
         playoutManager = new AudioPlayoutManager();
@@ -655,6 +635,27 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         }
       };
       await playoutManager.resume();
+
+      // Zero-Trust WebSocket Ticket prefetch with graceful cookie fallback
+      let ticketParam = '';
+      try {
+        const ticketRes = await fetch('/api/auth/ws-ticket', {
+          method: 'POST',
+          credentials: 'include'
+        });
+        if (ticketRes.ok) {
+          const ticketData = await ticketRes.json();
+          if (ticketData.ticket) {
+            ticketParam = ticketData.ticket;
+            effectiveParams.ticket = ticketParam;
+            currentParamsRef.current = effectiveParams;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not prefetch WS ticket in useLiveAudioSession, relying on cookie auth:', e);
+      }
+
+      if (isCleaningUpRef.current) return;
 
       setIsAiSpeaking(true);
       isAiSpeakingRef.current = true;

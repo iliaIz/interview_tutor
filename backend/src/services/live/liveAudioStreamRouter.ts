@@ -395,6 +395,14 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
 
+        // Output audio transcription text accumulation (Gemini Live outputAudioTranscription)
+        const outputTranscriptionText =
+          parsed.serverContent?.outputTranscription?.text ||
+          parsed.serverContent?.output_transcription?.text;
+        if (outputTranscriptionText) {
+          session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
+        }
+
         // AI finished generating turn: commit to session turn history
         if (parsed.serverContent?.turnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';

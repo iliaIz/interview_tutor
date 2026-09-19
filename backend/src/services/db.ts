@@ -71,6 +71,7 @@ db.exec(`
     transcript TEXT,
     audio_metrics TEXT,
     speech_coaching_json TEXT,
+    audio_path TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (question_id) REFERENCES questions(id)
@@ -468,6 +469,10 @@ try {
   if (!cols.some(c => c.name === 'speech_coaching_json')) {
     db.exec("ALTER TABLE question_evaluations ADD COLUMN speech_coaching_json TEXT");
     console.log("✅ Added 'speech_coaching_json' column to question_evaluations table");
+  }
+  if (!cols.some(c => c.name === 'audio_path')) {
+    db.exec("ALTER TABLE question_evaluations ADD COLUMN audio_path TEXT");
+    console.log("✅ Added 'audio_path' column to question_evaluations table");
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON question_evaluations(user_id);");
 } catch (e) {

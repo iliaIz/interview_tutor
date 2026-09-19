@@ -9,7 +9,12 @@ import time
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-KEY_PATH = r"C:\Users\Admin\.ssh\amnezia_rsa"
+KEY_PATHS = [
+    r"C:\Users\Djelu\.ssh\amnezia_rsa",
+    r"C:\Users\Admin\.ssh\amnezia_rsa",
+    os.path.expanduser("~/.ssh/amnezia_rsa")
+]
+KEY_PATH = next((p for p in KEY_PATHS if os.path.exists(p)), KEY_PATHS[0])
 PASSPHRASE = "DBshirke"
 HOSTNAME = "192.124.182.59"
 USERNAME = "djelu"
@@ -63,6 +68,11 @@ def create_tarball():
         sandbox_dir = os.path.join(root_dir, "sandbox")
         if os.path.exists(sandbox_dir):
             tar.add(sandbox_dir, arcname="sandbox")
+
+        # System Design & Bug Hunt Scenarios
+        scenarios_dir = os.path.join(root_dir, "scenarios")
+        if os.path.exists(scenarios_dir):
+            tar.add(scenarios_dir, arcname="scenarios")
 
     size_mb = os.path.getsize(tar_path) / (1024 * 1024)
     print(f"Archive created: {tar_path} ({size_mb:.2f} MB)")

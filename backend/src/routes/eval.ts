@@ -100,7 +100,8 @@ router.post('/save', async (req, res) => {
       feedback = '',
       userAnswer = '',
       transcript = '',
-      audioMetrics = null
+      audioMetrics = null,
+      audioPath = null
     } = req.body;
 
     if (!questionId || !topic || score === undefined) {
@@ -122,7 +123,8 @@ router.post('/save', async (req, res) => {
       feedback,
       userAnswer,
       transcript,
-      audioMetrics
+      audioMetrics,
+      audioPath
     });
 
     res.json({

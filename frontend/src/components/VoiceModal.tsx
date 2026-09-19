@@ -847,6 +847,23 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   }, [isOpen, stage, activeBatchIndex, initialQuestionIndex, customPromptOverride, sessionType, initialSessionType]);
 
+  // SOTA 2026 Invariant: One-time global user gesture listener to unblock AudioContext immediately if launched suspended
+  useEffect(() => {
+    if (!isOpen) return;
+    const unlockAudio = () => {
+      AudioPlayoutManager.warmup();
+      if (playoutManagerRef.current) {
+        void playoutManagerRef.current.resume();
+      }
+    };
+    window.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+    window.addEventListener('keydown', unlockAudio, { once: true, capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio, { capture: true });
+      window.removeEventListener('keydown', unlockAudio, { capture: true });
+    };
+  }, [isOpen]);
+
   // Keep dialogueTurnsRef in sync with state
   useEffect(() => {
     dialogueTurnsRef.current = dialogueTurns;
@@ -969,6 +986,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isRetry?: boolean,
     isResumed?: boolean
   ) => {
+    // SOTA 2026 Invariant: Ensure AudioPlayoutManager is active and running before WS connection
+    AudioPlayoutManager.warmup();
+    if (!playoutManagerRef.current) {
+      playoutManagerRef.current = new AudioPlayoutManager();
+    }
+    void playoutManagerRef.current.resume();
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
     let hostWithPort = window.location.host;
@@ -1402,6 +1426,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
               }
             }
+          }
+
+          // Output Audio Transcription streaming from Gemini Live
+          const outputTranscript = data.serverContent?.outputTranscription?.text || data.serverContent?.output_transcription?.text;
+          if (outputTranscript) {
+            transcriptRef.current += ` AI: ${outputTranscript}`;
+            setDialogueTurns((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'ai') {
+                return [...prev.slice(0, -1), { role: 'ai', text: last.text + outputTranscript }];
+              }
+              return [...prev, { role: 'ai', text: outputTranscript }];
+            });
           }
 
           if (data.serverContent.turnComplete) {
@@ -2055,8 +2092,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     void acquireWakeLock();
 
     // 1. Initialize & Resume AudioPlayoutManager directly within user gesture!
-    const playoutManager = new AudioPlayoutManager();
-    playoutManagerRef.current = playoutManager;
+    AudioPlayoutManager.warmup();
+    let playoutManager = playoutManagerRef.current;
+    if (!playoutManager) {
+      playoutManager = new AudioPlayoutManager();
+      playoutManagerRef.current = playoutManager;
+    }
     await playoutManager.resume();
 
     // 2. Pre-warm microphone hardware asynchronously in background (non-blocking)
@@ -2776,6 +2817,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       let deepgramText = '';
       let realWordCount = 0;
       let wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
+      let savedAudioPath: string | null = null;
       const { signal: sttSignal, cleanup: sttCleanup } = createManagedAbortSignal();
       try {
         const pcmBase64 = encodePcmToInt16Base64();
@@ -2783,14 +2825,22 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: sttSignal,
-          body: JSON.stringify({ pcmBase64 })
+          body: JSON.stringify({
+            pcmBase64,
+            sessionId: sessionIdRef.current,
+            questionId: evaluatedQuestionId
+          })
         });
         if (sttRes.ok && isMountedRef.current) {
           const sttData = await sttRes.json();
           deepgramText = sttData.transcript || '';
           realWordCount = sttData.wordsCount || 0;
           wordTimestamps = sttData.words || [];
+          savedAudioPath = sttData.audioPath || null;
           if (deepgramText && isMountedRef.current) setDeepgramTranscript(deepgramText);
+          if (savedAudioPath) {
+            console.log('🎙️ Physical session audio saved to storage:', savedAudioPath);
+          }
         }
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
@@ -2848,7 +2898,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               feedback: finalResult.feedback,
               userAnswer: deepgramText || 'Устный ответ через Gemini Live',
               transcript: JSON.stringify(fullDialogue),
-              audioMetrics: acousticsFinal
+              audioMetrics: acousticsFinal,
+              audioPath: savedAudioPath
             })
           });
         } catch (err: any) {

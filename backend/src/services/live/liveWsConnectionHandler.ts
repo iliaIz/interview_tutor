@@ -341,7 +341,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       systemInstruction: {
         parts: [{ text: systemPromptText }]
       },
-      inputAudioTranscription: {}
+      inputAudioTranscription: {},
+      outputAudioTranscription: {}
     }
   };
 
