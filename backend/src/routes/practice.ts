@@ -134,8 +134,10 @@ router.post('/evaluate', async (req, res) => {
     const challenge: CodingChallenge = JSON.parse(row.manifest_json);
 
     const abortController = new AbortController();
-    req.on('close', () => {
-      abortController.abort();
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        abortController.abort();
+      }
     });
 
     // 1. Authoritative Real JVM 21 In-Memory Sandbox Execution (< 80ms)
@@ -202,8 +204,14 @@ router.post('/evaluate', async (req, res) => {
       evaluation
     });
   } catch (err: any) {
-    if (req.destroyed || err.name === 'AbortError') {
-      console.log(`⏹️ Practice evaluation aborted by client: ${err.message}`);
+    if (res.writableEnded || res.headersSent) {
+      return;
+    }
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      console.warn(`⏳ Practice evaluation timed out or aborted: ${err.message}`);
+      res.status(504).json({
+        error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
+      });
       return;
     }
     console.error('Error during practice evaluation:', err);

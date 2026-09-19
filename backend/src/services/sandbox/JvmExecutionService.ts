@@ -115,33 +115,48 @@ export class JvmExecutionService {
    */
   private static async ensureDaemonRunning(): Promise<boolean> {
     return new Promise((resolve) => {
+      let isDone = false;
       const client = net.connect({ host: this.daemonHost, port: this.daemonPort }, () => {
-        client.destroy();
-        resolve(true);
+        if (!isDone) {
+          isDone = true;
+          client.destroy();
+          resolve(true);
+        }
+      });
+
+      client.setTimeout(2500, () => {
+        if (!isDone) {
+          isDone = true;
+          client.destroy();
+          resolve(false);
+        }
       });
 
       client.on('error', () => {
-        client.destroy();
-        if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
-          return resolve(false);
-        }
-        if (!this.isDaemonStarting) {
-          this.isDaemonStarting = true;
-          try {
-            const child = spawn(
-              'java',
-              ['-Xms32m', '-Xmx256m', '-XX:+UseSerialGC', '-cp', this.binPath, 'com.assessment.sandbox.ResidentSandboxDaemon', String(this.daemonPort)],
-              { stdio: 'ignore', detached: true }
-            );
-            child.unref();
-            setTimeout(() => {
-              this.isDaemonStarting = false;
-            }, 1500);
-          } catch {
-            this.isDaemonStarting = false;
+        if (!isDone) {
+          isDone = true;
+          client.destroy();
+          if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+            return resolve(false);
           }
+          if (!this.isDaemonStarting) {
+            this.isDaemonStarting = true;
+            try {
+              const child = spawn(
+                'java',
+                ['-Xms32m', '-Xmx256m', '-XX:+UseSerialGC', '-cp', this.binPath, 'com.assessment.sandbox.ResidentSandboxDaemon', String(this.daemonPort)],
+                { stdio: 'ignore', detached: true }
+              );
+              child.unref();
+              setTimeout(() => {
+                this.isDaemonStarting = false;
+              }, 1500);
+            } catch {
+              this.isDaemonStarting = false;
+            }
+          }
+          resolve(false);
         }
-        resolve(false);
       });
     });
   }

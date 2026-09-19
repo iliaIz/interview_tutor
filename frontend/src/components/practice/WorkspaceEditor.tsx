@@ -85,7 +85,23 @@ export const WorkspaceEditor: React.FC = () => {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSandboxRunning, setIsSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<SandboxExecutionResponse | null>(null);
+  const [evaluationTimer, setEvaluationTimer] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isPracticeEvaluating) {
+      setEvaluationTimer(0);
+      interval = setInterval(() => {
+        setEvaluationTimer((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setEvaluationTimer(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPracticeEvaluating]);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
@@ -161,6 +177,9 @@ export const WorkspaceEditor: React.FC = () => {
     setIsPracticeEvaluating(true);
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const clientTimeoutId = setTimeout(() => {
+      controller.abort();
+    }, 100_000);
 
     try {
       const res = await fetch('/api/practice/evaluate', {
@@ -192,7 +211,12 @@ export const WorkspaceEditor: React.FC = () => {
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Evaluation cancelled by user.');
+        console.log('Evaluation cancelled or timed out.');
+        showToast({
+          type: 'warning',
+          title: 'Оценка остановлена',
+          message: 'Запрос отменен пользователем или истекло максимальное время ожидания.'
+        });
         return;
       }
       console.error('Evaluation error:', err);
@@ -202,6 +226,7 @@ export const WorkspaceEditor: React.FC = () => {
         message: err.message || 'Не удалось завершить оценку решения.'
       });
     } finally {
+      clearTimeout(clientTimeoutId);
       setIsPracticeEvaluating(false);
       abortControllerRef.current = null;
     }
@@ -599,7 +624,7 @@ export const WorkspaceEditor: React.FC = () => {
               </button>
               <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose" />
-                <span>Анализ Gemini 3.7...</span>
+                <span>Senior AI Рецензия ({evaluationTimer}с)...</span>
               </div>
             </div>
           ) : (

@@ -65,21 +65,19 @@ export const REASONING_PRESETS = {
  * Safely ignored by fallback models (3.6/3.5 Flash) if 3.7 Flash fails over.
  */
 export function buildReasoningExtraBody(preset: ReasoningConfig): Record<string, any> {
-  if (!preset.thinkingBudget || preset.thinkingBudget <= 0) {
-    return {
-      generation_config: {
-        thinking_config: {
-          thinking_budget: 0
-        }
-      }
-    };
-  }
-
+  const budget = preset.thinkingBudget || 0;
   return {
+    thinking_budget: budget,
+    google: {
+      thinking_config: {
+        thinking_budget: budget
+      }
+    },
     generation_config: {
       thinking_config: {
-        thinking_budget: preset.thinkingBudget
+        thinking_budget: budget
       }
     }
   };
 }
+
