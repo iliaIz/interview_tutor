@@ -21,6 +21,10 @@ interface MultiTurnResult {
   turn1ProbeReceived: boolean;
   turn2BargeInHandled: boolean;
   falseInterruptionsCount: number;
+  maxInterChunkGapMs: number;
+  turn0DurationMs: number;
+  gapAssertionPassed: boolean;
+  durationAssertionPassed: boolean;
   errors: string[];
 }
 
@@ -41,6 +45,10 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
     turn1ProbeReceived: false,
     turn2BargeInHandled: false,
     falseInterruptionsCount: 0,
+    maxInterChunkGapMs: 0,
+    turn0DurationMs: 0,
+    gapAssertionPassed: true,
+    durationAssertionPassed: true,
     errors: []
   };
 
@@ -98,6 +106,8 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
   let currentTurn = 0;
   let isAiSpeaking = false;
   let bleedChunkInterval: NodeJS.Timeout | null = null;
+  let turn0StartTime = 0;
+  let lastPcmTime = 0;
 
   return new Promise((resolve) => {
     // Generous 60s timeout for 3 full live turns
@@ -154,6 +164,7 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
 
         if (data.type === 'setupComplete') {
           result.setupComplete = true;
+          turn0StartTime = Date.now();
           console.log('🎉 [TURN 0] setupComplete received.');
         }
 
@@ -162,9 +173,21 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
           for (const part of data.serverContent.modelTurn.parts) {
             const pcm = part.inlineData?.data || part.inline_data?.data;
             if (pcm) {
+              const now = Date.now();
+              if (lastPcmTime > 0 && isAiSpeaking) {
+                const gap = now - lastPcmTime;
+                if (gap > result.maxInterChunkGapMs) {
+                  result.maxInterChunkGapMs = gap;
+                }
+              }
+              lastPcmTime = now;
+
+              if (!isAiSpeaking) {
+                isAiSpeaking = true;
+              }
+
               if (currentTurn === 0 && !result.turn0AudioReceived) {
                 result.turn0AudioReceived = true;
-                isAiSpeaking = true;
                 console.log('🔊 [TURN 0] AI first audio chunk arrived.');
 
                 // TEST ACOUSTIC BLEED GUARD:
@@ -203,6 +226,7 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
         // Turn completion handler
         if (data.serverContent?.turnComplete) {
           isAiSpeaking = false;
+          lastPcmTime = 0;
           if (bleedChunkInterval) {
             clearInterval(bleedChunkInterval);
             bleedChunkInterval = null;
@@ -212,7 +236,17 @@ async function runMultiTurnReplay(): Promise<MultiTurnResult> {
 
           if (currentTurn === 0) {
             result.turn0Completed = true;
-            console.log('✅ Turn 0 successfully passed.');
+            result.turn0DurationMs = turn0StartTime > 0 ? (Date.now() - turn0StartTime) : 0;
+            console.log(`✅ Turn 0 successfully passed in ${result.turn0DurationMs}ms (max intra-turn chunk gap: ${result.maxInterChunkGapMs}ms).`);
+
+            if (result.maxInterChunkGapMs > 3500) {
+              result.gapAssertionPassed = false;
+              result.errors.push(`Turn 0 intra-turn chunk gap exceeded threshold: ${result.maxInterChunkGapMs}ms > 3500ms`);
+            }
+            if (result.turn0DurationMs > 14000) {
+              result.durationAssertionPassed = false;
+              result.errors.push(`Turn 0 duration exceeded threshold: ${result.turn0DurationMs}ms > 14000ms`);
+            }
             currentTurn = 1;
 
             // Wait 500ms and send candidate Turn 1 response
@@ -285,6 +319,8 @@ runMultiTurnReplay().then((res) => {
   console.log(`  • Turn 0 Greeting Complete: ${res.turn0Completed ? '✅' : '❌'}`);
   console.log(`  • Turn 0 Audio Received: ${res.turn0AudioReceived ? '✅' : '❌'}`);
   console.log(`  • Turn 0 Transcription Received: ${res.turn0TextReceived ? '✅' : '❌'}`);
+  console.log(`  • Max Intra-Turn Audio Gap: ${res.maxInterChunkGapMs}ms ${res.gapAssertionPassed ? '✅ (<= 3500ms)' : '❌ (> 3500ms)'}`);
+  console.log(`  • Turn 0 Delivery Duration: ${res.turn0DurationMs}ms ${res.durationAssertionPassed ? '✅ (<= 14000ms)' : '❌ (> 14000ms)'}`);
   console.log(`  • Acoustic Bleed Guard Protected: ${res.acousticBleedProtected ? '✅ (0 false interruptions)' : '❌ (' + res.falseInterruptionsCount + ' interruptions)'}`);
   console.log(`  • Turn 1 Candidate Answer -> AI Follow-up Probe: ${res.turn1Completed ? '✅' : '❌'}`);
   console.log(`  • Turn 2 Tactile Barge-In: ${res.turn2BargeInHandled ? '✅' : '❌'}`);
@@ -298,7 +334,9 @@ runMultiTurnReplay().then((res) => {
     res.setupComplete &&
     res.turn0Completed &&
     res.acousticBleedProtected &&
-    res.turn1Completed;
+    res.turn1Completed &&
+    res.gapAssertionPassed &&
+    res.durationAssertionPassed;
 
   process.exit(passed ? 0 : 1);
 });

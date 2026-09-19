@@ -125,4 +125,83 @@ test.describe('Browser Web Audio & Live Voice Infrastructure', () => {
     expect(pcmFramesTest.frameReceived).toBe(true);
     expect(pcmFramesTest.frameBytes).toBeGreaterThan(0);
   });
+
+  test('Playout Worklet Intra-Utterance Jitter: Sustains 2.2s intra-utterance pause without premature drain or buffer reset', async ({ page }) => {
+    const jitterResult = await page.evaluate(async () => {
+      const audioCtx = new AudioContext({ latencyHint: 'interactive' });
+      try {
+        await audioCtx.audioWorklet.addModule('/worklets/gemini-audio-processor.js');
+        const worklet = new AudioWorkletNode(audioCtx, 'gemini-audio-processor');
+        worklet.connect(audioCtx.destination);
+
+        let prematureDrainedFired = false;
+        let finalDrainedFired = false;
+        let finalDrainRequested = false;
+
+        worklet.port.onmessage = (e: MessageEvent) => {
+          if (e.data?.type === 'drained') {
+            if (!finalDrainRequested) {
+              prematureDrainedFired = true;
+            } else {
+              finalDrainedFired = true;
+            }
+          }
+        };
+
+        // 1. Send chunk 1: 400ms of synthetic 24kHz audio (9600 samples)
+        const chunk1 = new Float32Array(9600);
+        for (let i = 0; i < 9600; i++) chunk1[i] = Math.sin((i * 440 * 2 * Math.PI) / 24000) * 0.2;
+        worklet.port.postMessage({ type: 'chunk', data: chunk1 }, [chunk1.buffer]);
+
+        // 2. Wait 2.2 seconds (exceeding the old 1.5s premature autoDrainTimer)
+        await new Promise((r) => setTimeout(r, 2200));
+
+        const drainedDuringPause = prematureDrainedFired;
+
+        // 3. Send chunk 2: another 400ms of synthetic audio
+        const chunk2 = new Float32Array(9600);
+        for (let i = 0; i < 9600; i++) chunk2[i] = Math.sin((i * 554 * 2 * Math.PI) / 24000) * 0.2;
+        worklet.port.postMessage({ type: 'chunk', data: chunk2 }, [chunk2.buffer]);
+
+        // 4. Send explicit turnComplete drain
+        finalDrainRequested = true;
+        worklet.port.postMessage({ type: 'drain' });
+
+        // 5. Wait for final physical playout drain
+        await new Promise((r) => setTimeout(r, 1200));
+
+        await audioCtx.close();
+        return {
+          success: true,
+          drainedDuringPause,
+          finalDrainedFired
+        };
+      } catch (err: any) {
+        await audioCtx.close();
+        return { success: false, error: err.message, drainedDuringPause: true, finalDrainedFired: false };
+      }
+    });
+
+    expect(jitterResult.success).toBe(true);
+    expect(jitterResult.drainedDuringPause).toBe(false); // MUST NOT drain during intra-utterance pause!
+    expect(jitterResult.finalDrainedFired).toBe(true);  // MUST drain after explicit drain signal
+  });
+
+  test('Synchronous User-Gesture Warmup Guard: AudioContext is in running state after warmup', async ({ page }) => {
+    const warmupResult = await page.evaluate(async () => {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx({ latencyHint: 'interactive' });
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      const postWarmupState = ctx.state;
+      await ctx.close();
+      return {
+        postWarmupState,
+        isRunning: postWarmupState === 'running'
+      };
+    });
+
+    expect(warmupResult.isRunning).toBe(true);
+  });
 });

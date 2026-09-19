@@ -357,7 +357,7 @@ export class AudioPlayoutManager {
     if (!this.workletNode) return;
 
     this.isWorkletPlaying = true;
-    this.resetAutoDrainTimer();
+    this.resetSafetyDrainWatchdog();
 
     // Zero-copy ArrayBuffer transfer across thread boundary
     this.workletNode.port.postMessage(
@@ -366,17 +366,20 @@ export class AudioPlayoutManager {
     );
   }
 
-  private resetAutoDrainTimer(): void {
+  private resetSafetyDrainWatchdog(): void {
     if (this.autoDrainTimer) {
       clearTimeout(this.autoDrainTimer);
     }
-    // Auto-drain fallback if turnComplete is delayed by network (1500ms accommodates natural pauses and jitter)
+    // SOTA 2026 Safety Drain Watchdog:
+    // Never prematurely drain during intra-utterance syntactic pauses (1.5-3.5s).
+    // Set a wide 15s watchdog strictly as an ultimate safety fallback if network loses turnComplete.
     this.autoDrainTimer = setTimeout(() => {
       this.autoDrainTimer = null;
       if (this.workletNode && this.isWorkletPlaying) {
+        console.warn('⚠️ [AudioPlayoutManager] Safety 15s drain watchdog triggered (turnComplete delayed by network). Gracefully draining worklet.');
         this.workletNode.port.postMessage({ type: 'drain' });
       }
-    }, 1500);
+    }, 15000);
   }
 
   /**

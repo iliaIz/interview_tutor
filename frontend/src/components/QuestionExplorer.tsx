@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceModal } from './VoiceModal';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 
 interface QuestionWithStatus extends Question {
   isCompleted?: boolean;
@@ -286,6 +287,7 @@ export const QuestionExplorer: React.FC = () => {
 
   // Launch Voice Interview with Selected Questions
   const handleStartVoice = (customQuestions?: QuestionWithStatus[], startIndex = 0) => {
+    AudioPlayoutManager.warmup();
     const targetQuestions = customQuestions || questions.filter((q) => selectedIds.has(q.id));
     if (targetQuestions.length === 0) {
       showToast({

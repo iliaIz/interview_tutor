@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore, Question } from '../store/useAppStore';
 import { VoiceModal } from './VoiceModal';
+import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
   ArrowLeft,
   ArrowRight,
@@ -500,7 +501,10 @@ export const ExamQuiz: React.FC = () => {
         </span>
 
         <button
-          onClick={() => setIsVoiceOpen(true)}
+          onClick={() => {
+            AudioPlayoutManager.warmup();
+            setIsVoiceOpen(true);
+          }}
           disabled={!systemHealth.isAiReady}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-bold shadow-sm transition ${
             !systemHealth.isAiReady
@@ -575,7 +579,10 @@ export const ExamQuiz: React.FC = () => {
           <div className="mb-4 flex items-center justify-between gap-2 text-xs">
             <button
               type="button"
-              onClick={() => setIsVoiceOpen(true)}
+              onClick={() => {
+                AudioPlayoutManager.warmup();
+                setIsVoiceOpen(true);
+              }}
               className="px-3 py-1.5 rounded-xl bg-pastel-lavender/60 hover:bg-pastel-lavender border border-pastel-accentViolet/20 text-pastel-accentViolet font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <Mic className="w-3.5 h-3.5 text-pastel-accentViolet" />
