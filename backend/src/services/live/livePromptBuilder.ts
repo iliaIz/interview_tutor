@@ -7,6 +7,7 @@ import { CandidateGap } from '../vectorMemoryService';
 import { getChallengeDomain } from '../../utils/challengeDomain';
 import { buildLivePairPrompt } from '../../prompts/live/livePairPrompts';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../../prompts/core/genderDirectives';
+import { LANGUAGE_LOCK_INVARIANT } from '../../prompts/core/languageDirectives';
 import {
   VOICE_ANTI_SYCOPHANCY_DIRECTIVES,
   EXAM_ANTI_SYCOPHANCY_DIRECTIVES,
@@ -234,7 +235,9 @@ ${CHAIN_OF_VERIFICATION_THOUGHT_DIRECTIVE}
 
   // === SYSTEM DESIGN LIVE BAR-RAISER DEFENSE ===
   if (sessionType === 'system_design') {
-    return `=== 1. РОЛЬ: FAANG PRINCIPAL ARCHITECT & BAR-RAISER (SYSTEM DESIGN DEFENSE) ===
+    return `${LANGUAGE_LOCK_INVARIANT}
+
+=== 1. РОЛЬ: FAANG PRINCIPAL ARCHITECT & BAR-RAISER (SYSTEM DESIGN DEFENSE) ===
 Ты элитный Bar-Raiser и Principal Distributed Systems Architect ${isFemale ? '(женщина)' : '(мужчина)'} (Google, Amazon, Stripe).
 Твоя цель — провести бескомпромиссную калибровку архитектурной зрелости кандидата на грейды L5 (Senior), L6 (Staff), L7 (Principal).
 Ты представляешь последнюю линию защиты Комитета по найму (Hiring Committee) от неквалифицированных кандидатов.
@@ -484,7 +487,11 @@ ${referenceAnswer}
 3. Слушай дальнейшие вопросы кандидата.`;
     }
 
-    return `${tutorPrompt}\n\n${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
+    const finalTutorPrompt = tutorPrompt.startsWith(LANGUAGE_LOCK_INVARIANT)
+      ? tutorPrompt
+      : `${LANGUAGE_LOCK_INVARIANT}\n\n${tutorPrompt}`;
+
+    return `${finalTutorPrompt}\n\n${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
   }
 
   // === INTERVIEW SESSION LOGIC (FAANG Mock Assessment) ===
@@ -537,7 +544,9 @@ ${((questionIndex ?? 0) + 1 < totalQuestions)
 3. Функция submit_interview_evaluation вызывается ИСКЛЮЧИТЕЛЬНО ПОСЛЕ того, как кандидат дал свой содержательный устный ответ на вопрос.`;
 
   if (customPromptOverride && customPromptOverride.trim().length > 20) {
-    return `${customPromptOverride.trim()}
+    return `${LANGUAGE_LOCK_INVARIANT}
+
+${customPromptOverride.trim()}
 
 ${genderRule}
 
@@ -581,7 +590,9 @@ ${personaDirectives.gradeExpectationDirective}
 СТЕК: ${primaryStack}`;
 
   if (strategy === 'socratic_tutoring' && persona === 'mentor') {
-    return `${candidateContextSection}
+    return `${LANGUAGE_LOCK_INVARIANT}
+
+${candidateContextSection}
 
 === 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по теме «${topic}».
@@ -635,7 +646,9 @@ ${anchorsFormatted}
   }
 
   // Adaptive Probing with Selected FAANG Persona
-  return `${candidateContextSection}
+  return `${LANGUAGE_LOCK_INVARIANT}
+
+${candidateContextSection}
 
 === 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
 Ты ${personaDirectives.personaTitle} (${isFemale ? 'женщина' : 'мужчина'}) по теме «${topic}».

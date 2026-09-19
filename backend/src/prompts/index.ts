@@ -32,6 +32,12 @@ export {
   JAVA21_PLATFORM_INVARIANTS
 } from './core/platformInvariants';
 
+export {
+  LANGUAGE_LOCK_INVARIANT,
+  getLanguageLockDirective,
+  isLanguageDrifted
+} from './core/languageDirectives';
+
 // Compass Rules
 export {
   TESTING_COMPASS_RULES,

@@ -7,6 +7,7 @@ import { parseCookies } from '../../middleware/auth';
 import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vectorMemoryService';
 import { TargetGrade } from '../../prompts/personas';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
+import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
 import { extractDefaultAnchors, buildSystemPrompt } from './livePromptBuilder';
 import { getLiveToolDeclarations } from './liveToolDeclarations';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
@@ -229,10 +230,15 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       session.toolCallSafetyTimeout = null;
     }
     if (session.currentAiTurnText && session.sessionId) {
-      const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-      mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-      mem.lastSpeaker = 'model';
-      mem.updatedAt = Date.now();
+      const textToSave = session.currentAiTurnText.trim();
+      if (!isLanguageDrifted(textToSave)) {
+        const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+        mem.turns.push({ role: 'model', text: textToSave });
+        mem.lastSpeaker = 'model';
+        mem.updatedAt = Date.now();
+      } else {
+        console.warn(`🚨 [LANGUAGE_CONTAMINATION_GUARD] Terminating session: discarded English-drifted turn from replay memory (${session.sessionId}).`);
+      }
       session.currentAiTurnText = '';
     }
     session.frameQueue = [];
@@ -334,7 +340,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       generationConfig,
       systemInstruction: {
         parts: [{ text: systemPromptText }]
-      }
+      },
+      inputAudioTranscription: {}
     }
   };
 
@@ -453,7 +460,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
           session.geminiSocket.send(JSON.stringify({
             clientContent: {
-              turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]: Передай слово кандидату.' }] }],
+              turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN). ОТВЕТ СТРОГО НА РУССКОМ ЯЗЫКЕ]: Передай слово кандидату.' }] }],
               turnComplete: false
             }
           }));
@@ -488,7 +495,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
                 : 'Кандидат внёс изменения в архитектурный граф на холсте');
           }
 
-          const deicticText = `[CANVAS_DEICTIC_CONTEXT: ${deicticContent}]`;
+          const deicticText = `[CANVAS_DEICTIC_CONTEXT (ЯЗЫК: РУССКИЙ): ${deicticContent}]`;
           session.geminiSocket.send(JSON.stringify({
             clientContent: {
               turns: [{

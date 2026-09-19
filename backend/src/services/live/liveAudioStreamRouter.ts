@@ -3,6 +3,7 @@ import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { liveSessionRegistry, getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleLiveToolCall } from './liveToolDispatcher';
 import { getChallengeDomain } from '../../utils/challengeDomain';
+import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -243,7 +244,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                         role: 'user',
                         parts: [
                           {
-                            text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ]: Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
+                            text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ (ЯЗЫК: РУССКИЙ)]: Напоминание: ответ строго на русском языке. Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
                           }
                         ]
                       }
@@ -407,10 +408,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               session.toolCallSafetyTimeout = null;
             }
             if (session.currentAiTurnText && session.sessionId) {
-              const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
-              mem.lastSpeaker = 'model';
-              mem.updatedAt = Date.now();
+              const textToSave = session.currentAiTurnText.trim();
+              if (!isLanguageDrifted(textToSave)) {
+                const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
+                mem.turns.push({ role: 'model', text: textToSave });
+                mem.lastSpeaker = 'model';
+                mem.updatedAt = Date.now();
+              } else {
+                console.warn(`🚨 [LANGUAGE_CONTAMINATION_GUARD] Model turn drifted to English. Stripped from session replay memory (${session.sessionId}).`);
+              }
               session.currentAiTurnText = '';
             }
           } else {
@@ -429,7 +435,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           if (session.sessionId) {
             const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
             if (session.currentAiTurnText) {
-              mem.turns.push({ role: 'model', text: session.currentAiTurnText.trim() });
+              const textToSave = session.currentAiTurnText.trim();
+              if (!isLanguageDrifted(textToSave)) {
+                mem.turns.push({ role: 'model', text: textToSave });
+              } else {
+                console.warn(`🚨 [LANGUAGE_CONTAMINATION_GUARD] Interrupted English model turn stripped from replay memory (${session.sessionId}).`);
+              }
               session.currentAiTurnText = '';
             }
             mem.lastSpeaker = 'user';

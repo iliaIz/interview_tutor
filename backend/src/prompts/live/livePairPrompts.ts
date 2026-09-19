@@ -8,6 +8,7 @@
 import { VOICE_ANTI_SYCOPHANCY_DIRECTIVES } from '../core/antiSycophancy';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../core/genderDirectives';
 import { JAVA21_PLATFORM_INVARIANTS } from '../core/platformInvariants';
+import { LANGUAGE_LOCK_INVARIANT } from '../core/languageDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../core/sandboxDirectives';
 
 export interface LivePairPromptParams {
@@ -160,7 +161,9 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
   const aiGender = getAiGenderDirective(isFemale);
   const candidateGender = getCandidateGenderDirective(userGender);
 
-  return `${roleHeader}
+  return `${LANGUAGE_LOCK_INVARIANT}
+
+${roleHeader}
 ${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
 
 ${aiGender}

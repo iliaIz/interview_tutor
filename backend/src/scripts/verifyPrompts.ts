@@ -6,7 +6,7 @@
  * Zero-Phantom Deductions Ledger, and Audio Bloat Clamp.
  */
 
-import { PromptRegistry, getPersonaPromptDirectives } from '../prompts';
+import { PromptRegistry, getPersonaPromptDirectives, LANGUAGE_LOCK_INVARIANT, isLanguageDrifted } from '../prompts';
 import { buildSystemPrompt, LIVE_TOOL_CAPABILITY_DIRECTIVES } from '../services/live/livePromptBuilder';
 import { getSafeSpokenText, TurnReasoningResult } from '../routes/interviewTurn';
 import { envConfig } from '../config/env';
@@ -103,6 +103,18 @@ assert(
   livePairPrompt.includes('ГРАММАТИЧЕСКИЙ РОД ИИ (СТРОГО ЖЕНСКИЙ)'),
   'Live pair prompt adheres to AI female voice gender rule'
 );
+assert(
+  livePairPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'Live pair prompt contains top-level LANGUAGE_LOCK_INVARIANT'
+);
+assert(
+  livePairPrompt.includes('ZERO LANGUAGE DRIFT'),
+  'Live pair prompt contains ZERO LANGUAGE DRIFT directive'
+);
+assert(
+  livePairPrompt.includes('CODE-SWITCHING RULES'),
+  'Live pair prompt contains Code-Switching handling rules'
+);
 
 // 4. Check Live System Prompt Builder Integration
 const practicePairLivePrompt = buildSystemPrompt({
@@ -118,6 +130,11 @@ const practicePairLivePrompt = buildSystemPrompt({
   codeSnippet: 'class EditorParkingLot {}',
   activeCodeArtifact: { id: 'code1', title: 'ParkingLot.java', code: 'class ParkingLot {}' }
 });
+
+assert(
+  practicePairLivePrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'buildSystemPrompt(tutorMode: practice_pair) successfully includes LANGUAGE_LOCK_INVARIANT'
+);
 
 assert(
   practicePairLivePrompt.includes('VOICE ANTI-SYCOPHANCY'),
@@ -405,6 +422,10 @@ assert(
   deepDivePrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
   'Deep-dive tutor prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
 );
+assert(
+  deepDivePrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'Deep-dive tutor prompt enforces LANGUAGE_LOCK_INVARIANT'
+);
 
 const freeChatPrompt = buildSystemPrompt({
   sessionType: 'tutor',
@@ -416,6 +437,10 @@ assert(
   freeChatPrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
   'Free chat tutor prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
 );
+assert(
+  freeChatPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'Free chat tutor prompt enforces LANGUAGE_LOCK_INVARIANT'
+);
 
 const interviewPrompt = buildSystemPrompt({
   sessionType: 'interview',
@@ -425,6 +450,34 @@ const interviewPrompt = buildSystemPrompt({
 assert(
   interviewPrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
   'Interview prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
+);
+assert(
+  interviewPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'Interview prompt enforces LANGUAGE_LOCK_INVARIANT'
+);
+
+const sysDesignPrompt = buildSystemPrompt({
+  sessionType: 'system_design',
+  topic: 'Distributed Cache',
+  questionText: 'Design a distributed cache like Redis'
+});
+assert(
+  sysDesignPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
+  'System design live prompt enforces LANGUAGE_LOCK_INVARIANT'
+);
+
+// Language Contamination Guard Tests
+assert(
+  !isLanguageDrifted('Привет, давай разберем устройство ConcurrentHashMap под капотом'),
+  'Russian sentence with English technical terms is NOT flagged as language drift'
+);
+assert(
+  isLanguageDrifted('Sure, let us explore the ConcurrentHashMap implementation and its internal mechanisms in detail.'),
+  'English sentence is flagged as language drift'
+);
+assert(
+  !isLanguageDrifted('Короткая фраза'),
+  'Short Russian phrase is not flagged as language drift'
 );
 
 console.log('\n🎉 All 35+ automated prompt, anti-sycophancy, sandboxing, Extended Thinking invariants, tool boundaries, and score calibration assertions passed successfully!');
