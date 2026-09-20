@@ -443,6 +443,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             const hasPcm = parsed.serverContent.modelTurn.parts.some((p: any) => p.inlineData || p.inline_data);
             if (hasPcm && !session.firstAudioChunkLogged) {
               session.firstAudioChunkLogged = true;
+              session.firstAudioChunkTime = Date.now();
               if (session.currentTurnMetrics && !session.currentTurnMetrics.firstAudioAt) {
                 session.currentTurnMetrics.firstAudioAt = Date.now();
               }
@@ -488,11 +489,16 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
             // SOTA September 2026: Calculate physical playout drain epoch
             // 24kHz Int16 Mono PCM = 48,000 bytes per second
+            // Audio plays concurrently as it is streamed; subtract elapsed streaming time to gate only unplayed buffer.
             const audioBytes = session.currentTurnAudioBytes || 0;
-            const playoutDurationMs = Math.round((audioBytes / 48000) * 1000);
-            session.aiPlayoutEstimatedEndEpoch = Date.now() + playoutDurationMs + 450; // +450ms reverb cooldown
+            const totalDurationMs = Math.round((audioBytes / 48000) * 1000);
+            const streamingElapsedMs = session.firstAudioChunkTime ? (Date.now() - session.firstAudioChunkTime) : 0;
+            const remainingDurationMs = Math.max(0, totalDurationMs - streamingElapsedMs);
+            session.aiPlayoutEstimatedEndEpoch = Date.now() + remainingDurationMs + 450; // +450ms reverb cooldown
             session.currentTurnAudioBytes = 0;
-            console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio playout duration: ${playoutDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
+            session.firstAudioChunkTime = undefined;
+            session.audioChunksCount = 0; // SOTA 2026: Reset mic chunk counter for clean next turn initiation
+            console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio total: ${totalDurationMs}ms, remaining playout: ${remainingDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
 
             if (session.toolCallSafetyTimeout) {
               clearTimeout(session.toolCallSafetyTimeout);
@@ -581,6 +587,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           session.isAiGenerating = false;
           session.aiPlayoutEstimatedEndEpoch = 0;
           session.currentTurnAudioBytes = 0;
+          session.firstAudioChunkTime = undefined;
+          session.audioChunksCount = 0;
           session.isToolCallPending = false;
           if (session.deadAirWatchdog) {
             clearTimeout(session.deadAirWatchdog);

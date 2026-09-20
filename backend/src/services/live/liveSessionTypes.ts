@@ -76,4 +76,5 @@ export interface ProxySession {
   sessionStartedAt?: number;
   aiPlayoutEstimatedEndEpoch?: number;
   currentTurnAudioBytes?: number;
+  firstAudioChunkTime?: number;
 }

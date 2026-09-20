@@ -22,6 +22,7 @@ export interface SimulatedClientOptions {
   sessionType?: 'interview' | 'tutor';
   tutorMode?: string;
   turnMode?: 'auto' | 'manual';
+  customPrompt?: string;
 }
 
 export interface ClientTelemetry {
@@ -59,6 +60,7 @@ export class SimulatedLiveClient {
 
   private candidateSpeechEndedAt: number | null = null;
   private interruptionTriggeredAt: number | null = null;
+  private firstAudioReceivedAt: number | null = null;
   private messageListeners: Array<(msg: any) => void> = [];
   private closeListeners: Array<(code: number, reason: string) => void> = [];
 
@@ -74,7 +76,8 @@ export class SimulatedLiveClient {
       liveModel: options.liveModel || envConfig.models.live,
       sessionType: options.sessionType || 'interview',
       tutorMode: options.tutorMode || '',
-      turnMode: options.turnMode || 'auto'
+      turnMode: options.turnMode || 'auto',
+      customPrompt: options.customPrompt
     };
   }
 
@@ -106,7 +109,8 @@ export class SimulatedLiveClient {
       turnMode: this.options.turnMode || 'auto',
       voice: 'Aoede',
       userGender: 'female',
-      maxProbes: '2'
+      maxProbes: '2',
+      ...(this.options.customPrompt ? { customPrompt: this.options.customPrompt } : {})
     });
 
     const url = `ws://${this.options.hostWithPort}/ws/live?${params.toString()}`;
@@ -213,6 +217,9 @@ export class SimulatedLiveClient {
 
         const pcmBase64 = p.inlineData?.data || p.inline_data?.data;
         if (pcmBase64) {
+          if (!this.firstAudioReceivedAt) {
+            this.firstAudioReceivedAt = Date.now();
+          }
           const chunkLen = Buffer.from(pcmBase64, 'base64').length;
           this.telemetry.audioBytesReceived += chunkLen;
           if (this.candidateSpeechEndedAt && this.telemetry.ttfaMs === null) {
@@ -244,6 +251,7 @@ export class SimulatedLiveClient {
    */
   public markCandidateSpeechEnd(): void {
     this.candidateSpeechEndedAt = Date.now();
+    this.firstAudioReceivedAt = null;
     this.telemetry.ttfrMs = null;
     this.telemetry.ttftMs = null;
     this.telemetry.ttfaMs = null;
@@ -301,11 +309,13 @@ export class SimulatedLiveClient {
           const totalPlayoutMs = greetingAudioBytes > 0
             ? Math.round((greetingAudioBytes / 48000) * 1000)
             : 0;
+          const streamingElapsedMs = firstAudioAt ? (Date.now() - firstAudioAt) : 0;
+          const remainingMs = Math.max(0, totalPlayoutMs - streamingElapsedMs) + 650;
 
-          if (totalPlayoutMs > 0) {
+          if (remainingMs > 0) {
             setTimeout(() => {
               resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
-            }, totalPlayoutMs + 650);
+            }, remainingMs);
           } else {
             resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
           }
@@ -331,12 +341,15 @@ export class SimulatedLiveClient {
   /**
    * SOTA Dual-Sided Handshake Invariant: Waits until physical audio playout has drained from headphones/speakers.
    */
-  public async waitForAudioPlayoutToDrain(reverbBufferMs: number = 550): Promise<void> {
-    const drainMs = this.telemetry.audioBytesReceived > 0
-      ? Math.round((this.telemetry.audioBytesReceived / 48000) * 1000) + reverbBufferMs
+  public async waitForAudioPlayoutToDrain(reverbBufferMs: number = 450): Promise<void> {
+    const totalDurationMs = this.telemetry.audioBytesReceived > 0
+      ? Math.round((this.telemetry.audioBytesReceived / 48000) * 1000)
       : 0;
-    if (drainMs > 0) {
-      await new Promise((r) => setTimeout(r, drainMs));
+    const streamingElapsedMs = this.firstAudioReceivedAt ? (Date.now() - this.firstAudioReceivedAt) : 0;
+    const remainingMs = Math.max(0, totalDurationMs - streamingElapsedMs) + reverbBufferMs;
+    this.firstAudioReceivedAt = null;
+    if (remainingMs > 0) {
+      await new Promise((r) => setTimeout(r, remainingMs));
     }
   }
 
