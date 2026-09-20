@@ -394,6 +394,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const generationEpochRef = useRef<number>(0);
   const isTactileInterruptedRef = useRef<boolean>(false);
   const hasReceivedAudioInTurnRef = useRef<boolean>(false);
+  const hasReceivedModelTurnTextRef = useRef<boolean>(false);
   const aiTurnTextAccumulatorRef = useRef<string>('');
   const aiTurnWordsRevealedCountRef = useRef<number>(0);
   const audioDurationQueuedMsRef = useRef<number>(0);
@@ -651,46 +652,39 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       try { navigator.vibrate(15); } catch {}
     }
 
-    // Tier 1: 5.0s - status update to 'delayed'
+    // Tier 1: 4.5s - status update to 'delayed'
     const t1 = setTimeout(() => {
       if (isThinkingRef.current) {
         setThinkingStage('delayed');
       }
-    }, 5000);
+    }, 4500);
 
-    // Tier 2: 12.0s - status update to 'critical' (shows recovery bar)
+    // Tier 2: 8.5s - Bounded Watchdog Recovery (SOTA 2026 Dead-Air Sync)
     const t2 = setTimeout(() => {
-      if (isThinkingRef.current) {
-        setThinkingStage('critical');
-      }
-    }, 12000);
-
-    // Tier 3: 25.0s - auto-fallback to REST /api/eval (accommodates deep reasoning TTFT up to 18s)
-    const t3 = setTimeout(() => {
-      if (isThinkingRef.current && !isEvaluationFinalizedRef.current && sessionType !== 'tutor') {
-        console.warn('⏱️ 25s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
-        void executeInstantRestEvalFallback();
-      } else if (isThinkingRef.current && sessionType === 'tutor') {
-        console.warn('⏱️ 25s Tutor Turn Watchdog expired. Sending sync ping to backend...');
+      if (isThinkingRef.current && sessionType === 'tutor') {
+        console.warn('⏱️ 8.5s Tutor Turn Watchdog: Synchronizing turn_reset with backend & unlocking mic.');
+        isTactileInterruptedRef.current = false;
+        setIsThinking(false);
+        isThinkingRef.current = false;
+        setThinkingStage('idle');
+        setIsRecording(true);
+        isRecordingRef.current = true;
+        setHardwareMicEnabled(true);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           try {
-            wsRef.current.send(JSON.stringify({ type: 'sync_ping', timestamp: Date.now() }));
+            wsRef.current.send(JSON.stringify({ type: 'turn_reset', timestamp: Date.now() }));
           } catch {}
         }
-        // If after 28s still thinking in tutor mode, gently unfreeze thinking state to allow user to continue speaking
-        setTimeout(() => {
-          if (isThinkingRef.current && sessionType === 'tutor') {
-            console.warn('⏱️ 28s Tutor Turn Watchdog hard recovery: unlocking microphone for candidate.');
-            setIsThinking(false);
-            isThinkingRef.current = false;
-            setThinkingStage('idle');
-            setIsRecording(true);
-            isRecordingRef.current = true;
-            setHardwareMicEnabled(true);
-          }
-        }, 3000);
       }
-    }, 25000);
+    }, 8500);
+
+    // Tier 3: 20.0s - auto-fallback to REST /api/eval (only in interview grading mode, not tutor)
+    const t3 = setTimeout(() => {
+      if (isThinkingRef.current && !isEvaluationFinalizedRef.current && sessionType !== 'tutor') {
+        console.warn('⏱️ 20s Turn Watchdog expired. Triggering automated REST evaluation fallback...');
+        void executeInstantRestEvalFallback();
+      }
+    }, 20000);
 
     turnWatchdogRef.current = [t1, t2, t3];
   };
@@ -725,26 +719,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       // Signal backend and upstream Gemini Live Proxy to abort the monologue
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try {
-          // 1. Dedicated control frame for backend connection handler
+          // Dedicated control frame for backend connection handler (sets isAiGenerating=false and alerts Gemini)
           wsRef.current.send(JSON.stringify({
             type: 'barge_in',
             epoch: generationEpochRef.current
           }));
-
-          // 2. Upstream abort turn frame
-          wsRef.current.send(JSON.stringify({
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [{ text: customPrompt || '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]: Передай слово кандидату.' }]
-                }
-              ],
-              turnComplete: false
-            }
-          }));
         } catch (e) {
-          console.warn('Failed to dispatch upstream barge-in frames:', e);
+          console.warn('Failed to dispatch upstream barge-in frame:', e);
         }
       }
     }
@@ -769,11 +750,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     subtitlePacingIntervalRef.current = setInterval(() => {
       if (!audioPlayoutStartTimeRef.current) return;
       const elapsedMs = Date.now() - audioPlayoutStartTimeRef.current;
-      const totalDurationMs = Math.max(600, audioDurationQueuedMsRef.current);
-      const progress = Math.min(1.0, elapsedMs / totalDurationMs);
-
       const allTokens = aiTurnTextAccumulatorRef.current.split(/(\s+)/);
       if (allTokens.length === 0 || !aiTurnTextAccumulatorRef.current) return;
+
+      // SOTA 2026 Dynamic Pacer Calibration:
+      // While audio chunks are still streaming (isServerTurnCompleteRef.current === false),
+      // audioDurationQueuedMs is incomplete and reflects only the initial buffer (~600ms).
+      // We bound minimum duration by estimated reading pace (~260ms per token/word)
+      // to prevent premature 100% text dumps before audio physically arrives.
+      const isComplete = isServerTurnCompleteRef.current;
+      const estimatedDurationMs = isComplete
+        ? Math.max(600, audioDurationQueuedMsRef.current)
+        : Math.max(audioDurationQueuedMsRef.current, allTokens.length * 260);
+
+      const totalDurationMs = Math.max(600, estimatedDurationMs);
+      const progress = Math.min(1.0, elapsedMs / totalDurationMs);
 
       const targetCount = Math.min(allTokens.length, Math.max(1, Math.floor(allTokens.length * progress)));
       if (targetCount > aiTurnWordsRevealedCountRef.current || progress >= 0.99) {
@@ -788,7 +779,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         });
       }
 
-      if (progress >= 1.0) {
+      if (progress >= 1.0 && isComplete) {
         stopSubtitlePacing();
       }
     }, 60);
@@ -1308,6 +1299,33 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           return;
         }
 
+        if (data.type === 'upstream_ready') {
+          console.log('✅ Upstream reconnected and ready!');
+          clearAllTurnWatchdogs();
+          return;
+        }
+
+        // SOTA 2026 Dead-Air Recovery notification from backend
+        if (data.type === 'dead_air_recovery') {
+          console.warn('⏱️ [DEAD_AIR_RECOVERY] Backend reported upstream Gemini silence timeout. Unfreezing client turn state.');
+          clearAllTurnWatchdogs();
+          isTactileInterruptedRef.current = false;
+          setIsAiSpeaking(false);
+          isAiSpeakingRef.current = false;
+          setIsThinking(false);
+          isThinkingRef.current = false;
+          setThinkingStage('idle');
+          setIsRecording(true);
+          isRecordingRef.current = true;
+          setHardwareMicEnabled(true);
+          setDialogueTurns((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.text.includes('Интервьюер слушает')) return prev;
+            return [...prev, { role: 'system', text: '🎙️ Интервьюер слушает: продолжайте мысль или повторите реплику.' }];
+          });
+          return;
+        }
+
         // Upstream reconnection events from backend Split-Socket resilience
         if (data.type === 'upstream_reconnecting') {
           console.log(`🔄 Upstream reconnecting (attempt ${data.attempt || 1}/${data.maxAttempts || 3})...`);
@@ -1552,6 +1570,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     latest.audioTextSkewMs = currentTurnFirstAudioPlayoutAtRef.current - currentTurnFirstTextAtRef.current;
                   }
                 }
+                hasReceivedModelTurnTextRef.current = true;
                 transcriptRef.current += ` AI: ${part.text}`;
                 aiTurnTextAccumulatorRef.current += part.text;
               }
@@ -1578,11 +1597,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 latest.audioTextSkewMs = currentTurnFirstAudioPlayoutAtRef.current - currentTurnFirstTextAtRef.current;
               }
             }
-            transcriptRef.current += ` AI: ${outputTranscript}`;
-            aiTurnTextAccumulatorRef.current += outputTranscript;
+            // SOTA Deduplication: Only accumulate if modelTurn.parts did not supply textual tokens
+            if (!hasReceivedModelTurnTextRef.current) {
+              transcriptRef.current += ` AI: ${outputTranscript}`;
+              aiTurnTextAccumulatorRef.current += outputTranscript;
+            }
           }
 
           if (data.serverContent.turnComplete) {
+            hasReceivedModelTurnTextRef.current = false;
             isTactileInterruptedRef.current = false;
             isToolExecutingRef.current = false;
             const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
@@ -2033,6 +2056,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setHardwareMicEnabled(false);
     stopSubtitlePacing();
     hasReceivedAudioInTurnRef.current = false;
+    hasReceivedModelTurnTextRef.current = false;
+    isTactileInterruptedRef.current = false;
     aiTurnTextAccumulatorRef.current = '';
     aiTurnWordsRevealedCountRef.current = 0;
     audioDurationQueuedMsRef.current = 0;
@@ -2684,6 +2709,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                 if (speechDuration >= 150) {
                   if (!hasSpokenInTurnRef.current) {
                     hasSpokenInTurnRef.current = true;
+                    isTactileInterruptedRef.current = false;
                     injectActiveWhiteboardGroundingFrame();
                     injectActiveFocusGroundingFrame();
                   }

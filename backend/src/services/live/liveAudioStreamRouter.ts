@@ -373,13 +373,17 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             clearTimeout(session.toolCallSafetyTimeout);
             session.toolCallSafetyTimeout = null;
           }
-          // Anchor baseline time: lastTurnCommitTime (user speech commit), or sessionStartedAt / previous lastActivityAt (for Turn 0 greeting)
-          const commitAnchor = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.sessionStartedAt || session.lastActivityAt || Date.now();
+          // Anchor baseline time: lastTurnCommitTime (user speech commit), lastToolCallTime (tool execution complete), or sessionStartedAt / previous lastActivityAt (for Turn 0 greeting)
+          const commitAnchor = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastToolCallTime || session.sessionStartedAt || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
             session.nudgeWatchdog = null;
+          }
+          if (session.deadAirWatchdog) {
+            clearTimeout(session.deadAirWatchdog);
+            session.deadAirWatchdog = null;
           }
 
           // Ensure currentTurnMetrics is initialized (e.g. Turn 0 greeting before candidate speaks)
@@ -445,10 +449,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
+          if (session.deadAirWatchdog) {
+            clearTimeout(session.deadAirWatchdog);
+            session.deadAirWatchdog = null;
+          }
           const commitAnchor =
             session.lastTurnCommitTime ||
             session.currentTurnMetrics?.candidateSpeechEndedAt ||
             session.currentTurnMetrics?.candidateSpeechStartedAt ||
+            session.lastToolCallTime ||
             session.sessionStartedAt ||
             session.lastActivityAt ||
             Date.now();
@@ -471,12 +480,17 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               clearTimeout(session.toolCallSafetyTimeout);
               session.toolCallSafetyTimeout = null;
             }
+            if (session.deadAirWatchdog) {
+              clearTimeout(session.deadAirWatchdog);
+              session.deadAirWatchdog = null;
+            }
 
             // SOTA September 2026: Seal Canonical Turn Telemetry Event
             const commitTime =
               session.lastTurnCommitTime ||
               session.currentTurnMetrics?.candidateSpeechEndedAt ||
               session.currentTurnMetrics?.candidateSpeechStartedAt ||
+              session.lastToolCallTime ||
               session.sessionStartedAt ||
               session.lastActivityAt ||
               Date.now();
@@ -548,6 +562,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (parsed.serverContent?.interrupted) {
           session.isAiGenerating = false;
           session.isToolCallPending = false;
+          if (session.deadAirWatchdog) {
+            clearTimeout(session.deadAirWatchdog);
+            session.deadAirWatchdog = null;
+          }
           if (session.currentTurnMetrics) {
             session.currentTurnMetrics.wasBargeIn = true;
             if (!session.currentTurnMetrics.bargeInType) {

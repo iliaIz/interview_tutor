@@ -44,6 +44,8 @@ export interface ProxySession {
   lastActivityAt: number;
   heartbeatInterval?: NodeJS.Timeout | null;
   nudgeWatchdog?: NodeJS.Timeout | null;
+  deadAirWatchdog?: NodeJS.Timeout | null;
+  deadAirTimeoutMs?: number;
   currentAiTurnText?: string;
   persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;

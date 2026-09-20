@@ -235,6 +235,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;
     }
+    if (session.deadAirWatchdog) {
+      clearTimeout(session.deadAirWatchdog);
+      session.deadAirWatchdog = null;
+    }
     if (session.currentAiTurnText && session.sessionId) {
       const textToSave = session.currentAiTurnText.trim();
       if (!isLanguageDrifted(textToSave)) {
@@ -468,9 +472,14 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           clearTimeout(session.nudgeWatchdog);
           session.nudgeWatchdog = null;
         }
+        if (session.deadAirWatchdog) {
+          clearTimeout(session.deadAirWatchdog);
+          session.deadAirWatchdog = null;
+        }
         if (session.currentTurnMetrics) {
           session.currentTurnMetrics.wasBargeIn = true;
           session.currentTurnMetrics.bargeInType = 'tactile';
+          session.currentTurnMetrics.droppedEchoChunksCount = 0;
         }
         console.log(`🛑 [BARGE_IN] Client triggered tactile barge-in (epoch ${parsed.epoch || 0}) for session ${session.sessionId || 'anon'}`);
         if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
@@ -481,6 +490,24 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
             }
           }));
         }
+        return;
+      }
+
+      if (parsed.type === 'turn_reset') {
+        session.isAiGenerating = false;
+        session.currentAiTurnText = '';
+        if (session.nudgeWatchdog) {
+          clearTimeout(session.nudgeWatchdog);
+          session.nudgeWatchdog = null;
+        }
+        if (session.deadAirWatchdog) {
+          clearTimeout(session.deadAirWatchdog);
+          session.deadAirWatchdog = null;
+        }
+        if (session.currentTurnMetrics) {
+          session.currentTurnMetrics.droppedEchoChunksCount = 0;
+        }
+        console.log(`🔄 [TURN_RESET] Synchronized reset received from client for session ${session.sessionId || 'anon'}. Microphone unlocked and echo guard cleared.`);
         return;
       }
 
@@ -624,6 +651,41 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
             clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: 5500 }));
           }
         }, 5500);
+
+        // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (8.0s timeout or session override)
+        const deadAirTimeoutMs = session.deadAirTimeoutMs ?? 8000;
+        if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
+        session.deadAirWatchdog = setTimeout(() => {
+          if (session.isAiGenerating) {
+            console.warn(`⏱️ [DEAD_AIR_WATCHDOG] ${deadAirTimeoutMs}ms silence expired with zero response from Gemini Live (sessionId: ${session.sessionId || 'anon'}). Reclaiming microphone and dispatching conversational nudge.`);
+            session.isAiGenerating = false;
+            if (session.currentTurnMetrics) {
+              session.currentTurnMetrics.droppedEchoChunksCount = 0;
+            }
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              clientSocket.send(JSON.stringify({
+                type: 'dead_air_recovery',
+                reason: 'upstream_timeout',
+                timestamp: Date.now()
+              }));
+            }
+            if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+              try {
+                session.geminiSocket.send(JSON.stringify({
+                  clientContent: {
+                    turns: [{
+                      role: 'user',
+                      parts: [{ text: '[СИСТЕМНОЕ СООБЩЕНИЕ: Кандидат закончил говорить. Задай вопрос или отреагируй на реплику.]' }]
+                    }],
+                    turnComplete: true
+                  }
+                }));
+              } catch (e) {
+                console.warn('Failed to send conversational nudge to Gemini:', e);
+              }
+            }
+          }
+        }, deadAirTimeoutMs);
       }
 
       if (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {

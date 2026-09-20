@@ -53,6 +53,10 @@ jobs:
         working-directory: backend
         run: npm run test:vad:pacer
 
+      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests
+        working-directory: backend
+        run: npm run test:vad:fault-injection
+
       - name: Run Deterministic Voice Observability & Telemetry Tests
         working-directory: backend
         run: |
@@ -274,6 +278,15 @@ jobs:
             echo "Running SOTA Dual-Engine Pre-Flight Canary Verification (v3 + thinking-v3)..."
             if ! docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
               echo "❌ Canary Dual-Engine Verification FAILED! Capturing container logs..."
+              docker logs interview-backend-canary --tail 80
+              docker rm -f interview-backend-canary || true
+              echo "Deployment aborted! Production container was NOT touched."
+              exit 1
+            fi
+
+            echo "Running SOTA Fault-Injection & Dead-Air Resilience Tests in Canary..."
+            if ! docker exec interview-backend-canary node dist/testing/testVadFaultInjection.js; then
+              echo "❌ Canary Fault-Injection Verification FAILED! Capturing container logs..."
               docker logs interview-backend-canary --tail 80
               docker rm -f interview-backend-canary || true
               echo "Deployment aborted! Production container was NOT touched."

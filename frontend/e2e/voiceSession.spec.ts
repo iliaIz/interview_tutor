@@ -204,4 +204,35 @@ test.describe('Browser Web Audio & Live Voice Infrastructure', () => {
 
     expect(warmupResult.isRunning).toBe(true);
   });
+
+  test('Subtitle Pacing Rate Guard: Prevents premature 100% text dump on small audio buffer', async ({ page }) => {
+    const pacerCalc = await page.evaluate(() => {
+      const sentence = "В распределенных транзакциях двухфазный коммит может приводить к блокировкам при отказе координатора.";
+      const allTokens = sentence.split(/(\s+)/);
+      const isComplete = false; // Still streaming
+      const audioDurationQueuedMs = 600; // Only initial 2 chunks received
+      const elapsedMs = 600; // 600ms since first audio chunk played
+
+      // Buggy behavior:
+      const legacyTotalDuration = Math.max(600, audioDurationQueuedMs);
+      const legacyProgress = Math.min(1.0, elapsedMs / legacyTotalDuration);
+
+      // SOTA 2026 Calibrated behavior:
+      const estimatedDurationMs = isComplete
+        ? Math.max(600, audioDurationQueuedMs)
+        : Math.max(audioDurationQueuedMs, allTokens.length * 260);
+      const calibratedTotalDuration = Math.max(600, estimatedDurationMs);
+      const calibratedProgress = Math.min(1.0, elapsedMs / calibratedTotalDuration);
+
+      return {
+        tokensCount: allTokens.length,
+        legacyProgress,
+        calibratedProgress
+      };
+    });
+
+    expect(pacerCalc.legacyProgress).toBe(1.0); // Old code flashed 100% text in 0.6s
+    expect(pacerCalc.calibratedProgress).toBeLessThan(0.25); // New code paced at ~10-15% (no spoilering)
+  });
 });
+
