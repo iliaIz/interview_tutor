@@ -17,6 +17,7 @@ seedCodingChallenges();
 
 // Setup test user and session
 const testUserId = 'fault_injection_user';
+db.prepare("INSERT OR IGNORE INTO users (id, name, role) VALUES (?, ?, ?)").run(testUserId, 'Fault Injection Test User', 'candidate');
 const testSessionId = authService.createSession(testUserId, 'Fault-Injection-Agent/1.0', '127.0.0.1');
 
 // 1. Setup Mock LiteLLM Proxy with Chaos / Fault-Injection capabilities
