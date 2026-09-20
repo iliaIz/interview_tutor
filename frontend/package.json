@@ -7,7 +7,7 @@
     "dev": "vite",
     "prebuild": "npm --prefix ../shared run build",
     "build": "tsc && vite build",
-    "test:audio-contracts": "npx tsx tests/audioPlayoutContracts.test.ts",
+    "test:audio-contracts": "tsx tests/audioPlayoutContracts.test.ts",
     "test:e2e:voice": "playwright test e2e/voiceSession.spec.ts",
     "preview": "vite preview"
   },
@@ -45,6 +45,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }
