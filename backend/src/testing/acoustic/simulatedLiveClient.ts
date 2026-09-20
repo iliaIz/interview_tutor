@@ -211,8 +211,9 @@ export class SimulatedLiveClient {
           }
         }
 
-        if (p.inlineData?.data) {
-          const chunkLen = Buffer.from(p.inlineData.data, 'base64').length;
+        const pcmBase64 = p.inlineData?.data || p.inline_data?.data;
+        if (pcmBase64) {
+          const chunkLen = Buffer.from(pcmBase64, 'base64').length;
           this.telemetry.audioBytesReceived += chunkLen;
           if (this.candidateSpeechEndedAt && this.telemetry.ttfaMs === null) {
             this.telemetry.ttfaMs = Date.now() - this.candidateSpeechEndedAt;
@@ -285,9 +286,10 @@ export class SimulatedLiveClient {
           if (p.text && !p.thought) {
             greetingText += p.text;
           }
-          if (p.inlineData?.data) {
+          const pcmBase64 = p.inlineData?.data || p.inline_data?.data;
+          if (pcmBase64) {
             if (!firstAudioAt) firstAudioAt = Date.now();
-            greetingAudioBytes += Buffer.from(p.inlineData.data, 'base64').length;
+            greetingAudioBytes += Buffer.from(pcmBase64, 'base64').length;
           }
         }
         if (msg.serverContent?.turnComplete) {

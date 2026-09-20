@@ -32,7 +32,7 @@ export async function runBargeInScenario(engine: string = 'gemini-live-v3'): Pro
       const timer = setTimeout(() => reject(new Error('AI did not start speaking within 15s')), 15000);
       const listener = (msg: any) => {
         const parts = msg.serverContent?.modelTurn?.parts || [];
-        if (parts.some((p: any) => p.inlineData?.data)) {
+        if (parts.some((p: any) => p.inlineData?.data || p.inline_data?.data)) {
           clearTimeout(timer);
           cleanup();
           resolve();

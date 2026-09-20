@@ -36,7 +36,7 @@ export async function runNoiseRejectionScenario(engine: string = 'gemini-live-v3
     let spuriousTurnOccurred = false;
     const listener = (msg: any) => {
       const parts = msg.serverContent?.modelTurn?.parts || [];
-      if (parts.some((p: any) => p.inlineData?.data || (p.text && !p.thought))) {
+      if (parts.some((p: any) => p.inlineData?.data || p.inline_data?.data || (p.text && !p.thought))) {
         spuriousTurnOccurred = true;
       }
     };
