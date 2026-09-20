@@ -393,6 +393,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const resumeAttemptsRef = useRef(0);
   const generationEpochRef = useRef<number>(0);
   const isTactileInterruptedRef = useRef<boolean>(false);
+  const hasReceivedAudioInTurnRef = useRef<boolean>(false);
+  const aiTurnTextAccumulatorRef = useRef<string>('');
+  const aiTurnWordsRevealedCountRef = useRef<number>(0);
+  const audioDurationQueuedMsRef = useRef<number>(0);
+  const audioPlayoutStartTimeRef = useRef<number | null>(null);
+  const subtitlePacingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleConfigChange = (newConfig: InterviewConfig) => {
     setInterviewConfig(newConfig);
@@ -698,6 +704,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isTactileInterruptedRef.current = true;
 
       playoutManagerRef.current?.handleInterruption();
+      stopSubtitlePacing();
       isToolExecutingRef.current = false;
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
@@ -740,6 +747,65 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           console.warn('Failed to dispatch upstream barge-in frames:', e);
         }
       }
+    }
+  };
+
+  /**
+   * SOTA 2026 Subtitle Pacer: Smooth real-time word reveal in lockstep with AudioPlayoutManager DAC playout
+   * Eliminates subtitle spoilering where the full paragraph appears before the first syllable is spoken.
+   */
+  const stopSubtitlePacing = () => {
+    if (subtitlePacingIntervalRef.current) {
+      clearInterval(subtitlePacingIntervalRef.current);
+      subtitlePacingIntervalRef.current = null;
+    }
+  };
+
+  const startSubtitlePacing = () => {
+    stopSubtitlePacing();
+    if (!audioPlayoutStartTimeRef.current) {
+      audioPlayoutStartTimeRef.current = Date.now();
+    }
+    subtitlePacingIntervalRef.current = setInterval(() => {
+      if (!audioPlayoutStartTimeRef.current) return;
+      const elapsedMs = Date.now() - audioPlayoutStartTimeRef.current;
+      const totalDurationMs = Math.max(600, audioDurationQueuedMsRef.current);
+      const progress = Math.min(1.0, elapsedMs / totalDurationMs);
+
+      const allTokens = aiTurnTextAccumulatorRef.current.split(/(\s+)/);
+      if (allTokens.length === 0 || !aiTurnTextAccumulatorRef.current) return;
+
+      const targetCount = Math.min(allTokens.length, Math.max(1, Math.floor(allTokens.length * progress)));
+      if (targetCount > aiTurnWordsRevealedCountRef.current || progress >= 0.99) {
+        aiTurnWordsRevealedCountRef.current = targetCount;
+        const visibleText = allTokens.slice(0, targetCount).join('');
+        setDialogueTurns((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === 'ai') {
+            return [...prev.slice(0, -1), { role: 'ai', text: visibleText }];
+          }
+          return [...prev, { role: 'ai', text: visibleText }];
+        });
+      }
+
+      if (progress >= 1.0) {
+        stopSubtitlePacing();
+      }
+    }, 60);
+  };
+
+  const finalizeAiTurnSubtitles = (immediateText?: string) => {
+    stopSubtitlePacing();
+    const textToShow = immediateText || aiTurnTextAccumulatorRef.current;
+    if (textToShow) {
+      aiTurnWordsRevealedCountRef.current = 999999;
+      setDialogueTurns((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'ai') {
+          return [...prev.slice(0, -1), { role: 'ai', text: textToShow }];
+        }
+        return [...prev, { role: 'ai', text: textToShow }];
+      });
     }
   };
 
@@ -990,6 +1056,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (playoutManagerRef.current) {
       playoutManagerRef.current.clearQueue();
     }
+    stopSubtitlePacing();
+    hasReceivedAudioInTurnRef.current = false;
+    aiTurnTextAccumulatorRef.current = '';
+    aiTurnWordsRevealedCountRef.current = 0;
+    audioDurationQueuedMsRef.current = 0;
+    audioPlayoutStartTimeRef.current = null;
   };
 
   /**
@@ -1021,6 +1093,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
     playoutManagerRef.current.onFirstAudioPlayout = (playoutEpochMs: number) => {
       currentTurnFirstAudioPlayoutAtRef.current = playoutEpochMs;
+      audioPlayoutStartTimeRef.current = playoutEpochMs;
+      startSubtitlePacing();
       const list = turnTelemetryListRef.current;
       const latest = list[list.length - 1];
       if (latest) {
@@ -1127,6 +1201,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     // Attach playback finished callback to playout manager for instant mic transition
     if (playoutManagerRef.current) {
       playoutManagerRef.current.onPlaybackFinished = () => {
+        finalizeAiTurnSubtitles();
         const isInteractionIdle = !interactionStatusRef.current || interactionStatusRef.current === 'IDLE';
         if (isServerTurnCompleteRef.current && isInteractionIdle && !isEvaluationFinalizedRef.current) {
           console.log('🔊 Audio playback finished in speakers (terminal turn). Instantly activating candidate microphone...');
@@ -1478,16 +1553,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                   }
                 }
                 transcriptRef.current += ` AI: ${part.text}`;
-                setDialogueTurns((prev) => {
-                  const last = prev[prev.length - 1];
-                  if (last && last.role === 'ai') {
-                    return [...prev.slice(0, -1), { role: 'ai', text: last.text + part.text }];
-                  }
-                  return [...prev, { role: 'ai', text: part.text }];
-                });
+                aiTurnTextAccumulatorRef.current += part.text;
               }
               const pcmBase64 = part.inlineData?.data || part.inline_data?.data;
               if (pcmBase64) {
+                hasReceivedAudioInTurnRef.current = true;
+                const chunkBytes = pcmBase64.length * 0.75;
+                audioDurationQueuedMsRef.current += (chunkBytes / 48000) * 1000;
                 playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
               }
             }
@@ -1507,13 +1579,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               }
             }
             transcriptRef.current += ` AI: ${outputTranscript}`;
-            setDialogueTurns((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.role === 'ai') {
-                return [...prev.slice(0, -1), { role: 'ai', text: last.text + outputTranscript }];
-              }
-              return [...prev, { role: 'ai', text: outputTranscript }];
-            });
+            aiTurnTextAccumulatorRef.current += outputTranscript;
           }
 
           if (data.serverContent.turnComplete) {
@@ -1527,9 +1593,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               playoutManagerRef.current?.notifyTurnComplete();
               console.log('AI terminal turn completed on server. Waiting for AudioPlayoutManager queue to drain...');
 
-              // Dual-Sided Handshake: If audio playout already finished or no audio was received, activate mic immediately
-              if (!playoutManagerRef.current?.isPlaying() && !isEvaluationFinalizedRef.current) {
+              // Dual-Sided Handshake Invariant:
+              // Case 1: Audio was received and already finished playing before turnComplete arrived
+              if (hasReceivedAudioInTurnRef.current && !playoutManagerRef.current?.isPlaying() && !isEvaluationFinalizedRef.current) {
                 console.log('🔊 Audio queue already drained on terminal turnComplete. Instantly activating candidate microphone...');
+                finalizeAiTurnSubtitles();
                 setIsAiSpeaking(false);
                 isAiSpeakingRef.current = false;
                 setIsThinking(false);
@@ -1556,7 +1624,36 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
                     { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
                   ];
                 });
+              } else if (!hasReceivedAudioInTurnRef.current && !isEvaluationFinalizedRef.current) {
+                // Case 2: Zero audio chunks received (pure text turn or upstream audio suppression).
+                // Finalize subtitles immediately and unlock candidate microphone after brief 600ms reading grace.
+                console.warn('⚠️ [ZERO_AUDIO_FALLBACK] Turn complete with 0 audio packets. Finalizing subtitles and transitioning...');
+                finalizeAiTurnSubtitles();
+                setTimeout(() => {
+                  if (isMountedRef.current && !isAiSpeakingRef.current && !isEvaluationFinalizedRef.current) {
+                    setIsAiSpeaking(false);
+                    isAiSpeakingRef.current = false;
+                    setIsThinking(false);
+                    isThinkingRef.current = false;
+                    clearAllTurnWatchdogs();
+                    lastAiSpeechEndedAtRef.current = Date.now();
+                    setIsRecording(true);
+                    isRecordingRef.current = true;
+                    hasSpokenInTurnRef.current = false;
+                    setHardwareMicEnabled(true);
+                    setDialogueTurns((prev) => {
+                      const last = prev[prev.length - 1];
+                      if (last && last.text.includes('Ваша очередь')) return prev;
+                      return [
+                        ...prev,
+                        { role: 'system', text: '🎙️ Ваша очередь: говорите в микрофон своими словами.' }
+                      ];
+                    });
+                  }
+                }, 600);
               }
+              // Case 3: Audio IS currently playing (isPlaying() === true).
+              // onPlaybackFinished will symmetrically unblock candidate microphone upon physical DAC timeline drain!
             } else {
               console.log(`⏳ Conversational filler completed, but interactionStatus=${data.serverContent.interactionStatus}. AI reasoning in progress...`);
               isServerTurnCompleteRef.current = false;
@@ -1933,6 +2030,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setIsUserSpeaking(false);
     setIsRecording(false);
     isRecordingRef.current = false;
+    setHardwareMicEnabled(false);
+    stopSubtitlePacing();
+    hasReceivedAudioInTurnRef.current = false;
+    aiTurnTextAccumulatorRef.current = '';
+    aiTurnWordsRevealedCountRef.current = 0;
+    audioDurationQueuedMsRef.current = 0;
+    audioPlayoutStartTimeRef.current = null;
     setIsThinking(true);
     isThinkingRef.current = true;
     startTurnWatchdog();

@@ -394,10 +394,11 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     session.lastActivityAt = Date.now();
     const buffer = toRawBuffer(data);
     let payloadBuffer = buffer;
+    let parsed: any = null;
 
     try {
       const text = buffer.toString();
-      const parsed = JSON.parse(text);
+      parsed = JSON.parse(text);
 
       if (parsed.type === 'pong') {
         const sentTs = typeof parsed.timestamp === 'number' ? parsed.timestamp : Date.now();
@@ -587,10 +588,11 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
 
       if (parsed.clientContent?.turnComplete) {
-        if (session.isAiGenerating) {
+        if (session.isAiGenerating && !parsed.clientContent?.turns) {
           console.warn(`🛡️ [STALE_GUARD] Suppressed client turnComplete because Gemini is actively generating audio (sessionId: ${session.sessionId || 'anon'})`);
           return;
         }
+        session.isAiGenerating = true;
         session.lastTurnCommitTime = Date.now();
         const speechDurationMs = session.currentTurnMetrics?.candidateSpeechStartedAt
           ? session.lastTurnCommitTime - session.currentTurnMetrics.candidateSpeechStartedAt
@@ -680,11 +682,14 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       // This prevents acoustic speaker bleed from triggering false upstream VAD interruptions.
       if (session.isToolCallPending || session.isAiGenerating) {
         try {
-          const parsedObj = JSON.parse(buffer.toString());
+          const parsedObj = parsed;
           if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
             if (!parsedObj.bargeIn && !parsedObj.barge_in) {
               if (session.currentTurnMetrics) {
                 session.currentTurnMetrics.droppedEchoChunksCount = (session.currentTurnMetrics.droppedEchoChunksCount || 0) + 1;
+                if (session.currentTurnMetrics.droppedEchoChunksCount === 1 || session.currentTurnMetrics.droppedEchoChunksCount % 25 === 0) {
+                  console.log(`🛡️ [ECHO_GUARD] Suppressed mic audio frame while AI is generating (session ${session.sessionId || 'anon'}, dropped chunks: ${session.currentTurnMetrics.droppedEchoChunksCount})`);
+                }
               }
               return;
             }

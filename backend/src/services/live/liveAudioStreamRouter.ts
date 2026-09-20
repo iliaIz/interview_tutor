@@ -445,7 +445,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
-          const commitAnchor = session.lastTurnCommitTime || session.lastActivityAt || Date.now();
+          const commitAnchor =
+            session.lastTurnCommitTime ||
+            session.currentTurnMetrics?.candidateSpeechEndedAt ||
+            session.currentTurnMetrics?.candidateSpeechStartedAt ||
+            session.sessionStartedAt ||
+            session.lastActivityAt ||
+            Date.now();
           if (session.currentTurnMetrics && !session.currentTurnMetrics.firstTextAt) {
             session.currentTurnMetrics.firstTextAt = Date.now();
             const ttft = Date.now() - commitAnchor;
@@ -467,7 +473,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             }
 
             // SOTA September 2026: Seal Canonical Turn Telemetry Event
-            const commitTime = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.sessionStartedAt || Date.now();
+            const commitTime =
+              session.lastTurnCommitTime ||
+              session.currentTurnMetrics?.candidateSpeechEndedAt ||
+              session.currentTurnMetrics?.candidateSpeechStartedAt ||
+              session.sessionStartedAt ||
+              session.lastActivityAt ||
+              Date.now();
             const metrics = session.currentTurnMetrics;
             const ttfrMs = metrics?.firstThoughtAt ? Math.max(0, metrics.firstThoughtAt - commitTime) : null;
             const ttftMs = metrics?.firstTextAt ? Math.max(0, metrics.firstTextAt - commitTime) : null;
