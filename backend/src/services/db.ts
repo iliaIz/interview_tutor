@@ -715,25 +715,38 @@ export function seedCodingChallenges() {
         updated_at = CURRENT_TIMESTAMP
     `);
 
+    const TITLE_FIXES: Record<string, string> = {
+      'lld-key-value-cache-ttl': 'In-Memory Key-Value Cache с TTL и LRU/LFU',
+      'lld-task-scheduler-cron': 'Task Scheduler с Cron и Приоритетами',
+      'lld-url-shortener': 'URL Shortener с Base62 и TTL',
+      'lld-rate-limiting-gateway-priority': 'Rate Limiting Gateway с VIP-приоритетами',
+    };
+
+    const normalizeDifficulty = (raw: string): string => {
+      const lower = (raw || 'middle').toLowerCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    };
+
     const syncAll = db.transaction((challenges: any[]) => {
       for (const ch of challenges) {
+        const cleanTitle = TITLE_FIXES[ch.id] || ch.title;
+        const cleanDiff = normalizeDifficulty(ch.difficulty);
         upsertStmt.run({
           id: ch.id,
           slug: ch.slug || ch.id,
-          title: ch.title,
+          title: cleanTitle,
           category: ch.category || 'machine_coding',
           track: ch.track || 'lld_bigtech',
           badge: ch.badge || (ch.track === 'lld_fintech' ? '💳 FinTech' : ch.track === 'lld_concurrency' ? '⚡ Concurrency' : '🏛️ LLD'),
-          difficulty: ch.difficulty,
+          difficulty: cleanDiff,
           target_stack: ch.targetStack || ch.techStack || 'Java 21 LTS',
           time_limit_minutes: ch.timeLimitMinutes || 45,
-          short_description: ch.shortDescription || (ch.scenarioMarkdown ? ch.scenarioMarkdown.slice(0, 150) + '...' : ch.title),
+          short_description: ch.shortDescription || (ch.scenarioMarkdown ? ch.scenarioMarkdown.slice(0, 150) + '...' : cleanTitle),
           instructions_markdown: ch.instructionsMarkdown || ch.scenarioMarkdown || '',
           manifest_json: JSON.stringify(ch)
         });
       }
     });
-
 
     syncAll(SEEDED_CHALLENGES);
 
@@ -750,7 +763,29 @@ export function seedCodingChallenges() {
       console.log(`✅ Seeded ${lldChallenges.length} SOTA Machine Coding & LLD challenges from JSON`);
     }
 
-    console.log(`✅ Seeded premier coding challenges into SQLite DB`);
+    // Assign deterministic task codes: TST-01..TST-42 and LLD-01..LLD-55
+    const diffOrder: Record<string, number> = { Junior: 0, Middle: 1, Senior: 2, Lead: 3 };
+    const updateCodeStmt = db.prepare('UPDATE coding_challenges SET task_code = ? WHERE id = ?');
+
+    const assignCodes = db.transaction(() => {
+      const testingRows = db.prepare("SELECT id, difficulty FROM coding_challenges WHERE track = 'testing_mutation'").all() as Array<{ id: string; difficulty: string }>;
+      testingRows.sort((a, b) => (diffOrder[a.difficulty] ?? 99) - (diffOrder[b.difficulty] ?? 99) || a.id.localeCompare(b.id));
+      testingRows.forEach((row, idx) => {
+        const code = `TST-${String(idx + 1).padStart(2, '0')}`;
+        updateCodeStmt.run(code, row.id);
+      });
+
+      const lldRows = db.prepare("SELECT id, difficulty FROM coding_challenges WHERE track != 'testing_mutation'").all() as Array<{ id: string; difficulty: string }>;
+      lldRows.sort((a, b) => (diffOrder[a.difficulty] ?? 99) - (diffOrder[b.difficulty] ?? 99) || a.id.localeCompare(b.id));
+      lldRows.forEach((row, idx) => {
+        const code = `LLD-${String(idx + 1).padStart(2, '0')}`;
+        updateCodeStmt.run(code, row.id);
+      });
+    });
+
+    assignCodes();
+
+    console.log(`✅ Seeded premier coding challenges and task codes into SQLite DB`);
   } catch (err) {
     console.error('Error seeding coding challenges:', err);
   }

@@ -1,11 +1,11 @@
 const assert = require('assert');
 const path = require('path');
-const Database = require('better-sqlite3');
-
-const dbPath = path.join(__dirname, '../data/interview.db');
-const db = new Database(dbPath);
+const { db, seedCodingChallenges } = require('../dist/services/db');
 
 console.log('Testing coding_challenges schema and data integrity...');
+
+// Ensure challenges and task codes are seeded in test DB
+seedCodingChallenges();
 
 // 1. Check total count
 const totalCount = db.prepare('SELECT count(*) as count FROM coding_challenges').get().count;
