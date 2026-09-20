@@ -269,6 +269,7 @@ export class SimulatedLiveClient {
     return new Promise((resolve, reject) => {
       let greetingText = '';
       let greetingAudioBytes = 0;
+      let firstAudioAt: number | null = null;
       const timer = setTimeout(() => {
         cleanup();
         if (greetingText.length > 0 || greetingAudioBytes > 0) {
@@ -285,12 +286,29 @@ export class SimulatedLiveClient {
             greetingText += p.text;
           }
           if (p.inlineData?.data) {
+            if (!firstAudioAt) firstAudioAt = Date.now();
             greetingAudioBytes += Buffer.from(p.inlineData.data, 'base64').length;
           }
         }
         if (msg.serverContent?.turnComplete) {
           cleanup();
-          resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
+          // SOTA Dual-Sided Handshake Invariant (AGENTS.md 2.2):
+          // Wait for simulated physical audio to drain through headphones before candidate speaks
+          // 24kHz Int16 Mono PCM = 48,000 bytes/sec + 550ms reverb cooldown to align with backend EchoGuard
+          const totalPlayoutMs = greetingAudioBytes > 0
+            ? Math.round((greetingAudioBytes / 48000) * 1000)
+            : 0;
+          const now = Date.now();
+          const targetDrainEpoch = (firstAudioAt || now) + totalPlayoutMs + 550;
+          const remainingDrainMs = Math.max(0, targetDrainEpoch - now);
+
+          if (remainingDrainMs > 0) {
+            setTimeout(() => {
+              resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
+            }, remainingDrainMs);
+          } else {
+            resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
+          }
         }
       };
 
@@ -308,6 +326,18 @@ export class SimulatedLiveClient {
       this.messageListeners.push(listener);
       this.closeListeners.push(closeHandler);
     });
+  }
+
+  /**
+   * SOTA Dual-Sided Handshake Invariant: Waits until physical audio playout has drained from headphones/speakers.
+   */
+  public async waitForAudioPlayoutToDrain(reverbBufferMs: number = 550): Promise<void> {
+    const drainMs = this.telemetry.audioBytesReceived > 0
+      ? Math.round((this.telemetry.audioBytesReceived / 48000) * 1000) + reverbBufferMs
+      : 0;
+    if (drainMs > 0) {
+      await new Promise((r) => setTimeout(r, drainMs));
+    }
   }
 
   /**

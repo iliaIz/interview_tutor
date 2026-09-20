@@ -72,8 +72,8 @@ export async function runMultiTurnDialogueScenario(
     });
     console.log(`[Scenario: MultiTurn] Turn 1 Complete. TTFA: ${tel1.ttfaMs}ms, TTFT: ${tel1.ttftMs}ms, Audio: ${tel1.audioBytesReceived} bytes`);
 
-    // Inter-turn pause: allow physical audio tail to settle
-    await new Promise((r) => setTimeout(r, 600));
+    // Inter-turn pause: allow physical audio tail to settle and drain completely
+    await client.waitForAudioPlayoutToDrain(600);
 
     // Turn 2: Architectural Deep-Dive Answer
     if (turnsCount >= 2) {
@@ -97,7 +97,7 @@ export async function runMultiTurnDialogueScenario(
       });
       console.log(`[Scenario: MultiTurn] Turn 2 Complete. TTFA: ${tel2.ttfaMs}ms, TTFT: ${tel2.ttftMs}ms, Audio: ${tel2.audioBytesReceived} bytes`);
 
-      await new Promise((r) => setTimeout(r, 600));
+      await client.waitForAudioPlayoutToDrain(600);
     }
 
     // Turn 3: Follow-up clarification

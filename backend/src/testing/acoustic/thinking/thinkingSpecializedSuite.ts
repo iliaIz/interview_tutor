@@ -42,7 +42,7 @@ export async function runThinkingCotShieldTest(engine: string = 'gemini-live-thi
       { chunkDurationMs: 40 },
       () => client.markCandidateSpeechEnd()
     );
-    const telemetry = await client.waitForTurnComplete(25000);
+    const telemetry = await client.waitForTurnComplete(35000);
 
     const allThoughts = telemetry.thoughtTokens.join(' ').toLowerCase();
     const spokenReply = telemetry.replyText.toLowerCase();

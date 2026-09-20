@@ -772,8 +772,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       // SOTA 2026 Half-Duplex Acoustic Guard: Drop raw microphone audio while AI is actively speaking,
       // physically playing through DAC, or executing tool calls, unless explicitly flagged with tactile barge-in.
       // This prevents acoustic speaker bleed from triggering false upstream VAD interruptions.
-      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
-      if (session.isToolCallPending || session.isAiGenerating || isPlayoutActive) {
+      const isPlayoutActive = !!session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
+      const isAudioEmitting = session.isAiGenerating && !!session.firstAudioChunkLogged;
+      if (session.isToolCallPending || isAudioEmitting || isPlayoutActive) {
         try {
           const parsedObj = parsed;
           if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
