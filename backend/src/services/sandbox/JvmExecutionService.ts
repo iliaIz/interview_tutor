@@ -98,12 +98,33 @@ export class JvmExecutionService {
     }
     const classFile = path.join(this.binPath, 'com/assessment/sandbox/CompilerService.class');
     if (!fs.existsSync(classFile)) {
-      const sourceFile = path.resolve(__dirname, 'runner/CompilerService.java');
+      let runnerDir = path.resolve(__dirname, 'runner');
+      if (!fs.existsSync(runnerDir) || !fs.existsSync(path.join(runnerDir, 'CompilerService.java'))) {
+        const srcCandidate = path.resolve(__dirname, '../../../src/services/sandbox/runner');
+        if (fs.existsSync(srcCandidate)) {
+          runnerDir = srcCandidate;
+        } else {
+          runnerDir = path.resolve(process.cwd(), 'src/services/sandbox/runner');
+        }
+      }
       if (!fs.existsSync(this.binPath)) {
         fs.mkdirSync(this.binPath, { recursive: true });
       }
       try {
-        require('child_process').execSync(`javac -d "${this.binPath}" "${sourceFile}"`);
+        const walk = (dir: string): string[] => {
+          let r: string[] = [];
+          for (const f of fs.readdirSync(dir)) {
+            const p = path.join(dir, f);
+            if (fs.statSync(p).isDirectory()) r = r.concat(walk(p));
+            else if (p.endsWith('.java')) r.push(p);
+          }
+          return r;
+        };
+        const javaFiles = walk(runnerDir);
+        const argFile = path.join(this.binPath, 'sources_argfile.txt');
+        fs.writeFileSync(argFile, javaFiles.join('\n'), 'utf8');
+        require('child_process').execSync(`javac -d "${this.binPath}" @"${argFile}"`);
+        try { fs.unlinkSync(argFile); } catch {}
       } catch (e) {
         console.error('Failed to precompile CompilerService.java:', e);
       }

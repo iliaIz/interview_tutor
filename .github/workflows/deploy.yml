@@ -75,6 +75,10 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      - name: Build Java Sandbox Runner
+        working-directory: backend
+        run: npm run build:sandbox
+
       - name: Run Practice LLD Resilience & Fault-Injection Tests
         working-directory: backend
         run: npm run test:practice:resilience
