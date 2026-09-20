@@ -103,10 +103,13 @@ export interface JavaIdiomRequirements {
   disallowSynchronizedKeyword?: boolean;
 }
 
+export type ChallengeCompletionStatus = 'COMPLETED' | 'IN_PROGRESS' | 'FAILED' | 'NOT_STARTED';
+
 export interface CodingChallenge {
   id: string;
   slug: string;
   title: string;
+  taskCode?: string;
   category: string;
   track?: string;
   badge: string;
@@ -138,8 +141,11 @@ export interface CodingChallenge {
     modernIdioms: number;
   };
   isCompleted?: boolean;
+  status?: ChallengeCompletionStatus;
   lastScore?: number;
   lastStatus?: string;
+  timeSpentSeconds?: number;
+  completedAt?: string;
 }
 
 

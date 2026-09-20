@@ -14,7 +14,7 @@ router.get('/challenges', (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const { category, track } = req.query;
-    let query = 'SELECT id, slug, title, category, track, badge, difficulty, target_stack, time_limit_minutes, short_description, updated_at FROM coding_challenges';
+    let query = 'SELECT id, slug, title, category, track, badge, difficulty, target_stack, time_limit_minutes, short_description, task_code, updated_at FROM coding_challenges';
     const params: any[] = [];
     const whereClauses: string[] = [];
 
@@ -30,26 +30,45 @@ router.get('/challenges', (req, res) => {
     if (whereClauses.length > 0) {
       query += ' WHERE ' + whereClauses.join(' AND ');
     }
-    query += ' ORDER BY created_at ASC';
+    query += ' ORDER BY task_code ASC, created_at ASC';
 
     const rows = db.prepare(query).all(...params) as any[];
 
     // Fetch submission status for the authenticated user
-    const subStmt = db.prepare('SELECT challenge_id, status, score, updated_at FROM coding_submissions WHERE user_id = ?');
+    const subStmt = db.prepare('SELECT challenge_id, status, score, files_json, time_spent_seconds, updated_at FROM coding_submissions WHERE user_id = ?');
     const submissions = subStmt.all(userId) as any[];
     const subMap = new Map(submissions.map(s => [s.challenge_id, s]));
 
     const result = rows.map(r => {
       const sub = subMap.get(r.id);
+      const isCompleted = sub?.status === 'PASSED' || (sub?.score !== undefined && sub.score >= 70);
+      let status: 'COMPLETED' | 'IN_PROGRESS' | 'FAILED' | 'NOT_STARTED' = 'NOT_STARTED';
+
+      if (isCompleted) {
+        status = 'COMPLETED';
+      } else if (sub?.status === 'FAILED' || (sub?.score !== undefined && sub.score < 70)) {
+        status = 'FAILED';
+      } else if (sub && (sub.files_json || (sub.time_spent_seconds && sub.time_spent_seconds > 0))) {
+        status = 'IN_PROGRESS';
+      }
+
+      const rawDiff = r.difficulty || 'Middle';
+      const difficulty = rawDiff.charAt(0).toUpperCase() + rawDiff.slice(1).toLowerCase();
+
       return {
         ...r,
+        difficulty,
+        taskCode: r.task_code || r.id,
         track: r.track || 'lld_bigtech',
         timeLimitMinutes: r.time_limit_minutes,
         targetStack: r.target_stack,
         shortDescription: r.short_description,
-        isCompleted: sub?.status === 'PASSED' || (sub?.score !== undefined && sub.score >= 70),
+        isCompleted,
+        status,
         lastScore: sub?.score,
-        lastStatus: sub?.status || 'NOT_STARTED'
+        lastStatus: status,
+        timeSpentSeconds: sub?.time_spent_seconds || 0,
+        completedAt: isCompleted ? sub?.updated_at : undefined
       };
     });
 

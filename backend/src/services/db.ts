@@ -199,6 +199,7 @@ db.exec(`
     short_description TEXT NOT NULL,
     instructions_markdown TEXT NOT NULL,
     manifest_json TEXT NOT NULL,
+    task_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -415,6 +416,17 @@ try {
   }
 } catch (e) {
   console.error("Migration error for coding_challenges:", e);
+}
+
+// Migration: Ensure task_code column exists in coding_challenges table
+try {
+  const cols = db.pragma('table_info(coding_challenges)') as any[];
+  if (!cols.some(c => c.name === 'task_code')) {
+    db.exec("ALTER TABLE coding_challenges ADD COLUMN task_code TEXT;");
+    console.log("✅ Added 'task_code' column to coding_challenges table");
+  }
+} catch (e) {
+  console.error("Migration error for coding_challenges (task_code):", e);
 }
 
 // Migration: Ensure user_progress supports multi-user composite key
