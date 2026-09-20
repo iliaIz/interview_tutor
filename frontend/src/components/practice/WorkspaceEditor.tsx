@@ -86,6 +86,10 @@ export const WorkspaceEditor: React.FC = () => {
   const [isSandboxRunning, setIsSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<SandboxExecutionResponse | null>(null);
   const [evaluationTimer, setEvaluationTimer] = useState(0);
+  const [evaluationStage, setEvaluationStage] = useState<{
+    stage: 'idle' | 'sandbox' | 'sandbox_done' | 'ast_analysis' | 'ai_reasoning' | 'complete';
+    label: string;
+  }>({ stage: 'idle', label: '' });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -170,11 +174,13 @@ export const WorkspaceEditor: React.FC = () => {
       abortControllerRef.current = null;
     }
     setIsPracticeEvaluating(false);
+    setEvaluationStage({ stage: 'idle', label: '' });
   };
 
   const handleRunEvaluation = async () => {
     if (!activePracticeChallenge || isPracticeEvaluating) return;
     setIsPracticeEvaluating(true);
+    setEvaluationStage({ stage: 'sandbox', label: 'Компиляция и тесты Java 21...' });
     const controller = new AbortController();
     abortControllerRef.current = controller;
     const clientTimeoutId = setTimeout(() => {
@@ -184,7 +190,10 @@ export const WorkspaceEditor: React.FC = () => {
     try {
       const res = await fetch('/api/practice/evaluate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
         credentials: 'include',
         signal: controller.signal,
         body: JSON.stringify({
@@ -200,14 +209,58 @@ export const WorkspaceEditor: React.FC = () => {
         throw new Error(errData.error || `HTTP ${res.status}: ${res.statusText}`);
       }
 
-      const data = await res.json();
-      setActivePracticeReport(data.evaluation);
-      if (data.isPassed && academyBreadcrumbContext) {
-        toggleAcademyStepProgress(
-          academyBreadcrumbContext.courseId,
-          academyBreadcrumbContext.stepNumber,
-          true
-        );
+      // Progressive SSE stream consumer
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('ReadableStream не поддерживается браузером.');
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          let eventType = 'message';
+          let eventData: any = null;
+
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) {
+              eventType = line.substring(7).trim();
+            } else if (line.startsWith('data: ')) {
+              try {
+                eventData = JSON.parse(line.substring(6).trim());
+              } catch {
+                eventData = line.substring(6).trim();
+              }
+            }
+          }
+
+          if (eventType === 'stage' && eventData) {
+            setEvaluationStage({
+              stage: eventData.stage || 'sandbox',
+              label: eventData.label || 'Анализ решения...'
+            });
+          } else if (eventType === 'complete' && eventData?.evaluation) {
+            setActivePracticeReport(eventData.evaluation);
+            if (eventData.isPassed && academyBreadcrumbContext) {
+              toggleAcademyStepProgress(
+                academyBreadcrumbContext.courseId,
+                academyBreadcrumbContext.stepNumber,
+                true
+              );
+            }
+          } else if (eventType === 'error' && eventData?.error) {
+            throw new Error(eventData.error);
+          }
+        }
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -228,6 +281,7 @@ export const WorkspaceEditor: React.FC = () => {
     } finally {
       clearTimeout(clientTimeoutId);
       setIsPracticeEvaluating(false);
+      setEvaluationStage({ stage: 'idle', label: '' });
       abortControllerRef.current = null;
     }
   };
@@ -622,9 +676,12 @@ export const WorkspaceEditor: React.FC = () => {
               >
                 Отменить
               </button>
-              <div className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose" />
-                <span>Senior AI Рецензия ({evaluationTimer}с)...</span>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose flex-shrink-0" />
+                <span className="truncate max-w-[260px]">
+                  {evaluationStage.label || 'Senior AI Рецензия...'}
+                </span>
+                <span className="text-[10px] text-pastel-muted font-mono opacity-75">({evaluationTimer}с)</span>
               </div>
             </div>
           ) : (

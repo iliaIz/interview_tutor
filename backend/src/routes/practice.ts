@@ -106,8 +106,10 @@ router.get('/challenges/:id', (req, res) => {
   }
 });
 
-// POST /api/practice/evaluate - Submit workspace files for dual-pass evaluation
+// POST /api/practice/evaluate - Submit workspace files for dual-pass evaluation (SSE streaming & JSON compatible)
 router.post('/evaluate', async (req, res) => {
+  const isSse = req.headers.accept?.includes('text/event-stream') || req.query.stream === 'true';
+
   try {
     const userId = getAuthUserId(req);
     const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = req.body;
@@ -140,6 +142,30 @@ router.post('/evaluate', async (req, res) => {
       }
     });
 
+    if (isSse) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+      if (typeof (res as any).flushHeaders === 'function') {
+        (res as any).flushHeaders();
+      }
+    }
+
+    const sendSse = (event: string, data: any) => {
+      if (isSse && !res.writableEnded && !res.destroyed) {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      }
+    };
+
+    // Stage 1: Sandbox Execution
+    sendSse('stage', {
+      stage: 'sandbox',
+      label: 'Компиляция Java 21 и прогон модульных тестов...'
+    });
+
     // 1. Authoritative Real JVM 21 In-Memory Sandbox Execution (< 80ms)
     const sandboxResult = await JvmExecutionService.execute({
       challengeId,
@@ -147,7 +173,35 @@ router.post('/evaluate', async (req, res) => {
       activePhase
     });
 
-    // 2. Enriched Architectural & Concurrency Evaluation
+    if (res.writableEnded || abortController.signal.aborted) {
+      return;
+    }
+
+    // Stage 2: Sandbox Result notification
+    sendSse('stage', {
+      stage: 'sandbox_done',
+      label: sandboxResult.isCompilable
+        ? `Песочница JVM 21: ${sandboxResult.passedCount}/${sandboxResult.testResults.length} тестов пройдено (${sandboxResult.executionTimeMs}мс)`
+        : 'Обнаружены синтаксические ошибки компиляции Java 21',
+      isCompilable: sandboxResult.isCompilable,
+      passedCount: sandboxResult.passedCount,
+      failedCount: sandboxResult.failedCount
+    });
+
+    // Stage 3 & 4: If compilable, emit AST analysis and AI reasoning indicators
+    if (sandboxResult.isCompilable) {
+      sendSse('stage', {
+        stage: 'ast_analysis',
+        label: 'AST-анализ: проверка Loom (Carrier Thread Pinning) и Java Memory Model...'
+      });
+
+      sendSse('stage', {
+        stage: 'ai_reasoning',
+        label: 'Senior AI Архитектор: глубокий аудит (SOLID, потокобезопасность, идиоматика)...'
+      });
+    }
+
+    // 2. Enriched Architectural & Concurrency Evaluation (0ms if uncompilable)
     const evaluation = await evaluateChallengeSubmission({
       challenge,
       files,
@@ -157,15 +211,11 @@ router.post('/evaluate', async (req, res) => {
       abortSignal: abortController.signal
     });
 
-    if (req.destroyed || abortController.signal.aborted) {
-      console.log(`⏹️ Client disconnected from practice evaluation: challenge ${challengeId}`);
-      return;
-    }
-
+    // Decoupled Persistence: save to SQLite DB before socket close
     const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;
     const status = isPassed ? 'PASSED' : 'FAILED';
 
-    // Upsert into coding_submissions with isolated userId
+    const submissionId = `sub_${challengeId}_${userId}`;
     const upsertStmt = db.prepare(`
       INSERT INTO coding_submissions (
         id, challenge_id, user_id, files_json, active_phase, status, score,
@@ -184,7 +234,6 @@ router.post('/evaluate', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `);
 
-    const submissionId = `sub_${challengeId}_${userId}`;
     upsertStmt.run({
       id: submissionId,
       challenge_id: challengeId,
@@ -197,25 +246,54 @@ router.post('/evaluate', async (req, res) => {
       time_spent_seconds: timeSpentSeconds
     });
 
-    res.json({
-      success: true,
-      isPassed,
-      status,
-      evaluation
-    });
+    if (res.writableEnded || abortController.signal.aborted) {
+      console.log(`⏹️ Client disconnected before response dispatch: challenge ${challengeId}`);
+      return;
+    }
+
+    if (isSse) {
+      sendSse('complete', {
+        success: true,
+        isPassed,
+        status,
+        evaluation
+      });
+      res.end();
+    } else {
+      res.json({
+        success: true,
+        isPassed,
+        status,
+        evaluation
+      });
+    }
   } catch (err: any) {
-    if (res.writableEnded || res.headersSent) {
+    if (res.writableEnded) {
       return;
     }
     if (err.name === 'AbortError' || err.name === 'TimeoutError') {
       console.warn(`⏳ Practice evaluation timed out or aborted: ${err.message}`);
-      res.status(504).json({
-        error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
-      });
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({
+          error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
+        })}\n\n`);
+        res.end();
+      } else {
+        res.status(504).json({
+          error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
+        });
+      }
       return;
     }
     console.error('Error during practice evaluation:', err);
-    res.status(500).json({ error: err.message || 'Evaluation failed' });
+    if (res.headersSent) {
+      res.write(`event: error\ndata: ${JSON.stringify({
+        error: err.message || 'Evaluation failed'
+      })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: err.message || 'Evaluation failed' });
+    }
   }
 });
 

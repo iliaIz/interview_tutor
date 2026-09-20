@@ -31,7 +31,9 @@
   "dependencies": {
     "@google/genai": "*",
     "@interview-prep/shared": "file:../shared",
-    "better-sqlite3": "12.11.1",
+    "@sinclair/typebox": "^0.34.52",
+    "better-sqlite3": "^12.11.1",
+    "cel-js": "^0.8.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
