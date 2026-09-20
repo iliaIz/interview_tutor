@@ -26,7 +26,8 @@
     "test:telemetry:router": "ts-node src/scripts/testStreamRouterMock.ts",
     "test:telemetry:diagnostics": "ts-node src/scripts/testDiagnosticSkill.ts",
     "test:telemetry:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=mock --scenario=all",
-    "test:telemetry:all": "npm run test:telemetry:engine && npm run test:telemetry:playout && npm run test:telemetry:db && npm run test:telemetry:router && npm run test:telemetry:diagnostics && npm run test:telemetry:matrix"
+    "test:telemetry:all": "npm run test:telemetry:engine && npm run test:telemetry:playout && npm run test:telemetry:db && npm run test:telemetry:router && npm run test:telemetry:diagnostics && npm run test:telemetry:matrix",
+    "test:practice:resilience": "node tests/test_practice_fault_injection.js"
   },
   "dependencies": {
     "@google/genai": "*",

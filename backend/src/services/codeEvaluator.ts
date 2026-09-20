@@ -4,6 +4,7 @@ import { recordNewErrorGap } from './vectorMemoryService';
 import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
+import { fetchWithFullJitterRetry } from '../utils/httpRetry';
 
 export interface EvaluationRequest {
   challenge: CodingChallenge;
@@ -327,29 +328,32 @@ ${codeXml}
   const apiKey = envConfig.proxy.apiKey;
   const model = envConfig.models.text || 'gemini-smart';
 
-  console.log(`🤖 Starting practice code evaluation via LiteLLM (${chatUrl}) [${model}]...`);
+  console.log(`🤖 Starting practice code evaluation via LiteLLM (${chatUrl}) [${model}] with Full-Jitter retry...`);
 
-  const response = await fetch(chatUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+  const response = await fetchWithFullJitterRetry(
+    chatUrl,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: REASONING_PRESETS.codeAudit.temperature,
+        max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
+        response_format: { type: 'json_object' },
+        extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: userPrompt }
+        ]
+      })
     },
-    signal: abortSignal 
-      ? AbortSignal.any([abortSignal, AbortSignal.timeout(90_000)]) 
-      : AbortSignal.timeout(90_000),
-    body: JSON.stringify({
-      model,
-      temperature: REASONING_PRESETS.codeAudit.temperature,
-      max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
-      response_format: { type: 'json_object' },
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
-      messages: [
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: userPrompt }
-      ]
-    })
-  });
+    2, // maxRetries
+    abortSignal,
+    60_000 // 60s per attempt timeout
+  );
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');

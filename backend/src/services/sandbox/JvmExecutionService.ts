@@ -111,10 +111,33 @@ export class JvmExecutionService {
   }
 
   /**
+   * Deterministically polls daemon port until alive or timeout expires (Readiness Probe)
+   */
+  private static async waitForDaemonPort(timeoutMs = 2000, pollIntervalMs = 50): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const isUp = await new Promise<boolean>((resolve) => {
+        const socket = net.connect({ host: this.daemonHost, port: this.daemonPort }, () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.on('error', () => {
+          socket.destroy();
+          resolve(false);
+        });
+      });
+      if (isUp) return true;
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+    }
+    return false;
+  }
+
+  /**
    * Ensures the resident hot JVM daemon is running on daemonHost:daemonPort
+   * with deterministic readiness probe during cold start.
    */
   private static async ensureDaemonRunning(): Promise<boolean> {
-    return new Promise((resolve) => {
+    const isAlreadyUp = await new Promise<boolean>((resolve) => {
       let isDone = false;
       const client = net.connect({ host: this.daemonHost, port: this.daemonPort }, () => {
         if (!isDone) {
@@ -124,7 +147,7 @@ export class JvmExecutionService {
         }
       });
 
-      client.setTimeout(2500, () => {
+      client.setTimeout(1500, () => {
         if (!isDone) {
           isDone = true;
           client.destroy();
@@ -136,29 +159,41 @@ export class JvmExecutionService {
         if (!isDone) {
           isDone = true;
           client.destroy();
-          if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
-            return resolve(false);
-          }
-          if (!this.isDaemonStarting) {
-            this.isDaemonStarting = true;
-            try {
-              const child = spawn(
-                'java',
-                ['-Xms32m', '-Xmx256m', '-XX:+UseSerialGC', '-cp', this.binPath, 'com.assessment.sandbox.ResidentSandboxDaemon', String(this.daemonPort)],
-                { stdio: 'ignore', detached: true }
-              );
-              child.unref();
-              setTimeout(() => {
-                this.isDaemonStarting = false;
-              }, 1500);
-            } catch {
-              this.isDaemonStarting = false;
-            }
-          }
           resolve(false);
         }
       });
     });
+
+    if (isAlreadyUp) {
+      return true;
+    }
+
+    if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+      // Remote container host (e.g. 'interview-sandbox'): wait up to 2.5s for remote container readiness
+      return this.waitForDaemonPort(2500, 100);
+    }
+
+    if (!this.isDaemonStarting) {
+      this.isDaemonStarting = true;
+      try {
+        const child = spawn(
+          'java',
+          ['-Xms32m', '-Xmx256m', '-XX:+UseSerialGC', '-cp', this.binPath, 'com.assessment.sandbox.ResidentSandboxDaemon', String(this.daemonPort)],
+          { stdio: 'ignore', detached: true }
+        );
+        child.unref();
+        setTimeout(() => {
+          this.isDaemonStarting = false;
+        }, 3000);
+      } catch (e) {
+        console.error('Failed to spawn ResidentSandboxDaemon:', e);
+        this.isDaemonStarting = false;
+        return false;
+      }
+    }
+
+    // Deterministic readiness probe: wait up to 2000ms for daemon to bind TCP port
+    return this.waitForDaemonPort(2000, 50);
   }
 
   /**
@@ -253,21 +288,25 @@ export class JvmExecutionService {
   /**
    * Dual-mode compiler runner: tries fast Hot Resident Daemon, falls back to CLI
    */
-  private static async runCompiler(payloadJson: string, timeoutMs = 6000): Promise<{ output: string; error?: string }> {
-    await this.ensureDaemonRunning();
-    try {
-      const output = await this.sendToDaemon(payloadJson, timeoutMs);
-      return { output };
-    } catch (err: any) {
-      if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
-        return {
-          output: '',
-          error: `Sandbox daemon (${this.daemonHost}:${this.daemonPort}) недоступен: ${err?.message || 'Connection refused'}`
-        };
+  private static async runCompiler(payloadJson: string, timeoutMs = 10000): Promise<{ output: string; error?: string }> {
+    const isDaemonUp = await this.ensureDaemonRunning();
+    if (isDaemonUp) {
+      try {
+        const output = await this.sendToDaemon(payloadJson, timeoutMs);
+        return { output };
+      } catch (err: any) {
+        console.warn(`⚠️ Daemon failed during execution (${err?.message}), falling back to CLI...`);
       }
-      // Transparent fallback to isolated CLI process on local dev
-      return this.executeViaCli(payloadJson, timeoutMs);
     }
+
+    if (this.daemonHost !== '127.0.0.1' && this.daemonHost !== 'localhost') {
+      return {
+        output: '',
+        error: `Sandbox daemon (${this.daemonHost}:${this.daemonPort}) недоступен.`
+      };
+    }
+    // Transparent fallback to isolated CLI process on local dev
+    return this.executeViaCli(payloadJson, timeoutMs);
   }
 
   /**
@@ -297,7 +336,7 @@ export class JvmExecutionService {
 
     // 2. Run Compiler (Hot Daemon -> Fallback CLI)
     const payloadJson = JSON.stringify({ files: request.files });
-    const timeoutMs = request.timeoutMs || 6000;
+    const timeoutMs = request.timeoutMs || 10000;
     const { output, error } = await this.runCompiler(payloadJson, timeoutMs);
 
     if (error) {

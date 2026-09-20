@@ -27,7 +27,7 @@ export const REASONING_PRESETS = {
   codeAudit: {
     thinkingBudget: 3072,
     temperature: 0.1,
-    maxTokens: 4096
+    maxTokens: 8192
   },
 
   /**

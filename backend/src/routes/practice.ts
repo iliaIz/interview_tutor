@@ -201,15 +201,27 @@ router.post('/evaluate', async (req, res) => {
       });
     }
 
-    // 2. Enriched Architectural & Concurrency Evaluation (0ms if uncompilable)
-    const evaluation = await evaluateChallengeSubmission({
-      challenge,
-      files,
-      activePhase,
-      timeSpentSeconds,
-      sandboxResult,
-      abortSignal: abortController.signal
-    });
+    // Start SSE keep-alive heartbeats to prevent proxy and browser idle timeouts during LLM reasoning
+    const heartbeatInterval = setInterval(() => {
+      if (isSse && !res.writableEnded && !res.destroyed) {
+        res.write(': keep-alive\n\n');
+      }
+    }, 5000);
+
+    let evaluation;
+    try {
+      // 2. Enriched Architectural & Concurrency Evaluation (0ms if uncompilable)
+      evaluation = await evaluateChallengeSubmission({
+        challenge,
+        files,
+        activePhase,
+        timeSpentSeconds,
+        sandboxResult,
+        abortSignal: abortController.signal
+      });
+    } finally {
+      clearInterval(heartbeatInterval);
+    }
 
     // Decoupled Persistence: save to SQLite DB before socket close
     const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;

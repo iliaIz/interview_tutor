@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../services/db';
 import { envConfig } from '../config/env';
+import { fetchWithFullJitterRetry } from '../utils/httpRetry';
 import { transcribeWithDeepgram } from '../services/deepgramService';
 import { synthesizeTTSBuffer, synthesizeTTSWithRetry } from '../services/podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
@@ -68,68 +69,6 @@ export function getSafeSpokenText(reasoningResult: TurnReasoningResult): string 
   }
   const score = reasoningResult.score ?? 0;
   return `Спасибо за ответ! Я зафиксировал результаты и выставил оценку ${score} баллов. Подробный разбор открыт на экране.`;
-}
-
-/**
- * Full-Jitter Exponential Backoff (AGENTS.md Invariant 5):
- * T = random(0, min(2500, 800 * 1.8^attempt))
- * Generates a fresh AbortSignal per attempt and respects client parentSignal cancellation.
- */
-async function fetchWithFullJitterRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 2,
-  parentSignal?: AbortSignal,
-  timeoutMs = 45_000
-): Promise<globalThis.Response> {
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (parentSignal?.aborted) {
-      throw new Error('Request aborted by client');
-    }
-
-    if (attempt > 0) {
-      const backoffCapMs = 2500;
-      const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
-      const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
-      console.log(`⏱️ LiteLLM retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
-      await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
-      if (parentSignal?.aborted) {
-        throw new Error('Request aborted by client');
-      }
-    }
-
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
-    const combinedSignal = parentSignal
-      ? AbortSignal.any([parentSignal, timeoutSignal])
-      : timeoutSignal;
-
-    const perAttemptOptions: RequestInit = {
-      ...options,
-      signal: combinedSignal
-    };
-
-    try {
-      const res = await fetch(url, perAttemptOptions);
-      if (res.ok) {
-        return res;
-      }
-      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
-        const errTxt = await res.text();
-        lastError = new Error(`LiteLLM transient error (${res.status}): ${errTxt}`);
-        console.warn(`[LiteLLM Transient ${res.status}] Attempt ${attempt}/${maxRetries}:`, errTxt.slice(0, 100));
-        continue;
-      }
-      return res;
-    } catch (err: any) {
-      if (parentSignal?.aborted) {
-        throw new Error('Request aborted by client');
-      }
-      lastError = err;
-      console.warn(`[LiteLLM Network Error] Attempt ${attempt}/${maxRetries}:`, err);
-    }
-  }
-  throw (lastError instanceof Error ? lastError : new Error(`LiteLLM request failed after ${maxRetries} retries`));
 }
 
 function parseReasoningJson(raw: string, isTutorMode: boolean): TurnReasoningResult {
