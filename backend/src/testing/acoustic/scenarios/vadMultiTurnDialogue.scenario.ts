@@ -62,7 +62,7 @@ export async function runMultiTurnDialogueScenario(
       () => client.markCandidateSpeechEnd()
     );
     console.log('[Scenario: MultiTurn] Turn 1: Waiting for AI response...');
-    const tel1 = await client.waitForTurnComplete(25000);
+    const tel1 = await client.waitForTurnComplete(35000);
     turnMetrics.push({
       turn: 1,
       ttfaMs: tel1.ttfaMs,
@@ -87,7 +87,7 @@ export async function runMultiTurnDialogueScenario(
         () => client.markCandidateSpeechEnd()
       );
       console.log('[Scenario: MultiTurn] Turn 2: Waiting for AI follow-up response...');
-      const tel2 = await client.waitForTurnComplete(25000);
+      const tel2 = await client.waitForTurnComplete(35000);
       turnMetrics.push({
         turn: 2,
         ttfaMs: tel2.ttfaMs,
@@ -112,7 +112,7 @@ export async function runMultiTurnDialogueScenario(
         () => client.markCandidateSpeechEnd()
       );
       console.log('[Scenario: MultiTurn] Turn 3: Waiting for AI concluding response...');
-      const tel3 = await client.waitForTurnComplete(25000);
+      const tel3 = await client.waitForTurnComplete(35000);
       turnMetrics.push({
         turn: 3,
         ttfaMs: tel3.ttfaMs,

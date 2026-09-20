@@ -295,19 +295,17 @@ export class SimulatedLiveClient {
         if (msg.serverContent?.turnComplete) {
           cleanup();
           // SOTA Dual-Sided Handshake Invariant (AGENTS.md 2.2):
-          // Wait for simulated physical audio to drain through headphones before candidate speaks
-          // 24kHz Int16 Mono PCM = 48,000 bytes/sec + 550ms reverb cooldown to align with backend EchoGuard
+          // The backend sets session.aiPlayoutEstimatedEndEpoch = Date.now() + playoutDurationMs + 450ms AT turnComplete arrival.
+          // The client waits totalPlayoutMs + 650ms from turnComplete to guarantee that the physical playout has drained
+          // and the backend Echo Guard has completely opened before candidate mic audio begins streaming.
           const totalPlayoutMs = greetingAudioBytes > 0
             ? Math.round((greetingAudioBytes / 48000) * 1000)
             : 0;
-          const now = Date.now();
-          const targetDrainEpoch = (firstAudioAt || now) + totalPlayoutMs + 550;
-          const remainingDrainMs = Math.max(0, targetDrainEpoch - now);
 
-          if (remainingDrainMs > 0) {
+          if (totalPlayoutMs > 0) {
             setTimeout(() => {
               resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
-            }, remainingDrainMs);
+            }, totalPlayoutMs + 650);
           } else {
             resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
           }
