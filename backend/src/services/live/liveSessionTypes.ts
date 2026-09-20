@@ -74,4 +74,6 @@ export interface ProxySession {
   vadPauseMs?: number;
   lastRttMs?: number | null;
   sessionStartedAt?: number;
+  aiPlayoutEstimatedEndEpoch?: number;
+  currentTurnAudioBytes?: number;
 }

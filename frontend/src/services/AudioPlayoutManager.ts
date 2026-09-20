@@ -473,6 +473,17 @@ export class AudioPlayoutManager {
   }
 
   /**
+   * SOTA 2026 Single-Voice Invariant:
+   * Resets and softly flushes any lingering audio from previous turns before starting a new utterance.
+   */
+  public startNewTurn(): void {
+    this.resetTurnPlayoutState();
+    if (this.isWorkletPlaying || this.pendingSamples.length > 0) {
+      this.clearQueue();
+    }
+  }
+
+  /**
    * Clears scheduled queue and stops all active audio playback immediately
    */
   public resetTurnPlayoutState(): void {

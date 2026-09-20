@@ -13,6 +13,7 @@
     "test:vad:unit": "ts-node src/scripts/testAcousticFixtures.ts",
     "test:vad:pacer": "ts-node src/scripts/testRealtimePacer.ts",
     "test:vad:fault-injection": "ts-node src/testing/testVadFaultInjection.ts",
+    "test:vad:loopback": "ts-node src/scripts/testAcousticLoopback.ts",
     "test:vad:fixtures": "ts-node src/scripts/runAcousticVadMatrix.ts --fixtures",
     "test:vad:quick": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=standard",
     "test:vad:multiturn": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=multiturn",

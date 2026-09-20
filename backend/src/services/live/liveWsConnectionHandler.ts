@@ -467,6 +467,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
 
       if (parsed.type === 'barge_in') {
         session.isAiGenerating = false;
+        session.aiPlayoutEstimatedEndEpoch = 0;
+        session.currentTurnAudioBytes = 0;
+        session.audioChunksCount = 0;
+        session.lastTurnCommitTime = 0;
         session.currentAiTurnText = '';
         if (session.nudgeWatchdog) {
           clearTimeout(session.nudgeWatchdog);
@@ -495,6 +499,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
 
       if (parsed.type === 'turn_reset') {
         session.isAiGenerating = false;
+        session.aiPlayoutEstimatedEndEpoch = 0;
+        session.currentTurnAudioBytes = 0;
+        session.audioChunksCount = 0;
         session.currentAiTurnText = '';
         if (session.nudgeWatchdog) {
           clearTimeout(session.nudgeWatchdog);
@@ -615,10 +622,33 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
 
       if (parsed.clientContent?.turnComplete) {
-        if (session.isAiGenerating && !parsed.clientContent?.turns) {
-          console.warn(`🛡️ [STALE_GUARD] Suppressed client turnComplete because Gemini is actively generating audio (sessionId: ${session.sessionId || 'anon'})`);
+        const chunksCount = session.audioChunksCount || 0;
+        const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+
+        // SOTA 2026 Zero-Chunk Commit Suppression Guard:
+        // Bare turnComplete: true without candidate audio or text is an illegal dialog transition.
+        // It triggers an empty re-prompt from Gemini Live, causing a runaway cascading echo loop.
+        if (chunksCount === 0 && !hasTextTurns) {
+          console.warn(`🛡️ [ZERO_CHUNK_GUARD] Dropped empty turnComplete frame (0 audio chunks, 0 text turns, sessionId: ${session.sessionId || 'anon'}). Preventing hallucinated echo loop.`);
           return;
         }
+
+        // SOTA 2026 Rapid Commit Flood Protection Guard:
+        const timeSinceLastCommit = Date.now() - (session.lastTurnCommitTime || 0);
+        if (timeSinceLastCommit < 600 && (session.lastTurnCommitTime || 0) > 0) {
+          console.warn(`🛡️ [FLOOD_GUARD] Suppressed rapid turnComplete flood (${timeSinceLastCommit}ms since last commit, session: ${session.sessionId || 'anon'})`);
+          return;
+        }
+
+        // SOTA 2026 Playout-Aware Stale Guard:
+        // Suppress turnComplete if Gemini is generating OR if the physical DAC audio playout is still active.
+        const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
+        if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
+          const remainingMs = isPlayoutActive ? session.aiPlayoutEstimatedEndEpoch! - Date.now() : 0;
+          console.warn(`🛡️ [STALE_GUARD] Suppressed client turnComplete because AI speech/playout is still active (sessionId: ${session.sessionId || 'anon'}, generating: ${session.isAiGenerating}, remaining playout: ${remainingMs}ms)`);
+          return;
+        }
+        session.audioChunksCount = 0;
         session.isAiGenerating = true;
         session.lastTurnCommitTime = Date.now();
         const speechDurationMs = session.currentTurnMetrics?.candidateSpeechStartedAt
@@ -739,10 +769,11 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       }
       session.frameQueue.push(payloadBuffer);
     } else {
-      // SOTA 2026 Half-Duplex Acoustic Guard: Drop raw microphone audio while AI is actively speaking
-      // or executing tool calls, unless explicitly flagged with tactile barge-in.
+      // SOTA 2026 Half-Duplex Acoustic Guard: Drop raw microphone audio while AI is actively speaking,
+      // physically playing through DAC, or executing tool calls, unless explicitly flagged with tactile barge-in.
       // This prevents acoustic speaker bleed from triggering false upstream VAD interruptions.
-      if (session.isToolCallPending || session.isAiGenerating) {
+      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
+      if (session.isToolCallPending || session.isAiGenerating || isPlayoutActive) {
         try {
           const parsedObj = parsed;
           if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
@@ -750,7 +781,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
               if (session.currentTurnMetrics) {
                 session.currentTurnMetrics.droppedEchoChunksCount = (session.currentTurnMetrics.droppedEchoChunksCount || 0) + 1;
                 if (session.currentTurnMetrics.droppedEchoChunksCount === 1 || session.currentTurnMetrics.droppedEchoChunksCount % 25 === 0) {
-                  console.log(`🛡️ [ECHO_GUARD] Suppressed mic audio frame while AI is generating (session ${session.sessionId || 'anon'}, dropped chunks: ${session.currentTurnMetrics.droppedEchoChunksCount})`);
+                  console.log(`🛡️ [ECHO_GUARD] Suppressed mic audio frame while AI is generating/playing (session ${session.sessionId || 'anon'}, dropped chunks: ${session.currentTurnMetrics.droppedEchoChunksCount})`);
                 }
               }
               return;

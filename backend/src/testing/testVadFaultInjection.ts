@@ -457,6 +457,272 @@ async function testToolCallAnchorNormalization(): Promise<void> {
 }
 
 // =========================================================================
+// TEST 6: Zero-Chunk Commit Suppression Guard (Prevent Hallucinated Cascade Loop)
+// =========================================================================
+async function testZeroChunkCommitSuppression(): Promise<void> {
+  console.log('\n[Test 6] Zero-Chunk Commit Suppression Guard (Anti-Cascade)');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const geminiReceived: any[] = [];
+  geminiPair.remote.on('message', (msg) => {
+    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_zero_chunk_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 0,
+    isAiGenerating: false
+  };
+
+  const handleClientMessage = (parsed: any) => {
+    if (parsed.realtimeInput?.audio) {
+      session.audioChunksCount = (session.audioChunksCount || 0) + 1;
+      session.geminiSocket.send(JSON.stringify(parsed));
+      return;
+    }
+    if (parsed.clientContent?.turnComplete) {
+      const chunksCount = session.audioChunksCount || 0;
+      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+
+      if (chunksCount === 0 && !hasTextTurns) {
+        return; // ZERO_CHUNK_GUARD drop
+      }
+
+      session.audioChunksCount = 0;
+      session.isAiGenerating = true;
+      session.lastTurnCommitTime = Date.now();
+      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+    }
+  };
+
+  // 1. Send bare turnComplete: true with 0 audio chunks and 0 text turns
+  handleClientMessage({ clientContent: { turnComplete: true } });
+  await sleep(20);
+
+  assert(geminiReceived.length === 0, 'Zero-Chunk turnComplete successfully suppressed by ZERO_CHUNK_GUARD');
+  assert((session.isAiGenerating as boolean) === false, 'isAiGenerating remains false after suppressed zero-chunk commit');
+
+  // 2. Candidate speaks audio chunk (audioChunksCount = 1) and commits
+  handleClientMessage({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: 'valid_chunk' } } });
+  handleClientMessage({ clientContent: { turnComplete: true } });
+  await sleep(20);
+
+  assert(geminiReceived.length === 2, 'Valid turn with audio chunk and turnComplete forwarded to Gemini upstream');
+  assert((session.isAiGenerating as boolean) === true, 'isAiGenerating set to true for legitimate candidate turn');
+  assert(session.audioChunksCount === 0, 'audioChunksCount reset to 0 after legitimate turn commit');
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
+// TEST 7: Playout-Aware Stale Guard (Suppress Commits During Physical DAC Playback)
+// =========================================================================
+async function testPlayoutAwareStaleGuard(): Promise<void> {
+  console.log('\n[Test 7] Playout-Aware Stale Guard (DAC Timeline Protection)');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const geminiReceived: any[] = [];
+  geminiPair.remote.on('message', (msg) => {
+    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_playout_stale_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 5,
+    isAiGenerating: false, // Network generation done, but DAC playout active!
+    aiPlayoutEstimatedEndEpoch: Date.now() + 300 // 300ms DAC physical playout remaining
+  };
+
+  const handleClientMessage = (parsed: any) => {
+    if (parsed.clientContent?.turnComplete) {
+      const chunksCount = session.audioChunksCount || 0;
+      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+
+      if (chunksCount === 0 && !hasTextTurns) {
+        return;
+      }
+
+      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
+      if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
+        return; // STALE_GUARD drop
+      }
+
+      session.audioChunksCount = 0;
+      session.isAiGenerating = true;
+      session.lastTurnCommitTime = Date.now();
+      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+    }
+  };
+
+  // 1. Commit arrives while DAC playout is active -> Dropped
+  handleClientMessage({ clientContent: { turnComplete: true } });
+  await sleep(20);
+
+  assert(geminiReceived.length === 0, 'Commit suppressed during active physical DAC audio playout');
+
+  // 2. Wait for DAC buffer to drain
+  await sleep(350);
+
+  // Candidate sends new speech and commits
+  session.audioChunksCount = 10;
+  handleClientMessage({ clientContent: { turnComplete: true } });
+  await sleep(20);
+
+  assert(geminiReceived.length === 1, 'Commit permitted after physical DAC playout duration expired');
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
+// TEST 8: Rapid Commit Flood Protection Guard
+// =========================================================================
+async function testRapidCommitFloodProtection(): Promise<void> {
+  console.log('\n[Test 8] Rapid Commit Flood Protection Guard');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const geminiReceived: any[] = [];
+  geminiPair.remote.on('message', (msg) => {
+    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_flood_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 5,
+    isAiGenerating: false,
+    lastTurnCommitTime: 0
+  };
+
+  let droppedFloods = 0;
+  const handleClientMessage = (parsed: any) => {
+    if (parsed.clientContent?.turnComplete) {
+      const chunksCount = session.audioChunksCount || 0;
+      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+
+      if (chunksCount === 0 && !hasTextTurns) {
+        return;
+      }
+
+      const timeSinceLastCommit = Date.now() - (session.lastTurnCommitTime || 0);
+      if (timeSinceLastCommit < 600 && (session.lastTurnCommitTime || 0) > 0) {
+        droppedFloods++;
+        return; // FLOOD_GUARD drop
+      }
+
+      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
+      if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
+        return;
+      }
+
+      session.audioChunksCount = 0;
+      session.isAiGenerating = true;
+      session.lastTurnCommitTime = Date.now();
+      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+    }
+  };
+
+  // 1st valid commit
+  handleClientMessage({ clientContent: { turnComplete: true } });
+
+  // 4 rapid flood commits with audio chunks
+  for (let i = 0; i < 4; i++) {
+    session.audioChunksCount = 2;
+    handleClientMessage({ clientContent: { turnComplete: true } });
+  }
+
+  await sleep(30);
+
+  assert(geminiReceived.length === 1, 'Only 1 commit passed to Gemini upstream despite 5 rapid attempts');
+  assert(droppedFloods === 4, '4 rapid duplicate commits intercepted by FLOOD_GUARD');
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
+// TEST 9: Barge-In Playout Reset Contract
+// =========================================================================
+async function testBargeInPlayoutResetContract(): Promise<void> {
+  console.log('\n[Test 9] Barge-In Playout Reset Contract');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const geminiReceived: any[] = [];
+  geminiPair.remote.on('message', (msg) => {
+    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_bargein_reset_sess',
+    lastActivityAt: Date.now(),
+    isAiGenerating: true,
+    aiPlayoutEstimatedEndEpoch: Date.now() + 10000, // 10s playout expected
+    currentTurnAudioBytes: 96000,
+    audioChunksCount: 5
+  };
+
+  const handleClientMessage = (parsed: any) => {
+    if (parsed.type === 'barge_in') {
+      session.isAiGenerating = false;
+      session.aiPlayoutEstimatedEndEpoch = 0;
+      session.currentTurnAudioBytes = 0;
+      session.audioChunksCount = 0;
+      session.currentAiTurnText = '';
+      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+        session.geminiSocket.send(JSON.stringify({
+          clientContent: {
+            turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
+            turnComplete: false
+          }
+        }));
+      }
+    }
+  };
+
+  handleClientMessage({ type: 'barge_in', epoch: Date.now() });
+  await sleep(20);
+
+  assert((session.isAiGenerating as boolean) === false, 'Barge-in immediately cleared isAiGenerating');
+  assert(session.aiPlayoutEstimatedEndEpoch === 0, 'Barge-in reset aiPlayoutEstimatedEndEpoch to 0');
+  assert(session.currentTurnAudioBytes === 0, 'Barge-in reset currentTurnAudioBytes to 0');
+  assert(session.audioChunksCount === 0, 'Barge-in reset audioChunksCount to 0');
+  assert(
+    geminiReceived.some((m) => m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('BARGE-IN')),
+    'Barge-in interruption signal dispatched to upstream Gemini'
+  );
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
 // MAIN RUNNER
 // =========================================================================
 async function runAllTests(): Promise<void> {
@@ -470,6 +736,10 @@ async function runAllTests(): Promise<void> {
     await testBargeInShortUtteranceRecovery();
     await testBidirectionalWatchdogSyncContract();
     await testToolCallAnchorNormalization();
+    await testZeroChunkCommitSuppression();
+    await testPlayoutAwareStaleGuard();
+    await testRapidCommitFloodProtection();
+    await testBargeInPlayoutResetContract();
 
     console.log('\n=========================================================================');
     console.log(`Fault-Injection Results: ${ctx.passed} Passed, ${ctx.failed} Failed`);

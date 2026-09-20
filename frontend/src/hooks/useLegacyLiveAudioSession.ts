@@ -843,6 +843,10 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                 return;
               }
 
+              if (!isAiSpeakingRef.current) {
+                // SOTA Single-Voice Invariant: Starting fresh AI utterance, gently flush any previous orphaned playout
+                playoutManagerRef.current?.startNewTurn();
+              }
               setIsAiSpeaking(true);
               isAiSpeakingRef.current = true;
               setIsRecording(false);
@@ -900,12 +904,18 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                 }
                 console.log('AI terminal turn complete on server. Waiting for AudioPlayoutManager to drain in useLiveAudioSession...');
 
+                // SOTA Dual-Sided Handshake:
+                // Only immediately unlock mic here IF audio is already completely drained (e.g. text-only turns or zero audio chunks).
+                // If audio is still playing in the worklet, DO NOT unlock mic here!
+                // onPlaybackFinished will symmetrically unblock candidate microphone upon physical timeline drain!
                 if (!playoutManagerRef.current?.isPlaying() && !isCleaningUpRef.current) {
                   setIsAiSpeaking(false);
                   isAiSpeakingRef.current = false;
                   setIsRecording(true);
                   isRecordingRef.current = true;
                   setStatusMessage('🎙️ Ваша очередь: говорите в микрофон или напишите в чат...');
+                } else {
+                  console.log('⏳ [Dual-Sided Handshake] Audio is actively playing through DAC. Mic remains gated until physical timeline drain.');
                 }
               } else {
                 console.log(`⏳ Conversational filler complete in hook, but interactionStatus=${data.serverContent.interactionStatus}. Reasoning continues...`);

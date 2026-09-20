@@ -30,6 +30,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             backend/package-lock.json
+            frontend/package-lock.json
             shared/package-lock.json
 
       - name: Install & Build Shared Package
@@ -53,9 +54,13 @@ jobs:
         working-directory: backend
         run: npm run test:vad:pacer
 
-      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests
+      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests (9 Invariant Suites)
         working-directory: backend
         run: npm run test:vad:fault-injection
+
+      - name: Run Headless Acoustic Loopback Resilience Tests
+        working-directory: backend
+        run: npm run test:vad:loopback
 
       - name: Run Deterministic Voice Observability & Telemetry Tests
         working-directory: backend
@@ -72,6 +77,18 @@ jobs:
 
       - name: Verify Backend TypeScript Build
         working-directory: backend
+        run: npm run build
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Web Audio & Playout Contract Tests
+        working-directory: frontend
+        run: npm run test:audio-contracts
+
+      - name: Verify Frontend Production Build
+        working-directory: frontend
         run: npm run build
 
   build-backend:

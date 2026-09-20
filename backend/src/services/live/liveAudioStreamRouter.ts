@@ -430,6 +430,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               }
             }
 
+            // Accumulate PCM audio bytes for physical playout duration estimation
+            for (const p of parsed.serverContent.modelTurn.parts) {
+              const pcm = p.inlineData?.data || p.inline_data?.data;
+              if (pcm && typeof pcm === 'string') {
+                const chunkBytes = Math.floor((pcm.length * 3) / 4);
+                session.currentTurnAudioBytes = (session.currentTurnAudioBytes || 0) + chunkBytes;
+              }
+            }
+
             // Track first PCM audio milestone (TTFA)
             const hasPcm = parsed.serverContent.modelTurn.parts.some((p: any) => p.inlineData || p.inline_data);
             if (hasPcm && !session.firstAudioChunkLogged) {
@@ -476,6 +485,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             session.isAiGenerating = false;
             session.firstAudioChunkLogged = false;
             session.isToolCallPending = false;
+
+            // SOTA September 2026: Calculate physical playout drain epoch
+            // 24kHz Int16 Mono PCM = 48,000 bytes per second
+            const audioBytes = session.currentTurnAudioBytes || 0;
+            const playoutDurationMs = Math.round((audioBytes / 48000) * 1000);
+            session.aiPlayoutEstimatedEndEpoch = Date.now() + playoutDurationMs + 450; // +450ms reverb cooldown
+            session.currentTurnAudioBytes = 0;
+            console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio playout duration: ${playoutDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
+
             if (session.toolCallSafetyTimeout) {
               clearTimeout(session.toolCallSafetyTimeout);
               session.toolCallSafetyTimeout = null;
@@ -561,6 +579,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         // Barge-in interruption during AI speech
         if (parsed.serverContent?.interrupted) {
           session.isAiGenerating = false;
+          session.aiPlayoutEstimatedEndEpoch = 0;
+          session.currentTurnAudioBytes = 0;
           session.isToolCallPending = false;
           if (session.deadAirWatchdog) {
             clearTimeout(session.deadAirWatchdog);

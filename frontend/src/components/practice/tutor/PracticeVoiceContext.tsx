@@ -65,6 +65,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     toggleMic,
     finishManualTurn,
     sendTextMessage,
+    handleBargeIn,
     playoutManagerRef
   } = session;
 
@@ -163,14 +164,15 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   ]);
 
   const handleCentralButtonClick = useCallback(() => {
-    if (isAiSpeaking && playoutManagerRef.current) {
-      playoutManagerRef.current.handleInterruption();
+    const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
+    if (isAiSpeaking || isPlaying) {
+      handleBargeIn();
     } else if (interviewConfig.turnMode === 'manual' && isRecording) {
       finishManualTurn();
     } else {
       toggleMic();
     }
-  }, [isAiSpeaking, playoutManagerRef, interviewConfig.turnMode, isRecording, finishManualTurn, toggleMic]);
+  }, [isAiSpeaking, playoutManagerRef, handleBargeIn, interviewConfig.turnMode, isRecording, finishManualTurn, toggleMic]);
 
   return (
     <PracticeVoiceContext.Provider
