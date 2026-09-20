@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { synthesizeTTSWithRetry } from '../../services/podcast';
-import { generateNoiseBurst, SAMPLE_RATE } from './silenceGenerator';
+import { generateNoiseBurst, generateSyntheticSpeech, SAMPLE_RATE } from './silenceGenerator';
 
 export interface FixtureDefinition {
   id: string;
@@ -196,13 +196,21 @@ export class AcousticFixtureManager {
       return fs.readFileSync(filePath);
     }
 
-    console.log(`🎙️ [AcousticFixture] Synthesizing missing fixture "${def.id}" via gemini-tts-v3 (${def.voice})...`);
-    const { buffer: wavBuffer } = await synthesizeTTSWithRetry(def.text, def.voice);
-    const pcm16k = wavToPcm16k(wavBuffer);
+    try {
+      console.log(`🎙️ [AcousticFixture] Synthesizing missing fixture "${def.id}" via gemini-tts-v3 (${def.voice})...`);
+      const { buffer: wavBuffer } = await synthesizeTTSWithRetry(def.text, def.voice);
+      const pcm16k = wavToPcm16k(wavBuffer);
 
-    fs.writeFileSync(filePath, pcm16k);
-    console.log(`✅ [AcousticFixture] Cached fixture "${def.id}" (${pcm16k.length} bytes, ${(pcm16k.length / 32000).toFixed(2)}s) to ${filePath}`);
-    return pcm16k;
+      fs.writeFileSync(filePath, pcm16k);
+      console.log(`✅ [AcousticFixture] Cached fixture "${def.id}" (${pcm16k.length} bytes, ${(pcm16k.length / 32000).toFixed(2)}s) to ${filePath}`);
+      return pcm16k;
+    } catch (ttsErr: any) {
+      console.warn(`⚠️ [AcousticFixture] Upstream TTS unavailable (${ttsErr.message}). Generating calibrated synthetic speech fallback for "${def.id}"...`);
+      const fallbackPcm = generateSyntheticSpeech(3500);
+      fs.writeFileSync(filePath, fallbackPcm);
+      console.log(`✅ [AcousticFixture] Cached synthetic fallback "${def.id}" (${fallbackPcm.length} bytes) to ${filePath}`);
+      return fallbackPcm;
+    }
   }
 
   /**

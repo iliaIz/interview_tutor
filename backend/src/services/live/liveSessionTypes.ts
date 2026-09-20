@@ -71,4 +71,5 @@ export interface ProxySession {
   turnTelemetryHistory?: TurnTelemetryEvent[];
   vadPauseMs?: number;
   lastRttMs?: number | null;
+  sessionStartedAt?: number;
 }

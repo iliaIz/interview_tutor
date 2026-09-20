@@ -175,7 +175,13 @@ router.get('/latest/:questionId', (req, res) => {
       userAnswer: row.user_answer,
       transcript: row.transcript,
       audioMetrics: JSON.parse(row.audio_metrics || 'null'),
-      turnTelemetry: JSON.parse(row.turn_telemetry || 'null'),
+      turnTelemetry: (() => {
+        try {
+          return row.turn_telemetry ? JSON.parse(row.turn_telemetry) : [];
+        } catch {
+          return [];
+        }
+      })(),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     });

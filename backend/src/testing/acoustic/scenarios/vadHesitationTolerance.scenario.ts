@@ -57,6 +57,9 @@ export async function runHesitationScenario(engine: string = 'gemini-live-v3'): 
       };
     }
 
+    // Clean up premature listener so it does not intercept the legitimate final response
+    (client as any).messageListeners = (client as any).messageListeners.filter((l: any) => l !== prematureListener);
+
     console.log('[Scenario: Hesitation] Streaming Part 2 (2.0s) + 2.0s final silence...');
     client.markCandidateSpeechEnd();
 

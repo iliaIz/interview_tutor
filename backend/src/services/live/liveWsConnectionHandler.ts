@@ -208,7 +208,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     currentTurnMetrics: null,
     turnTelemetryHistory: [],
     vadPauseMs: Number(query.vadPauseMs) || 1800,
-    lastRttMs: null
+    lastRttMs: null,
+    sessionStartedAt: Date.now()
   };
 
   let isTerminated = false;

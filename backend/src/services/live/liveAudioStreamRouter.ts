@@ -373,6 +373,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             clearTimeout(session.toolCallSafetyTimeout);
             session.toolCallSafetyTimeout = null;
           }
+          // Anchor baseline time: lastTurnCommitTime (user speech commit), or sessionStartedAt / previous lastActivityAt (for Turn 0 greeting)
+          const commitAnchor = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.sessionStartedAt || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
           if (session.nudgeWatchdog) {
@@ -380,21 +382,38 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             session.nudgeWatchdog = null;
           }
 
+          // Ensure currentTurnMetrics is initialized (e.g. Turn 0 greeting before candidate speaks)
+          if (!session.currentTurnMetrics) {
+            session.currentTurnMetrics = {
+              turnIndex: session.currentTurnIndex || 0,
+              candidateSpeechStartedAt: commitAnchor,
+              candidateSpeechEndedAt: commitAnchor,
+              vadPauseSettingMs: session.vadPauseMs || 1800,
+              speechDurationMs: 0,
+              audioBytesReceived: 0,
+              textChars: 0,
+              droppedEchoChunksCount: 0,
+              wasBargeIn: false,
+              bargeInType: null,
+              lastRttMs: session.lastRttMs ?? null
+            };
+          }
+
           if (parsed.serverContent.modelTurn.parts) {
             for (const part of parsed.serverContent.modelTurn.parts) {
               // Track Extended Thinking CoT milestone (TTFR)
-              if ((part.thought || part.isThought) && session.lastTurnCommitTime && !session.currentTurnMetrics?.firstThoughtAt) {
-                if (session.currentTurnMetrics) session.currentTurnMetrics.firstThoughtAt = Date.now();
-                const ttfr = Date.now() - session.lastTurnCommitTime;
+              if ((part.thought || part.isThought) && !session.currentTurnMetrics.firstThoughtAt) {
+                session.currentTurnMetrics.firstThoughtAt = Date.now();
+                const ttfr = Date.now() - commitAnchor;
                 console.log(`🧠 [MODEL_FIRST_THOUGHT] Upstream Gemini emitted reasoning token (TTFR: ~${ttfr}ms, session: ${session.sessionId || 'anon'})`);
               }
 
               // Track first response text token milestone (TTFT)
               if (part.text && !part.thought && !part.isThought) {
                 session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
-                if (session.lastTurnCommitTime && !session.currentTurnMetrics?.firstTextAt) {
-                  if (session.currentTurnMetrics) session.currentTurnMetrics.firstTextAt = Date.now();
-                  const ttft = Date.now() - session.lastTurnCommitTime;
+                if (!session.currentTurnMetrics.firstTextAt) {
+                  session.currentTurnMetrics.firstTextAt = Date.now();
+                  const ttft = Date.now() - commitAnchor;
                   console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini emitted first text token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
                 }
               }
@@ -414,7 +433,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               if (session.currentTurnMetrics && !session.currentTurnMetrics.firstAudioAt) {
                 session.currentTurnMetrics.firstAudioAt = Date.now();
               }
-              const ttfa = session.lastTurnCommitTime ? Date.now() - session.lastTurnCommitTime : 0;
+              const ttfa = Date.now() - commitAnchor;
               console.log(`🔊 [MODEL_FIRST_AUDIO] Upstream Gemini emitted first audio chunk (TTFA: ~${ttfa}ms, session: ${session.sessionId || 'anon'})`);
             }
           }
@@ -426,9 +445,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
-          if (session.lastTurnCommitTime && !session.currentTurnMetrics?.firstTextAt) {
-            if (session.currentTurnMetrics) session.currentTurnMetrics.firstTextAt = Date.now();
-            const ttft = Date.now() - session.lastTurnCommitTime;
+          const commitAnchor = session.lastTurnCommitTime || session.lastActivityAt || Date.now();
+          if (session.currentTurnMetrics && !session.currentTurnMetrics.firstTextAt) {
+            session.currentTurnMetrics.firstTextAt = Date.now();
+            const ttft = Date.now() - commitAnchor;
             console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini output transcription token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
           }
         }
@@ -447,7 +467,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             }
 
             // SOTA September 2026: Seal Canonical Turn Telemetry Event
-            const commitTime = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || Date.now();
+            const commitTime = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.sessionStartedAt || Date.now();
             const metrics = session.currentTurnMetrics;
             const ttfrMs = metrics?.firstThoughtAt ? Math.max(0, metrics.firstThoughtAt - commitTime) : null;
             const ttftMs = metrics?.firstTextAt ? Math.max(0, metrics.firstTextAt - commitTime) : null;
@@ -490,6 +510,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                 }));
               } catch {}
             }
+
+            // SOTA Multi-Turn Isolation: Cleanly reset current turn state for next dialogue turn
+            session.currentTurnMetrics = null;
+            session.lastTurnCommitTime = undefined;
 
             if (session.currentAiTurnText && session.sessionId) {
               const textToSave = session.currentAiTurnText.trim();

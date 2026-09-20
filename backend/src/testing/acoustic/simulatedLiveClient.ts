@@ -248,6 +248,9 @@ export class SimulatedLiveClient {
     this.telemetry.ttfaMs = null;
     this.telemetry.canonicalTurnEvent = null;
     this.telemetry.isTurnComplete = false;
+    this.telemetry.replyText = '';
+    this.telemetry.audioBytesReceived = 0;
+    this.telemetry.thoughtTokens = [];
   }
 
   /**
@@ -311,6 +314,10 @@ export class SimulatedLiveClient {
    * Waits for the AI turn to complete after candidate speech.
    */
   public async waitForTurnComplete(timeoutMs: number = 20000): Promise<ClientTelemetry> {
+    if (this.telemetry.isTurnComplete) {
+      return { ...this.telemetry };
+    }
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         cleanup();
@@ -362,6 +369,45 @@ export class SimulatedLiveClient {
         if (msg.serverContent?.interrupted) {
           cleanup();
           resolve(this.telemetry.interruptionLatencyMs || 200);
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.messageListeners = this.messageListeners.filter((l) => l !== listener);
+      };
+
+      this.messageListeners.push(listener);
+    });
+  }
+
+  /**
+   * Waits for the model to enter thinking state and emit its first reasoning token.
+   * Eliminates race conditions if thought frames arrived during silence streaming.
+   */
+  public async waitForFirstThought(timeoutMs: number = 8000): Promise<string> {
+    if (this.telemetry.thoughtTokens.length > 0) {
+      return this.telemetry.thoughtTokens[0];
+    }
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        if (this.telemetry.thoughtTokens.length > 0) {
+          resolve(this.telemetry.thoughtTokens[0]);
+        } else {
+          reject(new Error(`Model did not enter thinking state within ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      const listener = (msg: any) => {
+        const parts = msg.serverContent?.modelTurn?.parts || [];
+        for (const p of parts) {
+          if (p.thought || p.isThought) {
+            cleanup();
+            resolve(p.text || (typeof p.thought === 'string' ? p.thought : 'thought'));
+            return;
+          }
         }
       };
 

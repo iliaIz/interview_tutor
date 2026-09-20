@@ -129,10 +129,150 @@ def run():
     if len(files) == 0:
         print("  ⚠️ ALERT: Storage directory is completely empty.")
 
+    # 5. Diagnostic Decision Matrix Analysis
+    print("\n🎯 [5/5] Executing Auto-VAD Diagnostic Decision Matrix...")
+    diagnosis = diagnose_session(eval_data, backend_logs, litellm_logs, files)
+    print(f"  • Severity: {diagnosis['severity']}")
+    print(f"  • Classification: {diagnosis['classification']} ({diagnosis['title']})")
+    print(f"  • Explanation: {diagnosis['explanation']}")
+    print(f"  • Prescribed Fix: {diagnosis['prescribed_fix']}")
+
     ssh.close()
     print("\n" + "=" * 70)
     print("✅ [AUTO-VAD TELEMETRY] Triangulation Complete.")
     print("=" * 70)
+
+def diagnose_session(eval_data, backend_logs, litellm_logs, storage_files):
+    if not eval_data:
+        return {
+            'severity': 'UNKNOWN',
+            'classification': 'NO_DATA',
+            'title': 'No Evaluation Data Found',
+            'explanation': 'No SQLite evaluation record found in database.',
+            'prescribed_fix': 'Run a test interview session first.'
+        }
+
+    turns = []
+    tt_raw = eval_data.get('turn_telemetry')
+    if tt_raw:
+        try:
+            turns = json.loads(tt_raw) if isinstance(tt_raw, str) else tt_raw
+        except Exception:
+            turns = []
+
+    transcript_turns = []
+    tr_raw = eval_data.get('transcript')
+    if tr_raw:
+        try:
+            transcript_turns = json.loads(tr_raw) if isinstance(tr_raw, str) else tr_raw
+        except Exception:
+            transcript_turns = []
+
+    ai_turns = [t for t in transcript_turns if t.get('role') == 'ai']
+    user_turns = [t for t in transcript_turns if t.get('role') == 'user']
+
+    # 1. Protocol Asymmetry
+    if len(user_turns) > 0 and len(ai_turns) == 0:
+        return {
+            'severity': 'CRITICAL',
+            'classification': 'PROTOCOL_ASYMMETRY',
+            'title': 'Protocol Asymmetry Detected',
+            'explanation': 'Candidate turns exist, but 0 AI turns recorded. Model transcript was never received.',
+            'prescribed_fix': 'Ensure outputAudioTranscription: {} is declared in setupMessage.setup.'
+        }
+
+    # 2. Upstream Sever
+    all_logs = (backend_logs or []) + (litellm_logs or [])
+    if any(code in line for line in all_logs for code in ['1001', '1005', '1006']) and len(turns) == 0:
+        return {
+            'severity': 'CRITICAL',
+            'classification': 'UPSTREAM_GATEWAY_SEVER',
+            'title': 'Upstream Gateway Sever',
+            'explanation': 'WebSocket connection terminated prematurely with code 1001/1005/1006.',
+            'prescribed_fix': 'Check LiteLLM Proxy upstream key pool and model rate limits (429).'
+        }
+
+    # 3. Storage Pipeline Void
+    if len(user_turns) > 0 and not eval_data.get('audio_path') and len(storage_files) == 0:
+        return {
+            'severity': 'CRITICAL',
+            'classification': 'STORAGE_PIPELINE_VOID',
+            'title': 'Storage Pipeline Void',
+            'explanation': 'Audio was processed, but no recording was written to disk (/app/storage is empty).',
+            'prescribed_fix': 'Verify that writeToDisk executes and updates audio_path in SQLite.'
+        }
+
+    # 4. Browser Autoplay Barrier
+    for t in turns:
+        if t.get('speaker') == 'model':
+            ttfa = t.get('ttfaMs')
+            ttfp = t.get('ttfpMs')
+            if ttfa is not None and ttfa < 800 and (ttfp is None or ttfp > 4000):
+                return {
+                    'severity': 'CRITICAL',
+                    'classification': 'BROWSER_AUTOPLAY_BARRIER',
+                    'title': 'Browser Web Audio Autoplay Barrier',
+                    'explanation': f'First audio packet arrived in {ttfa}ms, but DAC playback delayed to {ttfp}ms (> 4000ms).',
+                    'prescribed_fix': 'Prime AudioContext synchronously inside user DOM onClick before any await boundary.'
+                }
+
+    # 5. Subtitle Spoilering
+    for t in turns:
+        skew = t.get('audioTextSkewMs')
+        if skew is not None and skew < -800:
+            return {
+                'severity': 'WARNING',
+                'classification': 'SUBTITLE_SPOILER',
+                'title': 'Negative Playout Skew (Subtitle Spoilering)',
+                'explanation': f'Audio-Text Skew was {skew}ms (< -800ms). Subtitles rendered ahead of audio playout.',
+                'prescribed_fix': 'Apply subtitle pacing aligned with AudioPlayoutManager timeline drain.'
+            }
+
+    # 6. Upstream AI Latency
+    for t in turns:
+        ttfa = t.get('ttfaMs')
+        rtt = t.get('networkRttMs') or 20
+        if ttfa is not None and ttfa > 4000 and rtt < 60:
+            return {
+                'severity': 'CRITICAL',
+                'classification': 'UPSTREAM_AI_LATENCY',
+                'title': 'Upstream Model Latency Spike',
+                'explanation': f'TTFA was {ttfa}ms (> 4000ms) despite normal network RTT ({rtt}ms).',
+                'prescribed_fix': 'Inspect Gemini Live queue saturation on LiteLLM Proxy.'
+            }
+
+    # 7. Acoustic Speaker Bleed
+    for t in turns:
+        echo = t.get('echoLeakageDroppedMs', 0)
+        if echo > 3000:
+            return {
+                'severity': 'WARNING',
+                'classification': 'ACOUSTIC_SPEAKER_BLEED',
+                'title': 'Acoustic Speaker Bleed',
+                'explanation': f'Half-duplex guard dropped {echo}ms of mic frames while AI was speaking.',
+                'prescribed_fix': 'Prompt candidate to wear headphones.'
+            }
+
+    # 8. Premature VAD Endpointing
+    for t in turns:
+        if t.get('speaker') == 'user':
+            dur = t.get('speechDurationMs', 0)
+            if 0 < dur < 800:
+                return {
+                    'severity': 'WARNING',
+                    'classification': 'PREMATURE_VAD_ENDPOINTING',
+                    'title': 'Premature VAD Endpointing',
+                    'explanation': f'Candidate speech was cut off after only {dur}ms (< 800ms).',
+                    'prescribed_fix': 'Increase VAD pause gate from 1200ms to 1800ms-2200ms.'
+                }
+
+    return {
+        'severity': 'HEALTHY',
+        'classification': 'HEALTHY',
+        'title': 'Acoustic Stack Healthy',
+        'explanation': 'All turn telemetry, transcript integrity, and storage checks passed.',
+        'prescribed_fix': 'No remediation needed.'
+    }
 
 if __name__ == '__main__':
     run()

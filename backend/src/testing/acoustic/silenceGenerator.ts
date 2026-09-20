@@ -81,3 +81,23 @@ export function generateTypingNoiseOverlay(speechPcm: Buffer, clicksPerSecond: n
   }
   return output;
 }
+
+/**
+ * Generates synthetic harmonic speech-formant PCM (16kHz 16-bit LE) for deterministic offline testing.
+ */
+export function generateSyntheticSpeech(durationMs: number = 3500, amplitude: number = 0.25): Buffer {
+  const numSamples = Math.floor((SAMPLE_RATE * durationMs) / 1000);
+  const buf = Buffer.alloc(numSamples * BYTES_PER_SAMPLE);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / SAMPLE_RATE;
+    // Harmonic vowel formants (F0=130Hz, F1=650Hz, F2=1400Hz) with gentle amplitude modulation
+    const f0 = Math.sin(2 * Math.PI * 130 * t);
+    const f1 = 0.5 * Math.sin(2 * Math.PI * 650 * t);
+    const f2 = 0.25 * Math.sin(2 * Math.PI * 1400 * t);
+    const mod = 0.8 + 0.2 * Math.sin(2 * Math.PI * 4 * t);
+    const sampleVal = Math.round((f0 + f1 + f2) * mod * amplitude * 32767);
+    buf.writeInt16LE(Math.max(-32768, Math.min(32767, sampleVal)), i * 2);
+  }
+  return buf;
+}
+

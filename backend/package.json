@@ -18,7 +18,14 @@
     "test:vad:stress": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=stress",
     "test:vad:thinking": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-thinking-v3 --scenario=thinking",
     "test:vad:canary": "ts-node src/scripts/runAcousticVadMatrix.ts --suite=canary",
-    "test:vad:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=all --scenario=all"
+    "test:vad:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=all --scenario=all",
+    "test:telemetry:engine": "ts-node src/scripts/testTelemetryEngine.ts",
+    "test:telemetry:playout": "ts-node src/scripts/testPlayoutAndSkew.ts",
+    "test:telemetry:db": "ts-node src/scripts/testTelemetryDb.ts",
+    "test:telemetry:router": "ts-node src/scripts/testStreamRouterMock.ts",
+    "test:telemetry:diagnostics": "ts-node src/scripts/testDiagnosticSkill.ts",
+    "test:telemetry:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=mock --scenario=all",
+    "test:telemetry:all": "npm run test:telemetry:engine && npm run test:telemetry:playout && npm run test:telemetry:db && npm run test:telemetry:router && npm run test:telemetry:diagnostics && npm run test:telemetry:matrix"
   },
   "dependencies": {
     "@google/genai": "*",

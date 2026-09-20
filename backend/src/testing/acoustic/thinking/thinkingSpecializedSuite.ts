@@ -125,27 +125,13 @@ export async function runThinkingPreVocalBargeInTest(engine: string = 'gemini-li
     await RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, normalPcm, 1800, { chunkDurationMs: 40 });
 
     // 2. Wait until the first thought frame arrives (model has begun thinking, but hasn't spoken yet)
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Model did not enter thinking state within 8s')), 8000);
-      const listener = (msg: any) => {
-        const parts = msg.serverContent?.modelTurn?.parts || [];
-        if (parts.some((p: any) => p.thought || p.isThought)) {
-          clearTimeout(timeout);
-          cleanup();
-          resolve();
-        }
-      };
-      const cleanup = () => {
-        (client as any).messageListeners = (client as any).messageListeners.filter((l: any) => l !== listener);
-      };
-      (client as any).messageListeners.push(listener);
-    });
+    await client.waitForFirstThought(8000);
 
     console.log('[Thinking: Pre-Vocal Barge-In] 🛑 Model is in thinking phase! Injecting pre-vocal speech now...');
     client.markInterruptionTriggered();
 
-    // Stream new speech immediately
-    const bargePromise = RealtimeAudioPacer.streamPcm(client.ws!, bargeInPcm, { chunkDurationMs: 40 });
+    // Stream new revised speech with trailing silence so VAD commits revised turn
+    const bargePromise = RealtimeAudioPacer.streamSpeechWithTrailingSilence(client.ws!, bargeInPcm, 2000, { chunkDurationMs: 40 });
     const waitPromise = client.waitForTurnComplete(25000);
 
     await bargePromise;
