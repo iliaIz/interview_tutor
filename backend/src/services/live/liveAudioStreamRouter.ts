@@ -4,6 +4,7 @@ import { liveSessionRegistry, getOrCreateSessionMemory } from './liveSessionRegi
 import { handleLiveToolCall } from './liveToolDispatcher';
 import { getChallengeDomain } from '../../utils/challengeDomain';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
+import { TurnTelemetryEvent } from '@interview-prep/shared';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -380,17 +381,41 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
 
           if (parsed.serverContent.modelTurn.parts) {
+            for (const part of parsed.serverContent.modelTurn.parts) {
+              // Track Extended Thinking CoT milestone (TTFR)
+              if ((part.thought || part.isThought) && session.lastTurnCommitTime && !session.currentTurnMetrics?.firstThoughtAt) {
+                if (session.currentTurnMetrics) session.currentTurnMetrics.firstThoughtAt = Date.now();
+                const ttfr = Date.now() - session.lastTurnCommitTime;
+                console.log(`🧠 [MODEL_FIRST_THOUGHT] Upstream Gemini emitted reasoning token (TTFR: ~${ttfr}ms, session: ${session.sessionId || 'anon'})`);
+              }
+
+              // Track first response text token milestone (TTFT)
+              if (part.text && !part.thought && !part.isThought) {
+                session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
+                if (session.lastTurnCommitTime && !session.currentTurnMetrics?.firstTextAt) {
+                  if (session.currentTurnMetrics) session.currentTurnMetrics.firstTextAt = Date.now();
+                  const ttft = Date.now() - session.lastTurnCommitTime;
+                  console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini emitted first text token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
+                }
+              }
+
+              // Track PCM audio chunk bytes
+              const pcmData = part.inlineData?.data || part.inline_data?.data;
+              if (pcmData && session.currentTurnMetrics) {
+                const approxBytes = Math.floor(pcmData.length * 0.75);
+                session.currentTurnMetrics.audioBytesReceived += approxBytes;
+              }
+            }
+
+            // Track first PCM audio milestone (TTFA)
             const hasPcm = parsed.serverContent.modelTurn.parts.some((p: any) => p.inlineData || p.inline_data);
             if (hasPcm && !session.firstAudioChunkLogged) {
               session.firstAudioChunkLogged = true;
-              const ttft = session.lastTurnCommitTime ? Date.now() - session.lastTurnCommitTime : 0;
-              console.log(`🔊 [MODEL_FIRST_AUDIO] Upstream Gemini emitted first audio chunk (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
-            }
-
-            for (const part of parsed.serverContent.modelTurn.parts) {
-              if (part.text) {
-                session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
+              if (session.currentTurnMetrics && !session.currentTurnMetrics.firstAudioAt) {
+                session.currentTurnMetrics.firstAudioAt = Date.now();
               }
+              const ttfa = session.lastTurnCommitTime ? Date.now() - session.lastTurnCommitTime : 0;
+              console.log(`🔊 [MODEL_FIRST_AUDIO] Upstream Gemini emitted first audio chunk (TTFA: ~${ttfa}ms, session: ${session.sessionId || 'anon'})`);
             }
           }
         }
@@ -401,9 +426,14 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
+          if (session.lastTurnCommitTime && !session.currentTurnMetrics?.firstTextAt) {
+            if (session.currentTurnMetrics) session.currentTurnMetrics.firstTextAt = Date.now();
+            const ttft = Date.now() - session.lastTurnCommitTime;
+            console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini output transcription token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
+          }
         }
 
-        // AI finished generating turn: commit to session turn history
+        // AI finished generating turn: commit to session turn history & seal turn telemetry
         if (parsed.serverContent?.turnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
@@ -415,6 +445,52 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               clearTimeout(session.toolCallSafetyTimeout);
               session.toolCallSafetyTimeout = null;
             }
+
+            // SOTA September 2026: Seal Canonical Turn Telemetry Event
+            const commitTime = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || Date.now();
+            const metrics = session.currentTurnMetrics;
+            const ttfrMs = metrics?.firstThoughtAt ? Math.max(0, metrics.firstThoughtAt - commitTime) : null;
+            const ttftMs = metrics?.firstTextAt ? Math.max(0, metrics.firstTextAt - commitTime) : null;
+            const ttfaMs = metrics?.firstAudioAt ? Math.max(0, metrics.firstAudioAt - commitTime) : null;
+            // 24kHz 16-bit mono = 48000 bytes/sec
+            const audioDurationMs = metrics ? Math.round((metrics.audioBytesReceived / 48000) * 1000) : 0;
+            const textChars = (session.currentAiTurnText || '').length;
+            const echoLeakageDroppedMs = (metrics?.droppedEchoChunksCount || 0) * 40;
+
+            const turnEvent: TurnTelemetryEvent = {
+              turnId: `turn_${session.sessionId || 'anon'}_${metrics?.turnIndex || 0}_${Date.now()}`,
+              sessionId: session.sessionId || 'anon',
+              turnIndex: metrics?.turnIndex || 0,
+              speaker: 'model',
+              vadPauseSettingMs: session.vadPauseMs || 1800,
+              speechDurationMs: metrics?.speechDurationMs || 0,
+              ttfrMs,
+              ttftMs,
+              ttfaMs,
+              ttfpMs: null, // Populated on client AudioWorklet DAC playout
+              audioTextSkewMs: null, // Populated on client UI
+              audioDurationMs,
+              textChars,
+              echoLeakageDroppedMs,
+              networkRttMs: metrics?.lastRttMs ?? session.lastRttMs ?? null,
+              modelName: liveModel,
+              wasBargeIn: metrics?.wasBargeIn || false,
+              bargeInType: metrics?.bargeInType || null,
+              createdAt: Date.now()
+            };
+
+            if (!session.turnTelemetryHistory) session.turnTelemetryHistory = [];
+            session.turnTelemetryHistory.push(turnEvent);
+
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              try {
+                clientSocket.send(JSON.stringify({
+                  type: 'turn_telemetry',
+                  data: turnEvent
+                }));
+              } catch {}
+            }
+
             if (session.currentAiTurnText && session.sessionId) {
               const textToSave = session.currentAiTurnText.trim();
               if (!isLanguageDrifted(textToSave)) {
@@ -436,6 +512,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (parsed.serverContent?.interrupted) {
           session.isAiGenerating = false;
           session.isToolCallPending = false;
+          if (session.currentTurnMetrics) {
+            session.currentTurnMetrics.wasBargeIn = true;
+            if (!session.currentTurnMetrics.bargeInType) {
+              session.currentTurnMetrics.bargeInType = 'acoustic';
+            }
+          }
           if (session.toolCallSafetyTimeout) {
             clearTimeout(session.toolCallSafetyTimeout);
             session.toolCallSafetyTimeout = null;

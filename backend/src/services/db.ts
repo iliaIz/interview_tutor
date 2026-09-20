@@ -70,6 +70,7 @@ db.exec(`
     user_answer TEXT,
     transcript TEXT,
     audio_metrics TEXT,
+    turn_telemetry TEXT,
     speech_coaching_json TEXT,
     audio_path TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -457,6 +458,17 @@ try {
   }
 } catch (e) {
   console.error("Migration error for guided_roadmaps:", e);
+}
+
+// Migration: Ensure turn_telemetry column exists in question_evaluations table
+try {
+  const cols = db.pragma('table_info(question_evaluations)') as any[];
+  if (!cols.some(c => c.name === 'turn_telemetry')) {
+    db.exec("ALTER TABLE question_evaluations ADD COLUMN turn_telemetry TEXT");
+    console.log("✅ Added 'turn_telemetry' column to question_evaluations table");
+  }
+} catch (e) {
+  console.error("Migration error for question_evaluations (turn_telemetry):", e);
 }
 
 // Migration: Ensure user_id and speech_coaching_json exist in question_evaluations table

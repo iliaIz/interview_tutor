@@ -203,7 +203,12 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     toolCallSafetyTimeout: null,
     isTerminated: false,
     challengeCategory,
-    challengeTrack
+    challengeTrack,
+    currentTurnIndex: 0,
+    currentTurnMetrics: null,
+    turnTelemetryHistory: [],
+    vadPauseMs: Number(query.vadPauseMs) || 1800,
+    lastRttMs: null
   };
 
   let isTerminated = false;
@@ -396,6 +401,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
       if (parsed.type === 'pong') {
         const sentTs = typeof parsed.timestamp === 'number' ? parsed.timestamp : Date.now();
         const rtt = Math.max(0, Date.now() - sentTs);
+        session.lastRttMs = rtt;
+        if (session.currentTurnMetrics) {
+          session.currentTurnMetrics.lastRttMs = rtt;
+        }
         if (clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.send(JSON.stringify({ type: 'pong_ack', rtt, timestamp: Date.now() }));
         }
@@ -456,6 +465,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         if (session.nudgeWatchdog) {
           clearTimeout(session.nudgeWatchdog);
           session.nudgeWatchdog = null;
+        }
+        if (session.currentTurnMetrics) {
+          session.currentTurnMetrics.wasBargeIn = true;
+          session.currentTurnMetrics.bargeInType = 'tactile';
         }
         console.log(`🛑 [BARGE_IN] Client triggered tactile barge-in (epoch ${parsed.epoch || 0}) for session ${session.sessionId || 'anon'}`);
         if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
@@ -578,7 +591,29 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           return;
         }
         session.lastTurnCommitTime = Date.now();
-        console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${session.audioChunksCount || 0})`);
+        const speechDurationMs = session.currentTurnMetrics?.candidateSpeechStartedAt
+          ? session.lastTurnCommitTime - session.currentTurnMetrics.candidateSpeechStartedAt
+          : (session.audioChunksCount || 0) * 40;
+
+        if (session.currentTurnMetrics) {
+          session.currentTurnMetrics.candidateSpeechEndedAt = session.lastTurnCommitTime;
+          session.currentTurnMetrics.speechDurationMs = speechDurationMs;
+        } else {
+          session.currentTurnMetrics = {
+            turnIndex: session.currentTurnIndex || 0,
+            candidateSpeechStartedAt: session.lastTurnCommitTime - speechDurationMs,
+            candidateSpeechEndedAt: session.lastTurnCommitTime,
+            vadPauseSettingMs: session.vadPauseMs || 1800,
+            speechDurationMs,
+            audioBytesReceived: 0,
+            textChars: 0,
+            droppedEchoChunksCount: 0,
+            wasBargeIn: false,
+            bargeInType: null,
+            lastRttMs: session.lastRttMs ?? null
+          };
+        }
+        console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${session.audioChunksCount || 0}, duration: ${speechDurationMs}ms)`);
         session.audioChunksCount = 0;
         if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
         session.nudgeWatchdog = setTimeout(() => {
@@ -592,6 +627,19 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
         session.audioChunksCount = (session.audioChunksCount || 0) + 1;
         if (session.audioChunksCount === 1) {
           console.log(`🎤 [CLIENT_SPEECH_START] Audio streaming active from mic for session ${session.sessionId || 'anon'}`);
+          session.currentTurnIndex = (session.currentTurnIndex || 0) + 1;
+          session.currentTurnMetrics = {
+            turnIndex: session.currentTurnIndex,
+            candidateSpeechStartedAt: Date.now(),
+            vadPauseSettingMs: session.vadPauseMs || 1800,
+            speechDurationMs: 0,
+            audioBytesReceived: 0,
+            textChars: 0,
+            droppedEchoChunksCount: 0,
+            wasBargeIn: false,
+            bargeInType: null,
+            lastRttMs: session.lastRttMs ?? null
+          };
         }
         const audioData =
           parsed.realtime_input?.audio?.data ||
@@ -634,6 +682,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           const parsedObj = JSON.parse(buffer.toString());
           if (parsedObj.realtime_input?.audio || parsedObj.realtimeInput?.audio || parsedObj.realtimeInput?.mediaChunks) {
             if (!parsedObj.bargeIn && !parsedObj.barge_in) {
+              if (session.currentTurnMetrics) {
+                session.currentTurnMetrics.droppedEchoChunksCount = (session.currentTurnMetrics.droppedEchoChunksCount || 0) + 1;
+              }
               return;
             }
           }

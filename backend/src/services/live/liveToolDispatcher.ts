@@ -6,6 +6,8 @@ import { recordEvaluationAndSyncProgress } from '../progressService';
 import { calculateFaangScorecard } from '../../prompts/personas';
 import { buildWeightedRubric } from './livePromptBuilder';
 
+import { TurnTelemetryEvent } from '@interview-prep/shared';
+
 export interface LiveToolContext {
   call: {
     id: string;
@@ -29,6 +31,7 @@ export interface LiveToolContext {
     targetGrade?: any;
     currentArchitectureMermaid?: string;
     currentGraphIr?: string;
+    turnTelemetryHistory?: TurnTelemetryEvent[];
   };
   parsedHints?: string[];
   liveCoaching?: boolean;
@@ -292,6 +295,7 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             deductions,
             upgradeSnippet
           },
+          turnTelemetry: session.turnTelemetryHistory || [],
           userAnswer: 'Устный ответ в Gemini Live'
         });
         savedEvalId = syncResult.evalId;

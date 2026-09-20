@@ -47,11 +47,25 @@ This script connects to the target environment via SSH key (from `vps_info.md`),
 - **Transcript Integrity:** Verifies that both AI and User turns are recorded in the database.
 - **Storage State:** Confirms physical audio file existence on disk.
 
-### Step 2: Root-Cause Classification Matrix
+### Step 2: Canonical Turn Telemetry & Diagnostic Classification Matrix
 
-| Observed Telemetry Pattern | Root Cause Layer | Verified Mechanism |
+Each voice turn is sealed into a canonical telemetry envelope (`TurnTelemetryEvent`) persisted in SQLite (`question_evaluations.turn_telemetry`):
+- **$T_{\text{ttfr}}$ (Time-to-First-Reasoning):** CoT token emission latency (target: 200–1500ms).
+- **$T_{\text{ttft}}$ (Time-to-First-Text):** First text/transcript token emission latency (target: 300–800ms).
+- **$T_{\text{ttfa}}$ (Time-to-First-Audio):** First 24kHz PCM packet arrival on server socket (target: 400–900ms).
+- **$T_{\text{ttfp}}$ (Time-to-First-Phonation):** Physical ear playout via Web Audio DAC (target: 450–1000ms).
+- **$\text{Skew} = T_{\text{ttfp}} - T_{\text{ttft}}$:** Audio-text alignment. Negative values ($<-250$ms) indicate subtitles spoiled ahead of speech.
+- **$\text{Echo}$ (`echoLeakageDroppedMs`):** Microphone frames suppressed while AI speaks (target: $<1000$ms).
+
+#### Diagnostic Decision Matrix (Root-Cause Triangulation)
+
+| Observed Telemetry Pattern | Root Cause Layer | Verified Mechanism & Fix |
 | :--- | :--- | :--- |
-| `MODEL_FIRST_AUDIO` emitted, but candidate mic activates $>10$s later on manual click | **Browser Autoplay Barrier** | `AudioContext` was initialized in `useEffect` or after `await fetch`, leaving it in `'suspended'` state, or routed to unattached `<audio>` tag due to `maxTouchPoints > 0`. |
+| $T_{\text{ttfa}} < 800$ms, but $T_{\text{ttfp}} > 4000$ms (or null) | **Browser Autoplay Barrier** | `AudioContext` is suspended or stuck in un-primed state. Ensure `AudioPlayoutManager.warmup()` is invoked synchronously inside DOM `onClick`. |
+| $\text{audioTextSkewMs} < -800$ms | **Subtitle Spoilering** | Text rendered instantly upon arrival while audio was delayed in ring buffer. Apply subtitle pacing or stream alignment. |
+| $T_{\text{ttfa}} > 4000$ms with normal `networkRttMs` $< 60$ms | **Upstream AI Latency** | Gemini Live queue saturation or LiteLLM key rotation backoff. Check Gateway failover logs. |
+| `echoLeakageDroppedMs` $> 3000$ms with repeated barge-ins | **Acoustic Speaker Bleed** | User is using loud external speakers without headphones. Half-Duplex guard dropped echo chunks; advise candidate to wear headphones. |
+| `speechDurationMs` $< 1000$ms with candidate speech cut off | **Premature VAD Endpointing** | `vadPauseMs` is too short for natural cognitive pauses. Increase silence gate from 1200ms to 1800-2200ms. |
 | DB `transcript` has only `system` and `user` turns, `role: 'ai'` is missing | **Protocol Asymmetry** | `outputAudioTranscription: {}` omitted in `setupMessage.setup`. Server only receives binary PCM without text parts. |
 | Client disconnects with code `1001` or `1005` after 2–8 seconds | **Upstream / Gateway Sever** | Model key exhaustion (429), gateway proxy timeout, or client unmounted modal. |
 | `/app/storage` is empty, `audio_path` in SQLite is `NULL` | **Storage Pipeline Void** | Audio buffer sent to Deepgram STT over HTTP but never written to disk volume. |

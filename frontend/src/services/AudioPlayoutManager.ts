@@ -30,6 +30,8 @@ export class AudioPlayoutManager {
   private static sharedContext: AudioContext | null = null;
   private readonly isMobileDevice: boolean;
   public onPlaybackFinished?: () => void;
+  public onFirstAudioPlayout?: (playoutEpochMs: number) => void;
+  private hasReportedFirstPlayoutInTurn: boolean = false;
   public isMuted: boolean = false;
   private autoDrainTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -225,6 +227,7 @@ export class AudioPlayoutManager {
         this.workletNode.port.onmessage = (event) => {
           if (event.data?.type === 'drained') {
             this.isWorkletPlaying = false;
+            this.hasReportedFirstPlayoutInTurn = false;
             this.onPlaybackFinished?.();
           }
         };
@@ -356,6 +359,13 @@ export class AudioPlayoutManager {
   private dispatchChunkToWorklet(float32Samples: Float32Array): void {
     if (!this.workletNode) return;
 
+    if (!this.hasReportedFirstPlayoutInTurn) {
+      this.hasReportedFirstPlayoutInTurn = true;
+      try {
+        this.onFirstAudioPlayout?.(Date.now());
+      } catch {}
+    }
+
     this.isWorkletPlaying = true;
     this.resetSafetyDrainWatchdog();
 
@@ -465,12 +475,17 @@ export class AudioPlayoutManager {
   /**
    * Clears scheduled queue and stops all active audio playback immediately
    */
+  public resetTurnPlayoutState(): void {
+    this.hasReportedFirstPlayoutInTurn = false;
+  }
+
   public clearQueue(): void {
     if (this.autoDrainTimer) {
       clearTimeout(this.autoDrainTimer);
       this.autoDrainTimer = null;
     }
     this.isWorkletPlaying = false;
+    this.hasReportedFirstPlayoutInTurn = false;
     this.pendingSamples = [];
 
     if (this.workletNode) {

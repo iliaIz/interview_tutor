@@ -54,6 +54,7 @@ export async function runStandardTurnScenario(engine: string = 'gemini-live-v3')
       passed,
       durationMs: Date.now() - start,
       ttfaMs: telemetry.ttfaMs,
+      ttftMs: telemetry.ttftMs,
       details: {
         replyLength: telemetry.replyText.length,
         audioBytes: telemetry.audioBytesReceived,

@@ -25,8 +25,9 @@ export interface SimulatedClientOptions {
 }
 
 export interface ClientTelemetry {
-  ttftMs: number | null; // Time To First Thought (from candidate speech end)
-  ttfaMs: number | null; // Time To First Audio (from candidate speech end)
+  ttfrMs: number | null; // Time To First Reasoning / Thought (from candidate speech end)
+  ttftMs: number | null; // Time To First Text token (from candidate speech end)
+  ttfaMs: number | null; // Time To First Audio packet (from candidate speech end)
   isInterrupted: boolean;
   interruptionLatencyMs: number | null;
   thoughtTokens: string[];
@@ -34,6 +35,7 @@ export interface ClientTelemetry {
   audioBytesReceived: number;
   isTurnComplete: boolean;
   toolCallsReceived: string[];
+  canonicalTurnEvent?: any;
 }
 
 export class SimulatedLiveClient {
@@ -42,6 +44,7 @@ export class SimulatedLiveClient {
   public options: SimulatedClientOptions;
 
   public telemetry: ClientTelemetry = {
+    ttfrMs: null,
     ttftMs: null,
     ttfaMs: null,
     isInterrupted: false,
@@ -50,7 +53,8 @@ export class SimulatedLiveClient {
     replyText: '',
     audioBytesReceived: 0,
     isTurnComplete: false,
-    toolCallsReceived: []
+    toolCallsReceived: [],
+    canonicalTurnEvent: null
   };
 
   private candidateSpeechEndedAt: number | null = null;
@@ -162,6 +166,11 @@ export class SimulatedLiveClient {
     try {
       const parsed = JSON.parse(rawText);
 
+      // 0. Check for canonical turn telemetry
+      if (parsed.type === 'turn_telemetry' && parsed.data) {
+        this.telemetry.canonicalTurnEvent = parsed.data;
+      }
+
       // 1. Check for barge-in / interruption signal
       if (parsed.serverContent?.interrupted) {
         this.telemetry.isInterrupted = true;
@@ -186,16 +195,20 @@ export class SimulatedLiveClient {
       const parts = parsed.serverContent?.modelTurn?.parts || [];
       for (const p of parts) {
         if (p.thought || p.isThought) {
-          // Extended Thinking Token Frame
+          // Extended Thinking Token Frame (TTFR)
           const thoughtText = p.text || (typeof p.thought === 'string' ? p.thought : '');
           if (thoughtText) {
             this.telemetry.thoughtTokens.push(thoughtText);
-            if (this.candidateSpeechEndedAt && this.telemetry.ttftMs === null) {
-              this.telemetry.ttftMs = Date.now() - this.candidateSpeechEndedAt;
+            if (this.candidateSpeechEndedAt && this.telemetry.ttfrMs === null) {
+              this.telemetry.ttfrMs = Date.now() - this.candidateSpeechEndedAt;
             }
           }
         } else if (p.text) {
+          // First response text token (TTFT)
           this.telemetry.replyText += p.text;
+          if (this.candidateSpeechEndedAt && this.telemetry.ttftMs === null) {
+            this.telemetry.ttftMs = Date.now() - this.candidateSpeechEndedAt;
+          }
         }
 
         if (p.inlineData?.data) {
@@ -204,6 +217,15 @@ export class SimulatedLiveClient {
           if (this.candidateSpeechEndedAt && this.telemetry.ttfaMs === null) {
             this.telemetry.ttfaMs = Date.now() - this.candidateSpeechEndedAt;
           }
+        }
+      }
+
+      // 5. Output audio transcription text (Gemini Live outputAudioTranscription)
+      const outputTranscription = parsed.serverContent?.outputTranscription?.text || parsed.serverContent?.output_transcription?.text;
+      if (outputTranscription) {
+        this.telemetry.replyText += outputTranscription;
+        if (this.candidateSpeechEndedAt && this.telemetry.ttftMs === null) {
+          this.telemetry.ttftMs = Date.now() - this.candidateSpeechEndedAt;
         }
       }
 
@@ -221,8 +243,10 @@ export class SimulatedLiveClient {
    */
   public markCandidateSpeechEnd(): void {
     this.candidateSpeechEndedAt = Date.now();
+    this.telemetry.ttfrMs = null;
     this.telemetry.ttftMs = null;
     this.telemetry.ttfaMs = null;
+    this.telemetry.canonicalTurnEvent = null;
     this.telemetry.isTurnComplete = false;
   }
 

@@ -17,6 +17,7 @@ export interface RecordEvaluationParams {
   userAnswer?: string;
   transcript?: string;
   audioMetrics?: any;
+  turnTelemetry?: any;
   speechCoaching?: any;
   audioPath?: string;
 }
@@ -87,11 +88,11 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     INSERT INTO question_evaluations (
       id, user_id, question_id, topic, mode, score, is_passed,
       positive_points, missing_points, feedback, user_answer,
-      transcript, audio_metrics, speech_coaching_json, audio_path, created_at, updated_at
+      transcript, audio_metrics, turn_telemetry, speech_coaching_json, audio_path, created_at, updated_at
     ) VALUES (
       @id, @user_id, @question_id, @topic, @mode, @score, @is_passed,
       @positive_points, @missing_points, @feedback, @user_answer,
-      @transcript, @audio_metrics, @speech_coaching_json, @audio_path, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      @transcript, @audio_metrics, @turn_telemetry, @speech_coaching_json, @audio_path, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `);
 
@@ -109,6 +110,7 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
     user_answer: params.userAnswer || '',
     transcript: params.transcript || null,
     audio_metrics: params.audioMetrics ? JSON.stringify(params.audioMetrics) : null,
+    turn_telemetry: params.turnTelemetry ? JSON.stringify(params.turnTelemetry) : null,
     speech_coaching_json: params.speechCoaching ? JSON.stringify(params.speechCoaching) : null,
     audio_path: params.audioPath || null
   });

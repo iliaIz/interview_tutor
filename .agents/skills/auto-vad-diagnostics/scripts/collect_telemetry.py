@@ -93,6 +93,24 @@ def run():
                         print("    ⚠️ ALERT: 0 AI turns recorded in transcript! Protocol asymmetry detected.")
                 except Exception:
                     print(f"  • Raw transcript length: {len(transcript)} chars")
+
+            turn_telemetry_raw = eval_data.get('turn_telemetry')
+            if turn_telemetry_raw:
+                try:
+                    tt_list = json.loads(turn_telemetry_raw) if isinstance(turn_telemetry_raw, str) else turn_telemetry_raw
+                    print(f"\n  📊 [Canonical Turn Telemetry] ({len(tt_list)} turns recorded):")
+                    for t in tt_list:
+                        idx = t.get('turnIndex', '?')
+                        ttfr = f"{t.get('ttfrMs')}ms" if t.get('ttfrMs') is not None else "-"
+                        ttft = f"{t.get('ttftMs')}ms" if t.get('ttftMs') is not None else "-"
+                        ttfa = f"{t.get('ttfaMs')}ms" if t.get('ttfaMs') is not None else "-"
+                        ttfp = f"{t.get('ttfpMs')}ms" if t.get('ttfpMs') is not None else "-"
+                        skew = f"{t.get('audioTextSkewMs')}ms" if t.get('audioTextSkewMs') is not None else "-"
+                        echo = f"{t.get('echoLeakageDroppedMs', 0)}ms"
+                        dur = f"{t.get('speechDurationMs', 0)}ms"
+                        print(f"    • Turn #{idx} | User Speech: {dur} | TTFR: {ttfr} | TTFT: {ttft} | TTFA: {ttfa} | TTFP: {ttfp} | Skew: {skew} | Echo: {echo}")
+                except Exception as ex:
+                    print(f"    ⚠️ Could not parse turn_telemetry JSON: {ex}")
     except Exception as e:
         print(f"  Could not parse SQLite record: {e}")
         if eval_err:

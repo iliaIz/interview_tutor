@@ -66,10 +66,11 @@ function printAsciiTable(results: ScenarioResult[]): void {
   for (const r of results) {
     const statusStr = r.passed ? '✅ PASS' : '❌ FAIL';
     const durStr = `${(r.durationMs / 1000).toFixed(1)}s`;
-    let metricStr = '-';
-    if (r.ttfaMs) metricStr = `TTFA: ${r.ttfaMs}ms`;
-    if (r.ttftMs) metricStr = `TTFT: ${r.ttftMs}ms`;
-    if (r.interruptionLatencyMs) metricStr = `Barge: ${r.interruptionLatencyMs}ms`;
+    const metricParts: string[] = [];
+    if (r.ttfaMs) metricParts.push(`TTFA: ${r.ttfaMs}ms`);
+    if (r.ttftMs) metricParts.push(`TTFT: ${r.ttftMs}ms`);
+    if (r.interruptionLatencyMs) metricParts.push(`Barge: ${r.interruptionLatencyMs}ms`);
+    const metricStr = metricParts.length > 0 ? metricParts.join(' | ') : '-';
 
     console.log(
       r.scenarioName.padEnd(30) +

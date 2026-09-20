@@ -20,6 +20,7 @@ export interface SaveEvaluationPayload {
   userAnswer?: string;
   transcript?: string;
   audioMetrics?: any;
+  turnTelemetry?: any;
 }
 
 // POST /api/eval - Evaluate user text answer using Gemini and persist to SQLite
@@ -101,6 +102,7 @@ router.post('/save', async (req, res) => {
       userAnswer = '',
       transcript = '',
       audioMetrics = null,
+      turnTelemetry = null,
       audioPath = null
     } = req.body;
 
@@ -124,6 +126,7 @@ router.post('/save', async (req, res) => {
       userAnswer,
       transcript,
       audioMetrics,
+      turnTelemetry,
       audioPath
     });
 
@@ -172,6 +175,7 @@ router.get('/latest/:questionId', (req, res) => {
       userAnswer: row.user_answer,
       transcript: row.transcript,
       audioMetrics: JSON.parse(row.audio_metrics || 'null'),
+      turnTelemetry: JSON.parse(row.turn_telemetry || 'null'),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     });

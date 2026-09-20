@@ -42,6 +42,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
+import type { TurnTelemetryEvent } from '@interview-prep/shared';
 import { CandidatePersonaHUD } from './CandidatePersonaHUD';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { CodeViewer } from './CodeViewer';
@@ -130,6 +131,7 @@ export interface EvaluationResult {
   deductions?: ScoreDeduction[];
   upgradeSnippet?: string;
   faangScorecard?: FaangScorecardData;
+  turnTelemetry?: TurnTelemetryEvent[];
   userAnswer?: string;
   transcript?: string;
 }
@@ -228,6 +230,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
   const interactionStatusRef = useRef<'IDLE' | 'IN_PROGRESS'>('IDLE');
   const isToolExecutingRef = useRef<boolean>(false);
+
+  // Canonical Turn Telemetry tracking refs
+  const turnTelemetryListRef = useRef<TurnTelemetryEvent[]>([]);
+  const currentTurnFirstTextAtRef = useRef<number | null>(null);
+  const currentTurnFirstAudioPlayoutAtRef = useRef<number | null>(null);
+  const lastCandidateSpeechEndedAtRef = useRef<number | null>(null);
+
+  const markCandidateSpeechEnded = () => {
+    lastCandidateSpeechEndedAtRef.current = Date.now();
+    currentTurnFirstTextAtRef.current = null;
+    currentTurnFirstAudioPlayoutAtRef.current = null;
+    playoutManagerRef.current?.resetTurnPlayoutState();
+  };
 
   // SOTA 2026 Half-Duplex Acoustic Gating: hardware-level mute/unmute of microphone track
   const setHardwareMicEnabled = (enabled: boolean) => {
@@ -1004,6 +1019,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     if (!playoutManagerRef.current) {
       playoutManagerRef.current = new AudioPlayoutManager();
     }
+    playoutManagerRef.current.onFirstAudioPlayout = (playoutEpochMs: number) => {
+      currentTurnFirstAudioPlayoutAtRef.current = playoutEpochMs;
+      const list = turnTelemetryListRef.current;
+      const latest = list[list.length - 1];
+      if (latest) {
+        if (latest.ttfpMs === null && lastCandidateSpeechEndedAtRef.current) {
+          latest.ttfpMs = Math.max(0, playoutEpochMs - lastCandidateSpeechEndedAtRef.current);
+        }
+        if (currentTurnFirstTextAtRef.current && latest.audioTextSkewMs === null) {
+          latest.audioTextSkewMs = playoutEpochMs - currentTurnFirstTextAtRef.current;
+        }
+      }
+    };
     void playoutManagerRef.current.resume();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1321,6 +1349,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             return;
           }
           finalizeEvaluation(evalData, targetQ.id, qIndex);
+        } else if (data.type === 'turn_telemetry' && data.data) {
+          const incoming = data.data as TurnTelemetryEvent;
+          if (currentTurnFirstAudioPlayoutAtRef.current && lastCandidateSpeechEndedAtRef.current) {
+            incoming.ttfpMs = Math.max(0, currentTurnFirstAudioPlayoutAtRef.current - lastCandidateSpeechEndedAtRef.current);
+          }
+          if (currentTurnFirstAudioPlayoutAtRef.current && currentTurnFirstTextAtRef.current) {
+            incoming.audioTextSkewMs = currentTurnFirstAudioPlayoutAtRef.current - currentTurnFirstTextAtRef.current;
+          }
+          turnTelemetryListRef.current.push(incoming);
+          console.log(`📊 [TURN_TELEMETRY] Turn #${incoming.turnIndex} milestone: TTFA=${incoming.ttfaMs}ms, TTFT=${incoming.ttftMs}ms, TTFP=${incoming.ttfpMs}ms, Skew=${incoming.audioTextSkewMs}ms`);
         } else if (data.error) {
           clearAllTurnWatchdogs();
           const errText = String(data.error);
@@ -1431,6 +1469,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               }
 
               if (part.text) {
+                if (!currentTurnFirstTextAtRef.current) {
+                  currentTurnFirstTextAtRef.current = Date.now();
+                  const list = turnTelemetryListRef.current;
+                  const latest = list[list.length - 1];
+                  if (latest && currentTurnFirstAudioPlayoutAtRef.current && latest.audioTextSkewMs === null) {
+                    latest.audioTextSkewMs = currentTurnFirstAudioPlayoutAtRef.current - currentTurnFirstTextAtRef.current;
+                  }
+                }
                 transcriptRef.current += ` AI: ${part.text}`;
                 setDialogueTurns((prev) => {
                   const last = prev[prev.length - 1];
@@ -1452,6 +1498,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           if (outputTranscript) {
             clearAllTurnWatchdogs();
             setHardwareMicEnabled(false);
+            if (!currentTurnFirstTextAtRef.current) {
+              currentTurnFirstTextAtRef.current = Date.now();
+              const list = turnTelemetryListRef.current;
+              const latest = list[list.length - 1];
+              if (latest && currentTurnFirstAudioPlayoutAtRef.current && latest.audioTextSkewMs === null) {
+                latest.audioTextSkewMs = currentTurnFirstAudioPlayoutAtRef.current - currentTurnFirstTextAtRef.current;
+              }
+            }
             transcriptRef.current += ` AI: ${outputTranscript}`;
             setDialogueTurns((prev) => {
               const last = prev[prev.length - 1];
@@ -1894,6 +1948,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           turnComplete: true
         }
       };
+      markCandidateSpeechEnded();
       wsRef.current.send(JSON.stringify(turnCompleteMsg));
       console.log('📤 Sent clientContent.turnComplete to Gemini Live');
       return;
@@ -2051,6 +2106,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         turnComplete: true
       }
     };
+    markCandidateSpeechEnded();
     wsRef.current.send(JSON.stringify(turnCompleteMsg));
     console.log('📤 Sent clientContent.turnComplete to Gemini Live');
   };
@@ -2807,6 +2863,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       id: evalData.id || evaluatedQuestionId,
       questionId: evaluatedQuestionId,
       audioMetrics: acousticsLocal,
+      turnTelemetry: turnTelemetryListRef.current,
       clarityMetrics: initialClarity,
       questionType: evalData.questionType || questionStructure.category,
       speechCoaching: evalData.speechCoaching
@@ -2937,6 +2994,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               userAnswer: deepgramText || 'Устный ответ через Gemini Live',
               transcript: JSON.stringify(fullDialogue),
               audioMetrics: acousticsFinal,
+              turnTelemetry: turnTelemetryListRef.current,
               audioPath: savedAudioPath
             })
           });
