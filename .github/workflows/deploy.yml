@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/voice-observability-telemetry
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,15 @@ jobs:
       - name: Run Realtime Audio Pacer Tests
         working-directory: backend
         run: npm run test:vad:pacer
+
+      - name: Run Deterministic Voice Observability & Telemetry Tests
+        working-directory: backend
+        run: |
+          npm run test:telemetry:engine
+          npm run test:telemetry:playout
+          npm run test:telemetry:db
+          npm run test:telemetry:router
+          npm run test:telemetry:diagnostics
 
       - name: Verify Backend TypeScript Build
         working-directory: backend
