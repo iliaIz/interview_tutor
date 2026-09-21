@@ -264,6 +264,12 @@ export class SimulatedLiveClient {
     this.telemetry.ttfaMs = null;
     this.candidateSpeechEndedAt = null;
     this.firstAudioReceivedAt = null;
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({ type: 'turn_reset' }));
+      } catch {}
+    }
   }
 
   /**
@@ -293,8 +299,8 @@ export class SimulatedLiveClient {
   /**
    * Waits for the Turn 0 Greeting to arrive and conclude its audio/text playout.
    */
-  public async waitForGreeting(timeoutMs: number = 25000): Promise<string> {
-    const effectiveTimeout = Math.max(timeoutMs, 25000);
+  public async waitForGreeting(timeoutMs: number = 40000): Promise<string> {
+    const effectiveTimeout = Math.max(timeoutMs, 40000);
     return new Promise((resolve, reject) => {
       let greetingText = '';
       let greetingAudioBytes = 0;

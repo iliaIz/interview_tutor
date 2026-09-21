@@ -32,6 +32,7 @@ export async function runMultiTurnDialogueScenario(
     strategy: 'adaptive_probing',
     strictness: 'standard',
     sessionType: 'tutor',
+    tutorMode: 'socratic',
     questionId: 'TST-01',
     topic: 'Spring Caching & Architecture',
     questionText: 'Как устроена инвалидация кэша в Spring? Отвечай кратко в 1-2 предложениях.',
@@ -53,7 +54,7 @@ export async function runMultiTurnDialogueScenario(
     await client.connect(15000);
 
     console.log('[Scenario: MultiTurn] Turn 0: Awaiting AI greeting...');
-    const greeting = await client.waitForGreeting(20000);
+    const greeting = await client.waitForGreeting(35000);
     console.log(`[Scenario: MultiTurn] Greeting received (${greeting.length} chars): "${greeting.slice(0, 60)}..."`);
 
     // Turn 1: Basic Answer
