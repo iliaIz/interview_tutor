@@ -11,6 +11,7 @@ import { runHesitationScenario } from '../testing/acoustic/scenarios/vadHesitati
 import { runBargeInScenario } from '../testing/acoustic/scenarios/vadBargeIn.scenario';
 import { runNoiseRejectionScenario } from '../testing/acoustic/scenarios/vadNoiseRejection.scenario';
 import { runMultiTurnDialogueScenario } from '../testing/acoustic/scenarios/vadMultiTurnDialogue.scenario';
+import { runCodeHandoverSlaScenario } from '../testing/acoustic/scenarios/vadCodeHandoverSla.scenario';
 import {
   runVocalizedHesitationTest,
   runTypingImmunityTest,
@@ -126,12 +127,16 @@ async function main() {
       console.log('======================================================');
 
       // 1. Multi-Turn Turn-Taking with Strict Latency SLA on gemini-live-v3
-      console.log('\n[Canary 1/2] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
+      console.log('\n[Canary 1/3] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
       results.push(await runMultiTurnDialogueScenario('gemini-live-v3', 2));
 
       // 2. Extended Thinking CoT Shield Smoke Test on gemini-live-thinking-v3
-      console.log('\n[Canary 2/2] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
+      console.log('\n[Canary 2/3] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
       results.push(await runThinkingCotShieldTest('gemini-live-thinking-v3'));
+
+      // 3. Code Handover & Atomic Fusion SLA in Tutor Practice Mode
+      console.log('\n[Canary 3/3] Code Handover & Atomic Fusion SLA on gemini-live-v3...');
+      results.push(await runCodeHandoverSlaScenario('gemini-live-v3'));
 
       printAsciiTable(results);
       const allPassed = results.every((r) => r.passed);
@@ -194,6 +199,11 @@ async function main() {
         results.push(await runThinkingCotShieldTest(currentEngine));
         results.push(await runThinkingPreVocalBargeInTest(currentEngine));
         results.push(await runThinkingCoveAuditTest(currentEngine));
+      }
+
+      // 8. Code Handover SLA (Tutor Practice Mode)
+      if (scenario === 'all' || scenario === 'handover' || scenario === 'code') {
+        results.push(await runCodeHandoverSlaScenario(currentEngine));
       }
     }
 

@@ -648,12 +648,13 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
           console.warn(`🛡️ [STALE_GUARD] Suppressed client turnComplete because AI speech/playout is still active (sessionId: ${session.sessionId || 'anon'}, generating: ${session.isAiGenerating}, remaining playout: ${remainingMs}ms)`);
           return;
         }
-        session.audioChunksCount = 0;
+
+        const committedAudioChunks = session.audioChunksCount || 0;
         session.isAiGenerating = true;
         session.lastTurnCommitTime = Date.now();
         const speechDurationMs = session.currentTurnMetrics?.candidateSpeechStartedAt
           ? session.lastTurnCommitTime - session.currentTurnMetrics.candidateSpeechStartedAt
-          : (session.audioChunksCount || 0) * 40;
+          : committedAudioChunks * 40;
 
         if (session.currentTurnMetrics) {
           session.currentTurnMetrics.candidateSpeechEndedAt = session.lastTurnCommitTime;
@@ -673,7 +674,10 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
             lastRttMs: session.lastRttMs ?? null
           };
         }
-        console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${session.audioChunksCount || 0}, duration: ${speechDurationMs}ms)`);
+        if (hasTextTurns) {
+          session.hasCandidateResponded = true;
+        }
+        console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${committedAudioChunks}, duration: ${speechDurationMs}ms, hasTextTurns: ${hasTextTurns})`);
         session.audioChunksCount = 0;
         if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
         session.nudgeWatchdog = setTimeout(() => {

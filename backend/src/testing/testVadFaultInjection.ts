@@ -723,6 +723,171 @@ async function testBargeInPlayoutResetContract(): Promise<void> {
 }
 
 // =========================================================================
+// TEST 10: Acoustic Circuit Breaker & Canned Error Suppression Invariant
+// =========================================================================
+async function testAcousticCircuitBreakerSuppression(): Promise<void> {
+  console.log('\n[Test 10] Acoustic Circuit Breaker & Canned Error Audio Suppression');
+
+  const clientPair = await createSocketPair();
+  const upstreamServer = http.createServer();
+  const upstreamWss = new WebSocketServer({ server: upstreamServer });
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  let upstreamSocketToRouter: WebSocket | null = null;
+  const upstreamConnectedPromise = new Promise<WebSocket>((resolve) => {
+    upstreamWss.on('connection', (ws) => {
+      upstreamSocketToRouter = ws;
+      resolve(ws);
+    });
+  });
+
+  const clientReceived: any[] = [];
+  clientPair.client.on('message', (msg) => {
+    try { clientReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const upstreamReceived: any[] = [];
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: null as any,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_canned_circuit_breaker_sess',
+    sessionStartedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    currentTurnIndex: 1
+  };
+
+  const router = createLiveAudioStreamRouter({
+    session,
+    setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.remote,
+    terminate: () => {},
+    sessionId: 'test_canned_circuit_breaker_sess',
+    questionId: 'Q_CANNED_1',
+    sessionType: 'interview',
+    tutorMode: '',
+    bugTitle: '',
+    questionText: 'Test question',
+    topic: 'Java',
+    voiceName: 'Aoede',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 5,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini(false);
+  const upstreamSocket = await upstreamConnectedPromise;
+  upstreamSocket.on('message', (msg) => {
+    try { upstreamReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  // Wait for initial greeting turn from router
+  await sleep(60);
+
+  // Clear received messages so far
+  clientReceived.length = 0;
+  upstreamReceived.length = 0;
+
+  // Simulate upstream Gemini returning canned localized Russian error utterance with audio PCM chunk:
+  const dummyPcm = Buffer.alloc(4800, 1).toString('base64');
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      modelTurn: {
+        parts: [
+          { inlineData: { mimeType: 'audio/pcm;rate=24000', data: dummyPcm } }
+        ]
+      },
+      outputTranscription: {
+        text: 'Произошла системная ошибка. Пожалуйста, повторите попытку позже.'
+      }
+    }
+  }));
+
+  await sleep(60);
+
+  // Invariant 1: Session flagged with isCannedErrorTurn
+  assert(session.isCannedErrorTurn === true, 'Session flagged with isCannedErrorTurn === true upon canned error utterance');
+
+  // Invariant 2: Client receives stream_recovery message
+  const hasStreamRecovery = clientReceived.some((m) => m.type === 'stream_recovery' && m.reason === 'canned_upstream_error');
+  assert(hasStreamRecovery, 'Client received stream_recovery notification');
+
+  // Invariant 3: Client receives ZERO raw serverContent frames or audio chunks from the canned error
+  const clientReceivedAudioFrames = clientReceived.filter((m) => m.serverContent?.modelTurn?.parts);
+  assert(clientReceivedAudioFrames.length === 0, 'Client received 0 audio/modelTurn frames during canned error (Acoustic Circuit Breaker suppressed PCM)');
+
+  // Now upstream finishes the error turn with turnComplete
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      turnComplete: true,
+      interactionStatus: 'IDLE'
+    }
+  }));
+
+  await sleep(60);
+
+  // Invariant 4: isCannedErrorTurn resets to false
+  assert(session.isCannedErrorTurn === false, 'Session isCannedErrorTurn cleanly reset to false after turnComplete');
+
+  // Invariant 5: Upstream Gemini received conversational recovery nudge
+  const recoveryNudge = upstreamReceived.find((m) =>
+    m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('СИСТЕМНОЕ НАПОМИНАНИЕ')
+  );
+  assert(Boolean(recoveryNudge), 'Upstream Gemini received conversational recovery nudge to seamlessly continue dialogue');
+
+  // Invariant 6: Canned error message was not saved into session memory or currentAiTurnText
+  assert(!session.currentAiTurnText || session.currentAiTurnText === '', 'currentAiTurnText was cleared without saving error text to memory');
+
+  // Test English Canned Error variant:
+  clientReceived.length = 0;
+  upstreamReceived.length = 0;
+
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      modelTurn: {
+        parts: [
+          { text: 'An internal error occurred. Please try again later.' },
+          { inlineData: { mimeType: 'audio/pcm;rate=24000', data: dummyPcm } }
+        ]
+      }
+    }
+  }));
+
+  await sleep(60);
+
+  assert(session.isCannedErrorTurn === true, 'Session flagged with isCannedErrorTurn upon English canned error utterance');
+  assert(clientReceived.some((m) => m.type === 'stream_recovery'), 'Client received stream_recovery for English canned error');
+  assert(clientReceived.filter((m) => m.serverContent?.modelTurn?.parts).length === 0, 'Audio PCM suppressed for English canned error');
+
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      turnComplete: true,
+      interactionStatus: 'IDLE'
+    }
+  }));
+
+  await sleep(60);
+  assert(session.isCannedErrorTurn === false, 'Session isCannedErrorTurn cleanly reset after English error turnComplete');
+
+  // Cleanup
+  upstreamSocket.removeAllListeners();
+  upstreamSocket.terminate();
+  upstreamWss.close();
+  (upstreamServer as any).closeAllConnections?.();
+  await new Promise<void>((resolve) => upstreamServer.close(() => resolve()));
+  await cleanupSocketPair(clientPair);
+}
+
+// =========================================================================
 // MAIN RUNNER
 // =========================================================================
 async function runAllTests(): Promise<void> {
@@ -740,6 +905,7 @@ async function runAllTests(): Promise<void> {
     await testPlayoutAwareStaleGuard();
     await testRapidCommitFloodProtection();
     await testBargeInPlayoutResetContract();
+    await testAcousticCircuitBreakerSuppression();
 
     console.log('\n=========================================================================');
     console.log(`Fault-Injection Results: ${ctx.passed} Passed, ${ctx.failed} Failed`);

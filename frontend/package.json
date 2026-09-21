@@ -7,7 +7,7 @@
     "dev": "vite",
     "prebuild": "npm --prefix ../shared run build",
     "build": "tsc && vite build",
-    "test:audio-contracts": "tsx tests/audioPlayoutContracts.test.ts",
+    "test:audio-contracts": "tsx tests/audioPlayoutContracts.test.ts && tsx tests/liveAudioSessionContracts.test.ts",
     "test:e2e:voice": "playwright test e2e/voiceSession.spec.ts",
     "preview": "vite preview"
   },

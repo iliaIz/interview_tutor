@@ -357,35 +357,59 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       // 1. Handover Flush: Check if active code changed during user speech or reflection
       const currentCode = optionsRef.current.getActiveCode?.();
+      let codePromptText: string | null = null;
       if (currentCode) {
         const hash = fastHashCode(currentCode);
         if (hash !== lastSyncedCodeHashRef.current) {
           lastSyncedCodeHashRef.current = hash;
           const fileName = optionsRef.current.getActiveFileName?.();
           const language = optionsRef.current.getActiveLanguage?.() || 'java';
-          const codeFrame = createCodeFrame(currentCode, fileName, language, true);
-          try {
-            wsRef.current.send(JSON.stringify(codeFrame));
-            console.log(`📡 [Handover Flush] Synced code changes before turn commit (${currentCode.length} chars, file: ${fileName || 'active'})`);
-          } catch (err) {
-            console.warn('Failed to send handover code frame:', err);
-          }
+          const header = `📝 [АКТУАЛЬНЫЙ КОД КАНДИДАТА НА МОМЕНТ ЗАВЕРШЕНИЯ РЕЧИ${fileName ? ` (${fileName})` : ''}]`;
+          codePromptText = `${header}:\n\`\`\`${language}\n${currentCode}\n\`\`\`\n(Системная директива: кандидат сейчас работает именно с этой версией кода. Учитывай эти актуальные строки при ответе).`;
+          console.log(`📡 [Handover Flush] Fusing code changes into turn commit (${currentCode.length} chars, file: ${fileName || 'active'})`);
         }
       }
 
       // 2. Pre-Turn Focus Grounding: Inject active selection context if not yet injected
+      let focusPromptText: string | null = null;
       if (!isFocusInjectedInCurrentTurnRef.current) {
-        injectActiveFocusGroundingFrame();
+        const focus = useSelectionFocusStore.getState().activeFocus;
+        if (focus) {
+          isFocusInjectedInCurrentTurnRef.current = true;
+          focusPromptText = createDeicticFocusPrompt(focus);
+          console.log('📡 [Deictic Grounding] Fusing turn focus frame into commit:', focusPromptText);
+        }
       }
 
-      // 3. Commit turnComplete: true
-      const turnCompleteMsg = {
+      // 3. ATOMIC FRAME FUSION (SOTA September 2026 Invariant):
+      // Combine code handover, deictic focus, and turnComplete: true into a single atomic clientContent envelope.
+      // NEVER emit fragmented frames (e.g. turnComplete: false followed by turnComplete: true) in the same microtask,
+      // as it causes state machine desynchronization in Google Gemini Live Bidi WebSocket.
+      const fusedParts: Array<{ text: string }> = [];
+      if (codePromptText) {
+        fusedParts.push({ text: codePromptText });
+      }
+      if (focusPromptText) {
+        fusedParts.push({ text: focusPromptText });
+      }
+
+      const turnCommitMessage: any = {
         clientContent: {
           turnComplete: true
         }
       };
-      wsRef.current.send(JSON.stringify(turnCompleteMsg));
-      console.log('📤 Sent clientContent.turnComplete to Gemini Live');
+
+      if (fusedParts.length > 0) {
+        turnCommitMessage.clientContent.turns = [
+          {
+            role: 'user',
+            parts: fusedParts
+          }
+        ];
+      }
+
+      wsRef.current.send(JSON.stringify(turnCommitMessage));
+      console.log(`📤 Sent atomic clientContent.turnComplete to Gemini Live (fusedParts: ${fusedParts.length})`);
       setStatusMessage('⏳ ИИ осмысливает ответ...');
     }
   }, [injectActiveFocusGroundingFrame]);
@@ -732,6 +756,14 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             return;
           }
 
+          if (data.type === 'stream_recovery') {
+            setStatusMessage('🔄 Синхронизация речевого канала...');
+            playoutManagerRef.current?.handleInterruption();
+            setIsAiSpeaking(false);
+            isAiSpeakingRef.current = false;
+            return;
+          }
+
           if (data.type === 'upstream_reconnecting') {
             setStatusMessage(`🔄 Синхронизация связи со шлюзом (попытка ${data.attempt || 1}/${data.maxAttempts || 3})...`);
             return;
@@ -884,6 +916,21 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
                   playoutManagerRef.current?.enqueuePcmChunk(pcmBase64);
                 }
               }
+            }
+
+            // SOTA 2026: Output audio transcription text accumulation (Gemini Live outputAudioTranscription)
+            const outputTranscriptionText =
+              data.serverContent?.outputTranscription?.text ||
+              data.serverContent?.output_transcription?.text;
+            if (outputTranscriptionText) {
+              setAiTranscript((prev) => (prev ? `${prev} ${outputTranscriptionText}` : outputTranscriptionText));
+              setDialogueTurns((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.role === 'ai') {
+                  return [...prev.slice(0, -1), { role: 'ai', text: last.text + outputTranscriptionText }];
+                }
+                return [...prev, { role: 'ai', text: outputTranscriptionText }];
+              });
             }
 
             // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately

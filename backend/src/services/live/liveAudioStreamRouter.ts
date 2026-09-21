@@ -73,6 +73,19 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     );
   };
 
+  const CANNED_ERROR_PATTERNS = [
+    /произошла\s+системная\s+ошибка/i,
+    /internal\s+error\s+occurred/i,
+    /system\s+error\s+occurred/i,
+    /повторите\s+попытку\s+позже/i,
+    /an\s+error\s+occurred/i
+  ];
+
+  const isCannedErrorUtterance = (text?: string): boolean => {
+    if (!text) return false;
+    return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text));
+  };
+
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;
     session.isAiGenerating = false;
@@ -415,6 +428,18 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               // Track first response text token milestone (TTFT)
               if (part.text && !part.thought && !part.isThought) {
                 session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
+                if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
+                  session.isCannedErrorTurn = true;
+                  console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in modelTurn text ("${session.currentAiTurnText.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
+                  if (clientSocket.readyState === WebSocket.OPEN) {
+                    try {
+                      clientSocket.send(JSON.stringify({
+                        type: 'stream_recovery',
+                        reason: 'canned_upstream_error'
+                      }));
+                    } catch {}
+                  }
+                }
                 if (!session.currentTurnMetrics.firstTextAt) {
                   session.currentTurnMetrics.firstTextAt = Date.now();
                   const ttft = Date.now() - commitAnchor;
@@ -459,6 +484,18 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
+          if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
+            session.isCannedErrorTurn = true;
+            console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in output transcription ("${session.currentAiTurnText.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
+            if (clientSocket.readyState === WebSocket.OPEN) {
+              try {
+                clientSocket.send(JSON.stringify({
+                  type: 'stream_recovery',
+                  reason: 'canned_upstream_error'
+                }));
+              } catch {}
+            }
+          }
           if (session.deadAirWatchdog) {
             clearTimeout(session.deadAirWatchdog);
             session.deadAirWatchdog = null;
@@ -482,6 +519,35 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (parsed.serverContent?.turnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
+            if (session.isCannedErrorTurn) {
+              console.log(`🔄 [ACOUSTIC_CIRCUIT_BREAKER] Canned error turn complete. Suppressing turn from history and dispatching recovery nudge to upstream Gemini (session: ${session.sessionId || 'anon'})...`);
+              session.isCannedErrorTurn = false;
+              session.currentAiTurnText = '';
+              session.currentTurnMetrics = null;
+              session.lastTurnCommitTime = undefined;
+              session.currentTurnAudioBytes = 0;
+              session.firstAudioChunkTime = undefined;
+              session.audioChunksCount = 0;
+              session.isAiGenerating = false;
+              session.firstAudioChunkLogged = false;
+
+              const recoveryNudge = {
+                clientContent: {
+                  turns: [
+                    {
+                      role: 'user',
+                      parts: [{ text: '[СИСТЕМНОЕ НАПОМИНАНИЕ]: Произошла внутренняя заминка связи. Продолжи диалог с кандидатом строго по теме, опираясь на последнее сообщение кандидата. Ответь кратко и емко голосом.' }]
+                    }
+                  ],
+                  turnComplete: true
+                }
+              };
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(recoveryNudge));
+              }
+              return;
+            }
+
             console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini terminal turn generation complete (session: ${session.sessionId || 'anon'})`);
             session.isAiGenerating = false;
             session.firstAudioChunkLogged = false;
@@ -751,7 +817,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
       } catch {}
 
-      const shouldForwardToClient = !isToolCallProcessed || Boolean(parsed?.serverContent);
+      const shouldForwardToClient = (!isToolCallProcessed || Boolean(parsed?.serverContent)) && !session.isCannedErrorTurn;
       if (shouldForwardToClient && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(str);
       }

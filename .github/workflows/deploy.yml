@@ -60,7 +60,7 @@ jobs:
         working-directory: backend
         run: npm run test:vad:pacer
 
-      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests (9 Invariant Suites)
+      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests (10 Invariant Suites)
         working-directory: backend
         run: npm run test:vad:fault-injection
 

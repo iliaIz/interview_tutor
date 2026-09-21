@@ -77,4 +77,5 @@ export interface ProxySession {
   aiPlayoutEstimatedEndEpoch?: number;
   currentTurnAudioBytes?: number;
   firstAudioChunkTime?: number;
+  isCannedErrorTurn?: boolean;
 }
