@@ -83,6 +83,31 @@ export function recordEvaluationAndSyncProgress(params: RecordEvaluationParams):
   const evalId = params.id || crypto.randomBytes(16).toString('hex');
   const { dbTopicName, topicId } = resolveTopic(params.topic, params.questionId);
 
+  // Defensive Check: verify questionId exists in questions table to avoid SQLite FOREIGN KEY constraint error
+  if (params.questionId) {
+    try {
+      const qRow = db.prepare('SELECT 1 FROM questions WHERE id = ?').get(params.questionId);
+      if (!qRow) {
+        console.warn(`⚠️ [ProgressService] Question "${params.questionId}" not found in questions table. Bypassing persistent evaluation to avoid foreign key violation.`);
+        return {
+          evalId,
+          progress: {
+            topic: dbTopicName,
+            topicId,
+            total: 1,
+            completedCount: params.isPassed ? 1 : 0,
+            masteredCount: params.score >= 90 ? 1 : 0,
+            percentage: params.isPassed ? 100 : 0,
+            completedIds: params.isPassed ? [params.questionId] : [],
+            masteredIds: params.score >= 90 ? [params.questionId] : []
+          }
+        };
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [ProgressService] Failed to verify question existence:', err.message);
+    }
+  }
+
   // 1. Persist to question_evaluations
   const insertEvalStmt = db.prepare(`
     INSERT INTO question_evaluations (

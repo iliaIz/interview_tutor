@@ -23,6 +23,7 @@ export interface SimulatedClientOptions {
   tutorMode?: string;
   turnMode?: 'auto' | 'manual';
   customPrompt?: string;
+  questionId?: string;
 }
 
 export interface ClientTelemetry {
@@ -77,7 +78,8 @@ export class SimulatedLiveClient {
       sessionType: options.sessionType || 'interview',
       tutorMode: options.tutorMode || '',
       turnMode: options.turnMode || 'auto',
-      customPrompt: options.customPrompt
+      customPrompt: options.customPrompt,
+      questionId: options.questionId || 'TST-01'
     };
   }
 
@@ -92,11 +94,12 @@ export class SimulatedLiveClient {
       // Ignored if DB cannot be accessed directly
     }
 
+    this.beginTurn();
     const params = new URLSearchParams({
       ...(ticket ? { ticket } : {}),
       ...(envConfig.proxy.apiKey ? { token: envConfig.proxy.apiKey } : {}),
       sessionId: `sim_session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      questionId: 'test_q_1',
+      questionId: this.options.questionId || 'TST-01',
       topic: this.options.topic || '',
       questionText: this.options.questionText || '',
       referenceAnswer: this.options.referenceAnswer || '',
@@ -244,6 +247,23 @@ export class SimulatedLiveClient {
     } catch {
       // Ignored if ping frame or non-json
     }
+  }
+
+  /**
+   * Resets the turn completion latch and clears per-turn telemetry for a new candidate turn.
+   */
+  public beginTurn(): void {
+    this.telemetry.isTurnComplete = false;
+    this.telemetry.replyText = '';
+    this.telemetry.audioBytesReceived = 0;
+    this.telemetry.thoughtTokens = [];
+    this.telemetry.toolCallsReceived = [];
+    this.telemetry.canonicalTurnEvent = null;
+    this.telemetry.ttfrMs = null;
+    this.telemetry.ttftMs = null;
+    this.telemetry.ttfaMs = null;
+    this.candidateSpeechEndedAt = null;
+    this.firstAudioReceivedAt = null;
   }
 
   /**

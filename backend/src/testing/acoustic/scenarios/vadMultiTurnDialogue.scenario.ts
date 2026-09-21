@@ -31,6 +31,8 @@ export async function runMultiTurnDialogueScenario(
     turnMode: 'auto',
     strategy: 'adaptive_probing',
     strictness: 'standard',
+    sessionType: 'tutor',
+    questionId: 'TST-01',
     topic: 'Spring Caching & Architecture',
     questionText: 'Как устроена инвалидация кэша в Spring? Отвечай кратко в 1-2 предложениях.',
     customPrompt: `=== КРАТКОСТЬ ОТВЕТОВ (CANARY VERIFICATION) ===
@@ -56,6 +58,7 @@ export async function runMultiTurnDialogueScenario(
 
     // Turn 1: Basic Answer
     console.log('\n--- [Scenario: MultiTurn] Executing Turn 1 ---');
+    client.beginTurn();
     const pcmTurn1 = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
     await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
       client.ws!,
@@ -81,6 +84,7 @@ export async function runMultiTurnDialogueScenario(
     // Turn 2: Architectural Deep-Dive Answer
     if (turnsCount >= 2) {
       console.log('\n--- [Scenario: MultiTurn] Executing Turn 2 ---');
+      client.beginTurn();
       const pcmTurn2 = await AcousticFixtureManager.getFixture('candidate_complex_architecture');
       await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
         client.ws!,
@@ -106,6 +110,7 @@ export async function runMultiTurnDialogueScenario(
     // Turn 3: Follow-up clarification
     if (turnsCount >= 3) {
       console.log('\n--- [Scenario: MultiTurn] Executing Turn 3 ---');
+      client.beginTurn();
       const pcmTurn3 = await AcousticFixtureManager.getFixture('candidate_hesitation_part1');
       await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
         client.ws!,
