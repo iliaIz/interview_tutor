@@ -47,6 +47,53 @@ export const AudioPlayerBar: React.FC = () => {
     }
   };
 
+  const skip = (deltaSeconds: number) => {
+    if (audioRef.current) {
+      const nextTime = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + deltaSeconds));
+      audioRef.current.currentTime = nextTime;
+      setCurrentTime(nextTime);
+    }
+  };
+
+  // SOTA Late 2026: MediaSession API for lock-screen & background mobile playback
+  useEffect(() => {
+    if (!activeAudioJob) return;
+
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: activeAudioJob.title || 'Аудиопересказ темы',
+        artist: 'InterviewPrep AI Deep Dive',
+        album: activeAudioJob.topic || 'Senior Java & Distributed Systems',
+        artwork: [
+          { src: '/icons/podcast-512.png', sizes: '512x512', type: 'image/png' }
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (audioRef.current) {
+          audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+        }
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      });
+      navigator.mediaSession.setActionHandler('seekbackward', () => skip(-15));
+      navigator.mediaSession.setActionHandler('seekforward', () => skip(15));
+    }
+
+    return () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+      }
+    };
+  }, [activeAudioJob]);
+
   const cycleSpeed = () => {
     const speeds = [1.0, 1.25, 1.5, 2.0];
     const nextIdx = (speeds.indexOf(playbackRate) + 1) % speeds.length;
@@ -146,12 +193,30 @@ export const AudioPlayerBar: React.FC = () => {
 
           {/* Center Playback Controls & Progress Bar */}
           <div className="flex items-center gap-3 w-full md:flex-1 md:max-w-md">
+            {/* Skip Back 15s */}
+            <button
+              onClick={() => skip(-15)}
+              className="px-1.5 py-1 text-pastel-muted hover:text-pastel-text text-[11px] font-mono font-bold transition rounded-lg hover:bg-pastel-bg cursor-pointer"
+              title="Назад на 15 сек"
+            >
+              -15s
+            </button>
+
             {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
               className="w-10 h-10 rounded-full bg-pastel-accentRose hover:bg-pastel-accentRose/90 text-white flex items-center justify-center shrink-0 shadow-md transition transform active:scale-95"
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            </button>
+
+            {/* Skip Forward 15s */}
+            <button
+              onClick={() => skip(15)}
+              className="px-1.5 py-1 text-pastel-muted hover:text-pastel-text text-[11px] font-mono font-bold transition rounded-lg hover:bg-pastel-bg cursor-pointer"
+              title="Вперед на 15 сек"
+            >
+              +15s
             </button>
 
             {/* Time Scrubber */}
