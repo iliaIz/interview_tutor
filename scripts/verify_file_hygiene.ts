@@ -13,9 +13,7 @@ const MAX_MODIFIED_FILE_LINES = 400;
 
 // Legacy monoliths scheduled for phased decomposition in subsequent waves
 const LEGACY_MIGRATION_WAIVERS = new Set<string>([
-  'backend/src/services/live/liveAudioStreamRouter.ts', // Scheduled for decomposition in Wave 11
   'backend/src/scripts/testStreamRouterMock.ts',        // Test harness with inline mocks
-  'frontend/src/hooks/useLegacyLiveAudioSession.ts',     // Deprecated legacy hook, superseded by LiveVoiceEngine
 ]);
 
 interface FileAuditResult {

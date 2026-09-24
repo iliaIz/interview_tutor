@@ -25,7 +25,7 @@ export interface VoiceEngineConfig {
   topic?: string;
   questionText?: string;
   referenceAnswer?: string;
-  sessionType: 'interview' | 'tutor';
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | string;
   tutorMode?: string;
   voice?: string;
   turnMode?: 'auto' | 'manual';
@@ -47,6 +47,10 @@ export interface VoiceEngineConfig {
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
+  fixedCode?: string;
+  unitTest?: string;
+  scenarioId?: string;
+  incidentContext?: any;
   challengeCategory?: string;
   challengeTrack?: string;
   challengeDomain?: string;
@@ -93,5 +97,9 @@ export interface VoiceEngineCallbacks {
   onEvaluationReceived?: (evaluation: VoiceEvaluationResult) => void;
   onError?: (error: string, retryable: boolean, errorCode?: string) => void;
   onStatusMessage?: (message: string) => void;
+  onDrainingStateChange?: (isDraining: boolean) => void;
   onWhiteboardUpdate?: (payload: any) => void;
+  onToolCall?: (data: any) => void;
+  onChaosInjected?: (payload: any) => void;
+  onHiringCommitteeVerdict?: (payload: any) => void;
 }

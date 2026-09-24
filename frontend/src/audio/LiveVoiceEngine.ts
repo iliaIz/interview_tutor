@@ -27,6 +27,7 @@ export class LiveVoiceEngine {
   private lastAiSpeechEndedAt: number = 0;
   private isMuted: boolean = false;
   private currentAiTurnAccumulator: string = '';
+  private wakeLock: any = null;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.playoutManager = new AudioPlayoutManager();
@@ -48,13 +49,12 @@ export class LiveVoiceEngine {
     this.callbacks.onStatusMessage?.('⚡ Подключение к голосовому шлюзу...');
 
     try {
+      void this.acquireWakeLock();
       await this.playoutManager.resume();
       void this.micCapture.start(this.playoutManager.getContext());
-
       const wsUrl = this.buildWebSocketUrl(config);
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
-
       ws.onopen = () => {
         this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
       };
@@ -80,6 +80,7 @@ export class LiveVoiceEngine {
   }
 
   public disconnect(): void {
+    this.releaseWakeLock();
     if (this.silenceTimer) {
       clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
@@ -93,7 +94,31 @@ export class LiveVoiceEngine {
     }
     this.micCapture.stop();
     this.playoutManager.handleInterruption();
+    this.callbacks.onDrainingStateChange?.(false);
     this.transitionState('IDLE');
+  }
+
+  private async acquireWakeLock(): Promise<void> {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        this.wakeLock = await (navigator as any).wakeLock.request('screen');
+      } catch {}
+    }
+  }
+
+  private releaseWakeLock(): void {
+    if (this.wakeLock) {
+      try {
+        this.wakeLock.release();
+      } catch {}
+      this.wakeLock = null;
+    }
+  }
+
+  public sendCustomFrame(data: any): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+    }
   }
 
   public handleCentralButtonClick(): void {
@@ -105,6 +130,7 @@ export class LiveVoiceEngine {
   }
 
   public handleBargeInInterruption(): void {
+    this.callbacks.onDrainingStateChange?.(false);
     this.playoutManager.handleInterruption();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
@@ -182,6 +208,21 @@ export class LiveVoiceEngine {
         return;
       }
 
+      if (data.type === 'chaos_injected') {
+        this.callbacks.onChaosInjected?.(data.payload);
+        return;
+      }
+
+      if (data.type === 'hiring_committee_verdict') {
+        this.callbacks.onHiringCommitteeVerdict?.(data.payload);
+        return;
+      }
+
+      if (data.type === 'tool_call') {
+        this.callbacks.onToolCall?.(data);
+        return;
+      }
+
       if (data.serverContent?.modelTurn?.parts) {
         this.transitionState('AI_SPEAKING');
         this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
@@ -207,6 +248,8 @@ export class LiveVoiceEngine {
 
         if (!this.playoutManager.isPlaying()) {
           this.unlockCandidateTurn();
+        } else {
+          this.callbacks.onDrainingStateChange?.(true);
         }
       }
     } catch (err) {
@@ -222,6 +265,7 @@ export class LiveVoiceEngine {
   }
 
   private unlockCandidateTurn(): void {
+    this.callbacks.onDrainingStateChange?.(false);
     this.transitionState('LISTENING');
     this.hasSpokenInTurn = false;
     this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите в микрофон...');
