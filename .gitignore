@@ -56,8 +56,7 @@ _temp_enhorse/
 vps_info.md
 *.key
 *.pem
-
-audio/
+/audio/
 ds_reports/
 test-results/
 playwright-report/
