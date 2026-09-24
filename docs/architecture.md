@@ -84,6 +84,8 @@ All modules and future extensions MUST strictly observe the following platform i
 - **Deadlock-Free Lock Acquisition:** In multi-account or multi-resource operations, lock acquisition must follow strict global ID ordering: `lock(min(id1, id2)) -> lock(max(id1, id2))`.
 
 ### 2.3. Gemini Live Multimodal Invariants & State Machine
+> 📖 **Authoritative Protocol Specification (SSOT):** See [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md) for full mathematical DSP models, Dual-Sided Handshake truth table, and EchoGuard drop conditions.
+
 - **First-Turn Lockdown:** In Turn 0 greeting, the AI interviewer is strictly forbidden from invoking `submit_interview_evaluation`. The backend tracks `hasCandidateResponded` and rejects early evaluations with a structured `toolResponse` error.
 - **Dual-Sided Handshake:** Transition from AI speaking to candidate recording is unblocked symmetrically by whichever event finishes LAST:
   1. `AudioPlayoutManager.onPlaybackFinished` (headphones buffer drain).
@@ -116,6 +118,9 @@ All modules and future extensions MUST strictly observe the following platform i
 ---
 
 ### 3.1. Pillar 1: Oral Mock Interview & Voice Studio
+
+> 📖 **Authoritative Protocol Specification (SSOT):** [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md)  
+> All frontend consumers MUST use the headless [`LiveVoiceEngine`](file:///d:/projects/interview_projects/spring/frontend/src/audio/LiveVoiceEngine.ts). Creating parallel WebSocket implementations is strictly blocked by Invariant 8.
 
 The Oral Mock Interview studio delivers real-time voice technical interviews using Gemini Multimodal Live API over WebSockets, operating at 24kHz bidirectional PCM audio.
 
