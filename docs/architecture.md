@@ -64,7 +64,26 @@ flowchart TD
 
 ---
 
-## 2. Global Architectural Hard Invariants
+## 2. Authoritative Domain Specifications (SSOT Directory)
+
+InterviewPrep AI enforces a modular, hierarchical specification model (SOTA Late 2026). Before proposing or executing architectural changes in any domain, engineers and AI agents MUST consult the authoritative domain specification in [`docs/architecture/specs/`](specs/README.md):
+
+| Domain / Pillar | Authoritative Domain SSOT | Core Scope & Enforced Standards |
+| :--- | :--- | :--- |
+| **00: Core Infrastructure & Security** | [`specs/00_CORE_INFRASTRUCTURE_AND_SECURITY.md`](specs/00_CORE_INFRASTRUCTURE_AND_SECURITY.md) | LiteLLM gateway, Circuit Breaker, SQLite WAL, Zero-Trust WS tickets |
+| **01: Oral Mock Interview & Voice** | [`specs/01_ORAL_MOCK_INTERVIEW_AND_AUTO_VAD.md`](specs/01_ORAL_MOCK_INTERVIEW_AND_AUTO_VAD.md) | Real-time multimodal voice, Headless `LiveVoiceEngine`, subcomponents |
+| **—: Auto-VAD Protocol SSOT** | [`specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md) | DSP 16k/24k PCM, Dual-Sided Handshake truth table, EchoGuard |
+| **02: Testing & Mutation Arena** | [`specs/02_TESTING_AND_MUTATION_ARENA.md`](specs/02_TESTING_AND_MUTATION_ARENA.md) | Pitest bytecode mutation, 42 katas, Testing Compass, anti-potemkin |
+| **03: Spring Transactions Lab** | [`specs/03_SPRING_TRANSACTIONS_LAB.md`](specs/03_SPRING_TRANSACTIONS_LAB.md) | In-memory proxy engine (<50ms), propagation rules, checked exception trap |
+| **04: System Design Arena** | [`specs/04_SYSTEM_DESIGN_ARENA.md`](specs/04_SYSTEM_DESIGN_ARENA.md) | Cytoscape canvas graph model, L1 capacity math, 31 scenarios, SPOF |
+| **05: Production Incident Triage** | [`specs/05_PRODUCTION_INCIDENT_TRIAGE.md`](specs/05_PRODUCTION_INCIDENT_TRIAGE.md) | Tarjan SCC deadlock cycle detector (<1ms), thread dump parsing, MTTM/MTTR |
+| **06: Machine Coding & LLD** | [`specs/06_MACHINE_CODING_AND_LLD.md`](specs/06_MACHINE_CODING_AND_LLD.md) | AST rules: `enforce-clock-injection`, `no-double-in-money`, ordered locks |
+| **07: Guided Academy Studio** | [`specs/07_GUIDED_ACADEMY_AND_FSRS5.md`](specs/07_GUIDED_ACADEMY_AND_FSRS5.md) | FSRS-5 17-weight memory model, 8-track curricular DAG (177 nodes) |
+| **08: StudyDeck & Audio Podcasts** | [`specs/08_STUDYDECK_AND_AUDIO_PODCASTS.md`](specs/08_STUDYDECK_AND_AUDIO_PODCASTS.md) | Two-host dialogue generation, Gemini TTS synthesis, lock-screen player |
+
+---
+
+## 3. Global Architectural Hard Invariants
 
 All modules and future extensions MUST strictly observe the following platform invariants:
 
@@ -113,13 +132,14 @@ All modules and future extensions MUST strictly observe the following platform i
 
 ---
 
-## 3. The 8 Specialized Architectural Pillars
+## 4. The 8 Specialized Architectural Pillars
 
 ---
 
-### 3.1. Pillar 1: Oral Mock Interview & Voice Studio
+### 4.1. Pillar 1: Oral Mock Interview & Voice Studio
 
-> 📖 **Authoritative Protocol Specification (SSOT):** [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md)  
+> 📖 **Authoritative Domain Specification (SSOT):** [01_ORAL_MOCK_INTERVIEW_AND_AUTO_VAD.md](specs/01_ORAL_MOCK_INTERVIEW_AND_AUTO_VAD.md)  
+> 📖 **Low-Level Protocol SSOT:** [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md)  
 > All frontend consumers MUST use the headless [`LiveVoiceEngine`](file:///d:/projects/interview_projects/spring/frontend/src/audio/LiveVoiceEngine.ts). Creating parallel WebSocket implementations is strictly blocked by Invariant 8.
 
 The Oral Mock Interview studio delivers real-time voice technical interviews using Gemini Multimodal Live API over WebSockets, operating at 24kHz bidirectional PCM audio.
@@ -179,7 +199,10 @@ sequenceDiagram
 
 ---
 
-### 3.2. Pillar 2: Testing & Mutation Arena
+### 4.2. Pillar 2: Testing & Mutation Arena
+
+> 📖 **Authoritative Domain Specification (SSOT):** [02_TESTING_AND_MUTATION_ARENA.md](specs/02_TESTING_AND_MUTATION_ARENA.md)  
+> Enforces bytecode mutation via Pitest with sub-80ms execution, 42 industrial katas, and 4-axis Testing Compass.
 
 The Testing & Mutation Arena provides 42 industrial coding challenges across an L0–L3 cognitive ladder, bridging the gap between superficial line coverage and robust mutation test quality.
 
@@ -212,7 +235,10 @@ flowchart LR
 
 ---
 
-### 3.3. Pillar 3: Spring Transactions Lab
+### 4.3. Pillar 3: Spring Transactions Lab
+
+> 📖 **Authoritative Domain Specification (SSOT):** [03_SPRING_TRANSACTIONS_LAB.md](specs/03_SPRING_TRANSACTIONS_LAB.md)  
+> In-memory proxy simulation engine (<50ms), propagation rules, checked exception rollback trap, and HikariCP deadlock theorem.
 
 The Spring Transactions Lab teaches relational transactions, isolation anomalies, proxy mechanics, and connection pool sizing through interactive timelines and deterministic sub-second simulation.
 
@@ -249,7 +275,10 @@ flowchart TD
 
 ---
 
-### 3.4. Pillar 4: System Design Arena
+### 4.4. Pillar 4: System Design Arena
+
+> 📖 **Authoritative Domain Specification (SSOT):** [04_SYSTEM_DESIGN_ARENA.md](specs/04_SYSTEM_DESIGN_ARENA.md)  
+> Cytoscape.js interactive topology canvas, deterministic L1 capacity math engine, 31 FAANG scenarios, and SPOF analysis.
 
 The System Design Arena bridges the gap between blank-canvas design intimidation and high-velocity interview execution through Cytoscape.js interactive graph topologies, mathematical capacity estimation, and faded scaffolding.
 
@@ -286,7 +315,10 @@ flowchart TD
 
 ---
 
-### 3.5. Pillar 5: Production Incident Triage Studio & Bug-Hunt Arena
+### 4.5. Pillar 5: Production Incident Triage Studio & Bug-Hunt Arena
+
+> 📖 **Authoritative Domain Specification (SSOT):** [05_PRODUCTION_INCIDENT_TRIAGE.md](specs/05_PRODUCTION_INCIDENT_TRIAGE.md)  
+> Tarjan Strongly Connected Components (SCC) deadlock detection in <1ms, 22 real-world SRE outages, and dual-phase MTTM/MTTR rubric.
 
 The platform cleanly separates diagnostic problem-solving into two dedicated, non-overlapping environments:
 1. **«Баг-Хант» (Bug Hunt Arena — 70 Katas):** Rapid visual code-inspection katas focused on identifying concurrency bugs, off-by-one errors, and memory leaks in specific Java methods.
@@ -332,7 +364,10 @@ flowchart LR
 
 ---
 
-### 3.6. Pillar 6: Machine Coding & Low-Level Design (LLD) Studio
+### 4.6. Pillar 6: Machine Coding & Low-Level Design (LLD) Studio
+
+> 📖 **Authoritative Domain Specification (SSOT):** [06_MACHINE_CODING_AND_LLD.md](specs/06_MACHINE_CODING_AND_LLD.md)  
+> 35 design challenges, AST rules `enforce-clock-injection`, `no-double-in-money`, deadlock-free lock ordering, and Loom carrier pinning guard.
 
 The Machine Coding Studio evaluates candidate code against rigorous production standards across 35 multi-file design challenges.
 
@@ -359,7 +394,10 @@ $$\text{FinalScore} = 0.40 \cdot S_{\text{correctness}} + 0.20 \cdot S_{\text{co
 
 ---
 
-### 3.7. Pillar 7: Guided Academy Studio
+### 4.7. Pillar 7: Guided Academy Studio
+
+> 📖 **Authoritative Domain Specification (SSOT):** [07_GUIDED_ACADEMY_AND_FSRS5.md](specs/07_GUIDED_ACADEMY_AND_FSRS5.md)  
+> FSRS-5 17-weight cognitive memory model, 8-track curricular DAG (177 nodes), and Next-Best-Action cognitive interleaving scheduler.
 
 The Guided Academy Studio orchestrates candidate progression across all technical arenas into **8 structured, level-calibrated roadmaps totaling 177 verified steps**, powered by a closed-loop FSRS-5 Knowledge Graph and a Socratic Next Best Action Recommender with Cognitive Interleaving.
 
@@ -435,7 +473,10 @@ graph TD
 
 ---
 
-### 3.8. Pillar 8: StudyDeck & Audio Podcasts
+### 4.8. Pillar 8: StudyDeck & Audio Podcasts
+
+> 📖 **Authoritative Domain Specification (SSOT):** [08_STUDYDECK_AND_AUDIO_PODCASTS.md](specs/08_STUDYDECK_AND_AUDIO_PODCASTS.md)  
+> Two-host conversational podcast generation (Elena & Dmitry), Gemini 3.1 TTS multi-voice synthesis, and lock-screen MediaSession player.
 
 The StudyDeck provides auditory spaced learning via two-host conversational podcasts generated dynamically using Gemini 3.1 Flash TTS.
 

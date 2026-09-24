@@ -103,8 +103,12 @@
 
 ---
 
-## 9. Auto-VAD & Gemini Live Multimodal Protocol SSOT
-- Before proposing or writing any code related to Voice, AudioWorklet, VAD, or Gemini Live streaming, the agent MUST read and strictly adhere to:
-  `docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`
-- The Dual-Sided Handshake, EchoGuard drop conditions, and Turn 0 tool gating are immutable invariants defined in that document.
+## 9. Domain Specifications Hierarchy & Protocol SSOTs
+- **Modular SSOT Navigation (Hub-and-Spoke):**
+  - All subsystems in the platform are governed by authoritative domain specifications in [`docs/architecture/specs/`](docs/architecture/specs/README.md).
+  - Before modifying or adding code in any specific domain (e.g. Transactions, Sandbox, System Design, SRE Triage, LLD, or Spaced Repetition), the agent MUST read and adhere to its corresponding domain specification.
+- **Voice & Auto-VAD Protocol Mandate:**
+  - Before proposing or writing any code related to Voice, AudioWorklet, VAD, or Gemini Live streaming, the agent MUST read and strictly adhere to:
+    `docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`
+  - The Dual-Sided Handshake, EchoGuard drop conditions, and Turn 0 tool gating are immutable invariants defined in that document.
 
