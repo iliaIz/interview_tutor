@@ -85,7 +85,9 @@ frontend/src/
    - Rewrite `VoiceModal.tsx` to bind subcomponents to `LiveVoiceEngine`.
    - Verify that `VoiceModal.tsx` is under 250 lines of code.
 4. **Refactor Consumers for 100% Code Reuse:**
-   - Update `ProjectDefenseStudio.tsx` to utilize `LiveVoiceEngine` rather than duplicate socket logic.
+   - Migrate `useLiveAudioSession.ts` and `useLegacyLiveAudioSession.ts` to consume `LiveVoiceEngine.ts` instead of hosting a 1,200-line parallel WebSocket client.
+   - Update `PracticeVoiceContext.tsx` and `ProjectDefenseStudio.tsx` to utilize `LiveVoiceEngine` rather than duplicate socket logic.
+   - Delete all duplicated `new WebSocket('/ws/live')` callers; `LiveVoiceEngine` becomes the ONLY live audio WebSocket client in the frontend.
 5. **Git Commit:**
    - `git commit -m "refactor(voice): extract headless LiveVoiceEngine and decompose VoiceModal monolith"`
 

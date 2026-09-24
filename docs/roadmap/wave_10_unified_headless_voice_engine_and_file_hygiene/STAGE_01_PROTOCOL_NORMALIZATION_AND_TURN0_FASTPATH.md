@@ -51,17 +51,25 @@ Live testing in production (commit `d27d822`) identified three interconnected bl
   - Declare tools dynamically or activate tool listeners only after `session.hasCandidateResponded === true`.
   - Enforce Turn 0 greeting prompt instructions: strictly stream question text and voice without premature rubric computation.
 
-### 2.3. Frontend Client Terminal Signal Synchronization
+### 2.3. Frontend Client Terminal Signal & Subtitle Pacer Synchronization
 - In [VoiceModal.tsx](file:///d:/projects/interview_projects/spring/frontend/src/components/VoiceModal.tsx) and [useLegacyLiveAudioSession.ts](file:///d:/projects/interview_projects/spring/frontend/src/hooks/useLegacyLiveAudioSession.ts):
   - Update turn completion listener to trigger on:
     ```typescript
     const isGenerationDone = Boolean(data.serverContent?.turnComplete || data.serverContent?.generationComplete);
     ```
-  - Upon `isGenerationDone`, trigger `audioPlayoutManager.markStreamFinished()`, allowing physical timeline drain to gracefully flip state from `isAiSpeaking: true` to `isRecording: true`.
+  - Upon `isGenerationDone`:
+    - Set `isServerTurnCompleteRef.current = true`.
+    - Trigger `audioPlayoutManager.notifyTurnComplete()`.
+    - If audio queue is already drained, immediately activate mic (`setIsAiSpeaking(false); setIsRecording(true)`).
+    - If audio is still playing in speakers, `onPlaybackFinished` will seamlessly activate the mic when physical audio drains.
+  - **Subtitle Pacer Calibration:**
+    - Fix the token calculation in `startSubtitlePacing`: `aiTurnTextAccumulatorRef.current.split(/(\s+)/)` counts spaces and words as separate tokens, artificially doubling the estimated duration. Use actual word tokens (`split(/\s+/).filter(Boolean)`) or sync directly with the audio playout timeline.
+    - Ensure `finalizeAiTurnSubtitles()` is called unconditionally when `onPlaybackFinished` or `isGenerationDone` triggers, preventing text from stalling.
 
 ### 2.4. Upstream Reconnection Recovery
 - In [liveAudioStreamRouter.ts](file:///d:/projects/interview_projects/spring/backend/src/services/live/liveAudioStreamRouter.ts):
   - If reconnecting while `session.hasCandidateResponded === false` and greeting was not completed, replay the Turn 0 prompt into the upstream channel.
+  - Explicitly reinforce in Turn 0 prompt: `"Привет! Я готова к собеседованию. Пожалуйста, поприветствуй меня в 1 фразе и четко зачитай технический вопрос вслух: \"${questionText}\". (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала)."`.
 
 ---
 
