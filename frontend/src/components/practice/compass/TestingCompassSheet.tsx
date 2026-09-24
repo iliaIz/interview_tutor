@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
+import { TestingCompassRadar } from './TestingCompassRadar';
 import {
   X,
   Compass,
@@ -166,8 +167,13 @@ export const TestingCompassSheet: React.FC = () => {
           </button>
         </div>
 
+        {/* Interactive 4-Axis Testing Radar */}
+        <div className="px-4 sm:px-6 pt-4">
+          <TestingCompassRadar />
+        </div>
+
         {/* 5 Rules Cards Grid */}
-        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 pt-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[58vh] overflow-y-auto">
           {RULE_CARDS.map((rule) => (
             <div
               key={rule.id}

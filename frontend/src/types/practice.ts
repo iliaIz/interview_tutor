@@ -19,6 +19,11 @@ export interface MutantResult {
   status: 'KILLED' | 'SURVIVED' | 'STILLBORN';
   killedBy?: string;
   failureReason?: string;
+  mutatorType?: string;
+  description?: string;
+  mutatedContent?: string;
+  originalContent?: string;
+  remediationHint?: string;
 }
 
 export interface TestQualityViolation {

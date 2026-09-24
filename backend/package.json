@@ -32,6 +32,7 @@
     "pretest:practice:resilience": "npm run build",
     "test:practice:resilience": "node tests/test_practice_fault_injection.js",
     "test:practice:task-codes": "node tests/test_practice_task_codes.js",
+    "test:practice:scanner": "ts-node src/scripts/testTestQualityScanner.ts",
     "verify-hygiene": "ts-node ../scripts/verify_file_hygiene.ts"
   },
   "dependencies": {
