@@ -18,13 +18,21 @@ export interface VoiceVerdictViewProps {
   interviewConfig: InterviewConfig;
   retryCurrentQuestionCleanly: () => void;
   onClose: () => void;
+  onNextQuestion?: () => void;
+  nextQuestionIndex?: number;
+  totalQuestions?: number;
+  onFinishBatch?: () => void;
 }
 
 export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
   evaluation,
   interviewConfig,
   retryCurrentQuestionCleanly,
-  onClose
+  onClose,
+  onNextQuestion,
+  nextQuestionIndex,
+  totalQuestions,
+  onFinishBatch
 }) => {
   return (
     <div className="my-2 space-y-4 overflow-y-auto max-h-[65vh] pr-1">
@@ -234,22 +242,42 @@ export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
         </div>
       )}
 
-      <div className="pt-3 border-t border-pastel-border/60 flex items-center gap-3">
+      <div className="pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-2 sm:gap-3">
+        {onNextQuestion && (
+          <button
+            type="button"
+            onClick={onNextQuestion}
+            className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer min-w-[160px]"
+          >
+            <span>Следующий вопрос ({nextQuestionIndex !== undefined ? nextQuestionIndex + 1 : ''} / {totalQuestions || ''})</span>
+          </button>
+        )}
+
+        {onFinishBatch && (
+          <button
+            type="button"
+            onClick={onFinishBatch}
+            className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer min-w-[160px]"
+          >
+            <span>Итоговые результаты</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={retryCurrentQuestionCleanly}
-          className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-semibold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+          className="py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-pastel-border text-slate-700 font-semibold text-xs transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-3.5 h-3.5" />
           <span>Ответить заново</span>
         </button>
 
         <button
           type="button"
           onClick={onClose}
-          className="py-3 px-6 rounded-2xl border border-pastel-border text-pastel-text text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
+          className="py-3 px-5 rounded-2xl border border-pastel-border text-pastel-text text-xs font-semibold hover:bg-pastel-rose transition cursor-pointer"
         >
-          Закрыть окно
+          Закрыть
         </button>
       </div>
     </div>

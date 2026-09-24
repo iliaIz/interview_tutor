@@ -173,9 +173,111 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(lastSent.bargeIn, true, 'Barge-in frame sent with bargeIn: true');
   console.log('  ✅ Test 5 Passed: Tactile barge-in cuts AI speech and transitions to LISTENING');
 
-  engine.disconnect();
-  assert.strictEqual(engine.getState(), 'IDLE', 'Disconnect resets state to IDLE');
-  console.log('  ✅ Test 6 Passed: Disconnect cleanly returns to IDLE');
+  // Test 7: Gemini 3.8 Live interactionStatus: IN_PROGRESS (Cognitive filler / intermediate reasoning)
+  let receivedEvaluation: any = null;
+  let receivedWhiteboard: any = null;
+
+  const engine2 = new LiveVoiceEngine({
+    onEvaluationReceived: (res) => { receivedEvaluation = res; },
+    onWhiteboardUpdate: (wb) => { receivedWhiteboard = wb; }
+  });
+
+  await engine2.connect({
+    sessionId: 'test_engine_sess_2',
+    questionId: 'Q_2',
+    sessionType: 'interview',
+    topic: 'Spring'
+  });
+
+  const mockWs2 = (engine2 as any).ws as MockWebSocket;
+
+  // AI begins speaking a filler
+  mockWs2.onmessage?.({
+    data: JSON.stringify({
+      serverContent: {
+        modelTurn: { parts: [{ text: 'Дай подумать...' }] }
+      }
+    })
+  });
+  assert.strictEqual(engine2.getState(), 'AI_SPEAKING', 'AI speaking filler');
+
+  // Server sends turnComplete: true, but interactionStatus: IN_PROGRESS
+  mockWs2.onmessage?.({
+    data: JSON.stringify({
+      serverContent: {
+        turnComplete: true,
+        interactionStatus: 'IN_PROGRESS'
+      }
+    })
+  });
+  assert.strictEqual(engine2.getState(), 'AI_SPEAKING', 'Mic must remain LOCKED when interactionStatus is IN_PROGRESS');
+  console.log('  ✅ Test 7 Passed: interactionStatus IN_PROGRESS holds candidate turn custody');
+
+  // Server sends final turnComplete with interactionStatus: IDLE
+  mockWs2.onmessage?.({
+    data: JSON.stringify({
+      serverContent: {
+        turnComplete: true,
+        interactionStatus: 'IDLE'
+      }
+    })
+  });
+  assert.strictEqual(engine2.getState(), 'LISTENING', 'Mic unlocked when interactionStatus is IDLE');
+  console.log('  ✅ Test 8 Passed: interactionStatus IDLE unblocks candidate turn');
+
+  // Test 9: evaluation_completed event handling
+  mockWs2.onmessage?.({
+    data: JSON.stringify({
+      type: 'evaluation_completed',
+      evaluation: {
+        score: 95,
+        isPassed: true,
+        feedback: 'Отличный ответ по Spring!',
+        positivePoints: ['DI/IoC'],
+        missingPoints: []
+      }
+    })
+  });
+  assert.strictEqual(engine2.getState(), 'COMPLETED', 'Engine transitions to COMPLETED on evaluation_completed');
+  assert.strictEqual(receivedEvaluation?.score, 95, 'Evaluation payload received with score 95');
+  console.log('  ✅ Test 9 Passed: evaluation_completed correctly delivered to callback and sets COMPLETED');
+
+  // Test 10: whiteboard_update event handling
+  mockWs2.onmessage?.({
+    data: JSON.stringify({
+      type: 'whiteboard_update',
+      payload: {
+        code: '@Service\npublic class PaymentService {}',
+        language: 'java',
+        title: 'Архитектура сервиса'
+      }
+    })
+  });
+  assert.strictEqual(receivedWhiteboard?.title, 'Архитектура сервиса', 'Whiteboard update dispatched to callback');
+  console.log('  ✅ Test 10 Passed: whiteboard_update event delivered');
+
+  // Test 11: Acoustic Barge-In during AI speech
+  const engine3 = new LiveVoiceEngine({});
+  await engine3.connect({ sessionId: 'test_sess_3', questionId: 'Q_3', sessionType: 'interview' });
+  const mockWs3 = (engine3 as any).ws as MockWebSocket;
+
+  mockWs3.onmessage?.({
+    data: JSON.stringify({
+      serverContent: { modelTurn: { parts: [{ text: 'Длинное объяснение...' }] } }
+    })
+  });
+  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING');
+
+  // Candidate speaks loudly into microphone (metrics.speechDetected = true)
+  (engine3 as any).handleMicrophoneChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
+  assert.strictEqual(engine3.getState(), 'LISTENING', 'Acoustic speech detection interrupts AI speech and switches to LISTENING');
+  const acousticSent = JSON.parse(mockWs3.sentMessages[mockWs3.sentMessages.length - 1]);
+  assert.strictEqual(acousticSent.bargeIn, true, 'Acoustic barge-in tagged with bargeIn: true');
+  assert.strictEqual(acousticSent.bargeInType, 'acoustic', 'Tagged with bargeInType acoustic');
+  console.log('  ✅ Test 11 Passed: Acoustic barge-in triggers instant interruption and mic unlock');
+
+  engine2.disconnect();
+  engine3.disconnect();
 
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }

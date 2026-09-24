@@ -5,9 +5,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Send, Settings, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
+import { X, Send, Settings, Sparkles, AlertCircle, RotateCcw, Code2 } from 'lucide-react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
+import { useAppStore } from '../store/useAppStore';
+import { WhiteboardDrawer } from './WhiteboardDrawer';
 import { useLiveVoiceSession } from '../audio/useLiveVoiceSession';
 import { VoiceEngineConfig } from '../audio/types';
 import { VoiceEvaluationResult } from '../types/voice';
@@ -75,6 +77,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const activeQuestionText = currentQ?.question || currentQuestionText;
   const activeReferenceAnswer = currentQ?.answer || referenceAnswer;
 
+  const isWhiteboardOpen = useAppStore((s) => s.isWhiteboardOpen);
+  const setIsWhiteboardOpen = useAppStore((s) => s.setIsWhiteboardOpen);
+  const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
+
   const session = useLiveVoiceSession();
   const {
     state,
@@ -128,25 +134,28 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     connect
   ]);
 
-  // Handle incoming evaluation
+  // Handle incoming evaluation: present verdict for current question
   useEffect(() => {
     if (evaluation) {
       setBatchResults((prev) => ({ ...prev, [activeQuestionId]: evaluation }));
       onEvaluationComplete?.(evaluation);
-
-      if (isBatchMode && activeBatchIndex + 1 < totalQuestions) {
-        const nextIdx = activeBatchIndex + 1;
-        setActiveBatchIndex(nextIdx);
-        onIndexChange?.(nextIdx);
-        setStage('verdict');
-      } else if (isBatchMode && activeBatchIndex + 1 >= totalQuestions) {
-        setStage('grand_finale');
-        onBatchComplete?.(batchResults);
-      } else {
-        setStage('verdict');
-      }
+      setStage('verdict');
     }
-  }, [evaluation]);
+  }, [evaluation, activeQuestionId, onEvaluationComplete]);
+
+  const handleNextQuestion = useCallback(() => {
+    const nextIdx = activeBatchIndex + 1;
+    setActiveBatchIndex(nextIdx);
+    onIndexChange?.(nextIdx);
+    setTimeout(() => {
+      startSession();
+    }, 50);
+  }, [activeBatchIndex, onIndexChange, startSession]);
+
+  const handleFinishBatch = useCallback(() => {
+    setStage('grand_finale');
+    onBatchComplete?.(batchResults);
+  }, [batchResults, onBatchComplete]);
 
   const handleClose = () => {
     disconnect();
@@ -179,12 +188,29 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               </span>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+              title="Интерактивная доска кода"
+              className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+                isWhiteboardOpen || activeWhiteboardState
+                  ? 'bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-200'
+                  : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-rose-50/70 hover:text-rose-600 hover:border-rose-200'
+              }`}
+            >
+              <Code2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Доска кода</span>
+              {activeWhiteboardState && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Dynamic Stage Render */}
@@ -242,6 +268,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             interviewConfig={interviewConfig}
             retryCurrentQuestionCleanly={startSession}
             onClose={handleClose}
+            onNextQuestion={isBatchMode && activeBatchIndex + 1 < totalQuestions ? handleNextQuestion : undefined}
+            nextQuestionIndex={activeBatchIndex + 1}
+            totalQuestions={totalQuestions}
+            onFinishBatch={isBatchMode && activeBatchIndex + 1 >= totalQuestions ? handleFinishBatch : undefined}
           />
         )}
 
@@ -264,6 +294,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             onClose={handleClose}
           />
         )}
+        <WhiteboardDrawer
+          isOpen={isWhiteboardOpen}
+          onClose={() => setIsWhiteboardOpen(false)}
+          state={activeWhiteboardState}
+        />
       </div>
     </div>
   );

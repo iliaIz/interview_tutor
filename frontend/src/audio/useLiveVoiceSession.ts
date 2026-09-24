@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LiveVoiceEngine } from './LiveVoiceEngine';
+import { useAppStore } from '../store/useAppStore';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
@@ -51,6 +52,7 @@ export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
       onStatusMessage: (msg) => setStatusMessage(msg),
       onDialogueTurnsUpdate: (turns) => setDialogueTurns(turns),
       onEvaluationReceived: (res) => setEvaluation(res),
+      onWhiteboardUpdate: (payload) => useAppStore.getState().setWhiteboardState(payload),
       onError: (err) => setError(err)
     });
   }

@@ -73,17 +73,20 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     );
   };
 
-  const CANNED_ERROR_PATTERNS = [
-    /произошла\s+системная\s+ошибка/i,
-    /internal\s+error\s+occurred/i,
-    /system\s+error\s+occurred/i,
-    /повторите\s+попытку\s+позже/i,
-    /an\s+error\s+occurred/i
-  ];
-
   const isCannedErrorUtterance = (text?: string): boolean => {
     if (!text) return false;
-    return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text));
+    const trimmed = text.trim().toLowerCase();
+    return (
+      trimmed.startsWith('[system error]') ||
+      trimmed.startsWith('internal server error') ||
+      trimmed.startsWith('upstream error') ||
+      trimmed.startsWith('an internal error occurred') ||
+      trimmed.startsWith('internal error occurred') ||
+      trimmed.startsWith('system error occurred') ||
+      trimmed.startsWith('an error occurred') ||
+      trimmed.startsWith('произошла системная ошибка') ||
+      trimmed.startsWith('повторите попытку позже')
+    );
   };
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {

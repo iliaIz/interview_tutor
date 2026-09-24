@@ -9,36 +9,10 @@
 import WebSocket from 'ws';
 import { envConfig } from '../../config/env';
 import { authService } from '../../services/authService';
+import { SimulatedClientOptions, ClientTelemetry } from './simulatedLiveClientTypes';
+import { SimulatedLiveClientAwaits, AwaitContext } from './simulatedLiveClientAwaits';
 
-export interface SimulatedClientOptions {
-  hostWithPort?: string;
-  topic?: string;
-  questionText?: string;
-  referenceAnswer?: string;
-  strategy?: 'adaptive_probing' | 'socratic_tutoring';
-  strictness?: 'learning' | 'standard' | 'hardcore';
-  persona?: string;
-  liveModel?: string;
-  sessionType?: 'interview' | 'tutor';
-  tutorMode?: string;
-  turnMode?: 'auto' | 'manual';
-  customPrompt?: string;
-  questionId?: string;
-}
-
-export interface ClientTelemetry {
-  ttfrMs: number | null; // Time To First Reasoning / Thought (from candidate speech end)
-  ttftMs: number | null; // Time To First Text token (from candidate speech end)
-  ttfaMs: number | null; // Time To First Audio packet (from candidate speech end)
-  isInterrupted: boolean;
-  interruptionLatencyMs: number | null;
-  thoughtTokens: string[];
-  replyText: string;
-  audioBytesReceived: number;
-  isTurnComplete: boolean;
-  toolCallsReceived: string[];
-  canonicalTurnEvent?: any;
-}
+export { SimulatedClientOptions, ClientTelemetry };
 
 export class SimulatedLiveClient {
   public ws: WebSocket | null = null;
@@ -79,7 +53,9 @@ export class SimulatedLiveClient {
       tutorMode: options.tutorMode || '',
       turnMode: options.turnMode || 'auto',
       customPrompt: options.customPrompt,
-      questionId: options.questionId || 'TST-01'
+      questionId: options.questionId || 'TST-01',
+      sessionId: options.sessionId,
+      maxProbes: options.maxProbes
     };
   }
 
@@ -98,7 +74,7 @@ export class SimulatedLiveClient {
     const params = new URLSearchParams({
       ...(ticket ? { ticket } : {}),
       ...(envConfig.proxy.apiKey ? { token: envConfig.proxy.apiKey } : {}),
-      sessionId: `sim_session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      sessionId: this.options.sessionId || `sim_session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       questionId: this.options.questionId || 'TST-01',
       topic: this.options.topic || '',
       questionText: this.options.questionText || '',
@@ -112,7 +88,7 @@ export class SimulatedLiveClient {
       turnMode: this.options.turnMode || 'auto',
       voice: 'Aoede',
       userGender: 'female',
-      maxProbes: '2',
+      maxProbes: String(this.options.maxProbes || 2),
       ...(this.options.customPrompt ? { customPrompt: this.options.customPrompt } : {})
     });
 
@@ -296,197 +272,33 @@ export class SimulatedLiveClient {
     this.telemetry.isInterrupted = false;
   }
 
-  /**
-   * Waits for the Turn 0 Greeting to arrive and conclude its audio/text playout.
-   */
+  private getAwaitContext(): AwaitContext {
+    return {
+      telemetry: this.telemetry,
+      firstAudioReceivedAt: this.firstAudioReceivedAt,
+      messageListeners: this.messageListeners,
+      closeListeners: this.closeListeners
+    };
+  }
+
   public async waitForGreeting(timeoutMs: number = 40000): Promise<string> {
-    const effectiveTimeout = Math.max(timeoutMs, 40000);
-    return new Promise((resolve, reject) => {
-      let greetingText = '';
-      let greetingAudioBytes = 0;
-      let firstAudioAt: number | null = null;
-      const timer = setTimeout(() => {
-        cleanup();
-        if (greetingText.length > 0 || greetingAudioBytes > 0) {
-          resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
-        } else {
-          reject(new Error(`Greeting timeout: no greeting received within ${effectiveTimeout}ms`));
-        }
-      }, effectiveTimeout);
-
-      const listener = (msg: any) => {
-        const parts = msg.serverContent?.modelTurn?.parts || [];
-        for (const p of parts) {
-          if (p.text && !p.thought) {
-            greetingText += p.text;
-          }
-          const pcmBase64 = p.inlineData?.data || p.inline_data?.data;
-          if (pcmBase64) {
-            if (!firstAudioAt) firstAudioAt = Date.now();
-            greetingAudioBytes += Buffer.from(pcmBase64, 'base64').length;
-          }
-        }
-        if (msg.serverContent?.turnComplete) {
-          cleanup();
-          // SOTA Dual-Sided Handshake Invariant (AGENTS.md 2.2):
-          // The backend sets session.aiPlayoutEstimatedEndEpoch = Date.now() + playoutDurationMs + 450ms AT turnComplete arrival.
-          // The client waits totalPlayoutMs + 650ms from turnComplete to guarantee that the physical playout has drained
-          // and the backend Echo Guard has completely opened before candidate mic audio begins streaming.
-          const totalPlayoutMs = greetingAudioBytes > 0
-            ? Math.round((greetingAudioBytes / 48000) * 1000)
-            : 0;
-          const streamingElapsedMs = firstAudioAt ? (Date.now() - firstAudioAt) : 0;
-          const remainingMs = Math.max(0, totalPlayoutMs - streamingElapsedMs) + 650;
-
-          if (remainingMs > 0) {
-            setTimeout(() => {
-              resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
-            }, remainingMs);
-          } else {
-            resolve(greetingText || `[Audio Greeting: ${greetingAudioBytes} bytes]`);
-          }
-        }
-      };
-
-      const closeHandler = (code: number, reason: string) => {
-        cleanup();
-        reject(new Error(`WebSocket closed before greeting completed (code ${code}: ${reason || 'no reason'})`));
-      };
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        this.messageListeners = this.messageListeners.filter((l) => l !== listener);
-        this.closeListeners = this.closeListeners.filter((l) => l !== closeHandler);
-      };
-
-      this.messageListeners.push(listener);
-      this.closeListeners.push(closeHandler);
-    });
+    return SimulatedLiveClientAwaits.waitForGreeting(this.getAwaitContext(), Math.max(timeoutMs, 40000));
   }
 
-  /**
-   * SOTA Dual-Sided Handshake Invariant: Waits until physical audio playout has drained from headphones/speakers.
-   */
   public async waitForAudioPlayoutToDrain(reverbBufferMs: number = 450): Promise<void> {
-    const totalDurationMs = this.telemetry.audioBytesReceived > 0
-      ? Math.round((this.telemetry.audioBytesReceived / 48000) * 1000)
-      : 0;
-    const streamingElapsedMs = this.firstAudioReceivedAt ? (Date.now() - this.firstAudioReceivedAt) : 0;
-    const remainingMs = Math.max(0, totalDurationMs - streamingElapsedMs) + reverbBufferMs;
-    this.firstAudioReceivedAt = null;
-    if (remainingMs > 0) {
-      await new Promise((r) => setTimeout(r, remainingMs));
-    }
+    return SimulatedLiveClientAwaits.waitForAudioPlayoutToDrain(this.getAwaitContext(), reverbBufferMs);
   }
 
-  /**
-   * Waits for the AI turn to complete after candidate speech.
-   */
   public async waitForTurnComplete(timeoutMs: number = 20000): Promise<ClientTelemetry> {
-    if (this.telemetry.isTurnComplete) {
-      return { ...this.telemetry };
-    }
-
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cleanup();
-        if (this.telemetry.replyText || this.telemetry.audioBytesReceived > 0) {
-          resolve({ ...this.telemetry });
-        } else {
-          reject(new Error(`Turn completion timeout: AI did not complete turn within ${timeoutMs}ms`));
-        }
-      }, timeoutMs);
-
-      const listener = (msg: any) => {
-        if (msg.serverContent?.turnComplete) {
-          cleanup();
-          resolve({ ...this.telemetry });
-        }
-      };
-
-      const closeHandler = (code: number, reason: string) => {
-        cleanup();
-        reject(new Error(`WebSocket closed before turn completed (code ${code}: ${reason || 'no reason'})`));
-      };
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        this.messageListeners = this.messageListeners.filter((l) => l !== listener);
-        this.closeListeners = this.closeListeners.filter((l) => l !== closeHandler);
-      };
-
-      this.messageListeners.push(listener);
-      this.closeListeners.push(closeHandler);
-    });
+    return SimulatedLiveClientAwaits.waitForTurnComplete(this.getAwaitContext(), timeoutMs);
   }
 
-  /**
-   * Waits for an interruption event (`interrupted: true`).
-   */
   public async waitForInterruption(timeoutMs: number = 5000): Promise<number> {
-    if (this.telemetry.isInterrupted && this.telemetry.interruptionLatencyMs !== null) {
-      return this.telemetry.interruptionLatencyMs;
-    }
-
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error(`Interruption timeout: server did not emit interrupted: true within ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      const listener = (msg: any) => {
-        if (msg.serverContent?.interrupted) {
-          cleanup();
-          resolve(this.telemetry.interruptionLatencyMs || 200);
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        this.messageListeners = this.messageListeners.filter((l) => l !== listener);
-      };
-
-      this.messageListeners.push(listener);
-    });
+    return SimulatedLiveClientAwaits.waitForInterruption(this.getAwaitContext(), timeoutMs);
   }
 
-  /**
-   * Waits for the model to enter thinking state and emit its first reasoning token.
-   * Eliminates race conditions if thought frames arrived during silence streaming.
-   */
   public async waitForFirstThought(timeoutMs: number = 8000): Promise<string> {
-    if (this.telemetry.thoughtTokens.length > 0) {
-      return this.telemetry.thoughtTokens[0];
-    }
-
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cleanup();
-        if (this.telemetry.thoughtTokens.length > 0) {
-          resolve(this.telemetry.thoughtTokens[0]);
-        } else {
-          reject(new Error(`Model did not enter thinking state within ${timeoutMs}ms`));
-        }
-      }, timeoutMs);
-
-      const listener = (msg: any) => {
-        const parts = msg.serverContent?.modelTurn?.parts || [];
-        for (const p of parts) {
-          if (p.thought || p.isThought) {
-            cleanup();
-            resolve(p.text || (typeof p.thought === 'string' ? p.thought : 'thought'));
-            return;
-          }
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        this.messageListeners = this.messageListeners.filter((l) => l !== listener);
-      };
-
-      this.messageListeners.push(listener);
-    });
+    return SimulatedLiveClientAwaits.waitForFirstThought(this.getAwaitContext(), timeoutMs);
   }
 
   /**

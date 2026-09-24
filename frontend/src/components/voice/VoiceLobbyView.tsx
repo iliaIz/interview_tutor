@@ -17,6 +17,7 @@ import {
 import { InterviewConfig } from '../../types/interviewConfig';
 import { PersonaSelector } from '../PersonaSelector';
 import { FAANG_PERSONAS, TARGET_GRADES } from '../../types/personas';
+import { AudioPlayoutManager } from '../../services/AudioPlayoutManager';
 
 export interface VoiceLobbyViewProps {
   interviewConfig: InterviewConfig;
@@ -290,7 +291,10 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
-              onClick={handleResumeSession}
+              onClick={() => {
+                AudioPlayoutManager.warmup();
+                handleResumeSession();
+              }}
               className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold text-xs shadow-xs hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <FastForward className="w-3.5 h-3.5" />
@@ -312,7 +316,10 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
       <div className="w-full max-w-sm space-y-2.5">
         <button
           type="button"
-          onClick={startLiveInterview}
+          onClick={() => {
+            AudioPlayoutManager.warmup();
+            startLiveInterview();
+          }}
           disabled={!systemHealth.isAiReady}
           className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-pink-200 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
         >

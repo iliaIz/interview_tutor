@@ -108,8 +108,10 @@ export class LiveVoiceEngine {
     this.playoutManager.handleInterruption();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        clientContent: { turnComplete: true, interrupted: true },
-        bargeIn: true
+        type: 'barge_in',
+        bargeIn: true,
+        epoch: Date.now(),
+        clientContent: { turnComplete: true, interrupted: true }
       }));
     }
     this.isServerTurnComplete = true;
@@ -171,9 +173,10 @@ export class LiveVoiceEngine {
         return;
       }
 
-      if (data.type === 'evaluation') {
+      if (data.type === 'evaluation_completed' || data.type === 'evaluation') {
         this.transitionState('COMPLETED');
-        this.callbacks.onEvaluationReceived?.(data.payload as VoiceEvaluationResult);
+        const evalPayload = (data.evaluation || data.payload) as VoiceEvaluationResult;
+        this.callbacks.onEvaluationReceived?.(evalPayload);
         return;
       }
 
@@ -183,6 +186,12 @@ export class LiveVoiceEngine {
       }
 
       if (data.serverContent?.modelTurn?.parts) {
+        // AI has started responding; immediately cancel pending client silence timers to prevent premature turn commit
+        if (this.silenceTimer) {
+          clearTimeout(this.silenceTimer);
+          this.silenceTimer = null;
+        }
+
         this.transitionState('AI_SPEAKING');
         this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
         for (const part of data.serverContent.modelTurn.parts) {
@@ -199,8 +208,15 @@ export class LiveVoiceEngine {
         }
       }
 
+      // SOTA Late 2026: Gemini 3.8 Live Dual-Phase Turn Gate
       const isTurnDone = Boolean(data.serverContent?.turnComplete || data.serverContent?.generationComplete);
       if (isTurnDone) {
+        const interactionStatus = data.serverContent?.interactionStatus;
+        if (interactionStatus === 'IN_PROGRESS') {
+          console.log('⏳ Gemini Live interactionStatus is IN_PROGRESS (cognitive filler / intermediate thought). Holding candidate mic custody.');
+          return;
+        }
+
         this.isServerTurnComplete = true;
         this.playoutManager.notifyTurnComplete();
         this.currentAiTurnAccumulator = '';
@@ -208,6 +224,13 @@ export class LiveVoiceEngine {
         if (!this.playoutManager.isPlaying()) {
           this.unlockCandidateTurn();
         }
+      }
+
+      // Upstream interruption detected by Gemini native VAD
+      if (data.serverContent?.interrupted) {
+        this.playoutManager.handleInterruption();
+        this.isServerTurnComplete = true;
+        this.unlockCandidateTurn();
       }
     } catch (err) {
       console.error('Error handling server live frame:', err);
@@ -228,8 +251,31 @@ export class LiveVoiceEngine {
   }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.state !== 'LISTENING' || this.isMuted) return;
-    if (Date.now() - this.lastAiSpeechEndedAt < 450) return;
+    if (this.isMuted) return;
+
+    // SOTA Late 2026: Acoustic Barge-In during AI speech
+    if (this.state === 'AI_SPEAKING') {
+      if (metrics?.speechDetected) {
+        this.playoutManager.handleInterruption();
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            type: 'barge_in',
+            bargeIn: true,
+            bargeInType: 'acoustic',
+            epoch: Date.now(),
+            realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Pcm }] }
+          }));
+        }
+        this.isServerTurnComplete = true;
+        this.hasSpokenInTurn = true;
+        this.transitionState('LISTENING');
+        this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите...');
+      }
+      return;
+    }
+
+    if (this.state !== 'LISTENING') return;
+    if (Date.now() - this.lastAiSpeechEndedAt < 450 && !this.hasSpokenInTurn) return;
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
