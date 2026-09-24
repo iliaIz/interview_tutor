@@ -31,7 +31,8 @@
     "test:telemetry:all": "npm run test:telemetry:engine && npm run test:telemetry:playout && npm run test:telemetry:db && npm run test:telemetry:router && npm run test:telemetry:diagnostics && npm run test:telemetry:matrix",
     "pretest:practice:resilience": "npm run build",
     "test:practice:resilience": "node tests/test_practice_fault_injection.js",
-    "test:practice:task-codes": "node tests/test_practice_task_codes.js"
+    "test:practice:task-codes": "node tests/test_practice_task_codes.js",
+    "verify-hygiene": "ts-node ../scripts/verify_file_hygiene.ts"
   },
   "dependencies": {
     "@google/genai": "*",

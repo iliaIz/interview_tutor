@@ -87,3 +87,24 @@
 - **Unconstrained Inquiry (Zero Anchoring):** Never restrict Deep Research prompts to pre-selected arbitrary choices (e.g., "Option A vs Option B"). Always mandate the discovery of emergent SOTA paradigms as of September 2026.
 - **Empirical Codebase Verification First:** Before proposing any architectural refactoring, verify the As-Is state directly in the code (DB schemas, routing, types, scripts) to prevent hallucinated assumptions.
 - **Living Documentation & SSOT:** All high-level plans, verified defects, research prompts, and decisions MUST be persistently maintained in `docs/roadmap/wave_05_system_and_ai_evolution/`.
+
+---
+
+## 8. File-Hygiene & Cognitive Bounding Invariant (SOTA Late 2026)
+- **Strict File Length Limits:**
+  - Newly created source files MUST NOT exceed **350 lines**.
+  - Any file undergoing modification that exceeds **400 lines** MUST be proactively decomposed into single-responsibility subcomponents or modules before adding new logic.
+- **Single Responsibility Principle (SRP):**
+  - Presentation (React UI / JSX) must be strictly decoupled from low-level infrastructure (Web Audio DSP, WebSockets, REST APIs).
+  - Business logic and state machines must reside in headless TypeScript classes or custom hooks, not inside component render functions.
+- **Zero Parallel Reimplementation (Strict Reuse Invariant):**
+  - Creating parallel implementations of existing subsystems (e.g. creating a secondary voice WebSocket handler instead of importing `LiveVoiceEngine`) is strictly forbidden.
+  - If an existing subsystem does not support a desired use case, the agent MUST extend the core headless abstraction rather than cloning it.
+
+---
+
+## 9. Auto-VAD & Gemini Live Multimodal Protocol SSOT
+- Before proposing or writing any code related to Voice, AudioWorklet, VAD, or Gemini Live streaming, the agent MUST read and strictly adhere to:
+  `docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`
+- The Dual-Sided Handshake, EchoGuard drop conditions, and Turn 0 tool gating are immutable invariants defined in that document.
+
