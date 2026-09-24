@@ -181,7 +181,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
     geminiSocket.on('message', async (data: RawData) => {
       const buffer = toRawBuffer(data);
-      const str = buffer.toString('utf8');
+      let str = buffer.toString('utf8');
       let isToolCallProcessed = false;
       let parsed: any = null;
 
@@ -337,11 +337,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             } else {
               const isSubsequent = questionIndex > 0;
               if (session.isRetry) {
-                greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри в 1 фразе и сразу задай этот вопрос слитным, связным речевым потоком без пауз.`;
+                greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри в 1 фразе и сразу задай этот вопрос слитным, связным речевым потоком без пауз. (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`;
               } else {
                 greetingText = isSubsequent
-                  ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой подтверди прогресс и сразу четко зачитай следующий технический вопрос слитным речевым потоком: "${questionText || 'Следующий вопрос темы'}"`
-                  : `Привет! Я готова к собеседованию. Произнеси краткое приветствие и сразу четко зачитай технический вопрос единым слитным речевым потоком без долгих пауз: "${questionText || 'Расскажи о себе и опыте в Java'}"`;
+                  ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой подтверди прогресс и сразу четко зачитай следующий технический вопрос слитным речевым потоком: "${questionText || 'Следующий вопрос темы'}". (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`
+                  : `Привет! Я готова к собеседованию. Произнеси краткое приветствие и сразу четко зачитай технический вопрос единым слитным речевым потоком без долгих пауз: "${questionText || 'Расскажи о себе и опыте в Java'}". (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`;
               }
             }
 
@@ -357,8 +357,22 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               }
             };
 
-            if (geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(JSON.stringify(initialGreetingTurn));
+            if (wasReconnecting) {
+              if (!session.hasCandidateResponded) {
+                console.log(`🔄 Upstream reconnect during Turn 0: resending greeting prompt for question "${questionText || topic}"`);
+                if (geminiSocket.readyState === WebSocket.OPEN) {
+                  geminiSocket.send(JSON.stringify(initialGreetingTurn));
+                }
+              } else {
+                console.log(`✅ Upstream reconnect mid-dialogue: notifying client without greeting replay`);
+                if (clientSocket.readyState === WebSocket.OPEN) {
+                  clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+                }
+              }
+            } else {
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(initialGreetingTurn));
+              }
             }
 
             if (clientSocket.readyState === WebSocket.OPEN) {
@@ -516,7 +530,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
 
         // AI finished generating turn: commit to session turn history & seal turn telemetry
-        if (parsed.serverContent?.turnComplete) {
+        // SOTA Late 2026 Terminal Signal Equivalence: accept either turnComplete or generationComplete
+        const isUpstreamTurnComplete = Boolean(
+          parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete
+        );
+        if (isUpstreamTurnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
             if (session.isCannedErrorTurn) {
@@ -816,6 +834,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
       } catch {}
+
+      // SOTA Late 2026 Protocol Normalization: guarantee both generationComplete and turnComplete are present downstream
+      if (parsed?.serverContent?.generationComplete && !parsed.serverContent?.turnComplete) {
+        parsed.serverContent.turnComplete = true;
+        str = JSON.stringify(parsed);
+      }
 
       const shouldForwardToClient = (!isToolCallProcessed || Boolean(parsed?.serverContent)) && !session.isCannedErrorTurn;
       if (shouldForwardToClient && clientSocket.readyState === WebSocket.OPEN) {

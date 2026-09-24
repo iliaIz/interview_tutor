@@ -934,7 +934,9 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
             }
 
             // Turn Completed on server -> Wait for AudioPlayoutManager queue to drain or activate mic immediately
-            if (data.serverContent.turnComplete) {
+            // SOTA Late 2026 Terminal Signal Equivalence: accept either turnComplete or generationComplete
+            const isTurnDone = Boolean(data.serverContent?.turnComplete || data.serverContent?.generationComplete);
+            if (isTurnDone) {
               isTactileInterruptedRef.current = false;
               const isInteractionIdle = !data.serverContent.interactionStatus || data.serverContent.interactionStatus === 'IDLE';
 

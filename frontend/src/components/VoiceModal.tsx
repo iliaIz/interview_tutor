@@ -754,14 +754,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       if (allTokens.length === 0 || !aiTurnTextAccumulatorRef.current) return;
 
       // SOTA 2026 Dynamic Pacer Calibration:
-      // While audio chunks are still streaming (isServerTurnCompleteRef.current === false),
-      // audioDurationQueuedMs is incomplete and reflects only the initial buffer (~600ms).
-      // We bound minimum duration by estimated reading pace (~260ms per token/word)
-      // to prevent premature 100% text dumps before audio physically arrives.
+      // Count actual words rather than whitespace tokens to avoid 2x artificial delay
       const isComplete = isServerTurnCompleteRef.current;
+      const actualWords = allTokens.filter((t) => t.trim().length > 0).length;
       const estimatedDurationMs = isComplete
         ? Math.max(600, audioDurationQueuedMsRef.current)
-        : Math.max(audioDurationQueuedMsRef.current, allTokens.length * 260);
+        : Math.max(audioDurationQueuedMsRef.current, Math.max(600, actualWords * 240));
 
       const totalDurationMs = Math.max(600, estimatedDurationMs);
       const progress = Math.min(1.0, elapsedMs / totalDurationMs);
@@ -780,7 +778,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
 
       if (progress >= 1.0 && isComplete) {
-        stopSubtitlePacing();
+        finalizeAiTurnSubtitles();
       }
     }, 60);
   };
@@ -1604,7 +1602,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             }
           }
 
-          if (data.serverContent.turnComplete) {
+          // SOTA Late 2026 Terminal Signal Equivalence: accept either turnComplete or generationComplete
+          const isTurnDone = Boolean(data.serverContent?.turnComplete || data.serverContent?.generationComplete);
+          if (isTurnDone) {
             hasReceivedModelTurnTextRef.current = false;
             isTactileInterruptedRef.current = false;
             isToolExecutingRef.current = false;
