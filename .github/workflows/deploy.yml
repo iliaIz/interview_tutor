@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/practice-senior-review-resilience
+      - fix/auto-vad-live-v3-investigation
   workflow_dispatch:
 
 permissions:
