@@ -26,6 +26,8 @@ import { ComponentPalette } from './palette/ComponentPalette';
 import { LiveMetricsHUD } from './telemetry/LiveMetricsHUD';
 import { ChaosMonkeyPanel } from './chaos/ChaosMonkeyPanel';
 import { useSimulationWorker } from '../simulation/useSimulationWorker';
+import { useCanvasSPOF } from './useCanvasSPOF';
+import { useCanvasDeicticSync } from './useCanvasDeicticSync';
 import { 
   ArchitectureNodeType, 
   ArchitectureNodeConfig, 
@@ -43,7 +45,6 @@ interface ArchitectureCanvasProps {
   }) => void;
 }
 
-// Starter Enterprise Topology
 const INITIAL_NODES: Node[] = [
   {
     id: 'node-client',
@@ -153,7 +154,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const deicticTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Discrete Event Simulation Web Worker hook
   const {
@@ -166,104 +166,23 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     togglePause
   } = useSimulationWorker({ initialInputRps: 2000 });
 
-  // Deterministic topology signature: react to node config & edge protocol changes
-  const topologySignature = useMemo(() => {
-    return calculateTopologySignature(nodes, edges);
-  }, [nodes, edges]);
+  const topologySignature = useMemo(() => calculateTopologySignature(nodes, edges), [nodes, edges]);
 
-  // Sync React Flow topology to simulation worker whenever topology signature changes
   useEffect(() => {
     updateTopology(nodes, edges, inputRps);
   }, [topologySignature, inputRps, updateTopology]);
 
-  // Debounced topology mutation deictic event (500ms) with Micro-Graph Adjacency IR
-  useEffect(() => {
-    if (!onDeicticContextChange) return;
-    if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
-    deicticTimerRef.current = setTimeout(() => {
-      const graphIr = generateGraphAdjacencyIr(nodes, edges);
-      const architectureMermaid = convertCanvasToMermaid(nodes, edges);
-      onDeicticContextChange({
-        mutationSummary: `Топология холста: ${nodes.length} узлов, ${edges.length} связей. Компоненты: ${nodes.map(n => n.data?.label || n.id).join(', ')}`,
-        graphIr,
-        architectureMermaid
-      });
-    }, 500);
+  // SPOF Analysis Hook
+  const { enrichedNodes: spofNodes } = useCanvasSPOF(nodes, edges);
 
-    return () => {
-      if (deicticTimerRef.current) clearTimeout(deicticTimerRef.current);
-    };
-  }, [topologySignature, onDeicticContextChange]);
-
-  // SOTA Invariant 4: Semantic Anomaly Digest (No raw JSON flooding, 1-line pulse or urgent anomaly alerts)
-  const lastAnomalyTimeRef = useRef<number>(0);
-  const lastPulseTimeRef = useRef<number>(0);
-  const lastAnomalySignatureRef = useRef<string>('');
-
-  useEffect(() => {
-    if (!telemetry || !onDeicticContextChange) return;
-
-    const now = Date.now();
-    const { nodeMetrics, globalErrorRate, globalInputRps, globalP99LatencyMs, antiPatterns } = telemetry;
-
-    // 1. Detect critical bottlenecks / hazards (drop > 5%, utilization >= 85%, failed/critical nodes)
-    const criticalAntiPattern = antiPatterns?.find(a => a.severity === 'critical');
-    let worstNode: { id: string; label: string; metrics: any } | null = null;
-
-    if (nodeMetrics) {
-      for (const [nodeId, m] of Object.entries(nodeMetrics)) {
-        if (m.errorRate > 0.05 || m.utilization >= 0.85 || m.health === 'failed' || m.health === 'critical') {
-          if (!worstNode || m.errorRate > worstNode.metrics.errorRate || m.utilization > worstNode.metrics.utilization) {
-            const nodeObj = nodes.find(n => n.id === nodeId);
-            worstNode = {
-              id: nodeId,
-              label: (nodeObj?.data?.label as string) || nodeId,
-              metrics: m
-            };
-          }
-        }
-      }
-    }
-
-    if (worstNode || criticalAntiPattern) {
-      const anomalySig = worstNode
-        ? `${worstNode.id}:${worstNode.metrics.health}:${worstNode.metrics.errorRate > 0.05}:${worstNode.metrics.utilization >= 0.85}`
-        : criticalAntiPattern?.id || '';
-
-      // Throttling: send immediately if signature changed, or if 15s elapsed
-      if (anomalySig !== lastAnomalySignatureRef.current || now - lastAnomalyTimeRef.current > 15000) {
-        lastAnomalyTimeRef.current = now;
-        lastAnomalySignatureRef.current = anomalySig;
-
-        let alertMsg = '';
-        if (worstNode) {
-          const m = worstNode.metrics;
-          const dropPct = (m.errorRate * 100).toFixed(1);
-          const utilPct = (m.utilization * 100).toFixed(0);
-          alertMsg = `🚨 [АНОМАЛИЯ ХОЛСТА: БОТЛНЕК НА УЗЛЕ "${worstNode.label}"]:\nНагрузка: ${m.currentRps} RPS, утилизация: ${utilPct}%, дроп: ${dropPct}% запросов! p99 задержка: ${m.p99Ms}мс.`;
-        } else if (criticalAntiPattern) {
-          alertMsg = `🚨 [КРИТИЧЕСКИЙ ДЕФЕКТ ТОПОЛОГИИ ХОЛСТА]: ${criticalAntiPattern.title} - ${criticalAntiPattern.description}`;
-        }
-
-        onDeicticContextChange({
-          mutationSummary: alertMsg
-        });
-      }
-    } else {
-      // Clear anomaly signature when system is healthy
-      lastAnomalySignatureRef.current = '';
-
-      // 2. Background pulse (once per 25s when all nodes are healthy and traffic is active)
-      if (now - lastPulseTimeRef.current > 25000 && globalInputRps > 0) {
-        lastPulseTimeRef.current = now;
-        const successRate = (100 * (1 - globalErrorRate)).toFixed(1);
-        const pulseMsg = `[ТЕЛЕМЕТРИЯ СЕТИ]: Входной поток: ${globalInputRps} RPS. Успешность: ${successRate}%. p99: ${globalP99LatencyMs}мс. Все узлы в норме.`;
-        onDeicticContextChange({
-          mutationSummary: pulseMsg
-        });
-      }
-    }
-  }, [telemetry, nodes, onDeicticContextChange]);
+  // Deictic Context Sync Hook
+  useCanvasDeicticSync({
+    nodes,
+    edges,
+    topologySignature,
+    telemetry,
+    onDeicticContextChange
+  });
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     onDeicticContextChange?.({
@@ -287,17 +206,14 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     });
   }, [onDeicticContextChange]);
 
-  // Enrich nodes with live telemetry metrics from worker
-  const enrichedNodes = useMemo(() => {
-    if (!telemetry?.nodeMetrics) return nodes;
-
-    return nodes.map(node => {
-      const metrics = telemetry.nodeMetrics[node.id];
-      const isChaosTarget = telemetry.chaosState.affectedNodeId === node.id ||
-        (telemetry.chaosState.activeChaos === 'kill_primary' && node.type === 'database');
+  // Enrich nodes with telemetry & SPOF flags
+  const finalNodes = useMemo(() => {
+    return spofNodes.map(node => {
+      const metrics = telemetry?.nodeMetrics?.[node.id];
+      const isChaosTarget = telemetry?.chaosState.affectedNodeId === node.id ||
+        (telemetry?.chaosState.activeChaos === 'kill_primary' && node.type === 'database');
 
       if (!metrics && !isChaosTarget) return node;
-
       return {
         ...node,
         data: {
@@ -307,16 +223,14 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
         }
       };
     });
-  }, [nodes, telemetry?.nodeMetrics, telemetry?.chaosState]);
+  }, [spofNodes, telemetry?.nodeMetrics, telemetry?.chaosState]);
 
-  // Enrich edges with live telemetry metrics from worker
+  // Enrich edges with telemetry metrics
   const enrichedEdges = useMemo(() => {
     if (!telemetry?.edgeMetrics) return edges;
-
     return edges.map(edge => {
       const metrics = telemetry.edgeMetrics[edge.id];
       if (!metrics) return edge;
-
       return {
         ...edge,
         data: {
@@ -327,7 +241,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     });
   }, [edges, telemetry?.edgeMetrics]);
 
-  // Connection handler: connect nodes with FlowEdge
   const onConnect = useCallback((params: Connection) => {
     setEdges(eds => addEdge({
       ...params,
@@ -343,7 +256,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
     }, eds));
   }, [setEdges]);
 
-  // Drag-and-Drop handlers
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -351,7 +263,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
 
   const onDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-
     const nodeType = event.dataTransfer.getData('application/reactflow/type') as ArchitectureNodeType;
     const label = event.dataTransfer.getData('application/reactflow/label');
     const rawConfig = event.dataTransfer.getData('application/reactflow/config');
@@ -374,17 +285,12 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
       id: `node-${Date.now()}`,
       type: nodeType,
       position,
-      data: {
-        label,
-        nodeType,
-        config
-      }
+      data: { label, nodeType, config }
     };
 
     setNodes(nds => nds.concat(newNode));
   }, [reactFlowInstance, setNodes]);
 
-  // Notify parent on export
   useEffect(() => {
     if (onExportPayload) {
       onExportPayload({
@@ -406,31 +312,25 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
         graphIr: generateGraphAdjacencyIr(nodes, edges)
       });
     }
-  }, [topologySignature, telemetry, onExportPayload]);
+  }, [topologySignature, telemetry, onExportPayload, nodes, edges]);
 
   return (
     <div className="flex h-full w-full relative overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Drag & Drop Sidebar Palette */}
       <ComponentPalette 
         onSelectComponent={(type, label) => {
           const newNode: Node = {
             id: `node-${Date.now()}`,
             type,
             position: { x: 400 + Math.random() * 60, y: 200 + Math.random() * 60 },
-            data: {
-              label,
-              nodeType: type,
-              config: {}
-            }
+            data: { label, nodeType: type, config: {} }
           };
           setNodes(nds => nds.concat(newNode));
         }}
       />
 
-      {/* Main Canvas Viewport */}
       <div ref={reactFlowWrapper} className="flex-1 h-full relative">
         <ReactFlow
-          nodes={enrichedNodes}
+          nodes={finalNodes}
           edges={enrichedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -442,6 +342,8 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           onDragOver={onDragOver}
           nodeTypes={systemDesignNodeTypes}
           edgeTypes={systemDesignEdgeTypes}
+          snapToGrid={true}
+          snapGrid={[15, 15]}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.2}
@@ -463,7 +365,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           />
         </ReactFlow>
 
-        {/* Floating Telemetry HUD */}
         <LiveMetricsHUD
           telemetry={telemetry}
           inputRps={inputRps}
@@ -472,7 +373,6 @@ const ArchitectureCanvasInner: React.FC<ArchitectureCanvasProps> = ({
           onTogglePause={togglePause}
         />
 
-        {/* Floating Chaos Monkey Panel */}
         <ChaosMonkeyPanel
           chaosState={telemetry?.chaosState || { activeChaos: null }}
           onTriggerChaos={triggerChaos}

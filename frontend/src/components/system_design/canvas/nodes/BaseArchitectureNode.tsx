@@ -39,6 +39,9 @@ export const BaseArchitectureNode: React.FC<NodeProps> = memo(({ data, selected 
   let auraGlow = 'hover:shadow-pastel-card';
   let badgeColor = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
 
+  const isSpof = Boolean(nodeData.isSpof);
+  const spofReason = nodeData.spofReason;
+
   if (health === 'warning') {
     borderStyle = 'border-amber-400 dark:border-amber-500';
     auraGlow = 'shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse';
@@ -51,6 +54,9 @@ export const BaseArchitectureNode: React.FC<NodeProps> = memo(({ data, selected 
     borderStyle = 'border-red-600 dark:border-red-500 bg-red-950/20';
     auraGlow = 'shadow-[0_0_25px_rgba(220,38,38,0.5)]';
     badgeColor = 'bg-red-600 text-white border-red-700';
+  } else if (isSpof) {
+    borderStyle = 'border-amber-400 dark:border-amber-500';
+    auraGlow = 'shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-2 ring-amber-400/60 animate-pulse';
   }
 
   return (
@@ -82,12 +88,25 @@ export const BaseArchitectureNode: React.FC<NodeProps> = memo(({ data, selected 
           </div>
         </div>
 
-        {/* Replicas badge */}
-        {config.replicas && config.replicas > 1 && (
-          <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-            {config.replicas}x
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {/* SPOF warning pill */}
+          {isSpof && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-0.5 cursor-help"
+              title={spofReason || 'Узел является критической точкой отказа (SPOF)'}
+            >
+              <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+              SPOF
+            </span>
+          )}
+
+          {/* Replicas badge */}
+          {config.replicas && config.replicas > 1 && (
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              {config.replicas}x
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Live Metrics Grid */}
