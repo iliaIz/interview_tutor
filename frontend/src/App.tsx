@@ -35,11 +35,11 @@ const StudioSuspenseLoader: React.FC = () => (
   </div>
 );
 
+import { useAuthStore } from './store/useAuthStore';
+
 export const App: React.FC = () => {
+  const { currentUser, isAuthChecking, checkAuthSession } = useAuthStore();
   const {
-    currentUser,
-    isAuthChecking,
-    checkAuthSession,
     currentStudioTab,
     currentView,
     systemHealth,
@@ -88,8 +88,8 @@ export const App: React.FC = () => {
     };
   }, [systemHealth.isAiReady]);
 
-  // 1. Loading state during initial session verification
-  if (isAuthChecking) {
+  // 1. Loading state during initial session verification (zero-flicker: skipped if cached user exists)
+  if (isAuthChecking && !currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-pastel-bg text-pastel-text font-sans">
         <div className="flex flex-col items-center gap-3 text-pastel-muted">

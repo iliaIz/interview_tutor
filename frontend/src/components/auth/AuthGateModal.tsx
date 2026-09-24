@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useAppStore } from '../../store/useAppStore';
-import { Sparkles, Shield, KeyRound, ArrowRight, Loader2, Lock, CheckCircle2 } from 'lucide-react';
+import { Shield, KeyRound, ArrowRight, Loader2, Lock, CheckCircle2 } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
+/**
+ * Soft-Luxury Login HUD (SOTA Late 2026).
+ * Features #FFF0F5 luxury palette, subtle mesh glow auras, tactile feedback,
+ * and uppercase invite code auto-formatting.
+ * Cognitive bounding limit: <= 350 lines.
+ */
 export const AuthGateModal: React.FC = () => {
   useBodyScrollLock(true);
-  const { loginWithInviteCode } = useAppStore();
+  const { loginWithInviteCode } = useAuthStore();
+  const { showToast } = useAppStore();
   const [inviteCode, setInviteCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -19,7 +27,13 @@ export const AuthGateModal: React.FC = () => {
     setErrorMessage(null);
 
     const result = await loginWithInviteCode(inviteCode.trim());
-    if (!result.success) {
+    if (result.success && result.user) {
+      showToast({
+        type: 'success',
+        title: 'Добро пожаловать в Студию!',
+        message: `Доступ активирован: ${result.user.name}`
+      });
+    } else {
       setErrorMessage(result.error || 'Неверный или неактивный инвайт-код доступа');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
@@ -33,9 +47,9 @@ export const AuthGateModal: React.FC = () => {
       <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-pastel-accentRose/25 to-transparent blur-3xl pointer-events-none animate-aura-slow" />
       <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-gradient-to-tl from-pastel-accentViolet/25 via-pink-400/15 to-transparent blur-3xl pointer-events-none animate-aura-reverse" />
 
-      {/* Main Glass Card */}
+      {/* Main Glass Card (#FFF0F5 Tinted Soft-Luxury Canvas) */}
       <div 
-        className={`relative w-full max-w-md bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-transform duration-300 overflow-hidden ${
+        className={`relative w-full max-w-md bg-[#FFF0F5]/95 border border-pastel-rose/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-transform duration-300 overflow-hidden ${
           isShaking ? 'animate-shake' : ''
         }`}
       >
@@ -82,12 +96,12 @@ export const AuthGateModal: React.FC = () => {
                   if (errorMessage) setErrorMessage(null);
                 }}
                 disabled={isLoading}
-                className="w-full bg-pastel-bg border border-pastel-border focus:border-pastel-accentRose rounded-2xl pl-10 pr-4 py-3 text-sm font-mono tracking-widest text-pastel-text placeholder-pastel-muted/50 uppercase focus:outline-none transition shadow-2xs disabled:opacity-50"
+                className="w-full bg-white/80 border border-pastel-border focus:border-pastel-accentRose rounded-2xl pl-10 pr-4 py-3 text-sm font-mono tracking-widest text-pastel-text placeholder-pastel-muted/50 uppercase focus:outline-none transition shadow-2xs disabled:opacity-50"
               />
             </div>
 
             {errorMessage && (
-              <p className="text-xs text-rose-600 font-medium mt-1.5 flex items-center gap-1.5">
+              <p className="text-xs text-rose-600 font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in duration-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 <span>{errorMessage}</span>
               </p>
