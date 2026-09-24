@@ -7,8 +7,9 @@
     "dev": "vite",
     "prebuild": "npm --prefix ../shared run build",
     "build": "tsc && vite build",
-    "test:audio-contracts": "tsx tests/audioPlayoutContracts.test.ts && tsx tests/liveAudioSessionContracts.test.ts",
+    "test:audio-contracts": "tsx tests/audioPlayoutContracts.test.ts && tsx tests/liveAudioSessionContracts.test.ts && tsx tests/liveVoiceEngine.test.ts",
     "test:e2e:voice": "playwright test e2e/voiceSession.spec.ts",
+    "verify-hygiene": "tsx ../scripts/verify_file_hygiene.ts",
     "preview": "vite preview"
   },
   "dependencies": {

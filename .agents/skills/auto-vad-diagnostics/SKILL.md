@@ -34,7 +34,12 @@ This skill governs the systematic investigation, root-cause diagnosis, and verif
 
 ---
 
-## 2. Standard 4-Step Diagnostic Workflow
+## 2. Standard 5-Step Diagnostic Workflow
+
+### Step 0: Read Authoritative Protocol SSOT
+Before performing any diagnostics, log interpretation, or code modifications, the agent MUST read and align with:
+`docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`
+All state transitions, DSP invariants, terminal signal requirements (`turnComplete` / `generationComplete`), and Dual-Sided Handshake rules are codified there.
 
 ### Step 1: Triangulate Quad-Vector Evidence
 Run the automated telemetry collector:
@@ -92,3 +97,4 @@ A voice/VAD issue is only considered resolved when:
 2. `replay_turn.ts` passes with exit code 0 and verified telemetry.
 3. Live SQLite snapshot confirms both `role: "ai"` and `role: "user"` in the evaluation transcript.
 4. Physical audio recording exists in storage.
+5. File-Hygiene & Cognitive Bounding verified: newly created source files $\le 350$ lines, modified files $\le 400$ lines, and zero duplicated WebSocket engines (strict reuse of `LiveVoiceEngine`).

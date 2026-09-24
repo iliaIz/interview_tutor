@@ -468,6 +468,103 @@ async function testBargeInFlagging(): Promise<void> {
   await teardownUpstreamServer(upstreamServer, upstreamWss, session);
 }
 
+async function testGenerationCompleteNormalization(): Promise<void> {
+  console.log('\n[Test 4] SOTA Late 2026 generationComplete Terminal Equivalence');
+  const clientPair = await createMockSocketPair();
+  const upstreamServer = http.createServer();
+  const upstreamWss = new WebSocketServer({ server: upstreamServer });
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  let mockGemini!: WebSocket;
+  const geminiConnected = new Promise<void>((resolve) => {
+    upstreamWss.on('connection', (ws) => {
+      mockGemini = ws;
+      resolve();
+    });
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.serverSide,
+    geminiSocket: null as any,
+    isSetupComplete: true,
+    sessionId: 'test_router_gen_complete',
+    questionId: 'Q_GEN_COMPLETE',
+    isAiGenerating: false,
+    isToolCallPending: false,
+    frameQueue: [],
+    turnTelemetryHistory: [],
+    sessionStartedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    currentTurnIndex: 0
+  };
+
+  const clientFramesReceived: any[] = [];
+  clientPair.clientSide.on('message', (data) => {
+    try {
+      clientFramesReceived.push(JSON.parse(data.toString()));
+    } catch {}
+  });
+
+  const router = createLiveAudioStreamRouter({
+    session,
+    setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.serverSide,
+    terminate: () => {},
+    sessionId: 'test_router_gen_complete',
+    questionId: 'Q_GEN_COMPLETE',
+    sessionType: 'interview',
+    tutorMode: '',
+    bugTitle: '',
+    questionText: 'Explain JMM.',
+    topic: 'Java',
+    voiceName: 'Kore',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 1,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini(false);
+  await geminiConnected;
+
+  // Upstream Gemini sends modelTurn text
+  mockGemini.send(JSON.stringify({
+    serverContent: {
+      modelTurn: {
+        parts: [{ text: 'Привет! Расскажите про Java Memory Model.' }]
+      }
+    }
+  }));
+
+  await sleep(40);
+  assert(session.isAiGenerating === true, 'isAiGenerating is true during speech output');
+
+  // Upstream Gemini sends ONLY generationComplete: true (NO turnComplete: true)
+  mockGemini.send(JSON.stringify({
+    serverContent: {
+      generationComplete: true
+    }
+  }));
+
+  await sleep(60);
+
+  assert(session.isAiGenerating === false, 'isAiGenerating is normalized to false upon generationComplete');
+  const terminalFrame = clientFramesReceived.find((f) => f.serverContent?.generationComplete === true);
+  assert(Boolean(terminalFrame), 'Client received serverContent with generationComplete');
+  assert(terminalFrame?.serverContent?.turnComplete === true, 'Downstream frame normalized with turnComplete === true');
+  const telemetryEvent = clientFramesReceived.find((f) => f.type === 'turn_telemetry');
+  assert(Boolean(telemetryEvent), 'Client received turn_telemetry on generationComplete terminal turn');
+
+  await closeMockSocketPair(clientPair);
+  await teardownUpstreamServer(upstreamServer, upstreamWss, session);
+}
+
 // =========================================================================
 // MAIN RUNNER
 // =========================================================================
@@ -479,6 +576,7 @@ export async function runStreamRouterMockTests(): Promise<boolean> {
   await testTurn0StreamRouter();
   await testMultiTurnStreamRouter();
   await testBargeInFlagging();
+  await testGenerationCompleteNormalization();
 
   console.log('\n═══════════════════════════════════════════════════════════════');
   console.log(`  SUMMARY: ${ctx.passed} Passed | ${ctx.failed} Failed`);
