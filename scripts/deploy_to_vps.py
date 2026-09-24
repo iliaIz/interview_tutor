@@ -105,10 +105,13 @@ def deploy():
     echo "Building sandbox container..."
     docker compose -f docker-compose.prod.yml build sandbox || true
 
+    echo "Building caddy frontend container..."
+    docker compose -f docker-compose.prod.yml build caddy
+
     echo "Building backend container..."
     docker compose -f docker-compose.prod.yml build backend
     
-    echo "Recreating backend & sandbox services..."
+    echo "Recreating services..."
     docker compose -f docker-compose.prod.yml up -d --remove-orphans
     
     echo "Reloading Caddy reverse proxy..."
