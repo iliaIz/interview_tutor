@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { db } from '../services/db';
-import { evaluateChallengeSubmission } from '../services/codeEvaluator';
 import { CodingChallenge } from '../services/challengeSeedData';
 import { getAuthUserId } from '../middleware/auth';
-import { JvmExecutionService } from '../services/sandbox/JvmExecutionService';
 import { AstAuditService } from '../services/astAuditService';
-import { DynamicTaskGenerator, LlmGatewayUnavailableError } from '../services/dynamicTaskGenerator';
+import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
+import { handleChallengeEvaluation } from '../services/challengeSubmissionService';
 
 const router = Router();
 
@@ -147,157 +146,15 @@ router.post('/evaluate', async (req, res) => {
       }
     }
 
-    const row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ?').get(challengeId) as any;
-    if (!row) {
-      return res.status(404).json({ error: 'Challenge not found' });
-    }
-
-    const challenge: CodingChallenge = JSON.parse(row.manifest_json);
-
-    const abortController = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) {
-        abortController.abort();
-      }
-    });
-
-    if (isSse) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no'
-      });
-      if (typeof (res as any).flushHeaders === 'function') {
-        (res as any).flushHeaders();
-      }
-    }
-
-    const sendSse = (event: string, data: any) => {
-      if (isSse && !res.writableEnded && !res.destroyed) {
-        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-      }
-    };
-
-    // Stage 1: Sandbox Execution
-    sendSse('stage', {
-      stage: 'sandbox',
-      label: 'Компиляция Java 21 и прогон модульных тестов...'
-    });
-
-    // 1. Authoritative Real JVM 21 In-Memory Sandbox Execution (< 80ms)
-    const sandboxResult = await JvmExecutionService.execute({
+    await handleChallengeEvaluation({
+      userId,
       challengeId,
       files,
-      activePhase
+      activePhase,
+      timeSpentSeconds,
+      isSse,
+      res
     });
-
-    if (res.writableEnded || abortController.signal.aborted) {
-      return;
-    }
-
-    // Stage 2: Sandbox Result notification
-    sendSse('stage', {
-      stage: 'sandbox_done',
-      label: sandboxResult.isCompilable
-        ? `Песочница JVM 21: ${sandboxResult.passedCount}/${sandboxResult.testResults.length} тестов пройдено (${sandboxResult.executionTimeMs}мс)`
-        : 'Обнаружены синтаксические ошибки компиляции Java 21',
-      isCompilable: sandboxResult.isCompilable,
-      passedCount: sandboxResult.passedCount,
-      failedCount: sandboxResult.failedCount
-    });
-
-    // Stage 3 & 4: If compilable, emit AST analysis and AI reasoning indicators
-    if (sandboxResult.isCompilable) {
-      sendSse('stage', {
-        stage: 'ast_analysis',
-        label: 'AST-анализ: проверка Loom (Carrier Thread Pinning) и Java Memory Model...'
-      });
-
-      sendSse('stage', {
-        stage: 'ai_reasoning',
-        label: 'Senior AI Архитектор: глубокий аудит (SOLID, потокобезопасность, идиоматика)...'
-      });
-    }
-
-    // Start SSE keep-alive heartbeats to prevent proxy and browser idle timeouts during LLM reasoning
-    const heartbeatInterval = setInterval(() => {
-      if (isSse && !res.writableEnded && !res.destroyed) {
-        res.write(': keep-alive\n\n');
-      }
-    }, 5000);
-
-    let evaluation;
-    try {
-      // 2. Enriched Architectural & Concurrency Evaluation (0ms if uncompilable)
-      evaluation = await evaluateChallengeSubmission({
-        challenge,
-        files,
-        activePhase,
-        timeSpentSeconds,
-        sandboxResult,
-        abortSignal: abortController.signal
-      });
-    } finally {
-      clearInterval(heartbeatInterval);
-    }
-
-    // Decoupled Persistence: save to SQLite DB before socket close
-    const isPassed = evaluation.scoreBreakdown.overallScore >= 70 && !evaluation.concurrencyAnalysis.hasCarrierThreadPinning;
-    const status = isPassed ? 'PASSED' : 'FAILED';
-
-    const submissionId = `sub_${challengeId}_${userId}`;
-    const upsertStmt = db.prepare(`
-      INSERT INTO coding_submissions (
-        id, challenge_id, user_id, files_json, active_phase, status, score,
-        evaluation_json, time_spent_seconds, updated_at
-      ) VALUES (
-        @id, @challenge_id, @user_id, @files_json, @active_phase, @status, @score,
-        @evaluation_json, @time_spent_seconds, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT(id) DO UPDATE SET
-        files_json = excluded.files_json,
-        active_phase = excluded.active_phase,
-        status = excluded.status,
-        score = excluded.score,
-        evaluation_json = excluded.evaluation_json,
-        time_spent_seconds = excluded.time_spent_seconds,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
-    upsertStmt.run({
-      id: submissionId,
-      challenge_id: challengeId,
-      user_id: userId,
-      files_json: JSON.stringify(files),
-      active_phase: activePhase,
-      status,
-      score: Math.round(evaluation.scoreBreakdown.overallScore),
-      evaluation_json: JSON.stringify(evaluation),
-      time_spent_seconds: timeSpentSeconds
-    });
-
-    if (res.writableEnded || abortController.signal.aborted) {
-      console.log(`⏹️ Client disconnected before response dispatch: challenge ${challengeId}`);
-      return;
-    }
-
-    if (isSse) {
-      sendSse('complete', {
-        success: true,
-        isPassed,
-        status,
-        evaluation
-      });
-      res.end();
-    } else {
-      res.json({
-        success: true,
-        isPassed,
-        status,
-        evaluation
-      });
-    }
   } catch (err: any) {
     if (res.writableEnded) {
       return;
