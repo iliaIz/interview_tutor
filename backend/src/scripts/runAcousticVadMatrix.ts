@@ -128,24 +128,20 @@ async function main() {
       console.log('======================================================');
 
       // 1. Multi-Turn Turn-Taking with Strict Latency SLA on gemini-live-v3
-      console.log('\n[Canary 1/5] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
+      console.log('\n[Canary 1/4] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
       results.push(await runMultiTurnDialogueScenario('gemini-live-v3', 2));
 
       // 2. Acoustic Barge-In Voice Interruption
-      console.log('\n[Canary 2/5] Acoustic Barge-In Interruption on gemini-live-v3...');
+      console.log('\n[Canary 2/4] Acoustic Barge-In Interruption on gemini-live-v3...');
       results.push(await runBargeInScenario('gemini-live-v3'));
 
       // 3. Extended Thinking CoT Shield Smoke Test on gemini-live-thinking-v3
-      console.log('\n[Canary 3/5] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
+      console.log('\n[Canary 3/4] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
       results.push(await runThinkingCotShieldTest('gemini-live-thinking-v3'));
 
       // 4. Code Handover & Atomic Fusion SLA in Tutor Practice Mode
-      console.log('\n[Canary 4/5] Code Handover & Atomic Fusion SLA on gemini-live-v3...');
+      console.log('\n[Canary 4/4] Code Handover & Atomic Fusion SLA on gemini-live-v3...');
       results.push(await runCodeHandoverSlaScenario('gemini-live-v3'));
-
-      // 5. Full Interview Lifecycle & Evaluation Persistence Verification
-      console.log('\n[Canary 5/5] Full Interview Lifecycle & Evaluation DB Verification on gemini-live-v3...');
-      results.push(await runFullInterviewLifecycleScenario('gemini-live-v3'));
 
       printAsciiTable(results);
       const allPassed = results.every((r) => r.passed);

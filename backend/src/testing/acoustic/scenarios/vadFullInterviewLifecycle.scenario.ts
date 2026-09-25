@@ -33,13 +33,13 @@ export async function runFullInterviewLifecycleScenario(
     sessionType: 'interview',
     maxProbes: 1,
     questionId: testQuestionId,
-    topic: 'Spring Boot',
-    questionText: 'Как устроена аннотация @SpringBootApplication и из каких мета-аннотаций она состоит?',
-    referenceAnswer: '@SpringBootApplication состоит из @SpringBootConfiguration, @EnableAutoConfiguration и @ComponentScan.',
+    topic: 'Spring Caching & Architecture',
+    questionText: 'Как устроена инвалидация кэша в Spring?',
+    referenceAnswer: 'Для инвалидации кэша в Spring используется аннотация @CacheEvict с указанием ключа или имени кэша.',
     customPrompt: `=== CANARY INTERVIEW DIRECTIVE ===
 КРАТКОСТЬ (КРИТИЧНО): Отвечай строго в 1-2 коротких предложениях (не более 20 слов на реплику). Не читай лекций.
-1. Поприветствуй кандидата одним предложением и задай вопрос.
-2. После ответа кандидата СРАЗУ вызови инструмент submit_interview_evaluation со score=90, положительными моментами и вердиктом сдачи.
+1. Поприветствуй кандидата одним предложением и задай вопрос про инвалидацию кэша.
+2. После ответа кандидата вызови инструмент submit_interview_evaluation со score=90.
 3. Кратко объяви итог.`
   });
 
