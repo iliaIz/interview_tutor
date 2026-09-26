@@ -153,7 +153,12 @@ export async function startMockAcousticEngine(): Promise<MockAcousticEngineInsta
         }
 
         // Realtime audio frames from client
-        const mediaChunks = parsed.realtimeInput?.mediaChunks || parsed.realtime_input?.media_chunks || [];
+        if (parsed.bargeIn && parsed.realtimeInput) {
+          handleInterruption();
+          continue;
+        }
+        const rtAudio = parsed.realtimeInput?.audio ? [parsed.realtimeInput.audio] : null;
+        const mediaChunks = rtAudio || parsed.realtimeInput?.mediaChunks || parsed.realtime_input?.media_chunks || [];
         for (const chunk of mediaChunks) {
           if (!chunk.data) continue;
           const pcmBuf = Buffer.from(chunk.data, 'base64');

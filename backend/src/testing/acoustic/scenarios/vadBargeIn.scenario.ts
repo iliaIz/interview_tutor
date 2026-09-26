@@ -51,9 +51,9 @@ export async function runBargeInScenario(engine: string = 'gemini-live-v3'): Pro
     console.log('[Scenario: BargeIn] 🛑 Injecting candidate barge-in speech over active AI audio...');
     client.markInterruptionTriggered();
 
-    // Stream first 1.5 seconds of speech to trigger barge-in
+    // Stream first 1.5 seconds of speech to trigger barge-in (flagged to bypass EchoGuard)
     const bargeInChunk = candidatePcm.subarray(0, 16000 * 2 * 1.5);
-    const pacerPromise = RealtimeAudioPacer.streamPcm(client.ws!, bargeInChunk, { chunkDurationMs: 40 });
+    const pacerPromise = RealtimeAudioPacer.streamPcm(client.ws!, bargeInChunk, { chunkDurationMs: 40, bargeIn: true, bargeInType: 'acoustic' });
     const interruptionPromise = client.waitForInterruption(6000);
 
     const [_, latencyMs] = await Promise.all([pacerPromise, interruptionPromise]);

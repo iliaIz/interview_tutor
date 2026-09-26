@@ -11,6 +11,8 @@ import { generateSilence, SAMPLE_RATE, BYTES_PER_SAMPLE } from './silenceGenerat
 
 export interface PacerOptions {
   chunkDurationMs?: number; // default 40ms (1280 bytes)
+  bargeIn?: boolean;
+  bargeInType?: 'acoustic' | 'tactile';
   onChunkSent?: (chunkIndex: number, totalChunks: number, elapsedMs: number) => void;
   onSpeechEnd?: () => void;
   signal?: AbortSignal;
@@ -68,7 +70,7 @@ export class RealtimeAudioPacer {
       const end = Math.min(offset + chunkSize, pcmBuffer.length);
       const chunk = pcmBuffer.subarray(offset, end);
 
-      const frame = {
+      const frame: any = {
         realtimeInput: {
           mediaChunks: [
             {
@@ -78,6 +80,10 @@ export class RealtimeAudioPacer {
           ]
         }
       };
+      if (options.bargeIn) {
+        frame.bargeIn = true;
+        frame.bargeInType = options.bargeInType || 'acoustic';
+      }
 
       ws.send(JSON.stringify(frame));
 
