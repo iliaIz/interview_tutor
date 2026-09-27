@@ -127,6 +127,10 @@ export class JvmDaemonClient {
           ['-Xms32m', '-Xmx256m', '-XX:+UseSerialGC', '-cp', this.binPath, 'com.assessment.sandbox.ResidentSandboxDaemon', String(this.daemonPort)],
           { stdio: 'ignore', detached: true }
         );
+        child.on('error', (err) => {
+          console.warn('ResidentSandboxDaemon spawn error:', err.message);
+          this.isDaemonStarting = false;
+        });
         child.unref();
         setTimeout(() => {
           this.isDaemonStarting = false;
