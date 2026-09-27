@@ -100,17 +100,13 @@ export class LiveVoiceEngine {
 
   private async acquireWakeLock(): Promise<void> {
     if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
-      try {
-        this.wakeLock = await (navigator as any).wakeLock.request('screen');
-      } catch {}
+      try { this.wakeLock = await (navigator as any).wakeLock.request('screen'); } catch {}
     }
   }
 
   private releaseWakeLock(): void {
     if (this.wakeLock) {
-      try {
-        this.wakeLock.release();
-      } catch {}
+      try { this.wakeLock.release(); } catch {}
       this.wakeLock = null;
     }
   }
@@ -300,6 +296,7 @@ export class LiveVoiceEngine {
     // SOTA Late 2026: Acoustic Barge-In during AI speech
     if (this.state === 'AI_SPEAKING') {
       if (metrics?.speechDetected) {
+        this.callbacks.onDrainingStateChange?.(false);
         this.playoutManager.handleInterruption();
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({

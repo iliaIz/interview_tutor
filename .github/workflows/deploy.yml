@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/practice-senior-review-resilience
+      - feature/wave-12-platform-actualization
       - fix/auto-vad-live-v3-investigation
   workflow_dispatch:
 
@@ -104,6 +105,8 @@ jobs:
 
       - name: Verify Frontend Production Build
         working-directory: frontend
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: npm run build
 
   build-backend:
@@ -172,6 +175,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_GIT_COMMIT_SHA: ${{ github.sha }}
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           npm ci
           npm run build
