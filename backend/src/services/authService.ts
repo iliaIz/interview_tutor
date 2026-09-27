@@ -115,11 +115,11 @@ export class AuthService {
   }
 
   /**
-   * Generates a single-use 15-second ticket for WebSocket connection.
+   * Generates a single-use 60-second ticket for WebSocket connection.
    */
   public createWsTicket(userId: string): string {
     const ticketId = 'ws_' + crypto.randomBytes(24).toString('hex');
-    const expiresAt = new Date(Date.now() + 15 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
 
     db.prepare(`
       INSERT INTO ws_tickets (ticket_id, user_id, created_at, expires_at)

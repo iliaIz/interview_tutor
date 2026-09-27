@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
+import { MutantDiffInspector } from './MutantDiffInspector';
 
 interface MutationRadarWidgetProps {
   report: MutationExecutionResponse;
@@ -247,40 +248,12 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mt-3 pt-3 border-t border-slate-800/80 text-xs flex flex-col gap-1.5"
+                      className="mt-3 pt-2"
                     >
-                      <div className="text-slate-300">
-                        <span className="text-slate-400">Файл:</span>{' '}
-                        <span className="font-mono text-slate-200">{mutant.file || 'Service class'}</span>
-                      </div>
-                      {mutant.killedBy && (
-                        <div className="text-emerald-300">
-                          <span className="text-slate-400">Тест-ликвидатор:</span>{' '}
-                          <span className="font-mono font-semibold">{mutant.killedBy}</span>
-                        </div>
-                      )}
-                      {mutant.failureReason && (
-                        <div className="text-slate-300 bg-slate-900/80 p-2 rounded-lg font-mono text-[11px] border border-slate-800">
-                          <span className="text-slate-400">Ошибка: </span>{mutant.failureReason}
-                        </div>
-                      )}
-                      {!isKilled && (
-                        <div className="text-rose-300 bg-rose-950/40 p-2 rounded-lg text-[11px] border border-rose-900/40">
-                          💡 <strong>Подсказка:</strong> Мутант выжил, потому что ни один из ваших тестов не упал при инъекции дефекта. Напишите тест с граничным условием или проверкой исключения для этой строки!
-                        </div>
-                      )}
-                      {!isKilled && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAskTutorAboutMutant(mutant);
-                          }}
-                          className="mt-1 flex items-center gap-1.5 self-start px-3 py-1.5 rounded-xl bg-pastel-rose text-pastel-accentRoseText text-xs font-bold border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-xs"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Спросить AI-Напарника: Как уничтожить этого мутанта?</span>
-                        </button>
-                      )}
+                      <MutantDiffInspector
+                        mutant={mutant}
+                        onAskTutor={handleAskTutorAboutMutant}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>

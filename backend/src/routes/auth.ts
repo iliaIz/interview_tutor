@@ -85,7 +85,7 @@ authRouter.post('/ws-ticket', requireAuth, (req: AuthenticatedRequest, res: Resp
     const ticket = authService.createWsTicket(req.user!.id);
     res.json({
       ticket,
-      expiresInSeconds: 15
+      expiresInSeconds: 60
     });
   } catch (err: any) {
     console.error('WS ticket error:', err);

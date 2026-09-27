@@ -95,6 +95,8 @@ export interface CanvasNodeData {
   config: ArchitectureNodeConfig;
   metrics?: NodeLiveMetrics;
   isChaosTarget?: boolean;
+  isSpof?: boolean;
+  spofReason?: string;
 }
 
 export interface CanvasEdgeData {

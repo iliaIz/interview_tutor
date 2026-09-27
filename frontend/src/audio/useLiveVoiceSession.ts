@@ -20,6 +20,7 @@ export interface UseLiveVoiceSessionReturn {
   isAiSpeaking: boolean;
   isListening: boolean;
   isEvaluating: boolean;
+  isDraining: boolean;
   isMuted: boolean;
   rmsDb: number;
   statusMessage: string;
@@ -36,6 +37,7 @@ export interface UseLiveVoiceSessionReturn {
 
 export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
   const [state, setState] = useState<VoiceEngineState>('IDLE');
+  const [isDraining, setIsDraining] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [rmsDb, setRmsDb] = useState<number>(-100);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -50,6 +52,7 @@ export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
       onStateChange: (newState) => setState(newState),
       onAudioLevel: (db) => setRmsDb(db),
       onStatusMessage: (msg) => setStatusMessage(msg),
+      onDrainingStateChange: (draining) => setIsDraining(draining),
       onDialogueTurnsUpdate: (turns) => setDialogueTurns(turns),
       onEvaluationReceived: (res) => setEvaluation(res),
       onWhiteboardUpdate: (payload) => useAppStore.getState().setWhiteboardState(payload),
@@ -96,6 +99,7 @@ export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
     isAiSpeaking: state === 'AI_SPEAKING',
     isListening: state === 'LISTENING',
     isEvaluating: state === 'EVALUATING',
+    isDraining,
     isMuted,
     rmsDb,
     statusMessage,

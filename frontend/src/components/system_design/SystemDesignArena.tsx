@@ -1,44 +1,29 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { SystemDesignEvaluation } from '../../types/nextgen';
-import { 
-  ArrowLeft, BookOpen, Layers, MessageSquare, Send, Award,
-  Sparkles, ShieldAlert, Cpu, Database, CheckCircle2, RotateCcw, X, Loader2,
-  Eye, Edit3, Code2, Calculator, Compass, Radio
-} from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { MermaidPreview } from './MermaidPreview';
-import { MarkdownRenderer } from '../MarkdownRenderer';
-import { ArchitectureCanvas } from './canvas/ArchitectureCanvas';
 import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
 import { CapacityMathCoach } from './CapacityMathCoach';
 import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
-import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
-import { fastHashCode } from '../../services/DeicticGroundingManager';
 import { SystemDesignVoiceHUD } from './defense/SystemDesignVoiceHUD';
-import { HiringCommitteeVerdictModal, HiringCommitteePacket } from './defense/HiringCommitteeVerdictModal';
+import { HiringCommitteeVerdictModal } from './defense/HiringCommitteeVerdictModal';
 import { VoiceModal } from '../VoiceModal';
+import { SystemDesignTopBar } from './arena/SystemDesignTopBar';
+import { SystemDesignSpecTab } from './arena/SystemDesignSpecTab';
+import { SystemDesignArchitectureTab } from './arena/SystemDesignArchitectureTab';
+import { SystemDesignStaffChatTab, TutorMode } from './arena/SystemDesignStaffChatTab';
+import { SystemDesignEvaluationModal } from './arena/SystemDesignEvaluationModal';
+import { useSystemDesignVoiceDefense } from './arena/useSystemDesignVoiceDefense';
+import { useSystemDesignDraft } from './arena/useSystemDesignDraft';
+import { buildSystemDesignVoicePrompt } from './arena/systemDesignVoicePrompt';
 
-const cleanScenarioText = (text?: string): string => {
-  if (!text) return '';
-  return text
-    .replace(/\\?\[cite:\s*[^\]]+\]/g, '')
-    .replace(/\\cite:\s*\d+\\?/g, '')
-    .replace(/\\_/g, '_')
-    .replace(/merchant_id\d+/g, 'merchant_id')
-    .replace(/Circuit Breaker\d+/g, 'Circuit Breaker')
-    .trim();
-};
-
-const renderCalculationsBlock = (rawText?: string) => {
-  if (!rawText) return null;
-  const cleaned = cleanScenarioText(rawText);
-  return (
-    <div className="text-xs text-pastel-text leading-relaxed">
-      <MarkdownRenderer content={cleaned} />
-    </div>
-  );
-};
+const INITIAL_MERMAID = `graph TD
+  Client[🌐 Web / Mobile Client] -->|HTTPS / TLS| LB[⚖️ Load Balancer]
+  LB --> Gateway[🚪 API Gateway]
+  Gateway --> ServiceA[⚙️ Core Service]
+  ServiceA --> DB[(🗄️ Primary PostgreSQL)]
+  ServiceA --> Cache[(⚡ Redis Cache)]
+  ServiceA --> Kafka[/📨 Kafka Event Bus/]`;
 
 export const SystemDesignArena: React.FC = () => {
   const { 
@@ -49,13 +34,14 @@ export const SystemDesignArena: React.FC = () => {
     returnToAcademyStep,
     toggleAcademyStepProgress
   } = useAppStore();
+
   const [activeTab, setActiveTab] = useState<'spec' | 'architecture' | 'math_coach' | 'staff_ai'>('spec');
   const [architectureMode, setArchitectureMode] = useState<'canvas' | 'mermaid'>('canvas');
   const [canvasPayload, setCanvasPayload] = useState<ArchitectureGraphPayload | null>(null);
   const [isCompassOpen, setIsCompassOpen] = useState(false);
 
   // Global Hotkey for Compass (Ctrl + /)
-  React.useEffect(() => {
+  useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
@@ -66,30 +52,20 @@ export const SystemDesignArena: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
   
-  // Interactive Diagram & Candidate Solution State
   const [mermaidCode, setMermaidCode] = useState<string>(
-    activeSystemDesignScenario?.initialMermaid || 
-`graph TD
-  Client[🌐 Web / Mobile Client] -->|HTTPS / TLS| LB[⚖️ Load Balancer]
-  LB --> Gateway[🚪 API Gateway]
-  Gateway --> ServiceA[⚙️ Core Service]
-  ServiceA --> DB[(🗄️ Primary PostgreSQL)]
-  ServiceA --> Cache[(⚡ Redis Cache)]
-  ServiceA --> Kafka[/📨 Kafka Event Bus/]`
+    activeSystemDesignScenario?.initialMermaid || INITIAL_MERMAID
   );
   
   const [candidateNotes, setCandidateNotes] = useState<string>('');
-  const [notesViewMode, setNotesViewMode] = useState<'edit' | 'preview'>('edit');
 
-  // Interactive Staff AI Chat State & Multi-Mode Steering
-  const defaultMode = useMemo<'free_chat' | 'deep_dive' | 'eli5' | 'socratic'>(() => {
+  const defaultMode = useMemo<TutorMode>(() => {
     const lvl = activeSystemDesignScenario?.target_level;
     if (lvl === 'L3_JUNIOR') return 'eli5';
     if (lvl === 'L4_MIDDLE') return 'socratic';
     return 'deep_dive';
   }, [activeSystemDesignScenario?.target_level]);
 
-  const [tutorMode, setTutorMode] = useState<'free_chat' | 'deep_dive' | 'eli5' | 'socratic'>(defaultMode);
+  const [tutorMode, setTutorMode] = useState<TutorMode>(defaultMode);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
     {
       role: 'assistant',
@@ -99,223 +75,74 @@ export const SystemDesignArena: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Gemini Live Voice Tutor State (Teaching / Socratic dialogue, non-evaluative)
-  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
-  const [voiceTutorSessionId, setVoiceTutorSessionId] = useState<string | null>(null);
-
-  const handleStartVoiceTutor = () => {
-    if (!activeSystemDesignScenario) return;
-    if (isVoiceConnected) {
-      disconnectVoiceSession();
-    }
-    setVoiceTutorSessionId(`voice_sd_tutor_${activeSystemDesignScenario.id}_${Date.now()}`);
-    setIsVoiceTutorOpen(true);
-  };
-
-  const systemDesignVoicePrompt = useMemo(() => {
-    if (!activeSystemDesignScenario) return '';
-    const rps = activeSystemDesignScenario.studio_2_simulation?.traffic_profile?.lambda_mean_rps
-      ? `${activeSystemDesignScenario.studio_2_simulation.traffic_profile.lambda_mean_rps.toLocaleString()} RPS`
-      : (activeSystemDesignScenario.trafficProfile?.estimatedPeakRPS || 'Высокая нагрузка');
-    const p99 = activeSystemDesignScenario.studio_2_simulation?.slos?.p99_latency_max_ms
-      ? `${activeSystemDesignScenario.studio_2_simulation.slos.p99_latency_max_ms} мс`
-      : '50 мс';
-    const sla = activeSystemDesignScenario.studio_2_simulation?.slos?.availability_target_nines || 99.99;
-    const currentTopology = architectureMode === 'canvas'
-      ? (canvasPayload?.architectureMermaid || mermaidCode)
-      : mermaidCode;
-
-    return `=== КОНТЕКСТ СЕССИИ: ГОЛОСОВОЙ AI-ТЬЮТОР SYSTEM DESIGN (L3–L7) ===
-Ты — доброжелательный, опытный Staff/Principal инженер и наставник по системному проектированию распределенных систем.
-Кандидат проектирует систему в интерактивной арене.
-
-СЦЕНАРИЙ: «${activeSystemDesignScenario.title}»
-Категория: ${activeSystemDesignScenario.archetype || activeSystemDesignScenario.category || 'High-Load Systems'}
-Целевой грейд: ${activeSystemDesignScenario.target_level || activeSystemDesignScenario.level || 'L5_SENIOR'}
-
-АРХИТЕКТУРНЫЕ ТРЕБОВАНИЯ И SLO:
-- Пиковый RPS: ${rps}
-- SLA доступности: ${sla}%
-- Допустимая задержка p99: ≤ ${p99}
-- Описание задачи: ${cleanScenarioText(activeSystemDesignScenario.problem_statement || activeSystemDesignScenario.contextMarkdown || '')}
-${currentTopology ? `\n=== ТЕКУЩАЯ СХЕМА АРХИТЕКТУРЫ (MERMAID) ===\n\`\`\`mermaid\n${currentTopology}\n\`\`\`\n` : ''}
-${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА ===\n${candidateNotes.trim()}\n` : ''}
-ТЕКУЩИЙ РЕЖИМ МЕНТОРСТВА: ${
-  tutorMode === 'eli5' ? '«👶 На пальцах» (простые бытовые аналогии, минимум академизма)' :
-  tutorMode === 'deep_dive' ? '«🔬 Под капотом» (LSM/B-Tree, epoll, репликация, консенсус Raft, сетевые сбои)' :
-  tutorMode === 'socratic' ? '«💡 Сократ» (точечные наводящие вопросы без готовых решений)' :
-  '«💬 Просто тьютор» (поддерживающий профессиональный диалог)'
-}
-
-ДИРЕКТИВЫ:
-1. Поздоровайся голосом, назови сценарий «${activeSystemDesignScenario.title}».
-2. Спроси, какую часть системы кандидат хочет обсудить прямо сейчас: выбор БД (SQL vs NoSQL), стратегию кэширования, шардирование или устойчивость к сетевым сбоям (Partition Tolerance).
-3. ИНВАРИАНТ: Ты НЕ оцениваешь кандидата и НЕ ставишь баллов! Ты — напарник-архитектор.`;
-  }, [activeSystemDesignScenario, tutorMode, architectureMode, canvasPayload, mermaidCode, candidateNotes]);
-
-  // Evaluation State
+  // Evaluation & Draft State
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<SystemDesignEvaluation | null>(null);
-  const [isDraftRestored, setIsDraftRestored] = useState(false);
 
-  // Live Bar-Raiser Defense State
-  const [chaosAlert, setChaosAlert] = useState<{ failureType: string; targetId: string; context: string } | null>(null);
-  const [observations, setObservations] = useState<Array<{ dimension?: string; signal?: string; demonstrated_level?: string; evidence_transcript?: string }>>([]);
-  const [hiringCommitteePacket, setHiringCommitteePacket] = useState<HiringCommitteePacket | null>(null);
+  const { isDraftRestored } = useSystemDesignDraft({
+    scenarioId: activeSystemDesignScenario?.id,
+    onRestore: (sub) => {
+      if (sub.canvasTopology) {
+        setCanvasPayload(sub.canvasTopology);
+        setArchitectureMode('canvas');
+      } else if (sub.architectureMermaid) {
+        setMermaidCode(sub.architectureMermaid);
+        setArchitectureMode('mermaid');
+      }
+      if (sub.candidateNotes) setCandidateNotes(sub.candidateNotes);
+      if (sub.evaluation) setEvaluationResult(sub.evaluation);
+    }
+  });
 
+  // Voice Defense Hook
   const {
-    isConnected: isVoiceConnected,
+    isVoiceConnected,
     isAiSpeaking,
     isRecording,
     isMuted,
     isUserSpeaking,
     isPauseHolding,
     rmsDb,
-    statusMessage: voiceStatus,
-    startSession: startVoiceSession,
-    disconnectSession: disconnectVoiceSession,
+    voiceStatus,
+    chaosAlert,
+    setChaosAlert,
+    observations,
+    setObservations,
+    hiringCommitteePacket,
+    setHiringCommitteePacket,
     toggleMic,
     finishManualTurn,
+    disconnectVoiceSession,
+    handleStartVoiceDefense,
     sendCanvasDelta,
     playoutManagerRef
-  } = useLiveAudioSession({
-    getActiveCode: () => {
-      return architectureMode === 'canvas'
-        ? (canvasPayload?.architectureMermaid || mermaidCode)
-        : mermaidCode;
-    },
-    getActiveFileName: () => 'architecture.mmd',
-    enableGlobalSelection: true,
-    onChaosInjected: (payload) => {
-      setChaosAlert({
-        failureType: payload.failureType,
-        targetId: payload.targetComponentId,
-        context: payload.technicalContext
-      });
-      showToast({
-        type: 'error',
-        title: `🔥 Chaos Injected: ${payload.failureType}`,
-        message: `Узел: ${payload.targetComponentId}. ${payload.technicalContext}`
-      });
-    },
-    onCandidateObservationRecorded: (obs) => {
-      setObservations(prev => [obs, ...prev]);
-    },
-    onHiringCommitteeVerdict: (data) => {
-      if (data.packet) {
-        setHiringCommitteePacket(data.packet);
-      }
-    },
-    onError: (err) => showToast({ type: 'error', title: 'Ошибка голосовой сессии', message: err })
+  } = useSystemDesignVoiceDefense({
+    activeScenario: activeSystemDesignScenario,
+    architectureMode,
+    canvasPayload,
+    mermaidCode,
+    candidateNotes,
+    showToast
   });
 
-  const handleStartVoiceDefense = async () => {
-    if (!activeSystemDesignScenario) return;
-    try {
-      const currentTopology = architectureMode === 'canvas'
-        ? (canvasPayload?.architectureMermaid || mermaidCode)
-        : mermaidCode;
+  // Gemini Live Voice Tutor State
+  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
+  const [voiceTutorSessionId, setVoiceTutorSessionId] = useState<string | null>(null);
 
-      await startVoiceSession({
-        sessionType: 'system_design',
-        topic: activeSystemDesignScenario.title,
-        questionText: activeSystemDesignScenario.title,
-        referenceAnswer: activeSystemDesignScenario.contextMarkdown,
-        scenarioId: activeSystemDesignScenario.id,
-        codeSnippet: currentTopology,
-        customPrompt: candidateNotes.trim()
-          ? `=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА ПО АРХИТЕКТУРЕ ===\n${candidateNotes.trim()}\n`
-          : undefined
-      });
-      showToast({
-        type: 'success',
-        title: 'Защита начата',
-        message: 'Соединение с Principal Bar-Raiser установлено'
-      });
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Ошибка соединения',
-        message: err?.message || 'Не удалось запустить Live сессию'
-      });
-    }
+  const handleStartVoiceTutor = () => {
+    if (!activeSystemDesignScenario) return;
+    if (isVoiceConnected) disconnectVoiceSession();
+    setVoiceTutorSessionId(`voice_sd_tutor_${activeSystemDesignScenario.id}_${Date.now()}`);
+    setIsVoiceTutorOpen(true);
   };
 
-  // SOTA 2026 Invariant: In-Flight Grounding of Mermaid Code & Candidate Design Notes
-  const lastSyncedMermaidHashRef = React.useRef<string>('');
-  const lastSyncedNotesHashRef = React.useRef<string>('');
-  const arenaSyncTimerRef = React.useRef<any>(null);
+  const currentTopology = architectureMode === 'canvas'
+    ? (canvasPayload?.architectureMermaid || mermaidCode)
+    : mermaidCode;
 
-  React.useEffect(() => {
-    if (!isVoiceConnected) return;
-
-    if (arenaSyncTimerRef.current) {
-      clearTimeout(arenaSyncTimerRef.current);
-    }
-
-    arenaSyncTimerRef.current = setTimeout(() => {
-      if (architectureMode === 'mermaid' && mermaidCode) {
-        const mHash = fastHashCode(mermaidCode);
-        if (mHash !== lastSyncedMermaidHashRef.current) {
-          lastSyncedMermaidHashRef.current = mHash;
-          sendCanvasDelta({
-            mutationSummary: `[АКТУАЛЬНЫЙ MERMAID КОД ТОПОЛОГИИ]:\n\`\`\`mermaid\n${mermaidCode}\n\`\`\``,
-            architectureMermaid: mermaidCode
-          });
-        }
-      }
-
-      if (candidateNotes) {
-        const nHash = fastHashCode(candidateNotes);
-        if (nHash !== lastSyncedNotesHashRef.current) {
-          lastSyncedNotesHashRef.current = nHash;
-          sendCanvasDelta({
-            mutationSummary: `📝 [ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА]:\n${candidateNotes}`
-          });
-        }
-      }
-    }, 1200);
-
-    return () => {
-      if (arenaSyncTimerRef.current) clearTimeout(arenaSyncTimerRef.current);
-    };
-  }, [isVoiceConnected, architectureMode, mermaidCode, candidateNotes, sendCanvasDelta]);
-
-  // Auto-restore saved draft and architecture from database
-  React.useEffect(() => {
-    if (!activeSystemDesignScenario?.id) return;
-    let isCancelled = false;
-
-    fetch(`/api/system-design/submissions/${activeSystemDesignScenario.id}`, { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (isCancelled || !data?.submission) return;
-        const sub = data.submission;
-        if (sub.canvasTopology) {
-          setCanvasPayload(sub.canvasTopology);
-          setArchitectureMode('canvas');
-        } else if (sub.architectureMermaid || sub.mermaid_diagram) {
-          setMermaidCode(sub.architectureMermaid || sub.mermaid_diagram);
-          setArchitectureMode('mermaid');
-        }
-        if (sub.candidateNotes || sub.candidate_notes || sub.architectureNotes) {
-          setCandidateNotes(sub.candidateNotes || sub.candidate_notes || sub.architectureNotes);
-        }
-        if (sub.evaluation) {
-          setEvaluationResult(sub.evaluation);
-        } else if (sub.evaluation_json) {
-          try {
-            setEvaluationResult(JSON.parse(sub.evaluation_json));
-          } catch {}
-        }
-        setIsDraftRestored(true);
-      })
-      .catch(() => {});
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [activeSystemDesignScenario?.id]);
+  const systemDesignVoicePrompt = useMemo(() => {
+    return buildSystemDesignVoicePrompt(activeSystemDesignScenario, currentTopology, candidateNotes);
+  }, [activeSystemDesignScenario, currentTopology, candidateNotes]);
 
   useBodyScrollLock(Boolean(evaluationResult));
 
@@ -361,10 +188,6 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
     setIsEvaluating(true);
 
     try {
-      const effectiveMermaid = architectureMode === 'canvas'
-        ? (canvasPayload?.architectureMermaid || mermaidCode)
-        : mermaidCode;
-
       const res = await fetch('/api/system-design/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -372,7 +195,7 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
         body: JSON.stringify({
           scenarioId: activeSystemDesignScenario.id,
           conversationHistory: chatMessages,
-          architectureMermaid: effectiveMermaid,
+          architectureMermaid: currentTopology,
           notesMarkdown: candidateNotes,
           canvasTopology: canvasPayload
         })
@@ -398,139 +221,26 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      void handleEvaluate();
-    }
-  };
-
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg text-pastel-text relative font-sans">
-      {/* Top Bar */}
-      <div className="h-14 border-b border-pastel-border/80 bg-white/95 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-10 shadow-2xs gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {academyBreadcrumbContext ? (
-            <button
-              onClick={returnToAcademyStep}
-              className="flex items-center gap-1 text-xs font-bold text-pastel-accentRose bg-pastel-rose hover:bg-pastel-accentRose hover:text-white px-2.5 py-1.5 rounded-xl border border-pastel-accentRose/30 transition cursor-pointer shrink-0"
-              title="Вернуться к шагу курса в Академии"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">← Назад в Академию: Шаг #{academyBreadcrumbContext.stepNumber}</span>
-              <span className="sm:hidden">← Шаг #{academyBreadcrumbContext.stepNumber}</span>
-            </button>
-          ) : (
-            <button
-              onClick={closeSystemDesignScenario}
-              className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2.5 py-1.5 rounded-xl hover:bg-pastel-rose/40 transition cursor-pointer shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Каталог HLD</span>
-            </button>
-          )}
+      <SystemDesignTopBar
+        title={activeSystemDesignScenario.title}
+        academyBreadcrumbContext={academyBreadcrumbContext}
+        returnToAcademyStep={returnToAcademyStep}
+        closeSystemDesignScenario={closeSystemDesignScenario}
+        isDraftRestored={isDraftRestored}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenCompass={() => setIsCompassOpen(true)}
+        isVoiceConnected={isVoiceConnected}
+        onToggleVoiceDefense={() => {
+          if (isVoiceConnected) disconnectVoiceSession();
+          else void handleStartVoiceDefense();
+        }}
+        onEvaluate={handleEvaluate}
+        isEvaluating={isEvaluating}
+      />
 
-          <div className="h-4 w-px bg-pastel-border shrink-0" />
-
-          <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-md">
-            {activeSystemDesignScenario.title}
-          </span>
-
-          {isDraftRestored && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-              💾 Черновик восстановлен
-            </span>
-          )}
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex items-center bg-pastel-bg p-0.5 rounded-xl border border-pastel-border shrink-0">
-          <button
-            onClick={() => setActiveTab('spec')}
-            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'spec' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>ТЗ & Расчеты</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('math_coach')}
-            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'math_coach' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-            }`}
-          >
-            <Calculator className="w-3.5 h-3.5" />
-            <span>Math Coach</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('architecture')}
-            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'architecture' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Архитектура & Схема</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('staff_ai')}
-            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'staff_ai' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Staff AI</span>
-          </button>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsCompassOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition cursor-pointer shadow-2xs"
-            title="Шпаргалка System Design Compass (Ctrl + /)"
-          >
-            <Compass className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden sm:inline">Компас (Ctrl+/)</span>
-          </button>
-
-          {/* Live Bar-Raiser Defense Trigger */}
-          <button
-            onClick={() => {
-              if (isVoiceConnected) {
-                disconnectVoiceSession();
-              } else {
-                void handleStartVoiceDefense();
-              }
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs ${
-              isVoiceConnected 
-                ? 'bg-purple-100 text-purple-900 border border-purple-300' 
-                : 'bg-gradient-to-r from-purple-600 to-pastel-accentViolet text-white hover:opacity-95'
-            }`}
-            title="Запустить голосовую защиту с Bar-Raiser (Live Audio)"
-          >
-            <Radio className={`w-3.5 h-3.5 ${isVoiceConnected ? 'text-purple-600 animate-pulse' : 'text-white'}`} />
-            <span className="hidden sm:inline">{isVoiceConnected ? 'Защита активна' : '🎙️ Защита Bar-Raiser'}</span>
-            <span className="sm:hidden">{isVoiceConnected ? 'Активна' : '🎙️ Голос'}</span>
-          </button>
-
-          <button
-            onClick={handleEvaluate}
-            disabled={isEvaluating}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white transition shadow-sm shadow-pastel-accentRose/20 cursor-pointer disabled:opacity-50 shrink-0 touch-manipulation active:scale-95"
-          >
-            {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isEvaluating ? 'Оценка...' : 'Сдать проект (Ctrl+↵)'}</span>
-            <span className="sm:hidden">{isEvaluating ? '...' : 'Сдать'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Live Bar-Raiser Defense HUD */}
       {isVoiceConnected && (
         <div className="px-4 pt-3 shrink-0 z-20">
           <SystemDesignVoiceHUD
@@ -558,72 +268,8 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
       )}
 
       {/* Main Content Body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" onKeyDown={handleKeyDown}>
-        {activeTab === 'spec' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Traffic Profile */}
-            {activeSystemDesignScenario.trafficProfile && (
-              <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 sm:p-5 shadow-2xs">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-purple-700 mb-3 flex items-center gap-2">
-                  <Cpu className="w-4 h-4 text-pastel-accentViolet" />
-                  <span>Профиль Нагрузки & SLA</span>
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                  <div className="bg-pastel-bg p-2.5 rounded-xl border border-pastel-border">
-                    <span className="text-pastel-muted block text-[10px]">Аудитория DAU</span>
-                    <span className="font-bold text-pastel-text">{activeSystemDesignScenario.trafficProfile.targetDAU}</span>
-                  </div>
-                  <div className="bg-pastel-bg p-2.5 rounded-xl border border-pastel-border">
-                    <span className="text-pastel-muted block text-[10px]">Пиковый RPS</span>
-                    <span className="font-bold text-blue-600">{activeSystemDesignScenario.trafficProfile.estimatedPeakRPS}</span>
-                  </div>
-                  <div className="bg-pastel-bg p-2.5 rounded-xl border border-pastel-border">
-                    <span className="text-pastel-muted block text-[10px]">Хранение</span>
-                    <span className="font-bold text-pastel-text">{activeSystemDesignScenario.trafficProfile.dailyStorageGrowth}</span>
-                  </div>
-                  <div className="bg-pastel-bg p-2.5 rounded-xl border border-pastel-border">
-                    <span className="text-pastel-muted block text-[10px]">Целевой SLA</span>
-                    <span className="font-bold text-emerald-600">{activeSystemDesignScenario.trafficProfile.slaAvailability}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Context & Data Flow */}
-            <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
-              <h3 className="text-sm font-bold text-pastel-text">Контекст и Архитектурный поток данных</h3>
-              <p className="text-xs text-pastel-muted leading-relaxed whitespace-pre-line">
-                {cleanScenarioText(activeSystemDesignScenario.contextMarkdown)}
-              </p>
-            </div>
-
-            {/* Calculations & Topo with Structured Table Renderer */}
-            {activeSystemDesignScenario.calculationsMarkdown && (
-              <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-5 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-pastel-text">Нагрузочные расчеты (Back-of-the-Envelope)</h3>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    SLA & Throughput
-                  </span>
-                </div>
-                {renderCalculationsBlock(activeSystemDesignScenario.calculationsMarkdown)}
-              </div>
-            )}
-
-            {/* Bottlenecks */}
-            {activeSystemDesignScenario.bottlenecksMarkdown && (
-              <div className="bg-white/95 border border-amber-200 rounded-2xl p-5 space-y-3 shadow-2xs">
-                <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-600" />
-                  <span>Анализ узких мест и системных сбоев (SPOF, Dual-Write, Split-Brain)</span>
-                </h3>
-                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                  {cleanScenarioText(activeSystemDesignScenario.bottlenecksMarkdown)}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        {activeTab === 'spec' && <SystemDesignSpecTab scenario={activeSystemDesignScenario} />}
 
         {activeTab === 'math_coach' && (
           <div className="max-w-5xl mx-auto space-y-4">
@@ -637,355 +283,48 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
                 setActiveTab('architecture');
               }}
               onCalculationChange={(calcText) => {
-                if (isVoiceConnected) {
-                  sendCanvasDelta({
-                    mutationSummary: calcText
-                  });
-                }
+                if (isVoiceConnected) sendCanvasDelta({ mutationSummary: calcText });
               }}
             />
           </div>
         )}
 
         {activeTab === 'architecture' && (
-          <div className="max-w-7xl 2xl:max-w-[2200px] mx-auto space-y-4">
-            {/* Mode Switcher Header */}
-            <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/95 border border-pastel-border/80 rounded-2xl p-2.5 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-pastel-text">Режим архитектора:</span>
-                <div className="flex items-center bg-pastel-bg p-0.5 rounded-xl border border-pastel-border">
-                  <button
-                    type="button"
-                    onClick={() => setArchitectureMode('canvas')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      architectureMode === 'canvas' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Интерактивный холст (SOTA 2026)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setArchitectureMode('mermaid')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      architectureMode === 'mermaid' ? 'bg-white text-pastel-accentRose shadow-2xs border border-pastel-border' : 'text-pastel-muted hover:text-pastel-text'
-                    }`}
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Mermaid редактор</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-pastel-muted font-mono hidden sm:block">
-                {architectureMode === 'canvas'
-                  ? '⚡ 60 FPS Web Worker DES Engine • Drag & Drop • Chaos Monkey'
-                  : '📜 Ручной ввод кода Mermaid'}
-              </div>
-            </div>
-
-            {architectureMode === 'canvas' ? (
-              <div className="h-[calc(100vh-14rem)] min-h-[640px] w-full rounded-2xl overflow-hidden border border-pastel-border/80 shadow-2xs relative">
-                <ArchitectureCanvas 
-                  scenarioTitle={activeSystemDesignScenario.title}
-                  onExportPayload={setCanvasPayload}
-                  onDeicticContextChange={sendCanvasDelta}
-                />
-              </div>
-            ) : (
-              /* Split Arena: Left Code & Notes Editor, Right Live Mermaid Canvas */
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
-              
-              {/* Left Column (5 cols): Mermaid Code & Candidate Notes */}
-              <div className="lg:col-span-6 flex flex-col gap-4">
-                
-                {/* 1. Mermaid Code Editor */}
-                <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2">
-                    <span className="text-xs font-bold text-pastel-text font-mono flex items-center gap-1.5">
-                      <Code2 className="w-4 h-4 text-pastel-accentRose" />
-                      <span>Mermaid Код Топологии:</span>
-                    </span>
-                    <span className="text-[10px] text-pastel-muted font-mono">graph TD / C4 / Sequence</span>
-                  </div>
-
-                  <textarea
-                    value={mermaidCode}
-                    onChange={(e) => setMermaidCode(e.target.value)}
-                    className="w-full h-56 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-blue-300 focus:outline-hidden focus:border-pastel-accentRose resize-none leading-relaxed selection:bg-[#3D3558]"
-                    placeholder="graph TD..."
-                    spellCheck={false}
-                  />
-                </div>
-
-                {/* 2. Candidate Design Notes with Notion-Style Preview */}
-                <div className="bg-white/95 border border-pastel-border/80 rounded-2xl p-4 flex flex-col shadow-2xs space-y-2 flex-1">
-                  <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2">
-                    <span className="text-xs font-bold text-pastel-text font-mono">
-                      Пояснительная записка (CAP, Шардирование, Кэш):
-                    </span>
-
-                    <div className="flex items-center bg-pastel-bg p-0.5 rounded-lg border border-pastel-border">
-                      <button
-                        onClick={() => setNotesViewMode('edit')}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
-                          notesViewMode === 'edit' ? 'bg-white text-pastel-text shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
-                        }`}
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>Редактор</span>
-                      </button>
-                      <button
-                        onClick={() => setNotesViewMode('preview')}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
-                          notesViewMode === 'preview' ? 'bg-white text-pastel-accentRose shadow-2xs' : 'text-pastel-muted hover:text-pastel-text'
-                        }`}
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>Предпросмотр</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {notesViewMode === 'edit' ? (
-                    <textarea
-                      value={candidateNotes}
-                      onChange={(e) => setCandidateNotes(e.target.value)}
-                      className="flex-1 min-h-[160px] w-full bg-pastel-bg border border-pastel-border rounded-xl p-3 text-xs font-mono text-pastel-text focus:outline-hidden focus:border-pastel-accentRose resize-none"
-                      placeholder="Опишите стратегию партиционирования, выбор СУБД, схему репликации и защиту от сбоев (поддерживается Markdown)..."
-                    />
-                  ) : (
-                    <div className="flex-1 min-h-[160px] p-3 rounded-xl bg-pastel-bg/60 border border-pastel-border overflow-y-auto">
-                      {candidateNotes.trim() ? (
-                        <MarkdownRenderer content={candidateNotes} />
-                      ) : (
-                        <span className="text-xs text-pastel-muted italic">Пояснительная записка пока пуста.</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Column (6 cols): Live Interactive Mermaid SVG Canvas */}
-              <div className="lg:col-span-6 flex flex-col min-h-[500px]">
-                <MermaidPreview code={mermaidCode} className="flex-1" />
-              </div>
-
-            </div>
-            )}
-          </div>
+          <SystemDesignArchitectureTab
+            scenarioTitle={activeSystemDesignScenario.title}
+            architectureMode={architectureMode}
+            setArchitectureMode={setArchitectureMode}
+            mermaidCode={mermaidCode}
+            setMermaidCode={setMermaidCode}
+            candidateNotes={candidateNotes}
+            setCandidateNotes={setCandidateNotes}
+            onExportPayload={setCanvasPayload}
+            onDeicticContextChange={sendCanvasDelta}
+          />
         )}
 
         {activeTab === 'staff_ai' && (
-          <div className="max-w-4xl mx-auto flex flex-col h-[580px] bg-white/95 border border-pastel-border/80 rounded-3xl overflow-hidden shadow-sm font-sans">
-            {/* Multi-Mode Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:p-4 border-b border-pastel-border/80 bg-pastel-bg/50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pastel-accentRose to-pastel-accentViolet text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs text-pastel-text flex items-center gap-1.5">
-                    <span>AI-Тьютор по System Design</span>
-                    <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white border border-pastel-border font-bold text-pastel-accentRose">
-                      {activeSystemDesignScenario.target_level || 'L4'}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-pastel-muted mt-0.5">
-                    {tutorMode === 'eli5' && '👶 На пальцах: простые жизненные аналогии без сложного академического жаргона'}
-                    {tutorMode === 'deep_dive' && '🔬 Под капотом: устройство СУБД, LSM/B-Tree, сетевой стек, распределенный консенсус'}
-                    {tutorMode === 'socratic' && '💡 Сократ: наводящие вопросы для самостоятельного поиска узких мест и SPOF'}
-                    {tutorMode === 'free_chat' && '💬 Просто тьютор: доброжелательный диалог, разбор ТЗ и ответы на любые вопросы'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* 4 Mode Switcher Pills */}
-                <div className="flex items-center bg-white p-0.5 rounded-xl border border-pastel-border shadow-2xs gap-0.5 overflow-x-auto no-scrollbar">
-                  {[
-                    { id: 'free_chat' as const, label: '💬 Просто тьютор' },
-                    { id: 'deep_dive' as const, label: '🔬 Под капотом' },
-                    { id: 'eli5' as const, label: '👶 На пальцах' },
-                    { id: 'socratic' as const, label: '💡 Сократ' }
-                  ].map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => setTutorMode(m.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                        tutorMode === m.id
-                          ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white shadow-xs'
-                          : 'text-pastel-muted hover:text-pastel-text hover:bg-pastel-bg'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleStartVoiceTutor}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white text-xs font-bold transition shadow-xs hover:opacity-95 active:scale-95 cursor-pointer shrink-0"
-                  title="Запустить двусторонний голосовой диалог с Gemini Live Тьютором"
-                >
-                  <Radio className="w-3.5 h-3.5 animate-pulse text-white" />
-                  <span className="hidden sm:inline">Live Голос</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 font-sans text-xs">
-              {chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl p-3.5 leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-tr-none shadow-2xs font-medium'
-                        : 'bg-pastel-bg text-pastel-text border border-pastel-border rounded-tl-none whitespace-pre-line'
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {isSendingMessage && (
-                <div className="flex items-center gap-2 text-pastel-muted text-xs font-mono pl-1">
-                  <div className="w-4 h-4 border-2 border-pastel-accentRose border-t-transparent rounded-full animate-spin" />
-                  <span>AI-тьютор формулирует ответ в режиме «{
-                    tutorMode === 'eli5' ? '👶 На пальцах' :
-                    tutorMode === 'deep_dive' ? '🔬 Под капотом' :
-                    tutorMode === 'socratic' ? '💡 Сократ' : '💬 Просто тьютор'
-                  }»...</span>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Prompt Chips */}
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-pastel-bg/60 border-t border-pastel-border/60 overflow-x-auto no-scrollbar text-[11px]">
-              <span className="text-[10px] font-bold text-pastel-muted shrink-0 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-pastel-accentRose" />
-                Быстрый вопрос:
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleSendMessage('Объясни архитектурные требования и ключевую сложность этой системы простыми словами «на пальцах».')}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-pastel-rose text-pastel-text border border-pastel-border text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs"
-              >
-                👶 Объясни на пальцах ТЗ
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSendMessage('Что происходит под капотом при сетевом разделении (Network Partition) между узлами этой системы?')}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-pastel-rose text-pastel-text border border-pastel-border text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs"
-              >
-                🔬 Что под капотом при сетевом сбое?
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSendMessage('Задай мне один точечный наводящий вопрос, чтобы проверить, нет ли в моей архитектуре скрытого SPOF или узкого места.')}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-pastel-rose text-pastel-text border border-pastel-border text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs"
-              >
-                💡 Задай вопрос на поиск SPOF
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSendMessage('Оцени компромисс между задержкой (Latency) и строгой согласованностью (Strong Consistency) для данного кейса.')}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-pastel-rose text-pastel-text border border-pastel-border text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs"
-              >
-                💬 Оцени компромисс Latency vs Consistency
-              </button>
-            </div>
-
-            {/* Input Bar */}
-            <div className="p-3 border-t border-pastel-border bg-white flex gap-2">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && void handleSendMessage()}
-                placeholder="Ответьте тьютору или задайте вопрос по архитектуре..."
-                className="flex-1 bg-pastel-bg border border-pastel-border rounded-xl px-3.5 py-2 text-xs text-pastel-text placeholder-pastel-muted/50 focus:outline-hidden focus:border-pastel-accentRose font-sans"
-              />
-              <button
-                onClick={() => void handleSendMessage()}
-                disabled={!inputMessage.trim() || isSendingMessage}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white transition disabled:opacity-40 cursor-pointer shadow-2xs active:scale-95 font-bold text-xs flex items-center gap-1.5"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Отправить</span>
-              </button>
-            </div>
-          </div>
+          <SystemDesignStaffChatTab
+            targetLevel={activeSystemDesignScenario.target_level}
+            tutorMode={tutorMode}
+            setTutorMode={setTutorMode}
+            chatMessages={chatMessages}
+            isSendingMessage={isSendingMessage}
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            onSendMessage={handleSendMessage}
+            onStartVoiceTutor={handleStartVoiceTutor}
+          />
         )}
       </div>
 
-      {/* Evaluation Modal in Soft Luxury Pastel */}
       {evaluationResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white/95 border border-pastel-rose/80 rounded-3xl p-6 max-w-2xl w-full max-h-[90dvh] overflow-y-auto space-y-5 shadow-2xl relative overflow-hidden font-sans my-auto">
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 to-pastel-accentViolet text-white flex items-center justify-center shadow-sm">
-                  <Award className="w-5 h-5" />
-                </div>
-                <h2 className="text-base font-bold text-pastel-text">Вердикт Комитета по System Design</h2>
-              </div>
-              <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-purple-50 text-pastel-accentViolet border border-purple-200">
-                {evaluationResult.verdict} ({evaluationResult.totalScore}/100)
-              </span>
-            </div>
-
-            {/* Radar Metrics */}
-            {evaluationResult.radarMetrics && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs font-mono">
-                {Object.entries(evaluationResult.radarMetrics).map(([key, val]) => (
-                  <div key={key} className="bg-pastel-bg p-2.5 rounded-xl border border-pastel-border">
-                    <span className="text-pastel-muted block text-[10px] uppercase">{key}</span>
-                    <span className="font-bold text-pastel-text">{val}%</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Strengths & Vulnerabilities */}
-            <div className="space-y-3 text-xs">
-              <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200">
-                <span className="font-bold text-emerald-800 block mb-1.5">Сильные стороны решения:</span>
-                <ul className="list-disc pl-4 space-y-1 text-slate-700">
-                  {evaluationResult.strengths?.map((s, idx) => <li key={idx}>{s}</li>)}
-                </ul>
-              </div>
-
-              <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200">
-                <span className="font-bold text-amber-800 block mb-1.5">Узкие места и риски:</span>
-                <ul className="list-disc pl-4 space-y-1 text-slate-700">
-                  {evaluationResult.vulnerabilities?.map((v, idx) => <li key={idx}>{v}</li>)}
-                </ul>
-              </div>
-
-              <div className="bg-pastel-bg p-3.5 rounded-xl border border-pastel-border">
-                <span className="font-bold text-pastel-text block mb-1">Финальный фидбек Bar-Raiser:</span>
-                <p className="text-pastel-muted leading-relaxed">{evaluationResult.barRaiserFeedback}</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setEvaluationResult(null)}
-              className="w-full py-2.5 rounded-xl bg-pastel-card hover:bg-pastel-rose/40 text-pastel-text border border-pastel-border text-xs font-bold transition cursor-pointer"
-            >
-              Закрыть отчёт
-            </button>
-          </div>
-        </div>
+        <SystemDesignEvaluationModal
+          evaluationResult={evaluationResult}
+          onClose={() => setEvaluationResult(null)}
+        />
       )}
 
-      {/* Hiring Committee SOTA Scorecard Modal */}
       {hiringCommitteePacket && (
         <HiringCommitteeVerdictModal
           packet={hiringCommitteePacket}
@@ -1001,7 +340,6 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
         />
       )}
 
-      {/* System Design Compass Modal Sheet (5 Golden Rules) */}
       <SystemDesignCompassSheet
         isOpen={isCompassOpen}
         onClose={() => setIsCompassOpen(false)}
@@ -1012,7 +350,6 @@ ${candidateNotes.trim() ? `\n=== ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КА�
         }}
       />
 
-      {/* Live Voice Tutor Modal */}
       {isVoiceTutorOpen && voiceTutorSessionId && activeSystemDesignScenario && (
         <VoiceModal
           key={voiceTutorSessionId}

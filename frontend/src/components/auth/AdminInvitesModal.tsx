@@ -17,8 +17,11 @@ export interface InviteItem {
   userLastLoginAt?: string;
 }
 
+import { useAuthStore } from '../../store/useAuthStore';
+
 export const AdminInvitesModal: React.FC = () => {
-  const { isAdminInvitesModalOpen, closeAdminInvitesModal, currentUser, showToast } = useAppStore();
+  const { showToast } = useAppStore();
+  const { isAdminInvitesModalOpen, closeAdminInvitesModal, currentUser } = useAuthStore();
   useBodyScrollLock(isAdminInvitesModalOpen);
 
   const [invites, setInvites] = useState<InviteItem[]>([]);

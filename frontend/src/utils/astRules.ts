@@ -94,7 +94,7 @@ function sanitizeCodeForAst(raw: string): string {
 /**
  * Deterministically evaluates code against unified AST rules.
  */
-export function evaluateAstRules(code: string): { text: string; isViolation: boolean; id: string }[] {
+export function evaluateAstRules(code: string, activeRuleIds?: string[]): { text: string; isViolation: boolean; id: string }[] {
   if (!code || code.trim().length === 0) {
     return [{ text: 'Архитектурный шаблон проверен: чистая реализация', isViolation: false, id: 'clean' }];
   }
@@ -102,7 +102,11 @@ export function evaluateAstRules(code: string): { text: string; isViolation: boo
   const sanitized = sanitizeCodeForAst(code);
   const results: { text: string; isViolation: boolean; id: string }[] = [];
 
-  for (const rule of AST_RULES_DEFINITIONS) {
+  const targetRules = activeRuleIds && activeRuleIds.length > 0
+    ? AST_RULES_DEFINITIONS.filter((r) => activeRuleIds.includes(r.id))
+    : AST_RULES_DEFINITIONS;
+
+  for (const rule of targetRules) {
     if (rule.regex.test(sanitized)) {
       // Special check for ThreadLocal: if .remove() is present in the code, it's not an unbounded leak
       if (rule.id === 'unbounded-threadlocal-leak' && code.includes('.remove()')) {

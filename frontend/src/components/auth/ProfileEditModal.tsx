@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { User, X, Check, Edit3, Shield, Loader2, KeyRound, Sparkles, GitCommit, ExternalLink } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const ProfileEditModal: React.FC = () => {
-  const { isProfileModalOpen, closeProfileModal, currentUser, updateUserName, openAdminInvitesModal, systemHealth } = useAppStore();
+  const { systemHealth } = useAppStore();
+  const { isProfileModalOpen, closeProfileModal, currentUser, updateUserName, openAdminInvitesModal } = useAuthStore();
   useBodyScrollLock(isProfileModalOpen);
 
   const [name, setName] = useState(currentUser?.name || '');

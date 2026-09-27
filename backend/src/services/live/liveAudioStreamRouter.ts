@@ -1,10 +1,8 @@
 import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
-import { liveSessionRegistry, getOrCreateSessionMemory } from './liveSessionRegistry';
-import { handleLiveToolCall } from './liveToolDispatcher';
-import { getChallengeDomain } from '../../utils/challengeDomain';
-import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
-import { TurnTelemetryEvent } from '@interview-prep/shared';
+import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
+import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
+import { LiveToolCallExecutor } from './LiveToolCallExecutor';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -32,6 +30,11 @@ export interface StreamRouterOptions {
   challengeTrack?: string;
 }
 
+/**
+ * Headless Live Audio Stream Router (SOTA Late 2026).
+ * Decomposed into LiveGreetingReplay, LiveTelemetryAccumulator, and LiveToolCallExecutor.
+ * Cognitive bounding limit: <= 350 lines.
+ */
 export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   const {
     session,
@@ -98,11 +101,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     const isNonRetryable = session.hasTerminalError || isNonRetryableUpstreamError(reasonStr, code);
 
     if (isNonRetryable) {
-      console.error(`🛑 Upstream Gemini Live encountered non-retryable error [${source}, code=${code}]. Halting session without reconnect.`);
+      console.error(`🛑 Upstream Gemini Live encountered non-retryable error [${source}, code=${code}]. Halting session.`);
       if (clientSocket.readyState === WebSocket.OPEN) {
         try {
           clientSocket.send(JSON.stringify({
-            error: reasonStr || 'Голосовой шлюз отклонил подключение модели (Forbidden / Config Error).',
+            error: reasonStr || 'Голосовой шлюз отклонил подключение модели.',
             errorCode: session.terminalErrorCode || 'FORBIDDEN_MODEL_ACCESS',
             retryable: false,
             suggestedFallbackModel: 'gemini-live-v3'
@@ -118,7 +121,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         session.reconnectAttempts = (session.reconnectAttempts || 0) + 1;
         session.isUpstreamReconnecting = true;
         session.isSetupComplete = false;
-        console.log(`🔄 Performing Upstream Hot Reconnect (attempt ${session.reconnectAttempts}/3) for session ${session.sessionId}...`);
+        console.log(`🔄 Performing Upstream Hot Reconnect (attempt ${session.reconnectAttempts}/3)...`);
 
         try {
           clientSocket.send(JSON.stringify({
@@ -128,7 +131,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }));
         } catch {}
 
-        const backoffDelay = (session.reconnectAttempts - 1) * 400; // 0ms, 400ms, 800ms
+        const backoffDelay = (session.reconnectAttempts - 1) * 400;
         if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
         session.reconnectTimer = setTimeout(() => {
           if (!session.isTerminated && clientSocket.readyState === WebSocket.OPEN) {
@@ -137,7 +140,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }, backoffDelay);
         return;
       } else {
-        console.error(`❌ Upstream Hot Reconnect attempts exhausted (3/3) for session ${session.sessionId}. Terminating session.`);
+        console.error(`❌ Upstream Hot Reconnect attempts exhausted (3/3).`);
         try {
           clientSocket.send(JSON.stringify({
             error: 'Голосовой шлюз временно недоступен после повторных попыток переподключения.',
@@ -154,7 +157,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   const connectGemini = (isInternalReconnect = false) => {
     if (session.isTerminated || clientSocket.readyState !== WebSocket.OPEN) return;
 
-    console.log(`⚡ ${isInternalReconnect ? 'Reconnecting' : 'Connecting'} to Upstream Gemini Live WS (${upstreamWsUrl}) [Session: ${sessionId || 'anon'}, Type: ${sessionType}, Mode: ${tutorMode}, Voice: ${voiceName}, isRetry: ${isRetry}, isResumed: ${isResumed}]...`);
+    console.log(`⚡ ${isInternalReconnect ? 'Reconnecting' : 'Connecting'} to Upstream Gemini Live WS (${upstreamWsUrl})...`);
 
     if (session.geminiSocket) {
       try {
@@ -191,16 +194,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       try {
         parsed = JSON.parse(str);
 
-        // Intercept upstream error payload from LiteLLM / Gemini Gateway
         if (parsed.error) {
           const errString = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
           console.error(`❌ Upstream Gemini Live emitted error frame: ${errString}`);
-
           if (isNonRetryableUpstreamError(errString)) {
             session.hasTerminalError = true;
-            const isForbidden = errString.toLowerCase().includes('forbidden') || errString.toLowerCase().includes('virtual key');
-            session.terminalErrorCode = isForbidden ? 'FORBIDDEN_MODEL_ACCESS' : 'UPSTREAM_CONFIGURATION_ERROR';
-
+            session.terminalErrorCode = errString.toLowerCase().includes('forbidden') ? 'FORBIDDEN_MODEL_ACCESS' : 'UPSTREAM_CONFIGURATION_ERROR';
             if (clientSocket.readyState === WebSocket.OPEN) {
               clientSocket.send(JSON.stringify({
                 error: errString,
@@ -213,178 +212,31 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
 
-        // Handle setupComplete from Google Gemini
+        // 1. Setup Complete Greeting & History Replay
         if (parsed.setupComplete) {
           session.isSetupComplete = true;
           const wasReconnecting = session.isUpstreamReconnecting;
           session.isUpstreamReconnecting = false;
           session.reconnectAttempts = 0;
-          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType}, isResumed: ${isResumed}, wasReconnecting: ${wasReconnecting}, sessionId: ${session.sessionId || 'none'})!`);
+          console.log(`🎉 Upstream setupComplete received (Type: ${sessionType})!`);
 
-          if (isResumed || wasReconnecting) {
-            const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
-            const hasHistory = mem && mem.turns.length > 0;
-
-            if (hasHistory) {
-              console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
-              const replayTurns = mem.turns.map((t) => ({
-                role: t.role,
-                parts: [{ text: t.text }]
-              }));
-
-              const multiTurnMessage = {
-                clientContent: {
-                  turns: replayTurns,
-                  turnComplete: false
-                }
-              };
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                geminiSocket.send(JSON.stringify(multiTurnMessage));
-              }
-
-              if (wasReconnecting) {
-                console.log(`✅ Upstream Hot Reconnect complete: notifying client of ready state`);
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
-                }
-              } else if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
-                console.log(`🤫 Silent Resumption active for session ${session.sessionId}: AI remains quiet, microphone immediately unlocked for candidate.`);
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true }));
-                }
-              } else {
-                console.log(`🎙️ Mid-turn Resumption for session ${session.sessionId}: triggering brief completion without greetings.`);
-                const continueTurn = {
-                  clientContent: {
-                    turns: [
-                      {
-                        role: 'user',
-                        parts: [
-                          {
-                            text: '[ТЕХНИЧЕСКАЯ СИНХРОНИЗАЦИЯ СВЯЗИ (ЯЗЫК: РУССКИЙ)]: Напоминание: ответ строго на русском языке. Закончи свою предыдущую мысль одной короткой фразой (1 предложение) и передай слово кандидату.'
-                          }
-                        ]
-                      }
-                    ],
-                    turnComplete: true
-                  }
-                };
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify(continueTurn));
-                }
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
-                }
-              }
-            } else {
-              if (wasReconnecting) {
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
-                }
-              } else {
-                const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
-                const initialGreetingTurn = {
-                  clientContent: {
-                    turns: [
-                      {
-                        role: 'user',
-                        parts: [{ text: fallbackGreeting }]
-                      }
-                    ],
-                    turnComplete: true
-                  }
-                };
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify(initialGreetingTurn));
-                }
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
-                }
-              }
-            }
-          } else {
-            let greetingText = '';
-            if (initialUserMessage) {
-              greetingText = initialUserMessage;
-              session.hasCandidateResponded = true;
-              console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
-            } else if (sessionType === 'tutor') {
-              if (tutorMode === 'bug_hunt') {
-                greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка.`;
-              } else if (tutorMode === 'deep_dive') {
-                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом.`;
-              } else if (tutorMode === 'free_chat') {
-                greetingText = `Привет! Я разбираю тему «${questionText || topic}». Поприветствуй меня в 1 коротком предложении и скажи, что готова ответить на любые вопросы и помочь разобраться.`;
-              } else if (tutorMode === 'socratic') {
-                greetingText = `Привет! Я готов разобрать вопрос «${questionText || topic}». Задай мне первый наводящий вопрос.`;
-              } else if (tutorMode === 'eli5') {
-                greetingText = `Привет! Объясни мне суть вопроса «${questionText || topic}» на простой жизненной аналогии.`;
-              } else if (tutorMode === 'practice_pair') {
-                const domain = getChallengeDomain({
-                  category: challengeCategory || session.challengeCategory,
-                  track: challengeTrack || session.challengeTrack,
-                  slug: bugTitle
-                });
-                const isLld = domain === 'lld';
-                const isTx = domain === 'transactions';
-                if (isLld) {
-                  greetingText = `Привет! Я твоя напарница по проектированию архитектуры задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и спроси, с каких интерфейсов или доменной модели начнем проектирование.`;
-                } else if (isTx) {
-                  greetingText = `Привет! Я разбираю сценарий транзакций «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи разобрать уровни изоляции и поведение БД.`;
-                } else {
-                  greetingText = `Привет! Я твоя напарница по задаче «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи обсудить граничные случаи или план решения.`;
-                }
-              } else {
-                greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе.`;
-              }
-            } else {
-              const isSubsequent = questionIndex > 0;
-              if (session.isRetry) {
-                greetingText = `Мы пробуем ответить на технический вопрос темы заново с чистого листа: "${questionText || 'Вопрос темы'}". Коротко подбодри в 1 фразе и сразу задай этот вопрос слитным, связным речевым потоком без пауз. (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`;
-              } else {
-                greetingText = isSubsequent
-                  ? `Мы продолжаем собеседование (вопрос ${questionIndex + 1} из ${totalQuestions}). Короткой живой фразой подтверди прогресс и сразу четко зачитай следующий технический вопрос слитным речевым потоком: "${questionText || 'Следующий вопрос темы'}". (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`
-                  : `Привет! Я готова к собеседованию. Произнеси краткое приветствие и сразу четко зачитай технический вопрос единым слитным речевым потоком без долгих пауз: "${questionText || 'Расскажи о себе и опыте в Java'}". (Внимание: сейчас только задай вопрос голосом, оценку выставлять не нужно, я еще не отвечала).`;
-              }
-            }
-
-            const initialGreetingTurn = {
-              clientContent: {
-                turns: [
-                  {
-                    role: 'user',
-                    parts: [{ text: greetingText }]
-                  }
-                ],
-                turnComplete: true
-              }
-            };
-
-            if (wasReconnecting) {
-              if (!session.hasCandidateResponded) {
-                console.log(`🔄 Upstream reconnect during Turn 0: resending greeting prompt for question "${questionText || topic}"`);
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify(initialGreetingTurn));
-                }
-              } else {
-                console.log(`✅ Upstream reconnect mid-dialogue: notifying client without greeting replay`);
-                if (clientSocket.readyState === WebSocket.OPEN) {
-                  clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
-                }
-              }
-            } else {
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                geminiSocket.send(JSON.stringify(initialGreetingTurn));
-              }
-            }
-
-            if (clientSocket.readyState === WebSocket.OPEN) {
-              clientSocket.send(JSON.stringify({
-                type: 'setupComplete',
-                hasInitialUserMessage: !!initialUserMessage
-              }));
-            }
-          }
+          handleSetupCompleteGreeting({
+            session,
+            geminiSocket,
+            clientSocket,
+            sessionType,
+            tutorMode,
+            bugTitle,
+            questionText,
+            topic,
+            isResumed: Boolean(isResumed),
+            wasReconnecting: Boolean(wasReconnecting),
+            initialUserMessage,
+            questionIndex,
+            totalQuestions,
+            challengeCategory,
+            challengeTrack
+          });
 
           // Drain queued frames
           while (session.frameQueue.length > 0) {
@@ -395,7 +247,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
 
-        // Model Turn Text accumulation and watchdog clearing
+        // 2. Model Turn & Output Transcription
         if (parsed.serverContent?.modelTurn) {
           session.isAiGenerating = true;
           session.isToolCallPending = false;
@@ -403,7 +255,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             clearTimeout(session.toolCallSafetyTimeout);
             session.toolCallSafetyTimeout = null;
           }
-          // Anchor baseline time: lastTurnCommitTime (user speech commit), lastToolCallTime (tool execution complete), or sessionStartedAt / previous lastActivityAt (for Turn 0 greeting)
           const commitAnchor = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastToolCallTime || session.sessionStartedAt || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
@@ -416,7 +267,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             session.deadAirWatchdog = null;
           }
 
-          // Ensure currentTurnMetrics is initialized (e.g. Turn 0 greeting before candidate speaks)
           if (!session.currentTurnMetrics) {
             session.currentTurnMetrics = {
               turnIndex: session.currentTurnIndex || 0,
@@ -434,411 +284,61 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
 
           if (parsed.serverContent.modelTurn.parts) {
-            for (const part of parsed.serverContent.modelTurn.parts) {
-              // Track Extended Thinking CoT milestone (TTFR)
-              if ((part.thought || part.isThought) && !session.currentTurnMetrics.firstThoughtAt) {
-                session.currentTurnMetrics.firstThoughtAt = Date.now();
-                const ttfr = Date.now() - commitAnchor;
-                console.log(`🧠 [MODEL_FIRST_THOUGHT] Upstream Gemini emitted reasoning token (TTFR: ~${ttfr}ms, session: ${session.sessionId || 'anon'})`);
-              }
-
-              // Track first response text token milestone (TTFT)
-              if (part.text && !part.thought && !part.isThought) {
-                session.currentAiTurnText = (session.currentAiTurnText || '') + part.text;
-                if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
-                  session.isCannedErrorTurn = true;
-                  console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in modelTurn text ("${session.currentAiTurnText.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
-                  if (clientSocket.readyState === WebSocket.OPEN) {
-                    try {
-                      clientSocket.send(JSON.stringify({
-                        type: 'stream_recovery',
-                        reason: 'canned_upstream_error'
-                      }));
-                    } catch {}
-                  }
-                }
-                if (!session.currentTurnMetrics.firstTextAt) {
-                  session.currentTurnMetrics.firstTextAt = Date.now();
-                  const ttft = Date.now() - commitAnchor;
-                  console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini emitted first text token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
-                }
-              }
-
-              // Track PCM audio chunk bytes
-              const pcmData = part.inlineData?.data || part.inline_data?.data;
-              if (pcmData && session.currentTurnMetrics) {
-                const approxBytes = Math.floor(pcmData.length * 0.75);
-                session.currentTurnMetrics.audioBytesReceived += approxBytes;
-              }
-            }
-
-            // Accumulate PCM audio bytes for physical playout duration estimation
-            for (const p of parsed.serverContent.modelTurn.parts) {
-              const pcm = p.inlineData?.data || p.inline_data?.data;
-              if (pcm && typeof pcm === 'string') {
-                const chunkBytes = Math.floor((pcm.length * 3) / 4);
-                session.currentTurnAudioBytes = (session.currentTurnAudioBytes || 0) + chunkBytes;
-              }
-            }
-
-            // Track first PCM audio milestone (TTFA)
-            const hasPcm = parsed.serverContent.modelTurn.parts.some((p: any) => p.inlineData || p.inline_data);
-            if (hasPcm && !session.firstAudioChunkLogged) {
-              session.firstAudioChunkLogged = true;
-              session.firstAudioChunkTime = Date.now();
-              if (session.currentTurnMetrics && !session.currentTurnMetrics.firstAudioAt) {
-                session.currentTurnMetrics.firstAudioAt = Date.now();
-              }
-              const ttfa = Date.now() - commitAnchor;
-              console.log(`🔊 [MODEL_FIRST_AUDIO] Upstream Gemini emitted first audio chunk (TTFA: ~${ttfa}ms, session: ${session.sessionId || 'anon'})`);
-            }
+            LiveTelemetryAccumulator.processModelTurnParts(session, parsed.serverContent.modelTurn.parts, commitAnchor);
           }
         }
 
-        // Output audio transcription text accumulation (Gemini Live outputAudioTranscription)
-        const outputTranscriptionText =
-          parsed.serverContent?.outputTranscription?.text ||
-          parsed.serverContent?.output_transcription?.text;
+        // Output audio transcription text
+        const outputTranscriptionText = parsed.serverContent?.outputTranscription?.text || parsed.serverContent?.output_transcription?.text;
         if (outputTranscriptionText) {
           session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
           if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
             session.isCannedErrorTurn = true;
-            console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in output transcription ("${session.currentAiTurnText.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
+            console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Canned audio error detected in transcription.`);
             if (clientSocket.readyState === WebSocket.OPEN) {
-              try {
-                clientSocket.send(JSON.stringify({
-                  type: 'stream_recovery',
-                  reason: 'canned_upstream_error'
-                }));
-              } catch {}
+              try { clientSocket.send(JSON.stringify({ type: 'stream_recovery', reason: 'canned_upstream_error' })); } catch {}
             }
           }
           if (session.deadAirWatchdog) {
             clearTimeout(session.deadAirWatchdog);
             session.deadAirWatchdog = null;
           }
-          const commitAnchor =
-            session.lastTurnCommitTime ||
-            session.currentTurnMetrics?.candidateSpeechEndedAt ||
-            session.currentTurnMetrics?.candidateSpeechStartedAt ||
-            session.lastToolCallTime ||
-            session.sessionStartedAt ||
-            session.lastActivityAt ||
-            Date.now();
-          if (session.currentTurnMetrics && !session.currentTurnMetrics.firstTextAt) {
-            session.currentTurnMetrics.firstTextAt = Date.now();
-            const ttft = Date.now() - commitAnchor;
-            console.log(`📝 [MODEL_FIRST_TEXT] Upstream Gemini output transcription token (TTFT: ~${ttft}ms, session: ${session.sessionId || 'anon'})`);
-          }
         }
 
-        // AI finished generating turn: commit to session turn history & seal turn telemetry
-        // SOTA Late 2026 Terminal Signal Equivalence: accept either turnComplete or generationComplete
-        const isUpstreamTurnComplete = Boolean(
-          parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete
-        );
+        // 3. Turn Complete / Generation Complete (SOTA Equivalence)
+        const isUpstreamTurnComplete = Boolean(parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete);
         if (isUpstreamTurnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
-            if (session.isCannedErrorTurn) {
-              console.log(`🔄 [ACOUSTIC_CIRCUIT_BREAKER] Canned error turn complete. Suppressing turn from history and dispatching recovery nudge to upstream Gemini (session: ${session.sessionId || 'anon'})...`);
-              session.isCannedErrorTurn = false;
-              session.currentAiTurnText = '';
-              session.currentTurnMetrics = null;
-              session.lastTurnCommitTime = undefined;
-              session.currentTurnAudioBytes = 0;
-              session.firstAudioChunkTime = undefined;
-              session.audioChunksCount = 0;
-              session.isAiGenerating = false;
-              session.firstAudioChunkLogged = false;
-
-              const recoveryNudge = {
-                clientContent: {
-                  turns: [
-                    {
-                      role: 'user',
-                      parts: [{ text: '[СИСТЕМНОЕ НАПОМИНАНИЕ]: Произошла внутренняя заминка связи. Продолжи диалог с кандидатом строго по теме, опираясь на последнее сообщение кандидата. Ответь кратко и емко голосом.' }]
-                    }
-                  ],
-                  turnComplete: true
-                }
-              };
-              if (geminiSocket.readyState === WebSocket.OPEN) {
-                geminiSocket.send(JSON.stringify(recoveryNudge));
-              }
-              return;
-            }
-
-            console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini terminal turn generation complete (session: ${session.sessionId || 'anon'})`);
-            session.isAiGenerating = false;
-            session.firstAudioChunkLogged = false;
-            session.isToolCallPending = false;
-
-            // SOTA September 2026: Calculate physical playout drain epoch
-            // 24kHz Int16 Mono PCM = 48,000 bytes per second
-            // Audio plays concurrently as it is streamed; subtract elapsed streaming time to gate only unplayed buffer.
-            const audioBytes = session.currentTurnAudioBytes || 0;
-            const totalDurationMs = Math.round((audioBytes / 48000) * 1000);
-            const streamingElapsedMs = session.firstAudioChunkTime ? (Date.now() - session.firstAudioChunkTime) : 0;
-            const remainingDurationMs = Math.max(0, totalDurationMs - streamingElapsedMs);
-            session.aiPlayoutEstimatedEndEpoch = Date.now() + remainingDurationMs + 450; // +450ms reverb cooldown
-            session.currentTurnAudioBytes = 0;
-            session.firstAudioChunkTime = undefined;
-            session.audioChunksCount = 0; // SOTA 2026: Reset mic chunk counter for clean next turn initiation
-            console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio total: ${totalDurationMs}ms, remaining playout: ${remainingDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
-
-            if (session.toolCallSafetyTimeout) {
-              clearTimeout(session.toolCallSafetyTimeout);
-              session.toolCallSafetyTimeout = null;
-            }
-            if (session.deadAirWatchdog) {
-              clearTimeout(session.deadAirWatchdog);
-              session.deadAirWatchdog = null;
-            }
-
-            // SOTA September 2026: Seal Canonical Turn Telemetry Event
-            const commitTime =
-              session.lastTurnCommitTime ||
-              session.currentTurnMetrics?.candidateSpeechEndedAt ||
-              session.currentTurnMetrics?.candidateSpeechStartedAt ||
-              session.lastToolCallTime ||
-              session.sessionStartedAt ||
-              session.lastActivityAt ||
-              Date.now();
-            const metrics = session.currentTurnMetrics;
-            const ttfrMs = metrics?.firstThoughtAt ? Math.max(0, metrics.firstThoughtAt - commitTime) : null;
-            const ttftMs = metrics?.firstTextAt ? Math.max(0, metrics.firstTextAt - commitTime) : null;
-            const ttfaMs = metrics?.firstAudioAt ? Math.max(0, metrics.firstAudioAt - commitTime) : null;
-            // 24kHz 16-bit mono = 48000 bytes/sec
-            const audioDurationMs = metrics ? Math.round((metrics.audioBytesReceived / 48000) * 1000) : 0;
-            const textChars = (session.currentAiTurnText || '').length;
-            const echoLeakageDroppedMs = (metrics?.droppedEchoChunksCount || 0) * 40;
-
-            const turnEvent: TurnTelemetryEvent = {
-              turnId: `turn_${session.sessionId || 'anon'}_${metrics?.turnIndex || 0}_${Date.now()}`,
-              sessionId: session.sessionId || 'anon',
-              turnIndex: metrics?.turnIndex || 0,
-              speaker: 'model',
-              vadPauseSettingMs: session.vadPauseMs || 1800,
-              speechDurationMs: metrics?.speechDurationMs || 0,
-              ttfrMs,
-              ttftMs,
-              ttfaMs,
-              ttfpMs: null, // Populated on client AudioWorklet DAC playout
-              audioTextSkewMs: null, // Populated on client UI
-              audioDurationMs,
-              textChars,
-              echoLeakageDroppedMs,
-              networkRttMs: metrics?.lastRttMs ?? session.lastRttMs ?? null,
-              modelName: liveModel,
-              wasBargeIn: metrics?.wasBargeIn || false,
-              bargeInType: metrics?.bargeInType || null,
-              createdAt: Date.now()
-            };
-
-            if (!session.turnTelemetryHistory) session.turnTelemetryHistory = [];
-            session.turnTelemetryHistory.push(turnEvent);
-
-            if (clientSocket.readyState === WebSocket.OPEN) {
-              try {
-                clientSocket.send(JSON.stringify({
-                  type: 'turn_telemetry',
-                  data: turnEvent
-                }));
-              } catch {}
-            }
-
-            // SOTA Multi-Turn Isolation: Cleanly reset current turn state for next dialogue turn
-            session.currentTurnMetrics = null;
-            session.lastTurnCommitTime = undefined;
-
-            if (session.currentAiTurnText && session.sessionId) {
-              const textToSave = session.currentAiTurnText.trim();
-              if (!isLanguageDrifted(textToSave)) {
-                const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-                mem.turns.push({ role: 'model', text: textToSave });
-                mem.lastSpeaker = 'model';
-                mem.updatedAt = Date.now();
-              } else {
-                console.warn(`🚨 [LANGUAGE_CONTAMINATION_GUARD] Model turn drifted to English. Stripped from session replay memory (${session.sessionId}).`);
-              }
-              session.currentAiTurnText = '';
-            }
-          } else {
-            console.log(`⏳ [MODEL_FILLER_COMPLETE] Utterance chunk complete, but interactionStatus=${parsed.serverContent.interactionStatus} (session: ${session.sessionId || 'anon'}). Waiting for terminal answer...`);
+            LiveTelemetryAccumulator.sealTurnComplete(session, clientSocket, liveModel);
           }
         }
 
-        // Barge-in interruption during AI speech
+        // 4. Barge-In Interruption
         if (parsed.serverContent?.interrupted) {
-          session.isAiGenerating = false;
-          session.aiPlayoutEstimatedEndEpoch = 0;
-          session.currentTurnAudioBytes = 0;
-          session.firstAudioChunkTime = undefined;
-          session.audioChunksCount = 0;
-          session.isToolCallPending = false;
-          if (session.deadAirWatchdog) {
-            clearTimeout(session.deadAirWatchdog);
-            session.deadAirWatchdog = null;
-          }
-          if (session.currentTurnMetrics) {
-            session.currentTurnMetrics.wasBargeIn = true;
-            if (!session.currentTurnMetrics.bargeInType) {
-              session.currentTurnMetrics.bargeInType = 'acoustic';
-            }
-          }
-          if (session.toolCallSafetyTimeout) {
-            clearTimeout(session.toolCallSafetyTimeout);
-            session.toolCallSafetyTimeout = null;
-          }
-          if (session.sessionId) {
-            const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
-            if (session.currentAiTurnText) {
-              const textToSave = session.currentAiTurnText.trim();
-              if (!isLanguageDrifted(textToSave)) {
-                mem.turns.push({ role: 'model', text: textToSave });
-              } else {
-                console.warn(`🚨 [LANGUAGE_CONTAMINATION_GUARD] Interrupted English model turn stripped from replay memory (${session.sessionId}).`);
-              }
-              session.currentAiTurnText = '';
-            }
-            mem.lastSpeaker = 'user';
-            mem.updatedAt = Date.now();
-          }
+          LiveTelemetryAccumulator.handleBargeIn(session);
         }
 
-        // Handle toolCallCancellation
+        // 5. Tool Call Cancellation
         if (parsed.toolCallCancellation?.ids) {
-          console.log('🚫 [TOOL_CALL_CANCELLED] Upstream Gemini cancelled tool calls:', parsed.toolCallCancellation.ids);
-          session.isToolCallPending = false;
-          if (session.toolCallSafetyTimeout) {
-            clearTimeout(session.toolCallSafetyTimeout);
-            session.toolCallSafetyTimeout = null;
-          }
+          LiveToolCallExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
         }
 
-        // Handle Function Calling / toolCall
+        // 6. Tool Calls Execution
         if (parsed.toolCall?.functionCalls) {
           isToolCallProcessed = true;
-          session.isToolCallPending = true;
-          session.lastActivityAt = Date.now();
-          if (session.nudgeWatchdog) {
-            clearTimeout(session.nudgeWatchdog);
-            session.nudgeWatchdog = null;
-          }
-          console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(parsed.toolCall.functionCalls));
-
-          if (session.toolCallSafetyTimeout) clearTimeout(session.toolCallSafetyTimeout);
-          session.toolCallSafetyTimeout = setTimeout(() => {
-            if (session.isToolCallPending) {
-              console.warn('⚠️ Tool call safety timeout (10s) reached: releasing audio gate');
-              session.isToolCallPending = false;
-            }
-          }, 10000);
-
-          if (clientSocket.readyState === WebSocket.OPEN) {
-            clientSocket.send(JSON.stringify({
-              type: 'tool_executing',
-              tools: parsed.toolCall.functionCalls.map((fc: any) => fc.name)
-            }));
-          }
-
-          try {
-            for (const call of parsed.toolCall.functionCalls) {
-              if (call.name === 'update_whiteboard') {
-                const callKey = JSON.stringify(call.args || {});
-                const now = Date.now();
-                if (session.lastToolCallHash === callKey && now - (session.lastToolCallTime || 0) < 3000) {
-                  console.log('🔄 Suppressing duplicate update_whiteboard call within 3s');
-                  if (geminiSocket.readyState === WebSocket.OPEN) {
-                    geminiSocket.send(JSON.stringify({
-                      toolResponse: {
-                        functionResponses: [
-                          {
-                            id: call.id,
-                            name: call.name,
-                            response: {
-                              result: {
-                                status: 'SUCCESS',
-                                message: 'Интерактивная доска уже обновлена.',
-                                directive: 'Кратко (в 1-2 предложениях) поясни кандидату голосом показанный фрагмент. Не вызывай повторных инструментов.'
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }));
-                  }
-                  continue;
-                }
-                session.lastToolCallHash = callKey;
-                session.lastToolCallTime = now;
-              }
-
-              try {
-                const isHandled = await handleLiveToolCall({
-                  call,
-                  clientSocket,
-                  geminiSocket,
-                  session,
-                  parsedHints,
-                  liveCoaching
-                });
-
-                if (!isHandled) {
-                  console.warn(`⚠️ Unhandled or unsupported tool call [${call.name}]. Emitting graceful negative toolResponse to prevent Gemini Bidi hang.`);
-                  if (geminiSocket.readyState === WebSocket.OPEN) {
-                    geminiSocket.send(JSON.stringify({
-                      toolResponse: {
-                        functionResponses: [
-                          {
-                            id: call.id,
-                            name: call.name,
-                            response: {
-                              result: {
-                                error: `Tool '${call.name}' is not supported in this session. You do not have access to server execution, bash, or external networks. Please explain verbally or use update_whiteboard.`
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }));
-                  }
-                }
-              } catch (toolErr) {
-                const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
-                console.error(`❌ Error executing tool ${call.name}:`, toolErr);
-                if (geminiSocket.readyState === WebSocket.OPEN) {
-                  geminiSocket.send(JSON.stringify({
-                    toolResponse: {
-                      functionResponses: [
-                        {
-                          id: call.id,
-                          name: call.name,
-                          response: {
-                            result: {
-                              error: `Tool execution failed: ${errorMessage}`
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }));
-                }
-              }
-            }
-          } finally {
-            // SOTA 2026 Invariant: Do NOT release session.isToolCallPending here!
-            // Dispatching toolResponse JSON to Gemini initiates the post-tool verbal response phase.
-            // Releasing the audio gate prematurely allows client mic PCM chunks to flood geminiSocket
-            // while Gemini processes the tool response, triggering upstream timeout crashes.
-            // session.isToolCallPending is symmetrically released when serverContent.turnComplete: true arrives,
-            // or upon client barge-in / cancellation / 10s safety timeout.
-          }
+          await LiveToolCallExecutor.executeFunctionCalls({
+            functionCalls: parsed.toolCall.functionCalls,
+            clientSocket,
+            geminiSocket,
+            session,
+            parsedHints,
+            liveCoaching
+          });
         }
       } catch {}
 
-      // SOTA Late 2026 Protocol Normalization: guarantee both generationComplete and turnComplete are present downstream
+      // SOTA Late 2026 Protocol Normalization: guarantee turnComplete is present downstream
       if (parsed?.serverContent?.generationComplete && !parsed.serverContent?.turnComplete) {
         parsed.serverContent.turnComplete = true;
         str = JSON.stringify(parsed);
@@ -851,7 +351,5 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     });
   };
 
-  return {
-    connectGemini
-  };
+  return { connectGemini };
 }

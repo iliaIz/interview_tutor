@@ -86,6 +86,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     state,
     isMuted,
     rmsDb,
+    isDraining,
     statusMessage,
     dialogueTurns,
     evaluation,
@@ -240,7 +241,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
             <VoiceVisualizer rmsDb={rmsDb} isActive={state === 'AI_SPEAKING' || state === 'LISTENING'} color={state === 'AI_SPEAKING' ? 'rose' : 'emerald'} />
             <VoiceSubtitles turns={dialogueTurns} statusMessage={statusMessage} />
-            <VoiceMicButton state={state} isMuted={isMuted} rmsDb={rmsDb} onClick={handleCentralButtonClick} onToggleMute={toggleMute} />
+            <VoiceMicButton state={state} isMuted={isMuted} rmsDb={rmsDb} isDraining={isDraining} onClick={handleCentralButtonClick} onToggleMute={toggleMute} />
 
             {/* Candidate Text Fallback */}
             <form onSubmit={handleSendText} className="flex gap-2 pt-2 border-t border-slate-100">

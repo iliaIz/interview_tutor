@@ -5,13 +5,14 @@
  */
 
 import React from 'react';
-import { Mic, MicOff, Volume2, Sparkles, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Volume2, Sparkles, Loader2, Headphones } from 'lucide-react';
 import { VoiceEngineState } from '../../audio/types';
 
 export interface VoiceMicButtonProps {
   state: VoiceEngineState;
   isMuted: boolean;
   rmsDb: number;
+  isDraining?: boolean;
   onClick: () => void;
   onToggleMute: () => void;
 }
@@ -20,6 +21,7 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
   state,
   isMuted,
   rmsDb,
+  isDraining = false,
   onClick,
   onToggleMute
 }) => {
@@ -37,7 +39,9 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
       {/* Outer Atmospheric Aura */}
       <div
         className={`absolute rounded-full transition-all duration-300 pointer-events-none ${
-          isAiSpeaking
+          isDraining
+            ? 'w-44 h-44 bg-purple-300/30 blur-2xl animate-pulse'
+            : isAiSpeaking
             ? 'w-44 h-44 bg-rose-300/30 blur-2xl animate-pulse'
             : isListening
             ? 'w-44 h-44 bg-emerald-300/30 blur-2xl animate-pulse'
@@ -54,14 +58,16 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
         onClick={onClick}
         disabled={isConnecting}
         aria-label={
-          isAiSpeaking
+          isAiSpeaking || isDraining
             ? 'Прервать ответ ИИ (Barge-in)'
             : isListening
             ? 'Передать ответ ИИ'
             : 'Микрофон'
         }
         className={`relative z-10 w-28 h-28 rounded-full flex flex-col items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${
-          isAiSpeaking
+          isDraining
+            ? 'bg-gradient-to-tr from-purple-100 via-purple-50 to-pink-50 border-2 border-purple-300/80 text-purple-700 shadow-purple-200/50 hover:shadow-purple-300/80 ring-4 ring-purple-100/60'
+            : isAiSpeaking
             ? 'bg-gradient-to-tr from-rose-100 via-rose-50 to-pink-100 border-2 border-rose-300/80 text-rose-700 shadow-rose-200/50 hover:shadow-rose-300/80 ring-4 ring-rose-100/60'
             : isListening
             ? 'bg-gradient-to-tr from-emerald-100 via-emerald-50 to-teal-100 border-2 border-emerald-400 text-emerald-800 shadow-emerald-200/60 ring-4 ring-emerald-100/60'
@@ -73,7 +79,15 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
         }`}
       >
         {isConnecting && <Loader2 className="w-10 h-10 animate-spin text-amber-600" />}
-        {isAiSpeaking && (
+        {isDraining && (
+          <>
+            <Headphones className="w-10 h-10 text-purple-600 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 mt-1">
+              Слушайте...
+            </span>
+          </>
+        )}
+        {!isDraining && isAiSpeaking && (
           <>
             <Volume2 className="w-10 h-10 text-rose-600 animate-bounce" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 mt-1">

@@ -1,24 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  Database,
   ArrowLeft,
   Sparkles,
-  CheckCircle2,
-  AlertTriangle,
   Flame,
-  Activity,
-  Layers,
-  HelpCircle,
-  Volume2,
-  Send,
-  RotateCcw,
   BookOpen,
-  Award,
-  ChevronRight,
-  ShieldCheck,
-  Zap,
+  HelpCircle,
+  RotateCcw,
   Compass,
-  Bot
+  CheckCircle2
 } from 'lucide-react';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 import {
@@ -28,8 +17,10 @@ import {
 } from '../../types/transactionLab';
 import { TransactionValidator } from '../../services/transactionValidator';
 import { TransactionAnnotationChip } from './TransactionAnnotationChip';
-import { ExecutionFlameChart } from './ExecutionFlameChart';
+import { TransactionScenarioSelector } from './TransactionScenarioSelector';
+import { TransactionTimelineScrubber } from './TransactionTimelineScrubber';
 import { HikariPoolSlotMeter } from './HikariPoolSlotMeter';
+import { TransactionVerdictCard } from './TransactionVerdictCard';
 import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { WhiteboardDrawer } from '../WhiteboardDrawer';
@@ -44,6 +35,11 @@ interface TransactionLabArenaProps {
   onStartVoiceDefense?: (scenario: TransactionScenario, question: string) => void;
 }
 
+/**
+ * TransactionLabArena.tsx (SOTA Late 2026 Decomposed).
+ * Single responsibility: layout coordinator and interactive workbench for Spring Transactions Lab.
+ * Cognitive bounding limit: <= 350 lines.
+ */
 export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   initialScenarioId,
   onBack,
@@ -64,18 +60,15 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   const {
     isCompassOpen,
     toggleCompass,
-    isOpen: isTutorOpen,
-    toggleOpen: toggleTutorDrawer,
     sendMessage
   } = usePracticeTutorStore();
 
-  // Active Scenario state
   const [activeScenarioId, setActiveScenarioId] = useState<string>(() => {
     return initialScenarioId || TRANSACTION_LAB_SCENARIOS[0].id;
   });
 
-  // Level selector filter
   const [selectedLevel, setSelectedLevel] = useState<'all' | 'L0' | 'L1' | 'L2' | 'L3'>('all');
+  const [selectedMethodId, setSelectedMethodId] = useState<string | undefined>(undefined);
 
   const filteredScenarios = useMemo(() => {
     if (selectedLevel === 'all') return TRANSACTION_LAB_SCENARIOS;
@@ -89,491 +82,201 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     );
   }, [activeScenarioId]);
 
-  // Load slider state (Threads T)
   const [threads, setThreads] = useState<number>(scenario.simulatedLoad.defaultThreads);
-
-  // User configured annotations for each method: record of methodId -> config
   const [userConfigs, setUserConfigs] = useState<Record<string, TransactionAnnotationConfig>>({});
 
-  // Reset user configs when scenario changes
   useEffect(() => {
     const initial: Record<string, TransactionAnnotationConfig> = {};
-    for (const service of scenario.services) {
-      for (const method of service.methods) {
-        initial[method.id] = { propagation: 'REQUIRED' };
-      }
-    }
+    scenario.services.forEach((svc) => {
+      svc.methods.forEach((m) => {
+        initial[m.id] = { propagation: 'NONE' };
+      });
+    });
     setUserConfigs(initial);
     setThreads(scenario.simulatedLoad.defaultThreads);
-    setEvalResult(null);
     setSelectedMethodId(scenario.services[0]?.methods[0]?.id);
   }, [scenario]);
 
-  const [selectedMethodId, setSelectedMethodId] = useState<string | undefined>(
-    scenario.services[0]?.methods[0]?.id
-  );
-
-  // Evaluation results
-  const [evalResult, setEvalResult] = useState<ScenarioEvaluationResult | null>(null);
-
-  // Global shortcut: Ctrl + / (or Cmd + /) toggles Transaction Compass
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-        e.preventDefault();
-        toggleCompass();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleCompass]);
-
-  // Update specific method config
-  const handleMethodConfigChange = (methodId: string, newConfig: TransactionAnnotationConfig) => {
+  const handleMethodConfigChange = useCallback((methodId: string, cfg: TransactionAnnotationConfig) => {
     setUserConfigs((prev) => ({
       ...prev,
-      [methodId]: newConfig
+      [methodId]: cfg
     }));
-    if (isVoiceConnected) {
-      const parts = [
-        newConfig.propagation ? `propagation=${newConfig.propagation}` : '',
-        newConfig.isolation ? `isolation=${newConfig.isolation}` : '',
-        newConfig.readOnly !== undefined ? `readOnly=${newConfig.readOnly}` : '',
-        newConfig.rollbackFor?.length ? `rollbackFor=[${newConfig.rollbackFor.join(',')}]` : ''
-      ].filter(Boolean).join(', ');
-      sendTextMessage(`⚙️ [НАСТРОЙКА ТРАНЗАКЦИЙ]: Метод «${methodId}» настроен: @Transactional(${parts || 'REQUIRED'})`);
-    }
-    // Re-evaluate if already evaluated
-    if (evalResult) {
-      const reEvaluated = TransactionValidator.evaluateScenario(
-        scenario,
-        { ...userConfigs, [methodId]: newConfig },
-        threads
+  }, []);
+
+  // Real-time evaluation of transactions & HikariCP pool
+  const evalResult: ScenarioEvaluationResult = useMemo(() => {
+    return TransactionValidator.evaluateScenario(scenario, userConfigs, threads);
+  }, [scenario, userConfigs, threads]);
+
+  useEffect(() => {
+    setLatestTxEvaluation(evalResult);
+    if (evalResult.isPassed && academyBreadcrumbContext) {
+      toggleAcademyStepProgress(
+        academyBreadcrumbContext.courseId,
+        academyBreadcrumbContext.stepNumber,
+        true
       );
-      setEvalResult(reEvaluated);
     }
-  };
+  }, [evalResult, academyBreadcrumbContext, toggleAcademyStepProgress, setLatestTxEvaluation]);
 
-  // Run AST Validator
-  const handleRunEvaluation = () => {
-    const result = TransactionValidator.evaluateScenario(scenario, userConfigs, threads);
-    setEvalResult(result);
-    setLatestTxEvaluation(result);
-
-    if (isVoiceConnected) {
-      if (result.isPassed) {
-        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Архитектурная проверка транзакций успешно пройдена (100/100). Аномалий не обнаружено.`);
-      } else {
-        const violations = Object.entries(result.methodResults)
-          .filter(([_, m]) => !m.isCorrect && m.violations.length > 0)
-          .flatMap(([id, m]) => m.violations.map((v) => `- [${id}]: ${v}`))
-          .join('\n');
-        const hazards = [
-          result.hasDeadlockHazard ? '- ⚠️ Опасность исчерпания и дедлока пула HikariCP' : '',
-          result.hasSelfInvocationHazard ? '- ⚠️ Обход динамического прокси Spring AOP (Self-Invocation)' : ''
-        ].filter(Boolean).join('\n');
-        sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Обнаружены архитектурные дефекты транзакций (${result.overallScore}/100): ${result.summary}${violations ? `\nНарушения:\n${violations}` : ''}${hazards ? `\n${hazards}` : ''}`);
-      }
-    }
-
-    if (result.isPassed) {
-      // Async record submission to backend SQLite
-      fetch('/api/roadmaps/transactions/submissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          scenarioId: scenario.id,
-          passed: true,
-          score: 100,
-          userConfigs
-        })
-      }).catch((err) => console.error('Failed to save tx submission:', err));
-
-      // If launched from Academy curriculum, auto-mark step complete
-      if (academyBreadcrumbContext?.courseId && academyBreadcrumbContext?.stepNumber) {
-        void toggleAcademyStepProgress(academyBreadcrumbContext.courseId, academyBreadcrumbContext.stepNumber, true);
-      }
-    }
-  };
-
-  // Ask Socratic Tutor about a Compass Rule
-  const handleAskTutorAboutRule = (ruleTitle: string, ruleSummary: string) => {
-    toggleCompass(false);
-    toggleTutorDrawer(true);
+  const handleAskTutorAboutRule = useCallback((ruleTitle: string, ruleSummary: string) => {
     sendMessage(
-      `Объясни подробнее архитектурное правило из Transaction Compass: "${ruleTitle}". Как оно применяется к текущему сценарию "${scenario.title}"?`,
+      `Разъясни подробно правило транзакций «${ruleTitle}»:\n${ruleSummary}\nКак это связано с текущим сценарием «${scenario.title}»?`,
       {
         kataId: scenario.id,
         kataTitle: scenario.title,
         kataCategory: 'Spring Transactions',
-        kataInstructions: `${scenario.problemStatement}\n\nСводка правила: ${ruleSummary}`,
-        activeFilePath: `${scenario.services[0]?.className}.java`,
-        activeFileContent: scenario.services
-          .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
-          .join('\n\n')
+        kataInstructions: scenario.problemStatement,
+        activeFilePath: 'src/main/java/TransactionScenario.java',
+        activeFileContent: scenario.services.map((s) => s.methods.map((m) => m.codeSnippet).join('\n')).join('\n')
       }
     );
-  };
-
-  // Level Badge Color Helper
-  const getLevelBadgeClass = (level?: string) => {
-    switch (level) {
-      case 'L0':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'L1':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'L2':
-        return 'bg-violet-100 text-violet-800 border-violet-200';
-      case 'L3':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
+  }, [scenario, sendMessage]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-br from-slate-50 via-pastel-bg/30 to-violet-50/20 overflow-y-auto relative">
-      {/* Top Header */}
-      <header className="h-12 border-b border-pastel-border/80 bg-white/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 z-30 shadow-2xs gap-2 sticky top-0">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <div className="flex flex-col min-h-screen bg-slate-900 text-slate-100 relative">
+      {/* Top Navigation Bar */}
+      <header className="h-14 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1 text-xs font-bold text-pastel-muted hover:text-pastel-text px-2 py-1.5 rounded-xl hover:bg-pastel-bg transition cursor-pointer shrink-0"
-            title="Назад к практике"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Назад</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Назад</span>
           </button>
-
-          <div className="h-4 w-px bg-pastel-border shrink-0" />
-
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${getLevelBadgeClass(scenario.level)} shrink-0`}>
-              {scenario.level || 'L0'}
-            </span>
-            <span className="font-bold text-xs text-pastel-text truncate max-w-[140px] sm:max-w-xs">
-              {scenario.title}
+          <div className="h-4 w-px bg-slate-800" />
+          <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+            <span>{scenario.title}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-mono">
+              {scenario.level}
             </span>
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Compass Quick Button */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => toggleCompass()}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30 hover:bg-pastel-accentRose hover:text-white transition cursor-pointer shadow-2xs"
-            title="Transaction Compass: 5 Золотых Заповедей (Ctrl + /)"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer text-xs font-semibold"
           >
-            <Compass className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Компас</span>
+            <Compass className="w-3.5 h-3.5 text-pastel-accentRose" />
+            <span>Transaction Compass</span>
+            <kbd className="hidden sm:inline px-1 py-0.2 rounded bg-slate-900 border border-slate-700 text-[9px] text-slate-400">Ctrl+/</kbd>
           </button>
-
-          {/* AI Whiteboard Button */}
-          <button
-            type="button"
-            onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
-              isWhiteboardOpen
-                ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-purple-600'
-                : 'bg-white text-slate-700 border-pastel-border hover:border-purple-400'
-            }`}
-            title="Интерактивная доска ИИ"
-          >
-            <Sparkles className={`w-3.5 h-3.5 ${isWhiteboardOpen ? 'text-white' : 'text-purple-600'}`} />
-            <span className="hidden sm:inline">Доска ИИ</span>
-            {activeWhiteboardState?.code && (
-              <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
-            )}
-          </button>
-
-          {/* AI-Tutor Button */}
-          <button
-            type="button"
-            onClick={() => toggleTutorDrawer()}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
-              isTutorOpen
-                ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
-                : 'bg-white text-slate-700 border-pastel-border hover:border-pastel-accentRose/50'
-            }`}
-            title="AI-Напарник (Парное проектирование транзакций)"
-          >
-            <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
-            <span className="hidden sm:inline">AI-Напарник</span>
-          </button>
-
-          {/* AST Run Button */}
-          <button
-            type="button"
-            onClick={handleRunEvaluation}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Проверить AST</span>
-          </button>
-
-          {onStartVoiceDefense && (
-            <button
-              type="button"
-              onClick={() => {
-                const q = scenario.probingQuestions[0]?.question || 'Защитите выбранные параметры транзакций.';
-                onStartVoiceDefense(scenario, q);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold text-xs shadow-2xs transition cursor-pointer active:scale-95"
-              title="Запустить голосовую защиту с ИИ-экзаменатором"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Защитить с ИИ</span>
-            </button>
-          )}
         </div>
       </header>
 
-      {/* Main 3-Panel Grid */}
-      <main className="flex-1 p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-        {/* Left Column: Scenarios List & Problem Statement (4 cols) */}
-        <section className="lg:col-span-4 space-y-4 flex flex-col min-h-0">
-          {/* Scenario Selector Pill Dropdown */}
-          <div className="p-4 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
-                Каталог 16 Сценариев:
-              </label>
-              <span className="text-[10px] text-violet-600 font-bold font-mono">
-                {TRANSACTION_LAB_SCENARIOS.findIndex((s) => s.id === activeScenarioId) + 1} / 16
-              </span>
-            </div>
+      {/* Main Workspace Body */}
+      <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+        {/* Scenario Selector */}
+        <TransactionScenarioSelector
+          scenarios={filteredScenarios}
+          activeScenarioId={scenario.id}
+          selectedLevel={selectedLevel}
+          onSelectLevel={setSelectedLevel}
+          onSelectScenario={setActiveScenarioId}
+        />
 
-            {/* Cognitive Tier Filter Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/60 overflow-x-auto text-[11px]">
-              {(
-                [
-                  { id: 'all', label: 'Все' },
-                  { id: 'L0', label: 'L0 Primitives' },
-                  { id: 'L1', label: 'L1 Lifecycle' },
-                  { id: 'L2', label: 'L2 Concurrency' },
-                  { id: 'L3', label: 'L3 Production' }
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSelectedLevel(tab.id)}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
-                    selectedLevel === tab.id
-                      ? 'bg-white text-violet-900 shadow-2xs border border-violet-200/60'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Scenario List */}
-            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-              {filteredScenarios.map((sc) => {
-                const isActive = sc.id === activeScenarioId;
-                const globalIdx = TRANSACTION_LAB_SCENARIOS.findIndex((s) => s.id === sc.id) + 1;
-                return (
-                  <button
-                    key={sc.id}
-                    type="button"
-                    onClick={() => setActiveScenarioId(sc.id)}
-                    className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between cursor-pointer border ${
-                      isActive
-                        ? 'bg-violet-50 text-violet-900 border-violet-300 shadow-2xs font-bold'
-                        : 'bg-slate-50/60 hover:bg-slate-100 text-slate-700 border-slate-200/80 text-xs'
-                    }`}
-                  >
-                    <div className="truncate min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                        <span className={`px-1.5 py-0.2 rounded border font-bold ${getLevelBadgeClass(sc.level)}`}>
-                          {sc.level}
-                        </span>
-                        <span>#{globalIdx} &bull; {sc.difficulty}</span>
-                      </div>
-                      <div className="truncate text-xs font-semibold mt-0.5">{sc.title}</div>
-                    </div>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-white border border-slate-200 shrink-0">
-                      {sc.badge}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+        {/* Problem Statement Card */}
+        <div className="p-4 rounded-2xl bg-white/95 border border-slate-200/90 shadow-xs space-y-2 text-slate-800">
+          <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide text-violet-700">
+            <BookOpen className="w-4 h-4" />
+            <span>Постановка задачи и бизнес-инварианты</span>
           </div>
+          <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+            {scenario.problemStatement}
+          </p>
+        </div>
 
-          {/* Problem Statement Card */}
-          <div className="p-4 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm space-y-3 flex-1 flex flex-col">
+        {/* Services & Methods Implementation Cards */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-violet-600" />
+              <Flame className="w-4 h-4 text-rose-500" />
               <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
-                Постановка задачи и инварианты
+                Архитектурный редактор сервисов Spring Boot
               </h3>
             </div>
-            <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-              {scenario.problemStatement}
-            </p>
-
-            {/* Probing Questions for Defense */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <span className="font-bold text-[11px] text-slate-700 flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
-                Контрольные вопросы для защиты с ИИ:
-              </span>
-              <ul className="space-y-1.5 text-xs text-slate-600">
-                {scenario.probingQuestions.map((pq, idx) => (
-                  <li key={idx} className="p-2 rounded-lg bg-amber-50/60 border border-amber-200/60 text-[11px] leading-snug">
-                    <span className="font-bold text-amber-900 mr-1">Q{idx + 1}:</span>
-                    {pq.question}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* Center & Right Column: Code Editor & Explorable Workbench (8 cols) */}
-        <section className="lg:col-span-8 space-y-5">
-          {/* Method Implementation Cards with Interactive Annotation Chips */}
-          <div className="p-5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Flame className="w-4 h-4 text-rose-500" />
-                <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
-                  Архитектурный редактор сервисов Spring Boot
-                </h3>
-              </div>
-              <span className="text-[11px] text-slate-500">
-                Нажимайте на плашку <span className="font-mono text-violet-600 font-bold">@Transactional</span> для настройки параметров
-              </span>
-            </div>
-
-            {/* Services & Methods */}
-            <div className="space-y-4">
-              {scenario.services.map((svc) => (
-                <div key={svc.className} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                  <div className="font-mono text-xs font-bold text-slate-800 flex items-center gap-2">
-                    <span className="text-violet-600">@Service</span>
-                    <span>public class {svc.className} {'{'}</span>
-                  </div>
-
-                  {svc.methods.map((method) => {
-                    const currentConfig = userConfigs[method.id] || { propagation: 'NONE' };
-                    const isSelected = selectedMethodId === method.id;
-
-                    return (
-                      <div
-                        key={method.id}
-                        onClick={() => setSelectedMethodId(method.id)}
-                        className={`ml-4 sm:ml-6 p-3.5 rounded-xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-white border-violet-400 shadow-xs ring-2 ring-violet-200/60'
-                            : 'bg-white/80 hover:bg-white border-slate-200'
-                        }`}
-                      >
-                        {/* Business Contract */}
-                        <div className="text-[11px] text-slate-500 mb-2 leading-relaxed">
-                          <span className="font-bold text-slate-700">Контракт: </span>
-                          {method.businessContract}
-                        </div>
-
-                        {/* Interactive Annotation Popover Chip */}
-                        <div className="mb-1.5">
-                          <TransactionAnnotationChip
-                            config={currentConfig}
-                            onChange={(cfg) => handleMethodConfigChange(method.id, cfg)}
-                            methodName={method.name}
-                          />
-                        </div>
-
-                        {/* Method Code Snippet */}
-                        <pre className="p-3 rounded-lg bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
-                          <code>{method.codeSnippet}</code>
-                        </pre>
-                      </div>
-                    );
-                  })}
-
-                  <div className="font-mono text-xs font-bold text-slate-800">{'}'}</div>
-                </div>
-              ))}
-            </div>
+            <span className="text-[11px] text-slate-500 hidden sm:inline">
+              Кликайте на плашку <span className="font-mono text-violet-600 font-bold">@Transactional</span> для настройки параметров
+            </span>
           </div>
 
-          {/* Two-Contour Execution Flame Chart */}
-          <ExecutionFlameChart
-            scenario={scenario}
-            userConfigs={userConfigs}
-            activeMethodId={selectedMethodId}
-            onSelectMethod={setSelectedMethodId}
-          />
-
-          {/* HikariCP ConcurrentBag Slot-Bay Meter */}
-          <HikariPoolSlotMeter
-            scenario={scenario}
-            userConfigs={userConfigs}
-            threads={threads}
-            onThreadsChange={setThreads}
-          />
-
-          {/* AST Evaluation Report Modal / Banner */}
-          {evalResult && (
-            <div
-              className={`p-5 rounded-2xl border shadow-md space-y-3 transition-all animate-fadeIn ${
-                evalResult.isPassed
-                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
-                  : 'bg-rose-50/90 border-rose-300 text-rose-950'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {evalResult.isPassed ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 text-rose-600" />
-                  )}
-                  <h4 className="font-extrabold text-sm">
-                    {evalResult.isPassed
-                      ? `Тест архитектуры пройден! (Оценка: ${evalResult.overallScore}/100)`
-                      : `Обнаружены архитектурные дефекты (Оценка: ${evalResult.overallScore}/100)`}
-                  </h4>
+          <div className="space-y-4">
+            {scenario.services.map((svc) => (
+              <div key={svc.className} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                <div className="font-mono text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <span className="text-violet-600">@Service</span>
+                  <span>public class {svc.className} {'{'}</span>
                 </div>
-                <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-white/80 border">
-                  {evalResult.isPassed ? 'READY FOR PRODUCTION' : 'NEEDS REVISION'}
-                </span>
-              </div>
 
-              <p className="text-xs leading-relaxed font-medium">{evalResult.summary}</p>
+                {svc.methods.map((method) => {
+                  const currentConfig = userConfigs[method.id] || { propagation: 'NONE' };
+                  const isSelected = selectedMethodId === method.id;
 
-              {/* Per-Method Violations List */}
-              <div className="space-y-2 pt-2 border-t border-black/10">
-                {Object.values(evalResult.methodResults).map((mRes) => {
-                  if (mRes.violations.length === 0) return null;
                   return (
-                    <div key={mRes.methodId} className="p-2.5 rounded-xl bg-white/80 border text-xs space-y-1">
-                      <div className="font-bold text-slate-800 font-mono">Метод: {mRes.methodId}</div>
-                      <ul className="list-disc list-inside space-y-0.5 text-rose-800">
-                        {mRes.violations.map((v, i) => (
-                          <li key={i}>{v}</li>
-                        ))}
-                      </ul>
-                      {mRes.tips.length > 0 && (
-                        <p className="text-[11px] text-slate-600 pt-1 italic">
-                          💡 Совет: {mRes.tips[0]}
-                        </p>
-                      )}
+                    <div
+                      key={method.id}
+                      onClick={() => setSelectedMethodId(method.id)}
+                      className={`ml-4 sm:ml-6 p-3.5 rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-white border-violet-400 shadow-xs ring-2 ring-violet-200/60'
+                          : 'bg-white/80 hover:bg-white border-slate-200'
+                      }`}
+                    >
+                      <div className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                        <span className="font-bold text-slate-700">Контракт: </span>
+                        {method.businessContract}
+                      </div>
+
+                      <div className="mb-1.5">
+                        <TransactionAnnotationChip
+                          config={currentConfig}
+                          onChange={(cfg) => handleMethodConfigChange(method.id, cfg)}
+                          methodName={method.name}
+                        />
+                      </div>
+
+                      <pre className="p-3 rounded-lg bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
+                        <code>{method.codeSnippet}</code>
+                      </pre>
                     </div>
                   );
                 })}
+
+                <div className="font-mono text-xs font-bold text-slate-800">{'}'}</div>
               </div>
-            </div>
-          )}
-        </section>
+            ))}
+          </div>
+        </div>
+
+        {/* Step-by-Step Interactive Timeline Scrubber & Concurrency Swimlanes */}
+        <TransactionTimelineScrubber
+          scenario={scenario}
+          userConfigs={userConfigs}
+          activeMethodId={selectedMethodId}
+          onSelectMethod={setSelectedMethodId}
+        />
+
+        {/* HikariCP Slot Bay Meter */}
+        <HikariPoolSlotMeter
+          scenario={scenario}
+          userConfigs={userConfigs}
+          threads={threads}
+          onThreadsChange={setThreads}
+        />
+
+        {/* Evaluation Verdict Card */}
+        {evalResult && (
+          <TransactionVerdictCard
+            evalResult={evalResult}
+            scenario={scenario}
+            onStartVoiceDefense={onStartVoiceDefense}
+          />
+        )}
       </main>
 
       {/* Transaction Compass Drawer (Ctrl + /) */}
@@ -583,17 +286,13 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         onAskTutorAboutRule={handleAskTutorAboutRule}
       />
 
-      {/* Socratic AI Tutor Drawer */}
+      {/* Socratic AI Tutor & Whiteboard */}
       <PracticeTutorDrawer />
-
-      {/* Interactive AI Whiteboard Drawer */}
       <WhiteboardDrawer
         isOpen={isWhiteboardOpen}
         onClose={() => setIsWhiteboardOpen(false)}
         state={activeWhiteboardState}
       />
-
-      {/* Floating Ambient Voice Pill for tactile control when drawer is closed */}
       <AmbientVoicePill />
     </div>
   );
