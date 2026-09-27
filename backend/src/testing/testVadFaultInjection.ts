@@ -12,6 +12,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { ProxySession } from '../services/live/liveSessionTypes';
 import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
+import { LiveClientGuardService } from '../services/live/liveClientGuardService';
+import { handleTurnCommit } from '../services/live/liveWsTurnCommitHandler';
 
 interface TestContext {
   passed: number;
@@ -888,6 +890,90 @@ async function testAcousticCircuitBreakerSuppression(): Promise<void> {
 }
 
 // =========================================================================
+// TEST 11: Post-Barge-In STALE_GUARD Bypass Contract (Eliminate Dead-Air Deadlock)
+// =========================================================================
+async function testPostBargeInStaleGuardBypassContract(): Promise<void> {
+  console.log('\n[Test 11] Post-Barge-In STALE_GUARD Bypass Contract');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_bargein_stale_bypass_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 2,
+    isAiGenerating: true,
+    aiPlayoutEstimatedEndEpoch: Date.now() + 1000,
+    lastBargeInEpoch: Date.now() - 200
+  };
+
+  const guardCheck = LiveClientGuardService.evaluateTurnCompleteGuard(session, false, false);
+
+  assert(guardCheck.shouldDrop === false, 'STALE_GUARD bypassed following recent candidate barge-in');
+  assert(session.isAiGenerating === false, 'isAiGenerating safely cleared for post-barge-in candidate turn');
+  assert(session.aiPlayoutEstimatedEndEpoch === 0, 'aiPlayoutEstimatedEndEpoch safely cleared to 0');
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
+// TEST 12: Zero-Chunk Barge-In Recovery Contract (Prevent Dead-Air When Chunks Filtered)
+// =========================================================================
+async function testZeroChunkBargeInRecoveryContract(): Promise<void> {
+  console.log('\n[Test 12] Zero-Chunk Barge-In Recovery Contract');
+
+  const clientPair = await createSocketPair();
+  const geminiPair = await createSocketPair();
+
+  const geminiReceived: any[] = [];
+  geminiPair.remote.on('message', (msg) => {
+    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const session: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: geminiPair.client,
+    isSetupComplete: true,
+    frameQueue: [],
+    sessionId: 'test_zero_chunk_bargein_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 0,
+    isAiGenerating: false,
+    lastBargeInEpoch: Date.now() - 500
+  };
+
+  const accepted = handleTurnCommit(
+    session,
+    { clientContent: { turnComplete: true } },
+    false,
+    clientPair.remote,
+    'auto'
+  );
+
+  await sleep(30);
+
+  assert(accepted === false, 'handleTurnCommit returns false to prevent bare empty clientContent forwarding');
+
+  const promptSent = geminiReceived.find((m) =>
+    m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('КАНДИДАТ ПЕРЕДАЛ СЛОВО')
+  );
+  assert(Boolean(promptSent), 'Synthesized prompt dispatched to Gemini so AI speaks and breaks dead-air deadlock');
+  assert(session.isAiGenerating === true, 'session.isAiGenerating set to true for conversational recovery');
+  assert(Boolean(session.deadAirWatchdog), 'deadAirWatchdog armed to protect against upstream hang');
+
+  if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
+  if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
+
+  await cleanupSocketPair(clientPair);
+  await cleanupSocketPair(geminiPair);
+}
+
+// =========================================================================
 // MAIN RUNNER
 // =========================================================================
 async function runAllTests(): Promise<void> {
@@ -906,6 +992,8 @@ async function runAllTests(): Promise<void> {
     await testRapidCommitFloodProtection();
     await testBargeInPlayoutResetContract();
     await testAcousticCircuitBreakerSuppression();
+    await testPostBargeInStaleGuardBypassContract();
+    await testZeroChunkBargeInRecoveryContract();
 
     console.log('\n=========================================================================');
     console.log(`Fault-Injection Results: ${ctx.passed} Passed, ${ctx.failed} Failed`);

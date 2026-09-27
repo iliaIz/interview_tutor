@@ -78,4 +78,5 @@ export interface ProxySession {
   currentTurnAudioBytes?: number;
   firstAudioChunkTime?: number;
   isCannedErrorTurn?: boolean;
+  lastBargeInEpoch?: number;
 }

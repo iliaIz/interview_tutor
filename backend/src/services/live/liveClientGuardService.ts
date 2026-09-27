@@ -18,6 +18,7 @@ export class LiveClientGuardService {
     session.audioChunksCount = 0;
     session.lastTurnCommitTime = 0;
     session.currentAiTurnText = '';
+    session.lastBargeInEpoch = epoch;
 
     if (session.nudgeWatchdog) {
       clearTimeout(session.nudgeWatchdog);
@@ -79,7 +80,12 @@ export class LiveClientGuardService {
 
     // 3. Stale Guard: Suppress turnComplete if Gemini is generating or physical playout is ongoing
     const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
-    if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
+    const isRecentBargeIn = session.lastBargeInEpoch && (Date.now() - session.lastBargeInEpoch < 3000);
+
+    if (isRecentBargeIn) {
+      session.isAiGenerating = false;
+      session.aiPlayoutEstimatedEndEpoch = 0;
+    } else if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
       const remainingMs = isPlayoutActive ? session.aiPlayoutEstimatedEndEpoch! - Date.now() : 0;
       console.warn(`🛡️ [STALE_GUARD] Suppressed client turnComplete because AI speech/playout is still active (sessionId: ${session.sessionId || 'anon'}, generating: ${session.isAiGenerating}, remaining playout: ${remainingMs}ms)`);
       return { shouldDrop: true, guardName: 'STALE_GUARD' };

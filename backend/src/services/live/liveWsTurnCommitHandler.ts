@@ -8,11 +8,30 @@ export function handleTurnCommit(
   isBargeIn: boolean,
   clientSocket: WebSocket,
   turnMode: 'manual' | 'auto'
-): void {
+): boolean {
   const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
   const guardCheck = LiveClientGuardService.evaluateTurnCompleteGuard(session, hasTextTurns, isBargeIn);
   if (guardCheck.shouldDrop) {
-    return;
+    const isRecentBargeIn = session.lastBargeInEpoch && (Date.now() - session.lastBargeInEpoch < 4000);
+    if (guardCheck.guardName === 'ZERO_CHUNK_GUARD' && isRecentBargeIn) {
+      console.log(`🎙️ [ZERO_CHUNK_RECOVERY] Candidate barged in with 0 audio chunks for session ${session.sessionId || 'anon'}. Synthesizing conversational prompt.`);
+      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+        session.geminiSocket.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: 'user',
+              parts: [{ text: '[КАНДИДАТ ПЕРЕДАЛ СЛОВО: Завершил ответ. Задай следующий вопрос или дай обратную связь.]' }]
+            }],
+            turnComplete: true
+          }
+        }));
+      }
+      session.isAiGenerating = true;
+      session.lastTurnCommitTime = Date.now();
+      armTurnWatchdogs(session, clientSocket);
+      return false;
+    }
+    return false;
   }
 
   const committedAudioChunks = session.audioChunksCount || 0;
@@ -45,6 +64,11 @@ export function handleTurnCommit(
   }
   console.log(`🎙️ [TURN_COMMIT] Candidate committed turn via turnComplete (sessionId: ${session.sessionId || 'anon'}, turnMode: ${turnMode}, audioChunksSent: ${committedAudioChunks}, duration: ${speechDurationMs}ms, hasTextTurns: ${hasTextTurns})`);
   session.audioChunksCount = 0;
+  armTurnWatchdogs(session, clientSocket);
+  return true;
+}
+
+function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
   if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
   session.nudgeWatchdog = setTimeout(() => {
     if (clientSocket.readyState === WebSocket.OPEN) {

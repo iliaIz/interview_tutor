@@ -92,9 +92,11 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         return;
       }
 
-      if (parsed.type === 'barge_in' || (isBargeIn && !parsed.realtimeInput && !parsed.realtime_input)) {
-        LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || 'tactile', parsed.epoch || Date.now());
-        return;
+      if (parsed.type === 'barge_in' || isBargeIn) {
+        LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || (parsed.type === 'barge_in' ? 'tactile' : 'acoustic'), parsed.epoch || Date.now());
+        if (!parsed.realtimeInput && !parsed.realtime_input) {
+          return;
+        }
       }
 
       if (parsed.type === 'turn_reset') {
@@ -221,7 +223,10 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
       }
 
       if (parsed.clientContent?.turnComplete) {
-        handleTurnCommit(session, parsed, isBargeIn, clientSocket, turnMode);
+        const accepted = handleTurnCommit(session, parsed, isBargeIn, clientSocket, turnMode);
+        if (!accepted) {
+          return;
+        }
       }
 
       if (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {

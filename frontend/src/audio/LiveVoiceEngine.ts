@@ -1,17 +1,17 @@
 /**
  * LiveVoiceEngine.ts
  * Unified Headless Voice Engine & State Machine (SOTA Late September 2026).
- * Enforces Dual-Sided Handshake, EchoGuard Gating, and Symmetrical Turn Custody.
+ * Enforces Dual-Sided Handshake, Turn 0 Acoustic Lockdown, and Symmetrical Turn Custody.
+ * Cognitive bounding limit: <= 350 lines.
  */
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { MicrophoneCapture, MicrophoneMetrics } from './MicrophoneCapture';
+import { AcousticBargeInGuard } from './AcousticBargeInGuard';
+import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
 import {
-  VoiceEngineState,
-  VoiceEngineConfig,
-  VoiceEngineCallbacks,
-  DialogueTurnItem,
-  VoiceEvaluationResult
+  VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
+  DialogueTurnItem, VoiceEvaluationResult
 } from './types';
 
 export class LiveVoiceEngine {
@@ -20,6 +20,7 @@ export class LiveVoiceEngine {
   private config: VoiceEngineConfig | null = null;
   private playoutManager: AudioPlayoutManager;
   private micCapture: MicrophoneCapture;
+  private bargeInGuard: AcousticBargeInGuard;
   private dialogueTurns: DialogueTurnItem[] = [];
   private isServerTurnComplete: boolean = false;
   private hasSpokenInTurn: boolean = false;
@@ -31,6 +32,7 @@ export class LiveVoiceEngine {
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.playoutManager = new AudioPlayoutManager();
+    this.bargeInGuard = new AcousticBargeInGuard();
     this.micCapture = new MicrophoneCapture({
       onAudioFrame: (base64Pcm, metrics) => this.handleMicrophoneChunk(base64Pcm, metrics),
       onAudioLevel: (db) => this.callbacks.onAudioLevel?.(db),
@@ -48,6 +50,11 @@ export class LiveVoiceEngine {
     this.transitionState('CONNECTING');
     this.callbacks.onStatusMessage?.('⚡ Подключение к голосовому шлюзу...');
 
+    // Turn 0 Question Recitation Lockdown: prevent speaker bleed self-interruption on initial question
+    const isMidDialogue = Boolean(config.isResumed || config.initialUserMessage);
+    const shouldLockTurn0 = config.turn0Lockdown ?? !isMidDialogue;
+    this.bargeInGuard.setTurn0Lockdown(shouldLockTurn0);
+
     try {
       void this.acquireWakeLock();
       await this.playoutManager.resume();
@@ -55,6 +62,7 @@ export class LiveVoiceEngine {
       const wsUrl = this.buildWebSocketUrl(config);
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
+
       ws.onopen = () => {
         this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
       };
@@ -67,7 +75,7 @@ export class LiveVoiceEngine {
         console.error('LiveVoiceEngine WebSocket error:', err);
       };
 
-      ws.onclose = (ev) => {
+      ws.onclose = () => {
         if (this.state !== 'COMPLETED' && this.state !== 'IDLE') {
           this.transitionState('IDLE');
           this.callbacks.onStatusMessage?.('🔌 Сессия завершена.');
@@ -94,6 +102,7 @@ export class LiveVoiceEngine {
     }
     this.micCapture.stop();
     this.playoutManager.handleInterruption();
+    this.bargeInGuard.reset();
     this.callbacks.onDrainingStateChange?.(false);
     this.transitionState('IDLE');
   }
@@ -111,12 +120,6 @@ export class LiveVoiceEngine {
     }
   }
 
-  public sendCustomFrame(data: any): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
-    }
-  }
-
   public handleCentralButtonClick(): void {
     if (this.state === 'AI_SPEAKING') {
       this.handleBargeInInterruption();
@@ -126,6 +129,7 @@ export class LiveVoiceEngine {
   }
 
   public handleBargeInInterruption(): void {
+    this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
     this.playoutManager.handleInterruption();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -169,6 +173,10 @@ export class LiveVoiceEngine {
     this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
   }
 
+  public sendCustomFrame(frame: any): void {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(frame));
+  }
+
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
     this.micCapture.setMuted(muted);
@@ -186,104 +194,101 @@ export class LiveVoiceEngine {
     return this.playoutManager;
   }
 
+  public getBargeInGuard(): AcousticBargeInGuard {
+    return this.bargeInGuard;
+  }
+
   private handleServerFrame(rawData: any): void {
-    try {
-      const text = typeof rawData === 'string' ? rawData : rawData.toString('utf8');
-      const data = JSON.parse(text);
+    const parsed = LiveVoiceFrameParser.parse(rawData);
+    if (!parsed) return;
 
-      if (data.type === 'setupComplete') {
+    if (parsed.type === 'setupComplete') return;
+
+    if (parsed.evaluation) {
+      this.transitionState('COMPLETED');
+      this.callbacks.onEvaluationReceived?.(parsed.evaluation);
+      return;
+    }
+
+    if (parsed.whiteboardPayload) {
+      this.callbacks.onWhiteboardUpdate?.(parsed.whiteboardPayload);
+      return;
+    }
+
+    if (parsed.chaosPayload) {
+      this.callbacks.onChaosInjected?.(parsed.chaosPayload);
+      return;
+    }
+
+    if (parsed.verdictPayload) {
+      this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
+      return;
+    }
+
+    if (parsed.toolCallPayload) {
+      this.callbacks.onToolCall?.(parsed.toolCallPayload);
+      return;
+    }
+
+    // 1. Ingest audio and transcript text
+    if (parsed.hasAudio || parsed.hasText) {
+      if (this.silenceTimer) {
+        clearTimeout(this.silenceTimer);
+        this.silenceTimer = null;
+      }
+
+      this.transitionState('AI_SPEAKING');
+      this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
+
+      for (const textChunk of parsed.textDeltas) {
+        this.currentAiTurnAccumulator += textChunk;
+        this.callbacks.onTranscriptDelta?.('ai', textChunk);
+        this.updateLastAiDialogueTurn(this.currentAiTurnAccumulator);
+      }
+
+      for (const pcm of parsed.audioChunks) {
+        this.playoutManager.enqueuePcmChunk(pcm);
+      }
+    }
+
+    // 2. Dual-Phase Turn Gate (SOTA Late 2026)
+    if (parsed.isTurnDone) {
+      if (parsed.interactionStatus === 'IN_PROGRESS') {
+        console.log('⏳ Gemini Live interactionStatus is IN_PROGRESS (cognitive thought). Holding mic custody.');
         return;
       }
 
-      if (data.type === 'evaluation_completed' || data.type === 'evaluation') {
-        this.transitionState('COMPLETED');
-        const evalPayload = (data.evaluation || data.payload) as VoiceEvaluationResult;
-        this.callbacks.onEvaluationReceived?.(evalPayload);
-        return;
-      }
+      this.isServerTurnComplete = true;
+      this.playoutManager.notifyTurnComplete();
+      this.currentAiTurnAccumulator = '';
 
-      if (data.type === 'whiteboard_update') {
-        this.callbacks.onWhiteboardUpdate?.(data.payload);
-        return;
-      }
-
-      if (data.type === 'chaos_injected') {
-        this.callbacks.onChaosInjected?.(data.payload);
-        return;
-      }
-
-      if (data.type === 'hiring_committee_verdict') {
-        this.callbacks.onHiringCommitteeVerdict?.(data.payload);
-        return;
-      }
-
-      if (data.type === 'tool_call') {
-        this.callbacks.onToolCall?.(data);
-        return;
-      }
-
-      if (data.serverContent?.modelTurn?.parts) {
-        // AI has started responding; immediately cancel pending client silence timers to prevent premature turn commit
-        if (this.silenceTimer) {
-          clearTimeout(this.silenceTimer);
-          this.silenceTimer = null;
-        }
-
-        this.transitionState('AI_SPEAKING');
-        this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
-        for (const part of data.serverContent.modelTurn.parts) {
-          if ((part as any).thought) continue;
-          if (part.text) {
-            this.currentAiTurnAccumulator += part.text;
-            this.callbacks.onTranscriptDelta?.('ai', part.text);
-            this.updateLastAiDialogueTurn(this.currentAiTurnAccumulator);
-          }
-          const pcm = part.inlineData?.data || part.inline_data?.data;
-          if (pcm) {
-            this.playoutManager.enqueuePcmChunk(pcm);
-          }
-        }
-      }
-
-      // SOTA Late 2026: Gemini 3.8 Live Dual-Phase Turn Gate
-      const isTurnDone = Boolean(data.serverContent?.turnComplete || data.serverContent?.generationComplete);
-      if (isTurnDone) {
-        const interactionStatus = data.serverContent?.interactionStatus;
-        if (interactionStatus === 'IN_PROGRESS') {
-          console.log('⏳ Gemini Live interactionStatus is IN_PROGRESS (cognitive filler / intermediate thought). Holding candidate mic custody.');
-          return;
-        }
-
-        this.isServerTurnComplete = true;
-        this.playoutManager.notifyTurnComplete();
-        this.currentAiTurnAccumulator = '';
-
-        if (!this.playoutManager.isPlaying()) {
-          this.unlockCandidateTurn();
-        } else {
-          this.callbacks.onDrainingStateChange?.(true);
-        }
-      }
-
-      // Upstream interruption detected by Gemini native VAD
-      if (data.serverContent?.interrupted) {
-        this.playoutManager.handleInterruption();
-        this.isServerTurnComplete = true;
+      if (!this.playoutManager.isPlaying()) {
         this.unlockCandidateTurn();
+      } else {
+        this.callbacks.onDrainingStateChange?.(true);
       }
-    } catch (err) {
-      console.error('Error handling server live frame:', err);
+    }
+
+    // 3. Upstream interruption
+    if (parsed.isInterrupted) {
+      this.playoutManager.handleInterruption();
+      this.isServerTurnComplete = true;
+      this.unlockCandidateTurn();
     }
   }
 
   private handleAudioPlayoutFinished(): void {
     this.lastAiSpeechEndedAt = Date.now();
+    // Lifting Turn 0 lockdown once question audio has completely played out
+    this.bargeInGuard.setTurn0Lockdown(false);
+
     if (this.isServerTurnComplete && this.state === 'AI_SPEAKING') {
       this.unlockCandidateTurn();
     }
   }
 
   private unlockCandidateTurn(): void {
+    this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
     this.transitionState('LISTENING');
     this.hasSpokenInTurn = false;
@@ -293,9 +298,9 @@ export class LiveVoiceEngine {
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     if (this.isMuted) return;
 
-    // SOTA Late 2026: Acoustic Barge-In during AI speech
+    // SOTA Late 2026: Acoustic Barge-In with Turn 0 Lockdown & Sustained Speech Gating
     if (this.state === 'AI_SPEAKING') {
-      if (metrics?.speechDetected) {
+      if (this.bargeInGuard.evaluateAcousticBargeIn(metrics)) {
         this.callbacks.onDrainingStateChange?.(false);
         this.playoutManager.handleInterruption();
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -371,10 +376,7 @@ export class LiveVoiceEngine {
 
   private buildWebSocketUrl(cfg: VoiceEngineConfig): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    let hostWithPort = window.location.host;
-    if (window.location.port === '8090') {
-      hostWithPort = `${window.location.hostname}:8091`;
-    }
+    const hostWithPort = window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host;
     const params = new URLSearchParams({
       sessionId: cfg.sessionId,
       questionId: cfg.questionId,

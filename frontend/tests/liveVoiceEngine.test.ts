@@ -256,25 +256,47 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(receivedWhiteboard?.title, 'Архитектура сервиса', 'Whiteboard update dispatched to callback');
   console.log('  ✅ Test 10 Passed: whiteboard_update event delivered');
 
-  // Test 11: Acoustic Barge-In during AI speech
+  // Test 11: Turn 0 Acoustic Lockdown & Mid-Dialogue Acoustic Barge-In
   const engine3 = new LiveVoiceEngine({});
   await engine3.connect({ sessionId: 'test_sess_3', questionId: 'Q_3', sessionType: 'interview' });
   const mockWs3 = (engine3 as any).ws as MockWebSocket;
 
   mockWs3.onmessage?.({
     data: JSON.stringify({
+      serverContent: { modelTurn: { parts: [{ text: 'Привет! Расскажи о Spring Boot...' }] } }
+    })
+  });
+  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING during Turn 0 question recitation');
+
+  // 11a: Candidate mic bleed / noise during Turn 0 question recitation MUST NOT barge in
+  (engine3 as any).handleMicrophoneChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
+  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Turn 0 Acoustic Lockdown prevents mic bleed from interrupting question');
+  console.log('  ✅ Test 11a Passed: Turn 0 Acoustic Lockdown protects initial question recitation');
+
+  // Turn 0 recitation concludes (audio playout finished & server sent turnComplete)
+  mockWs3.onmessage?.({
+    data: JSON.stringify({
+      serverContent: { turnComplete: true, interactionStatus: 'IDLE' }
+    })
+  });
+  (engine3 as any).handleAudioPlayoutFinished();
+  assert.strictEqual(engine3.getState(), 'LISTENING', 'Candidate mic unlocked after Turn 0 question finished playing');
+
+  // 11b: AI begins mid-dialogue speech
+  mockWs3.onmessage?.({
+    data: JSON.stringify({
       serverContent: { modelTurn: { parts: [{ text: 'Длинное объяснение...' }] } }
     })
   });
-  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING');
+  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING mid-dialogue');
 
-  // Candidate speaks loudly into microphone (metrics.speechDetected = true)
+  // Candidate speaks loudly into microphone (metrics.speechDetected = true, rmsDb = -15)
   (engine3 as any).handleMicrophoneChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
-  assert.strictEqual(engine3.getState(), 'LISTENING', 'Acoustic speech detection interrupts AI speech and switches to LISTENING');
+  assert.strictEqual(engine3.getState(), 'LISTENING', 'Acoustic speech detection interrupts AI speech mid-dialogue and switches to LISTENING');
   const acousticSent = JSON.parse(mockWs3.sentMessages[mockWs3.sentMessages.length - 1]);
   assert.strictEqual(acousticSent.bargeIn, true, 'Acoustic barge-in tagged with bargeIn: true');
   assert.strictEqual(acousticSent.bargeInType, 'acoustic', 'Tagged with bargeInType acoustic');
-  console.log('  ✅ Test 11 Passed: Acoustic barge-in triggers instant interruption and mic unlock');
+  console.log('  ✅ Test 11b Passed: Mid-dialogue acoustic barge-in triggers instant interruption and mic unlock');
 
   engine2.disconnect();
   engine3.disconnect();

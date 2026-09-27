@@ -150,6 +150,19 @@ If the candidate speaks over the AI and Energy VAD exceeds threshold:
 - Gemini emits `serverContent.interrupted: true`.
 - Engine silences active playback and transitions to `LISTENING`.
 
+### 6.3. Turn 0 Question Recitation Acoustic Lockdown
+During Turn 0 initial greeting and question recitation, acoustic microphone frames MUST NOT trigger software barge-in (`AI_SPEAKING` preserved). This eliminates premature question truncation caused by physical speaker bleed and room reverberation into the open microphone.
+- Tactile barge-in (central circle click) remains active at all times as a deliberate candidate override.
+- Acoustic barge-in is symmetrically unlocked once Turn 0 question audio finishes playing in DAC (`AudioPlayoutManager.onPlaybackFinished()`).
+- Mid-dialogue acoustic barge-in enforces sustained speech verification (`consecutiveSpeechFrames >= 2` or `rmsDb >= -20 dB` loud direct speech) with $\ge 8\text{ dB}$ margin above ambient noise floor.
+
+### 6.4. Post-Barge-In STALE_GUARD Bypass & Zero-Chunk Recovery
+- When candidate interrupts via tactile or acoustic barge-in, `session.lastBargeInEpoch = Date.now()` is recorded.
+- If candidate commits turn within 3000ms of barge-in, `STALE_GUARD` is bypassed, and `isAiGenerating`/`aiPlayoutEstimatedEndEpoch` are cleared.
+- If candidate commits with 0 audio chunks following a barge-in (e.g. brief utterance filtered by EchoGuard or candidate remained silent), `handleTurnCommit` synthesizes a conversational nudge to upstream Gemini:
+  `[КАНДИДАТ ПЕРЕДАЛ СЛОВО: Завершил ответ. Задай следующий вопрос или дай обратную связь.]`
+  This arms the 8.0s dead-air watchdogs and prompts Gemini to take the turn, eliminating dead-air deadlocks.
+
 ---
 
 ## 7. Turn 0 Gating Invariant & Immutable Tools Constraint

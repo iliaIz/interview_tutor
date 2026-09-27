@@ -14,6 +14,7 @@ const MAX_MODIFIED_FILE_LINES = 400;
 // Legacy monoliths scheduled for phased decomposition in subsequent waves
 const LEGACY_MIGRATION_WAIVERS = new Set<string>([
   'backend/src/scripts/testStreamRouterMock.ts',        // Test harness with inline mocks
+  'backend/src/testing/testVadFaultInjection.ts',       // Fault-injection integration test suite
 ]);
 
 interface FileAuditResult {
