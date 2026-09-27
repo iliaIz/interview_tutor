@@ -16,6 +16,7 @@ export interface PacerOptions {
   onChunkSent?: (chunkIndex: number, totalChunks: number, elapsedMs: number) => void;
   onSpeechEnd?: () => void;
   signal?: AbortSignal;
+  manualTurnCommit?: boolean;
 }
 
 /**
@@ -121,6 +122,12 @@ export class RealtimeAudioPacer {
     const silenceBuffer = generateSilence(trailingSilenceMs);
     const silenceResult = await this.streamPcm(ws, silenceBuffer, options);
 
+    // SOTA Client-Authoritative Duplex (Invariant 2.6):
+    // Client commits the turn upon VAD endpointing (trailing silence conclusion)
+    if (ws.readyState === WebSocket.OPEN && !options.manualTurnCommit) {
+      ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+    }
+
     return {
       speechDurationMs: speechResult.durationMs,
       silenceDurationMs: silenceResult.durationMs
@@ -145,5 +152,11 @@ export class RealtimeAudioPacer {
     await this.streamPcm(ws, part2Pcm, options);
     const trailingBuffer = generateSilence(trailingSilenceMs);
     await this.streamPcm(ws, trailingBuffer, options);
+
+    // SOTA Client-Authoritative Duplex (Invariant 2.6):
+    // Client commits turn upon speech conclusion
+    if (ws.readyState === WebSocket.OPEN && !options.manualTurnCommit) {
+      ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+    }
   }
 }

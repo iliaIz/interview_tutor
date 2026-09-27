@@ -260,10 +260,12 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         if (audioData) {
           const normalized = {
             realtimeInput: {
-              audio: {
-                mimeType,
-                data: audioData
-              }
+              mediaChunks: [
+                {
+                  mimeType,
+                  data: audioData
+                }
+              ]
             }
           };
           payloadBuffer = Buffer.from(JSON.stringify(normalized));

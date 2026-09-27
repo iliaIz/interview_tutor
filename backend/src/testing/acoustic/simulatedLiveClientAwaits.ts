@@ -101,7 +101,8 @@ export class SimulatedLiveClientAwaits {
     ctx: AwaitContext,
     timeoutMs: number = 20000
   ): Promise<ClientTelemetry> {
-    if (ctx.telemetry.isTurnComplete) {
+    const hasContent = ctx.telemetry.audioBytesReceived > 0 || ctx.telemetry.replyText.length > 0;
+    if (ctx.telemetry.isTurnComplete && hasContent) {
       return { ...ctx.telemetry };
     }
 
@@ -117,6 +118,10 @@ export class SimulatedLiveClientAwaits {
 
       const listener = (msg: any) => {
         if (msg.serverContent?.turnComplete) {
+          const currentHasContent = ctx.telemetry.audioBytesReceived > 0 || ctx.telemetry.replyText.length > 0;
+          if (!currentHasContent) {
+            return;
+          }
           cleanup();
           resolve({ ...ctx.telemetry });
         }

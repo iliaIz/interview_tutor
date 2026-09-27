@@ -51,6 +51,7 @@ export interface ProxySession {
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
   sessionType?: 'interview' | 'tutor' | 'system_design';
+  liveModel?: string;
   currentArchitectureMermaid?: string;
   currentGraphIr?: string;
   isUpstreamReconnecting?: boolean;

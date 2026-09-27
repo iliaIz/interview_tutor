@@ -48,6 +48,12 @@ export class LiveClientGuardService {
         }
       }));
     }
+
+    if (session.clientSocket && session.clientSocket.readyState === WebSocket.OPEN) {
+      session.clientSocket.send(JSON.stringify({
+        serverContent: { interrupted: true }
+      }));
+    }
   }
 
   /**

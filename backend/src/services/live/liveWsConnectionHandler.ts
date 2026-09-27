@@ -90,6 +90,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     targetGrade,
     isToolCallPending: false,
     sessionType,
+    liveModel,
     isUpstreamReconnecting: false,
     reconnectAttempts: 0,
     reconnectTimer: null,

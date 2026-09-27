@@ -162,19 +162,14 @@ export class SimulatedLiveClient {
         }
       }
 
-      // 2. Check for turn completion
-      if (parsed.serverContent?.turnComplete) {
-        this.telemetry.isTurnComplete = true;
-      }
-
-      // 3. Check for tool calls
+      // 2. Check for tool calls
       if (parsed.toolCall?.functionCalls) {
         for (const fc of parsed.toolCall.functionCalls) {
           this.telemetry.toolCallsReceived.push(fc.name);
         }
       }
 
-      // 4. Check for model parts (audio, text, thought)
+      // 3. Check for model parts (audio, text, thought)
       const parts = parsed.serverContent?.modelTurn?.parts || [];
       for (const p of parts) {
         if (p.thought || p.isThought) {
@@ -207,12 +202,20 @@ export class SimulatedLiveClient {
         }
       }
 
-      // 5. Output audio transcription text (Gemini Live outputAudioTranscription)
+      // 4. Output audio transcription text (Gemini Live outputAudioTranscription)
       const outputTranscription = parsed.serverContent?.outputTranscription?.text || parsed.serverContent?.output_transcription?.text;
       if (outputTranscription) {
         this.telemetry.replyText += outputTranscription;
         if (this.candidateSpeechEndedAt && this.telemetry.ttftMs === null) {
           this.telemetry.ttftMs = Date.now() - this.candidateSpeechEndedAt;
+        }
+      }
+
+      // 5. Check for turn completion (only if candidate has concluded speech and AI produced response content)
+      if (parsed.serverContent?.turnComplete) {
+        const hasContent = this.telemetry.audioBytesReceived > 0 || this.telemetry.replyText.length > 0;
+        if (this.candidateSpeechEndedAt !== null && hasContent) {
+          this.telemetry.isTurnComplete = true;
         }
       }
 

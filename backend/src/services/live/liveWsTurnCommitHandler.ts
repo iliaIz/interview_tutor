@@ -68,15 +68,19 @@ export function handleTurnCommit(
 }
 
 function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
+  const isThinkingModel = Boolean(session.liveModel && session.liveModel.includes('thinking'));
+
   if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
+  const nudgeDelay = isThinkingModel ? 10000 : 5500;
   session.nudgeWatchdog = setTimeout(() => {
     if (clientSocket.readyState === WebSocket.OPEN) {
-      clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: 5500 }));
+      clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: nudgeDelay }));
     }
-  }, 5500);
+  }, nudgeDelay);
 
-  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (8.0s timeout or session override)
-  const deadAirTimeoutMs = session.deadAirTimeoutMs ?? 8000;
+  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (8.0s for standard, 16.0s for thinking)
+  const defaultTimeout = isThinkingModel ? 16000 : 8000;
+  const deadAirTimeoutMs = session.deadAirTimeoutMs ?? defaultTimeout;
   if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
   session.deadAirWatchdog = setTimeout(() => {
     if (session.isAiGenerating) {
