@@ -82,7 +82,7 @@ export class LiveClientGuardService {
     const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
     const isRecentBargeIn = session.lastBargeInEpoch && (Date.now() - session.lastBargeInEpoch < 3000);
 
-    if (isRecentBargeIn) {
+    if (isRecentBargeIn || chunksCount > 0) {
       session.isAiGenerating = false;
       session.aiPlayoutEstimatedEndEpoch = 0;
     } else if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {

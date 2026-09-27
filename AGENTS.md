@@ -44,6 +44,13 @@
 - Desktop: Direct Web Audio `context.destination` with low latency.
 - Tactile Barge-In: User click on central circle during AI speech triggers `AudioPlayoutManager.handleInterruption()` with a 5ms de-click ramp, immediately silencing audio and switching UI to active recording.
 
+### 2.6. Client-Authoritative VAD & Single Source of Truth Invariant (SOTA Late 2026)
+- **Cloud VAD Prohibition:** `automaticActivityDetection.disabled` MUST ALWAYS remain `true` in `liveGeminiConfigBuilder.ts`. Enabling cloud VAD creates split-brain race conditions with client VAD and triggers acoustic self-interruption from laptop speaker bleed.
+- **Single Authority (Client SSOT):** The client (`LiveVoiceEngine`) has exclusive authority over turn boundaries. It commits turns strictly by sending `{ clientContent: { turnComplete: true } }`.
+- **No Heuristic Gate Censors:** The backend gateway MUST NOT filter or drop legitimate client turn commits via heuristic guards (`STALE_GUARD`, `ZERO_CHUNK_GUARD`, `FLOOD_GUARD`). The gateway acts as a high-speed transparent session router.
+- **Neural Speech Detection:** Client-side speech detection MUST use neural Silero VAD v5 (<1ms WASM inference). Energy-only RMS thresholds MUST NOT be used as the sole trigger for turn completion.
+- **Turn 0 Question Recitation Lockdown:** During question recitation on Turn 0, acoustic barge-in is locked until physical DAC audio drain (`AudioPlayoutManager.onPlaybackFinished()`). Only explicit tactile clicks can interrupt Turn 0.
+
 ---
 
 ## 3. UI/UX Standard, Health & Resilience Invariants

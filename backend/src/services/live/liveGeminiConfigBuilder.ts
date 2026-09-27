@@ -52,17 +52,13 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     };
   }
 
-  // SOTA Late 2026: Gemini 3.8 Live RealtimeInputConfig with native Auto-VAD
-  const isAutoVad = turnMode === 'auto';
+  // SOTA Late 2026: Client-Authoritative Duplex.
+  // Cloud VAD is permanently disabled to eliminate speaker bleed self-interruption.
+  // Turn custody is governed exclusively by client-side Silero VAD / state machine.
   const realtimeInputConfig: any = {
     automaticActivityDetection: {
-      disabled: !isAutoVad,
-      startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
-      endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-      prefixPaddingMs: 60,
-      silenceDurationMs: vadPauseMs
-    },
-    activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
+      disabled: true
+    }
   };
 
   const setupMessage: any = {

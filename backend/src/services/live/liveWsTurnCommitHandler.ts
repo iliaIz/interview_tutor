@@ -12,9 +12,8 @@ export function handleTurnCommit(
   const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
   const guardCheck = LiveClientGuardService.evaluateTurnCompleteGuard(session, hasTextTurns, isBargeIn);
   if (guardCheck.shouldDrop) {
-    const isRecentBargeIn = session.lastBargeInEpoch && (Date.now() - session.lastBargeInEpoch < 4000);
-    if (guardCheck.guardName === 'ZERO_CHUNK_GUARD' && isRecentBargeIn) {
-      console.log(`🎙️ [ZERO_CHUNK_RECOVERY] Candidate barged in with 0 audio chunks for session ${session.sessionId || 'anon'}. Synthesizing conversational prompt.`);
+    if (guardCheck.guardName === 'ZERO_CHUNK_GUARD') {
+      console.log(`🎙️ [ZERO_CHUNK_RECOVERY] Candidate committed with 0 audio chunks for session ${session.sessionId || 'anon'}. Synthesizing conversational prompt.`);
       if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
         session.geminiSocket.send(JSON.stringify({
           clientContent: {

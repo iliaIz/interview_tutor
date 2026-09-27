@@ -69,7 +69,7 @@ Each voice turn is sealed into a canonical telemetry envelope (`TurnTelemetryEve
 | $T_{\text{ttfa}} < 800$ms, but $T_{\text{ttfp}} > 4000$ms (or null) | **Browser Autoplay Barrier** | `AudioContext` is suspended or stuck in un-primed state. Ensure `AudioPlayoutManager.warmup()` is invoked synchronously inside DOM `onClick`. |
 | $\text{audioTextSkewMs} < -800$ms | **Subtitle Spoilering** | Text rendered instantly upon arrival while audio was delayed in ring buffer. Apply subtitle pacing or stream alignment. |
 | $T_{\text{ttfa}} > 4000$ms with normal `networkRttMs` $< 60$ms | **Upstream AI Latency** | Gemini Live queue saturation or LiteLLM key rotation backoff. Check Gateway failover logs. |
-| `echoLeakageDroppedMs` $> 3000$ms with repeated barge-ins | **Acoustic Speaker Bleed** | User is using loud external speakers without headphones. Half-Duplex guard dropped echo chunks; advise candidate to wear headphones. |
+| `echoLeakageDroppedMs` $> 3000$ms with repeated barge-ins | **Acoustic Speaker Bleed** | Client-Authoritative Silero VAD v5 and Turn 0 Lockdown protect question recitation. Verify `automaticActivityDetection.disabled: true` in setup. |
 | `speechDurationMs` $< 1000$ms with candidate speech cut off | **Premature VAD Endpointing** | `vadPauseMs` is too short for natural cognitive pauses. Increase silence gate from 1200ms to 1800-2200ms. |
 | DB `transcript` has only `system` and `user` turns, `role: 'ai'` is missing | **Protocol Asymmetry** | `outputAudioTranscription: {}` omitted in `setupMessage.setup`. Server only receives binary PCM without text parts. |
 | Client disconnects with code `1001` or `1005` after 2–8 seconds | **Upstream / Gateway Sever** | Model key exhaustion (429), gateway proxy timeout, or client unmounted modal. |

@@ -1,12 +1,14 @@
 /**
  * LiveVoiceEngine.ts
  * Unified Headless Voice Engine & State Machine (SOTA Late September 2026).
- * Enforces Dual-Sided Handshake, Turn 0 Acoustic Lockdown, and Symmetrical Turn Custody.
- * Cognitive bounding limit: <= 350 lines.
+ * Enforces Client-Authoritative Duplex, Neural Silero VAD v5, and Dual-Sided Handshake.
+ * Cognitive bounding limit: <= 390 lines.
  */
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { MicrophoneCapture, MicrophoneMetrics } from './MicrophoneCapture';
+import { SileroVadDetector } from './SileroVadDetector';
+import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { AcousticBargeInGuard } from './AcousticBargeInGuard';
 import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
 import {
@@ -15,24 +17,29 @@ import {
 } from './types';
 
 export class LiveVoiceEngine {
-  private state: VoiceEngineState = 'IDLE';
+  private fsm: LiveVoiceStateMachine;
   private ws: WebSocket | null = null;
   private config: VoiceEngineConfig | null = null;
   private playoutManager: AudioPlayoutManager;
   private micCapture: MicrophoneCapture;
+  private sileroVad: SileroVadDetector | null = null;
   private bargeInGuard: AcousticBargeInGuard;
   private dialogueTurns: DialogueTurnItem[] = [];
   private isServerTurnComplete: boolean = false;
   private hasSpokenInTurn: boolean = false;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
-  private lastAiSpeechEndedAt: number = 0;
   private isMuted: boolean = false;
   private currentAiTurnAccumulator: string = '';
   private wakeLock: any = null;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
+    this.fsm = new LiveVoiceStateMachine((pubState) => {
+      this.callbacks.onStateChange?.(pubState);
+    });
+
     this.playoutManager = new AudioPlayoutManager();
     this.bargeInGuard = new AcousticBargeInGuard();
+
     this.micCapture = new MicrophoneCapture({
       onAudioFrame: (base64Pcm, metrics) => this.handleMicrophoneChunk(base64Pcm, metrics),
       onAudioLevel: (db) => this.callbacks.onAudioLevel?.(db),
@@ -47,10 +54,9 @@ export class LiveVoiceEngine {
   public async connect(config: VoiceEngineConfig): Promise<void> {
     this.disconnect();
     this.config = config;
-    this.transitionState('CONNECTING');
+    this.fsm.transition({ type: 'CONNECT' });
     this.callbacks.onStatusMessage?.('⚡ Подключение к голосовому шлюзу...');
 
-    // Turn 0 Question Recitation Lockdown: prevent speaker bleed self-interruption on initial question
     const isMidDialogue = Boolean(config.isResumed || config.initialUserMessage);
     const shouldLockTurn0 = config.turn0Lockdown ?? !isMidDialogue;
     this.bargeInGuard.setTurn0Lockdown(shouldLockTurn0);
@@ -58,7 +64,28 @@ export class LiveVoiceEngine {
     try {
       void this.acquireWakeLock();
       await this.playoutManager.resume();
-      void this.micCapture.start(this.playoutManager.getContext());
+      const ctx = this.playoutManager.getContext();
+      
+      // Initialize Neural Silero VAD v5 with fallback to MicrophoneCapture
+      try {
+        const vad = new SileroVadDetector({
+          vadPauseMs: config.vadPauseMs || 1800,
+          callbacks: {
+            onSpeechStart: () => this.handleSpeechStarted(),
+            onSpeechEnd: () => this.handleSpeechEnded(),
+            onAudioFrame: (base64, prob, isSpeech, rmsDb) => {
+              this.callbacks.onAudioLevel?.(rmsDb);
+              this.handleMicrophoneChunk(base64, { rmsDb, speechDetected: isSpeech });
+            },
+            onError: () => this.fallbackToMicrophoneCapture(ctx)
+          }
+        });
+        await vad.start(this.playoutManager.getContext());
+        this.sileroVad = vad;
+      } catch {
+        this.fallbackToMicrophoneCapture(ctx);
+      }
+
       const wsUrl = this.buildWebSocketUrl(config);
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
@@ -76,14 +103,20 @@ export class LiveVoiceEngine {
       };
 
       ws.onclose = () => {
-        if (this.state !== 'COMPLETED' && this.state !== 'IDLE') {
-          this.transitionState('IDLE');
+        if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
+          this.fsm.transition({ type: 'DISCONNECT' });
           this.callbacks.onStatusMessage?.('🔌 Сессия завершена.');
         }
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.handleFatalError(`Не удалось запустить аудио: ${msg}`, true);
+    }
+  }
+
+  private fallbackToMicrophoneCapture(ctx?: AudioContext): void {
+    if (!this.micCapture.isActive()) {
+      void this.micCapture.start(ctx || this.playoutManager.getContext());
     }
   }
 
@@ -100,35 +133,25 @@ export class LiveVoiceEngine {
       } catch {}
       this.ws = null;
     }
+    this.sileroVad?.stop();
+    this.sileroVad = null;
     this.micCapture.stop();
     this.playoutManager.handleInterruption();
     this.bargeInGuard.reset();
     this.callbacks.onDrainingStateChange?.(false);
-    this.transitionState('IDLE');
-  }
-
-  private async acquireWakeLock(): Promise<void> {
-    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
-      try { this.wakeLock = await (navigator as any).wakeLock.request('screen'); } catch {}
-    }
-  }
-
-  private releaseWakeLock(): void {
-    if (this.wakeLock) {
-      try { this.wakeLock.release(); } catch {}
-      this.wakeLock = null;
-    }
+    this.fsm.transition({ type: 'DISCONNECT' });
   }
 
   public handleCentralButtonClick(): void {
-    if (this.state === 'AI_SPEAKING') {
-      this.handleBargeInInterruption();
-    } else if (this.state === 'LISTENING') {
+    const pub = this.fsm.getPublicState();
+    if (pub === 'AI_SPEAKING') {
+      this.handleBargeInInterruption('tactile');
+    } else if (pub === 'LISTENING') {
       this.commitSpokenTurn();
     }
   }
 
-  public handleBargeInInterruption(): void {
+  public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
     this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
     this.playoutManager.handleInterruption();
@@ -136,13 +159,14 @@ export class LiveVoiceEngine {
       this.ws.send(JSON.stringify({
         type: 'barge_in',
         bargeIn: true,
+        bargeInType: source,
         epoch: Date.now(),
         clientContent: { turnComplete: true, interrupted: true }
       }));
     }
     this.isServerTurnComplete = true;
-    this.hasSpokenInTurn = false;
-    this.transitionState('LISTENING');
+    this.hasSpokenInTurn = source === 'acoustic';
+    this.fsm.transition({ type: 'BARGE_IN_TRIGGERED', source });
     this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите...');
   }
 
@@ -151,16 +175,17 @@ export class LiveVoiceEngine {
       clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
     }
+    this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
     }
-    this.transitionState('AI_SPEAKING');
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
   }
 
   public sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
     this.appendDialogueTurn('user', displayText || text);
+    this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         clientContent: {
@@ -169,7 +194,6 @@ export class LiveVoiceEngine {
         }
       }));
     }
-    this.transitionState('AI_SPEAKING');
     this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
   }
 
@@ -179,11 +203,16 @@ export class LiveVoiceEngine {
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
+    this.sileroVad?.setMuted(muted);
     this.micCapture.setMuted(muted);
   }
 
   public getState(): VoiceEngineState {
-    return this.state;
+    return this.fsm.getPublicState();
+  }
+
+  public getInternalState(): string {
+    return this.fsm.getInternalState();
   }
 
   public getDialogueTurns(): DialogueTurnItem[] {
@@ -194,50 +223,51 @@ export class LiveVoiceEngine {
     return this.playoutManager;
   }
 
-  public getBargeInGuard(): AcousticBargeInGuard {
-    return this.bargeInGuard;
+  private handleSpeechStarted(): void {
+    if (this.fsm.isTurn0RecitationActive()) return;
+    const pub = this.fsm.getPublicState();
+    if (pub === 'AI_SPEAKING') {
+      this.handleBargeInInterruption('acoustic');
+    } else {
+      this.fsm.transition({ type: 'SPEECH_STARTED' });
+      this.hasSpokenInTurn = true;
+    }
+  }
+
+  private handleSpeechEnded(): void {
+    if (this.fsm.isCandidateTurnActive() && this.hasSpokenInTurn && this.config?.turnMode === 'auto') {
+      this.commitSpokenTurn();
+    }
   }
 
   private handleServerFrame(rawData: any): void {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
 
-    if (parsed.type === 'setupComplete') return;
+    if (parsed.type === 'setupComplete') {
+      const isTurn0 = this.bargeInGuard.isTurn0RecitationLocked();
+      this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0 });
+      return;
+    }
 
     if (parsed.evaluation) {
-      this.transitionState('COMPLETED');
+      this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
       this.callbacks.onEvaluationReceived?.(parsed.evaluation);
       return;
     }
 
-    if (parsed.whiteboardPayload) {
-      this.callbacks.onWhiteboardUpdate?.(parsed.whiteboardPayload);
-      return;
-    }
+    if (parsed.whiteboardPayload) return this.callbacks.onWhiteboardUpdate?.(parsed.whiteboardPayload);
+    if (parsed.chaosPayload) return this.callbacks.onChaosInjected?.(parsed.chaosPayload);
+    if (parsed.verdictPayload) return this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
+    if (parsed.toolCallPayload) return this.callbacks.onToolCall?.(parsed.toolCallPayload);
 
-    if (parsed.chaosPayload) {
-      this.callbacks.onChaosInjected?.(parsed.chaosPayload);
-      return;
-    }
-
-    if (parsed.verdictPayload) {
-      this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
-      return;
-    }
-
-    if (parsed.toolCallPayload) {
-      this.callbacks.onToolCall?.(parsed.toolCallPayload);
-      return;
-    }
-
-    // 1. Ingest audio and transcript text
+    // Audio / transcript deltas
     if (parsed.hasAudio || parsed.hasText) {
       if (this.silenceTimer) {
         clearTimeout(this.silenceTimer);
         this.silenceTimer = null;
       }
-
-      this.transitionState('AI_SPEAKING');
+      this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
 
       for (const textChunk of parsed.textDeltas) {
@@ -251,13 +281,9 @@ export class LiveVoiceEngine {
       }
     }
 
-    // 2. Dual-Phase Turn Gate (SOTA Late 2026)
+    // Dual-Phase Turn Gate
     if (parsed.isTurnDone) {
-      if (parsed.interactionStatus === 'IN_PROGRESS') {
-        console.log('⏳ Gemini Live interactionStatus is IN_PROGRESS (cognitive thought). Holding mic custody.');
-        return;
-      }
-
+      if (parsed.interactionStatus === 'IN_PROGRESS') return;
       this.isServerTurnComplete = true;
       this.playoutManager.notifyTurnComplete();
       this.currentAiTurnAccumulator = '';
@@ -269,7 +295,6 @@ export class LiveVoiceEngine {
       }
     }
 
-    // 3. Upstream interruption
     if (parsed.isInterrupted) {
       this.playoutManager.handleInterruption();
       this.isServerTurnComplete = true;
@@ -278,11 +303,8 @@ export class LiveVoiceEngine {
   }
 
   private handleAudioPlayoutFinished(): void {
-    this.lastAiSpeechEndedAt = Date.now();
-    // Lifting Turn 0 lockdown once question audio has completely played out
     this.bargeInGuard.setTurn0Lockdown(false);
-
-    if (this.isServerTurnComplete && this.state === 'AI_SPEAKING') {
+    if (this.isServerTurnComplete) {
       this.unlockCandidateTurn();
     }
   }
@@ -290,7 +312,7 @@ export class LiveVoiceEngine {
   private unlockCandidateTurn(): void {
     this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
-    this.transitionState('LISTENING');
+    this.fsm.transition({ type: 'PLAYOUT_FINISHED' });
     this.hasSpokenInTurn = false;
     this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите в микрофон...');
   }
@@ -298,30 +320,17 @@ export class LiveVoiceEngine {
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     if (this.isMuted) return;
 
-    // SOTA Late 2026: Acoustic Barge-In with Turn 0 Lockdown & Sustained Speech Gating
-    if (this.state === 'AI_SPEAKING') {
+    if (this.fsm.isTurn0RecitationActive()) return;
+
+    const pub = this.fsm.getPublicState();
+    if (pub === 'AI_SPEAKING') {
       if (this.bargeInGuard.evaluateAcousticBargeIn(metrics)) {
-        this.callbacks.onDrainingStateChange?.(false);
-        this.playoutManager.handleInterruption();
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            type: 'barge_in',
-            bargeIn: true,
-            bargeInType: 'acoustic',
-            epoch: Date.now(),
-            realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Pcm }] }
-          }));
-        }
-        this.isServerTurnComplete = true;
-        this.hasSpokenInTurn = true;
-        this.transitionState('LISTENING');
-        this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите...');
+        this.handleBargeInInterruption('acoustic');
       }
       return;
     }
 
-    if (this.state !== 'LISTENING') return;
-    if (Date.now() - this.lastAiSpeechEndedAt < 450 && !this.hasSpokenInTurn) return;
+    if (!this.fsm.isCandidateTurnActive()) return;
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
@@ -329,32 +338,20 @@ export class LiveVoiceEngine {
       }));
     }
 
-    if (metrics?.speechDetected) {
+    // Fallback energy silence timer if Silero VAD is not handling endpoints
+    if (!this.sileroVad && metrics?.speechDetected) {
       this.hasSpokenInTurn = true;
-      if (this.silenceTimer) {
-        clearTimeout(this.silenceTimer);
+      if (this.silenceTimer) { clearTimeout(this.silenceTimer); this.silenceTimer = null; }
+    } else if (!this.sileroVad && this.hasSpokenInTurn && this.config?.turnMode === 'auto' && !this.silenceTimer) {
+      this.silenceTimer = setTimeout(() => {
         this.silenceTimer = null;
-      }
-    } else if (this.hasSpokenInTurn && this.config?.turnMode === 'auto') {
-      if (!this.silenceTimer) {
-        const pauseLimit = this.config.vadPauseMs || 1800;
-        this.silenceTimer = setTimeout(() => {
-          this.silenceTimer = null;
-          if (this.state === 'LISTENING' && this.hasSpokenInTurn) {
-            this.commitSpokenTurn();
-          }
-        }, pauseLimit);
-      }
+        if (this.hasSpokenInTurn) this.commitSpokenTurn();
+      }, this.config.vadPauseMs || 1800);
     }
   }
 
-  private transitionState(newState: VoiceEngineState): void {
-    this.state = newState;
-    this.callbacks.onStateChange?.(newState);
-  }
-
   private handleFatalError(msg: string, retryable: boolean): void {
-    this.transitionState('ERROR');
+    this.fsm.transition({ type: 'ERROR_OCCURRED' });
     this.callbacks.onError?.(msg, retryable);
     this.callbacks.onStatusMessage?.(`❌ Ошибка: ${msg}`);
   }
@@ -376,23 +373,25 @@ export class LiveVoiceEngine {
 
   private buildWebSocketUrl(cfg: VoiceEngineConfig): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const hostWithPort = window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host;
-    const params = new URLSearchParams({
-      sessionId: cfg.sessionId,
-      questionId: cfg.questionId,
-      sessionType: cfg.sessionType,
-      topic: cfg.topic || '',
-      questionText: cfg.questionText || '',
-      referenceAnswer: cfg.referenceAnswer || '',
-      voice: cfg.voice || 'Kore',
-      turnMode: cfg.turnMode || 'auto',
-      liveModel: cfg.liveModel || 'gemini-live-v3',
-      vadPauseMs: String(cfg.vadPauseMs || 1800)
+    const host = window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host;
+    const p = new URLSearchParams({
+      sessionId: cfg.sessionId, questionId: cfg.questionId, sessionType: cfg.sessionType,
+      topic: cfg.topic || '', questionText: cfg.questionText || '', referenceAnswer: cfg.referenceAnswer || '',
+      voice: cfg.voice || 'Kore', turnMode: cfg.turnMode || 'auto',
+      liveModel: cfg.liveModel || 'gemini-live-v3', vadPauseMs: String(cfg.vadPauseMs || 1800)
     });
-    if (cfg.tutorMode) params.set('tutorMode', cfg.tutorMode);
-    if (cfg.persona) params.set('persona', cfg.persona);
-    if (cfg.targetGrade) params.set('targetGrade', cfg.targetGrade);
-    if (cfg.strategy) params.set('strategy', cfg.strategy);
-    return `${protocol}//${hostWithPort}/ws/live?${params.toString()}`;
+    for (const k of ['tutorMode', 'persona', 'targetGrade', 'strategy'] as const) {
+      if (cfg[k]) p.set(k, String(cfg[k]));
+    }
+    return `${protocol}//${host}/ws/live?${p.toString()}`;
+  }
+
+  private async acquireWakeLock(): Promise<void> {
+    try { if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) this.wakeLock = await (navigator as any).wakeLock.request('screen'); } catch {}
+  }
+
+  private releaseWakeLock(): void {
+    try { this.wakeLock?.release(); } catch {}
+    this.wakeLock = null;
   }
 }

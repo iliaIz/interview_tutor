@@ -9,6 +9,7 @@ build/
 **/build/
 bin/
 **/bin/
+frontend/public/vad/
 
 # Audio & generated storage / databases
 /storage/
