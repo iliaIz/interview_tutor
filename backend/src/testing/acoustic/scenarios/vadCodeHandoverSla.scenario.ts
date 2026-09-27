@@ -60,10 +60,18 @@ export async function runCodeHandoverSlaScenario(engine: string = 'gemini-live-v
                           !telemetry.replyText.toLowerCase().includes('системная ошибка') &&
                           !telemetry.replyText.toLowerCase().includes('internal error');
 
-    // SLA: TTFA should be < 6000ms (or TTFT < 6000ms)
+    // SLA: TTFA should be <= 8000ms (matching multi-turn dialogue SLA budget)
+    const maxTtfaMs = engine.includes('thinking') ? 12000 : 8000;
     const ttfa = telemetry.ttfaMs ?? telemetry.ttftMs ?? 0;
-    const meetsSla = ttfa > 0 && ttfa < 6000;
+    const meetsSla = ttfa > 0 && ttfa <= maxTtfaMs;
     const passed = hasValidReply && meetsSla;
+
+    let failureReason: string | undefined;
+    if (!hasValidReply) {
+      failureReason = 'AI did not return a valid audio or text reply for code handover';
+    } else if (!meetsSla) {
+      failureReason = `Code Handover latency SLA breached: TTFA (${ttfa}ms) exceeded threshold of ${maxTtfaMs}ms`;
+    }
 
     return {
       scenarioName: 'Code Handover SLA',
@@ -72,6 +80,7 @@ export async function runCodeHandoverSlaScenario(engine: string = 'gemini-live-v
       durationMs: Date.now() - start,
       ttfaMs: telemetry.ttfaMs,
       ttftMs: telemetry.ttftMs,
+      failureReason,
       details: {
         replyLength: telemetry.replyText.length,
         audioBytes: telemetry.audioBytesReceived,

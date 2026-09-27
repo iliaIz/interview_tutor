@@ -44,12 +44,17 @@ export class SimulatedLiveClientAwaits {
           }
         }
         if (msg.serverContent?.turnComplete) {
+          const hasSubstantiveGreeting = greetingAudioBytes >= 1000 || greetingText.trim().length >= 10;
+          if (!hasSubstantiveGreeting) {
+            // Ignore preamble or empty frame turnComplete; await real greeting audio/text
+            return;
+          }
           cleanup();
           const totalPlayoutMs = greetingAudioBytes > 0
             ? Math.round((greetingAudioBytes / 48000) * 1000)
             : 0;
           const streamingElapsedMs = firstAudioAt ? (Date.now() - firstAudioAt) : 0;
-          const remainingMs = Math.max(0, totalPlayoutMs - streamingElapsedMs) + 650;
+          const remainingMs = Math.min(8000, Math.max(0, totalPlayoutMs - streamingElapsedMs) + 650);
 
           if (remainingMs > 0) {
             setTimeout(() => {
@@ -85,7 +90,7 @@ export class SimulatedLiveClientAwaits {
       ? Math.round((ctx.telemetry.audioBytesReceived / 48000) * 1000)
       : 0;
     const streamingElapsedMs = ctx.firstAudioReceivedAt ? (Date.now() - ctx.firstAudioReceivedAt) : 0;
-    const remainingMs = Math.max(0, totalDurationMs - streamingElapsedMs) + reverbBufferMs;
+    const remainingMs = Math.min(6000, Math.max(0, totalDurationMs - streamingElapsedMs) + reverbBufferMs);
     ctx.firstAudioReceivedAt = null;
     if (remainingMs > 0) {
       await new Promise((r) => setTimeout(r, remainingMs));
