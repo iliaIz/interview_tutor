@@ -153,9 +153,10 @@ export async function startMockAcousticEngine(): Promise<MockAcousticEngineInsta
         }
 
         // Realtime audio frames from client
-        if (parsed.bargeIn && parsed.realtimeInput) {
-          handleInterruption();
-          continue;
+        if (parsed.bargeIn) {
+          if (isAiGenerating) {
+            handleInterruption();
+          }
         }
         const rtAudio = parsed.realtimeInput?.audio ? [parsed.realtimeInput.audio] : null;
         const mediaChunks = rtAudio || parsed.realtimeInput?.mediaChunks || parsed.realtime_input?.media_chunks || [];
