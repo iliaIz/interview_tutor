@@ -71,12 +71,12 @@ export async function runAcousticBleedEchoTest(engine: string = 'gemini-live-v3'
       });
     }
 
-    const greetingTelemetry = await client.waitForGreeting(18000);
+    const greetingText = await client.waitForGreeting(18000);
     console.log(`[AcousticBleed] Greeting completed! Reflected speaker chunks fed back: ${reflectedChunksSent}`);
 
     const passed = (
-      greetingTelemetry.audioBytesReceived > 10000 &&
-      greetingTelemetry.replyText.length > 20 &&
+      client.telemetry.audioBytesReceived > 10000 &&
+      client.telemetry.replyText.length > 20 &&
       !client.telemetry.isInterrupted
     );
 
@@ -85,10 +85,10 @@ export async function runAcousticBleedEchoTest(engine: string = 'gemini-live-v3'
       engine,
       passed,
       durationMs: Date.now() - start,
-      ttfaMs: greetingTelemetry.ttfaMs,
+      ttfaMs: client.telemetry.ttfaMs,
       details: {
-        replyLength: greetingTelemetry.replyText.length,
-        audioBytes: greetingTelemetry.audioBytesReceived,
+        replyLength: client.telemetry.replyText.length,
+        audioBytes: client.telemetry.audioBytesReceived,
         reflectedChunksSent,
         isInterrupted: client.telemetry.isInterrupted
       }

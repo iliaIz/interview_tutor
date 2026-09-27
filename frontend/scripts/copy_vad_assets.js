@@ -15,7 +15,7 @@ copyIfExist(path.join(vadDist, 'vad.worklet.bundle.min.js'), path.join(publicVad
 const onnxDist = path.resolve('node_modules/onnxruntime-web/dist');
 if (fs.existsSync(onnxDist)) {
   for (const f of fs.readdirSync(onnxDist)) {
-    if (f.endsWith('.wasm')) copyIfExist(path.join(onnxDist, f), path.join(publicVad, f));
+    if (f.endsWith('.wasm') || f.endsWith('.mjs')) copyIfExist(path.join(onnxDist, f), path.join(publicVad, f));
   }
 }
 console.log('✅ Silero VAD & ONNX WASM assets synchronized to public/vad/');
