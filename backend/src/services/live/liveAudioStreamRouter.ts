@@ -76,20 +76,20 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     );
   };
 
+  const CANNED_ERROR_PATTERNS = [
+    /произошла\s+системная\s+ошибка/i,
+    /internal\s+error\s+occurred/i,
+    /system\s+error\s+occurred/i,
+    /повторите\s+попытку\s+позже/i,
+    /an\s+error\s+occurred/i,
+    /\[system error\]/i,
+    /internal server error/i,
+    /upstream error/i
+  ];
+
   const isCannedErrorUtterance = (text?: string): boolean => {
     if (!text) return false;
-    const trimmed = text.trim().toLowerCase();
-    return (
-      trimmed.startsWith('[system error]') ||
-      trimmed.startsWith('internal server error') ||
-      trimmed.startsWith('upstream error') ||
-      trimmed.startsWith('an internal error occurred') ||
-      trimmed.startsWith('internal error occurred') ||
-      trimmed.startsWith('system error occurred') ||
-      trimmed.startsWith('an error occurred') ||
-      trimmed.startsWith('произошла системная ошибка') ||
-      trimmed.startsWith('повторите попытку позже')
-    );
+    return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text));
   };
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
@@ -285,6 +285,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
           if (parsed.serverContent.modelTurn.parts) {
             LiveTelemetryAccumulator.processModelTurnParts(session, parsed.serverContent.modelTurn.parts, commitAnchor);
+            if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
+              session.isCannedErrorTurn = true;
+              console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in modelTurn text ("${session.currentAiTurnText?.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                try { clientSocket.send(JSON.stringify({ type: 'stream_recovery', reason: 'canned_upstream_error' })); } catch {}
+              }
+            }
           }
         }
 
@@ -310,6 +317,35 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (isUpstreamTurnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
+            if (session.isCannedErrorTurn) {
+              console.log(`🔄 [ACOUSTIC_CIRCUIT_BREAKER] Canned error turn complete. Suppressing turn from history and dispatching recovery nudge to upstream Gemini (session: ${session.sessionId || 'anon'})...`);
+              session.isCannedErrorTurn = false;
+              session.currentAiTurnText = '';
+              session.currentTurnMetrics = null;
+              session.lastTurnCommitTime = undefined;
+              session.currentTurnAudioBytes = 0;
+              session.firstAudioChunkTime = undefined;
+              session.audioChunksCount = 0;
+              session.isAiGenerating = false;
+              session.firstAudioChunkLogged = false;
+              if (session.deadAirWatchdog) { clearTimeout(session.deadAirWatchdog); session.deadAirWatchdog = null; }
+              if (session.toolCallSafetyTimeout) { clearTimeout(session.toolCallSafetyTimeout); session.toolCallSafetyTimeout = null; }
+
+              const recoveryNudge = {
+                clientContent: {
+                  turns: [{
+                    role: 'user',
+                    parts: [{ text: '[СИСТЕМНОЕ НАПОМИНАНИЕ]: Произошла внутренняя заминка связи. Продолжи диалог с кандидатом строго по теме, опираясь на последнее сообщение кандидата. Ответь кратко и емко голосом.' }]
+                  }],
+                  turnComplete: true
+                }
+              };
+              if (geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(JSON.stringify(recoveryNudge));
+              }
+              return;
+            }
+
             LiveTelemetryAccumulator.sealTurnComplete(session, clientSocket, liveModel);
           }
         }
