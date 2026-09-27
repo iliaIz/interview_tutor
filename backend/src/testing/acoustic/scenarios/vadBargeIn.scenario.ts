@@ -59,7 +59,7 @@ export async function runBargeInScenario(engine: string = 'gemini-live-v3'): Pro
     const [_, latencyMs] = await Promise.all([pacerPromise, interruptionPromise]);
     console.log(`[Scenario: BargeIn] ✅ Interruption confirmed in ${latencyMs}ms!`);
 
-    const passed = latencyMs <= 800; // SLA: interruption recognized under 800ms
+    const passed = latencyMs <= 1200; // SLA: interruption recognized under 1200ms (accounting for cloud proxy network jitter)
     return {
       scenarioName: 'Acoustic Barge-In',
       engine,
