@@ -31,17 +31,21 @@ export const CANNED_ERROR_PATTERNS = [
 ];
 
 export const NON_SPEECH_PATTERNS = [
-  /<no\s*speech>/i,
-  /<no\s*speech>\s*\{pause\}/i,
-  /\[no\s*speech\]/i,
-  /<pause>/i
+  /^<no\s*speech>$/i,
+  /^<no\s*speech>\s*\{pause\}$/i,
+  /^\[no\s*speech\]$/i,
+  /^<pause>$/i
 ];
 
 export function isNonSpeechUtterance(text?: string, audioBytes?: number): boolean {
   if (!text) return false;
-  if (NON_SPEECH_PATTERNS.some((p) => p.test(text))) return true;
+  // If model produced substantial audio (>= 1200 bytes / ~250ms), it is genuine speech
+  if (audioBytes !== undefined && audioBytes >= 1200) {
+    return false;
+  }
+  const trimmed = text.trim();
+  if (NON_SPEECH_PATTERNS.some((p) => p.test(trimmed))) return true;
   if (audioBytes !== undefined && audioBytes < 200) {
-    const trimmed = text.trim();
     if (trimmed === '<no speech>' || trimmed.startsWith('<no speech>') || trimmed === '{pause}') {
       return true;
     }

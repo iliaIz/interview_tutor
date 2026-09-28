@@ -51,14 +51,15 @@ async function runPacerTest() {
   console.log(`📊 Wall-clock elapsed time: ${elapsed}ms (Drift: ${drift}ms)`);
   assert(drift <= 80, `Pacer drift is <= 80ms for 1s stream (got ${drift}ms)`);
 
-  // Verify frame structure: realtimeInput.mediaChunks[0].mimeType === 'audio/pcm;rate=16000'
+  // Verify frame structure: canonical realtimeInput.audio (with backwards compat for mediaChunks)
   const firstFrame = JSON.parse(mockWs.sentFrames[0].data);
+  const audioObj = firstFrame.realtimeInput?.audio || firstFrame.realtimeInput?.mediaChunks?.[0];
   assert(
-    firstFrame.realtimeInput?.mediaChunks?.[0]?.mimeType === 'audio/pcm;rate=16000',
+    audioObj?.mimeType === 'audio/pcm;rate=16000',
     'Frame correctly specifies MIME audio/pcm;rate=16000'
   );
 
-  const base64Data = firstFrame.realtimeInput?.mediaChunks?.[0]?.data;
+  const base64Data = audioObj?.data;
   const chunkBuf = Buffer.from(base64Data, 'base64');
   assert(chunkBuf.length === 1280, `40ms chunk contains exactly 1280 bytes (got ${chunkBuf.length})`);
 

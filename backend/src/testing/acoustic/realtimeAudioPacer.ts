@@ -73,12 +73,10 @@ export class RealtimeAudioPacer {
 
       const frame: any = {
         realtimeInput: {
-          mediaChunks: [
-            {
-              mimeType: 'audio/pcm;rate=16000',
-              data: chunk.toString('base64')
-            }
-          ]
+          audio: {
+            mimeType: 'audio/pcm;rate=16000',
+            data: chunk.toString('base64')
+          }
         }
       };
       if (options.bargeIn) {
@@ -122,9 +120,10 @@ export class RealtimeAudioPacer {
     const silenceBuffer = generateSilence(trailingSilenceMs);
     const silenceResult = await this.streamPcm(ws, silenceBuffer, options);
 
-    // SOTA Client-Authoritative Duplex (Invariant 2.6):
-    // Client commits the turn upon VAD endpointing (trailing silence conclusion)
-    if (ws.readyState === WebSocket.OPEN && !options.manualTurnCommit) {
+    // Canonical Google Gemini 3.8 Live Invariant (2.6):
+    // In auto mode, trailing silence naturally triggers Cloud VAD endpointing.
+    // Only send explicit turnComplete in manual mode.
+    if (ws.readyState === WebSocket.OPEN && options.manualTurnCommit) {
       ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
     }
 
@@ -153,9 +152,10 @@ export class RealtimeAudioPacer {
     const trailingBuffer = generateSilence(trailingSilenceMs);
     await this.streamPcm(ws, trailingBuffer, options);
 
-    // SOTA Client-Authoritative Duplex (Invariant 2.6):
-    // Client commits turn upon speech conclusion
-    if (ws.readyState === WebSocket.OPEN && !options.manualTurnCommit) {
+    // Canonical Google Gemini 3.8 Live Invariant (2.6):
+    // In auto mode, trailing silence naturally triggers Cloud VAD endpointing.
+    // Only send explicit turnComplete in manual mode.
+    if (ws.readyState === WebSocket.OPEN && options.manualTurnCommit) {
       ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
     }
   }

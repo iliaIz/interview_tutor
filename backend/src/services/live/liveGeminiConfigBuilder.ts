@@ -52,13 +52,15 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     };
   }
 
-  // Native Cloud VAD for Gemini 3.8 Live (Auto-VAD Mode)
+  // Native Cloud VAD & Activity Detection for Gemini 3.8 Live (Canonical Google Standard)
   const isAutoVad = turnMode === 'auto';
+  const effectiveSilenceDurationMs = Math.max(500, Math.min(1000, vadPauseMs ? Number(vadPauseMs) : 500));
+
   const realtimeInputConfig: any = {
     automaticActivityDetection: {
       disabled: !isAutoVad,
-      silenceDurationMs: vadPauseMs || 1500,
-      prefixPaddingMs: 300
+      silenceDurationMs: effectiveSilenceDurationMs,
+      prefixPaddingMs: 500
     },
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
   };

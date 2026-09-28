@@ -260,16 +260,19 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         if (audioData) {
           const normalized = {
             realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType,
-                  data: audioData
-                }
-              ]
+              audio: {
+                mimeType,
+                data: audioData
+              }
             }
           };
           payloadBuffer = Buffer.from(JSON.stringify(normalized));
         }
+      } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
+        session.hasCandidateResponded = true;
+        payloadBuffer = Buffer.from(JSON.stringify({
+          realtimeInput: { audioStreamEnd: true }
+        }));
       } else if (parsed.clientContent) {
         payloadBuffer = Buffer.from(JSON.stringify({ clientContent: parsed.clientContent }));
       }

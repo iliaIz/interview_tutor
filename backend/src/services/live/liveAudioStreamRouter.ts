@@ -316,12 +316,20 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           deadAirGuard.reset();
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
+            // SOTA Late 2026: Deduplicate terminal frame invocations
+            // If turn has already concluded and current audio bytes are 0, ignore duplicate turnComplete/generationComplete
+            if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {
+              return;
+            }
+
             const audioBytes = session.currentTurnAudioBytes || 0;
             const text = (session.currentAiTurnText || '').trim();
-            const isZeroAudioTurn = session.hasCandidateResponded && (audioBytes < 200 && (text.length < 5 || isNonSpeechUtterance(text, audioBytes)));
+            const isZeroAudioTurn = audioBytes < 200 && (text.length < 5 || isNonSpeechUtterance(text, audioBytes));
 
             if (session.isCannedErrorTurn || isZeroAudioTurn) {
-              if (isZeroAudioTurn) session.cannedErrorType = 'non_speech';
+              if (isZeroAudioTurn) {
+                session.cannedErrorType = session.hasCandidateResponded ? 'non_speech' : 'turn0_empty';
+              }
               LiveCannedErrorRecovery.executeRecoveryNudge(session, geminiSocket);
               return;
             }

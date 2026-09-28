@@ -54,7 +54,7 @@ export class SimulatedLiveClientAwaits {
             ? Math.round((greetingAudioBytes / 48000) * 1000)
             : 0;
           const streamingElapsedMs = firstAudioAt ? (Date.now() - firstAudioAt) : 0;
-          const remainingMs = Math.min(8000, Math.max(0, totalPlayoutMs - streamingElapsedMs) + 650);
+          const remainingMs = Math.min(25000, Math.max(0, totalPlayoutMs - streamingElapsedMs) + 450);
 
           if (remainingMs > 0) {
             setTimeout(() => {

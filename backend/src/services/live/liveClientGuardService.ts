@@ -37,15 +37,10 @@ export class LiveClientGuardService {
 
     console.log(`🛑 [BARGE_IN] Handled ${type} barge-in (epoch ${epoch}) for session ${session.sessionId || 'anon'}`);
 
-    if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+    if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN && type === 'tactile') {
+      // Canonical Gemini 3.8 Live: tactile interruption without poisonous turnComplete: false text turns
       session.geminiSocket.send(JSON.stringify({
-        clientContent: {
-          turns: [{
-            role: 'user',
-            parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN). ОТВЕТ СТРОГО НА РУССКОМ ЯЗЫКЕ]: Передай слово кандидату.' }]
-          }],
-          turnComplete: false
-        }
+        clientContent: { turnComplete: true, interrupted: true }
       }));
     }
 

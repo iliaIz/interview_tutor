@@ -231,17 +231,9 @@ export class LiveVoiceEngine {
       this.fsm.transition({ type: 'SPEECH_PAUSED' });
     }
 
-    // Resilient Hybrid VAD: If native Cloud VAD hasn't endpointed after silence + margin,
-    // dispatch safety turnComplete to prevent candidate hang in noisy acoustic conditions.
-    if (this.hasSpokenInTurn && this.config?.turnMode === 'auto') {
-      if (this.silenceTimer) clearTimeout(this.silenceTimer);
-      const fallbackMs = (this.config.vadPauseMs || 1500) + 700;
-      this.silenceTimer = setTimeout(() => {
-        this.silenceTimer = null;
-        if (this.hasSpokenInTurn && this.fsm.isCandidateTurnActive()) {
-          this.commitSpokenTurn();
-        }
-      }, fallbackMs);
+    // Canonical Google Hybrid VAD (Late 2026): notify turn end on client-detected silence
+    if (this.hasSpokenInTurn && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
     }
   }
 
@@ -374,7 +366,7 @@ export class LiveVoiceEngine {
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Pcm }] }
+        realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
       }));
     }
 

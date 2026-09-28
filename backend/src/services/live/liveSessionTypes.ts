@@ -79,6 +79,6 @@ export interface ProxySession {
   currentTurnAudioBytes?: number;
   firstAudioChunkTime?: number;
   isCannedErrorTurn?: boolean;
-  cannedErrorType?: 'non_speech' | 'system_canned';
+  cannedErrorType?: 'non_speech' | 'system_canned' | 'turn0_empty';
   lastBargeInEpoch?: number;
 }
