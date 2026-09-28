@@ -66,7 +66,7 @@ export class LiveCannedErrorRecovery {
     session.currentTurnAudioBytes = 0;
     session.firstAudioChunkTime = undefined;
     session.audioChunksCount = 0;
-    session.isAiGenerating = false;
+    session.isAiGenerating = true;
     session.firstAudioChunkLogged = false;
 
     if (session.deadAirWatchdog) {

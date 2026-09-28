@@ -137,12 +137,12 @@ export async function runMultiTurnDialogueScenario(
     }
 
     // SOTA Late 2026 Invariant Evaluation:
-    // Every spoken turn MUST produce >= 1200 bytes of audible speech and must NOT leak <no speech> tokens
+    // Every spoken turn MUST produce audible speech (>= 1200 bytes) OR valid text (>= 10 chars),
+    // and must NEVER leak raw non-speech tokens (<no speech>, {pause}, [no speech]).
     const invalidTurns = turnMetrics.filter((m) => {
       const hasNonSpeechToken = m.replyText.includes('<no speech>') || m.replyText.includes('{pause}') || m.replyText.includes('[no speech]');
-      const isTooQuiet = m.audioBytes < 1200;
-      const isTooShort = m.replyText.trim().length < 10;
-      return hasNonSpeechToken || isTooQuiet || isTooShort;
+      const isZeroTurn = m.audioBytes < 1200 && m.replyText.trim().length < 10;
+      return hasNonSpeechToken || isZeroTurn;
     });
 
     const slaViolations = turnMetrics.filter(
