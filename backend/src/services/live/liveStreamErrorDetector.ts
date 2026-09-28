@@ -30,7 +30,27 @@ export const CANNED_ERROR_PATTERNS = [
   /upstream error/i
 ];
 
-export function isCannedErrorUtterance(text?: string): boolean {
+export const NON_SPEECH_PATTERNS = [
+  /<no\s*speech>/i,
+  /<no\s*speech>\s*\{pause\}/i,
+  /\[no\s*speech\]/i,
+  /<pause>/i
+];
+
+export function isNonSpeechUtterance(text?: string, audioBytes?: number): boolean {
   if (!text) return false;
-  return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text));
+  if (NON_SPEECH_PATTERNS.some((p) => p.test(text))) return true;
+  if (audioBytes !== undefined && audioBytes < 200) {
+    const trimmed = text.trim();
+    if (trimmed === '<no speech>' || trimmed.startsWith('<no speech>') || trimmed === '{pause}') {
+      return true;
+    }
+  }
+  return false;
 }
+
+export function isCannedErrorUtterance(text?: string, audioBytes?: number): boolean {
+  if (!text) return false;
+  return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text)) || isNonSpeechUtterance(text, audioBytes);
+}
+

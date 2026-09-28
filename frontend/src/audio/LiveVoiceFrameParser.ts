@@ -78,8 +78,11 @@ export class LiveVoiceFrameParser {
           if ((part as any).thought || (part as any).isThought) continue;
 
           if (typeof part.text === 'string' && part.text.length > 0) {
-            result.hasText = true;
-            result.textDeltas.push(part.text);
+            const clean = sanitizeModelText(part.text);
+            if (clean.length > 0) {
+              result.hasText = true;
+              result.textDeltas.push(clean);
+            }
           }
 
           const pcm = part.inlineData?.data || part.inline_data?.data;
@@ -96,8 +99,11 @@ export class LiveVoiceFrameParser {
         data.serverContent?.output_transcription?.text;
 
       if (typeof outputTranscriptionText === 'string' && outputTranscriptionText.length > 0) {
-        result.hasText = true;
-        result.textDeltas.push(outputTranscriptionText);
+        const clean = sanitizeModelText(outputTranscriptionText);
+        if (clean.length > 0) {
+          result.hasText = true;
+          result.textDeltas.push(clean);
+        }
       }
 
       // 3. Terminal turn signals: generationComplete or turnComplete
@@ -112,3 +118,13 @@ export class LiveVoiceFrameParser {
     }
   }
 }
+
+function sanitizeModelText(text: string): string {
+  return text
+    .replace(/<no\s*speech>/gi, '')
+    .replace(/\{pause\}/gi, '')
+    .replace(/\[no\s*speech\]/gi, '')
+    .replace(/<pause>/gi, '')
+    .trim();
+}
+

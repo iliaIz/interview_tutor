@@ -34,6 +34,7 @@ export class SileroVadDetector {
   private isMuted: boolean = false;
   private currentPauseMs: number;
   private initPromise: Promise<void> | null = null;
+  private chunkBuffer: Int16Array | null = null;
 
   constructor(private options: SileroVadOptions = {}) {
     this.currentPauseMs = options.vadPauseMs || 1800;
@@ -68,6 +69,11 @@ export class SileroVadDetector {
             if (!this.isMuted) this.options.callbacks?.onSpeechStart?.();
           },
           onSpeechEnd: () => {
+            if (this.chunkBuffer && !this.isMuted) {
+              const base64 = this.int16ArrayToBase64(this.chunkBuffer);
+              this.chunkBuffer = null;
+              this.options.callbacks?.onAudioFrame?.(base64, 0, false, -50);
+            }
             if (!this.isMuted) this.options.callbacks?.onSpeechEnd?.();
           },
           onVADMisfire: () => {
@@ -90,8 +96,17 @@ export class SileroVadDetector {
             const rms = Math.sqrt(sumSq / len);
             const rmsDb = Number((20 * Math.log10(Math.max(rms, 1e-5))).toFixed(1));
 
-            const base64 = this.int16ArrayToBase64(int16);
-            this.options.callbacks?.onAudioFrame?.(base64, prob, isSpeech, rmsDb);
+            // Accumulate into 1024-sample (64ms) chunks for optimal Gemini Live duplex
+            if (!this.chunkBuffer) {
+              this.chunkBuffer = int16;
+            } else {
+              const combined = new Int16Array(this.chunkBuffer.length + int16.length);
+              combined.set(this.chunkBuffer, 0);
+              combined.set(int16, this.chunkBuffer.length);
+              this.chunkBuffer = null;
+              const base64 = this.int16ArrayToBase64(combined);
+              this.options.callbacks?.onAudioFrame?.(base64, prob, isSpeech, rmsDb);
+            }
           }
         };
 
@@ -122,6 +137,7 @@ export class SileroVadDetector {
 
   public stop(): void {
     this.isCapturing = false;
+    this.chunkBuffer = null;
     if (this.micVad) {
       try {
         void this.micVad.destroy();

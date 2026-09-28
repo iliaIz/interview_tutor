@@ -944,6 +944,132 @@ async function testZeroChunkBargeInRecoveryContract(): Promise<void> {
 }
 
 // =========================================================================
+// TEST 13: Non-Speech Token (<no speech>) Interception & Active Recovery Contract
+// =========================================================================
+async function testNonSpeechTokenInterceptionContract(): Promise<void> {
+  console.log('\n[Test 13] Non-Speech Token (<no speech>) Interception & Active Recovery Contract');
+
+  const clientPair = await createSocketPair();
+  const upstreamServer = http.createServer();
+  const upstreamWss = new WebSocketServer({ server: upstreamServer });
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  let upstreamSocket!: WebSocket;
+  const upstreamSocketPromise = new Promise<WebSocket>((resolve) => {
+    upstreamWss.on('connection', (ws) => {
+      upstreamSocket = ws;
+      resolve(ws);
+    });
+  });
+
+  const clientReceived: any[] = [];
+  clientPair.client.on('message', (msg) => {
+    try { clientReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  const upstreamReceived: any[] = [];
+  const routerSession: ProxySession = {
+    clientSocket: clientPair.remote,
+    geminiSocket: null as any,
+    isSetupComplete: false,
+    frameQueue: [],
+    sessionId: 'test_nonspeech_sess',
+    lastActivityAt: Date.now(),
+    audioChunksCount: 0,
+    hasCandidateResponded: true,
+    isAiGenerating: false
+  };
+
+  const router = createLiveAudioStreamRouter({
+    session: routerSession,
+    setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.remote,
+    terminate: () => {},
+    sessionId: 'test_nonspeech_sess',
+    questionId: 'TEST-Q1',
+    sessionType: 'interview',
+    tutorMode: 'socratic',
+    bugTitle: 'Test Bug',
+    questionText: 'Что такое Dependency Injection?',
+    topic: 'Spring Core',
+    voiceName: 'Kore',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 5,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini();
+  await upstreamSocketPromise;
+
+  upstreamSocket.on('message', (msg) => {
+    try { upstreamReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
+
+  // Step 1: Upstream setupComplete
+  upstreamSocket.send(JSON.stringify({ setupComplete: {} }));
+  await sleep(60);
+
+  // Step 2: Upstream emits non-speech token <no speech>{pause} with 12 bytes of padding
+  clientReceived.length = 0;
+  upstreamReceived.length = 0;
+
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      modelTurn: {
+        parts: [
+          { text: '<no speech>{pause}' },
+          { inlineData: { mimeType: 'audio/pcm;rate=24000', data: Buffer.alloc(12).toString('base64') } }
+        ]
+      }
+    }
+  }));
+
+  await sleep(60);
+
+  assert(routerSession.isCannedErrorTurn === true, 'Session flagged with isCannedErrorTurn === true upon <no speech> token');
+  assert(routerSession.cannedErrorType === 'non_speech', 'Session cannedErrorType is "non_speech"');
+
+  // Invariant: client received ZERO frames containing <no speech>
+  const leakedFrames = clientReceived.filter((m) =>
+    m.serverContent?.modelTurn?.parts?.some((p: any) => p.text?.includes('<no speech>'))
+  );
+  assert(leakedFrames.length === 0, 'Client received ZERO leaked <no speech> frames (suppressed by Circuit Breaker)');
+
+  // Step 3: Upstream sends terminal turnComplete
+  upstreamSocket.send(JSON.stringify({
+    serverContent: {
+      turnComplete: true,
+      interactionStatus: 'IDLE'
+    }
+  }));
+
+  await sleep(60);
+
+  assert(routerSession.isCannedErrorTurn === false, 'isCannedErrorTurn cleanly reset after recovery dispatch');
+
+  // Invariant: Upstream receives conversational recovery nudge asking to clarify or repeat
+  const recoveryNudge = upstreamReceived.find((m) =>
+    m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('КАНДИДАТ ЗАВЕРШИЛ ОТВЕТ')
+  );
+  assert(Boolean(recoveryNudge), 'Upstream received active conversational recovery prompt to prevent silent deadlock');
+
+  // Cleanup
+  upstreamSocket.removeAllListeners();
+  upstreamSocket.terminate();
+  upstreamWss.close();
+  (upstreamServer as any).closeAllConnections?.();
+  await new Promise<void>((resolve) => upstreamServer.close(() => resolve()));
+  await cleanupSocketPair(clientPair);
+}
+
+// =========================================================================
 // MAIN RUNNER
 // =========================================================================
 async function runAllTests(): Promise<void> {
@@ -964,6 +1090,7 @@ async function runAllTests(): Promise<void> {
     await testAcousticCircuitBreakerSuppression();
     await testPostBargeInStaleGuardBypassContract();
     await testZeroChunkBargeInRecoveryContract();
+    await testNonSpeechTokenInterceptionContract();
 
     console.log('\n=========================================================================');
     console.log(`Fault-Injection Results: ${ctx.passed} Passed, ${ctx.failed} Failed`);

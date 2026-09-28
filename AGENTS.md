@@ -66,6 +66,11 @@
   2. Generation timeout at 18.0s (standard) / 25.0s (thinking) dispatching clean interruption `{ clientContent: { interrupted: true } }` upstream (NEVER inject duplicate text prompts into active sessions) and `{ type: 'dead_air_recovery' }` to client.
 - **Client Autonomous Safety Fallback:** `LiveVoiceEngine` maintains an autonomous 22s safety timer in case both upstream and gateway hang.
 
+### 2.9. Non-Speech Interception & Zero-Audio Prevention Invariant (SOTA Late 2026)
+- **Non-Speech Token Sanitization:** Raw acoustic tokens from Gemini (`<no speech>`, `<no speech>{pause}`, `[no speech]`, `<pause>`) MUST NEVER leak into candidate transcripts or subtitles.
+- **Active Conversational Recovery:** If upstream Gemini emits `<no speech>` or synthesizes $< 200$ audio bytes after candidate speech, `LiveCannedErrorRecovery` intercepts the turn and sends an active conversational nudge: `"[КАНДИДАТ ЗАВЕРШИЛ ОТВЕТ, НО ЗВУК БЫЛ ТИХИМ / НЕРАЗБОРЧИВЫМ]: Среагируй естественно голосом на русском языке (1 короткая фраза): 'Я тебя не расслышала, повтори, пожалуйста, ответ.' или продолжи тему вопроса."`. The candidate hears a real verbal clarification instead of awkward silence.
+- **Acoustic Non-Zero Audio SLA ($\ge 1200$ bytes):** Every spoken response following candidate speech MUST contain $\ge 1200$ bytes ($\ge 250$ms) of audio and $\ge 10$ characters. CI/CD pre-flight canary (`runAcousticVadMatrix.ts --suite=canary`) strictly asserts this conjunction and aborts deployment on any regression.
+
 ---
 
 ## 3. UI/UX Standard, Health & Resilience Invariants

@@ -99,27 +99,31 @@ export class SimulatedLiveClientAwaits {
 
   public static async waitForTurnComplete(
     ctx: AwaitContext,
-    timeoutMs: number = 20000
+    timeoutMs: number = 25000
   ): Promise<ClientTelemetry> {
-    const hasContent = ctx.telemetry.audioBytesReceived > 0 || ctx.telemetry.replyText.length > 0;
-    if (ctx.telemetry.isTurnComplete && hasContent) {
+    const isNonSpeechInitial = ctx.telemetry.replyText.includes('<no speech>') || ctx.telemetry.replyText.includes('{pause}');
+    const hasValidInitial = (ctx.telemetry.audioBytesReceived >= 1000 || ctx.telemetry.replyText.length >= 10) && !isNonSpeechInitial;
+    if (ctx.telemetry.isTurnComplete && hasValidInitial) {
       return { ...ctx.telemetry };
     }
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         cleanup();
-        if (ctx.telemetry.replyText || ctx.telemetry.audioBytesReceived > 0) {
+        const isNonSpeech = ctx.telemetry.replyText.includes('<no speech>') || ctx.telemetry.replyText.includes('{pause}');
+        if (!isNonSpeech && (ctx.telemetry.replyText.length >= 10 || ctx.telemetry.audioBytesReceived >= 1000)) {
           resolve({ ...ctx.telemetry });
         } else {
-          reject(new Error(`Turn completion timeout: AI did not complete turn within ${timeoutMs}ms`));
+          reject(new Error(`Turn completion timeout: AI did not complete turn with valid speech within ${timeoutMs}ms (audio: ${ctx.telemetry.audioBytesReceived}B, text: "${ctx.telemetry.replyText.slice(0, 40)}")`));
         }
       }, timeoutMs);
 
       const listener = (msg: any) => {
         if (msg.serverContent?.turnComplete) {
-          const currentHasContent = ctx.telemetry.audioBytesReceived > 0 || ctx.telemetry.replyText.length > 0;
+          const isNonSpeech = ctx.telemetry.replyText.includes('<no speech>') || ctx.telemetry.replyText.includes('{pause}');
+          const currentHasContent = (ctx.telemetry.audioBytesReceived >= 1000 || ctx.telemetry.replyText.length >= 10) && !isNonSpeech;
           if (!currentHasContent) {
+            // Await conversational recovery turn or audio playout
             return;
           }
           cleanup();

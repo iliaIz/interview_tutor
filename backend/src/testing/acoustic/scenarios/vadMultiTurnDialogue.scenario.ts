@@ -46,6 +46,7 @@ export async function runMultiTurnDialogueScenario(
     ttfaMs: number | null;
     ttftMs: number | null;
     replyLength: number;
+    replyText: string;
     audioBytes: number;
   }> = [];
 
@@ -75,6 +76,7 @@ export async function runMultiTurnDialogueScenario(
       ttfaMs: tel1.ttfaMs,
       ttftMs: tel1.ttftMs,
       replyLength: tel1.replyText.length,
+      replyText: tel1.replyText,
       audioBytes: tel1.audioBytesReceived
     });
     console.log(`[Scenario: MultiTurn] Turn 1 Complete. TTFA: ${tel1.ttfaMs}ms, TTFT: ${tel1.ttftMs}ms, Audio: ${tel1.audioBytesReceived} bytes`);
@@ -101,6 +103,7 @@ export async function runMultiTurnDialogueScenario(
         ttfaMs: tel2.ttfaMs,
         ttftMs: tel2.ttftMs,
         replyLength: tel2.replyText.length,
+        replyText: tel2.replyText,
         audioBytes: tel2.audioBytesReceived
       });
       console.log(`[Scenario: MultiTurn] Turn 2 Complete. TTFA: ${tel2.ttfaMs}ms, TTFT: ${tel2.ttftMs}ms, Audio: ${tel2.audioBytesReceived} bytes`);
@@ -112,7 +115,7 @@ export async function runMultiTurnDialogueScenario(
     if (turnsCount >= 3) {
       console.log('\n--- [Scenario: MultiTurn] Executing Turn 3 ---');
       client.beginTurn();
-      const pcmTurn3 = await AcousticFixtureManager.getFixture('candidate_hesitation_part1');
+      const pcmTurn3 = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
       await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
         client.ws!,
         pcmTurn3,
@@ -127,28 +130,34 @@ export async function runMultiTurnDialogueScenario(
         ttfaMs: tel3.ttfaMs,
         ttftMs: tel3.ttftMs,
         replyLength: tel3.replyText.length,
+        replyText: tel3.replyText,
         audioBytes: tel3.audioBytesReceived
       });
       console.log(`[Scenario: MultiTurn] Turn 3 Complete. TTFA: ${tel3.ttfaMs}ms, TTFT: ${tel3.ttftMs}ms, Audio: ${tel3.audioBytesReceived} bytes`);
     }
 
-    // Evaluate SLA & Success
-    const allTurnsResponded = turnMetrics.every(
-      (m) => m.replyLength > 0 || m.audioBytes > 0
-    );
+    // SOTA Late 2026 Invariant Evaluation:
+    // Every spoken turn MUST produce >= 1200 bytes of audible speech and must NOT leak <no speech> tokens
+    const invalidTurns = turnMetrics.filter((m) => {
+      const hasNonSpeechToken = m.replyText.includes('<no speech>') || m.replyText.includes('{pause}') || m.replyText.includes('[no speech]');
+      const isTooQuiet = m.audioBytes < 1200;
+      const isTooShort = m.replyText.trim().length < 10;
+      return hasNonSpeechToken || isTooQuiet || isTooShort;
+    });
 
     const slaViolations = turnMetrics.filter(
       (m) => m.ttfaMs !== null && m.ttfaMs > slaConfig.maxTtfaMs
     );
 
     let failureReason: string | undefined;
-    if (!allTurnsResponded) {
-      failureReason = 'One or more turns failed to receive audio or text response from AI';
+    if (invalidTurns.length > 0) {
+      const issues = invalidTurns.map((t) => `Turn ${t.turn}: audio=${t.audioBytes}B, text="${t.replyText.slice(0, 35)}..."`).join('; ');
+      failureReason = `Acoustic Non-Zero Audio / Non-Speech violation on ${invalidTurns.length} turns (${issues})`;
     } else if (slaViolations.length > 0) {
       failureReason = `Latency SLA breached on ${slaViolations.length} turns (limit: ${slaConfig.maxTtfaMs}ms, got: ${slaViolations.map((v) => `${v.turn}:${v.ttfaMs}ms`).join(', ')})`;
     }
 
-    const passed = allTurnsResponded && slaViolations.length === 0;
+    const passed = invalidTurns.length === 0 && slaViolations.length === 0;
     const avgTtfa = turnMetrics.reduce((acc, m) => acc + (m.ttfaMs || 0), 0) / turnMetrics.length;
 
     return {
