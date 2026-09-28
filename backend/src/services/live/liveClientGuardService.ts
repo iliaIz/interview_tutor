@@ -103,13 +103,23 @@ export class LiveClientGuardService {
   /**
    * Evaluates if incoming microphone audio chunk must be suppressed by Echo Guard.
    * Allows audio through if marked with bargeIn or if AI is idle.
+   *
+   * In native Cloud VAD mode (turnMode === 'auto'), audio MUST flow continuously
+   * to Gemini — it detects speech boundaries server-side and needs uninterrupted input.
+   * The EchoGuard is only relevant for speaker-bleed prevention (manual/client-VAD mode).
    */
   public static shouldSuppressEchoChunk(
     session: ProxySession,
     isAudioChunk: boolean,
-    isBargeIn: boolean
+    isBargeIn: boolean,
+    turnMode: 'manual' | 'auto' = 'manual'
   ): boolean {
     if (!isAudioChunk || isBargeIn) {
+      return false;
+    }
+
+    // Native Cloud VAD: Gemini needs continuous audio to detect speech start/end
+    if (turnMode === 'auto') {
       return false;
     }
 

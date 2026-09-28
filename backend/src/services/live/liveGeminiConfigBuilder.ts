@@ -57,7 +57,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
   const realtimeInputConfig: any = {
     automaticActivityDetection: {
       disabled: !isAutoVad,
-      silenceDurationMs: vadPauseMs || 1800,
+      silenceDurationMs: vadPauseMs || 1500,
       prefixPaddingMs: 300
     },
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'

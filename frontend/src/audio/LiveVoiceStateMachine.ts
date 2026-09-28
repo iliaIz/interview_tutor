@@ -129,20 +129,27 @@ export class LiveVoiceStateMachine {
           prev === 'COMMITTING' ||
           prev === 'AI_THINKING' ||
           prev === 'CONNECTING' ||
-          prev === 'CANDIDATE_LISTENING'
+          prev === 'CANDIDATE_LISTENING' ||
+          prev === 'CANDIDATE_SPEAKING' ||
+          prev === 'CANDIDATE_HOLD'
         ) {
           next = 'AI_SPEAKING';
         }
         break;
 
       case 'SERVER_TURN_DONE':
-        if (prev === 'COMMITTING') {
+        if (prev === 'COMMITTING' || prev === 'CANDIDATE_HOLD' || prev === 'CANDIDATE_SPEAKING') {
           next = 'AI_THINKING';
         }
         break;
 
       case 'DEAD_AIR_RECOVERED':
-        if (prev === 'COMMITTING' || prev === 'AI_THINKING') {
+        if (
+          prev === 'COMMITTING' ||
+          prev === 'AI_THINKING' ||
+          prev === 'CANDIDATE_HOLD' ||
+          prev === 'CANDIDATE_SPEAKING'
+        ) {
           next = 'CANDIDATE_LISTENING';
         }
         break;
@@ -153,7 +160,10 @@ export class LiveVoiceStateMachine {
         } else if (prev === 'AI_RECITING_QUESTION' && event.source === 'tactile') {
           // Tactile skip of Turn 0 question recitation
           next = 'CANDIDATE_LISTENING';
-        } else if ((prev === 'COMMITTING' || prev === 'AI_THINKING') && event.source === 'tactile') {
+        } else if (
+          (prev === 'COMMITTING' || prev === 'AI_THINKING' || prev === 'CANDIDATE_HOLD') &&
+          event.source === 'tactile'
+        ) {
           // Tactile recovery from stalled AI response
           next = 'CANDIDATE_LISTENING';
         }

@@ -219,12 +219,30 @@ export class LiveVoiceEngine {
     } else {
       this.fsm.transition({ type: 'SPEECH_STARTED' });
       this.hasSpokenInTurn = true;
+      if (this.silenceTimer) {
+        clearTimeout(this.silenceTimer);
+        this.silenceTimer = null;
+      }
     }
   }
 
   private handleSpeechEnded(): void {
-    // In native Cloud VAD mode (Auto-VAD), Gemini natively endpoints the speech turn
-    // after silenceDurationMs and generates the response automatically.
+    if (this.fsm.isCandidateTurnActive()) {
+      this.fsm.transition({ type: 'SPEECH_PAUSED' });
+    }
+
+    // Resilient Hybrid VAD: If native Cloud VAD hasn't endpointed after silence + margin,
+    // dispatch safety turnComplete to prevent candidate hang in noisy acoustic conditions.
+    if (this.hasSpokenInTurn && this.config?.turnMode === 'auto') {
+      if (this.silenceTimer) clearTimeout(this.silenceTimer);
+      const fallbackMs = (this.config.vadPauseMs || 1500) + 700;
+      this.silenceTimer = setTimeout(() => {
+        this.silenceTimer = null;
+        if (this.hasSpokenInTurn && this.fsm.isCandidateTurnActive()) {
+          this.commitSpokenTurn();
+        }
+      }, fallbackMs);
+    }
   }
 
   private handleServerFrame(rawData: any): void {

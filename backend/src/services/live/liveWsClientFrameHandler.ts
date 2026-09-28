@@ -283,7 +283,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
       session.frameQueue.push(payloadBuffer);
     } else {
       const isAudioChunk = Boolean(parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks);
-      if (LiveClientGuardService.shouldSuppressEchoChunk(session, isAudioChunk, isBargeIn)) {
+      if (LiveClientGuardService.shouldSuppressEchoChunk(session, isAudioChunk, isBargeIn, turnMode)) {
         return;
       }
 
