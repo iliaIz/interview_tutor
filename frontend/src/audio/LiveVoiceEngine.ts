@@ -2,7 +2,7 @@
  * LiveVoiceEngine.ts
  * Unified Headless Voice Engine & State Machine (SOTA Late September 2026).
  * Enforces Client-Authoritative Duplex, Neural Silero VAD v5, and Dual-Sided Handshake.
- * Cognitive bounding limit: <= 390 lines.
+ * Cognitive bounding limit: <= 370 lines.
  */
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -11,6 +11,9 @@ import { SileroVadDetector } from './SileroVadDetector';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { AcousticBargeInGuard } from './AcousticBargeInGuard';
 import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
+import { buildLiveVoiceWebSocketUrl } from './liveVoiceUrlBuilder';
+import { DialogueTurnManager } from './dialogueTurnManager';
+import { WakeLockManager } from './wakeLockManager';
 import {
   VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
   DialogueTurnItem, VoiceEvaluationResult
@@ -24,19 +27,18 @@ export class LiveVoiceEngine {
   private micCapture: MicrophoneCapture;
   private sileroVad: SileroVadDetector | null = null;
   private bargeInGuard: AcousticBargeInGuard;
-  private dialogueTurns: DialogueTurnItem[] = [];
+  private turnManager: DialogueTurnManager;
+  private wakeLock = new WakeLockManager();
   private isServerTurnComplete: boolean = false;
   private hasSpokenInTurn: boolean = false;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
   private isMuted: boolean = false;
   private currentAiTurnAccumulator: string = '';
-  private wakeLock: any = null;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
-    this.fsm = new LiveVoiceStateMachine((pubState) => {
-      this.callbacks.onStateChange?.(pubState);
-    });
-
+    this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
+    this.turnManager = new DialogueTurnManager((turns) => this.callbacks.onDialogueTurnsUpdate?.(turns));
     this.playoutManager = new AudioPlayoutManager();
     this.bargeInGuard = new AcousticBargeInGuard();
 
@@ -46,9 +48,7 @@ export class LiveVoiceEngine {
       onError: (err) => this.handleFatalError(err.message, false)
     });
 
-    this.playoutManager.onPlaybackFinished = () => {
-      this.handleAudioPlayoutFinished();
-    };
+    this.playoutManager.onPlaybackFinished = () => this.handleAudioPlayoutFinished();
   }
 
   public async connect(config: VoiceEngineConfig): Promise<void> {
@@ -58,50 +58,37 @@ export class LiveVoiceEngine {
     this.callbacks.onStatusMessage?.('⚡ Подключение к голосовому шлюзу...');
 
     const isMidDialogue = Boolean(config.isResumed || config.initialUserMessage);
-    const shouldLockTurn0 = config.turn0Lockdown ?? !isMidDialogue;
-    this.bargeInGuard.setTurn0Lockdown(shouldLockTurn0);
+    this.bargeInGuard.setTurn0Lockdown(config.turn0Lockdown ?? !isMidDialogue);
 
     try {
-      void this.acquireWakeLock();
+      void this.wakeLock.acquire();
       await this.playoutManager.resume();
       const ctx = this.playoutManager.getContext();
-      
-      // Initialize Neural Silero VAD v5 with fallback to MicrophoneCapture
+
       try {
         const vad = new SileroVadDetector({
           vadPauseMs: config.vadPauseMs || 1800,
           callbacks: {
             onSpeechStart: () => this.handleSpeechStarted(),
             onSpeechEnd: () => this.handleSpeechEnded(),
-            onAudioFrame: (base64, prob, isSpeech, rmsDb) => {
+            onAudioFrame: (b64, _, isSpeech, rmsDb) => {
               this.callbacks.onAudioLevel?.(rmsDb);
-              this.handleMicrophoneChunk(base64, { rmsDb, speechDetected: isSpeech });
+              this.handleMicrophoneChunk(b64, { rmsDb, speechDetected: isSpeech });
             },
             onError: () => this.fallbackToMicrophoneCapture(ctx)
           }
         });
-        await vad.start(this.playoutManager.getContext());
+        await vad.start(ctx);
         this.sileroVad = vad;
       } catch {
         this.fallbackToMicrophoneCapture(ctx);
       }
 
-      const wsUrl = this.buildWebSocketUrl(config);
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(buildLiveVoiceWebSocketUrl(config));
       this.ws = ws;
-
-      ws.onopen = () => {
-        this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
-      };
-
-      ws.onmessage = (event) => {
-        this.handleServerFrame(event.data);
-      };
-
-      ws.onerror = (err) => {
-        console.error('LiveVoiceEngine WebSocket error:', err);
-      };
-
+      ws.onopen = () => this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
+      ws.onmessage = (event) => this.handleServerFrame(event.data);
+      ws.onerror = (err) => console.error('LiveVoiceEngine WebSocket error:', err);
       ws.onclose = () => {
         if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
           this.fsm.transition({ type: 'DISCONNECT' });
@@ -121,7 +108,8 @@ export class LiveVoiceEngine {
   }
 
   public disconnect(): void {
-    this.releaseWakeLock();
+    this.wakeLock.release();
+    this.clearClientSafetyTimer();
     if (this.silenceTimer) {
       clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
@@ -152,6 +140,7 @@ export class LiveVoiceEngine {
   }
 
   public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
+    this.clearClientSafetyTimer();
     this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
     this.playoutManager.handleInterruption();
@@ -180,21 +169,20 @@ export class LiveVoiceEngine {
       this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
+    this.armClientSafetyTimer();
   }
 
   public sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
-    this.appendDialogueTurn('user', displayText || text);
+    this.turnManager.appendTurn('user', displayText || text);
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        clientContent: {
-          turns: [{ role: 'user', parts: [{ text }] }],
-          turnComplete: true
-        }
+        clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true }
       }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
+    this.armClientSafetyTimer();
   }
 
   public sendCustomFrame(frame: any): void {
@@ -216,7 +204,7 @@ export class LiveVoiceEngine {
   }
 
   public getDialogueTurns(): DialogueTurnItem[] {
-    return [...this.dialogueTurns];
+    return this.turnManager.getTurns();
   }
 
   public getPlayoutManager(): AudioPlayoutManager {
@@ -245,12 +233,22 @@ export class LiveVoiceEngine {
     if (!parsed) return;
 
     if (parsed.type === 'setupComplete') {
-      const isTurn0 = this.bargeInGuard.isTurn0RecitationLocked();
-      this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0 });
+      this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.bargeInGuard.isTurn0RecitationLocked() });
+      return;
+    }
+
+    if (parsed.type === 'thinking_delay') {
+      this.callbacks.onStatusMessage?.('🧠 ИИ обдумывает ответ...');
+      return;
+    }
+
+    if (parsed.type === 'dead_air_recovery' || parsed.rawParsed?.type === 'dead_air_recovery') {
+      this.handleDeadAirRecovery(parsed.rawParsed?.reason || 'server_watchdog');
       return;
     }
 
     if (parsed.evaluation) {
+      this.clearClientSafetyTimer();
       this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
       this.callbacks.onEvaluationReceived?.(parsed.evaluation);
       return;
@@ -261,8 +259,8 @@ export class LiveVoiceEngine {
     if (parsed.verdictPayload) return this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
     if (parsed.toolCallPayload) return this.callbacks.onToolCall?.(parsed.toolCallPayload);
 
-    // Audio / transcript deltas
     if (parsed.hasAudio || parsed.hasText) {
+      this.clearClientSafetyTimer();
       if (this.silenceTimer) {
         clearTimeout(this.silenceTimer);
         this.silenceTimer = null;
@@ -273,7 +271,7 @@ export class LiveVoiceEngine {
       for (const textChunk of parsed.textDeltas) {
         this.currentAiTurnAccumulator += textChunk;
         this.callbacks.onTranscriptDelta?.('ai', textChunk);
-        this.updateLastAiDialogueTurn(this.currentAiTurnAccumulator);
+        this.turnManager.updateLastAiTurn(this.currentAiTurnAccumulator);
       }
 
       for (const pcm of parsed.audioChunks) {
@@ -281,7 +279,6 @@ export class LiveVoiceEngine {
       }
     }
 
-    // Dual-Phase Turn Gate
     if (parsed.isTurnDone) {
       if (parsed.interactionStatus === 'IN_PROGRESS') return;
       this.isServerTurnComplete = true;
@@ -310,6 +307,7 @@ export class LiveVoiceEngine {
   }
 
   private unlockCandidateTurn(): void {
+    this.clearClientSafetyTimer();
     this.bargeInGuard.setTurn0Lockdown(false);
     this.callbacks.onDrainingStateChange?.(false);
     this.fsm.transition({ type: 'PLAYOUT_FINISHED' });
@@ -317,10 +315,35 @@ export class LiveVoiceEngine {
     this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите в микрофон...');
   }
 
-  private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.isMuted) return;
+  private handleDeadAirRecovery(reason?: string): void {
+    this.clearClientSafetyTimer();
+    this.bargeInGuard.setTurn0Lockdown(false);
+    this.callbacks.onDrainingStateChange?.(false);
+    this.fsm.transition({ type: 'DEAD_AIR_RECOVERED', reason });
+    this.hasSpokenInTurn = false;
+    this.callbacks.onStatusMessage?.('🎙️ ИИ задержался с ответом. Ваша очередь говорить...');
+  }
 
-    if (this.fsm.isTurn0RecitationActive()) return;
+  private armClientSafetyTimer(): void {
+    this.clearClientSafetyTimer();
+    // SOTA Late 2026: Client local safety timer (22s) in case upstream hangs
+    this.clientSafetyTimer = setTimeout(() => {
+      const state = this.fsm.getInternalState();
+      if (state === 'COMMITTING' || state === 'AI_THINKING') {
+        this.handleDeadAirRecovery('client_safety_timeout');
+      }
+    }, 22000);
+  }
+
+  private clearClientSafetyTimer(): void {
+    if (this.clientSafetyTimer) {
+      clearTimeout(this.clientSafetyTimer);
+      this.clientSafetyTimer = null;
+    }
+  }
+
+  private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
+    if (this.isMuted || this.fsm.isTurn0RecitationActive()) return;
 
     const pub = this.fsm.getPublicState();
     if (pub === 'AI_SPEAKING') {
@@ -338,7 +361,6 @@ export class LiveVoiceEngine {
       }));
     }
 
-    // Fallback energy silence timer if Silero VAD is not handling endpoints
     if (!this.sileroVad && metrics?.speechDetected) {
       this.hasSpokenInTurn = true;
       if (this.silenceTimer) { clearTimeout(this.silenceTimer); this.silenceTimer = null; }
@@ -351,47 +373,9 @@ export class LiveVoiceEngine {
   }
 
   private handleFatalError(msg: string, retryable: boolean): void {
+    this.clearClientSafetyTimer();
     this.fsm.transition({ type: 'ERROR_OCCURRED' });
     this.callbacks.onError?.(msg, retryable);
     this.callbacks.onStatusMessage?.(`❌ Ошибка: ${msg}`);
-  }
-
-  private appendDialogueTurn(role: 'ai' | 'user' | 'system', text: string): void {
-    this.dialogueTurns.push({ id: `turn_${Date.now()}_${Math.random()}`, role, text, timestamp: Date.now() });
-    this.callbacks.onDialogueTurnsUpdate?.([...this.dialogueTurns]);
-  }
-
-  private updateLastAiDialogueTurn(fullText: string): void {
-    const last = this.dialogueTurns[this.dialogueTurns.length - 1];
-    if (last && last.role === 'ai') {
-      last.text = fullText;
-    } else {
-      this.dialogueTurns.push({ id: `turn_${Date.now()}`, role: 'ai', text: fullText, timestamp: Date.now() });
-    }
-    this.callbacks.onDialogueTurnsUpdate?.([...this.dialogueTurns]);
-  }
-
-  private buildWebSocketUrl(cfg: VoiceEngineConfig): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host;
-    const p = new URLSearchParams({
-      sessionId: cfg.sessionId, questionId: cfg.questionId, sessionType: cfg.sessionType,
-      topic: cfg.topic || '', questionText: cfg.questionText || '', referenceAnswer: cfg.referenceAnswer || '',
-      voice: cfg.voice || 'Kore', turnMode: cfg.turnMode || 'auto',
-      liveModel: cfg.liveModel || 'gemini-live-v3', vadPauseMs: String(cfg.vadPauseMs || 1800)
-    });
-    for (const k of ['tutorMode', 'persona', 'targetGrade', 'strategy'] as const) {
-      if (cfg[k]) p.set(k, String(cfg[k]));
-    }
-    return `${protocol}//${host}/ws/live?${p.toString()}`;
-  }
-
-  private async acquireWakeLock(): Promise<void> {
-    try { if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) this.wakeLock = await (navigator as any).wakeLock.request('screen'); } catch {}
-  }
-
-  private releaseWakeLock(): void {
-    try { this.wakeLock?.release(); } catch {}
-    this.wakeLock = null;
   }
 }

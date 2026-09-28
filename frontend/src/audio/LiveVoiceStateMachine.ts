@@ -34,6 +34,7 @@ export type VoiceStateEvent =
   | { type: 'COMMIT_TRIGGERED' }
   | { type: 'FIRST_AUDIO_RECEIVED' }
   | { type: 'SERVER_TURN_DONE' }
+  | { type: 'DEAD_AIR_RECOVERED'; reason?: string }
   | { type: 'BARGE_IN_TRIGGERED'; source: 'tactile' | 'acoustic' }
   | { type: 'EVALUATION_COMPLETED' }
   | { type: 'ERROR_OCCURRED' }
@@ -92,7 +93,12 @@ export class LiveVoiceStateMachine {
         break;
 
       case 'PLAYOUT_FINISHED':
-        if (prev === 'AI_RECITING_QUESTION' || prev === 'AI_SPEAKING') {
+        if (
+          prev === 'AI_RECITING_QUESTION' ||
+          prev === 'AI_SPEAKING' ||
+          prev === 'COMMITTING' ||
+          prev === 'AI_THINKING'
+        ) {
           next = 'CANDIDATE_LISTENING';
         }
         break;
@@ -135,11 +141,20 @@ export class LiveVoiceStateMachine {
         }
         break;
 
+      case 'DEAD_AIR_RECOVERED':
+        if (prev === 'COMMITTING' || prev === 'AI_THINKING') {
+          next = 'CANDIDATE_LISTENING';
+        }
+        break;
+
       case 'BARGE_IN_TRIGGERED':
         if (prev === 'AI_SPEAKING') {
           next = 'CANDIDATE_SPEAKING';
         } else if (prev === 'AI_RECITING_QUESTION' && event.source === 'tactile') {
           // Tactile skip of Turn 0 question recitation
+          next = 'CANDIDATE_LISTENING';
+        } else if ((prev === 'COMMITTING' || prev === 'AI_THINKING') && event.source === 'tactile') {
+          // Tactile recovery from stalled AI response
           next = 'CANDIDATE_LISTENING';
         }
         break;

@@ -67,24 +67,24 @@ export function handleTurnCommit(
   return true;
 }
 
-function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
+export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
   const isThinkingModel = Boolean(session.liveModel && session.liveModel.includes('thinking'));
 
   if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
-  const nudgeDelay = isThinkingModel ? 10000 : 5500;
+  const nudgeDelay = isThinkingModel ? 8000 : 5000;
   session.nudgeWatchdog = setTimeout(() => {
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: nudgeDelay }));
     }
   }, nudgeDelay);
 
-  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (8.0s for standard, 16.0s for thinking)
-  const defaultTimeout = isThinkingModel ? 16000 : 8000;
+  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (18.0s for standard, 25.0s for thinking)
+  const defaultTimeout = isThinkingModel ? 25000 : 18000;
   const deadAirTimeoutMs = session.deadAirTimeoutMs ?? defaultTimeout;
   if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
   session.deadAirWatchdog = setTimeout(() => {
     if (session.isAiGenerating) {
-      console.warn(`⏱️ [DEAD_AIR_WATCHDOG] ${deadAirTimeoutMs}ms silence expired with zero response from Gemini Live (sessionId: ${session.sessionId || 'anon'}). Reclaiming microphone and dispatching conversational nudge.`);
+      console.warn(`⏱️ [DEAD_AIR_WATCHDOG] ${deadAirTimeoutMs}ms silence expired with zero response from Gemini Live (sessionId: ${session.sessionId || 'anon'}). Reclaiming microphone and canceling stuck generation.`);
       session.isAiGenerating = false;
       if (session.currentTurnMetrics) {
         session.currentTurnMetrics.droppedEchoChunksCount = 0;
@@ -98,19 +98,17 @@ function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void 
       }
       if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
         try {
+          // SOTA Late 2026: Send clean interruption rather than injecting colliding text turn
           session.geminiSocket.send(JSON.stringify({
             clientContent: {
-              turns: [{
-                role: 'user',
-                parts: [{ text: '[СИСТЕМНОЕ СООБЩЕНИЕ: Кандидат закончил говорить. Задай вопрос или отреагируй на реплику.]' }]
-              }],
-              turnComplete: true
+              interrupted: true
             }
           }));
         } catch (e) {
-          console.warn('Failed to send conversational nudge to Gemini:', e);
+          console.warn('Failed to send clean interruption to Gemini:', e);
         }
       }
     }
   }, deadAirTimeoutMs);
 }
+

@@ -56,6 +56,16 @@
 - **Clamp Contract:** Silence after active speech $> 1200$ms is suppressed; $\ge 2000$ms continuous silence triggers turn clamping with synthesized `turnComplete: true` and `{ deadAirClamped: true }`.
 - **Anti-Lapping Ring Buffer:** Client-side AudioWorklet ring buffer MUST use an anti-lapping capacity check (`size - occupancy - 1`) and $\ge 2^{22}$ samples ($\approx 174$s) to guarantee zero sample loss during high-speed upstream model synthesis bursts.
 
+### 2.8. Trap-Free FSM, Two-Phase Watchdog & Clean Upstream Interruption Invariant (SOTA Late 2026)
+- **Trap-Free FSM Invariant:** `LiveVoiceStateMachine` MUST never get stuck in `COMMITTING` or `AI_THINKING`. Both states MUST transition cleanly to `CANDIDATE_LISTENING` upon:
+  1. `DEAD_AIR_RECOVERED` (dispatched on server watchdog or client safety timer).
+  2. `BARGE_IN_TRIGGERED` (tactile button click during waiting).
+  3. `PLAYOUT_FINISHED` (zero-audio turn completion).
+- **Two-Phase Watchdog Invariant:** The gateway watchdog operates in two phases:
+  1. Informational nudge at 5.0s (standard) / 8.0s (thinking) dispatching `{ type: 'thinking_delay' }` without disturbing upstream session.
+  2. Generation timeout at 18.0s (standard) / 25.0s (thinking) dispatching clean interruption `{ clientContent: { interrupted: true } }` upstream (NEVER inject duplicate text prompts into active sessions) and `{ type: 'dead_air_recovery' }` to client.
+- **Client Autonomous Safety Fallback:** `LiveVoiceEngine` maintains an autonomous 22s safety timer in case both upstream and gateway hang.
+
 ---
 
 ## 3. UI/UX Standard, Health & Resilience Invariants

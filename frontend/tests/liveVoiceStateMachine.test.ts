@@ -59,7 +59,43 @@ assert.strictEqual(fsm.getInternalState(), 'CANDIDATE_SPEAKING', 'State transiti
 assert.strictEqual(fsm.getPublicState(), 'LISTENING', 'Public state must be LISTENING');
 console.log('  ✅ Mid-dialogue barge-in verified');
 
-// 5. Evaluation Termination
+// 5. Trap-Free Recovery Contracts (Dead-Air & Tactile Override during COMMITTING / AI_THINKING)
+// 5a. DEAD_AIR_RECOVERED from COMMITTING
+const recoveryFsm = new LiveVoiceStateMachine();
+recoveryFsm.transition({ type: 'CONNECT' });
+recoveryFsm.transition({ type: 'SETUP_COMPLETE', isTurn0: false });
+assert.strictEqual(recoveryFsm.getInternalState(), 'CANDIDATE_LISTENING');
+
+recoveryFsm.transition({ type: 'SPEECH_STARTED' });
+recoveryFsm.transition({ type: 'COMMIT_TRIGGERED' });
+assert.strictEqual(recoveryFsm.getInternalState(), 'COMMITTING');
+
+assert.strictEqual(recoveryFsm.transition({ type: 'DEAD_AIR_RECOVERED', reason: 'upstream_timeout' }), true);
+assert.strictEqual(recoveryFsm.getInternalState(), 'CANDIDATE_LISTENING', 'COMMITTING -> DEAD_AIR_RECOVERED must unlock CANDIDATE_LISTENING');
+assert.strictEqual(recoveryFsm.getPublicState(), 'LISTENING', 'Public state must be LISTENING after dead air recovery');
+console.log('  ✅ Dead-air recovery from COMMITTING verified');
+
+// 5b. Tactile override (BARGE_IN_TRIGGERED) from COMMITTING
+recoveryFsm.transition({ type: 'SPEECH_STARTED' });
+recoveryFsm.transition({ type: 'COMMIT_TRIGGERED' });
+assert.strictEqual(recoveryFsm.getInternalState(), 'COMMITTING');
+
+assert.strictEqual(recoveryFsm.transition({ type: 'BARGE_IN_TRIGGERED', source: 'tactile' }), true);
+assert.strictEqual(recoveryFsm.getInternalState(), 'CANDIDATE_LISTENING', 'COMMITTING -> BARGE_IN_TRIGGERED must unlock CANDIDATE_LISTENING');
+assert.strictEqual(recoveryFsm.getPublicState(), 'LISTENING');
+console.log('  ✅ Tactile barge-in override from COMMITTING verified');
+
+// 5c. Zero-audio turn completion (PLAYOUT_FINISHED) from COMMITTING
+recoveryFsm.transition({ type: 'SPEECH_STARTED' });
+recoveryFsm.transition({ type: 'COMMIT_TRIGGERED' });
+assert.strictEqual(recoveryFsm.getInternalState(), 'COMMITTING');
+
+assert.strictEqual(recoveryFsm.transition({ type: 'PLAYOUT_FINISHED' }), true);
+assert.strictEqual(recoveryFsm.getInternalState(), 'CANDIDATE_LISTENING', 'COMMITTING -> PLAYOUT_FINISHED must unlock CANDIDATE_LISTENING');
+assert.strictEqual(recoveryFsm.getPublicState(), 'LISTENING');
+console.log('  ✅ Playout finish from COMMITTING verified');
+
+// 6. Evaluation Termination
 assert.strictEqual(fsm.transition({ type: 'COMMIT_TRIGGERED' }), true);
 assert.strictEqual(fsm.transition({ type: 'EVALUATION_COMPLETED' }), true);
 assert.strictEqual(fsm.getInternalState(), 'COMPLETED', 'State must be COMPLETED');

@@ -298,8 +298,37 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(acousticSent.bargeInType, 'acoustic', 'Tagged with bargeInType acoustic');
   console.log('  ✅ Test 11b Passed: Mid-dialogue acoustic barge-in triggers instant interruption and mic unlock');
 
+  // Test 12: Dead-Air Recovery handling
+  const engine4 = new LiveVoiceEngine({});
+  await engine4.connect({ sessionId: 'test_sess_4', questionId: 'Q_4', sessionType: 'interview', isResumed: true });
+  const mockWs4 = (engine4 as any).ws as MockWebSocket;
+
+  // Server signals setup complete
+  mockWs4.onmessage?.({
+    data: JSON.stringify({ type: 'setupComplete' })
+  });
+  assert.strictEqual(engine4.getState(), 'LISTENING', 'Engine ready for candidate speech in LISTENING');
+
+  // Candidate commits turn
+  engine4.commitSpokenTurn();
+  assert.strictEqual(engine4.getInternalState(), 'COMMITTING', 'Engine internal state is COMMITTING upon turn commit');
+  assert.strictEqual((engine4 as any).fsm.isCandidateTurnActive(), false, 'Candidate turn custody released (mic locked)');
+
+  // Server watchdog fires and dispatches dead_air_recovery
+  mockWs4.onmessage?.({
+    data: JSON.stringify({
+      type: 'dead_air_recovery',
+      reason: 'upstream_timeout',
+      timestamp: Date.now()
+    })
+  });
+  assert.strictEqual(engine4.getInternalState(), 'CANDIDATE_LISTENING', 'dead_air_recovery unfreezes FSM back to CANDIDATE_LISTENING');
+  assert.strictEqual((engine4 as any).fsm.isCandidateTurnActive(), true, 'Candidate turn custody restored');
+  console.log('  ✅ Test 12 Passed: dead_air_recovery unfreezes engine to CANDIDATE_LISTENING');
+
   engine2.disconnect();
   engine3.disconnect();
+  engine4.disconnect();
 
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }

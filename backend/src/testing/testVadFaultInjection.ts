@@ -13,7 +13,7 @@ import http from 'http';
 import { ProxySession } from '../services/live/liveSessionTypes';
 import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
 import { LiveClientGuardService } from '../services/live/liveClientGuardService';
-import { handleTurnCommit } from '../services/live/liveWsTurnCommitHandler';
+import { handleTurnCommit, armTurnWatchdogs } from '../services/live/liveWsTurnCommitHandler';
 
 interface TestContext {
   passed: number;
@@ -109,33 +109,7 @@ async function testUpstreamDeadAirTimeout(): Promise<void> {
   session.isAiGenerating = true;
   session.lastTurnCommitTime = Date.now();
 
-  const deadAirTimeoutMs = session.deadAirTimeoutMs ?? 8000;
-  session.deadAirWatchdog = setTimeout(() => {
-    if (session.isAiGenerating) {
-      session.isAiGenerating = false;
-      if (session.currentTurnMetrics) {
-        session.currentTurnMetrics.droppedEchoChunksCount = 0;
-      }
-      if (session.clientSocket.readyState === WebSocket.OPEN) {
-        session.clientSocket.send(JSON.stringify({
-          type: 'dead_air_recovery',
-          reason: 'upstream_timeout',
-          timestamp: Date.now()
-        }));
-      }
-      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-        session.geminiSocket.send(JSON.stringify({
-          clientContent: {
-            turns: [{
-              role: 'user',
-              parts: [{ text: '[СИСТЕМНОЕ СООБЩЕНИЕ: Кандидат закончил говорить. Задай вопрос или отреагируй на реплику.]' }]
-            }],
-            turnComplete: true
-          }
-        }));
-      }
-    }
-  }, deadAirTimeoutMs);
+  armTurnWatchdogs(session, session.clientSocket);
 
   assert((session.isAiGenerating as boolean) === true, 'Session in isAiGenerating state immediately after turnCommit');
 
@@ -145,12 +119,8 @@ async function testUpstreamDeadAirTimeout(): Promise<void> {
   assert((session.isAiGenerating as boolean) === false, 'Session isAiGenerating cleared to false after deadAir timeout');
   assert(clientReceived.some((m) => m.type === 'dead_air_recovery'), 'Client received dead_air_recovery notification frame');
   assert(
-    geminiReceived.some(
-      (m) =>
-        m.clientContent?.turnComplete === true &&
-        m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('СИСТЕМНОЕ СООБЩЕНИЕ')
-    ),
-    'Gemini received conversational nudge frame with turnComplete: true'
+    geminiReceived.some((m) => m.clientContent?.interrupted === true),
+    'Gemini received clean interruption frame'
   );
 
   await cleanupSocketPair(clientPair);

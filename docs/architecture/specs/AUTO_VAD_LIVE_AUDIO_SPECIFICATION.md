@@ -99,6 +99,15 @@ $$\text{CanCandidateSpeak} \iff \Big( \text{NetworkGenerationFinished} \land \te
 - **Case 1 (Network completes first):** Gemini sends `generationComplete`. The engine sets `isServerTurnComplete = true` and dispatches `{ type: 'drain' }` to AudioWorklet. When the buffer reaches 0 samples, AudioWorklet posts `{ type: 'drained' }` $\rightarrow$ `onPlaybackFinished()` instantly unlocks candidate mic.
 - **Case 2 (Audio drains first):** Audio finishes playing while network is still waiting for terminal packet. `isServerTurnComplete` is false $\rightarrow$ mic remains locked. When `generationComplete` arrives, the engine detects that the playout queue is already empty $\rightarrow$ instantly unlocks candidate mic in 0ms.
 
+### 3.4. Trap-Free FSM Invariant (COMMITTING & AI_THINKING Recovery)
+A critical failure mode in multi-turn duplex dialogues is the **State Machine Trap**:
+- When the candidate stops speaking, `LiveVoiceStateMachine` transitions from `CANDIDATE_HOLD` $\rightarrow$ `COMMITTING`.
+- In naive implementations, `COMMITTING` and `AI_THINKING` could only exit via `FIRST_AUDIO_RECEIVED` or `EVALUATION_COMPLETED`. If the upstream model stalled, delayed, or if the server watchdog fired, the FSM remained trapped in `COMMITTING` with candidate microphone locked (`isCandidateTurnActive() === false`).
+- **Trap-Free Invariant:** The FSM MUST implement unconstrained, deterministic recovery transitions from both `COMMITTING` and `AI_THINKING`:
+  1. `DEAD_AIR_RECOVERED`: Triggered by backend watchdog `{ type: 'dead_air_recovery' }` or client safety timer $\rightarrow$ immediately transitions to `CANDIDATE_LISTENING` (public `LISTENING`).
+  2. `BARGE_IN_TRIGGERED` (Tactile): Candidate clicks the central button while waiting $\rightarrow$ immediately cancels waiting and transitions to `CANDIDATE_LISTENING` (public `LISTENING`).
+  3. `PLAYOUT_FINISHED`: If the server emits a zero-audio turn completed frame $\rightarrow$ transitions cleanly to `CANDIDATE_LISTENING`.
+
 ---
 
 ## 4. Terminal Signal Equivalence & Normalization
@@ -148,6 +157,20 @@ The legacy reactive guards in the Node.js gateway (`STALE_GUARD`, `ZERO_CHUNK_GU
 
 ### 5.4. Playout Protection Deduplication
 - `LiveTelemetryAccumulator` guards against duplicate zero-audio terminal frames resetting `aiPlayoutEstimatedEndEpoch`, preserving EchoGuard protection until the candidate's DAC finishes physical playback.
+
+### 5.5. Two-Phase Watchdog & Clean Upstream Interruption Protocol
+In multi-turn duplex dialogues with rich accumulated conversational context, upstream reasoning latency can legitimately range between 6–12s. Short fixed timeouts trigger false-positive cutoffs and conversational stalls:
+- **Phase 1: Informational Nudge (5.0s / 8.0s):**
+  - Standard models (`gemini-live-v3`): $5000\text{ ms}$; thinking models: $8000\text{ ms}$.
+  - The gateway dispatches `{ type: 'thinking_delay', elapsedMs }` to the client so UI renders a reassuring status ("🧠 ИИ обдумывает ответ..."). Upstream session is NOT disturbed.
+- **Phase 2: Bounded Generation Watchdog (18.0s / 25.0s):**
+  - Standard models: $18,000\text{ ms}$; thinking models: $25,000\text{ ms}$.
+  - Upon expiry:
+    1. Gateway sends clean interruption frame `{ clientContent: { interrupted: true } }` to `geminiSocket` (canceling stuck synthesis upstream cleanly without injecting colliding text prompts).
+    2. Gateway sends `{ type: 'dead_air_recovery', reason: 'upstream_timeout' }` to client WebSocket.
+    3. Gateway resets `session.isAiGenerating = false`.
+- **Client Autonomous Safety Fallback (22.0s):**
+  - `LiveVoiceEngine` maintains an autonomous 22-second local safety timer. If both upstream and gateway hang, the client transitions `DEAD_AIR_RECOVERED` independently, guaranteeing the candidate is never stuck.
 
 ---
 
