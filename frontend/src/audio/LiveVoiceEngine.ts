@@ -223,9 +223,8 @@ export class LiveVoiceEngine {
   }
 
   private handleSpeechEnded(): void {
-    if (this.fsm.isCandidateTurnActive() && this.hasSpokenInTurn && this.config?.turnMode === 'auto') {
-      this.commitSpokenTurn();
-    }
+    // In native Cloud VAD mode (Auto-VAD), Gemini natively endpoints the speech turn
+    // after silenceDurationMs and generates the response automatically.
   }
 
   private handleServerFrame(rawData: any): void {
@@ -363,12 +362,6 @@ export class LiveVoiceEngine {
 
     if (!this.sileroVad && metrics?.speechDetected) {
       this.hasSpokenInTurn = true;
-      if (this.silenceTimer) { clearTimeout(this.silenceTimer); this.silenceTimer = null; }
-    } else if (!this.sileroVad && this.hasSpokenInTurn && this.config?.turnMode === 'auto' && !this.silenceTimer) {
-      this.silenceTimer = setTimeout(() => {
-        this.silenceTimer = null;
-        if (this.hasSpokenInTurn) this.commitSpokenTurn();
-      }, this.config.vadPauseMs || 1800);
     }
   }
 

@@ -7,6 +7,7 @@ on:
       - feature/practice-senior-review-resilience
       - feature/wave-12-platform-actualization
       - fix/auto-vad-live-v3-investigation
+      - test/clean-native-gemini-live
   workflow_dispatch:
 
 permissions:
