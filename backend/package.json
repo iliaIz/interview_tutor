@@ -11,7 +11,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test:prompts": "ts-node src/scripts/verifyPrompts.ts",
     "test:vad": "npm run test:vad:fault-injection && npm run test:vad:fixtures",
-    "test:vad:unit": "ts-node src/scripts/testAcousticFixtures.ts",
+    "test:vad:unit": "ts-node src/scripts/testAcousticFixtures.ts && ts-node src/scripts/testDeadAirGuard.ts",
     "test:vad:pacer": "ts-node src/scripts/testRealtimePacer.ts",
     "test:vad:fault-injection": "ts-node src/testing/testVadFaultInjection.ts",
     "test:vad:loopback": "ts-node src/scripts/testAcousticLoopback.ts",

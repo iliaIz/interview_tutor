@@ -51,6 +51,11 @@
 - **Neural Speech Detection:** Client-side speech detection MUST use neural Silero VAD v5 (<1ms WASM inference). Energy-only RMS thresholds MUST NOT be used as the sole trigger for turn completion.
 - **Turn 0 Question Recitation Lockdown:** During question recitation on Turn 0, acoustic barge-in is locked until physical DAC audio drain (`AudioPlayoutManager.onPlaybackFinished()`). Only explicit tactile clicks can interrupt Turn 0.
 
+### 2.7. Live Dead-Air Clamping & Vocoder Stall Invariant (SOTA Late 2026)
+- **Root Cause Prevention:** Gemini Live upstream vocoder stalls (where text tokens finish but upstream streams continuous digital silence frames holding the turn open) MUST be clamped at the backend router level via `LiveDeadAirGuard`.
+- **Clamp Contract:** Silence after active speech $> 1200$ms is suppressed; $\ge 2000$ms continuous silence triggers turn clamping with synthesized `turnComplete: true` and `{ deadAirClamped: true }`.
+- **Anti-Lapping Ring Buffer:** Client-side AudioWorklet ring buffer MUST use an anti-lapping capacity check (`size - occupancy - 1`) and $\ge 2^{22}$ samples ($\approx 174$s) to guarantee zero sample loss during high-speed upstream model synthesis bursts.
+
 ---
 
 ## 3. UI/UX Standard, Health & Resilience Invariants

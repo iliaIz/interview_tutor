@@ -3,6 +3,8 @@ import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
 import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
 import { LiveToolCallExecutor } from './LiveToolCallExecutor';
+import { isNonRetryableUpstreamError, isCannedErrorUtterance } from './liveStreamErrorDetector';
+import { LiveDeadAirGuard } from './LiveDeadAirGuard';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -62,35 +64,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     challengeTrack = ''
   } = options;
 
-  const isNonRetryableUpstreamError = (text?: string, code?: number): boolean => {
-    if (code === 1008 || code === 4001 || code === 4003 || code === 4403) return true;
-    if (!text) return false;
-    const lower = text.toLowerCase();
-    return (
-      lower.includes('forbidden') ||
-      lower.includes('invalid or blocked virtual key') ||
-      lower.includes('unauthorized') ||
-      lower.includes('not allowed') ||
-      lower.includes('no active models or api keys') ||
-      lower.includes('thinking level must be specified')
-    );
-  };
-
-  const CANNED_ERROR_PATTERNS = [
-    /произошла\s+системная\s+ошибка/i,
-    /internal\s+error\s+occurred/i,
-    /system\s+error\s+occurred/i,
-    /повторите\s+попытку\s+позже/i,
-    /an\s+error\s+occurred/i,
-    /\[system error\]/i,
-    /internal server error/i,
-    /upstream error/i
-  ];
-
-  const isCannedErrorUtterance = (text?: string): boolean => {
-    if (!text) return false;
-    return CANNED_ERROR_PATTERNS.some((pattern) => pattern.test(text));
-  };
+  const deadAirGuard = new LiveDeadAirGuard();
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;
@@ -283,8 +257,28 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             };
           }
 
+          let shouldClampDeadAir = false;
+
           if (parsed.serverContent.modelTurn.parts) {
-            LiveTelemetryAccumulator.processModelTurnParts(session, parsed.serverContent.modelTurn.parts, commitAnchor);
+            const filteredParts: any[] = [];
+            for (const part of parsed.serverContent.modelTurn.parts) {
+              const pcm = part.inlineData?.data || part.inline_data?.data;
+              if (pcm) {
+                const res = deadAirGuard.processChunk(pcm);
+                if (res.shouldClampTurn) {
+                  shouldClampDeadAir = true;
+                  console.warn(`🛑 [DEAD_AIR_GUARD] Detected continuous acoustic silence after speech. Clamping model turn.`);
+                }
+                if (!res.suppressChunk) {
+                  filteredParts.push(part);
+                }
+              } else {
+                filteredParts.push(part);
+              }
+            }
+            parsed.serverContent.modelTurn.parts = filteredParts;
+
+            LiveTelemetryAccumulator.processModelTurnParts(session, filteredParts, commitAnchor);
             if (!session.isCannedErrorTurn && isCannedErrorUtterance(session.currentAiTurnText)) {
               session.isCannedErrorTurn = true;
               console.warn(`🚨 [ACOUSTIC_CIRCUIT_BREAKER] Upstream canned audio error detected in modelTurn text ("${session.currentAiTurnText?.slice(0, 80)}"). Suppressing audio and triggering stream recovery.`);
@@ -292,6 +286,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
                 try { clientSocket.send(JSON.stringify({ type: 'stream_recovery', reason: 'canned_upstream_error' })); } catch {}
               }
             }
+          }
+
+          if (shouldClampDeadAir) {
+            parsed.serverContent.turnComplete = true;
+            parsed.serverContent.generationComplete = true;
           }
         }
 
@@ -315,6 +314,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         // 3. Turn Complete / Generation Complete (SOTA Equivalence)
         const isUpstreamTurnComplete = Boolean(parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete);
         if (isUpstreamTurnComplete) {
+          deadAirGuard.reset();
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
             if (session.isCannedErrorTurn) {
@@ -352,6 +352,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // 4. Barge-In Interruption
         if (parsed.serverContent?.interrupted) {
+          deadAirGuard.reset();
           LiveTelemetryAccumulator.handleBargeIn(session);
         }
 

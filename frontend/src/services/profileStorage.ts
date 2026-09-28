@@ -10,7 +10,7 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
     isPreset: true,
     config: {
       strategy: 'adaptive_probing',
-      voice: 'Aoede',
+      voice: 'Kore',
       maxProbes: 3,
       deepDive: true,
       liveCoaching: false

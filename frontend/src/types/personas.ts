@@ -37,7 +37,7 @@ export const FAANG_PERSONAS: Record<InterviewPersonaId, PersonaConfig> = {
     icon: 'GraduationCap',
     accentColor: '#8B5CF6',
     bgGradient: 'from-purple-500/15 via-violet-500/10 to-transparent',
-    recommendedVoice: 'Aoede',
+    recommendedVoice: 'Kore',
     focusAreas: ['Постепенное раскрытие темы', 'Наводящие вопросы', 'Поддержка при ошибках'],
     evaluationStyle: 'Доброжелательный, стимулирующий мышление, без стресса',
     signatureQuote: '«Давайте разберем, что произойдет шаг за шагом...»',

@@ -72,7 +72,7 @@ sequenceDiagram
 - **Throughput:** $24,000 \times 2 = 48,000 \text{ B/s} = 48 \text{ kB/s}$.
 - **Web Audio Playout Graph:**
   `AudioWorkletNode ('gemini-audio-processor')` $\longrightarrow$ `GainNode (Master)` $\longrightarrow$ `AudioContext.destination` (or `MediaStreamAudioDestinationNode` on mobile).
-- **Ring Buffer Size:** $2^{20} = 1,048,576 \text{ samples}$ ($\approx 43.7 \text{ s}$ of audio buffer) to guarantee zero wrap-around.
+- **Ring Buffer Size:** $2^{22} = 4,194,304 \text{ samples}$ ($\approx 174.76 \text{ s}$ of audio buffer at 24kHz = 16MB Float32Array) with anti-lapping reservation (`size - currentOccupancy - 1`) to guarantee zero buffer overflow or unplayed audio corruption during fast model synthesis bursts ($3.5\times$ real-time).
 - **Resampling:** Dynamic 4-point, 3rd-order Hermite polynomial interpolation from 24 kHz to host DAC hardware frequency ($44.1 \text{ kHz}$ or $48 \text{ kHz}$) with persistent filter history to eliminate Gibbs phenomena and phase clicks.
 
 ---
@@ -136,6 +136,18 @@ The legacy reactive guards in the Node.js gateway (`STALE_GUARD`, `ZERO_CHUNK_GU
 - The gateway acts as a high-throughput, transparent session router.
 - When the client's state machine sends `{ clientContent: { turnComplete: true } }`, the gateway immediately forwards it to Gemini without heuristic drops.
 - This mathematically eliminates turn handoff deadlocks (Deadlocks where client committed, gateway dropped, and cloud waited).
+
+### 5.3. Live Dead-Air & Vocoder Stall Protection (`LiveDeadAirGuard`)
+- **Acoustic Root Cause:** When synthesizing Russian dialogue with technical English terms on certain voice personas (or under upstream network pressure), Google's Gemini Live vocoder can generate the opening words, finish text generation in 3-4s, but hold the turn open while streaming continuous digital silence (PCM noise floor $\le -65\text{ dB}$) for up to 90 seconds.
+- **Backend Dead-Air Guard:** `LiveDeadAirGuard` tracks active speech vs digital dead-air in real-time ($> 200$ RMS amplitude threshold for speech, $\le 100$ for silence floor).
+- **Latency Tolerances:**
+  - Initial silence before speech begins is permitted up to 5000ms (pre-speech model reasoning).
+  - Conversational pauses during active speech are permitted up to 1200ms.
+  - Trailing silence between 1200ms and 2000ms is suppressed (not forwarded to client DAC).
+  - Trailing silence $\ge 2000$ms clamps the turn: router synthesizes `turnComplete: true`, sets `deadAirClamped: true`, and notifies the client, immediately unblocking candidate turn custody without waiting for the 90-second upstream timeout.
+
+### 5.4. Playout Protection Deduplication
+- `LiveTelemetryAccumulator` guards against duplicate zero-audio terminal frames resetting `aiPlayoutEstimatedEndEpoch`, preserving EchoGuard protection until the candidate's DAC finishes physical playback.
 
 ---
 

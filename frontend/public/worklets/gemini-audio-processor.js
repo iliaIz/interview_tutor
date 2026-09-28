@@ -15,9 +15,10 @@
  */
 
 class GeminiAudioProcessor extends AudioWorkletProcessor {
-  // 1,048,576 samples (~43.7 seconds of 24kHz PCM)
-  static RING_BUFFER_SIZE = 1048576;
-  static RING_BUFFER_MASK = 1048576 - 1;
+  // 4,194,304 samples (~174.76 seconds of 24kHz PCM, 16MB Float32)
+  // Provides 100% burst safety against fast model streaming without wrap-around
+  static RING_BUFFER_SIZE = 4194304;
+  static RING_BUFFER_MASK = 4194304 - 1;
 
   constructor() {
     super();
@@ -109,10 +110,17 @@ class GeminiAudioProcessor extends AudioWorkletProcessor {
   writeToRingBuffer(data) {
     const len = data.length;
     let w = this.writeIndex;
+    const r = this.readIndex;
     const mask = GeminiAudioProcessor.RING_BUFFER_MASK;
+    const size = GeminiAudioProcessor.RING_BUFFER_SIZE;
+    const currentOccupancy = (w - r) & mask;
+
+    // Strict Anti-Lapping Invariant: never overwrite unplayed samples
+    const spaceAvailable = size - currentOccupancy - 1;
+    const toWrite = Math.min(len, spaceAvailable);
     const buf = this.ringBuffer;
 
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < toWrite; i++) {
       buf[w] = data[i];
       w = (w + 1) & mask;
     }
@@ -242,7 +250,7 @@ class GeminiAudioProcessor extends AudioWorkletProcessor {
     const interpolated = ((c3 * a + c2) * a + c1) * a + c0;
     this.phase += this.resampleRatio;
 
-    return interpolated;
+    return Number.isFinite(interpolated) ? interpolated : 0.0;
   }
 }
 

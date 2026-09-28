@@ -63,6 +63,12 @@ export class LiveTelemetryAccumulator {
     clientSocket: WebSocket,
     liveModel: string
   ): void {
+    // SOTA Late 2026: Deduplicate terminal frame invocations
+    // If turn has already concluded and current audio bytes are 0, ignore duplicate turnComplete/generationComplete
+    if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {
+      return;
+    }
+
     console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini terminal turn generation complete (session: ${session.sessionId || 'anon'})`);
     session.isAiGenerating = false;
     session.firstAudioChunkLogged = false;
