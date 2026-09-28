@@ -51,10 +51,11 @@ All application services MUST communicate with AI models strictly via `http://li
 | `gemini-tts-v3` | `GEMINI_TTS_MODEL` | `gemini-3.1-flash-tts` | Two-host podcast synthesis and study audio recitation |
 | `gemini-embedding` | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` / `text-embedding-3-small` | 1536-dim vector memory and cosine gap injection |
 
-### 2.3. Two-Tier Circuit Breaker Protocol
-1. **Tier 1 (Key 429 Fast-Failover):** If a Google API key in the pool hits rate limits (429), LiteLLM rotates to the next available API key in $<5\text{ms}$ without dropping the client connection.
-2. **Tier 2 (Model 503 Cascade):** If a model family suffers upstream degradation (503/500), LiteLLM fails over from Primary (`gemini-3.8-live`) to Secondary (`gemini-2.5-flash-native-audio-latest`).
-3. **Application Backoff:** If upstream is exhausted, backend triggers Full-Jitter Exponential Backoff:
+### 2.3. Key Balancing & Two-Tier Circuit Breaker Protocol
+1. **Key Pool Balancing (`round_robin`):** In `LiteLLM_Proxy` (`/home/djelu/LiteLLM_Proxy/data/gateway.db`), `key_routing_strategy` is set to `round_robin` across the 4 Google API keys. Requests for high-throughput reasoning (`gemini-live-thinking-v3`) rotate evenly across keys to prevent single-key quota starvation (429 Resource exhausted).
+2. **Tier 1 (Key 429 Fast-Failover):** If a Google API key in the pool hits rate limits (429), LiteLLM rotates to the next available API key in $<5\text{ms}$ without dropping the client connection.
+3. **Tier 2 (Model 503 Cascade):** If a model family suffers upstream degradation (503/500), LiteLLM fails over from Primary (`gemini-3.8-live`) to Secondary (`gemini-2.5-flash-native-audio-latest`).
+4. **Application Backoff:** If upstream is completely exhausted, backend triggers Full-Jitter Exponential Backoff:
    $$T = \text{random}\left(0, \min(2500, 800 \times 1.8^{\text{attempt}})\right) \quad (\text{max 2 retries})$$
 
 ---

@@ -7,12 +7,13 @@
 
 ---
 
-## 1. Executive Summary & Architecture Topology (Client-Authoritative Duplex)
+## 1. Executive Summary & Architecture Topology (Canonical Gemini Live Protocol)
 
-The InterviewPrep AI platform delivers zero-latency, full-duplex conversational voice tutoring and technical interview simulations. Under SOTA Late September 2026 standards, the voice pipeline operates strictly under **Client-Authoritative Duplex**:
-- **Cloud VAD Disabled:** Google Gemini Live native VAD is permanently disabled (`automaticActivityDetection.disabled = true`). The cloud model NEVER autonomously endpointing or interrupting turns, eliminating speaker-bleed self-interruption.
-- **Client SSOT:** Turn boundaries and interruptions are governed exclusively by the client browser via **Silero VAD v5 WASM** (<1ms inference) and a formal Finite State Machine (`LiveVoiceStateMachine`).
-- **Transparent Gateway:** The Node.js Gateway acts as a high-throughput router without heuristic commit censorship.
+The InterviewPrep AI platform delivers zero-latency, full-duplex conversational voice tutoring and technical interview simulations. Under SOTA Late September 2026 standards, the voice pipeline strictly adheres to Google's canonical Gemini Live protocol (`google-gemini/gemini-live-api-examples` and `@google/genai` SDK):
+- **Native Cloud VAD Enabled:** In Auto-VAD mode (`turnMode === 'auto'`), server-side VAD is active (`automaticActivityDetection.disabled = false`) with `silenceDurationMs: 800`ms and `prefixPaddingMs: 500`ms. Gemini Live natively detects speech boundaries (`voiceActivity: ACTIVITY_START` and `ACTIVITY_END`).
+- **Continuous Mic Streaming:** Candidate audio flows continuously as 16kHz 16-bit Mono PCM chunks wrapped in canonical `{ realtimeInput: { audio: { data, mimeType: 'audio/pcm;rate=16000' } } }`. Ambient trailing silence flows naturally between utterances to allow cloud VAD to endpoint turns.
+- **Strict Channel Separation (No Interleaving):** Injecting empty `{ clientContent: { turnComplete: true } }` frames into an active audio stream is strictly forbidden. Per Google specifications, `clientContent` is reserved for text prompts/history, while audio streaming uses `realtimeInput`.
+- **Hybrid VAD Fast-Handoff:** When client-side neural Silero VAD detects speech cessation, it signals endpointing via canonical `{ realtimeInput: { audioStreamEnd: true } }`, triggering zero-latency handoff without violating WebSocket contracts.
 
 ```mermaid
 sequenceDiagram
@@ -20,32 +21,34 @@ sequenceDiagram
     actor Candidate as Browser (LiveVoiceEngine + Silero VAD)
     participant Backend as Node.js Gateway (/ws/live)
     participant LiteLLM as LiteLLM Proxy (:4000)
-    participant Gemini as Google Gemini Live (VAD: Disabled)
+    participant Gemini as Google Gemini Live 3.8 (Cloud VAD: Active)
 
     Candidate->>Backend: WebSocket Connect (/ws/live?turnMode=auto&model=gemini-live-v3)
-    Backend->>LiteLLM: WebSocket Connect (/ws/live?model=models/gemini-3.8-live)
-    Backend->>Gemini: setup (automaticActivityDetection.disabled = true)
+    Backend->>LiteLLM: WebSocket Connect (/ws/live?model=gemini-live-v3&token=LITELLM_KEY)
+    Backend->>Gemini: setup (automaticActivityDetection: { disabled: false, silenceDurationMs: 800 })
     Backend-->>Candidate: { type: 'setupComplete' }
     
     rect rgb(240, 248, 255)
     Note over Candidate,Gemini: Turn 0: AI Greeting & Question Recitation (Lockdown)
-    Backend->>Gemini: initialGreetingTurn (role: 'user', turnComplete: true)
-    Gemini-->>Backend: modelTurn (audio chunks 24kHz PCM)
+    Backend->>Gemini: initialGreetingTurn (role: 'user', text: "...", turnComplete: true)
+    Gemini-->>Backend: serverContent (modelTurn: 24kHz PCM audio chunks)
     Backend-->>Candidate: modelTurn (Base64 PCM chunks)
     Gemini-->>Backend: serverContent (generationComplete: true)
-    Backend-->>Candidate: serverContent (generationComplete: true, turnComplete: true)
+    Gemini-->>Backend: serverContent (turnComplete: true) [Deduplicated]
+    Backend-->>Candidate: serverContent (turnComplete: true)
     Note over Candidate: AudioWorklet drains physical samples in DAC
     Candidate->>Candidate: Playout drain unlocks mic (State: CANDIDATE_LISTENING)
     end
 
     rect rgb(255, 245, 245)
-    Note over Candidate,Gemini: Turn 1+: Candidate Spoken Response (Silero VAD Endpointing)
-    Candidate->>Backend: realtimeInput (16kHz PCM chunks, 32ms)
-    Backend->>Gemini: realtimeInput (audio chunks)
-    Note over Candidate: Silero VAD detects 1800ms silence after speech
-    Candidate->>Backend: clientContent (turnComplete: true)
-    Backend->>Gemini: clientContent (turnComplete: true)
-    Gemini-->>Candidate: modelTurn (AI Response speech begins)
+    Note over Candidate,Gemini: Turn 1+: Continuous PCM Streaming & Hybrid Fast-Handoff
+    Candidate->>Backend: realtimeInput { audio: { data, mimeType: 'audio/pcm;rate=16000' } }
+    Backend->>Gemini: realtimeInput (continuous 16kHz PCM chunks)
+    Note over Candidate,Gemini: Cloud VAD detects voiceActivity: ACTIVITY_START -> ACTIVITY_END
+    Candidate->>Backend: realtimeInput { audioStreamEnd: true } (Silero VAD Endpointing)
+    Backend->>Gemini: realtimeInput { audioStreamEnd: true }
+    Gemini-->>Backend: serverContent (modelTurn: AI Response speech begins)
+    Backend-->>Candidate: modelTurn (24kHz Base64 PCM chunks)
     end
 ```
 
@@ -110,9 +113,9 @@ A critical failure mode in multi-turn duplex dialogues is the **State Machine Tr
 
 ---
 
-## 4. Terminal Signal Equivalence & Normalization
+## 4. Terminal Signal Equivalence & Deduplication
 
-Google Gemini Multimodal Live API (`models/gemini-3.8-live` via LiteLLM) emits `serverContent.generationComplete: true` upon speech synthesis conclusion. It does not consistently emit `turnComplete: true` for turn-based prompt recitations.
+Google Gemini Multimodal Live API (`gemini-3.8-live` via LiteLLM) emits `serverContent.generationComplete: true` upon speech synthesis conclusion. It does not consistently emit `turnComplete: true` for turn-based prompt recitations.
 
 ### 4.1. Equivalence Invariant
 All backend routers and frontend voice engines MUST treat:
@@ -126,80 +129,78 @@ if (parsed?.serverContent?.generationComplete && !parsed.serverContent?.turnComp
   str = JSON.stringify(parsed);
 }
 ```
-This guarantees 100% interoperability across all frontend consumers, test fixtures, and mobile web clients.
+
+### 4.3. Terminal Frame Deduplication Invariant
+Upstream Gemini Live frequently emits `generationComplete: true` immediately followed by `turnComplete: true` in successive frames (1ms delta).
+To prevent false-positive circuit breaker activations on the second frame (where `audioBytes === 0` after reset), the backend router deduplicates terminal frames:
+```typescript
+if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {
+  return;
+}
+```
 
 ---
 
-## 5. Structural Acoustic Isolation & Single Authority (Client SSOT)
+## 5. Structural Acoustic Isolation & Gateway Protections
 
-Under SOTA Late September 2026 standards, acoustic echo isolation is achieved **structurally** rather than through speculative gateway censorship:
+Under SOTA Late September 2026 standards, acoustic echo isolation is achieved structurally through continuous streaming and DAC playout gating:
 
-### 5.1. Cloud VAD Disablement (Anti-Echo Invariant)
-Because `automaticActivityDetection.disabled = true` is enforced in the Gemini setup handshake:
-- Google Gemini Live **never** executes server-side energy detection on incoming audio.
-- Physical loudspeaker sound reflecting into the microphone (Speaker Bleed) **cannot** cause Gemini to self-interrupt or swallow words mid-sentence.
-- The AI speaks completely and uninterruptedly from the first token to `turnComplete: true`.
+### 5.1. Native Cloud VAD & Anti-Echo Gating
+- In Auto-VAD mode, `automaticActivityDetection.disabled = false` allows Google Cloud VAD to endpoint speech turns accurately.
+- **EchoGuard Uplink Gating:** During AI speech generation and DAC playout (+450ms reverb padding), candidate mic input is locked at the client AudioWorklet level and dropped if received by the gateway. Speaker audio from the device loudspeaker never leaks into the upstream cloud VAD.
+- **Continuous Mic Streaming:** When the candidate speaks, 16kHz PCM chunks flow continuously along with natural trailing silence, providing clean acoustic boundaries (`voiceActivity: ACTIVITY_START` and `ACTIVITY_END`).
 
 ### 5.2. Deprecation of Split-Brain Heuristic Guards
-The legacy reactive guards in the Node.js gateway (`STALE_GUARD`, `ZERO_CHUNK_GUARD`, `FLOOD_GUARD`) are **formally deprecated and removed**:
-- The gateway acts as a high-throughput, transparent session router.
-- When the client's state machine sends `{ clientContent: { turnComplete: true } }`, the gateway immediately forwards it to Gemini without heuristic drops.
-- This mathematically eliminates turn handoff deadlocks (Deadlocks where client committed, gateway dropped, and cloud waited).
+The legacy reactive guards in the Node.js gateway (`STALE_GUARD`, `ZERO_CHUNK_GUARD`, `FLOOD_GUARD`) are **formally deprecated and removed**. The gateway acts as a high-throughput, transparent session router without speculative heuristic drops.
 
 ### 5.3. Live Dead-Air & Vocoder Stall Protection (`LiveDeadAirGuard`)
-- **Acoustic Root Cause:** When synthesizing Russian dialogue with technical English terms on certain voice personas (or under upstream network pressure), Google's Gemini Live vocoder can generate the opening words, finish text generation in 3-4s, but hold the turn open while streaming continuous digital silence (PCM noise floor $\le -65\text{ dB}$) for up to 90 seconds.
+- **Acoustic Root Cause:** When synthesizing Russian dialogue with technical English terms on certain voice personas (or under upstream network pressure), Google's Gemini Live vocoder can generate opening words, finish text generation, but stream digital silence (PCM noise floor $\le -65\text{ dB}$) holding the turn open.
 - **Backend Dead-Air Guard:** `LiveDeadAirGuard` tracks active speech vs digital dead-air in real-time ($> 200$ RMS amplitude threshold for speech, $\le 100$ for silence floor).
 - **Latency Tolerances:**
-  - Initial silence before speech begins is permitted up to 5000ms (pre-speech model reasoning).
   - Conversational pauses during active speech are permitted up to 1200ms.
-  - Trailing silence between 1200ms and 2000ms is suppressed (not forwarded to client DAC).
-  - Trailing silence $\ge 2000$ms clamps the turn: router synthesizes `turnComplete: true`, sets `deadAirClamped: true`, and notifies the client, immediately unblocking candidate turn custody without waiting for the 90-second upstream timeout.
+  - Trailing silence between 1200ms and 2000ms is suppressed.
+  - Trailing silence $\ge 2000$ms clamps the turn: router synthesizes `turnComplete: true`, sets `deadAirClamped: true`, and unblocks turn custody.
 
 ### 5.4. Playout Protection Deduplication
-- `LiveTelemetryAccumulator` guards against duplicate zero-audio terminal frames resetting `aiPlayoutEstimatedEndEpoch`, preserving EchoGuard protection until the candidate's DAC finishes physical playback.
+`LiveTelemetryAccumulator` preserves EchoGuard protection until the candidate's DAC finishes physical playback, eliminating premature mic unblocking.
 
 ### 5.5. Two-Phase Watchdog & Clean Upstream Interruption Protocol
-In multi-turn duplex dialogues with rich accumulated conversational context, upstream reasoning latency can legitimately range between 6–12s. Short fixed timeouts trigger false-positive cutoffs and conversational stalls:
-- **Phase 1: Informational Nudge (5.0s / 8.0s):**
-  - Standard models (`gemini-live-v3`): $5000\text{ ms}$; thinking models: $8000\text{ ms}$.
-  - The gateway dispatches `{ type: 'thinking_delay', elapsedMs }` to the client so UI renders a reassuring status ("🧠 ИИ обдумывает ответ..."). Upstream session is NOT disturbed.
-- **Phase 2: Bounded Generation Watchdog (18.0s / 25.0s):**
-  - Standard models: $18,000\text{ ms}$; thinking models: $25,000\text{ ms}$.
-  - Upon expiry:
-    1. Gateway sends clean interruption frame `{ clientContent: { interrupted: true } }` to `geminiSocket` (canceling stuck synthesis upstream cleanly without injecting colliding text prompts).
-    2. Gateway sends `{ type: 'dead_air_recovery', reason: 'upstream_timeout' }` to client WebSocket.
+- **Phase 1: Informational Nudge (5.0s / 8.0s):** Standard models (`gemini-live-v3`): $5000\text{ ms}$; thinking models: $8000\text{ ms}$. Dispatches `{ type: 'thinking_delay', elapsedMs }` without disturbing upstream session.
+- **Phase 2: Bounded Generation Watchdog (18.0s / 25.0s):** Standard models: $18,000\text{ ms}$; thinking models: $25,000\text{ ms}$. Sends clean interruption frame `{ clientContent: { interrupted: true } }` upstream and `{ type: 'dead_air_recovery' }` to client.
+
 ### 5.6. Non-Speech Token Interception & Active Conversational Recovery Invariant
-- **Acoustic Token Sanitization:** Non-verbal acoustic tokens emitted by Gemini's native audio tokenizer (`<no speech>`, `<no speech>{pause}`, `[no speech]`, `<pause>`) MUST NEVER leak into candidate transcripts, audio playout queues, or UI subtitles.
-- **Circuit Breaker Interception (`LiveCannedErrorRecovery`):** When Gemini Live emits `<no speech>` or synthesizes $< 200$ audio bytes after candidate speech, the backend circuit breaker intercepts the frame immediately before downstream forwarding.
-- **Active Conversational Recovery (Conversational Nudge):** Rather than leaving the candidate in silence and immediately unlocking turn custody, the backend dispatches an active conversational recovery prompt upstream:
-  `[КАНДИДАТ ЗАВЕРШИЛ ОТВЕТ, НО ЗВУК БЫЛ ТИХИМ / НЕРАЗБОРЧИВЫМ]: Среагируй естественно голосом на русском языке (1 короткая фраза): 'Я тебя не расслышала, повтори, пожалуйста, ответ.' или продолжи тему вопроса. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ)`
-  This forces the upstream model to speak an authentic clarification phrase aloud, keeping the interview interactive and professional.
-- **Acoustic Non-Zero Audio SLA ($\ge 1200$ bytes):** Every spoken turn generated by the AI following candidate speech MUST contain $\ge 1200$ audio bytes ($\ge 250$ms of physical speech at 24kHz) and text length $\ge 10$ characters. Any turn with $< 1200$ bytes is treated as an acoustic dropout and blocked at the CI/CD pre-flight canary level.
+- **Strict Regex Anchoring:** Acoustic token patterns in `liveStreamErrorDetector.ts` MUST use strict boundaries (`/^<no\s*speech>$/i`, `/^<pause>$/i`). Conversational `<pause>` tokens occurring naturally within candidate or tutor speech are never treated as errors.
+- **Acoustic Non-Zero Audio SLA ($\ge 1200$ bytes):** Any turn with $\ge 1200$ audio bytes ($\ge 250$ms) is strictly exempt from non-speech classification. Every valid tutor turn must satisfy `audioBytes >= 1200 && text.length >= 10`.
+- **Active Conversational Recovery:** If upstream emits `<no speech>` or synthesizes $< 200$ audio bytes after candidate speech, `LiveCannedErrorRecovery` intercepts the turn and sends an active conversational nudge in Russian aloud:
+  `"[КАНДИДАТ ЗАВЕРШИЛ ОТВЕТ, НО ЗВУК БЫЛ ТИХИМ / НЕРАЗБОРЧИВЫМ]: Среагируй естественно голосом на русском языке (1 короткая фраза): 'Я тебя не расслышала, повтори, пожалуйста, ответ.' или продолжи тему вопроса."`
+
+### 5.7. LiteLLM Key Pool Round-Robin Load Balancing
+In `/home/djelu/LiteLLM_Proxy/data/gateway.db`, `key_routing_strategy` MUST be configured to `round_robin` across the Google Gemini API key pool. This distributes quota evenly and prevents single-key rate limit exhaustion (`1011 Resource has been exhausted`) during multi-turn extended thinking sessions.
 
 ---
 
 ## 6. Neural Client VAD & Barge-In Mechanics
 
 ### 6.1. Neural Speech Activity Detection (Silero VAD v5 WASM)
-Speech detection is performed exclusively in the client browser using **Silero VAD v5** running via WebAssembly (`onnxruntime-web`):
+Speech detection is performed in the client browser using **Silero VAD v5** running via WebAssembly (`onnxruntime-web`):
 - **Input:** 512 samples @ 16kHz (32ms frames).
 - **Inference Time:** $<0.8\text{ ms}$ per frame in background Web Worker / Worklet.
 - **Speech Threshold:** $p_{\text{speech}} > 0.5$ across 2 consecutive frames ($64\text{ ms}$) asserts speech start.
 - **Silence Threshold:** $p_{\text{speech}} < 0.35$ for $\ge 1800\text{ ms}$ triggers turn completion.
-- **Phonemic Accuracy:** 99.8% immunity to non-speech acoustic artifacts (mouse clicks, mechanical keyboards, breathing, room reverberation).
 
 ### 6.2. Turn 0 Question Recitation Acoustic Lockdown
 During Turn 0 initial greeting and question recitation:
-- **Acoustic Lockdown:** Client-side Silero VAD is temporarily gated (`AI_RECITING_QUESTION` state). Acoustic microphone frames CANNOT trigger software barge-in, guaranteeing the technical question is recited aloud without truncation.
+- **Acoustic Lockdown:** Client-side Silero VAD is gated (`AI_RECITING_QUESTION` state). Acoustic microphone frames cannot trigger barge-in, guaranteeing the technical question is recited aloud without truncation.
+- **Extended Drain Clamp:** The playout drain wait ceiling is calibrated to 25 seconds (`Math.min(25000, ...)`), preventing premature unlock during extended initial greetings.
 - **Tactile Override:** User click/tap on the central circle remains active at all times as an intentional human skip.
-- **Automatic Unlock:** Once Turn 0 question audio finishes physical playback in the DAC (`AudioPlayoutManager.onPlaybackFinished()`), the state transitions to `CANDIDATE_LISTENING` and the microphone is unlocked.
+- **Automatic Unlock:** Once Turn 0 audio finishes physical playback in the DAC (`AudioPlayoutManager.onPlaybackFinished()`), state transitions to `CANDIDATE_LISTENING` and the microphone is unlocked.
 
-### 6.3. Symmetrical Turn Completion (Single Commit Rule)
-- While the candidate is speaking (`CANDIDATE_SPEAKING`), audio chunks stream continuously to Gemini.
+### 6.3. Canonical Turn Handoff (Continuous Trailing Silence & Fast-Handoff)
+- While the candidate is speaking (`CANDIDATE_SPEAKING`), 16kHz audio chunks stream continuously to Gemini as `{ realtimeInput: { audio: ... } }`.
 - When candidate stops speaking, Silero VAD enters `CANDIDATE_HOLD`.
-- Once pause reaches `vadPauseMs` ($1800\text{ ms}$ default):
+- Once silence threshold is reached:
   1. Client state transitions to `COMMITTING`.
-  2. Client dispatches `{ clientContent: { turnComplete: true } }` over WebSocket.
+  2. In Auto-VAD mode, client sends canonical `{ realtimeInput: { audioStreamEnd: true } }` (NEVER injects empty `{ clientContent: { turnComplete: true } }` into the active audio stream).
   3. Client transitions to `AI_THINKING`, awaiting response.
 
 ### 6.4. Intentional Mid-Dialogue Barge-In (Interruption)
@@ -208,7 +209,7 @@ If the candidate intentionally speaks while AI is answering a follow-up question
 2. Client `AudioPlayoutManager` triggers a 5ms exponential de-click ramp down and flushes DAC buffer.
 3. Client dispatches:
    ```json
-   { "clientContent": { "turnComplete": true, "interrupted": true }, "bargeIn": true }
+   { "realtimeInput": { "interrupted": true }, "bargeIn": true }
    ```
 4. Client state transitions immediately to `CANDIDATE_SPEAKING`.
 
@@ -250,5 +251,11 @@ Any code changes touching voice audio MUST satisfy the following test contracts 
 2. `npm run test:telemetry:playout` (Dual-sided handshake race condition matrix).
 3. `npm run test:audio-contracts` (AudioWorklet draining & single-voice contracts).
 4. `replay_turn.ts` (Headless acoustic loopback with 0 EchoGuard dropped chunks).
-5. `runAcousticVadMatrix.ts --suite=canary` (Asserts strict conjunction `audioBytes >= 1200 && !replyText.includes('<no speech>') && replyText.trim().length >= 10` on all turns; blocks CI/CD deploy on zero-audio or non-speech returns).
+5. `runAcousticVadMatrix.ts --suite=canary` (4-Suite Pre-Flight Canary Matrix against real LiteLLM Gateway):
+   - **Canary 1/4 (Multi-Turn Dialogue 2 turns):** Asserts clean handover across consecutive candidate speech turns without dead-air or dropped custody.
+   - **Canary 2/4 (Acoustic Barge-In):** Asserts prompt audio cutoff and candidate mic takeover with latency $\le 500$ms.
+   - **Canary 3/4 (Thinking CoT Shield):** Asserts zero thought-token leakage and audio delivery on `gemini-live-thinking-v3`.
+   - **Canary 4/4 (Code Handover SLA):** Asserts sub-1500ms TTFA on technical coding discussion in `practice_pair` mode.
+   - **Strict Conjunction Assertion:** `audioBytes >= 1200 && !replyText.includes('<no speech>') && replyText.trim().length >= 10` on all turns. Blocks deployment on zero-audio or non-speech returns.
+
 

@@ -26,13 +26,13 @@ To prevent codebase bloat and monolithic decay, the voice stack is strictly modu
 
 | Layer | Implementation Module | Lines | Core Responsibility |
 | :--- | :--- | :---: | :--- |
-| **Headless Voice Engine** | [`frontend/src/audio/LiveVoiceEngine.ts`](file:///d:/projects/interview_projects/spring/frontend/src/audio/LiveVoiceEngine.ts) | 309 | State machine, WebSocket lifecycle, playout synchronization |
+| **Headless Voice Engine** | [`frontend/src/audio/LiveVoiceEngine.ts`](file:///d:/projects/interview_projects/spring/frontend/src/audio/LiveVoiceEngine.ts) | 384 | State machine, WebSocket lifecycle, playout synchronization |
 | **Microphone Capture** | [`frontend/src/audio/MicrophoneCapture.ts`](file:///d:/projects/interview_projects/spring/frontend/src/audio/MicrophoneCapture.ts) | 137 | 16kHz AudioWorklet capture, mono PCM uplink, AGC/AEC |
-| **Session Hook** | [`frontend/src/audio/useLiveVoiceSession.ts`](file:///d:/projects/interview_projects/spring/frontend/src/audio/useLiveVoiceSession.ts) | 110 | Headless React binding for components |
-| **Mic Interaction** | [`frontend/src/components/voice/VoiceMicButton.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/voice/VoiceMicButton.tsx) | 116 | Tactile button, ripple animations, state indicators |
+| **Session Hook** | [`frontend/src/audio/useLiveVoiceSession.ts`](file:///d:/projects/interview_projects/spring/frontend/src/audio/useLiveVoiceSession.ts) | 116 | Headless React binding for components |
+| **Mic Interaction** | [`frontend/src/components/voice/VoiceMicButton.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/voice/VoiceMicButton.tsx) | 130 | Tactile button, ripple animations, state indicators |
 | **Subtitles** | [`frontend/src/components/voice/VoiceSubtitles.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/voice/VoiceSubtitles.tsx) | 91 | Real-time paced subtitle revealing and role badges |
 | **Visualizer** | [`frontend/src/components/voice/VoiceVisualizer.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/voice/VoiceVisualizer.tsx) | 49 | 5-bar CSS volume visualizer |
-| **Modal Container** | [`frontend/src/components/VoiceModal.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/VoiceModal.tsx) | 271 | Clean layout, persona selector, 100dvh modal wrapper |
+| **Modal Container** | [`frontend/src/components/VoiceModal.tsx`](file:///d:/projects/interview_projects/spring/frontend/src/components/VoiceModal.tsx) | 306 | Clean layout, persona selector, 100dvh modal wrapper |
 
 ---
 
@@ -40,9 +40,11 @@ To prevent codebase bloat and monolithic decay, the voice stack is strictly modu
 
 All engineers and agents MUST strictly adhere to the invariants defined in the low-level protocol spec:
 1. **The Dual-Sided Handshake:** Candidate mic is unblocked if and only if both network generation is finished AND physical DAC buffer is drained.
-2. **Terminal Signal Equivalence:** `serverContent.generationComplete` and `turnComplete` are treated as equivalent terminal turn signals.
-3. **Turn 0 Tool Lockdown:** AI interviewer is strictly forbidden from executing evaluation tools on Turn 0 before candidate answers.
-4. **EchoGuard Suppression:** Server gateway drops candidate mic chunks received during active AI speech/playout (+450ms reverb).
+2. **Canonical Continuous PCM & No Interleaving:** In Auto-VAD mode, candidate mic streams continuous 16kHz PCM chunks with trailing silence (`realtimeInput.audio`). Injecting empty `{ clientContent: { turnComplete: true } }` frames into an active audio stream is strictly prohibited.
+3. **Hybrid VAD Fast-Handoff:** Client-side Silero VAD signals endpointing via canonical `{ realtimeInput: { audioStreamEnd: true } }`, triggering zero-latency handoff without violating WebSocket contracts.
+4. **Terminal Signal Equivalence & Deduplication:** `serverContent.generationComplete` and `turnComplete` are equivalent terminal signals, with duplicate frame rejection in the backend router to eliminate false circuit breaker recovery nudges.
+5. **Turn 0 Tool Lockdown:** AI interviewer is strictly forbidden from executing evaluation tools on Turn 0 before candidate answers.
+6. **EchoGuard Uplink Gating:** Gateway drops candidate mic chunks received during active AI speech/playout (+450ms reverb padding), protecting cloud VAD from speaker-bleed.
 
 > 📖 **Complete Protocol Details:** Refer directly to the canonical protocol SSOT:  
 > [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](file:///d:/projects/interview_projects/spring/docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md).

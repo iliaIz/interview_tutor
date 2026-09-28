@@ -105,10 +105,13 @@ All modules and future extensions MUST strictly observe the following platform i
 ### 2.3. Gemini Live Multimodal Invariants & State Machine
 > 📖 **Authoritative Protocol Specification (SSOT):** See [AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md](specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md) for full mathematical DSP models, Dual-Sided Handshake truth table, and EchoGuard drop conditions.
 
+- **Canonical Gemini Live Protocol & Native Cloud VAD:** In Auto-VAD mode, server-side VAD is active (`automaticActivityDetection.disabled = false`). Candidate audio flows continuously as 16kHz Mono PCM wrapped in `{ realtimeInput: { audio: ... } }`. Interleaving empty `{ clientContent: { turnComplete: true } }` frames into active audio streams is strictly forbidden. Client Silero VAD signals endpointing via canonical `{ realtimeInput: { audioStreamEnd: true } }`.
 - **First-Turn Lockdown:** In Turn 0 greeting, the AI interviewer is strictly forbidden from invoking `submit_interview_evaluation`. The backend tracks `hasCandidateResponded` and rejects early evaluations with a structured `toolResponse` error.
 - **Dual-Sided Handshake:** Transition from AI speaking to candidate recording is unblocked symmetrically by whichever event finishes LAST:
   1. `AudioPlayoutManager.onPlaybackFinished` (headphones buffer drain).
   2. WebSocket `turnComplete: true` arrival (server network completion).
+- **Terminal Frame Deduplication:** Deduplicates consecutive `generationComplete` and `turnComplete` frames (1ms delta) to prevent false-positive circuit breaker activations when `currentTurnAudioBytes === 0`.
+- **Round-Robin Key Pool Balancing:** LiteLLM Proxy balances requests across the 4-key pool (`round_robin` in `gateway_settings`) to prevent single-key quota starvation (429) during high-throughput thinking dialogue.
 - **Tactile Barge-In:** Clicking the center orb during AI speech triggers a 5ms de-click ramp, mutes audio immediately, cancels server playout, and activates the candidate mic.
 
 ### 2.4. Zero-Phantom-Fallback & Full-Jitter Backoff
@@ -174,11 +177,13 @@ sequenceDiagram
     end
 
     rect rgb(255, 245, 245)
-        Note over Candidate,NodeProxy: Candidate Speaks Answer
+        Note over Candidate,NodeProxy: Candidate Speaks Answer (Continuous 16kHz PCM)
         Candidate->>UI: Speaks into microphone
-        UI->>NodeProxy: candidate_audio (PCM 16kHz base64)
-        Candidate->>UI: Click «Передать ответ ➔»
-        UI->>NodeProxy: client_content (end_of_turn: true)
+        UI->>NodeProxy: realtimeInput { audio: { data, mimeType: 'audio/pcm;rate=16000' } }
+        NodeProxy->>GeminiLive: realtimeInput (continuous 16kHz PCM chunks)
+        Note over Candidate,UI: Silero VAD detects speech cessation / Cloud VAD detects ACTIVITY_END
+        UI->>NodeProxy: realtimeInput { audioStreamEnd: true } (Fast Handoff)
+        NodeProxy->>GeminiLive: realtimeInput { audioStreamEnd: true }
     end
 
     rect rgb(245, 255, 245)
