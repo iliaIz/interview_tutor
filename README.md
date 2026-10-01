@@ -2,34 +2,34 @@
 
 Интерактивная Fullstack-платформа промышленного уровня для подготовки к техническим собеседованиям на позиции **Java 21+ & Spring Boot Developer / Lead / Architect**.
 
-Платформа объединяет 3 ключевых режима подготовки:
-1. 🧠 **База Знаний & Голосовой AI-Интервьюер:** 816 вопросов по 24 темам, Сократический тьютор на Gemini Live 24kHz HD Voice, радар пробелов и аудио-подкасты.
-2. 🐛 **Прод-инциденты & Баги PROD:** 70 SOTA инженерных ката (Streams, Concurrency, Loom Pinning, Spring Boot 3.4 `@MockitoBean`), Full-Jitter Backoff и `TaskRecoveryCard`.
-3. 🏛️ **Live-Coding, Machine Coding & LLD Arena:** 35 комплексных задач Low-Level Design (Яндекс, Т-Банк, Stripe, Озон) с полным многофайловым каркасом, детерминированным временем `Clock.fixed` и 8-факторным AST-аудитом.
+> 🧭 **Где какая функция находится?** Подробный путеводитель по экранам, компонентам и бэкенд-эндпоинтам см. в [Функциональной Карте Проекта (`docs/architecture/FUNCTIONAL_MAP.md`)](docs/architecture/FUNCTIONAL_MAP.md).
 
 ---
 
-## 🗂 3 Режима платформы
+## 🗂 6 Студийных Пространств Платформы
 
 ```mermaid
 graph LR
-    Studio["✨ InterviewPrep AI Studio"] --> M1["🧠 База Знаний & Голос"]
-    Studio --> M2["🐛 Инциденты & Баги PROD"]
-    Studio --> M3["🏛️ Machine Coding & LLD Arena"]
+    Studio["✨ InterviewPrep AI Studio"] --> M1["🎓 1. Академия (8 треков)"]
+    Studio --> M2["🧠 2. База Знаний (816 вопросов)"]
+    Studio --> M3["🏛️ 3. Machine Coding (93 LLD)"]
+    Studio --> M4["🐛 4. Баг-Хант & Forensics (70 кат)"]
+    Studio --> M5["📐 5. System Design HLD (31 система)"]
+    Studio --> M6["🚨 6. Триаж Аварий SRE (22 инцидента)"]
 
-    M1 --> V1["816 вопросов по 24 темам"]
-    M1 --> V2["Gemini Live 24kHz HD Voice"]
-    M1 --> V3["Аудио-рекапы с Gemini TTS"]
-
-    M2 --> I1["70 SOTA Инженерных Ката"]
-    M2 --> I2["Full-Jitter Exponential Backoff"]
-    M2 --> I3["TaskRecoveryCard (0 Blank Screens)"]
-
-    M3 --> C1["15 BigTech LLD (Яндекс / Озон)"]
-    M3 --> C2["10 FinTech & Ledger LLD (Т-Банк / Stripe)"]
-    M3 --> C3["10 Concurrency Systems (Loom)"]
-    M3 --> C4["8-Правильный AST Аудит & Clock.fixed"]
+    M1 --> V1["177 шагов, граф программ, breadcrumb-мост"]
+    M2 --> V2["FSRS-5 флеш-карточки, квизы, темы"]
+    M3 --> V3["JVM 21 Sandbox, 8 AST-правил, Spring Tx Lab"]
+    M4 --> V4["Mutation Testing, Loom Pinning, Metaspace"]
+    M5 --> V5["Cytoscape Canvas, DES-симулятор, Chaos Monkey"]
+    M6 --> V6["Prometheus, Thread Dumps, Tarjan SCC дедлоки"]
 ```
+
+### 🌐 Сквозные Глобальные Сервисы
+- 🎙️ **Gemini Live 24kHz HD Voice:** Сократический ИИ-интервьюер, авто-VAD, тактильный barge-in, STAR/PREP фидбек (`VoiceModal`).
+- 🧠 **Радар Памяти FSRS-5:** Очередь повторений, анализ пробелов и прогноз кривой забывания (`MemoryRadarDrawer`).
+- 🎧 **Аудио-Подкасты & Рекапы:** Двухголосные технические рекапы тем на Gemini TTS с поддержкой экрана блокировки.
+- 🛡️ **Zero-Trust Auth & Health:** Доступ по VIP-инвайтам, одноразовые WS-тикеты и живой мониторинг `/api/health`.
 
 ---
 

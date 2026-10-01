@@ -9,6 +9,8 @@
 
 ## 1. Domain Specification Registry (Hub-and-Spoke Topology)
 
+> 🧭 **Быстрая навигация по функциям и разделам UI:** См. [Функциональную Карту Проекта (`docs/architecture/FUNCTIONAL_MAP.md`)](file:///d:/projects/interview_projects/spring/docs/architecture/FUNCTIONAL_MAP.md) для мгновенного поиска: в какой студии/вкладке живет нужный функционал, какими компонентами и бэкенд-эндпоинтами он реализован.
+
 All subsystems in InterviewPrep AI are governed by dedicated, single-responsibility domain specifications ($\le 350$ lines each). Before proposing or executing changes in any area of the codebase, engineers and AI agents MUST read the corresponding domain specification:
 
 | # | Domain / Pillar | Authoritative Specification File | Core Responsibility & Enforced Invariants |
