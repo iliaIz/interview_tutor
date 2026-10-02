@@ -173,3 +173,42 @@ curl -s -H "Authorization: Bearer sk-mail-api-djelu-secure-token-2026" \
 - **URL:** [https://mail.djelu.site/](https://mail.djelu.site/)
 - **Email:** `admin@djelu.site`
 - **Пароль:** `DBshirke33333333`
+
+---
+
+## 7. Управление доверенными доменами (Web UI & REST API)
+
+Вы можете автономно подключать **любые ваши новые домены** для приёма почты без вмешательства администратора. Postfix подхватывает изменения за **2 секунды** без перезапуска сервисов.
+
+### 🌐 7.1. Веб-интерфейс управления доменами
+- **URL:** [https://mail.djelu.site/domains](https://mail.djelu.site/domains)  
+  *(или сразу с токеном: `https://mail.djelu.site/domains?token=sk-mail-api-djelu-secure-token-2026`)*
+- Позволяет в 1 клик добавлять/удалять домены и видеть живой статус проверки DNS MX (🟢 активен / 🔴 не настроен).
+
+### ⚙️ 7.2. Настройка DNS для нового домена
+Чтобы сервер принимал почту на новый домен (например, `bebebe.xubi.org` или `my-test.com`), создайте в панели вашего DNS-провайдера запись:
+| Тип | Имя хоста (Host) | Значение (Data / Target) | Приоритет (Priority) |
+| :--- | :--- | :--- | :--- |
+| **MX** | `@` (или имя поддомена) | `mail.djelu.site` | `10` |
+
+### 💻 7.3. Управление через REST API
+
+#### Список активных доменов с проверкой DNS:
+```bash
+curl -s -H "Authorization: Bearer sk-mail-api-djelu-secure-token-2026" \
+  "https://mail.djelu.site/api/v1/domains" | jq .
+```
+
+#### Добавление нового домена:
+```bash
+curl -s -X POST -H "Authorization: Bearer sk-mail-api-djelu-secure-token-2026" \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "bebebe.xubi.org"}' \
+  "https://mail.djelu.site/api/v1/domains" | jq .
+```
+
+#### Удаление домена:
+```bash
+curl -s -X DELETE -H "Authorization: Bearer sk-mail-api-djelu-secure-token-2026" \
+  "https://mail.djelu.site/api/v1/domains/bebebe.xubi.org" | jq .
+```
