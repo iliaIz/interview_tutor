@@ -30,5 +30,9 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     if (cfg[k]) params.set(k, String(cfg[k]));
   }
 
+  if (typeof cfg.enableSilenceClarification === 'boolean') {
+    params.set('enableSilenceClarification', String(cfg.enableSilenceClarification));
+  }
+
   return `${protocol}//${host}/ws/live?${params.toString()}`;
 }

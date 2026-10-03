@@ -113,6 +113,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       turnMode: interviewConfig.turnMode || 'auto',
       liveModel: interviewConfig.liveModel || 'gemini-live-v3',
       vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
+      enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
       persona: interviewConfig.persona || 'mentor',
       targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
       strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,

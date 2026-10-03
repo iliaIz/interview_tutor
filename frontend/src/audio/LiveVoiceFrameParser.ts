@@ -124,7 +124,6 @@ function sanitizeModelText(text: string): string {
     .replace(/<no\s*speech>/gi, '')
     .replace(/\{pause\}/gi, '')
     .replace(/\[no\s*speech\]/gi, '')
-    .replace(/<pause>/gi, '')
-    .trim();
+    .replace(/<pause>/gi, '');
 }
 

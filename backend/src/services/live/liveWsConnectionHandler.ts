@@ -61,7 +61,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     userProfile,
     liveModel,
     upstreamWsUrl,
-    vadPauseMs
+    vadPauseMs,
+    enableSilenceClarification
   } = params;
 
   console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}`);
@@ -102,6 +103,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     currentTurnMetrics: null,
     turnTelemetryHistory: [],
     vadPauseMs,
+    enableSilenceClarification: Boolean(enableSilenceClarification),
     lastRttMs: null,
     sessionStartedAt: Date.now()
   };

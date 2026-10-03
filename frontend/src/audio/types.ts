@@ -62,6 +62,7 @@ export interface VoiceEngineConfig {
   };
   codeRevisionsSummary?: Array<{ id: string; title: string }>;
   turn0Lockdown?: boolean;
+  enableSilenceClarification?: boolean;
 }
 
 export interface VoiceEvaluationResult {

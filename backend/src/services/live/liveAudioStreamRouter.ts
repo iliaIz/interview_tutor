@@ -310,7 +310,31 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
 
-        // 3. Turn Complete / Generation Complete (SOTA Equivalence)
+        // 3. Tool Call Cancellation
+        if (parsed.toolCallCancellation?.ids) {
+          LiveToolCallExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
+        }
+
+        // 4. Tool Calls Execution
+        if (parsed.toolCall?.functionCalls) {
+          isToolCallProcessed = true;
+          await LiveToolCallExecutor.executeFunctionCalls({
+            functionCalls: parsed.toolCall.functionCalls,
+            clientSocket,
+            geminiSocket,
+            session,
+            parsedHints,
+            liveCoaching
+          });
+        }
+
+        // 5. Barge-In Interruption
+        if (parsed.serverContent?.interrupted) {
+          deadAirGuard.reset();
+          LiveTelemetryAccumulator.handleBargeIn(session);
+        }
+
+        // 6. Turn Complete / Generation Complete (SOTA Equivalence)
         const isUpstreamTurnComplete = Boolean(parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete);
         if (isUpstreamTurnComplete) {
           deadAirGuard.reset();
@@ -322,11 +346,19 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               return;
             }
 
+            const isToolCallTurn = Boolean(
+              isToolCallProcessed ||
+              parsed.toolCall ||
+              session.isToolCallPending ||
+              (session.lastToolCallTime && (Date.now() - session.lastToolCallTime < 4000))
+            );
+
             const audioBytes = session.currentTurnAudioBytes || 0;
             const text = (session.currentAiTurnText || '').trim();
-            const isZeroAudioTurn = audioBytes < 200 && (text.length < 5 || isNonSpeechUtterance(text, audioBytes));
+            const isZeroAudioTurn = !isToolCallTurn && audioBytes < 200 && (text.length < 5 || isNonSpeechUtterance(text, audioBytes));
+            const allowSilenceClarification = Boolean(session.enableSilenceClarification);
 
-            if (session.isCannedErrorTurn || isZeroAudioTurn) {
+            if (session.isCannedErrorTurn || (isZeroAudioTurn && allowSilenceClarification)) {
               if (isZeroAudioTurn) {
                 session.cannedErrorType = session.hasCandidateResponded ? 'non_speech' : 'turn0_empty';
               }
@@ -336,30 +368,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
             LiveTelemetryAccumulator.sealTurnComplete(session, clientSocket, liveModel);
           }
-        }
-
-        // 4. Barge-In Interruption
-        if (parsed.serverContent?.interrupted) {
-          deadAirGuard.reset();
-          LiveTelemetryAccumulator.handleBargeIn(session);
-        }
-
-        // 5. Tool Call Cancellation
-        if (parsed.toolCallCancellation?.ids) {
-          LiveToolCallExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
-        }
-
-        // 6. Tool Calls Execution
-        if (parsed.toolCall?.functionCalls) {
-          isToolCallProcessed = true;
-          await LiveToolCallExecutor.executeFunctionCalls({
-            functionCalls: parsed.toolCall.functionCalls,
-            clientSocket,
-            geminiSocket,
-            session,
-            parsedHints,
-            liveCoaching
-          });
         }
       } catch {}
 

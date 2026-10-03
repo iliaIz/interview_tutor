@@ -85,6 +85,10 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      - name: Run Live Tool & Silence Clarification Isolation Tests
+        working-directory: backend
+        run: npm run test:live:tool-isolation
+
       - name: Build Java Sandbox Runner
         working-directory: backend
         run: npm run build:sandbox

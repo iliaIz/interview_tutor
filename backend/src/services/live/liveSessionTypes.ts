@@ -81,4 +81,5 @@ export interface ProxySession {
   isCannedErrorTurn?: boolean;
   cannedErrorType?: 'non_speech' | 'system_canned' | 'turn0_empty';
   lastBargeInEpoch?: number;
+  enableSilenceClarification?: boolean;
 }

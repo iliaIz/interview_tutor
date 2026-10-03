@@ -36,6 +36,7 @@ export interface LiveAudioSessionParams {
   hints?: string[];
   initialUserMessage?: string;
   isResumed?: boolean;
+  enableSilenceClarification?: boolean;
 }
 
 export interface DialogueTurn {
@@ -148,7 +149,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       challengeTrack: params.challengeTrack,
       challengeDomain: params.challengeDomain,
       initialUserMessage: params.initialUserMessage,
-      isResumed: params.isResumed
+      isResumed: params.isResumed,
+      enableSilenceClarification: params.enableSilenceClarification
     };
 
     await engineRef.current?.connect(config);

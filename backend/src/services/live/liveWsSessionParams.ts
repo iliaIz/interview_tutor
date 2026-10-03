@@ -52,6 +52,7 @@ export interface LiveWsSessionParams {
   liveModel: string;
   upstreamWsUrl: string;
   vadPauseMs: number;
+  enableSilenceClarification: boolean;
 }
 
 export function authenticateWsRequest(req: http.IncomingMessage, query: any): any | null {
@@ -244,6 +245,7 @@ export async function resolveLiveWsSessionParams(
     userProfile,
     liveModel,
     upstreamWsUrl,
-    vadPauseMs: Number(query.vadPauseMs) || 1800
+    vadPauseMs: Number(query.vadPauseMs) || 1800,
+    enableSilenceClarification: query.enableSilenceClarification === 'true'
   };
 }
