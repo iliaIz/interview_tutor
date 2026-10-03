@@ -162,8 +162,8 @@
     "category": "Web & Enterprise",
     "icon": "zap",
     "color": "#6DB33F",
-    "description": "Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3, GraalVM AOT",
-    "count": 25,
+    "description": "Автоконфигурация, Starters, Actuator, Profiles, Spring Boot 3 & 4, Core Resilience, Virtual Threads, Spring AI & MCP",
+    "count": 30,
     "json_file": "spring-boot_questions.json",
     "md_file": "spring-boot_interview_questions.md"
   },

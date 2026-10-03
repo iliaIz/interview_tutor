@@ -6470,14 +6470,69 @@
     "num": 25,
     "topic": "Spring Boot",
     "question": "Что нового появилось в Spring Boot 3.x и Spring Framework 6.x?",
-    "answer": "Ключевые новшества Spring Boot 3 и Spring 6 (актуальные стандарты на 2026 год):\n\n1. **Минимальная версия Java:** базовой версией стала **Java 17** (с полной поддержкой Java 21 Virtual Threads / Project Loom).\n2. **Миграция на Jakarta EE 10:** пакет `javax.*` заменен на `jakarta.*` (сервлеты `jakarta.servlet`, валидация `jakarta.validation`, JPA `jakarta.persistence`).\n3. **GraalVM Native Image & AOT:** встроенная поддержка Ahead-of-Time компиляции в нативные бинарники с мгновенным стартом (< 50мс) и низким потреблением памяти.\n4. **Виртуальные потоки (Virtual Threads):** включение одной строчкой `spring.threads.virtual.enabled=true`.\n5. **Унифицированная обработка ошибок (RFC 7807):** стандартная поддержка спецификации `ProblemDetail`.\n6. **HTTP Interfaces (Declarative Clients):** декларативные HTTP-клиенты через аннотации `@HttpExchange` без необходимости Feign.",
+    "answer": "Ключевые новшества Spring Boot 3 и Spring 6 (базовый фундамент современной платформы):\n\n1. **Минимальная версия Java:** базовой версией стала **Java 17** (с долгосрочной поддержкой и адаптацией под Java 21 Virtual Threads / Project Loom).\n2. **Миграция на спецификацию Jakarta EE 10:** пакет `javax.*` полностью заменен на `jakarta.*` (сервлеты `jakarta.servlet`, валидация `jakarta.validation`, JPA `jakarta.persistence`).\n3. **GraalVM Native Image & AOT Engine:** встроенная поддержка Ahead-of-Time компиляции в нативные бинарники с мгновенным стартом (< 50 мс) и минимальным потреблением оперативной памяти.\n4. **Виртуальные потоки (Virtual Threads):** возможность активации одной строчкой конфигурации `spring.threads.virtual.enabled=true`.\n5. **Унифицированная обработка ошибок (RFC 7807):** стандартизированная поддержка спецификации `ProblemDetail` в контроллерах.\n6. **HTTP Interfaces (Declarative Clients):** декларативные HTTP-клиенты через аннотации `@HttpExchange` без необходимости подключения внешнего Spring Cloud OpenFeign.\n7. **Унифицированная Observability:** появление `Micrometer Observation API` и распределенной трассировки «из коробки» взамен устаревшего Spring Cloud Sleuth.\n\n*Архитектурное примечание:* Стек Spring Boot 3.x / Spring 6.x сформировал обязательный технологический трамплин (Java 17+, Jakarta EE 10, AOT-инфраструктура), необходимый для бесшовного перехода на генерацию Spring Boot 4.x и Spring Framework 7.x.",
     "source_pages": [
       "Baeldung / InterviewBit (Curated)"
     ]
   },
   {
+    "id": "BOOT-026",
+    "num": 26,
+    "topic": "Spring Boot",
+    "question": "Что нового появилось в Spring Boot 4.x и Spring Framework 7.x?",
+    "answer": "Spring Boot 4.x и Spring Framework 7.x представляют собой следующее мажорное поколение экосистемы Spring:\n\n1. **JVM-базис и Java 25 LTS:** абсолютным минимальным порогом остается Java 17, однако рантайм полностью оптимизирован для **Java 25 LTS**. Внедрена нативная интеграция со Scoped Values (`ScopedValue<T>`) и Structured Concurrency (`StructuredTaskScope`), вытесняющими тяжелые и подверженные утечкам `ThreadLocal`.\n2. **Jakarta EE 11:** переход на Servlet 6.1, JPA 3.2 (нативная поддержка Java Records как конструкторных проекций JPQL без кастомных фабрик) и Bean Validation 3.1 (стандартизированная валидация дженериков `List<@NotBlank String>`).\n3. **Core Resilience (Отказоустойчивость ядра):** подсистема отказоустойчивости перенесена напрямую в ядро (`spring-core` / `spring-context`). Аннотации `@EnableResilientMethods`, `@Retryable`, `@ConcurrencyLimit` доступны из коробки без устаревшей библиотеки `spring-retry`.\n4. **First-Class API Versioning:** нативная поддержка версионирования в Spring MVC и WebFlux через интерфейс `ApiVersionStrategy`, парсер `SemanticApiVersionParser` (SemVer) и инжекцию стандартных HTTP-заголовков устаревания `Deprecation` и `Sunset` (RFC 8594 / RFC 9745).\n5. **JSpecify Null-Safety:** полный отказ от JSR-305 в пользу стандарта `org.jspecify.annotations.*` (`@NullMarked`, `@Nullable`). Обеспечивает строгую проверку null-safety для дженериков и коллекций на этапе компиляции в Java и Kotlin 2.2+.\n6. **Jackson 3 Integration:** штатная интеграция с `tools.jackson.databind` (взамен `com.fasterxml.jackson`), переход на потокобезопасные неизменяемые билдеры (`JsonMapper.builder()`).\n7. **Модуляризация и удаление легаси:**\n   * Декомпозиция монолитного `spring-boot-starter-web` на модульные стартеры;\n   * Окончательное удаление сервера **Undertow** (рекомендуются Tomcat 11 или Jetty 12);\n   * Ликвидация `AntPathMatcher` в пользу строгого `PathPatternParser`;\n   * Замена `@MockBean` / `@SpyBean` на официальный Bean Override Framework (`@MockitoBean` / `@MockitoSpyBean`);\n   * Spring Security 7: ликвидация метода `.and()` и легаси-матчеров URL в пользу чистого лямбда-DSL.\n8. **Spring AI & Model Context Protocol (MCP):** стандартизированная интеграция с большими языковыми моделями (LLM) и открытым протоколом MCP (Model Context Protocol Client & Server), декларативная публикация сервисов в виде AI-инструментов через аннотацию `@Tool`.",
+    "source_pages": [
+      "Spring Framework 7 & Spring Boot 4 Reference / SOTA 2026 Deep Research"
+    ],
+    "global_id": 567
+  },
+  {
+    "id": "BOOT-027",
+    "num": 27,
+    "topic": "Spring Boot",
+    "question": "Как устроена встроенная подсистема Core Resilience в Spring Framework 7 и в чем ее отличие от Resilience4j и legacy spring-retry?",
+    "answer": "В Spring Framework 7 подсистема обеспечения отказоустойчивости перенесена непосредственно в ядро фреймворка (`spring-core` / `spring-context`, пакет `org.springframework.resilience.annotation`). Проект `spring-retry` официально переведен в статус сопровождения.\n\n### 1. Архитектура и декларативное использование\nCore Resilience базируется на AOP-перехватчиках и единообразно поддерживает синхронные методы, `CompletableFuture` и реактивные типы Project Reactor (`Mono`/`Flux`). Активируется аннотацией `@EnableResilientMethods`:\n\n```java\n@Configuration\n@EnableResilientMethods\npublic class ResilientClientConfig {\n\n    // maxRetries = 3 означает: 1 первичный вызов + 3 повтора (всего 4 попытки)\n    @Retryable(maxRetries = 3, delay = 200, multiplier = 2.0, includes = {RemoteTimeoutException.class})\n    @ConcurrencyLimit(15) // Ограничивает параллельное выполнение до 15 одновременных потоков\n    public String executeResilientCall() {\n        return restClient.get().uri(\"/api/data\").retrieve().body(String.class);\n    }\n}\n```\n\n### 2. Критическая ловушка семантики (Off-by-one Retry Trap)\nПри миграции с legacy `spring-retry` важно учитывать фундаментальную смену контрактной логики:\n* В `spring-retry`: атрибут `maxAttempts = 3` означал **суммарный бюджет попыток** (1 первичная попытка + 2 повтора).\n* В Spring 7 Core Resilience: атрибут называется `maxRetries = 3` и задает **количество повторов строго после первичного сбоя** (1 первичная попытка + 3 повтора = 4 вызова).\n* *Последствие:* прямой механический перенос значения без уменьшения на 1 создает непредусмотренную лишнюю нагрузку на зависимый сервис.\n\n### 3. Легковесный Bulkhead (`@ConcurrencyLimit`)\nАннотация `@ConcurrencyLimit` ограничивает параллельное выполнение методов семафором в рамках локальной JVM. Это критически необходимо в эпоху виртуальных потоков (Virtual Threads), предотвращая перегрузку пулов потоков, соединений с базами данных и downstream HTTP-сервисов.\n\n### 4. Разграничение: Core Resilience vs Resilience4j\n* **Core Resilience (Spring 7):** закрывает базовые потребности 80% микросервисов — экспоненциальные повторы (Exponential Backoff), ограничение локальной конкурентности (`@ConcurrencyLimit`) и простые fallback-методы без сторонних зависимостей.\n* **Resilience4j:** остается отраслевым enterprise-стандартом для распределенных и сложных топологий, где требуются:\n  * Полноценный **Circuit Breaker** (с динамическими состояниями CLOSED / OPEN / HALF_OPEN, скользящими окнами времени и процентом допустимых ошибок `failureRateThreshold`);\n  * Распределенный **RateLimiter** (Token Bucket / Leaky Bucket);\n  * Потоковая публикация событий и глубокие метрики через Micrometer в Prometheus/Grafana для аварийных алертов.",
+    "source_pages": [
+      "Spring Framework 7 Reference / SOTA 2026 Deep Research"
+    ],
+    "global_id": 568
+  },
+  {
+    "id": "BOOT-028",
+    "num": 28,
+    "topic": "Spring Boot",
+    "question": "Как изменилась работа с Virtual Threads в Spring Boot 4 и как избежать исчерпания пула соединений БД (HikariCP starvation)?",
+    "answer": "В Spring Boot 4 под капотом Java 25 LTS виртуальные потоки (Virtual Threads, Project Loom) перешли в категорию промышленного стандарта, но потребовали пересмотра архитектурных паттернов управления ресурсами.\n\n### 1. Эволюция рантайма и уход от ThreadLocal\n* **Ликвидация Carrier Pinning:** в ранних версиях виртуальные потоки «прикалывались» (pinned) к платформенным потокам-носителям при входе в блоки `synchronized`. В современном рантайме синхронизация деблокирована на уровне виртуальной машины.\n* **Scoped Values (`ScopedValue<T>`):** в Spring Boot 4 передача контекста безопасности (`SecurityContext`), трассировки и транзакций постепенно переводится с `ThreadLocal` на Scoped Values. `ThreadLocal` выделяет отдельную изменяемую карту для каждого потока, что при создании миллионов короткоживущих виртуальных потоков приводило к колоссальному расходу памяти и деградации GC. `ScopedValue` иммутабелен, легковесен и наследуется дочерними виртуальными задачами без накладных расходов.\n\n### 2. Проблема исчерпания пула соединений (HikariCP Starvation)\nВиртуальные потоки снимают ограничение на количество одновременных задач в сервлетном контейнере (Tomcat может одновременно обрабатывать 10 000+ запросов вместо 200). Однако физические ресурсы базы данных остаются строго ограниченными:\n* Если 5 000 виртуальных потоков одновременно обращаются к `DataSource.getConnection()`, а пул HikariCP настроен на стандартные 30–50 соединений, 4 950 потоков зависают в ожидании соединения.\n* Наступает истощение пула (**HikariCP Pool Starvation**): время ожидания превышает `connectionTimeout` (по умолчанию 30 с), запросы массово падают с ошибками тайм-аута, а накладные расходы на переключение виртуальных потоков перегружают планировщик JVM и саму СУБД.\n\n### 3. Методы решения и архитектурные барьеры\n1. **Применение `@ConcurrencyLimit`:** критические участки бизнес-логики, требующие доступа к БД, защищаются аннотацией ограничения конкурентности Spring 7:\n   ```java\n   @Service\n   public class OrderProcessingService {\n       @Transactional\n       @ConcurrencyLimit(30) // Не более 30 параллельных транзакций (согласовано с размером HikariCP)\n       public OrderConfirmation processOrder(OrderRequest request) { ... }\n   }\n   ```\n2. **Асинхронные семафоры и изоляция очередей:** использование семафоров (`java.util.concurrent.Semaphore`) перед обращением к транзакционному слою, чтобы виртуальные потоки ожидали в контролируемой очереди до вызова `getConnection()`.\n3. **Разделение доменов (Virtual Threads vs WebFlux):**\n   * *Virtual Threads (Spring MVC):* идеальный выбор для CRUD, классического JDBC, JPA и блокирующего ввода-вывода (IO-bound).\n   * *Spring WebFlux:* сохраняет преимущество для сценариев с миллионами длительных полуактивных соединений с низким трафиком (SSE, WebSockets, streaming), где даже минимальные накладные расходы стека виртуального потока (1–2 КБ) уступают реактивным цепочкам.",
+    "source_pages": [
+      "Spring Boot 4 Performance Guide / SOTA 2026 Deep Research"
+    ],
+    "global_id": 569
+  },
+  {
+    "id": "BOOT-029",
+    "num": 29,
+    "topic": "Spring Boot",
+    "question": "Какова стратегия безопасной миграции крупного приложения со Spring Boot 3.x на Spring Boot 4.x и какие ключевые ломающие изменения нужно учитывать?",
+    "answer": "Миграция enterprise-приложения на Spring Boot 4.x требует поэтапного подхода для минимизации рисков простоя и регрессий.\n\n### 1. Стратегия двух фаз: Трамплин Spring Boot 3.5\nПрямой переход с устаревших веток Spring Boot 3.2/3.3 на 4.x категорически не рекомендуется.\n* **Фаза 1 (Подготовка):** перевод проекта на промежуточный «трамплин» **Spring Boot 3.5**. На этом этапе включаются флаги предупреждения о депрекейтах, устраняются вызовы устаревших методов и проверяется совместимость с Java 21 / 25.\n* **Фаза 2 (Миграция на 4.x):** перевод зависимостей на `spring-boot-starter-parent:4.x` и запуск автоматизированных рецептов OpenRewrite.\n\n### 2. Автоматизация рефакторинга через OpenRewrite\nРецепт `org.openrewrite.recipe:rewrite-spring:upgradeSpringBoot_4_0` выполняет до 80-85% механической работы:\n```bash\nmvn rewrite:run -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:LATEST -Drewrite.activeRecipes=org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0\n```\nРецепт автоматически производит:\n* Замену пакетов Jackson 2 (`com.fasterxml.jackson.*`) на Jackson 3 (`tools.jackson.*`);\n* Переход на унифицированный Bean Override Framework в тестах: замена `@MockBean` и `@SpyBean` на `@MockitoBean` и `@MockitoSpyBean` из пакета `org.springframework.test.context.bean.override.mockito`;\n* Замену легаси-конфигураций Spring Security на декларативный лямбда-синтаксис.\n\n### 3. Топ-4 критических ломающих изменений (Breaking Changes)\n1. **Ликвидация `.and()` в Spring Security 7:** устаревший метод `.and()` при настройке цепочки фильтров `SecurityFilterChain` окончательно удален. Поддерживается исключительно лямбда-DSL:\n   ```java\n   // Было: http.authorizeHttpRequests().requestMatchers(\"/api/**\").authenticated().and().csrf().disable();\n   // Стало:\n   http\n       .authorizeHttpRequests(auth -> auth.requestMatchers(\"/api/**\").authenticated())\n       .csrf(AbstractHttpConfigurer::disable);\n   ```\n2. **Ликвидация `AntPathMatcher`:** маршрутизация URL в Spring MVC опирается исключительно на строгий парсер `PathPatternParser`. Шаблоны с неопределенностями (например, множественные wildcard-символы `**` в середине пути) вызывают фатальную ошибку конфигурации при старте приложения.\n3. **Удаление сервлет-контейнера Undertow:** стартер `spring-boot-starter-undertow` удален из официальной поставки (в связи с прекращением апстрим-развития Undertow в пользу Quarkus). Проектам требуется мигрировать на `spring-boot-starter-tomcat` (Tomcat 11) или `spring-boot-starter-jetty` (Jetty 12).\n4. **Конфликт сериализации Jackson 2 vs Jackson 3 (Split-Brain):** сторонние транзитивные библиотеки могут по-прежнему зависеть от классов `com.fasterxml.jackson`, в то время как Spring Boot 4 конфигурирует бин `JsonMapper` из пакета `tools.jackson`. Решается подключением адаптера обратной совместимости `jackson-core-compat` либо регистрацией дополнительного legacy-бина `ObjectMapper`.",
+    "source_pages": [
+      "Spring Boot 4 Migration Guide / SOTA 2026 Deep Research"
+    ],
+    "global_id": 570
+  },
+  {
+    "id": "BOOT-030",
+    "num": 30,
+    "topic": "Spring Boot",
+    "question": "Как Spring Boot 4 интегрируется со Spring AI и Model Context Protocol (MCP), и как предоставить сервис в виде инструмента (@Tool) для LLM?",
+    "answer": "В экосистеме Spring Boot 4 искусственный интеллект и большие языковые модели (LLM) интегрированы в качестве первоклассных граждан через стек **Spring AI** и нативную реализацию открытого отраслевого стандарта **Model Context Protocol (MCP)**.\n\n### 1. Архитектура Model Context Protocol (MCP) в Spring Boot\nMCP стандартизирует безопасное взаимодействие AI-ассистентов с корпоративными источниками данных и исполняемыми функциями:\n* **MCP Server:** Spring Boot приложение выступает сервером, экспортируя свои бизнес-методы (Tools), структурированные данные (Resources) и контекстные шаблоны (Prompts) для подключенных AI-агентов.\n* **MCP Client:** приложение может выступать клиентом, подключаясь к внешним MCP-серверам (PostgreSQL MCP, GitHub MCP, Slack MCP, Jira MCP) и выполняя оркестрацию мультиагентных систем.\n\n### 2. Декларативное объявление AI-инструментов (`@Tool`)\nЛюбой Spring-бин может объявить метод в качестве инструмента для LLM с помощью аннотации `@Tool`:\n\n```java\n@Service\npublic class AccountManagementService {\n\n    private final AccountRepository repository;\n\n    public AccountManagementService(AccountRepository repository) {\n        this.repository = repository;\n    }\n\n    @Tool(\n        name = \"getAccountBalance\", \n        description = \"Возвращает текущий баланс счета и валюту по заданному номеру счета IBAN\"\n    )\n    public AccountBalanceResponse getBalance(\n        @ToolParam(description = \"Международный номер банковского счета (IBAN)\") String iban\n    ) {\n        return repository.findBalanceByIban(iban)\n            .map(b -> new AccountBalanceResponse(iban, b.getAmount(), b.getCurrency()))\n            .orElseThrow(() -> new AccountNotFoundException(\"Счет не найден: \" + iban));\n    }\n}\n```\n\n### 3. Автоматическая генерация JSON-схемы и валидация\nПри старте приложения Spring AI:\n1. Анализирует сигнатуру метода, типы параметров (включая Java Records) и аннотации валидации Jakarta Bean Validation (`@NotNull`, `@Pattern`, `@Size`).\n2. Генерирует строгую спецификацию JSON Schema для Function Calling.\n3. При поступлении от LLM запроса на вызов инструмента (Tool Call) автоматически валидирует аргументы, конвертирует JSON в Java-объекты и выполняет целевой метод в пуле виртуальных потоков.\n\n### 4. Поддерживаемые транспортные протоколы MCP\nSpring Boot 4 поддерживает различные сетевые транспорты MCP в зависимости от архитектурного профиля:\n* **STDIO (Стандартный ввод/вывод):** взаимодействие через консольные потоки ввода-вывода с локальными десктопными клиентами (Claude Desktop, IDE-ассистенты);\n* **SSE (Server-Sent Events) поверх HTTP:** асинхронный веб-транспорт для облачных микросервисов;\n* **WebSockets & gRPC:** высокопроизводительные каналы для распределенных мультиагентных сетей с двунаправленным обменом данными и минимальной сетевой задержкой.",
+    "source_pages": [
+      "Spring AI & Model Context Protocol Reference / SOTA 2026 Deep Research"
+    ],
+    "global_id": 571
+  },
+  {
     "id": "REACT-001",
-    "global_id": 567,
+    "global_id": 572,
     "num": 1,
     "topic": "Реактивное программирование",
     "question": "Что такое реактивное программирование и чем оно отличается от процедурного программирования?",
@@ -6488,7 +6543,7 @@
   },
   {
     "id": "REACT-002",
-    "global_id": 568,
+    "global_id": 573,
     "num": 2,
     "topic": "Реактивное программирование",
     "question": "Объясните концепцию потоков данных в реактивном программировании",
@@ -6499,7 +6554,7 @@
   },
   {
     "id": "REACT-003",
-    "global_id": 569,
+    "global_id": 574,
     "num": 3,
     "topic": "Реактивное программирование",
     "question": "Что такое паттерн Observer и как он лежит в основе реактивного программирования?",
@@ -6510,7 +6565,7 @@
   },
   {
     "id": "REACT-004",
-    "global_id": 570,
+    "global_id": 575,
     "num": 4,
     "topic": "Реактивное программирование",
     "question": "Опишите роль Observable и Observer в реактивном программировании",
@@ -6521,7 +6576,7 @@
   },
   {
     "id": "REACT-005",
-    "global_id": 571,
+    "global_id": 576,
     "num": 5,
     "topic": "Реактивное программирование",
     "question": "Что такое backpressure в контексте реактивного программирования?",
@@ -6532,7 +6587,7 @@
   },
   {
     "id": "REACT-006",
-    "global_id": 572,
+    "global_id": 577,
     "num": 6,
     "topic": "Реактивное программирование",
     "question": "Объясните разницу между Hot и Cold Observable",
@@ -6543,7 +6598,7 @@
   },
   {
     "id": "REACT-007",
-    "global_id": 573,
+    "global_id": 578,
     "num": 7,
     "topic": "Реактивное программирование",
     "question": "Какова роль Подписки в реактивном программировании?",
@@ -6554,7 +6609,7 @@
   },
   {
     "id": "REACT-008",
-    "global_id": 574,
+    "global_id": 579,
     "num": 8,
     "topic": "Реактивное программирование",
     "question": "Как отписаться от потока для предотвращения утечки памяти?",
@@ -6565,7 +6620,7 @@
   },
   {
     "id": "REACT-009",
-    "global_id": 575,
+    "global_id": 580,
     "num": 9,
     "topic": "Реактивное программирование",
     "question": "Какие есть операторы в Project Reactor и для чего они используются?",
@@ -6576,7 +6631,7 @@
   },
   {
     "id": "SERV-001",
-    "global_id": 576,
+    "global_id": 581,
     "num": 1,
     "topic": "Servlets & JSP",
     "question": "Что такое _«сервлет»_?",
@@ -6587,7 +6642,7 @@
   },
   {
     "id": "SERV-002",
-    "global_id": 577,
+    "global_id": 582,
     "num": 2,
     "topic": "Servlets & JSP",
     "question": "В чем заключаются преимущества технологии сервлетов над CGI (Common Gateway Interface)?",
@@ -6598,7 +6653,7 @@
   },
   {
     "id": "SERV-003",
-    "global_id": 578,
+    "global_id": 583,
     "num": 3,
     "topic": "Servlets & JSP",
     "question": "Какова структура веб-проекта?",
@@ -6609,7 +6664,7 @@
   },
   {
     "id": "SERV-004",
-    "global_id": 579,
+    "global_id": 584,
     "num": 4,
     "topic": "Servlets & JSP",
     "question": "Что такое _«контейнер сервлетов»_?",
@@ -6620,7 +6675,7 @@
   },
   {
     "id": "SERV-005",
-    "global_id": 580,
+    "global_id": 585,
     "num": 5,
     "topic": "Servlets & JSP",
     "question": "Зачем нужны сервера приложений, если есть контейнеры сервлетов?",
@@ -6631,7 +6686,7 @@
   },
   {
     "id": "SERV-006",
-    "global_id": 581,
+    "global_id": 586,
     "num": 6,
     "topic": "Servlets & JSP",
     "question": "Как контейнер сервлетов управляет жизненным циклом сервлета, когда и какие методы вызываются?",
@@ -6642,7 +6697,7 @@
   },
   {
     "id": "SERV-007",
-    "global_id": 582,
+    "global_id": 587,
     "num": 7,
     "topic": "Servlets & JSP",
     "question": "Что такое _«дескриптор развертывания»_?",
@@ -6653,7 +6708,7 @@
   },
   {
     "id": "SERV-008",
-    "global_id": 583,
+    "global_id": 588,
     "num": 8,
     "topic": "Servlets & JSP",
     "question": "Какие действия необходимо проделать при создании сервлетов?",
@@ -6664,7 +6719,7 @@
   },
   {
     "id": "SERV-009",
-    "global_id": 584,
+    "global_id": 589,
     "num": 9,
     "topic": "Servlets & JSP",
     "question": "В каком случае требуется переопределять метод `service()`?",
@@ -6675,7 +6730,7 @@
   },
   {
     "id": "SERV-010",
-    "global_id": 585,
+    "global_id": 590,
     "num": 10,
     "topic": "Servlets & JSP",
     "question": "Есть ли смысл определять для сервлета конструктор? Каким образом лучше инициализировать данные?",
@@ -6686,7 +6741,7 @@
   },
   {
     "id": "SERV-011",
-    "global_id": 586,
+    "global_id": 591,
     "num": 11,
     "topic": "Servlets & JSP",
     "question": "Почему необходимо переопределить только `init()` метод без аргументов?",
@@ -6697,7 +6752,7 @@
   },
   {
     "id": "SERV-012",
-    "global_id": 587,
+    "global_id": 592,
     "num": 12,
     "topic": "Servlets & JSP",
     "question": "Какие наиболее распространенные задачи выполняются в контейнере сервлетов?",
@@ -6708,7 +6763,7 @@
   },
   {
     "id": "SERV-013",
-    "global_id": 588,
+    "global_id": 593,
     "num": 13,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о _сервлетных фильтрах_?",
@@ -6719,7 +6774,7 @@
   },
   {
     "id": "SERV-014",
-    "global_id": 589,
+    "global_id": 594,
     "num": 14,
     "topic": "Servlets & JSP",
     "question": "Зачем в сервлетах используются различные _listener_?",
@@ -6730,7 +6785,7 @@
   },
   {
     "id": "SERV-015",
-    "global_id": 590,
+    "global_id": 595,
     "num": 15,
     "topic": "Servlets & JSP",
     "question": "Когда стоит использовать фильтры сервлетов, а когда слушателей?",
@@ -6741,7 +6796,7 @@
   },
   {
     "id": "SERV-016",
-    "global_id": 591,
+    "global_id": 596,
     "num": 16,
     "topic": "Servlets & JSP",
     "question": "Как реализовать запуск сервлета одновременно с запуском приложения?",
@@ -6752,7 +6807,7 @@
   },
   {
     "id": "SERV-017",
-    "global_id": 592,
+    "global_id": 597,
     "num": 17,
     "topic": "Servlets & JSP",
     "question": "Как обработать в приложении исключения, выброшенные другим сервлетом?",
@@ -6763,7 +6818,7 @@
   },
   {
     "id": "SERV-018",
-    "global_id": 593,
+    "global_id": 598,
     "num": 18,
     "topic": "Servlets & JSP",
     "question": "Что представляет собой `ServletConfig`?",
@@ -6774,7 +6829,7 @@
   },
   {
     "id": "SERV-019",
-    "global_id": 594,
+    "global_id": 599,
     "num": 19,
     "topic": "Servlets & JSP",
     "question": "Что представляет собой `ServletContext`?",
@@ -6785,7 +6840,7 @@
   },
   {
     "id": "SERV-020",
-    "global_id": 595,
+    "global_id": 600,
     "num": 20,
     "topic": "Servlets & JSP",
     "question": "В чем отличия `ServletContext` и `ServletConfig`?",
@@ -6796,7 +6851,7 @@
   },
   {
     "id": "SERV-021",
-    "global_id": 596,
+    "global_id": 601,
     "num": 21,
     "topic": "Servlets & JSP",
     "question": "Для чего нужен интерфейс `ServletResponse`?",
@@ -6807,7 +6862,7 @@
   },
   {
     "id": "SERV-022",
-    "global_id": 597,
+    "global_id": 602,
     "num": 22,
     "topic": "Servlets & JSP",
     "question": "Для чего нужен интерфейс `ServletRequest`?",
@@ -6818,7 +6873,7 @@
   },
   {
     "id": "SERV-023",
-    "global_id": 598,
+    "global_id": 603,
     "num": 23,
     "topic": "Servlets & JSP",
     "question": "Что такое `Request Dispatcher`?",
@@ -6829,7 +6884,7 @@
   },
   {
     "id": "SERV-024",
-    "global_id": 599,
+    "global_id": 604,
     "num": 24,
     "topic": "Servlets & JSP",
     "question": "Как из одного сервлета вызвать другой сервлет?",
@@ -6840,7 +6895,7 @@
   },
   {
     "id": "SERV-025",
-    "global_id": 600,
+    "global_id": 605,
     "num": 25,
     "topic": "Servlets & JSP",
     "question": "Чем отличается `sendRedirect()` от `forward()`?",
@@ -6851,7 +6906,7 @@
   },
   {
     "id": "SERV-026",
-    "global_id": 601,
+    "global_id": 606,
     "num": 26,
     "topic": "Servlets & JSP",
     "question": "Для чего используются атрибуты сервлетов и как происходит работа с ними?",
@@ -6862,7 +6917,7 @@
   },
   {
     "id": "SERV-027",
-    "global_id": 602,
+    "global_id": 607,
     "num": 27,
     "topic": "Servlets & JSP",
     "question": "Каким образом можно допустить в сервлете deadlock?",
@@ -6873,7 +6928,7 @@
   },
   {
     "id": "SERV-028",
-    "global_id": 603,
+    "global_id": 608,
     "num": 28,
     "topic": "Servlets & JSP",
     "question": "Как получить реальное расположение сервлета на сервере?",
@@ -6884,7 +6939,7 @@
   },
   {
     "id": "SERV-029",
-    "global_id": 604,
+    "global_id": 609,
     "num": 29,
     "topic": "Servlets & JSP",
     "question": "Как получить информацию о сервере из сервлета?",
@@ -6895,7 +6950,7 @@
   },
   {
     "id": "SERV-030",
-    "global_id": 605,
+    "global_id": 610,
     "num": 30,
     "topic": "Servlets & JSP",
     "question": "Как получить IP адрес клиента на сервере?",
@@ -6906,7 +6961,7 @@
   },
   {
     "id": "SERV-031",
-    "global_id": 606,
+    "global_id": 611,
     "num": 31,
     "topic": "Servlets & JSP",
     "question": "Какие классы-обертки для сервлетов вы знаете?",
@@ -6917,7 +6972,7 @@
   },
   {
     "id": "SERV-032",
-    "global_id": 607,
+    "global_id": 612,
     "num": 32,
     "topic": "Servlets & JSP",
     "question": "В чем отличия `GenericServlet` и `HttpServlet`?",
@@ -6928,7 +6983,7 @@
   },
   {
     "id": "SERV-033",
-    "global_id": 608,
+    "global_id": 613,
     "num": 33,
     "topic": "Servlets & JSP",
     "question": "Почему `HttpServlet` класс объявлен как абстрактный?",
@@ -6939,7 +6994,7 @@
   },
   {
     "id": "SERV-034",
-    "global_id": 609,
+    "global_id": 614,
     "num": 34,
     "topic": "Servlets & JSP",
     "question": "Какие основные методы присутствуют в классе `HttpServlet`?",
@@ -6950,7 +7005,7 @@
   },
   {
     "id": "SERV-035",
-    "global_id": 610,
+    "global_id": 615,
     "num": 35,
     "topic": "Servlets & JSP",
     "question": "Стоит ли волноваться о многопоточной безопасности работая с сервлетами?",
@@ -6961,7 +7016,7 @@
   },
   {
     "id": "SERV-036",
-    "global_id": 611,
+    "global_id": 616,
     "num": 36,
     "topic": "Servlets & JSP",
     "question": "Какой метод HTTP не является неизменяемым?",
@@ -6972,7 +7027,7 @@
   },
   {
     "id": "SERV-037",
-    "global_id": 612,
+    "global_id": 617,
     "num": 37,
     "topic": "Servlets & JSP",
     "question": "Какие есть методы отправки данных с клиента на сервер?",
@@ -6983,7 +7038,7 @@
   },
   {
     "id": "SERV-038",
-    "global_id": 613,
+    "global_id": 618,
     "num": 38,
     "topic": "Servlets & JSP",
     "question": "В чем разница между методами `GET` и `POST`?",
@@ -6994,7 +7049,7 @@
   },
   {
     "id": "SERV-039",
-    "global_id": 614,
+    "global_id": 619,
     "num": 39,
     "topic": "Servlets & JSP",
     "question": "В чем разница между `PrintWriter` и `ServletOutputStream`?",
@@ -7005,7 +7060,7 @@
   },
   {
     "id": "SERV-040",
-    "global_id": 615,
+    "global_id": 620,
     "num": 40,
     "topic": "Servlets & JSP",
     "question": "Можно ли одновременно использовать в сервлете `PrintWriter` и `ServletOutputStream`?",
@@ -7016,7 +7071,7 @@
   },
   {
     "id": "SERV-041",
-    "global_id": 616,
+    "global_id": 621,
     "num": 41,
     "topic": "Servlets & JSP",
     "question": "Расскажите об интерфейсе `SingleThreadModel`.",
@@ -7027,7 +7082,7 @@
   },
   {
     "id": "SERV-042",
-    "global_id": 617,
+    "global_id": 622,
     "num": 42,
     "topic": "Servlets & JSP",
     "question": "Что означает _URL encoding_? Как это осуществить в Java?",
@@ -7038,7 +7093,7 @@
   },
   {
     "id": "SERV-043",
-    "global_id": 618,
+    "global_id": 623,
     "num": 43,
     "topic": "Servlets & JSP",
     "question": "Какие различные методы управления сессией в сервлетах вы знаете?",
@@ -7049,7 +7104,7 @@
   },
   {
     "id": "SERV-044",
-    "global_id": 619,
+    "global_id": 624,
     "num": 44,
     "topic": "Servlets & JSP",
     "question": "Что такое _cookies_?",
@@ -7060,7 +7115,7 @@
   },
   {
     "id": "SERV-045",
-    "global_id": 620,
+    "global_id": 625,
     "num": 45,
     "topic": "Servlets & JSP",
     "question": "Какие методы для работы с cookies предусмотрены в сервлетах?",
@@ -7071,7 +7126,7 @@
   },
   {
     "id": "SERV-046",
-    "global_id": 621,
+    "global_id": 626,
     "num": 46,
     "topic": "Servlets & JSP",
     "question": "Что такое _URL Rewriting_?",
@@ -7082,7 +7137,7 @@
   },
   {
     "id": "SERV-047",
-    "global_id": 622,
+    "global_id": 627,
     "num": 47,
     "topic": "Servlets & JSP",
     "question": "Зачем нужны и чем отличаются методы `encodeURL()` и `encodeRedirectURL()`?",
@@ -7093,7 +7148,7 @@
   },
   {
     "id": "SERV-048",
-    "global_id": 623,
+    "global_id": 628,
     "num": 48,
     "topic": "Servlets & JSP",
     "question": "Что такое _«сессия»_?",
@@ -7104,7 +7159,7 @@
   },
   {
     "id": "SERV-049",
-    "global_id": 624,
+    "global_id": 629,
     "num": 49,
     "topic": "Servlets & JSP",
     "question": "Как уведомить объект в сессии, что сессия недействительна или закончилась?",
@@ -7115,7 +7170,7 @@
   },
   {
     "id": "SERV-050",
-    "global_id": 625,
+    "global_id": 630,
     "num": 50,
     "topic": "Servlets & JSP",
     "question": "Какой существует эффективный способ удостоверится, что все сервлеты доступны только для пользователя с верной сессией?",
@@ -7126,7 +7181,7 @@
   },
   {
     "id": "SERV-051",
-    "global_id": 626,
+    "global_id": 631,
     "num": 51,
     "topic": "Servlets & JSP",
     "question": "Как мы можем обеспечить _transport layer security_ для нашего веб приложения?",
@@ -7137,7 +7192,7 @@
   },
   {
     "id": "SERV-052",
-    "global_id": 627,
+    "global_id": 632,
     "num": 52,
     "topic": "Servlets & JSP",
     "question": "Как организовать подключение к базе данных, обеспечить журналирование в сервлете?",
@@ -7148,7 +7203,7 @@
   },
   {
     "id": "SERV-053",
-    "global_id": 628,
+    "global_id": 633,
     "num": 53,
     "topic": "Servlets & JSP",
     "question": "Какие основные особенности появились в спецификации _Servlet 3_?",
@@ -7159,7 +7214,7 @@
   },
   {
     "id": "SERV-054",
-    "global_id": 629,
+    "global_id": 634,
     "num": 54,
     "topic": "Servlets & JSP",
     "question": "Какие способы аутентификации доступны сервлету?",
@@ -7170,7 +7225,7 @@
   },
   {
     "id": "SERV-055",
-    "global_id": 630,
+    "global_id": 635,
     "num": 55,
     "topic": "Servlets & JSP",
     "question": "Что такое _Java Server Pages (JSP)_?",
@@ -7181,7 +7236,7 @@
   },
   {
     "id": "SERV-056",
-    "global_id": 631,
+    "global_id": 636,
     "num": 56,
     "topic": "Servlets & JSP",
     "question": "Зачем нужен JSP?",
@@ -7192,7 +7247,7 @@
   },
   {
     "id": "SERV-057",
-    "global_id": 632,
+    "global_id": 637,
     "num": 57,
     "topic": "Servlets & JSP",
     "question": "Опишите, как обрабатываются JSP страницы, начиная от запроса к серверу, заканчивая ответом пользователю.",
@@ -7203,7 +7258,7 @@
   },
   {
     "id": "SERV-058",
-    "global_id": 633,
+    "global_id": 638,
     "num": 58,
     "topic": "Servlets & JSP",
     "question": "Расскажите об этапах (фазах) жизненного цикла JSP.",
@@ -7214,7 +7269,7 @@
   },
   {
     "id": "SERV-059",
-    "global_id": 634,
+    "global_id": 639,
     "num": 59,
     "topic": "Servlets & JSP",
     "question": "Расскажите о методах жизненного цикла JSP.",
@@ -7225,7 +7280,7 @@
   },
   {
     "id": "SERV-060",
-    "global_id": 635,
+    "global_id": 640,
     "num": 60,
     "topic": "Servlets & JSP",
     "question": "Какие методы жизненного цикла JSP могут быть переопределены?",
@@ -7236,7 +7291,7 @@
   },
   {
     "id": "SERV-061",
-    "global_id": 636,
+    "global_id": 641,
     "num": 61,
     "topic": "Servlets & JSP",
     "question": "Как можно предотвратить прямой доступ к JSP странице из браузера?",
@@ -7247,7 +7302,7 @@
   },
   {
     "id": "SERV-062",
-    "global_id": 637,
+    "global_id": 642,
     "num": 62,
     "topic": "Servlets & JSP",
     "question": "Какая разница между _динамическим_ и _статическим_ содержимым JSP?",
@@ -7258,7 +7313,7 @@
   },
   {
     "id": "SERV-063",
-    "global_id": 638,
+    "global_id": 643,
     "num": 63,
     "topic": "Servlets & JSP",
     "question": "Как закомментировать код в JSP?",
@@ -7269,7 +7324,7 @@
   },
   {
     "id": "SERV-064",
-    "global_id": 639,
+    "global_id": 644,
     "num": 64,
     "topic": "Servlets & JSP",
     "question": "Какие существуют основные типы тегов JSP?",
@@ -7280,7 +7335,7 @@
   },
   {
     "id": "SERV-065",
-    "global_id": 640,
+    "global_id": 645,
     "num": 65,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о действиях JSP (_Action tag_ и _JSP Action Elements_).",
@@ -7291,7 +7346,7 @@
   },
   {
     "id": "SERV-066",
-    "global_id": 641,
+    "global_id": 646,
     "num": 66,
     "topic": "Servlets & JSP",
     "question": "Взаимодействие _JSP - сервлет - JSP_.",
@@ -7302,7 +7357,7 @@
   },
   {
     "id": "SERV-067",
-    "global_id": 642,
+    "global_id": 647,
     "num": 67,
     "topic": "Servlets & JSP",
     "question": "Какие области видимости переменных существуют в JSP?",
@@ -7313,7 +7368,7 @@
   },
   {
     "id": "SERV-068",
-    "global_id": 643,
+    "global_id": 648,
     "num": 68,
     "topic": "Servlets & JSP",
     "question": "Какие неявные, внутренние объекты и методы есть на JSP странице?",
@@ -7324,7 +7379,7 @@
   },
   {
     "id": "SERV-069",
-    "global_id": 644,
+    "global_id": 649,
     "num": 69,
     "topic": "Servlets & JSP",
     "question": "Какие неявные объекты не доступны в обычной JSP странице?",
@@ -7335,7 +7390,7 @@
   },
   {
     "id": "SERV-070",
-    "global_id": 645,
+    "global_id": 650,
     "num": 70,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о `PageContext` и какие преимущества его использования?",
@@ -7346,7 +7401,7 @@
   },
   {
     "id": "SERV-071",
-    "global_id": 646,
+    "global_id": 651,
     "num": 71,
     "topic": "Servlets & JSP",
     "question": "Как сконфигурировать параметры инициализации для JSP?",
@@ -7357,7 +7412,7 @@
   },
   {
     "id": "SERV-072",
-    "global_id": 647,
+    "global_id": 652,
     "num": 72,
     "topic": "Servlets & JSP",
     "question": "Почему не рекомендуется использовать скриплеты (скриптовые элементы) в JSP?",
@@ -7368,7 +7423,7 @@
   },
   {
     "id": "SERV-073",
-    "global_id": 648,
+    "global_id": 653,
     "num": 73,
     "topic": "Servlets & JSP",
     "question": "Можно ли определить класс внутри JSP страницы?",
@@ -7379,7 +7434,7 @@
   },
   {
     "id": "SERV-074",
-    "global_id": 649,
+    "global_id": 654,
     "num": 74,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о Языке выражений JSP (JSP Expression Language – EL)?",
@@ -7390,7 +7445,7 @@
   },
   {
     "id": "SERV-075",
-    "global_id": 650,
+    "global_id": 655,
     "num": 75,
     "topic": "Servlets & JSP",
     "question": "Какие типы EL операторов вы знаете?",
@@ -7401,7 +7456,7 @@
   },
   {
     "id": "SERV-076",
-    "global_id": 651,
+    "global_id": 656,
     "num": 76,
     "topic": "Servlets & JSP",
     "question": "Назовите неявные, внутренние объекты JSP EL и их отличия от объектов JSP.",
@@ -7412,7 +7467,7 @@
   },
   {
     "id": "SERV-077",
-    "global_id": 652,
+    "global_id": 657,
     "num": 77,
     "topic": "Servlets & JSP",
     "question": "Как отключить возможность использования EL в JSP?",
@@ -7423,7 +7478,7 @@
   },
   {
     "id": "SERV-078",
-    "global_id": 653,
+    "global_id": 658,
     "num": 78,
     "topic": "Servlets & JSP",
     "question": "Как узнать тип HTTP метода используя JSP EL?",
@@ -7434,7 +7489,7 @@
   },
   {
     "id": "SERV-079",
-    "global_id": 654,
+    "global_id": 659,
     "num": 79,
     "topic": "Servlets & JSP",
     "question": "Что такое _JSTL (JSP Standard tag library)_?",
@@ -7445,7 +7500,7 @@
   },
   {
     "id": "SERV-080",
-    "global_id": 655,
+    "global_id": 660,
     "num": 80,
     "topic": "Servlets & JSP",
     "question": "Из каких групп тегов состоит библиотека _JSTL_?",
@@ -7456,7 +7511,7 @@
   },
   {
     "id": "SERV-081",
-    "global_id": 656,
+    "global_id": 661,
     "num": 81,
     "topic": "Servlets & JSP",
     "question": "Какая разница между `<c:set>` и `<jsp:useBean>`?",
@@ -7467,7 +7522,7 @@
   },
   {
     "id": "SERV-082",
-    "global_id": 657,
+    "global_id": 662,
     "num": 82,
     "topic": "Servlets & JSP",
     "question": "Чем отличается `<c:import>` от `<jsp:include>` и директивы `<%@include %>`?",
@@ -7478,7 +7533,7 @@
   },
   {
     "id": "SERV-083",
-    "global_id": 658,
+    "global_id": 663,
     "num": 83,
     "topic": "Servlets & JSP",
     "question": "Как можно расширить функциональность JSP?",
@@ -7489,7 +7544,7 @@
   },
   {
     "id": "SERV-084",
-    "global_id": 659,
+    "global_id": 664,
     "num": 84,
     "topic": "Servlets & JSP",
     "question": "Что вы знаете о написании пользовательских JSP тегов?",
@@ -7500,7 +7555,7 @@
   },
   {
     "id": "SERV-085",
-    "global_id": 660,
+    "global_id": 665,
     "num": 85,
     "topic": "Servlets & JSP",
     "question": "Приведите пример использования собственных тегов.",
@@ -7511,7 +7566,7 @@
   },
   {
     "id": "SERV-086",
-    "global_id": 661,
+    "global_id": 666,
     "num": 86,
     "topic": "Servlets & JSP",
     "question": "Как сделать перенос строки в HTML средствами JSP?",
@@ -7522,7 +7577,7 @@
   },
   {
     "id": "SERV-087",
-    "global_id": 662,
+    "global_id": 667,
     "num": 87,
     "topic": "Servlets & JSP",
     "question": "Почему не нужно конфигурировать стандартные JSP теги в `web.xml`?",
@@ -7533,7 +7588,7 @@
   },
   {
     "id": "SERV-088",
-    "global_id": 663,
+    "global_id": 668,
     "num": 88,
     "topic": "Servlets & JSP",
     "question": "Как можно обработать ошибки JSP страниц?",
@@ -7544,7 +7599,7 @@
   },
   {
     "id": "SERV-089",
-    "global_id": 664,
+    "global_id": 669,
     "num": 89,
     "topic": "Servlets & JSP",
     "question": "Как происходит обработка ошибок с помощью JSTL?",
@@ -7555,7 +7610,7 @@
   },
   {
     "id": "SERV-090",
-    "global_id": 665,
+    "global_id": 670,
     "num": 90,
     "topic": "Servlets & JSP",
     "question": "Как конфигурируется JSP в дескрипторе развертывания.",
@@ -7566,7 +7621,7 @@
   },
   {
     "id": "SERV-091",
-    "global_id": 666,
+    "global_id": 671,
     "num": 91,
     "topic": "Servlets & JSP",
     "question": "Можно ли использовать Javascript на JSP странице?",
@@ -7577,7 +7632,7 @@
   },
   {
     "id": "SERV-092",
-    "global_id": 667,
+    "global_id": 672,
     "num": 92,
     "topic": "Servlets & JSP",
     "question": "Всегда ли создается объект сессии на JSP странице, можно ли отключить его создание?",
@@ -7588,7 +7643,7 @@
   },
   {
     "id": "SERV-093",
-    "global_id": 668,
+    "global_id": 673,
     "num": 93,
     "topic": "Servlets & JSP",
     "question": "Какая разница между `JSPWriter` и сервлетным `PrintWriter`?",
@@ -7599,7 +7654,7 @@
   },
   {
     "id": "SERV-094",
-    "global_id": 669,
+    "global_id": 674,
     "num": 94,
     "topic": "Servlets & JSP",
     "question": "Опишите общие практические принципы работы с JSP.",
@@ -7610,7 +7665,7 @@
   },
   {
     "id": "WEB-001",
-    "global_id": 670,
+    "global_id": 675,
     "num": 1,
     "topic": "Основы Web & REST",
     "question": "Что такое _WWW_?",
@@ -7621,7 +7676,7 @@
   },
   {
     "id": "WEB-002",
-    "global_id": 671,
+    "global_id": 676,
     "num": 2,
     "topic": "Основы Web & REST",
     "question": "Что такое _W3C_?",
@@ -7632,7 +7687,7 @@
   },
   {
     "id": "WEB-003",
-    "global_id": 672,
+    "global_id": 677,
     "num": 3,
     "topic": "Основы Web & REST",
     "question": "Какие существуют уровни модели _OSI_?",
@@ -7643,7 +7698,7 @@
   },
   {
     "id": "WEB-004",
-    "global_id": 673,
+    "global_id": 678,
     "num": 4,
     "topic": "Основы Web & REST",
     "question": "Что такое _TCP/IP_?",
@@ -7654,7 +7709,7 @@
   },
   {
     "id": "WEB-005",
-    "global_id": 674,
+    "global_id": 679,
     "num": 5,
     "topic": "Основы Web & REST",
     "question": "Что такое _UDP_?",
@@ -7665,7 +7720,7 @@
   },
   {
     "id": "WEB-006",
-    "global_id": 675,
+    "global_id": 680,
     "num": 6,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются _TCP_ и _UDP_?",
@@ -7676,7 +7731,7 @@
   },
   {
     "id": "WEB-007",
-    "global_id": 676,
+    "global_id": 681,
     "num": 7,
     "topic": "Основы Web & REST",
     "question": "Что такое протокол передачи данных? Какие протоколы вы знаете?",
@@ -7687,7 +7742,7 @@
   },
   {
     "id": "WEB-008",
-    "global_id": 677,
+    "global_id": 682,
     "num": 8,
     "topic": "Основы Web & REST",
     "question": "Что такое _HTTP_ и _HTTPS_? Чем они отличаются?",
@@ -7698,7 +7753,7 @@
   },
   {
     "id": "WEB-009",
-    "global_id": 678,
+    "global_id": 683,
     "num": 9,
     "topic": "Основы Web & REST",
     "question": "Что такое _FTP_?",
@@ -7709,7 +7764,7 @@
   },
   {
     "id": "WEB-010",
-    "global_id": 679,
+    "global_id": 684,
     "num": 10,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются методы _GET_ и _POST_?",
@@ -7720,7 +7775,7 @@
   },
   {
     "id": "WEB-011",
-    "global_id": 680,
+    "global_id": 685,
     "num": 11,
     "topic": "Основы Web & REST",
     "question": "Что такое _MIME тип_?",
@@ -7731,7 +7786,7 @@
   },
   {
     "id": "WEB-012",
-    "global_id": 681,
+    "global_id": 686,
     "num": 12,
     "topic": "Основы Web & REST",
     "question": "Что такое _Web server_?",
@@ -7742,7 +7797,7 @@
   },
   {
     "id": "WEB-013",
-    "global_id": 682,
+    "global_id": 687,
     "num": 13,
     "topic": "Основы Web & REST",
     "question": "Что такое _Web application_?",
@@ -7753,7 +7808,7 @@
   },
   {
     "id": "WEB-014",
-    "global_id": 683,
+    "global_id": 688,
     "num": 14,
     "topic": "Основы Web & REST",
     "question": "Что такое _Application server_?",
@@ -7764,7 +7819,7 @@
   },
   {
     "id": "WEB-015",
-    "global_id": 684,
+    "global_id": 689,
     "num": 15,
     "topic": "Основы Web & REST",
     "question": "Чем отличаются _Web server_ и _Application server_?",
@@ -7775,7 +7830,7 @@
   },
   {
     "id": "WEB-016",
-    "global_id": 685,
+    "global_id": 690,
     "num": 16,
     "topic": "Основы Web & REST",
     "question": "Что такое _AJAX_? Как принципиально устроена эта технология?",
@@ -7786,7 +7841,7 @@
   },
   {
     "id": "WEB-017",
-    "global_id": 686,
+    "global_id": 691,
     "num": 17,
     "topic": "Основы Web & REST",
     "question": "Что такое _WebSocket_?",
@@ -7797,7 +7852,7 @@
   },
   {
     "id": "WEB-018",
-    "global_id": 687,
+    "global_id": 692,
     "num": 18,
     "topic": "Основы Web & REST",
     "question": "Что такое _JSON_?",
@@ -7808,7 +7863,7 @@
   },
   {
     "id": "WEB-019",
-    "global_id": 688,
+    "global_id": 693,
     "num": 19,
     "topic": "Основы Web & REST",
     "question": "Что такое _JSON схема_?",
@@ -7819,7 +7874,7 @@
   },
   {
     "id": "WEB-020",
-    "global_id": 689,
+    "global_id": 694,
     "num": 20,
     "topic": "Основы Web & REST",
     "question": "Что такое _cookies_?",
@@ -7830,7 +7885,7 @@
   },
   {
     "id": "WEB-021",
-    "global_id": 690,
+    "global_id": 695,
     "num": 21,
     "topic": "Основы Web & REST",
     "question": "Что такое _«сессия»_?",
@@ -7841,7 +7896,7 @@
   },
   {
     "id": "WEB-022",
-    "global_id": 691,
+    "global_id": 696,
     "num": 22,
     "topic": "Основы Web & REST",
     "question": "Что такое _«авторизация»_ и _«аутентификация»_? Чем они отличаются?",
@@ -7852,7 +7907,7 @@
   },
   {
     "id": "KAFKA-001",
-    "global_id": 692,
+    "global_id": 697,
     "num": 1,
     "topic": "Apache Kafka",
     "question": "Что такое Apache Kafka?",
@@ -7863,7 +7918,7 @@
   },
   {
     "id": "KAFKA-002",
-    "global_id": 693,
+    "global_id": 698,
     "num": 2,
     "topic": "Apache Kafka",
     "question": "Основные компоненты Kafka",
@@ -7874,7 +7929,7 @@
   },
   {
     "id": "KAFKA-003",
-    "global_id": 694,
+    "global_id": 699,
     "num": 3,
     "topic": "Apache Kafka",
     "question": "Архитектура топика",
@@ -7885,7 +7940,7 @@
   },
   {
     "id": "KAFKA-004",
-    "global_id": 695,
+    "global_id": 700,
     "num": 4,
     "topic": "Apache Kafka",
     "question": "Настройки топика Kafka",
@@ -7896,7 +7951,7 @@
   },
   {
     "id": "KAFKA-005",
-    "global_id": 696,
+    "global_id": 701,
     "num": 5,
     "topic": "Apache Kafka",
     "question": "Архитектура брокера",
@@ -7907,7 +7962,7 @@
   },
   {
     "id": "KAFKA-006",
-    "global_id": 697,
+    "global_id": 702,
     "num": 6,
     "topic": "Apache Kafka",
     "question": "Настройки брокера Kafka",
@@ -7918,7 +7973,7 @@
   },
   {
     "id": "KAFKA-007",
-    "global_id": 698,
+    "global_id": 703,
     "num": 7,
     "topic": "Apache Kafka",
     "question": "Архитектура продюсера",
@@ -7929,7 +7984,7 @@
   },
   {
     "id": "KAFKA-008",
-    "global_id": 699,
+    "global_id": 704,
     "num": 8,
     "topic": "Apache Kafka",
     "question": "Настройки продюсера",
@@ -7940,7 +7995,7 @@
   },
   {
     "id": "KAFKA-009",
-    "global_id": 700,
+    "global_id": 705,
     "num": 9,
     "topic": "Apache Kafka",
     "question": "Пример конфигурации Kafka Producer",
@@ -7951,7 +8006,7 @@
   },
   {
     "id": "KAFKA-010",
-    "global_id": 701,
+    "global_id": 706,
     "num": 10,
     "topic": "Apache Kafka",
     "question": "Архитектура консюмера",
@@ -7962,7 +8017,7 @@
   },
   {
     "id": "KAFKA-011",
-    "global_id": 702,
+    "global_id": 707,
     "num": 11,
     "topic": "Apache Kafka",
     "question": "Настройки консюмера",
@@ -7973,7 +8028,7 @@
   },
   {
     "id": "KAFKA-012",
-    "global_id": 703,
+    "global_id": 708,
     "num": 12,
     "topic": "Apache Kafka",
     "question": "Пример конфигурации Kafka Consumer",
@@ -7984,7 +8039,7 @@
   },
   {
     "id": "KAFKA-013",
-    "global_id": 704,
+    "global_id": 709,
     "num": 13,
     "topic": "Apache Kafka",
     "question": "Основные API Kafka",
@@ -7995,7 +8050,7 @@
   },
   {
     "id": "KAFKA-014",
-    "global_id": 705,
+    "global_id": 710,
     "num": 14,
     "topic": "Apache Kafka",
     "question": "Какова роль Producer API?",
@@ -8006,7 +8061,7 @@
   },
   {
     "id": "KAFKA-015",
-    "global_id": 706,
+    "global_id": 711,
     "num": 15,
     "topic": "Apache Kafka",
     "question": "Какова роль Consumer API?",
@@ -8017,7 +8072,7 @@
   },
   {
     "id": "KAFKA-016",
-    "global_id": 707,
+    "global_id": 712,
     "num": 16,
     "topic": "Apache Kafka",
     "question": "Какова роль Connector API?",
@@ -8028,7 +8083,7 @@
   },
   {
     "id": "KAFKA-017",
-    "global_id": 708,
+    "global_id": 713,
     "num": 17,
     "topic": "Apache Kafka",
     "question": "Какова роль Streams API?",
@@ -8039,7 +8094,7 @@
   },
   {
     "id": "KAFKA-018",
-    "global_id": 709,
+    "global_id": 714,
     "num": 18,
     "topic": "Apache Kafka",
     "question": "Какова роль Transactions API?",
@@ -8050,7 +8105,7 @@
   },
   {
     "id": "KAFKA-019",
-    "global_id": 710,
+    "global_id": 715,
     "num": 19,
     "topic": "Apache Kafka",
     "question": "Какова роль Quota API?",
@@ -8061,7 +8116,7 @@
   },
   {
     "id": "KAFKA-020",
-    "global_id": 711,
+    "global_id": 716,
     "num": 20,
     "topic": "Apache Kafka",
     "question": "Какова роль AdminClient API?",
@@ -8072,7 +8127,7 @@
   },
   {
     "id": "KAFKA-021",
-    "global_id": 712,
+    "global_id": 717,
     "num": 21,
     "topic": "Apache Kafka",
     "question": "Kafka Consumer",
@@ -8083,7 +8138,7 @@
   },
   {
     "id": "KAFKA-022",
-    "global_id": 713,
+    "global_id": 718,
     "num": 22,
     "topic": "Apache Kafka",
     "question": "Для чего нужен координатор группы?",
@@ -8094,7 +8149,7 @@
   },
   {
     "id": "KAFKA-023",
-    "global_id": 714,
+    "global_id": 719,
     "num": 23,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Consumer heartbeat thread?",
@@ -8105,7 +8160,7 @@
   },
   {
     "id": "KAFKA-024",
-    "global_id": 715,
+    "global_id": 720,
     "num": 24,
     "topic": "Apache Kafka",
     "question": "Как Kafka обрабатывает сообщения?",
@@ -8116,7 +8171,7 @@
   },
   {
     "id": "KAFKA-025",
-    "global_id": 716,
+    "global_id": 721,
     "num": 25,
     "topic": "Apache Kafka",
     "question": "Как Kafka обрабатывает задержку консюмера?",
@@ -8127,7 +8182,7 @@
   },
   {
     "id": "KAFKA-026",
-    "global_id": 717,
+    "global_id": 722,
     "num": 26,
     "topic": "Apache Kafka",
     "question": "Для чего нужны методы subscribe() и poll()?",
@@ -8138,7 +8193,7 @@
   },
   {
     "id": "KAFKA-027",
-    "global_id": 718,
+    "global_id": 723,
     "num": 27,
     "topic": "Apache Kafka",
     "question": "Для чего нужен метод position()?",
@@ -8149,7 +8204,7 @@
   },
   {
     "id": "KAFKA-028",
-    "global_id": 719,
+    "global_id": 724,
     "num": 28,
     "topic": "Apache Kafka",
     "question": "Для чего нужны методы commitSync() и commitAsync()?",
@@ -8160,7 +8215,7 @@
   },
   {
     "id": "KAFKA-029",
-    "global_id": 720,
+    "global_id": 725,
     "num": 29,
     "topic": "Apache Kafka",
     "question": "Другие вопросы",
@@ -8171,7 +8226,7 @@
   },
   {
     "id": "KAFKA-030",
-    "global_id": 721,
+    "global_id": 726,
     "num": 30,
     "topic": "Apache Kafka",
     "question": "Для чего нужен идемпотентный продюсер?",
@@ -8182,7 +8237,7 @@
   },
   {
     "id": "KAFKA-031",
-    "global_id": 722,
+    "global_id": 727,
     "num": 31,
     "topic": "Apache Kafka",
     "question": "Для чего нужен интерфейс Partitioner?",
@@ -8193,7 +8248,7 @@
   },
   {
     "id": "KAFKA-032",
-    "global_id": 723,
+    "global_id": 728,
     "num": 32,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Broker log cleaner thread?",
@@ -8204,7 +8259,7 @@
   },
   {
     "id": "KAFKA-033",
-    "global_id": 724,
+    "global_id": 729,
     "num": 33,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Kafka Mirror Maker?",
@@ -8215,7 +8270,7 @@
   },
   {
     "id": "KAFKA-034",
-    "global_id": 725,
+    "global_id": 730,
     "num": 34,
     "topic": "Apache Kafka",
     "question": "Для чего нужна Schema Registry?",
@@ -8226,7 +8281,7 @@
   },
   {
     "id": "KAFKA-035",
-    "global_id": 726,
+    "global_id": 731,
     "num": 35,
     "topic": "Apache Kafka",
     "question": "Для чего нужен Streams DSL?",
@@ -8237,7 +8292,7 @@
   },
   {
     "id": "KAFKA-036",
-    "global_id": 727,
+    "global_id": 732,
     "num": 36,
     "topic": "Apache Kafka",
     "question": "Как Kafka обеспечивает версионирование сообщений?",
@@ -8248,7 +8303,7 @@
   },
   {
     "id": "KAFKA-037",
-    "global_id": 728,
+    "global_id": 733,
     "num": 37,
     "topic": "Apache Kafka",
     "question": "Как потребители получают сообщения от брокера?",
@@ -8259,7 +8314,7 @@
   },
   {
     "id": "KAFKA-038",
-    "global_id": 729,
+    "global_id": 734,
     "num": 38,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka Streams и Apache Flink?",
@@ -8270,7 +8325,7 @@
   },
   {
     "id": "KAFKA-039",
-    "global_id": 730,
+    "global_id": 735,
     "num": 39,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka Consumer и Kafka Stream?",
@@ -8281,7 +8336,7 @@
   },
   {
     "id": "KAFKA-040",
-    "global_id": 731,
+    "global_id": 736,
     "num": 40,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka и Flume?",
@@ -8292,7 +8347,7 @@
   },
   {
     "id": "KAFKA-041",
-    "global_id": 732,
+    "global_id": 737,
     "num": 41,
     "topic": "Apache Kafka",
     "question": "В чем разница между Kafka и RabbitMQ?",
@@ -8303,7 +8358,7 @@
   },
   {
     "id": "TEST-001",
-    "global_id": 733,
+    "global_id": 738,
     "num": 1,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«модульное тестирование»_?",
@@ -8314,7 +8369,7 @@
   },
   {
     "id": "TEST-002",
-    "global_id": 734,
+    "global_id": 739,
     "num": 2,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«интеграционное тестирование»_?",
@@ -8325,7 +8380,7 @@
   },
   {
     "id": "TEST-003",
-    "global_id": 735,
+    "global_id": 740,
     "num": 3,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Чем интеграционное тестирование отличается от модульного?",
@@ -8336,7 +8391,7 @@
   },
   {
     "id": "TEST-004",
-    "global_id": 736,
+    "global_id": 741,
     "num": 4,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Какие существуют виды тестовых объектов?",
@@ -8347,7 +8402,7 @@
   },
   {
     "id": "TEST-005",
-    "global_id": 737,
+    "global_id": 742,
     "num": 5,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Чем _stub_ отличается от _mock_?",
@@ -8358,7 +8413,7 @@
   },
   {
     "id": "TEST-006",
-    "global_id": 738,
+    "global_id": 743,
     "num": 6,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Что такое _«фикстуры»_?",
@@ -8369,7 +8424,7 @@
   },
   {
     "id": "TEST-007",
-    "global_id": 739,
+    "global_id": 744,
     "num": 7,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Какие аннотации фикстур существуют в JUnit?",
@@ -8380,7 +8435,7 @@
   },
   {
     "id": "TEST-008",
-    "global_id": 740,
+    "global_id": 745,
     "num": 8,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Для чего в JUnit используется аннотация `@Ignore`?",
@@ -8391,7 +8446,7 @@
   },
   {
     "id": "TEST-009",
-    "global_id": 741,
+    "global_id": 746,
     "num": 9,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Развязывание Legacy-зависимостей: Subclass and Override Method Seam (Middle / Senior)",
@@ -8407,7 +8462,7 @@
   },
   {
     "id": "TEST-010",
-    "global_id": 742,
+    "global_id": 747,
     "num": 10,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Approval / Golden Master тестирование запутанного Legacy-кода (Gilded Rose) (Senior)",
@@ -8423,7 +8478,7 @@
   },
   {
     "id": "TEST-011",
-    "global_id": 743,
+    "global_id": 748,
     "num": 11,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Миграция на @MockitoBean в Spring Boot 3.4+ и Bean Override Framework (Senior)",
@@ -8439,7 +8494,7 @@
   },
   {
     "id": "TEST-012",
-    "global_id": 744,
+    "global_id": 749,
     "num": 12,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Testcontainers + @ServiceConnection для PostgreSQL и Redis без DynamicPropertyRegistry (Senior)",
@@ -8455,7 +8510,7 @@
   },
   {
     "id": "TEST-013",
-    "global_id": 745,
+    "global_id": 750,
     "num": 13,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Архитектурный контроль слоев и циклов с помощью ArchUnit (Lead)",
@@ -8471,7 +8526,7 @@
   },
   {
     "id": "TEST-014",
-    "global_id": 746,
+    "global_id": 751,
     "num": 14,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Overloaded Constructor Seam для изоляции SystemClock и ФС (Middle)",
@@ -8487,7 +8542,7 @@
   },
   {
     "id": "TEST-015",
-    "global_id": 747,
+    "global_id": 752,
     "num": 15,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: JUnit 5: Комплексные матрицы валидации через @ParameterizedTest и @MethodSource (Middle)",
@@ -8503,7 +8558,7 @@
   },
   {
     "id": "TEST-016",
-    "global_id": 748,
+    "global_id": 753,
     "num": 16,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: JUnit 5: Динамические графы состояний через @TestFactory (Senior)",
@@ -8519,7 +8574,7 @@
   },
   {
     "id": "TEST-017",
-    "global_id": 749,
+    "global_id": 754,
     "num": 17,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: JUnit 5: Пользовательские расширения (Extensions) для ThreadLocal изоляции (Senior)",
@@ -8535,7 +8590,7 @@
   },
   {
     "id": "TEST-018",
-    "global_id": 750,
+    "global_id": 755,
     "num": 18,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: JUnit 5: Иерархические спецификации поведения с @Nested и @DisplayName (Middle)",
@@ -8551,7 +8606,7 @@
   },
   {
     "id": "TEST-019",
-    "global_id": 751,
+    "global_id": 756,
     "num": 19,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Mockito 5: Хронологическая верификация InOrder и ArgumentCaptor (Senior)",
@@ -8567,7 +8622,7 @@
   },
   {
     "id": "TEST-020",
-    "global_id": 752,
+    "global_id": 757,
     "num": 20,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Mockito 5: Подмена статических методов через try-with-resources mockStatic (Senior)",
@@ -8583,7 +8638,7 @@
   },
   {
     "id": "TEST-021",
-    "global_id": 753,
+    "global_id": 758,
     "num": 21,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Mockito 5: Имитация повторных попыток через цепочки thenThrow().thenReturn() (Middle)",
@@ -8599,7 +8654,7 @@
   },
   {
     "id": "TEST-022",
-    "global_id": 754,
+    "global_id": 759,
     "num": 22,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Срезовые тесты веб-слоя: @WebMvcTest + MockMvc + Problem Details (RFC 7807) (Senior)",
@@ -8615,7 +8670,7 @@
   },
   {
     "id": "TEST-023",
-    "global_id": 755,
+    "global_id": 760,
     "num": 23,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Срезовые тесты персистентного слоя: @DataJpaTest + TestEntityManager (Senior)",
@@ -8631,7 +8686,7 @@
   },
   {
     "id": "TEST-024",
-    "global_id": 756,
+    "global_id": 761,
     "num": 24,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Интеграционное тестирование кэширования: Redis Testcontainers + TTL (Senior)",
@@ -8647,7 +8702,7 @@
   },
   {
     "id": "TEST-025",
-    "global_id": 757,
+    "global_id": 762,
     "num": 25,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: ArchUnit: Контроль соглашений наименований и пакетов классов (Lead)",
@@ -8663,7 +8718,7 @@
   },
   {
     "id": "TEST-026",
-    "global_id": 758,
+    "global_id": 763,
     "num": 26,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: ArchUnit: Заморозка архитектурного долга через FreezingArchRule (Lead)",
@@ -8679,7 +8734,7 @@
   },
   {
     "id": "TEST-027",
-    "global_id": 759,
+    "global_id": 764,
     "num": 27,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Pitest Мутационное тестирование: Настройка мутаторов и расчет Mutation Score (Senior)",
@@ -8695,7 +8750,7 @@
   },
   {
     "id": "TEST-028",
-    "global_id": 760,
+    "global_id": 765,
     "num": 28,
     "topic": "Тестирование (JUnit, Mockito)",
     "question": "Ката-задача: Pitest: Анализ критичности выживших мутантов Negated Conditionals и Void Calls (Lead)",
@@ -8711,7 +8766,7 @@
   },
   {
     "id": "LOG-001",
-    "global_id": 761,
+    "global_id": 766,
     "num": 1,
     "topic": "Журналирование (Logging)",
     "question": "Какие существуют типы логов?",
@@ -8722,7 +8777,7 @@
   },
   {
     "id": "LOG-002",
-    "global_id": 762,
+    "global_id": 767,
     "num": 2,
     "topic": "Журналирование (Logging)",
     "question": "Из каких частей состоит система журналирования log4j?",
@@ -8733,7 +8788,7 @@
   },
   {
     "id": "LOG-003",
-    "global_id": 763,
+    "global_id": 768,
     "num": 3,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Logger_ в log4j?",
@@ -8744,7 +8799,7 @@
   },
   {
     "id": "LOG-004",
-    "global_id": 764,
+    "global_id": 769,
     "num": 4,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Appender_ в log4j?",
@@ -8755,7 +8810,7 @@
   },
   {
     "id": "LOG-005",
-    "global_id": 765,
+    "global_id": 770,
     "num": 5,
     "topic": "Журналирование (Logging)",
     "question": "Что такое _Layout_ в log4j?",
@@ -8766,7 +8821,7 @@
   },
   {
     "id": "LOG-006",
-    "global_id": 766,
+    "global_id": 771,
     "num": 6,
     "topic": "Журналирование (Logging)",
     "question": "Перечислите уровни журналирования в log4j? Назовите порядок их приоритетности.",
@@ -8777,7 +8832,7 @@
   },
   {
     "id": "LOG-007",
-    "global_id": 767,
+    "global_id": 772,
     "num": 7,
     "topic": "Журналирование (Logging)",
     "question": "Какие существуют способы конфигурирования log4j?",
@@ -8788,7 +8843,7 @@
   },
   {
     "id": "XML-001",
-    "global_id": 768,
+    "global_id": 773,
     "num": 1,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _XML_?",
@@ -8799,7 +8854,7 @@
   },
   {
     "id": "XML-002",
-    "global_id": 769,
+    "global_id": 774,
     "num": 2,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _DTD_?",
@@ -8810,7 +8865,7 @@
   },
   {
     "id": "XML-003",
-    "global_id": 770,
+    "global_id": 775,
     "num": 3,
     "topic": "XML & JSON Парсеры",
     "question": "Чем _well-formed XML_ отличается от _valid XML_?",
@@ -8821,7 +8876,7 @@
   },
   {
     "id": "XML-004",
-    "global_id": 771,
+    "global_id": 776,
     "num": 4,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое «_пространство имен_» в XML?",
@@ -8832,7 +8887,7 @@
   },
   {
     "id": "XML-005",
-    "global_id": 772,
+    "global_id": 777,
     "num": 5,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое XSD? В чём его преимущества перед XML DTD?",
@@ -8843,7 +8898,7 @@
   },
   {
     "id": "XML-006",
-    "global_id": 773,
+    "global_id": 778,
     "num": 6,
     "topic": "XML & JSON Парсеры",
     "question": "Какие типы существуют в XSD?",
@@ -8854,7 +8909,7 @@
   },
   {
     "id": "XML-007",
-    "global_id": 774,
+    "global_id": 779,
     "num": 7,
     "topic": "XML & JSON Парсеры",
     "question": "Какие вы знаете методы чтения XML? Опишите сильные и слабые стороны каждого метода.",
@@ -8865,7 +8920,7 @@
   },
   {
     "id": "XML-008",
-    "global_id": 775,
+    "global_id": 780,
     "num": 8,
     "topic": "XML & JSON Парсеры",
     "question": "Когда следует использовать _DOM_, а когда _SAX_, _StAX_ анализаторы?",
@@ -8876,7 +8931,7 @@
   },
   {
     "id": "XML-009",
-    "global_id": 776,
+    "global_id": 781,
     "num": 9,
     "topic": "XML & JSON Парсеры",
     "question": "Какие вы знаете способы записи XML?",
@@ -8887,7 +8942,7 @@
   },
   {
     "id": "XML-010",
-    "global_id": 777,
+    "global_id": 782,
     "num": 10,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _JAXP_?",
@@ -8898,7 +8953,7 @@
   },
   {
     "id": "XML-011",
-    "global_id": 778,
+    "global_id": 783,
     "num": 11,
     "topic": "XML & JSON Парсеры",
     "question": "Что такое _XSLT_?",
@@ -8909,7 +8964,7 @@
   },
   {
     "id": "UML-001",
-    "global_id": 779,
+    "global_id": 784,
     "num": 1,
     "topic": "UML Диаграммы",
     "question": "Что такое _UML_?",
@@ -8920,7 +8975,7 @@
   },
   {
     "id": "UML-002",
-    "global_id": 780,
+    "global_id": 785,
     "num": 2,
     "topic": "UML Диаграммы",
     "question": "Что такое _«диаграмма»_, _«нотация»_ и _«метамодель»_ в UML?",
@@ -8931,7 +8986,7 @@
   },
   {
     "id": "UML-003",
-    "global_id": 781,
+    "global_id": 786,
     "num": 3,
     "topic": "UML Диаграммы",
     "question": "Какие существуют типы диаграмм?",
@@ -8942,7 +8997,7 @@
   },
   {
     "id": "UML-004",
-    "global_id": 782,
+    "global_id": 787,
     "num": 4,
     "topic": "UML Диаграммы",
     "question": "Структурные диаграммы:",
@@ -8953,7 +9008,7 @@
   },
   {
     "id": "UML-005",
-    "global_id": 783,
+    "global_id": 788,
     "num": 5,
     "topic": "UML Диаграммы",
     "question": "Диаграммы поведения:",
@@ -8964,7 +9019,7 @@
   },
   {
     "id": "UML-006",
-    "global_id": 784,
+    "global_id": 789,
     "num": 6,
     "topic": "UML Диаграммы",
     "question": "Какие виды отношений существуют в структурной диаграмме классов?",
@@ -8975,7 +9030,7 @@
   },
   {
     "id": "UML-007",
-    "global_id": 785,
+    "global_id": 790,
     "num": 7,
     "topic": "UML Диаграммы",
     "question": "Взаимосвязи классов",
@@ -8986,7 +9041,7 @@
   },
   {
     "id": "UML-008",
-    "global_id": 786,
+    "global_id": 791,
     "num": 8,
     "topic": "UML Диаграммы",
     "question": "Взаимосвязи объектов классов",
@@ -8997,7 +9052,7 @@
   },
   {
     "id": "UML-009",
-    "global_id": 787,
+    "global_id": 792,
     "num": 9,
     "topic": "UML Диаграммы",
     "question": "#Общие взаимосвязи",
@@ -9008,7 +9063,7 @@
   },
   {
     "id": "HTML-001",
-    "global_id": 788,
+    "global_id": 793,
     "num": 1,
     "topic": "Основы HTML",
     "question": "Что такое _«HTML»_?",
@@ -9019,7 +9074,7 @@
   },
   {
     "id": "HTML-002",
-    "global_id": 789,
+    "global_id": 794,
     "num": 2,
     "topic": "Основы HTML",
     "question": "Что такое _«XHTML»_?",
@@ -9030,7 +9085,7 @@
   },
   {
     "id": "HTML-003",
-    "global_id": 790,
+    "global_id": 795,
     "num": 3,
     "topic": "Основы HTML",
     "question": "Что такое `DOCTYPE` и зачем он нужен?",
@@ -9041,7 +9096,7 @@
   },
   {
     "id": "HTML-004",
-    "global_id": 791,
+    "global_id": 796,
     "num": 4,
     "topic": "Основы HTML",
     "question": "Для чего предназначен тег `<head>`?",
@@ -9052,7 +9107,7 @@
   },
   {
     "id": "HTML-005",
-    "global_id": 792,
+    "global_id": 797,
     "num": 5,
     "topic": "Основы HTML",
     "question": "Чем отличается `<div>` от `<span>`?",
@@ -9063,7 +9118,7 @@
   },
   {
     "id": "HTML-006",
-    "global_id": 793,
+    "global_id": 798,
     "num": 6,
     "topic": "Основы HTML",
     "question": "Как обозначаются комментарии в HTML?",
@@ -9074,7 +9129,7 @@
   },
   {
     "id": "HTML-007",
-    "global_id": 794,
+    "global_id": 799,
     "num": 7,
     "topic": "Основы HTML",
     "question": "Каким образом задаётся адрес документа, на который следует перейти?",
@@ -9085,7 +9140,7 @@
   },
   {
     "id": "HTML-008",
-    "global_id": 795,
+    "global_id": 800,
     "num": 8,
     "topic": "Основы HTML",
     "question": "Как сделать ссылку на адрес электронной почты?",
@@ -9096,7 +9151,7 @@
   },
   {
     "id": "HTML-009",
-    "global_id": 796,
+    "global_id": 801,
     "num": 9,
     "topic": "Основы HTML",
     "question": "Для чего предназначен тег `<em>`?",
@@ -9107,7 +9162,7 @@
   },
   {
     "id": "HTML-010",
-    "global_id": 797,
+    "global_id": 802,
     "num": 10,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<ol>`, `<ul>`, `<li>`?",
@@ -9118,7 +9173,7 @@
   },
   {
     "id": "HTML-011",
-    "global_id": 798,
+    "global_id": 803,
     "num": 11,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<dl>`, `<dt>`, `<dd>`?",
@@ -9129,7 +9184,7 @@
   },
   {
     "id": "HTML-012",
-    "global_id": 799,
+    "global_id": 804,
     "num": 12,
     "topic": "Основы HTML",
     "question": "Для чего предназначены теги `<tr>`, `<th>`, `<td>`?",
@@ -9140,7 +9195,7 @@
   },
   {
     "id": "HTML-013",
-    "global_id": 800,
+    "global_id": 805,
     "num": 13,
     "topic": "Основы HTML",
     "question": "Обязательно ли писать атрибут `alt` в теге `<img>`?",
@@ -9151,7 +9206,7 @@
   },
   {
     "id": "HTML-014",
-    "global_id": 801,
+    "global_id": 806,
     "num": 14,
     "topic": "Основы HTML",
     "question": "В каком регистре лучше писать HTML-код?",
@@ -9162,7 +9217,7 @@
   },
   {
     "id": "HTML-015",
-    "global_id": 802,
+    "global_id": 807,
     "num": 15,
     "topic": "Основы HTML",
     "question": "Что такое «мнемоника (entity)»?",
@@ -9173,7 +9228,7 @@
   },
   {
     "id": "CSS-001",
-    "global_id": 803,
+    "global_id": 808,
     "num": 1,
     "topic": "Основы CSS",
     "question": "Что такое _«CSS»_?",
@@ -9184,7 +9239,7 @@
   },
   {
     "id": "CSS-002",
-    "global_id": 804,
+    "global_id": 809,
     "num": 2,
     "topic": "Основы CSS",
     "question": "Как в CSS обозначаются комментарии?",
@@ -9195,7 +9250,7 @@
   },
   {
     "id": "CSS-003",
-    "global_id": 805,
+    "global_id": 810,
     "num": 3,
     "topic": "Основы CSS",
     "question": "Что такое _«селектор»_?",
@@ -9206,7 +9261,7 @@
   },
   {
     "id": "CSS-004",
-    "global_id": 806,
+    "global_id": 811,
     "num": 4,
     "topic": "Основы CSS",
     "question": "Перечислите основные виды селекторов.",
@@ -9217,7 +9272,7 @@
   },
   {
     "id": "CSS-005",
-    "global_id": 807,
+    "global_id": 812,
     "num": 5,
     "topic": "Основы CSS",
     "question": "Что такое псевдокласс?",
@@ -9228,7 +9283,7 @@
   },
   {
     "id": "CSS-006",
-    "global_id": 808,
+    "global_id": 813,
     "num": 6,
     "topic": "Основы CSS",
     "question": "Какие существуют селекторы аттрибутов?",
@@ -9239,7 +9294,7 @@
   },
   {
     "id": "CSS-007",
-    "global_id": 809,
+    "global_id": 814,
     "num": 7,
     "topic": "Основы CSS",
     "question": "В чем разница между `#my` и `.my`?",
@@ -9250,7 +9305,7 @@
   },
   {
     "id": "CSS-008",
-    "global_id": 810,
+    "global_id": 815,
     "num": 8,
     "topic": "Основы CSS",
     "question": "В чем разница между `margin` и `padding`?",
@@ -9261,7 +9316,7 @@
   },
   {
     "id": "CSS-009",
-    "global_id": 811,
+    "global_id": 816,
     "num": 9,
     "topic": "Основы CSS",
     "question": "В чем заключается разница между значениями `0` и `auto` в свойстве `margin`?",
@@ -9272,7 +9327,7 @@
   },
   {
     "id": "CSS-010",
-    "global_id": 812,
+    "global_id": 817,
     "num": 10,
     "topic": "Основы CSS",
     "question": "Какое свойство задает цвет фона?",
@@ -9283,7 +9338,7 @@
   },
   {
     "id": "CSS-011",
-    "global_id": 813,
+    "global_id": 818,
     "num": 11,
     "topic": "Основы CSS",
     "question": "Как убрать подчеркивание для всех ссылок на странице?",
@@ -9294,7 +9349,7 @@
   },
   {
     "id": "CSS-012",
-    "global_id": 814,
+    "global_id": 819,
     "num": 12,
     "topic": "Основы CSS",
     "question": "Для чего используется свойство `clear`?",
@@ -9305,7 +9360,7 @@
   },
   {
     "id": "CSS-013",
-    "global_id": 815,
+    "global_id": 820,
     "num": 13,
     "topic": "Основы CSS",
     "question": "Как сделать жирным текст во всех элементах `<p>`?",
@@ -9316,7 +9371,7 @@
   },
   {
     "id": "CSS-014",
-    "global_id": 816,
+    "global_id": 821,
     "num": 14,
     "topic": "Основы CSS",
     "question": "Как задать красный цвет для всех элементов, имеющих класс `red`?",
