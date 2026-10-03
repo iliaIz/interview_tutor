@@ -5,6 +5,7 @@ import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
+import { MutantResult } from '../../../types/practice';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -278,10 +279,10 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       mutationText = `⚠️ [PITest Baseline Failed]: Тесты не прошли на исходном коде: ${latestMutationResult.error || 'ошибка'}`;
     } else if (!latestMutationResult.passedThreshold) {
       mutationText = `⚠️ [РЕЗУЛЬТАТЫ PITest]: Скор ${latestMutationResult.mutationScore.toFixed(0)}% (порог >= ${latestMutationResult.requiredScore}%). Выжило мутантов: ${latestMutationResult.survivedCount} из ${latestMutationResult.totalMutants}.`;
-      if (latestMutationResult.mutants && latestMutationResult.mutants.length > 0) {
-        const survived = latestMutationResult.mutants.filter(m => m.status === 'SURVIVED').slice(0, 3);
+      if (latestMutationResult.mutantResults && latestMutationResult.mutantResults.length > 0) {
+        const survived = latestMutationResult.mutantResults.filter((m: MutantResult) => m.status === 'SURVIVED').slice(0, 3);
         if (survived.length > 0) {
-          mutationText += '\nВыжившие мутанты:\n' + survived.map(m => `• Строка ${m.lineNumber}: ${m.mutatorName} (${m.description})`).join('\n');
+          mutationText += '\nВыжившие мутанты:\n' + survived.map((m: MutantResult) => `• Строка ${m.line}: ${m.name} (${m.description || m.mutatorType || 'мутация'})`).join('\n');
         }
       }
     } else {

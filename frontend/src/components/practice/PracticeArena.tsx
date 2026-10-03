@@ -64,14 +64,12 @@ export const PracticeArena: React.FC = () => {
                 setIsVoiceDefenseOpen(false);
                 setActiveVoiceDefenseScenario(null);
               }}
+              questionId={activeVoiceDefenseScenario.id}
               topic={`Spring Transactions: ${activeVoiceDefenseScenario.title}`}
               currentQuestionText={voiceDefenseQuestion || activeVoiceDefenseScenario.title}
               referenceAnswer={activeVoiceDefenseScenario.problemStatement}
               initialSessionType="tutor"
               initialTutorMode="practice_pair"
-              challengeCategory="Spring Transactions"
-              challengeTrack="spring_transactions"
-              scenarioId={activeVoiceDefenseScenario.id}
             />
           )}
         </div>
