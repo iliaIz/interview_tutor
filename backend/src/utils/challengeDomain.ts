@@ -1,4 +1,4 @@
-export type ChallengeDomain = 'lld' | 'transactions' | 'concurrency' | 'testing';
+export type ChallengeDomain = 'lld' | 'transactions' | 'concurrency' | 'testing' | 'refactoring' | 'java21';
 
 export interface ChallengeDomainQuery {
   category?: string | null;
@@ -18,13 +18,39 @@ export function getChallengeDomain(query: ChallengeDomainQuery): ChallengeDomain
   const combined = [category, track, slug].filter(Boolean).join(' ');
 
   if (
-    combined.includes('lld') ||
-    combined.includes('machine_coding') ||
-    combined.includes('architecture') ||
-    combined.includes('solid') ||
-    combined.includes('refactoring_kata')
+    combined.includes('refactoring') ||
+    combined.includes('legacy') ||
+    combined.includes('seam') ||
+    combined.includes('gilded_rose') ||
+    combined.includes('gilded-rose') ||
+    combined.includes('trip_service') ||
+    combined.includes('trip-service')
   ) {
-    return 'lld';
+    return 'refactoring';
+  }
+
+  if (
+    combined.includes('java21') ||
+    combined.includes('java_21') ||
+    combined.includes('java-21') ||
+    combined.includes('pattern_matching') ||
+    combined.includes('record_pattern') ||
+    combined.includes('sealed')
+  ) {
+    return 'java21';
+  }
+
+  if (
+    combined.includes('concurrency') ||
+    combined.includes('deadlock') ||
+    combined.includes('race_condition') ||
+    combined.includes('thread') ||
+    combined.includes('atomic') ||
+    combined.includes('lock') ||
+    combined.includes('loom') ||
+    combined.includes('disruptor')
+  ) {
+    return 'concurrency';
   }
 
   if (
@@ -39,14 +65,12 @@ export function getChallengeDomain(query: ChallengeDomainQuery): ChallengeDomain
   }
 
   if (
-    combined.includes('concurrency') ||
-    combined.includes('deadlock') ||
-    combined.includes('race_condition') ||
-    combined.includes('thread') ||
-    combined.includes('atomic') ||
-    combined.includes('lock')
+    combined.includes('lld') ||
+    combined.includes('machine_coding') ||
+    combined.includes('architecture') ||
+    combined.includes('solid')
   ) {
-    return 'concurrency';
+    return 'lld';
   }
 
   return 'testing';

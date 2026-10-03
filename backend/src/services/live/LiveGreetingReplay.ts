@@ -152,10 +152,20 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         });
         const isLld = domain === 'lld';
         const isTx = domain === 'transactions';
+        const isConcurrency = domain === 'concurrency';
+        const isRefactoring = domain === 'refactoring';
+        const isJava21 = domain === 'java21';
+
         if (isLld) {
           greetingText = `Привет! Я готов к проектированию архитектуры задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и спроси, с каких интерфейсов или доменной модели начнем проектирование. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
         } else if (isTx) {
           greetingText = `Привет! Я разбираю сценарий транзакций «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи разобрать уровни изоляции и поведение БД. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
+        } else if (isConcurrency) {
+          greetingText = `Привет! Я разбираю многопоточную задачу «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи обсудить виртуальные потоки Loom, гонки данных или блокировки. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
+        } else if (isRefactoring) {
+          greetingText = `Привет! Я рефакторю легаси-код задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и спроси, с каких швов (Seams) или тестов начнем рефакторинг. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
+        } else if (isJava21) {
+          greetingText = `Привет! Я изучаю современные идиомы Java 21 LTS в задаче «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи обсудить Pattern Matching, Records или sealed-типы. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
         } else {
           greetingText = `Привет! Я готов к разбору задачи «${bugTitle || questionText || topic}». Поприветствуй меня в 1 коротком предложении и предложи обсудить граничные случаи или план решения. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
         }

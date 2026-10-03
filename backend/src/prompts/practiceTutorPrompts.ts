@@ -82,6 +82,29 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
 
   const isTx = cat.includes('transaction');
 
+  const isConcurrency =
+    cat.includes('concurrency') ||
+    cat.includes('deadlock') ||
+    cat.includes('loom') ||
+    tit.includes('thread') ||
+    tit.includes('atomic') ||
+    tit.includes('lock') ||
+    tit.includes('disruptor');
+
+  const isRefactoring =
+    cat.includes('refactoring') ||
+    cat.includes('legacy') ||
+    cat.includes('seam') ||
+    tit.includes('gilded') ||
+    tit.includes('trip service');
+
+  const isJava21 =
+    cat.includes('java21') ||
+    cat.includes('java 21') ||
+    tit.includes('pattern') ||
+    tit.includes('record') ||
+    tit.includes('sealed');
+
   // 1. Persona Directives (Domain-Adaptive with Epistemic Rigor)
   let personaDirectives = '';
   if (isLld) {
@@ -144,6 +167,27 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
 - БЕСПРИСТРАСТНОСТЬ: Кандидат обязан четко понимать, когда транзакция открывается, а когда вызов идет мимо прокси. Ошибки в изоляции и блокировках маркируй сразу.`;
         break;
     }
+  } else if (isConcurrency) {
+    personaDirectives = `
+РОЛЬ: HIGH-LOAD & CONCURRENCY НАСТАВНИК (Project Loom & Multithreading).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Обращай внимание на пиннинг потоков-носителей (Carrier Pinning) из-за synchronized в виртуальных потоках.
+- Анализируй видимость по JMM, гонки данных, CAS-операции, StampedLock и предотвращение дедлоков.
+- БЕСПРИСТРАСТНОСТЬ: Пресекай неатомарные операции и использование Thread.sleep() в тестах.`;
+  } else if (isRefactoring) {
+    personaDirectives = `
+РОЛЬ: ЭКСПЕРТ ПО РЕФАКТОРИНГУ ЛЕГАСИ-КОДА (Feathers Seams & Clean Code).
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Направляй на создание «швов» (Seams) и Characterization-тестов перед изменением логики.
+- Помогай устранять запахи кода: заменять длинные if-else полиморфизмом, декомпозировать God-классы.
+- БЕСПРИСТРАСТНОСТЬ: Не позволяй менять внешнее поведение или удалять тесты при рефакторинге.`;
+  } else if (isJava21) {
+    personaDirectives = `
+РОЛЬ: ЭКСПЕРТ ПО СОВРЕМЕННЫМ ИДИОМАМ JAVA 21 LTS.
+ПЕДАГОГИЧЕСКАЯ СТРАТЕГИЯ:
+- Помогай использовать исчерпывающий Pattern Matching для switch, Record Patterns и sealed-иерархии.
+- Подсказывай чистые современные конструкции вместо устаревшего кода Java 8/11.
+- БЕСПРИСТРАСТНОСТЬ: Указывай на избыточные default в исчерпывающих switch и неидиоматичный стиль.`;
   } else {
     // Testing & Mutation Katas
     switch (persona) {
@@ -265,6 +309,12 @@ ${m.mutatedContent}
     roleSummary = `Ты — интеллектуальный наставник и парный архитектор (AI Pair-Programming LLD Architect) по низкоуровневому проектированию, чистой архитектуре, структурам данных и потокобезопасности на Java 21 LTS.`;
   } else if (isTx) {
     roleSummary = `Ты — эксперт по транзакциям Spring Boot, уровням изоляции и базам данных.`;
+  } else if (isConcurrency) {
+    roleSummary = `Ты — эксперт по high-load, многопоточности, Project Loom (Virtual Threads) и неблокирующим алгоритмам на Java 21 LTS.`;
+  } else if (isRefactoring) {
+    roleSummary = `Ты — эксперт по рефакторингу легаси-кода, созданию швов по Майклу Физерсу, characterization-тестам и устранению запахов кода.`;
+  } else if (isJava21) {
+    roleSummary = `Ты — эксперт по современным идиомам и архитектурным возможностям Java 21 LTS (Pattern Matching, Records, Sealed Types).`;
   }
 
   return `

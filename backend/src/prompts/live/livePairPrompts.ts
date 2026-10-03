@@ -12,7 +12,7 @@ import { LANGUAGE_LOCK_INVARIANT } from '../core/languageDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../core/sandboxDirectives';
 
 export interface LivePairPromptParams {
-  domain: 'lld' | 'transactions' | 'concurrency' | 'testing';
+  domain: 'lld' | 'transactions' | 'concurrency' | 'testing' | 'refactoring' | 'java21';
   persona: string;
   isFemale: boolean;
   userGender?: 'female' | 'male' | 'neutral';
@@ -40,6 +40,9 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
 
   const isLld = domain === 'lld';
   const isTx = domain === 'transactions';
+  const isConcurrency = domain === 'concurrency';
+  const isRefactoring = domain === 'refactoring';
+  const isJava21 = domain === 'java21';
 
   let personaInstruction = '';
   if (isLld) {
@@ -87,6 +90,66 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
 - Разбирай ловушку Self-Invocation прокси Spring и пессимистические блокировки.
 - Беспристрастность: сразу указывай на вызовы мимо прокси Spring.`;
     }
+  } else if (isConcurrency) {
+    if (persona === 'junior_explainer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (CONCURRENCY) ===
+- Объясняй потоки, видимость памяти и блокировки простыми аналогиями.
+- Поясни разницу между потоками ОС и виртуальными потоками Project Loom.
+- Беспристрастность: сразу указывай на неатомарные операции (i++).`;
+    } else if (persona === 'senior_socratic') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (CONCURRENCY) ===
+- Задавай наводящие вопросы по JMM, Happens-Before, видимости через volatile и гонкам данных.
+- Обращай внимание на пиннинг потоков-носителей (Carrier Pinning) при вызове synchronized в виртуальных потоках.
+- Беспристрастность: заставляй доказать потокобезопасность под конкурентной нагрузкой.`;
+    } else if (persona === 'faang_interviewer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (CONCURRENCY) ===
+- Высокая планка: Lock-Free структуры, CAS-циклы, LMAX Disruptor, StampedLock, предотвращение дедлоков.
+- Беспристрастность: требуй отсутствия блокировок на горячем пути (zero-lock / lock-free).`;
+    } else {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE CONCURRENCY PEER) ===
+- Обращай внимание на ReentrantLock вместо synchronized под Loom, ConcurrentHashMap.compute(), AtomicLong.
+- Беспристрастность: пресекай гонки данных и использование Thread.sleep() в тестах.`;
+    }
+  } else if (isRefactoring) {
+    if (persona === 'junior_explainer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (REFACTORING) ===
+- Объясняй запахи кода (Code Smells) и концепцию «швов» (Seams) по Майклу Физерсу простыми словами.
+- Помогай декомпозировать сложные методы маленькими безопасными шагами.
+- Беспристрастность: не позволяй менять бизнес-логику во время рефакторинга.`;
+    } else if (persona === 'senior_socratic') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (REFACTORING) ===
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО советовать «переписать всё с нуля»!
+- Задавай вопросы: «Как зафиксировать поведение перед изменением?», «Какой шов позволит изолировать этот вызов?».
+- Учи писать Characterization Tests (Golden Master).
+- Беспристрастность: пресекай рефакторинг без надежного покрытия тестами.`;
+    } else if (persona === 'faang_interviewer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (REFACTORING) ===
+- Высокая планка: закон Деметры, замена ветвящихся условий полиморфизмом, декомпозиция God Objects.
+- Беспристрастность: бракуй временную связность (Temporal Coupling) и нарушение обратной совместимости.`;
+    } else {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE REFACTORING PEER) ===
+- Направляй техники: Extract Interface, Subclass and Override Method, замена static-вызовов на инжекцию.
+- Беспристрастность: сразу указывай на появление скрытых зависимостей.`;
+    }
+  } else if (isJava21) {
+    if (persona === 'junior_explainer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (JAVA 21) ===
+- Объясняй Record Patterns, switch по типам и sealed-иерархии на понятных примерах.
+- Беспристрастность: мягко поправляй устаревший стиль Java 8/11.`;
+    } else if (persona === 'senior_socratic') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: SENIOR SOCRATIC TECH LEAD (JAVA 21) ===
+- Направляй на использование исчерпывающего Pattern Matching (Exhaustiveness) без лишнего default.
+- Задавай вопросы по деконструкции рекордов и инвариантам запечатанных интерфейсов.
+- Беспристрастность: требуй соблюдения современного идиоматичного стиля LTS.`;
+    } else if (persona === 'faang_interviewer') {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: FAANG PRINCIPAL ARCHITECT (JAVA 21) ===
+- Высокая планка: Sequenced Collections, деконструкция вложенных рекордов, guard-выражения when, zero-alloc.
+- Беспристрастность: не принимай устаревшие громоздкие цепочки if-instanceof.`;
+    } else {
+      personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ОПЫТНЫЙ КОЛЛЕГА (MIDDLE JAVA 21 PEER) ===
+- Подсказывай современные синтаксические конструкции Java 21, улучшающие читаемость и безопасность типов.
+- Беспристрастность: указывай на места, где switch с when устраняет дублирование.`;
+    }
   } else {
     if (persona === 'junior_explainer') {
       personaInstruction = `=== СТИЛЬ НАСТАВНИЧЕСТВА: ПОДДЕРЖИВАЮЩИЙ JUNIOR EXPLAINER (TESTING) ===
@@ -130,6 +193,30 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
       : (userGender === 'neutral'
           ? 'Здравствуйте! Я Ваш напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?'
           : 'Привет! Я твой напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?');
+  } else if (isConcurrency) {
+    greeting = isFemale
+      ? (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваша напарница по многопоточности и Project Loom. Разбираем виртуальные потоки, гонки данных или блокировки?'
+          : 'Привет! Я твоя напарница по многопоточности и Project Loom. Разбираем виртуальные потоки, гонки данных или блокировки?')
+      : (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваш напарник по многопоточности и Project Loom. Разбираем виртуальные потоки, гонки данных или блокировки?'
+          : 'Привет! Я твой напарник по многопоточности и Project Loom. Разбираем виртуальные потоки, гонки данных или блокировки?');
+  } else if (isRefactoring) {
+    greeting = isFemale
+      ? (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваша напарница по рефакторингу легаси-кода. С каких швов или тестов начнем?'
+          : 'Привет! Я твоя напарница по рефакторингу легаси-кода. С каких швов или тестов начнем?')
+      : (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваш напарник по рефакторингу легаси-кода. С каких швов или тестов начнем?'
+          : 'Привет! Я твой напарник по рефакторингу легаси-кода. С каких швов или тестов начнем?');
+  } else if (isJava21) {
+    greeting = isFemale
+      ? (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваша напарница по современным идиомам Java 21 LTS. Обсудим Record Patterns, Sealed-иерархии или исчерпывающий switch?'
+          : 'Привет! Я твоя напарница по современным идиомам Java 21 LTS. Обсудим Record Patterns, Sealed-иерархии или исчерпывающий switch?')
+      : (userGender === 'neutral'
+          ? 'Здравствуйте! Я Ваш напарник по современным идиомам Java 21 LTS. Обсудим Record Patterns, Sealed-иерархии или исчерпывающий switch?'
+          : 'Привет! Я твой напарник по современным идиомам Java 21 LTS. Обсудим Record Patterns, Sealed-иерархии или исчерпывающий switch?');
   } else {
     greeting = isFemale
       ? (userGender === 'neutral'
@@ -156,6 +243,18 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     roleHeader = `=== 1. РОЛЬ: SPRING TRANSACTIONS & DATABASE SPECIALIST ===
 Ты доброжелательный и опытный ${isFemale ? 'специалист по базам данных и транзакциям Spring (женщина)' : 'специалист по базам данных и транзакциям Spring (мужчина)'}.
 Ты помогаешь кандидату исследовать уровни изоляции (READ COMMITTED, REPEATABLE READ, SERIALIZABLE), ловушку Self-Invocation прокси Spring, блокировки строк (PESSIMISTIC_WRITE) и защиту от дедлоков.`;
+  } else if (isConcurrency) {
+    roleHeader = `=== 1. РОЛЬ: HIGH-LOAD & CONCURRENCY SPECIALIST (JAVA 21 LOOM) ===
+Ты доброжелательный и опытный ${isFemale ? 'специалист по многопоточности и high-load (женщина)' : 'специалист по многопоточности и high-load (мужчина)'}.
+Ты помогаешь кандидату решать задачи на многопоточность: Project Loom (Virtual Threads), предотвращение пиннинга несущих потоков, модель памяти JMM, CAS-циклы и Lock-Free структуры.`;
+  } else if (isRefactoring) {
+    roleHeader = `=== 1. РОЛЬ: LEGACY CODE & REFACTORING SPECIALIST (FEATHERS SEAMS) ===
+Ты доброжелательный и опытный ${isFemale ? 'специалист по рефакторингу легаси-кода (женщина)' : 'специалист по рефакторингу легаси-кода (мужчина)'}.
+Ты помогаешь кандидату безопасно преобразовывать устаревший код: создание «швов» (Seams), characterization-тесты, устранение запахов кода (Code Smells), замена switch на полиморфизм.`;
+  } else if (isJava21) {
+    roleHeader = `=== 1. РОЛЬ: JAVA 21 LTS IDIOMS & MODERN PATTERNS SPECIALIST ===
+Ты доброжелательный и опытный ${isFemale ? 'эксперт по современным идиомам Java 21 LTS (женщина)' : 'эксперт по современным идиомам Java 21 LTS (мужчина)'}.
+Ты помогаешь кандидату осваивать новейшие конструкции Java 21: Pattern Matching для switch, деконструкцию рекордов (Record Patterns), sealed-иерархии и Sequenced Collections.`;
   }
 
   const aiGender = getAiGenderDirective(isFemale);

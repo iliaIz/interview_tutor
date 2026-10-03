@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { LiveVoiceEngine } from '../audio/LiveVoiceEngine';
 import { VoiceEngineState, VoiceEngineConfig, DialogueTurnItem } from '../audio/types';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
+import { useAppStore } from '../store/useAppStore';
 
 export interface LiveAudioSessionParams {
   sessionId?: string;
@@ -105,6 +106,11 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
         optionsRef.current.onError?.(err);
       },
       onWhiteboardUpdate: (payload) => {
+        try {
+          useAppStore.getState().setWhiteboardState(payload);
+        } catch (e) {
+          console.warn('[useLiveAudioSession] Failed to update whiteboard store:', e);
+        }
         optionsRef.current.onWhiteboardUpdate?.(payload);
       },
       onChaosInjected: (payload) => {
@@ -225,6 +231,7 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
     handleBargeIn,
     sendTextMessage,
     sendCanvasDelta,
+    sendCustomFrame: (frame: any) => engineRef.current?.sendCustomFrame(frame),
     sendActionEventMessage,
     playoutManagerRef,
     handleCentralButtonClick: () => engineRef.current?.handleCentralButtonClick()

@@ -14,6 +14,9 @@ import { PracticeVoiceProvider } from './tutor/PracticeVoiceContext';
 import { AmbientVoicePill } from './tutor/AmbientVoicePill';
 import { StudioErrorBoundary } from '../StudioErrorBoundary';
 
+import { VoiceModal } from '../VoiceModal';
+import { TransactionScenario } from '../../types/transactionLab';
+
 export const PracticeArena: React.FC = () => {
   const {
     activePracticeChallenge,
@@ -33,6 +36,16 @@ export const PracticeArena: React.FC = () => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const { toggleCompass, toggleOpen: toggleTutorDrawer, isOpen: isTutorOpen } = usePracticeTutorStore();
 
+  const [activeVoiceDefenseScenario, setActiveVoiceDefenseScenario] = useState<TransactionScenario | null>(null);
+  const [voiceDefenseQuestion, setVoiceDefenseQuestion] = useState<string>('');
+  const [isVoiceDefenseOpen, setIsVoiceDefenseOpen] = useState(false);
+
+  const handleStartTransactionVoiceDefense = (scenario: TransactionScenario, question: string) => {
+    setActiveVoiceDefenseScenario(scenario);
+    setVoiceDefenseQuestion(question);
+    setIsVoiceDefenseOpen(true);
+  };
+
   if (activeTransactionLabScenarioId !== null) {
     return (
       <PracticeVoiceProvider>
@@ -40,7 +53,27 @@ export const PracticeArena: React.FC = () => {
           <TransactionLabArena
             initialScenarioId={activeTransactionLabScenarioId}
             onBack={closeTransactionLab}
+            onStartVoiceDefense={handleStartTransactionVoiceDefense}
           />
+
+          {isVoiceDefenseOpen && activeVoiceDefenseScenario && (
+            <VoiceModal
+              key={`tx_defense_${activeVoiceDefenseScenario.id}`}
+              isOpen={isVoiceDefenseOpen}
+              onClose={() => {
+                setIsVoiceDefenseOpen(false);
+                setActiveVoiceDefenseScenario(null);
+              }}
+              topic={`Spring Transactions: ${activeVoiceDefenseScenario.title}`}
+              currentQuestionText={voiceDefenseQuestion || activeVoiceDefenseScenario.title}
+              referenceAnswer={activeVoiceDefenseScenario.problemStatement}
+              initialSessionType="tutor"
+              initialTutorMode="practice_pair"
+              challengeCategory="Spring Transactions"
+              challengeTrack="spring_transactions"
+              scenarioId={activeVoiceDefenseScenario.id}
+            />
+          )}
         </div>
       </PracticeVoiceProvider>
     );

@@ -60,6 +60,7 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   const {
     isCompassOpen,
     toggleCompass,
+    toggleOpen,
     sendMessage
   } = usePracticeTutorStore();
 
@@ -121,6 +122,7 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   }, [evalResult, academyBreadcrumbContext, toggleAcademyStepProgress, setLatestTxEvaluation]);
 
   const handleAskTutorAboutRule = useCallback((ruleTitle: string, ruleSummary: string) => {
+    toggleOpen(true);
     sendMessage(
       `Разъясни подробно правило транзакций «${ruleTitle}»:\n${ruleSummary}\nКак это связано с текущим сценарием «${scenario.title}»?`,
       {
@@ -132,7 +134,7 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         activeFileContent: scenario.services.map((s) => s.methods.map((m) => m.codeSnippet).join('\n')).join('\n')
       }
     );
-  }, [scenario, sendMessage]);
+  }, [scenario, sendMessage, toggleOpen]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-900 text-slate-100 relative">
