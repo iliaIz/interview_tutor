@@ -6,6 +6,9 @@ import {
   buildPracticeTutorSystemPrompt,
   TESTING_COMPASS_RULES,
   LLD_COMPASS_RULES,
+  TRANSACTION_COMPASS_RULES,
+  CONCURRENCY_COMPASS_RULES,
+  REFACTORING_COMPASS_RULES,
   TutorPersona,
   HintTier,
   PracticeTutorContext
@@ -26,17 +29,17 @@ function getChallengeCanonicalSolutions(challengeId: string): string[] {
 
 // GET /api/practice-tutor/compass-rules
 router.get('/compass-rules', (_req: Request, res: Response) => {
-  res.json({
-    rules: Object.values(TESTING_COMPASS_RULES)
-  });
+  res.json({ rules: Object.values(TESTING_COMPASS_RULES) });
 });
 
 // GET /api/practice-tutor/lld-compass-rules
 router.get('/lld-compass-rules', (_req: Request, res: Response) => {
-  res.json({
-    rules: Object.values(LLD_COMPASS_RULES)
-  });
+  res.json({ rules: Object.values(LLD_COMPASS_RULES) });
 });
+
+router.get('/transaction-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(TRANSACTION_COMPASS_RULES) }));
+router.get('/concurrency-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(CONCURRENCY_COMPASS_RULES) }));
+router.get('/refactoring-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(REFACTORING_COMPASS_RULES) }));
 
 // Helper for LiteLLM fetch with host.docker.internal -> localhost failover
 async function callLiteLlm(payload: any, abortSignal?: AbortSignal): Promise<globalThis.Response> {

@@ -11,10 +11,21 @@ import { ANTI_SYCOPHANCY_DIRECTIVES } from './core/antiSycophancy';
 import { JAVA21_PLATFORM_INVARIANTS } from './core/platformInvariants';
 import { TESTING_COMPASS_RULES, CompassRule } from './tutor/testingCompassRules';
 import { LLD_COMPASS_RULES } from './tutor/lldCompassRules';
+import { TRANSACTION_COMPASS_RULES } from './tutor/transactionCompassRules';
+import { CONCURRENCY_COMPASS_RULES } from './tutor/concurrencyCompassRules';
+import { REFACTORING_COMPASS_RULES } from './tutor/refactoringCompassRules';
+import { buildHintLadderDirective } from './tutor/hintLadderDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from './core/sandboxDirectives';
 
 // Re-export for 100% backward compatibility across backend routes
-export { TESTING_COMPASS_RULES, LLD_COMPASS_RULES, CompassRule };
+export {
+  TESTING_COMPASS_RULES,
+  LLD_COMPASS_RULES,
+  TRANSACTION_COMPASS_RULES,
+  CONCURRENCY_COMPASS_RULES,
+  REFACTORING_COMPASS_RULES,
+  CompassRule
+};
 
 export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
 
@@ -226,51 +237,23 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     }
   }
 
-  // 2. Hint Ladder Directive
-  let hintLadderDirective = '';
-  if (hintTier !== undefined) {
-    if (isLld) {
-      switch (hintTier) {
-        case 0:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 0 (Синтаксис & Контракты).\nФокусируйся на сигнатурах методов, типах данных и Java 21 Records.`;
-          break;
-        case 1:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 1 (Архитектурные границы).\nОбъясни, как применить паттерн Стратегия или разделить обязанности по SOLID.`;
-          break;
-        case 2:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 2 (Потокобезопасность).\nУкажи на место возможной гонки данных (race condition) и подходящую структуру (ConcurrentHashMap, AtomicLong).`;
-          break;
-        case 3:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 3 (Виртуальное Время & Детерминизм).\nПокажи, как инжектировать java.time.Clock для проверки временных окон за 0 мс.`;
-          break;
-        case 4:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 4 (Изоморфный пример).\nПокажи аналогичный архитектурный шаблон из другой предметной области.`;
-          break;
-      }
-    } else {
-      switch (hintTier) {
-        case 0:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 0 (Синтаксис и компиляция).\nФокусируйся на синтаксических ошибках, типах и импортах.`;
-          break;
-        case 1:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 1 (Reachability / Достижимость).\nОбъясни, какую ветку условия необходимо вызвать для достижения кода.`;
-          break;
-        case 2:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 2 (Infection / Заражение состояния).\nПоясни, какое состояние объекта искажается при наличии бага.`;
-          break;
-        case 3:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 3 (Propagation / Контрпример).\nНазови конкретный граничный входной параметр (контрпример).`;
-          break;
-        case 4:
-          hintLadderDirective = `\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ 4 (Изоморфный пример).\nПокажи пример теста аналогичной задачи из другой сферы.`;
-          break;
-      }
-    }
-  }
+  // 2. Hint Ladder Directive (Domain-Adaptive Socratic Guidance)
+  const hintLadderDirective = buildHintLadderDirective(
+    { isLld, isTx, isConcurrency, isRefactoring, isJava21 },
+    hintTier
+  );
 
   // 3. Compass Rule Grounding
   let compassDirective = '';
-  const activeRulesMap = isLld ? LLD_COMPASS_RULES : TESTING_COMPASS_RULES;
+  const activeRulesMap = isTx
+    ? TRANSACTION_COMPASS_RULES
+    : isConcurrency
+    ? CONCURRENCY_COMPASS_RULES
+    : isRefactoring
+    ? REFACTORING_COMPASS_RULES
+    : isLld
+    ? LLD_COMPASS_RULES
+    : TESTING_COMPASS_RULES;
   if (activeCompassRuleId && activeRulesMap[activeCompassRuleId]) {
     const rule = activeRulesMap[activeCompassRuleId];
     compassDirective = `

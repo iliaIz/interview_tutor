@@ -28,6 +28,12 @@ const testingRules = PromptRegistry.getTestingRules();
 assert(testingRules.length === 5, `Testing compass rules count is 5 (got ${testingRules.length})`);
 const lldRules = PromptRegistry.getLldRules();
 assert(lldRules.length === 5, `LLD compass rules count is 5 (got ${lldRules.length})`);
+const txRules = PromptRegistry.getTransactionRules();
+assert(txRules.length === 5, `Transaction compass rules count is 5 (got ${txRules.length})`);
+const concurrencyRules = PromptRegistry.getConcurrencyRules();
+assert(concurrencyRules.length === 5, `Concurrency compass rules count is 5 (got ${concurrencyRules.length})`);
+const refactoringRules = PromptRegistry.getRefactoringRules();
+assert(refactoringRules.length === 5, `Refactoring compass rules count is 5 (got ${refactoringRules.length})`);
 
 // 2. Check Text Tutor Prompt across Personas and Domains
 const personas = ['junior_explainer', 'middle_scaffold', 'senior_socratic', 'faang_interviewer'] as const;

@@ -48,6 +48,18 @@ export {
   LLD_COMPASS_RULES
 } from './tutor/lldCompassRules';
 
+export {
+  TRANSACTION_COMPASS_RULES
+} from './tutor/transactionCompassRules';
+
+export {
+  CONCURRENCY_COMPASS_RULES
+} from './tutor/concurrencyCompassRules';
+
+export {
+  REFACTORING_COMPASS_RULES
+} from './tutor/refactoringCompassRules';
+
 // Practice Tutor Prompt Engine
 export {
   buildPracticeTutorSystemPrompt,
@@ -91,6 +103,9 @@ import { buildPracticeTutorSystemPrompt, PracticeTutorContext } from './practice
 import { buildLivePairPrompt, LivePairPromptParams } from './live/livePairPrompts';
 import { TESTING_COMPASS_RULES } from './tutor/testingCompassRules';
 import { LLD_COMPASS_RULES } from './tutor/lldCompassRules';
+import { TRANSACTION_COMPASS_RULES } from './tutor/transactionCompassRules';
+import { CONCURRENCY_COMPASS_RULES } from './tutor/concurrencyCompassRules';
+import { REFACTORING_COMPASS_RULES } from './tutor/refactoringCompassRules';
 import {
   ANTI_SYCOPHANCY_DIRECTIVES,
   VOICE_ANTI_SYCOPHANCY_DIRECTIVES,
@@ -123,6 +138,18 @@ export const PromptRegistry = {
 
   getLldRules() {
     return Object.values(LLD_COMPASS_RULES);
+  },
+
+  getTransactionRules() {
+    return Object.values(TRANSACTION_COMPASS_RULES);
+  },
+
+  getConcurrencyRules() {
+    return Object.values(CONCURRENCY_COMPASS_RULES);
+  },
+
+  getRefactoringRules() {
+    return Object.values(REFACTORING_COMPASS_RULES);
   },
 
   buildTutorPrompt(context: PracticeTutorContext): string {
