@@ -60,6 +60,8 @@ export interface ProxySession {
   toolCallSafetyTimeout?: NodeJS.Timeout | null;
   lastToolCallHash?: string;
   lastToolCallTime?: number;
+  isGreetingSent?: boolean;
+  resumptionHandle?: string;
   isTerminated?: boolean;
   audioChunksCount?: number;
   lastTurnCommitTime?: number;

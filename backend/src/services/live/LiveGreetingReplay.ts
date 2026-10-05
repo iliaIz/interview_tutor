@@ -45,8 +45,60 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
     challengeTrack = ''
   } = options;
 
-  const isMidDialogueReconnect = Boolean(wasReconnecting && session.hasCandidateResponded);
-  if (isResumed || isMidDialogueReconnect) {
+  if (wasReconnecting) {
+    const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
+    const hasHistory = Boolean(mem && mem.turns.length > 0);
+
+    if (hasHistory && mem) {
+      console.log(`🔄 [HOT_RECONNECT] Replaying ${mem.turns.length} dialogue turns to upstream Live model for session ${session.sessionId}...`);
+      const replayTurns = mem.turns.map((t) => ({
+        role: t.role,
+        parts: [{ text: t.text }]
+      }));
+
+      const multiTurnMessage = {
+        clientContent: {
+          turns: replayTurns,
+          turnComplete: false
+        }
+      };
+      if (geminiSocket.readyState === WebSocket.OPEN) {
+        geminiSocket.send(JSON.stringify(multiTurnMessage));
+      }
+    } else {
+      console.log(`🔄 [HOT_RECONNECT] Reconnect without turn history. Establishing context anchor without greeting replay for "${questionText || topic}"...`);
+      const contextAnchorTurn = {
+        clientContent: {
+          turns: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `[КОНТЕКСТ ДИАЛОГА]: Мы разбираем задачу «${questionText || topic}». Ты уже поприветствовала кандидата и задала вопрос. Кандидат сейчас отвечает или готовится ответить голосом. Не здоровайся заново и не повторяй приветствие. Слушай кандидата и отвечай по существу.`
+                }
+              ]
+            }
+          ],
+          turnComplete: false
+        }
+      };
+      if (geminiSocket.readyState === WebSocket.OPEN) {
+        geminiSocket.send(JSON.stringify(contextAnchorTurn));
+      }
+    }
+
+    if (clientSocket.readyState === WebSocket.OPEN) {
+      clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+      clientSocket.send(JSON.stringify({
+        type: 'setupComplete',
+        hasInitialUserMessage: !!initialUserMessage,
+        reconnected: true
+      }));
+    }
+    return;
+  }
+
+  if (isResumed) {
     const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
     const hasHistory = mem && mem.turns.length > 0;
 
@@ -67,12 +119,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         geminiSocket.send(JSON.stringify(multiTurnMessage));
       }
 
-      if (wasReconnecting) {
-        console.log(`✅ Upstream Hot Reconnect complete: notifying client of ready state`);
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
-        }
-      } else if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
+      if (mem.lastSpeaker === 'user' || mem.lastSpeaker === 'none') {
         console.log(`🤫 Silent Resumption active for session ${session.sessionId}: AI remains quiet, microphone immediately unlocked for candidate.`);
         if (clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true }));
@@ -102,32 +149,27 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         }
       }
     } else {
-      if (wasReconnecting) {
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+      const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
+      const initialGreetingTurn = {
+        clientContent: {
+          turns: [
+            {
+              role: 'user',
+              parts: [{ text: fallbackGreeting }]
+            }
+          ],
+          turnComplete: true
         }
-      } else {
-        const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
-        const initialGreetingTurn = {
-          clientContent: {
-            turns: [
-              {
-                role: 'user',
-                parts: [{ text: fallbackGreeting }]
-              }
-            ],
-            turnComplete: true
-          }
-        };
-        if (geminiSocket.readyState === WebSocket.OPEN) {
-          geminiSocket.send(JSON.stringify(initialGreetingTurn));
-        }
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
-        }
+      };
+      if (geminiSocket.readyState === WebSocket.OPEN) {
+        geminiSocket.send(JSON.stringify(initialGreetingTurn));
+      }
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: false }));
       }
     }
-  } else {
+    return;
+  }
     let greetingText = '';
     if (initialUserMessage) {
       greetingText = initialUserMessage;
@@ -196,23 +238,10 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     };
 
-    if (wasReconnecting) {
-      if (!session.hasCandidateResponded) {
-        console.log(`🔄 Upstream reconnect during Turn 0: resending greeting prompt for question "${questionText || topic}"`);
-        if (geminiSocket.readyState === WebSocket.OPEN) {
-          geminiSocket.send(JSON.stringify(initialGreetingTurn));
-        }
-      } else {
-        console.log(`✅ Upstream reconnect mid-dialogue: notifying client without greeting replay`);
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
-        }
-      }
-    } else {
-      if (geminiSocket.readyState === WebSocket.OPEN) {
-        geminiSocket.send(JSON.stringify(initialGreetingTurn));
-      }
+    if (geminiSocket.readyState === WebSocket.OPEN) {
+      geminiSocket.send(JSON.stringify(initialGreetingTurn));
     }
+    session.isGreetingSent = true;
 
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({
@@ -221,4 +250,3 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }));
     }
   }
-}

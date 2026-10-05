@@ -187,6 +187,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }
         }
 
+        if (parsed.sessionResumptionUpdate?.newHandle) {
+          session.resumptionHandle = parsed.sessionResumptionUpdate.newHandle;
+          console.log(`🔑 [SESSION_RESUMPTION] Captured upstream resumption handle for session ${session.sessionId || 'anon'}`);
+        }
+
         // 1. Setup Complete Greeting & History Replay
         if (parsed.setupComplete) {
           session.isSetupComplete = true;

@@ -82,6 +82,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     probesCount: isResumed ? initialProbesCount : 0,
     isRetry,
     hasCandidateResponded: isResumed,
+    isGreetingSent: false,
     isOnHold: false,
     lastActivityAt: Date.now(),
     heartbeatInterval: null,
