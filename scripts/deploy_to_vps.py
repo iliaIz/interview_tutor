@@ -18,7 +18,7 @@ KEY_PATH = next((p for p in KEY_PATHS if os.path.exists(p)), KEY_PATHS[0])
 PASSPHRASE = "DBshirke"
 HOSTNAME = "192.124.182.59"
 USERNAME = "djelu"
-REMOTE_PATH = "/home/djelu/spring"
+REMOTE_PATH = "/home/djelu/projects/interview_tutor"
 
 def create_tarball():
     print("[1/5] Creating deployment archive...")
@@ -59,7 +59,7 @@ def create_tarball():
             tar.add(json_dir, arcname="json")
 
         # Root files
-        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml", "Dockerfile.frontend", "Dockerfile.caddy"]:
+        for f in [".env", "docker-compose.prod.yml", "docker-compose.yml", "Dockerfile.frontend"]:
             fp = os.path.join(root_dir, f)
             if os.path.exists(fp):
                 tar.add(fp, arcname=f)
@@ -105,17 +105,14 @@ def deploy():
     echo "Building sandbox container..."
     docker compose -f docker-compose.prod.yml build sandbox || true
 
-    echo "Building caddy frontend container..."
-    docker compose -f docker-compose.prod.yml build caddy
+    echo "Building frontend container..."
+    docker compose -f docker-compose.prod.yml build frontend
 
     echo "Building backend container..."
     docker compose -f docker-compose.prod.yml build backend
     
     echo "Recreating services..."
     docker compose -f docker-compose.prod.yml up -d --remove-orphans
-    
-    echo "Reloading Caddy reverse proxy..."
-    docker exec interview-caddy-ssl caddy reload || docker compose -f docker-compose.prod.yml restart caddy
     """
 
     stdin, stdout, stderr = ssh.exec_command(deploy_script)
