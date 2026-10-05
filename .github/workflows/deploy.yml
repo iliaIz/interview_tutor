@@ -151,8 +151,8 @@ jobs:
           cache-from: type=gha,scope=backend-v2
           cache-to: type=gha,mode=min,scope=backend-v2
 
-  build-caddy:
-    name: Build & Push Caddy Image (Host Prebuild)
+  build-frontend:
+    name: Build & Push Frontend Image (Host Prebuild)
     needs: [quality-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -198,17 +198,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Caddy Image
+      - name: Build and Push Frontend Image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.caddy
+          file: ./Dockerfile.frontend
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}/interview_tutor-caddy:latest
-            ${{ env.IMAGE_PREFIX }}/interview_tutor-caddy:${{ github.sha }}
-          cache-from: type=gha,scope=caddy-v2
-          cache-to: type=gha,mode=min,scope=caddy-v2
+            ${{ env.IMAGE_PREFIX }}/interview_tutor-frontend:latest
+            ${{ env.IMAGE_PREFIX }}/interview_tutor-frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend-v2
+          cache-to: type=gha,mode=min,scope=frontend-v2
 
   build-sandbox:
     name: Build & Push Sandbox Image
@@ -248,7 +248,7 @@ jobs:
 
   deploy-vps:
     name: Deploy to VPS via SSH & Verify
-    needs: [build-backend, build-caddy, build-sandbox]
+    needs: [build-backend, build-frontend, build-sandbox]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -280,7 +280,11 @@ jobs:
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/projects/interview_tutor/docker-compose.prod.yml || true
 
             echo "[3/5] Exporting deployment metadata & Pulling images..."
+            OWNER_LOWER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
             export GIT_COMMIT_SHA="$GITHUB_SHA"
+            export BACKEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}"
+            export FRONTEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-frontend:${GITHUB_SHA}"
+            export SANDBOX_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-sandbox:${GITHUB_SHA}"
             docker compose -f docker-compose.prod.yml pull
 
             echo "[4/5] Running Pre-Flight Canary Auto-VAD Verification on VPS..."
@@ -345,7 +349,11 @@ jobs:
             docker rm -f interview-backend-canary || true
 
             echo "[5/5] Recreating production containers with zero downtime..."
-            GIT_COMMIT_SHA="$GITHUB_SHA" docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            GIT_COMMIT_SHA="$GITHUB_SHA" \
+            BACKEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}" \
+            FRONTEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-frontend:${GITHUB_SHA}" \
+            SANDBOX_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-sandbox:${GITHUB_SHA}" \
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             echo "[Clean] Housekeeping dangling image layers..."
             docker image prune -af --filter "until=72h" || true

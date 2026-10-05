@@ -59,7 +59,7 @@ def create_tarball():
             tar.add(json_dir, arcname="json")
 
         # Root files
-        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml", "Dockerfile.caddy"]:
+        for f in [".env", "Caddyfile", "docker-compose.prod.yml", "docker-compose.yml", "Dockerfile.frontend", "Dockerfile.caddy"]:
             fp = os.path.join(root_dir, f)
             if os.path.exists(fp):
                 tar.add(fp, arcname=f)
