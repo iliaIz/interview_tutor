@@ -277,9 +277,7 @@ jobs:
 
             cd /home/djelu/spring
 
-            echo "[2/5] Syncing production docker-compose.prod.yml & Caddyfile..."
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/spring/docker-compose.prod.yml || true
-            curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/Caddyfile" -o /home/djelu/spring/Caddyfile || true
 
             echo "[3/5] Exporting deployment metadata & Pulling images..."
             export GIT_COMMIT_SHA="$GITHUB_SHA"
