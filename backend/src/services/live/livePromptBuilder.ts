@@ -148,6 +148,7 @@ export function buildSystemPrompt(params: {
   challengeCategory?: string;
   challengeTrack?: string;
   strictness?: StrictnessLevel;
+  workspaceManifest?: any;
 }): string {
   const {
     topic,
@@ -181,7 +182,8 @@ export function buildSystemPrompt(params: {
     targetGrade = 'L5_SENIOR',
     strictness,
     challengeCategory = '',
-    challengeTrack = ''
+    challengeTrack = '',
+    workspaceManifest
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -386,7 +388,8 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         bugExplanation,
         referenceAnswer,
         codeSnippet,
-        activeCodeArtifact
+        activeCodeArtifact,
+        workspaceManifest
       });
     } else if (tutorMode === 'free_chat') {
       const incidentInfo = incidentContext

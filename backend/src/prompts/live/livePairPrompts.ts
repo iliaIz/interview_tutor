@@ -22,6 +22,7 @@ export interface LivePairPromptParams {
   referenceAnswer?: string;
   codeSnippet?: string;
   activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string };
+  workspaceManifest?: { xmlManifest?: string };
 }
 
 export function buildLivePairPrompt(params: LivePairPromptParams): string {
@@ -35,7 +36,8 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     bugExplanation,
     referenceAnswer,
     codeSnippet,
-    activeCodeArtifact
+    activeCodeArtifact,
+    workspaceManifest
   } = params;
 
   const isLld = domain === 'lld';
@@ -292,6 +294,10 @@ ${wrapUntrustedContext('user_code_snippet', codeSnippet || '// Код задач
     ? `\n\nКОД НА ИНТЕРАКТИВНОЙ ДОСКЕ (${activeCodeArtifact.id || 'активная версия'}: "${activeCodeArtifact.title || 'Сниппет напарника'}"):
 ${wrapUntrustedContext('active_whiteboard_artifact', activeCodeArtifact.code)}
 ДИРЕКТИВА: Пользователь видит этот сниппет на доске. Если он спрашивает про доску или строки на доске, ссылайся именно на этот артефакт.`
+    : ''
+}${
+  workspaceManifest?.xmlManifest
+    ? `\n\n=== СТРУКТУРА ПРОЕКТА И ВСЕ ФАЙЛЫ ВОРКСПЕЙСА ===\n${workspaceManifest.xmlManifest}\nДИРЕКТИВА: Ты видишь все классы и тесты проекта. При проектировании и ревью учитывай взаимодействие между всеми компонентами.`
     : ''
 }
 

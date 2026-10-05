@@ -6,6 +6,8 @@ import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
 import { MutantResult } from '../../../types/practice';
+import { resolveTutorDomain } from './TutorDomain';
+import { buildWorkspaceManifest } from '../../../utils/workspaceManifest';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -81,8 +83,23 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
       const turnMode = interviewConfig.turnMode || 'auto';
 
-      let topic = 'Юнит-тестирование и мутации Java 21';
-      let domain = 'testing';
+      const domain = resolveTutorDomain({
+        category: activePracticeChallenge?.category,
+        track: activePracticeChallenge?.track,
+        title: activePracticeChallenge?.title,
+        hasActiveTxScenario: !!activeTransactionLabScenarioId
+      });
+
+      const DOMAIN_TOPICS: Record<string, string> = {
+        lld: 'LLD архитектура и чистое проектирование на Java 21',
+        transactions: 'Транзакции Spring Boot, распространение и аномалии БД',
+        concurrency: 'Многопоточность, JMM и Project Loom',
+        refactoring: 'Рефакторинг легаси-кода и швы по Физерсу',
+        java21: 'Идиомы Java 21 LTS (Records, Sealed, Pattern Matching)',
+        testing: 'Юнит-тестирование и мутации Java 21'
+      };
+
+      let topic = DOMAIN_TOPICS[domain] || DOMAIN_TOPICS.testing;
       let challengeCategory = activePracticeChallenge?.category || domain;
       let challengeTrack = activePracticeChallenge?.track || domain;
       let bugTitle = activePracticeChallenge?.title || 'Практическая задача';
@@ -93,8 +110,6 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         const txScenario =
           TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) ||
           TRANSACTION_LAB_SCENARIOS[0];
-        domain = 'transactions';
-        topic = 'Транзакции Spring Boot, распространение и аномалии БД';
         challengeCategory = 'Spring Transactions';
         challengeTrack = 'spring_transactions';
         bugTitle = txScenario.title;
@@ -102,31 +117,12 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         codeSnippet = txScenario.services
           .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
           .join('\n\n');
-      } else {
-        const category = (activePracticeChallenge?.category || '').toLowerCase();
-        const track = (activePracticeChallenge?.track || '').toLowerCase();
-        const title = (activePracticeChallenge?.title || '').toLowerCase();
-
-        if (
-          category.includes('lld') ||
-          track.includes('lld') ||
-          title.includes('rate limiter') ||
-          title.includes('matching engine') ||
-          title.includes('parking lot') ||
-          title.includes('cache') ||
-          category.includes('machine coding')
-        ) {
-          domain = 'lld';
-          topic = 'LLD архитектура и чистое проектирование на Java 21';
-        } else if (category.includes('transaction') || track.includes('transaction')) {
-          domain = 'transactions';
-          topic = 'Транзакции Spring Boot и аномалии БД';
-        }
       }
 
       const activeArtifact = selectActiveWhiteboardArtifact(useAppStore.getState());
       const revs = useAppStore.getState().codeRevisions || [];
       const revSummary = revs.length > 0 ? revs.map((r) => ({ id: r.id, title: r.title })) : undefined;
+      const workspaceManifest = buildWorkspaceManifest(practiceWorkspaceFiles, activeWorkspaceFileIndex);
       const practiceSessionId = `session_practice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
       await startSession({
@@ -140,6 +136,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         bugTitle,
         bugExplanation,
         codeSnippet,
+        workspaceManifest,
         activeCodeArtifact: activeArtifact
           ? {
               id: activeArtifact.id,

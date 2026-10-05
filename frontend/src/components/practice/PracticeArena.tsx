@@ -16,6 +16,7 @@ import { StudioErrorBoundary } from '../StudioErrorBoundary';
 
 import { VoiceModal } from '../VoiceModal';
 import { TransactionScenario } from '../../types/transactionLab';
+import { resolveTutorDomain } from './tutor/TutorDomain';
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -34,7 +35,25 @@ export const PracticeArena: React.FC = () => {
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const { toggleCompass, toggleOpen: toggleTutorDrawer, isOpen: isTutorOpen } = usePracticeTutorStore();
+  const {
+    toggleCompass,
+    toggleOpen: toggleTutorDrawer,
+    isOpen: isTutorOpen,
+    initChallengeContext
+  } = usePracticeTutorStore();
+
+  React.useEffect(() => {
+    if (activeTransactionLabScenarioId !== null) {
+      initChallengeContext('transactions', 'Spring Transactions Lab');
+    } else if (activePracticeChallenge) {
+      const domain = resolveTutorDomain({
+        category: activePracticeChallenge.category,
+        track: activePracticeChallenge.track,
+        title: activePracticeChallenge.title
+      });
+      initChallengeContext(domain, activePracticeChallenge.title);
+    }
+  }, [activePracticeChallenge?.id, activeTransactionLabScenarioId, initChallengeContext]);
 
   const [activeVoiceDefenseScenario, setActiveVoiceDefenseScenario] = useState<TransactionScenario | null>(null);
   const [voiceDefenseQuestion, setVoiceDefenseQuestion] = useState<string>('');

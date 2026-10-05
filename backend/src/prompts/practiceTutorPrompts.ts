@@ -16,6 +16,7 @@ import { CONCURRENCY_COMPASS_RULES } from './tutor/concurrencyCompassRules';
 import { REFACTORING_COMPASS_RULES } from './tutor/refactoringCompassRules';
 import { buildHintLadderDirective } from './tutor/hintLadderDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from './core/sandboxDirectives';
+import { normalizeCategorySlug } from '../utils/challengeDomain';
 
 // Re-export for 100% backward compatibility across backend routes
 export {
@@ -59,6 +60,9 @@ export interface PracticeTutorContext {
     language: string;
   };
   hintTier?: HintTier;
+  workspaceManifest?: {
+    xmlManifest?: string;
+  };
 }
 
 export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): string {
@@ -76,11 +80,12 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     testFailureMessage,
     activeCompassRuleId,
     activeWhiteboardSnippet,
-    hintTier
+    hintTier,
+    workspaceManifest
   } = context;
 
-  const cat = (kataCategory || '').toLowerCase();
-  const tit = (kataTitle || '').toLowerCase();
+  const cat = normalizeCategorySlug(kataCategory);
+  const tit = normalizeCategorySlug(kataTitle);
 
   const isLld =
     cat.includes('lld') ||
@@ -330,6 +335,10 @@ ${selectedCodeSnippet ? `Выделенный фрагмент кода:\n\`\`\`
 ${wrapUntrustedContext('active_file_code', activeFileContent)}${
   activeWhiteboardSnippet?.code && activeWhiteboardSnippet.code.trim().length > 0
     ? `\n\nАКТИВНЫЙ КОД НА ИНТЕРАКТИВНОЙ ДОСКЕ (${activeWhiteboardSnippet.title || 'Сниппет'}):\n${wrapUntrustedContext('active_whiteboard_code', activeWhiteboardSnippet.code)}\nДИРЕКТИВА: Пользователь сейчас открыл этот сниппет на доске справа от редактора. Если он задает вопрос по коду на доске или просит сопоставить его со своим файлом, опирайся на этот артефакт.`
+    : ''
+}${
+  workspaceManifest?.xmlManifest
+    ? `\n\n=== СТРУКТУРА ПРОЕКТА И ВСЕ ФАЙЛЫ ВОРКСПЕЙСА ===\n${workspaceManifest.xmlManifest}\nДИРЕКТИВА: Ты видишь все классы и тесты проекта. При ответах учитывай архитектурные связи между всеми файлами воркспейса.`
     : ''
 }
 

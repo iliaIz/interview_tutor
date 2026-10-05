@@ -100,6 +100,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       testFailureMessage,
       activeCompassRuleId,
       activeWhiteboardSnippet,
+      workspaceManifest,
       messages = [],
       stream = true
     } = req.body;
@@ -119,7 +120,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       compilerError,
       testFailureMessage,
       activeCompassRuleId,
-      activeWhiteboardSnippet
+      activeWhiteboardSnippet,
+      workspaceManifest
     };
 
     const systemPrompt = buildPracticeTutorSystemPrompt(context);

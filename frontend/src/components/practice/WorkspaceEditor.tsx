@@ -28,12 +28,23 @@ export const WorkspaceEditor: React.FC = () => {
     isPracticeEvaluating
   } = useAppStore();
 
-  const { isConnected: isVoiceConnected, syncEditorCode } = usePracticeVoice();
+  const {
+    isConnected: isVoiceConnected,
+    syncEditorCode,
+    injectActiveFocusGroundingFrame
+  } = usePracticeVoice();
 
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
   const runner = useWorkspaceRunner();
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
+
+  // Notify Live Voice Co-Pilot when candidate switches between project files
+  React.useEffect(() => {
+    if (isVoiceConnected && injectActiveFocusGroundingFrame) {
+      injectActiveFocusGroundingFrame();
+    }
+  }, [activeWorkspaceFileIndex, isVoiceConnected, injectActiveFocusGroundingFrame]);
 
   // Evaluate AST architectural rules against current code in real time
   const liveAstViolations = useMemo(() => {

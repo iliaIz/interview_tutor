@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { MutantDefinition } from '../types/practice';
+import { TutorDomain } from '../components/practice/tutor/TutorDomain';
+import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
 
 export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
 
@@ -31,6 +33,7 @@ export interface PracticeTutorContextPayload {
     code: string;
     language: string;
   };
+  workspaceManifest?: any;
 }
 
 interface PracticeTutorState {
@@ -53,6 +56,7 @@ interface PracticeTutorState {
   setPersona: (persona: TutorPersona) => void;
   setAssistanceLevel: (level: number) => void;
   clearMessages: () => void;
+  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => void;
   abortGeneration: () => void;
 
   sendMessage: (text: string, context: PracticeTutorContextPayload) => Promise<void>;
@@ -71,7 +75,7 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     {
       id: 'welcome',
       role: 'assistant',
-      content: '👋 Привет! Я твой AI-напарник по парному программированию и мутационному тестированию. Я могу объяснить устройство любого теста, подсказать граничные случаи по модели RIPR или проверить твой код по Золотым Правилам Тестинг-Компаса (`Ctrl + /`). Чем помочь?',
+      content: getDomainWelcomeMessage('testing'),
       timestamp: Date.now()
     }
   ],
@@ -91,6 +95,21 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     else if (level === 3) persona = 'senior_socratic';
     else if (level === 4) persona = 'faang_interviewer';
     set({ assistanceLevel: level, persona });
+  },
+  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
+    const welcome = getDomainWelcomeMessage(domain, challengeTitle);
+    set({
+      messages: [
+        {
+          id: `welcome_${Date.now()}`,
+          role: 'assistant',
+          content: welcome,
+          timestamp: Date.now()
+        }
+      ],
+      currentStreamingText: '',
+      isLoading: false
+    });
   },
   clearMessages: () => set({
     messages: [

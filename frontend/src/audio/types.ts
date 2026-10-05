@@ -61,8 +61,49 @@ export interface VoiceEngineConfig {
     code: string;
   };
   codeRevisionsSummary?: Array<{ id: string; title: string }>;
+  workspaceManifest?: {
+    activeFile?: { path: string; content: string; isReadOnly?: boolean };
+    fileCount?: number;
+    projectTree?: string[];
+    secondaryFiles?: Array<{ path: string; content: string; isReadOnly?: boolean }>;
+    xmlManifest?: string;
+  };
   turn0Lockdown?: boolean;
   enableSilenceClarification?: boolean;
+}
+
+export interface LiveSessionInitFrame {
+  type: 'session_init';
+  sessionId: string;
+  sessionType?: string;
+  tutorMode?: string;
+  topic?: string;
+  persona?: string;
+  strategy?: string;
+  targetGrade?: string;
+  challenge?: {
+    id?: string;
+    title?: string;
+    category?: string;
+    track?: string;
+    domain?: string;
+    instructions?: string;
+    activeFilePath?: string;
+    activeFileContent?: string;
+    workspaceManifest?: {
+      activeFile?: { path: string; content: string; isReadOnly?: boolean };
+      fileCount?: number;
+      projectTree?: string[];
+      secondaryFiles?: Array<{ path: string; content: string; isReadOnly?: boolean }>;
+      xmlManifest?: string;
+    };
+  };
+  activeCodeArtifact?: {
+    id: string;
+    title: string;
+    language: string;
+    code: string;
+  };
 }
 
 export interface VoiceEvaluationResult {

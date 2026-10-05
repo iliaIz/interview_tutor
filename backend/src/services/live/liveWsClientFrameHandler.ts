@@ -64,6 +64,49 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         return;
       }
 
+      if (parsed.type === 'session_init') {
+        if (parsed.challenge) {
+          const ch = parsed.challenge;
+          if (ch.category) session.challengeCategory = ch.category;
+          if (ch.track) session.challengeTrack = ch.track;
+          if (ch.title) {
+            session.bugTitle = ch.title;
+            session.questionText = ch.title;
+          }
+          if (ch.instructions) session.bugExplanation = ch.instructions;
+          if (ch.activeFileContent) session.codeSnippet = ch.activeFileContent;
+          if (ch.workspaceManifest) session.workspaceManifest = ch.workspaceManifest;
+        }
+        if (parsed.topic) session.topic = parsed.topic;
+        if (parsed.persona) session.persona = parsed.persona;
+        if (parsed.strategy) session.strategy = parsed.strategy;
+        if (parsed.targetGrade) session.targetGrade = parsed.targetGrade;
+        if (parsed.activeCodeArtifact) session.activeCodeArtifact = parsed.activeCodeArtifact;
+
+        console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}`);
+
+        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+          const workspaceXml = session.workspaceManifest?.xmlManifest || '';
+          const groundingText = `📌 [КОНТЕКСТ ЗАДАЧИ И РАБОЧЕГО ПРОСТРАНСТВА]:
+Задача: "${session.bugTitle || 'Практика'}"
+Инструкции / Бизнес-требования:
+${session.bugExplanation || 'Реализуйте требуемый функционал.'}
+
+${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Активный файл (${parsed.challenge?.activeFilePath || 'Main.java'}):\n\`\`\`java\n${session.codeSnippet || '// Код'}\n\`\`\``}`;
+
+          session.geminiSocket.send(JSON.stringify({
+            clientContent: {
+              turns: [{
+                role: 'user',
+                parts: [{ text: groundingText }]
+              }],
+              turnComplete: false
+            }
+          }));
+        }
+        return;
+      }
+
       if (parsed.type === 'resume_sync' && Array.isArray(parsed.turns) && session.sessionId) {
         const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
         if (mem.turns.length === 0 && parsed.turns.length > 0) {

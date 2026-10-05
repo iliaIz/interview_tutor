@@ -21,55 +21,82 @@ export interface DomainInput {
   hasActiveTxScenario?: boolean;
 }
 
+export function normalizeCategorySlug(raw: string | null | undefined): string {
+  return (raw || '')
+    .toLowerCase()
+    .replace(/[-_]/g, ' ')
+    .trim();
+}
+
 export function resolveTutorDomain(input: DomainInput): TutorDomain {
   if (input.hasActiveTxScenario) {
     return 'transactions';
   }
 
-  const category = (input.category || '').toLowerCase();
-  const track = (input.track || '').toLowerCase();
-  const title = (input.title || '').toLowerCase();
+  const category = normalizeCategorySlug(input.category);
+  const track = normalizeCategorySlug(input.track);
+  const title = normalizeCategorySlug(input.title);
 
+  // 1. Primary explicit category & track matching
+  if (category.includes('machine coding') || category.includes('lld') || track.includes('lld')) {
+    return 'lld';
+  }
+
+  if (category.includes('transaction') || track.includes('transaction') || category.includes('spring transactions')) {
+    return 'transactions';
+  }
+
+  if (category.includes('concurrency') || track.includes('concurrency')) {
+    return 'concurrency';
+  }
+
+  if (category.includes('refactoring') || track.includes('refactoring')) {
+    return 'refactoring';
+  }
+
+  if (category.includes('java21') || category.includes('java 21') || track.includes('java21')) {
+    return 'java21';
+  }
+
+  // 2. Secondary heuristic fallback on combined metadata
   const combined = [category, track, title].filter(Boolean).join(' ');
 
-  // 1. Refactoring Katas & Legacy
+  // Refactoring Katas & Legacy
   if (
     combined.includes('refactoring') ||
     combined.includes('legacy') ||
     combined.includes('seam') ||
     combined.includes('gilded') ||
     combined.includes('trip') ||
-    combined.includes('overloaded-constructor') ||
-    combined.includes('legacy-invoice') ||
-    combined.includes('legacy-tax')
+    combined.includes('overloaded constructor') ||
+    combined.includes('legacy invoice') ||
+    combined.includes('legacy tax')
   ) {
     return 'refactoring';
   }
 
-  // 2. Java 21 Idioms
+  // Java 21 Idioms
   if (
     combined.includes('java21') ||
-    combined.includes('java_21') ||
     combined.includes('java 21') ||
-    combined.includes('pattern_matching') ||
     combined.includes('pattern matching') ||
-    combined.includes('record_pattern') ||
+    combined.includes('record pattern') ||
     combined.includes('sealed')
   ) {
     return 'java21';
   }
 
-  // 3. Concurrency Lab & Multithreading (takes precedence over general lld)
+  // Concurrency Lab & Multithreading
   if (
     combined.includes('concurrency') ||
     combined.includes('deadlock') ||
-    combined.includes('race_condition') ||
+    combined.includes('race condition') ||
     combined.includes('thread') ||
     combined.includes('atomic') ||
-    combined.includes('lock') ||
+    /\block\b/.test(combined) ||
     combined.includes('loom') ||
     combined.includes('disruptor') ||
-    combined.includes('virtual-thread') ||
+    combined.includes('virtual thread') ||
     combined.includes('ringbuffer') ||
     combined.includes('stampedlock') ||
     combined.includes('awaitility')

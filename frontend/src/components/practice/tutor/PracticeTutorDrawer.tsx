@@ -7,6 +7,7 @@ import { TutorMessageList } from './TutorMessageList';
 import { TutorInputFooter } from './TutorInputFooter';
 import { resolveTutorDomain } from './TutorDomain';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
+import { buildWorkspaceManifest } from '../../../utils/workspaceManifest';
 import { X, MessageSquare, Mic, Bot } from 'lucide-react';
 
 const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
@@ -144,6 +145,7 @@ export const PracticeTutorDrawer: React.FC = () => {
         return { title: wb.title, code: wb.code, language: wb.language };
       return undefined;
     })(),
+    workspaceManifest: buildWorkspaceManifest(practiceWorkspaceFiles, activeWorkspaceFileIndex),
   };
 
   const handleSend = () => {

@@ -11,7 +11,7 @@ import { SileroVadDetector } from './SileroVadDetector';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { AcousticBargeInGuard } from './AcousticBargeInGuard';
 import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
-import { buildLiveVoiceWebSocketUrl } from './liveVoiceUrlBuilder';
+import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
 import {
@@ -86,7 +86,10 @@ export class LiveVoiceEngine {
 
       const ws = new WebSocket(buildLiveVoiceWebSocketUrl(config));
       this.ws = ws;
-      ws.onopen = () => this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
+      ws.onopen = () => {
+        this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
+        sendLiveSessionInit(ws, config);
+      };
       ws.onmessage = (event) => this.handleServerFrame(event.data);
       ws.onerror = (err) => console.error('LiveVoiceEngine WebSocket error:', err);
       ws.onclose = () => {

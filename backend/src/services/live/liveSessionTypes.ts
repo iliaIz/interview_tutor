@@ -66,6 +66,12 @@ export interface ProxySession {
   firstAudioChunkLogged?: boolean;
   challengeCategory?: string;
   challengeTrack?: string;
+  bugTitle?: string;
+  bugExplanation?: string;
+  codeSnippet?: string;
+  strategy?: 'adaptive_probing' | 'socratic_tutoring';
+  workspaceManifest?: any;
+  activeCodeArtifact?: any;
   isAiGenerating?: boolean;
   hasTerminalError?: boolean;
   terminalErrorCode?: string;
