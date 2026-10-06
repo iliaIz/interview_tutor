@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { SandboxExecutionResponse } from './SandboxTestConsole';
 import { MutationExecutionResponse } from '../../types/practice';
-import { usePracticeVoice } from './tutor/PracticeVoiceContext';
 
 export interface EvaluationStageState {
   stage: 'idle' | 'sandbox' | 'sandbox_done' | 'ast_analysis' | 'ai_reasoning' | 'complete';
@@ -24,8 +23,6 @@ export function useWorkspaceRunner() {
     setLatestMutationResult,
     updateWorkspaceFileContent
   } = useAppStore();
-
-  const { isConnected: isVoiceConnected, sendTextMessage } = usePracticeVoice();
 
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -82,13 +79,6 @@ export function useWorkspaceRunner() {
         setMutationResult(data);
         setLatestMutationResult(data);
 
-        if (isVoiceConnected) {
-          if (data.baselinePassed && data.passedThreshold) {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил мутационные тесты. Все мутанты уничтожены (${data.killedCount}/${data.totalMutants}), мутационный скор ${data.mutationScore.toFixed(0)}%.`);
-          } else {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил мутационные тесты. Мутационный скор ${data.mutationScore.toFixed(0)}%. Выжило мутантов: ${data.survivedCount} из ${data.totalMutants}.`);
-          }
-        }
       } else {
         const res = await fetch('/api/sandbox/execute', {
           method: 'POST',
@@ -104,16 +94,6 @@ export function useWorkspaceRunner() {
         const data: SandboxExecutionResponse = await res.json();
         setSandboxResult(data);
         setLatestSandboxResult(data);
-
-        if (isVoiceConnected) {
-          if (data.isCompilable && data.failedCount === 0) {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Кандидат запустил локальные тесты в песочнице. Все тесты успешно пройдены (${data.passedCount}/${data.passedCount + data.failedCount}) за ${data.executionTimeMs}мс.`);
-          } else if (!data.isCompilable) {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Ошибка компиляции кода в песочнице: ${data.error || 'Синтаксические ошибки'}.`);
-          } else {
-            sendTextMessage(`[СИСТЕМНОЕ СОБЫТИЕ IDE]: Тесты в песочнице не прошли: упало ${data.failedCount} тестов из ${data.passedCount + data.failedCount}.`);
-          }
-        }
       }
     } catch (e: any) {
       console.error('Failed to run sandbox:', e);
@@ -131,8 +111,6 @@ export function useWorkspaceRunner() {
     isWriteTheTestsMode,
     practiceWorkspaceFiles,
     activePracticePhase,
-    isVoiceConnected,
-    sendTextMessage,
     setLatestMutationResult,
     setLatestSandboxResult,
     showToast

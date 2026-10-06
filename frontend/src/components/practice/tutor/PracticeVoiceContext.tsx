@@ -170,6 +170,14 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   ]);
 
   const codeSyncDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const focusGroundingDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (codeSyncDebounceRef.current) clearTimeout(codeSyncDebounceRef.current);
+      if (focusGroundingDebounceRef.current) clearTimeout(focusGroundingDebounceRef.current);
+    };
+  }, []);
 
   const syncEditorCode = useCallback((code: string, fileName?: string, language: string = 'java', immediate: boolean = false) => {
     if (!session.isConnected) return;
@@ -203,22 +211,30 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const injectActiveFocusGroundingFrame = useCallback(() => {
     if (!session.isConnected) return;
-    const state = useAppStore.getState();
-    const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
-    if (!current) return;
-    const fileName = current.path.split('/').pop() || current.path;
-    session.sendCustomFrame?.({
-      type: 'screen_context_sync',
-      clientContent: {
-        turns: [{
-          role: 'user',
-          parts: [{
-            text: `🎯 [ФОКУС ВНИМАНИЯ]: Кандидат переключился на файл ${fileName}.\nСодержимое:\n\`\`\`java\n${current.content}\n\`\`\``
-          }]
-        }],
-        turnComplete: false
-      }
-    });
+
+    if (focusGroundingDebounceRef.current) {
+      clearTimeout(focusGroundingDebounceRef.current);
+      focusGroundingDebounceRef.current = null;
+    }
+
+    focusGroundingDebounceRef.current = setTimeout(() => {
+      const state = useAppStore.getState();
+      const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
+      if (!current) return;
+      const fileName = current.path.split('/').pop() || current.path;
+      session.sendCustomFrame?.({
+        type: 'screen_context_sync',
+        clientContent: {
+          turns: [{
+            role: 'user',
+            parts: [{
+              text: `🎯 [ФОКУС ВНИМАНИЯ]: Кандидат переключился на файл ${fileName}.\nСодержимое:\n\`\`\`java\n${current.content}\n\`\`\``
+            }]
+          }],
+          turnComplete: false
+        }
+      });
+    }, 300);
   }, [session]);
 
   // Reactive test execution telemetry sync into Live Voice WebSocket

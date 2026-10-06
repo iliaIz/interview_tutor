@@ -215,7 +215,15 @@ ${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Акт
               p.text.startsWith('📝 [АКТУАЛЬНЫЙ КОД') ||
               p.text.startsWith('💡 [ДЕЙСТВИЕ') ||
               p.text.startsWith('🔍 [ДЕЙСТВИЕ') ||
-              p.text.startsWith('📂 [СМЕНА')
+              p.text.startsWith('📂 [СМЕНА') ||
+              p.text.startsWith('❌ [ОШИБКА') ||
+              p.text.startsWith('❌ [ТЕСТЫ') ||
+              p.text.startsWith('✅ [ВСЕ UNIT-ТЕСТЫ') ||
+              p.text.startsWith('⚠️ [РЕЗУЛЬТАТЫ PITest') ||
+              p.text.startsWith('🏆 [PITest') ||
+              p.text.startsWith('🏆 [ТРАНЗАКЦИИ') ||
+              p.text.startsWith('⚠️ [ДЕФЕКТЫ ТРАНЗАКЦИЙ') ||
+              p.text.startsWith('[СИСТЕМНОЕ СОБЫТИЕ IDE]')
             )
           )
         )
@@ -255,9 +263,12 @@ ${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Акт
         return;
       }
 
+      if (isDeicticFrame && parsed.clientContent?.turnComplete) {
+        parsed.clientContent.turnComplete = false;
+      }
+
       if (
-        (!isDeicticFrame && parsed.clientContent?.turns) ||
-        parsed.clientContent?.turnComplete ||
+        (!isDeicticFrame && (parsed.clientContent?.turns || parsed.clientContent?.turnComplete)) ||
         parsed.realtime_input?.audio ||
         parsed.realtimeInput?.audio ||
         parsed.realtimeInput?.mediaChunks
@@ -265,7 +276,7 @@ ${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Акт
         session.hasCandidateResponded = true;
       }
 
-      if (parsed.clientContent?.turnComplete) {
+      if (!isDeicticFrame && parsed.clientContent?.turnComplete) {
         const accepted = handleTurnCommit(session, parsed, isBargeIn, clientSocket, turnMode);
         if (!accepted) {
           return;

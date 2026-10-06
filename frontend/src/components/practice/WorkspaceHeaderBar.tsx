@@ -1,7 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { usePracticeVoice } from './tutor/PracticeVoiceContext';
 import { FileCode, Lock, Clock, Compass, RotateCcw } from 'lucide-react';
 
 interface WorkspaceHeaderBarProps {
@@ -21,7 +20,6 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
   } = useAppStore();
 
   const { toggleCompass } = usePracticeTutorStore();
-  const { isConnected: isVoiceConnected, sendTextMessage, syncEditorCode } = usePracticeVoice();
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -41,17 +39,7 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
             <button
               key={file.path}
               type="button"
-              onClick={() => {
-                setActiveWorkspaceFileIndex(idx);
-                if (isVoiceConnected) {
-                  sendTextMessage(
-                    `📂 [СМЕНА АКТИВНОГО ФАЙЛА]: Кандидат переключился на файл «${fileName}» (${
-                      file.readOnly ? 'только для чтения / контракт тестов' : 'редактируемый рабочий код'
-                    }).`
-                  );
-                  syncEditorCode?.(file.content, fileName, 'java', true);
-                }
-              }}
+              onClick={() => setActiveWorkspaceFileIndex(idx)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
                 isActive
                   ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40 font-bold shadow-2xs'
