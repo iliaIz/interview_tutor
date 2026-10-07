@@ -328,33 +328,25 @@ router.get('/:challengeId/export-zip', (req, res) => {
     const userId = getAuthUserId(req);
     const { challengeId } = req.params;
 
-    const row = db.prepare('SELECT id, slug, title, category, target_stack, files_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+    const row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
     if (!row) {
       return res.status(404).json({ error: 'Challenge not found' });
     }
 
-    const defaultFiles = JSON.parse(row.files_json || '[]');
+    const challenge: CodingChallenge = JSON.parse(row.manifest_json);
+    const defaultFiles = challenge.workspaceFiles || [];
 
     // Check for user draft
-    const sub = db.prepare('SELECT files_json FROM coding_submissions WHERE user_id = ? AND challenge_id = ?').get(userId, row.id) as any;
-    const files = (sub && sub.files_json) ? JSON.parse(sub.files_json) : defaultFiles;
-
-    const challenge: CodingChallenge = {
-      id: row.id,
-      slug: row.slug || row.id,
-      title: row.title,
-      category: row.category,
-      targetStack: row.target_stack,
-      badge: '',
-      difficulty: 'Middle',
-      timeLimitMinutes: 60,
-      shortDescription: '',
-      instructionsMarkdown: '',
-      workspaceFiles: defaultFiles
-    };
+    const sub = db.prepare('SELECT files_json FROM coding_submissions WHERE user_id = ? AND challenge_id = ?').get(userId, challenge.id) as any;
+    let files = defaultFiles;
+    if (sub && sub.files_json) {
+      try {
+        files = JSON.parse(sub.files_json);
+      } catch {}
+    }
 
     const zipBuffer = buildChallengeZipPackage(challenge, files);
-    const filename = `challenge-${row.slug || row.id}.zip`;
+    const filename = `challenge-${challenge.slug || challenge.id}.zip`;
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
