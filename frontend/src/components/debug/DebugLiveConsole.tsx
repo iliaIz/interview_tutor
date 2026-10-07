@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLiveVoiceSession } from '../../audio/useLiveVoiceSession';
 import { VoiceEngineConfig } from '../../audio/types';
 import { DEBUG_STEPS } from './debugStepDefinitions';
+import { DebugVoiceControls } from './DebugVoiceControls';
 import { Play, Square, Mic, MicOff, Volume2, Activity, Zap, RefreshCw, Terminal, MessageSquare } from 'lucide-react';
 
 interface DebugLiveConsoleProps {
@@ -32,6 +33,8 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
 
   const stepDef = DEBUG_STEPS.find((s) => s.step === selectedStep) || DEBUG_STEPS[0];
   const isRunning = session.state !== 'IDLE' && session.state !== 'COMPLETED' && session.state !== 'ERROR';
+  const [voice, setVoice] = useState<string>('Aoede');
+  const [temperature, setTemperature] = useState<number>(1.0);
 
   const addLog = (type: LogEntry['type'], text: string) => {
     const time = new Date().toISOString().substring(11, 23);
@@ -86,7 +89,8 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
       tutorMode: 'practice_pair',
       topic: 'Тестирование Авто-VAD v3',
       questionText: 'Проверка звукового тракта и VAD',
-      voice: 'Aoede',
+      voice,
+      temperature,
       turnMode: 'auto',
       liveModel: 'gemini-live-v3',
       vadPauseMs: 800,
@@ -177,6 +181,15 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
           )}
         </div>
       </div>
+
+      {/* Voice & Temperature Selector Bar */}
+      <DebugVoiceControls
+        voice={voice}
+        temperature={temperature}
+        isRunning={isRunning}
+        onVoiceChange={setVoice}
+        onTempChange={setTemperature}
+      />
 
       {/* Real-time Telemetry Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

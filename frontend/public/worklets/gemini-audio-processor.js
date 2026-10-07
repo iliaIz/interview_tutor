@@ -65,11 +65,12 @@ class GeminiAudioProcessor extends AudioWorkletProcessor {
       case 'chunk': {
         const inputData = message.data;
         if (!inputData || inputData.length === 0) return;
+        this.isDraining = false;
         this.writeToRingBuffer(inputData);
 
         if (this.state === 0) { // BUFFERING
           const available = (this.writeIndex - this.readIndex) & GeminiAudioProcessor.RING_BUFFER_MASK;
-          if (available >= this.preRollWatermark || this.isDraining) {
+          if (available >= this.preRollWatermark) {
             this.primeResampler();
             this.state = 1; // PLAYING
             this.isConcealing = false;

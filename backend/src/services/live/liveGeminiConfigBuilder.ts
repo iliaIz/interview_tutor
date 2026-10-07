@@ -15,6 +15,7 @@ export interface BuildGeminiSetupOptions {
   vadPauseMs?: number;
   turnMode?: 'auto' | 'manual';
   debugStep?: number;
+  temperature?: number;
 }
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
@@ -35,6 +36,13 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
 
   const isThinkingModel = liveModel.includes('thinking') || liveModel === 'gemini-live-thinking-v3';
 
+  // Canonical Gemini Live Standard (SOTA Late 2026):
+  // Audio vocoder autoregressive synthesis requires temperature 1.0 (Google default).
+  // Lower temperatures (<0.7) collapse latent acoustic space into 14-50s digital silence stalls.
+  const effectiveTemperature = typeof (opts as any).temperature === 'number'
+    ? (opts as any).temperature
+    : 1.0;
+
   const generationConfig: any = {
     responseModalities: ['AUDIO'],
     speechConfig: {
@@ -44,7 +52,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
         }
       }
     },
-    temperature: sessionType === 'tutor' ? 0.3 : (strategy === 'socratic_tutoring' ? 0.4 : 0.2)
+    temperature: effectiveTemperature
   };
 
   if (isThinkingModel) {

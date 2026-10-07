@@ -44,14 +44,7 @@ export class LiveDeadAirGuard {
     return this.hasSpeechStarted;
   }
 
-  /**
-   * Process a Base64-encoded 24kHz 16-bit PCM chunk from modelTurn
-   */
   public processChunk(base64Pcm: string): DeadAirProcessResult {
-    if (this.isClamped) {
-      return { suppressChunk: true, shouldClampTurn: false, rms: 0 };
-    }
-
     if (!base64Pcm) {
       return { suppressChunk: false, shouldClampTurn: false, rms: 0 };
     }
@@ -76,10 +69,16 @@ export class LiveDeadAirGuard {
     const rms = Math.sqrt(sumSq / sampleCount);
 
     // Active speech threshold: RMS > 200 (~-44 dB in 16-bit PCM)
+    // SOTA Late 2026: If actual voice is synthesized, immediately unclamp and let speech through!
     if (rms > 200) {
+      this.isClamped = false;
       this.hasSpeechStarted = true;
       this.consecutiveSilenceBytes = 0;
       return { suppressChunk: false, shouldClampTurn: false, rms };
+    }
+
+    if (this.isClamped) {
+      return { suppressChunk: true, shouldClampTurn: false, rms: 0 };
     }
 
     // Silence floor detection after speech has started

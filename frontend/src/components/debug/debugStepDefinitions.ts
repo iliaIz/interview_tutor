@@ -40,6 +40,7 @@ export const DEBUG_STEPS: DebugStepDef[] = [
         model: 'models/gemini-live-v3',
         generationConfig: {
           responseModalities: ['AUDIO'],
+          temperature: 1.0,
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: { voiceName: 'Aoede' }

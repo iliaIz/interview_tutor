@@ -269,7 +269,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             const filteredParts: any[] = [];
             for (const part of parsed.serverContent.modelTurn.parts) {
               const pcm = part.inlineData?.data || part.inline_data?.data;
-              if (pcm) {
+              if (pcm && session.debugStep !== 0) {
                 const res = deadAirGuard.processChunk(pcm);
                 if (res.shouldClampTurn) {
                   shouldClampDeadAir = true;

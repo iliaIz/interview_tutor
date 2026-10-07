@@ -71,6 +71,7 @@ export interface VoiceEngineConfig {
   turn0Lockdown?: boolean;
   enableSilenceClarification?: boolean;
   debugStep?: number;
+  temperature?: number;
 }
 
 export interface LiveSessionInitFrame {

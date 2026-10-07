@@ -63,7 +63,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     upstreamWsUrl,
     vadPauseMs,
     enableSilenceClarification,
-    debugStep
+    debugStep,
+    temperature
   } = params;
 
   console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}${debugStep !== undefined ? `, debugStep=${debugStep}` : ''}`);
@@ -234,7 +235,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     normalizedTools,
     vadPauseMs: session.vadPauseMs,
     turnMode,
-    debugStep
+    debugStep,
+    temperature
   });
 
   const router = createLiveAudioStreamRouter({

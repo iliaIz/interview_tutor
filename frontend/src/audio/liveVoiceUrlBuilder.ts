@@ -43,6 +43,10 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     params.set('debugStep', String(cfg.debugStep));
   }
 
+  if (typeof cfg.temperature === 'number') {
+    params.set('temperature', String(cfg.temperature));
+  }
+
   return `${protocol}//${host}/ws/live?${params.toString()}`;
 }
 

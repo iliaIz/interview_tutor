@@ -54,6 +54,7 @@ export interface LiveWsSessionParams {
   vadPauseMs: number;
   enableSilenceClarification: boolean;
   debugStep?: number;
+  temperature?: number;
 }
 
 export function authenticateWsRequest(req: http.IncomingMessage, query: any): any | null {
@@ -248,6 +249,7 @@ export async function resolveLiveWsSessionParams(
     upstreamWsUrl,
     vadPauseMs: Number(query.vadPauseMs) || 1800,
     enableSilenceClarification: query.enableSilenceClarification === 'true',
-    debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined
+    debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined,
+    temperature: query.temperature !== undefined ? parseFloat(String(query.temperature)) : undefined
   };
 }
