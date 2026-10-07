@@ -95,12 +95,18 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
   const isAutoVad = turnMode === 'auto';
   const effectiveSilenceDurationMs = Math.max(500, Math.min(1000, vadPauseMs ? Number(vadPauseMs) : 500));
 
+  const automaticActivityDetection: any = isAutoVad
+    ? {
+        disabled: false,
+        silenceDurationMs: effectiveSilenceDurationMs,
+        prefixPaddingMs: 500
+      }
+    : {
+        disabled: true
+      };
+
   const realtimeInputConfig: any = {
-    automaticActivityDetection: {
-      disabled: !isAutoVad,
-      silenceDurationMs: effectiveSilenceDurationMs,
-      prefixPaddingMs: 500
-    },
+    automaticActivityDetection,
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
   };
 

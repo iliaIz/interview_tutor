@@ -132,7 +132,7 @@ export async function resolveLiveWsSessionParams(
   const referenceAnswer = (query.referenceAnswer as string) || '';
   const voiceName = (query.voice as string) || 'Kore';
   const userGender = ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral';
-  const turnMode = ((query.turnMode as string) === 'auto' ? 'auto' : 'manual') as 'manual' | 'auto';
+  const turnMode = ((query.turnMode as string) === 'manual' ? 'manual' : 'auto') as 'manual' | 'auto';
   const strategy = ((query.strategy as string) === 'socratic_tutoring' ? 'socratic_tutoring' : 'adaptive_probing') as 'adaptive_probing' | 'socratic_tutoring';
   const persona = ((query.persona as string) || 'mentor') as any;
   const targetGrade = ((query.targetGrade as string) || 'L5_SENIOR') as TargetGrade;
