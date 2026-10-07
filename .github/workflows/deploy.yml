@@ -8,6 +8,7 @@ on:
       - feature/wave-12-platform-actualization
       - fix/auto-vad-live-v3-investigation
       - test/clean-native-gemini-live
+      - feature/ide-bridge
   workflow_dispatch:
 
 permissions:
