@@ -49,6 +49,7 @@ COPY backend/package*.json ./
 # Copy canonical manifests and seed JSONs into container
 COPY scenarios/ ./scenarios/
 COPY json/ ./json/
+COPY bridge/ ./bridge/
 
 # Expose internal API port
 EXPOSE 5000

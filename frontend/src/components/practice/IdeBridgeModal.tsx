@@ -113,8 +113,8 @@ export const IdeBridgeModal: React.FC<IdeBridgeModalProps> = ({
                 <div>
                   <span className="text-slate-200 font-medium">Запустите синхронизацию (в 1 клик)</span>
                   <p className="text-slate-400 mt-0.5">
-                    <strong>Linux / Mac:</strong> запустите <code className="text-slate-300">./run-bridge.sh</code> &nbsp;|&nbsp;
-                    <strong>Windows:</strong> дважды кликните <code className="text-slate-300">run-bridge.cmd</code>
+                    <strong>Git Bash / Linux / Mac:</strong> запустите <code className="text-slate-300">./run-bridge.sh</code> (или <code className="text-slate-300">node bridge.mjs</code>)<br />
+                    <strong>Windows:</strong> дважды кликните <code className="text-slate-300">run-bridge.cmd</code> в Проводнике
                   </p>
                   <p className="text-slate-500 mt-0.5 text-[11px]">(Работает на встроенном Node.js, без выкачивания node_modules)</p>
                 </div>

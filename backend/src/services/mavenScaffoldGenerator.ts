@@ -5,9 +5,10 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { CodingChallenge } from './challengeSeedData';
 import { createZipArchive, ZipEntry } from './zipGenerator';
+import { BRIDGE_MJS_TEMPLATE } from './bridgeMjsTemplate';
+import { WS_SERVER_MJS_TEMPLATE } from './wsServerMjsTemplate';
 
 export function generatePomXml(challenge: CodingChallenge): string {
   const isSpring = challenge.category === 'spring_transactions' ||
@@ -110,26 +111,9 @@ export function generatePomXml(challenge: CodingChallenge): string {
 }
 
 function getBridgeFiles(): { bridgeScript: string; wsServerScript: string } {
-  const possiblePaths = [
-    path.resolve(process.cwd(), 'bridge'),
-    path.resolve(__dirname, '../../../bridge'),
-    path.resolve(__dirname, '../../bridge')
-  ];
-
-  for (const basePath of possiblePaths) {
-    const bridgePath = path.join(basePath, 'bridge.mjs');
-    const wsPath = path.join(basePath, 'wsServer.mjs');
-    if (fs.existsSync(bridgePath) && fs.existsSync(wsPath)) {
-      return {
-        bridgeScript: fs.readFileSync(bridgePath, 'utf8'),
-        wsServerScript: fs.readFileSync(wsPath, 'utf8')
-      };
-    }
-  }
-
   return {
-    bridgeScript: '// Fallback bridge script\nconsole.log("InterviewTutor bridge ready");',
-    wsServerScript: '// Fallback wsServer\n'
+    bridgeScript: BRIDGE_MJS_TEMPLATE,
+    wsServerScript: WS_SERVER_MJS_TEMPLATE
   };
 }
 
@@ -163,8 +147,8 @@ export function buildChallengeZipPackage(
    - IDE откроет её как стандартный Maven-проект на Java 21.
 
 2. **Запустите мост синхронизации**:
-   - **Linux / macOS**: \`./run-bridge.sh\` (или \`node bridge.mjs\`)
-   - **Windows**: дважды кликните \`run-bridge.cmd\`
+   - **Git Bash / Linux / macOS**: \`./run-bridge.sh\` (или \`node bridge.mjs\`)
+   - **Windows (Проводник / CMD)**: дважды кликните \`run-bridge.cmd\`
    *(Установка npm-пакетов не требуется, работает на встроенном Node.js)*.
 
 3. **Решайте задачу**:

@@ -44,7 +44,8 @@ export function createLoopbackServer(port = 41789) {
     const isAllowedOrigin = !origin || 
       origin.includes('localhost') || 
       origin.includes('127.0.0.1') || 
-      origin.endsWith('.domain.tld');
+      origin.includes('djelu.site') ||
+      origin.includes('sslip.io');
 
     if (!isAllowedOrigin) {
       socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
