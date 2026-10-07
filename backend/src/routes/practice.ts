@@ -350,8 +350,7 @@ router.get('/:challengeId/export-zip', (req, res) => {
       timeLimitMinutes: 60,
       shortDescription: '',
       instructionsMarkdown: '',
-      workspaceFiles: defaultFiles,
-      testCases: []
+      workspaceFiles: defaultFiles
     };
 
     const zipBuffer = buildChallengeZipPackage(challenge, files);
