@@ -1,8 +1,10 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { FileCode, Lock, Clock, Compass, RotateCcw, Cloud, Check, Loader2 } from 'lucide-react';
+import { FileCode, Lock, Clock, Compass, RotateCcw, Cloud, Check, Loader2, Laptop } from 'lucide-react';
 import { AutosaveSyncStatus } from './useWorkspaceAutosave';
+import { useIdeBridge } from './useIdeBridge';
+import { IdeBridgeModal } from './IdeBridgeModal';
 
 interface WorkspaceHeaderBarProps {
   lastSavedTime: string | null;
@@ -19,10 +21,21 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
     practiceWorkspaceFiles,
     activeWorkspaceFileIndex,
     setActiveWorkspaceFileIndex,
-    practiceElapsedSeconds
+    practiceElapsedSeconds,
+    activePracticeChallenge
   } = useAppStore();
 
   const { toggleCompass } = usePracticeTutorStore();
+
+  const {
+    status: ideStatus,
+    workspaceDir,
+    lastSyncTime: ideLastSyncTime,
+    isModalOpen: isIdeModalOpen,
+    setIsModalOpen: setIsIdeModalOpen,
+    isDownloading: isIdeDownloading,
+    downloadProjectZip
+  } = useIdeBridge();
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -63,6 +76,28 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
 
       {/* Actions, Compass & Timer */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
+        <button
+          type="button"
+          onClick={() => setIsIdeModalOpen(true)}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition cursor-pointer text-[11px] font-medium border ${
+            ideStatus === 'connected' || ideStatus === 'syncing'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+              : ideStatus === 'connecting'
+              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+              : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+          }`}
+          title="Решать в IntelliJ IDEA (Zero-Dependency Bridge)"
+        >
+          <Laptop className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">
+            {ideStatus === 'connected'
+              ? 'IntelliJ: Подключена'
+              : ideStatus === 'syncing'
+              ? 'Синхронизация...'
+              : 'В IntelliJ'}
+          </span>
+        </button>
+
         <button
           type="button"
           onClick={() => toggleCompass()}
@@ -112,6 +147,17 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
           ) : null}
         </div>
       </div>
+
+      <IdeBridgeModal
+        isOpen={isIdeModalOpen}
+        onClose={() => setIsIdeModalOpen(false)}
+        status={ideStatus}
+        workspaceDir={workspaceDir}
+        lastSyncTime={ideLastSyncTime}
+        isDownloading={isIdeDownloading}
+        onDownloadZip={() => downloadProjectZip()}
+        challengeTitle={activePracticeChallenge?.title}
+      />
     </div>
   );
 };

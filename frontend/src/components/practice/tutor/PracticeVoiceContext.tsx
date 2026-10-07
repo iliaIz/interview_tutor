@@ -253,6 +253,21 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [session.isConnected, syncEditorCode]);
 
+  // Forward IDE bridge code frames to active Gemini Live session
+  useEffect(() => {
+    if (!session.isConnected) return;
+    const handleCodeFrameEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && session.sendCustomFrame) {
+        session.sendCustomFrame(customEvent.detail);
+      }
+    };
+    window.addEventListener('gemini_live_code_frame', handleCodeFrameEvent);
+    return () => {
+      window.removeEventListener('gemini_live_code_frame', handleCodeFrameEvent);
+    };
+  }, [session]);
+
   const handleCentralButtonClick = useCallback(() => {
     const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
     if (isAiSpeaking || isPlaying) {

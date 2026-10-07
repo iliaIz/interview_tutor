@@ -5,6 +5,7 @@ import { getAuthUserId } from '../middleware/auth';
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
 import { handleChallengeEvaluation } from '../services/challengeSubmissionService';
+import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
 
 const router = Router();
 
@@ -317,6 +318,50 @@ router.post('/generate-task', async (req, res) => {
         technicalDetails: err.message
       });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/practice/:challengeId/export-zip - Download Maven project ZIP for IntelliJ IDEA
+router.get('/:challengeId/export-zip', (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const { challengeId } = req.params;
+
+    const row = db.prepare('SELECT id, slug, title, category, target_stack, files_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+    if (!row) {
+      return res.status(404).json({ error: 'Challenge not found' });
+    }
+
+    const defaultFiles = JSON.parse(row.files_json || '[]');
+
+    // Check for user draft
+    const sub = db.prepare('SELECT files_json FROM coding_submissions WHERE user_id = ? AND challenge_id = ?').get(userId, row.id) as any;
+    const files = (sub && sub.files_json) ? JSON.parse(sub.files_json) : defaultFiles;
+
+    const challenge: CodingChallenge = {
+      id: row.id,
+      slug: row.slug || row.id,
+      title: row.title,
+      category: row.category,
+      targetStack: row.target_stack,
+      badge: '',
+      difficulty: 'Middle',
+      timeLimitMinutes: 60,
+      shortDescription: '',
+      instructionsMarkdown: '',
+      workspaceFiles: defaultFiles,
+      testCases: []
+    };
+
+    const zipBuffer = buildChallengeZipPackage(challenge, files);
+    const filename = `challenge-${row.slug || row.id}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(zipBuffer);
+  } catch (err: any) {
+    console.error('Error generating project ZIP:', err);
     res.status(500).json({ error: err.message });
   }
 });
