@@ -158,7 +158,8 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
       initialUserMessage: params.initialUserMessage,
       isResumed: params.isResumed,
       enableSilenceClarification: params.enableSilenceClarification,
-      workspaceManifest: params.workspaceManifest
+      workspaceManifest: params.workspaceManifest,
+      activeCodeArtifact: params.activeCodeArtifact as any
     };
 
     await engineRef.current?.connect(config);

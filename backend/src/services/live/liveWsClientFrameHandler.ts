@@ -77,6 +77,13 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
           if (ch.activeFileContent) session.codeSnippet = ch.activeFileContent;
           if (ch.workspaceManifest) session.workspaceManifest = ch.workspaceManifest;
         }
+        if (parsed.workspaceManifest) session.workspaceManifest = parsed.workspaceManifest;
+        if (parsed.codeSnippet) session.codeSnippet = parsed.codeSnippet;
+        if (parsed.bugTitle) {
+          session.bugTitle = parsed.bugTitle;
+          session.questionText = parsed.bugTitle;
+        }
+        if (parsed.bugExplanation) session.bugExplanation = parsed.bugExplanation;
         if (parsed.topic) session.topic = parsed.topic;
         if (parsed.persona) session.persona = parsed.persona;
         if (parsed.strategy) session.strategy = parsed.strategy;
@@ -85,14 +92,16 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
 
         console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}`);
 
-        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+        if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
           const workspaceXml = session.workspaceManifest?.xmlManifest || '';
+          const activeSnippet = session.codeSnippet || session.workspaceManifest?.activeFile?.content || '';
+          const activePath = parsed.challenge?.activeFilePath || session.workspaceManifest?.activeFile?.path || 'src/main/java/Solution.java';
           const groundingText = `📌 [КОНТЕКСТ ЗАДАЧИ И РАБОЧЕГО ПРОСТРАНСТВА]:
 Задача: "${session.bugTitle || 'Практика'}"
 Инструкции / Бизнес-требования:
 ${session.bugExplanation || 'Реализуйте требуемый функционал.'}
 
-${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Активный файл (${parsed.challenge?.activeFilePath || 'Main.java'}):\n\`\`\`java\n${session.codeSnippet || '// Код'}\n\`\`\``}`;
+${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Активный файл (${activePath}):\n\`\`\`java\n${activeSnippet || '// Код'}\n\`\`\``}`;
 
           session.geminiSocket.send(JSON.stringify({
             clientContent: {

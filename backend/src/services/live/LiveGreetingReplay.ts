@@ -21,6 +21,29 @@ export interface GreetingReplayOptions {
   challengeTrack?: string;
 }
 
+export function buildWorkspaceGroundingTurn(session: ProxySession): { role: 'user'; parts: [{ text: string }] } | null {
+  const workspaceXml = session.workspaceManifest?.xmlManifest || '';
+  const activeSnippet = session.codeSnippet || session.workspaceManifest?.activeFile?.content || '';
+  const activePath = session.workspaceManifest?.activeFile?.path || 'src/main/java/Solution.java';
+  const effectiveTitle = session.bugTitle || session.questionText || session.topic || 'Практическая задача';
+
+  if (!workspaceXml && !activeSnippet) {
+    return null;
+  }
+
+  const text = `📌 [КОНТЕКСТ ЗАДАЧИ И РАБОЧЕГО ПРОСТРАНСТВА]:
+Задача: "${effectiveTitle}"
+Инструкции / Бизнес-требования:
+${session.bugExplanation || 'Реализуйте требуемый функционал.'}
+
+${workspaceXml ? `Структура проекта и исходные файлы:\n${workspaceXml}` : `Активный файл (${activePath}):\n\`\`\`java\n${activeSnippet}\n\`\`\``}`;
+
+  return {
+    role: 'user',
+    parts: [{ text }]
+  };
+}
+
 /**
  * LiveGreetingReplay (SOTA Late 2026).
  * Handles Turn 0 greeting generation and multi-turn replay upon reconnect.
@@ -48,6 +71,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   if (wasReconnecting) {
     const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
     const hasHistory = Boolean(mem && mem.turns.length > 0);
+    const groundingTurn = buildWorkspaceGroundingTurn(session);
 
     if (hasHistory && mem) {
       console.log(`🔄 [HOT_RECONNECT] Replaying ${mem.turns.length} dialogue turns to upstream Live model for session ${session.sessionId}...`);
@@ -55,6 +79,9 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         role: t.role,
         parts: [{ text: t.text }]
       }));
+      if (groundingTurn) {
+        replayTurns.push(groundingTurn);
+      }
 
       const multiTurnMessage = {
         clientContent: {
@@ -67,18 +94,21 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     } else {
       console.log(`🔄 [HOT_RECONNECT] Reconnect without turn history. Establishing context anchor without greeting replay for "${questionText || topic}"...`);
+      const anchorTurns: Array<{ role: 'user'; parts: [{ text: string }] }> = [];
+      if (groundingTurn) {
+        anchorTurns.push(groundingTurn);
+      }
+      anchorTurns.push({
+        role: 'user',
+        parts: [
+          {
+            text: `[КОНТЕКСТ ДИАЛОГА]: Мы разбираем задачу «${questionText || topic}». Ты уже поприветствовала кандидата и задала вопрос. Кандидат сейчас отвечает или готовится ответить голосом. Не здоровайся заново и не повторяй приветствие. Слушай кандидата и отвечай по существу.`
+          }
+        ]
+      });
       const contextAnchorTurn = {
         clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: `[КОНТЕКСТ ДИАЛОГА]: Мы разбираем задачу «${questionText || topic}». Ты уже поприветствовала кандидата и задала вопрос. Кандидат сейчас отвечает или готовится ответить голосом. Не здоровайся заново и не повторяй приветствие. Слушай кандидата и отвечай по существу.`
-                }
-              ]
-            }
-          ],
+          turns: anchorTurns,
           turnComplete: false
         }
       };
@@ -101,6 +131,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   if (isResumed) {
     const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
     const hasHistory = mem && mem.turns.length > 0;
+    const groundingTurn = buildWorkspaceGroundingTurn(session);
 
     if (hasHistory) {
       console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
@@ -108,6 +139,9 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         role: t.role,
         parts: [{ text: t.text }]
       }));
+      if (groundingTurn) {
+        replayTurns.push(groundingTurn);
+      }
 
       const multiTurnMessage = {
         clientContent: {
@@ -150,14 +184,17 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     } else {
       const fallbackGreeting = `[ВОЗОБНОВЛЕНИЕ ДИАЛОГА]: Мы продолжаем обсуждение вопроса "${questionText || topic}". Не здоровайся заново. Одной короткой фразой передай слово кандидату.`;
+      const fallbackTurns: Array<{ role: 'user'; parts: [{ text: string }] }> = [];
+      if (groundingTurn) {
+        fallbackTurns.push(groundingTurn);
+      }
+      fallbackTurns.push({
+        role: 'user',
+        parts: [{ text: fallbackGreeting }]
+      });
       const initialGreetingTurn = {
         clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: fallbackGreeting }]
-            }
-          ],
+          turns: fallbackTurns,
           turnComplete: true
         }
       };
@@ -226,14 +263,19 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     }
 
+    const groundingTurn = buildWorkspaceGroundingTurn(session);
+    const initialTurns: Array<{ role: 'user'; parts: [{ text: string }] }> = [];
+    if (groundingTurn) {
+      initialTurns.push(groundingTurn);
+    }
+    initialTurns.push({
+      role: 'user',
+      parts: [{ text: greetingText }]
+    });
+
     const initialGreetingTurn = {
       clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts: [{ text: greetingText }]
-          }
-        ],
+        turns: initialTurns,
         turnComplete: true
       }
     };
