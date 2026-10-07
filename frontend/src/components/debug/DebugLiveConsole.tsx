@@ -34,7 +34,7 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
   const isRunning = session.state !== 'IDLE' && session.state !== 'COMPLETED' && session.state !== 'ERROR';
 
   const addLog = (type: LogEntry['type'], text: string) => {
-    const time = new Date().toLocaleTimeString('ru-RU', { hour12: false, minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    const time = new Date().toISOString().substring(11, 23);
     setLogs((prev) => [...prev.slice(-150), { id: `${Date.now()}-${Math.random()}`, time, type, text }]);
   };
 
