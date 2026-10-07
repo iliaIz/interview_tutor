@@ -25,6 +25,7 @@ const InterviewReportModal = lazy(() => import('./components/InterviewReportModa
 const AudioRecapModal = lazy(() => import('./components/AudioRecapModal').then(m => ({ default: m.AudioRecapModal })));
 const ProfileEditModal = lazy(() => import('./components/auth/ProfileEditModal').then(m => ({ default: m.ProfileEditModal })));
 const AdminInvitesModal = lazy(() => import('./components/auth/AdminInvitesModal').then(m => ({ default: m.AdminInvitesModal })));
+const LiveVadDebugStudio = lazy(() => import('./components/debug/LiveVadDebugStudio').then(m => ({ default: m.LiveVadDebugStudio })));
 
 const StudioSuspenseLoader: React.FC = () => (
   <div className="flex-1 min-h-[400px] flex items-center justify-center p-8">
@@ -134,6 +135,8 @@ export const App: React.FC = () => {
             {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
             
             {currentStudioTab === 'practice' && <PracticeArena />}
+
+            {currentStudioTab === 'live_debug' && <LiveVadDebugStudio />}
 
             {currentStudioTab === 'incidents' && (
               activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />

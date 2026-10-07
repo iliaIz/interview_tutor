@@ -1,14 +1,14 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { KeyRound, User, Edit2, LogOut } from 'lucide-react';
+import { KeyRound, User, Edit2, LogOut, Sparkles } from 'lucide-react';
 
 /**
  * UserProfileMenu component for StudioHeader (SOTA Late 2026).
  * Cognitive bounding limit: <= 350 lines.
  */
 export const UserProfileMenu: React.FC = () => {
-  const { systemHealth } = useAppStore();
+  const { systemHealth, currentStudioTab, setStudioTab } = useAppStore();
   const { currentUser, logout, openProfileModal, openAdminInvitesModal } = useAuthStore();
 
   if (!currentUser) return null;
@@ -18,14 +18,29 @@ export const UserProfileMenu: React.FC = () => {
   return (
     <div className="flex items-center gap-1 pl-1 sm:pl-2 border-l border-pastel-border/80">
       {currentUser.role === 'owner' && (
-        <button
-          onClick={openAdminInvitesModal}
-          title="Генератор инвайт-кодов (Владелец)"
-          className="flex items-center gap-1 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-200/80 shadow-2xs transition cursor-pointer"
-        >
-          <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-          <span className="hidden xl:inline text-[11px]">Инвайты</span>
-        </button>
+        <>
+          <button
+            onClick={() => setStudioTab('live_debug')}
+            title="Лаборатория Авто-VAD live v3 (Дебаг и декомпозиция)"
+            className={`flex items-center gap-1 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border shadow-2xs transition cursor-pointer ${
+              currentStudioTab === 'live_debug'
+                ? 'bg-violet-100 text-violet-900 border-violet-300 ring-2 ring-violet-200'
+                : 'bg-violet-50 hover:bg-violet-100/80 text-violet-800 border-violet-200/80'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+            <span className="hidden xl:inline text-[11px]">VAD Lab</span>
+          </button>
+
+          <button
+            onClick={openAdminInvitesModal}
+            title="Генератор инвайт-кодов (Владелец)"
+            className="flex items-center gap-1 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-200/80 shadow-2xs transition cursor-pointer"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden xl:inline text-[11px]">Инвайты</span>
+          </button>
+        </>
       )}
 
       <button

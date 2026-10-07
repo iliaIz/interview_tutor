@@ -71,7 +71,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   if (wasReconnecting) {
     const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
     const hasHistory = Boolean(mem && mem.turns.length > 0);
-    const groundingTurn = buildWorkspaceGroundingTurn(session);
+    const groundingTurn = (session.debugStep === undefined || session.debugStep >= 2) ? buildWorkspaceGroundingTurn(session) : null;
 
     if (hasHistory && mem) {
       console.log(`🔄 [HOT_RECONNECT] Replaying ${mem.turns.length} dialogue turns to upstream Live model for session ${session.sessionId}...`);
@@ -131,7 +131,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   if (isResumed) {
     const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
     const hasHistory = mem && mem.turns.length > 0;
-    const groundingTurn = buildWorkspaceGroundingTurn(session);
+    const groundingTurn = (session.debugStep === undefined || session.debugStep >= 2) ? buildWorkspaceGroundingTurn(session) : null;
 
     if (hasHistory) {
       console.log(`🔄 Replaying ${mem.turns.length} structured multi-turn dialogue steps to upstream Live model for session ${session.sessionId}...`);
@@ -208,7 +208,19 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
     return;
   }
     let greetingText = '';
-    if (initialUserMessage) {
+    if (session.debugStep === 0) {
+      greetingText = 'Привет! Это чистая проверка Gemini Live v3 из коробки без надстроек. Скажи мне что-нибудь, и я отвечу.';
+    } else if (session.debugStep === 1) {
+      greetingText = 'Привет! Проверяем системную инструкцию роли на русском языке. Скажи одну короткую фразу: Связь установлена.';
+    } else if (session.debugStep === 2) {
+      greetingText = 'Привет! Проверяем контекст и заземление на код проекта. Скажи: Контекст получен.';
+    } else if (session.debugStep === 3) {
+      greetingText = 'Привет! Проверяем инструменты и вызовы функций. Скажи: Проверка инструментов.';
+    } else if (session.debugStep === 4) {
+      greetingText = 'Привет! Проверяем серверный Cloud VAD и транскрипцию речи. Ответь мне короткой фразой.';
+    } else if (session.debugStep === 5) {
+      greetingText = 'Привет! Проверяем клиентский звуковой тракт и Silero VAD. Скажи что-нибудь в микрофон.';
+    } else if (initialUserMessage) {
       greetingText = initialUserMessage;
       session.hasCandidateResponded = true;
       console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
@@ -263,7 +275,9 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     }
 
-    const groundingTurn = buildWorkspaceGroundingTurn(session);
+    const groundingTurn = (session.debugStep === undefined || session.debugStep >= 2)
+      ? buildWorkspaceGroundingTurn(session)
+      : null;
     const initialTurns: Array<{ role: 'user'; parts: [{ text: string }] }> = [];
     if (groundingTurn) {
       initialTurns.push(groundingTurn);

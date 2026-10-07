@@ -70,6 +70,7 @@ export interface VoiceEngineConfig {
   };
   turn0Lockdown?: boolean;
   enableSilenceClarification?: boolean;
+  debugStep?: number;
 }
 
 export interface LiveSessionInitFrame {

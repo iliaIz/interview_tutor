@@ -5,7 +5,7 @@ import { User, X, Check, Edit3, Shield, Loader2, KeyRound, Sparkles, GitCommit, 
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const ProfileEditModal: React.FC = () => {
-  const { systemHealth } = useAppStore();
+  const { systemHealth, setStudioTab } = useAppStore();
   const { isProfileModalOpen, closeProfileModal, currentUser, updateUserName, openAdminInvitesModal } = useAuthStore();
   useBodyScrollLock(isProfileModalOpen);
 
@@ -88,20 +88,41 @@ export const ProfileEditModal: React.FC = () => {
 
         {/* Owner Quick Action: Manage Invites */}
         {currentUser.role === 'owner' && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/70 via-pastel-rose/40 to-purple-50/70 border border-amber-200/60 relative z-10 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-amber-600" />
-              <div className="text-[11px] font-bold text-slate-800">Инвайт-коды</div>
+          <div className="space-y-2 relative z-10">
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-violet-50/80 via-pastel-rose/40 to-pink-50/80 border border-violet-200/80 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+                <div>
+                  <div className="text-[11px] font-bold text-slate-800">Лаборатория Авто-VAD v3</div>
+                  <div className="text-[9px] text-pastel-muted">Пошаговая декомпозиция и live-тесты</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  closeProfileModal();
+                  setStudioTab('live_debug');
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-violet-900 bg-violet-200/80 hover:bg-violet-300 transition cursor-pointer shadow-2xs whitespace-nowrap"
+              >
+                👑 Studio →
+              </button>
             </div>
-            <button
-              onClick={() => {
-                closeProfileModal();
-                openAdminInvitesModal();
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-200/70 hover:bg-amber-300/80 transition cursor-pointer shadow-2xs"
-            >
-              Управление инвайтами →
-            </button>
+
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50/70 via-pastel-rose/40 to-purple-50/70 border border-amber-200/60 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
+                <div className="text-[11px] font-bold text-slate-800">Инвайт-коды</div>
+              </div>
+              <button
+                onClick={() => {
+                  closeProfileModal();
+                  openAdminInvitesModal();
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-200/70 hover:bg-amber-300/80 transition cursor-pointer shadow-2xs"
+              >
+                Управление инвайтами →
+              </button>
+            </div>
           </div>
         )}
 

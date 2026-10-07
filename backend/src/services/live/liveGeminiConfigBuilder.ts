@@ -14,6 +14,7 @@ export interface BuildGeminiSetupOptions {
   normalizedTools: any[];
   vadPauseMs?: number;
   turnMode?: 'auto' | 'manual';
+  debugStep?: number;
 }
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
@@ -25,7 +26,8 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     strategy,
     normalizedTools,
     vadPauseMs = 1800,
-    turnMode = 'auto'
+    turnMode = 'auto',
+    debugStep
   } = opts;
 
   const validVoices = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'];
@@ -50,6 +52,43 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
       thinkingLevel: 'LOW',
       includeThoughts: true
     };
+  }
+
+  if (debugStep === 0) {
+    return {
+      setup: {
+        model: `models/${liveModel}`,
+        generationConfig
+      }
+    };
+  }
+
+  if (debugStep === 1 || debugStep === 2) {
+    return {
+      setup: {
+        model: `models/${liveModel}`,
+        generationConfig,
+        systemInstruction: {
+          parts: [{ text: systemPromptText }]
+        }
+      }
+    };
+  }
+
+  if (debugStep === 3) {
+    const msg: any = {
+      setup: {
+        model: `models/${liveModel}`,
+        generationConfig,
+        systemInstruction: {
+          parts: [{ text: systemPromptText }]
+        }
+      }
+    };
+    if (normalizedTools && normalizedTools.length > 0) {
+      msg.setup.tools = [{ functionDeclarations: normalizedTools }];
+    }
+    return msg;
   }
 
   // Native Cloud VAD & Activity Detection for Gemini 3.8 Live (Canonical Google Standard)

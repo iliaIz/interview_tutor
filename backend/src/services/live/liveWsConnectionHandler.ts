@@ -60,12 +60,12 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     relevantGapIds,
     userProfile,
     liveModel,
-    upstreamWsUrl,
     vadPauseMs,
-    enableSilenceClarification
+    enableSilenceClarification,
+    debugStep
   } = params;
 
-  console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}`);
+  console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}${debugStep !== undefined ? `, debugStep=${debugStep}` : ''}`);
 
   const session: ProxySession = {
     clientSocket,
@@ -110,6 +110,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     turnTelemetryHistory: [],
     vadPauseMs,
     enableSilenceClarification: Boolean(enableSilenceClarification),
+    debugStep,
     lastRttMs: null,
     sessionStartedAt: Date.now()
   };
@@ -231,7 +232,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     strategy,
     normalizedTools,
     vadPauseMs: session.vadPauseMs,
-    turnMode
+    turnMode,
+    debugStep
   });
 
   const router = createLiveAudioStreamRouter({

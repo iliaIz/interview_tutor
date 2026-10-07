@@ -92,27 +92,10 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
 
         console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}`);
 
-        if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-          const workspaceXml = session.workspaceManifest?.xmlManifest || '';
-          const activeSnippet = session.codeSnippet || session.workspaceManifest?.activeFile?.content || '';
-          const activePath = parsed.challenge?.activeFilePath || session.workspaceManifest?.activeFile?.path || 'src/main/java/Solution.java';
-          const groundingText = `📌 [КОНТЕКСТ ЗАДАЧИ И РАБОЧЕГО ПРОСТРАНСТВА]:
-Задача: "${session.bugTitle || 'Практика'}"
-Инструкции / Бизнес-требования:
-${session.bugExplanation || 'Реализуйте требуемый функционал.'}
-
-${workspaceXml ? `Структура проекта:\n${workspaceXml}` : `Активный файл (${activePath}):\n\`\`\`java\n${activeSnippet || '// Код'}\n\`\`\``}`;
-
-          session.geminiSocket.send(JSON.stringify({
-            clientContent: {
-              turns: [{
-                role: 'user',
-                parts: [{ text: groundingText }]
-              }],
-              turnComplete: false
-            }
-          }));
-        }
+        // SOTA Late 2026 Invariant 2.6: Strict Channel Separation (No Interleaving).
+        // session_init updates workspace manifest in memory. The initial grounding turn
+        // is atomically bundled with the Turn 0 greeting in handleSetupCompleteGreeting()
+        // with turnComplete: true, preventing illegal mid-synthesis interleaving frames.
         return;
       }
 
