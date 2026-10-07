@@ -60,6 +60,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     relevantGapIds,
     userProfile,
     liveModel,
+    upstreamWsUrl,
     vadPauseMs,
     enableSilenceClarification,
     debugStep
