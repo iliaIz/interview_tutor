@@ -16,6 +16,13 @@ import {
   ScenarioEvaluationResult
 } from '../../types/transactionLab';
 import { TransactionValidator } from '../../services/transactionValidator';
+import {
+  saveTxLabLocalDraft,
+  getTxLabLocalDraft,
+  removeTxLabLocalDraft,
+  syncTxLabDraftWithCloud,
+  fetchTxLabDraftFromCloud
+} from '../../services/transactionLabDraftStorage';
 import { TransactionAnnotationChip } from './TransactionAnnotationChip';
 import { TransactionScenarioSelector } from './TransactionScenarioSelector';
 import { TransactionTimelineScrubber } from './TransactionTimelineScrubber';
@@ -85,8 +92,57 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
   const [threads, setThreads] = useState<number>(scenario.simulatedLoad.defaultThreads);
   const [userConfigs, setUserConfigs] = useState<Record<string, TransactionAnnotationConfig>>({});
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Check local draft
+    const localDraft = getTxLabLocalDraft(scenario.id);
+    let loadedConfigs: Record<string, TransactionAnnotationConfig> | null = localDraft?.userConfigs || null;
+    let loadedThreads: number = localDraft?.threads ?? scenario.simulatedLoad.defaultThreads;
+
+    if (!loadedConfigs) {
+      const initial: Record<string, TransactionAnnotationConfig> = {};
+      scenario.services.forEach((svc) => {
+        svc.methods.forEach((m) => {
+          initial[m.id] = { propagation: 'NONE' };
+        });
+      });
+      loadedConfigs = initial;
+    }
+
+    setUserConfigs(loadedConfigs);
+    setThreads(loadedThreads);
+    setSelectedMethodId(scenario.services[0]?.methods[0]?.id);
+
+    // 2. Background check cloud draft
+    void fetchTxLabDraftFromCloud(scenario.id).then((cloud) => {
+      if (cloud && cloud.updatedAt > (localDraft?.updatedAt || 0)) {
+        setUserConfigs(cloud.userConfigs);
+        setThreads(cloud.threads);
+        saveTxLabLocalDraft(scenario.id, cloud.userConfigs, cloud.threads);
+      }
+    });
+  }, [scenario]);
+
+  // Autosave: debounced 400ms to local storage, 10s to cloud
+  useEffect(() => {
+    if (!scenario.id || Object.keys(userConfigs).length === 0) return;
+    saveTxLabLocalDraft(scenario.id, userConfigs, threads);
+
+    const cloudTimer = setTimeout(() => {
+      void syncTxLabDraftWithCloud(scenario.id, userConfigs, threads).then((ok) => {
+        if (ok) {
+          setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      });
+    }, 10_000);
+
+    return () => clearTimeout(cloudTimer);
+  }, [userConfigs, threads, scenario.id]);
+
+  const handleResetScenario = useCallback(() => {
+    if (!window.confirm('Сбросить конфигурацию транзакций к исходным значениям (NONE)?')) return;
+    removeTxLabLocalDraft(scenario.id);
     const initial: Record<string, TransactionAnnotationConfig> = {};
     scenario.services.forEach((svc) => {
       svc.methods.forEach((m) => {
@@ -95,7 +151,7 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     });
     setUserConfigs(initial);
     setThreads(scenario.simulatedLoad.defaultThreads);
-    setSelectedMethodId(scenario.services[0]?.methods[0]?.id);
+    setLastSavedTime(null);
   }, [scenario]);
 
   const handleMethodConfigChange = useCallback((methodId: string, cfg: TransactionAnnotationConfig) => {
@@ -159,6 +215,22 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {lastSavedTime && (
+            <span className="hidden sm:inline text-[10px] text-slate-400 font-mono">
+              Сохранено {lastSavedTime}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleResetScenario}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer text-xs"
+            title="Сбросить конфигурацию к значениям по умолчанию"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Сброс</span>
+          </button>
+
           <button
             type="button"
             onClick={() => toggleCompass()}

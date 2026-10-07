@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
+import { getLocalDraft, removeLocalDraft } from '../../services/practiceDraftStorage';
 
 const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
@@ -302,7 +303,38 @@ export const PracticeCatalog: React.FC = () => {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
       const data = await res.json();
-      openPracticeChallenge(data.challenge, data.savedDraft);
+
+      const localDraft = getLocalDraft(challengeId);
+      const serverDraft = data.savedDraft;
+      let effectiveDraft = null;
+      let isRestored = false;
+
+      if (localDraft && serverDraft && serverDraft.length > 0) {
+        const serverEpoch = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+        if (localDraft.updatedAt >= serverEpoch) {
+          effectiveDraft = localDraft.files;
+          isRestored = true;
+        } else {
+          effectiveDraft = serverDraft;
+          isRestored = true;
+        }
+      } else if (localDraft && localDraft.files && localDraft.files.length > 0) {
+        effectiveDraft = localDraft.files;
+        isRestored = true;
+      } else if (serverDraft && serverDraft.length > 0) {
+        effectiveDraft = serverDraft;
+        isRestored = true;
+      }
+
+      openPracticeChallenge(data.challenge, effectiveDraft);
+
+      if (isRestored) {
+        showToast({
+          type: 'info',
+          title: 'Черновик восстановлен',
+          message: 'Восстановлен незавершенный код задачи.'
+        });
+      }
     } catch (err: any) {
       console.error('Error loading challenge details:', err);
       showToast({
@@ -322,6 +354,7 @@ export const PracticeCatalog: React.FC = () => {
 
     setResettingId(challengeId);
     try {
+      removeLocalDraft(challengeId);
       const res = await fetch(`/api/practice/reset/${challengeId}`, {
         method: 'POST',
         credentials: 'include'

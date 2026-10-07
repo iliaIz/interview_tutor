@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { SandboxExecutionResponse } from './SandboxTestConsole';
 import { MutationExecutionResponse } from '../../types/practice';
+import { useWorkspaceAutosave } from './useWorkspaceAutosave';
+import { removeLocalDraft } from '../../services/practiceDraftStorage';
 
 export interface EvaluationStageState {
   stage: 'idle' | 'sandbox' | 'sandbox_done' | 'ast_analysis' | 'ai_reasoning' | 'complete';
@@ -12,7 +14,9 @@ export function useWorkspaceRunner() {
   const {
     activePracticeChallenge,
     practiceWorkspaceFiles,
+    activeWorkspaceFileIndex,
     activePracticePhase,
+    practiceElapsedSeconds,
     isPracticeEvaluating,
     setIsPracticeEvaluating,
     setActivePracticeReport,
@@ -24,8 +28,15 @@ export function useWorkspaceRunner() {
     updateWorkspaceFileContent
   } = useAppStore();
 
-  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const autosave = useWorkspaceAutosave({
+    challengeId: activePracticeChallenge?.id,
+    files: practiceWorkspaceFiles,
+    activePhase: activePracticePhase,
+    activeWorkspaceFileIndex,
+    timeSpentSeconds: practiceElapsedSeconds,
+    enabled: Boolean(activePracticeChallenge)
+  });
+
   const [isSandboxRunning, setIsSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<SandboxExecutionResponse | null>(null);
   const [mutationResult, setMutationResult] = useState<MutationExecutionResponse | null>(null);
@@ -57,6 +68,7 @@ export function useWorkspaceRunner() {
 
   const handleRunSandbox = useCallback(async () => {
     if (!activePracticeChallenge || isSandboxRunning) return;
+    void autosave.flushNow();
     setIsSandboxRunning(true);
     setSandboxResult(null);
     setMutationResult(null);
@@ -223,20 +235,9 @@ export function useWorkspaceRunner() {
   ]);
 
   const handleSaveDraft = useCallback(async () => {
-    if (!activePracticeChallenge || isSavingDraft) return;
-    setIsSavingDraft(true);
+    if (!activePracticeChallenge || autosave.isSaving) return;
     try {
-      await fetch('/api/practice/save-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          challengeId: activePracticeChallenge.id,
-          files: practiceWorkspaceFiles,
-          activePhase: activePracticePhase
-        })
-      });
-      setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      await autosave.flushNow();
       showToast({
         type: 'success',
         title: 'Черновик сохранен',
@@ -245,13 +246,11 @@ export function useWorkspaceRunner() {
     } catch {
       showToast({
         type: 'error',
-        title: 'Ошибка автосохранения',
+        title: 'Ошибка сохранения',
         message: 'Не удалось сохранить черновик'
       });
-    } finally {
-      setIsSavingDraft(false);
     }
-  }, [activePracticeChallenge, isSavingDraft, practiceWorkspaceFiles, activePracticePhase, showToast]);
+  }, [activePracticeChallenge, autosave, showToast]);
 
   const handleResetWorkspace = useCallback(async () => {
     if (!activePracticeChallenge) return;
@@ -260,11 +259,13 @@ export function useWorkspaceRunner() {
     }
 
     try {
+      removeLocalDraft(activePracticeChallenge.id);
       await fetch(`/api/practice/reset/${activePracticeChallenge.id}`, { method: 'POST' });
       const initialFiles = activePracticeChallenge.workspaceFiles || activePracticeChallenge.phases?.[0]?.addedFiles || [];
       initialFiles.forEach((file, idx) => {
         updateWorkspaceFileContent(idx, file.content);
       });
+      autosave.markClean();
 
       showToast({
         type: 'info',
@@ -274,7 +275,7 @@ export function useWorkspaceRunner() {
     } catch (e) {
       console.error('Error resetting workspace:', e);
     }
-  }, [activePracticeChallenge, updateWorkspaceFileContent, showToast]);
+  }, [activePracticeChallenge, updateWorkspaceFileContent, autosave, showToast]);
 
   return {
     isSandboxRunning,
@@ -283,8 +284,9 @@ export function useWorkspaceRunner() {
     mutationResult,
     setMutationResult,
     isWriteTheTestsMode,
-    isSavingDraft,
-    lastSavedTime,
+    isSavingDraft: autosave.isSaving,
+    lastSavedTime: autosave.lastSavedTime,
+    syncStatus: autosave.syncStatus,
     evaluationTimer,
     evaluationStage,
     handleRunSandbox,

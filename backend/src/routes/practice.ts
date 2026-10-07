@@ -185,8 +185,8 @@ router.post('/evaluate', async (req, res) => {
   }
 });
 
-// POST /api/practice/draft - Auto-save workspace draft for active user
-router.post('/draft', (req, res) => {
+// POST /api/practice/draft & /api/practice/save-draft - Auto-save workspace draft for active user
+const handleDraftSave = (req: any, res: any) => {
   try {
     const userId = getAuthUserId(req);
     const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = req.body;
@@ -212,6 +212,62 @@ router.post('/draft', (req, res) => {
     res.json({ success: true, savedAt: new Date().toISOString() });
   } catch (err: any) {
     console.error('Error saving practice draft:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+router.post('/draft', handleDraftSave);
+router.post('/save-draft', handleDraftSave);
+
+// POST /api/practice/transaction-lab/draft - Save Transaction Lab scenario draft
+router.post('/transaction-lab/draft', (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const { scenarioId, userConfigs, threads = 1 } = req.body;
+    if (!scenarioId || !userConfigs) {
+      return res.status(400).json({ error: 'scenarioId and userConfigs are required' });
+    }
+    const submissionId = `tx_sub_${scenarioId}_${userId}`;
+    const stmt = db.prepare(`
+      INSERT INTO coding_submissions (
+        id, challenge_id, user_id, files_json, active_phase, time_spent_seconds, updated_at
+      ) VALUES (
+        ?, ?, ?, ?, 1, 0, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        files_json = excluded.files_json,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    const payload = JSON.stringify({ userConfigs, threads });
+    stmt.run(submissionId, scenarioId, userId, payload);
+    res.json({ success: true, savedAt: new Date().toISOString() });
+  } catch (err: any) {
+    console.error('Error saving transaction lab draft:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/practice/transaction-lab/draft/:scenarioId - Get Transaction Lab scenario draft
+router.get('/transaction-lab/draft/:scenarioId', (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const scenarioId = req.params.scenarioId;
+    const submissionId = `tx_sub_${scenarioId}_${userId}`;
+    const row = db.prepare('SELECT files_json, updated_at FROM coding_submissions WHERE id = ?').get(submissionId) as any;
+    if (!row) {
+      return res.json({ draft: null });
+    }
+    const data = JSON.parse(row.files_json);
+    res.json({
+      draft: {
+        scenarioId,
+        userConfigs: data.userConfigs || {},
+        threads: data.threads || 1,
+        updatedAt: row.updated_at
+      }
+    });
+  } catch (err: any) {
+    console.error('Error getting transaction lab draft:', err);
     res.status(500).json({ error: err.message });
   }
 });

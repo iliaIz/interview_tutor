@@ -64,6 +64,7 @@ export const WorkspaceEditor: React.FC = () => {
       {/* 1. File Tabs & Status Header */}
       <WorkspaceHeaderBar
         lastSavedTime={runner.lastSavedTime}
+        syncStatus={runner.syncStatus}
         onResetWorkspace={runner.handleResetWorkspace}
       />
 

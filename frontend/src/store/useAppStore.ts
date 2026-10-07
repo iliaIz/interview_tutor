@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { CodingChallenge, FileNode, EvaluationResult, SandboxExecutionResponse, MutationExecutionResponse } from '../types/practice';
 import { ScenarioEvaluationResult } from '../types/transactionLab';
 import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
+import { getLocalDraft } from '../services/practiceDraftStorage';
 
 export interface Question {
   id: string;
@@ -812,18 +813,32 @@ export const useAppStore = create<AppState>()(
       setLatestTxEvaluation: (res) => set({ latestTxEvaluation: res }),
 
       openPracticeChallenge: (challenge, draftFiles) => {
-        const filesToUse = (draftFiles && draftFiles.length > 0)
-          ? draftFiles
-          : (challenge.workspaceFiles && challenge.workspaceFiles.length > 0)
+        let filesToUse = (draftFiles && draftFiles.length > 0) ? draftFiles : null;
+        let activeIndex = 0;
+        let activePhase = 1;
+
+        if (!filesToUse) {
+          const localDraft = getLocalDraft(challenge.id);
+          if (localDraft && localDraft.files && localDraft.files.length > 0) {
+            filesToUse = localDraft.files;
+            activeIndex = localDraft.activeWorkspaceFileIndex ?? 0;
+            activePhase = localDraft.activePhase ?? 1;
+          }
+        }
+
+        if (!filesToUse) {
+          filesToUse = (challenge.workspaceFiles && challenge.workspaceFiles.length > 0)
             ? challenge.workspaceFiles
             : (challenge.phases?.[0]?.addedFiles || []);
+          const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
+          activeIndex = mainIndex >= 0 ? mainIndex : 0;
+        }
         
-        const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
         set({
           activePracticeChallenge: challenge,
           practiceWorkspaceFiles: filesToUse,
-          activeWorkspaceFileIndex: mainIndex >= 0 ? mainIndex : 0,
-          activePracticePhase: 1,
+          activeWorkspaceFileIndex: activeIndex,
+          activePracticePhase: activePhase,
           activePracticeReport: null,
           latestSandboxResult: null,
           latestMutationResult: null,

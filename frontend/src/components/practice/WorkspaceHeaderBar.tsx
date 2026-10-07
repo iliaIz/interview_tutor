@@ -1,15 +1,18 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { FileCode, Lock, Clock, Compass, RotateCcw } from 'lucide-react';
+import { FileCode, Lock, Clock, Compass, RotateCcw, Cloud, Check, Loader2 } from 'lucide-react';
+import { AutosaveSyncStatus } from './useWorkspaceAutosave';
 
 interface WorkspaceHeaderBarProps {
   lastSavedTime: string | null;
+  syncStatus?: AutosaveSyncStatus;
   onResetWorkspace: () => void;
 }
 
 export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
   lastSavedTime,
+  syncStatus = 'saved',
   onResetWorkspace
 }) => {
   const {
@@ -86,11 +89,28 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
           <span>{formatTime(practiceElapsedSeconds)}</span>
         </div>
 
-        {lastSavedTime && (
-          <span className="text-[10px] text-slate-500 hidden md:inline">
-            Сохранено в {lastSavedTime}
-          </span>
-        )}
+        <div className="hidden md:flex items-center gap-1 text-[10px]">
+          {syncStatus === 'saving' ? (
+            <span className="flex items-center gap-1 text-amber-400">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Сохранение...</span>
+            </span>
+          ) : syncStatus === 'local_only' ? (
+            <span className="flex items-center gap-1 text-amber-400/90" title="Сохранено в локальном кэше браузера">
+              <Cloud className="w-3 h-3" />
+              <span>Локальный кэш</span>
+            </span>
+          ) : syncStatus === 'dirty' ? (
+            <span className="text-slate-500">
+              Несохранено...
+            </span>
+          ) : lastSavedTime ? (
+            <span className="flex items-center gap-1 text-slate-400" title="Синхронизировано с базой данных">
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span>Сохранено {lastSavedTime}</span>
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
