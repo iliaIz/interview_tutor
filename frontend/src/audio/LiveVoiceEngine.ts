@@ -152,8 +152,7 @@ export class LiveVoiceEngine {
         type: 'barge_in',
         bargeIn: true,
         bargeInType: source,
-        epoch: Date.now(),
-        clientContent: { turnComplete: true, interrupted: true }
+        epoch: Date.now()
       }));
     }
     this.isServerTurnComplete = true;

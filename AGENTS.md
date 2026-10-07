@@ -4,6 +4,18 @@
 
 ---
 
+## 0. ENVIRONMENT INVARIANTS & DEPLOYMENT POLICY (CRITICAL)
+- **STRICT PROHIBITION: NO LOCAL DOCKER BUILDS ON VPS.**
+  - NEVER execute `docker build`, `docker compose build`, or `docker compose up --build` on this VPS.
+  - The VPS has strictly 1.8 GB RAM. Running compilers (`tsc`, `esbuild`, `docker build`) exhausts memory, starves kernel swap, and causes 10–20 minute server freezes.
+  - Local builds are intercepted and blocked by the system guardrail at `/usr/local/bin/docker`.
+- **CANONICAL CI/CD WORKFLOW:**
+  - All container images are built in cloud runners by GitHub Actions (`.github/workflows/deploy.yml`).
+  - Local verification: ONLY run fast typechecks or linters (`npx tsc --noEmit`).
+  - Deployment: Commit and push changes to GitHub (`git push origin <branch>`). GitHub Actions builds, tests, pushes to GHCR, and performs zero-downtime deployment on the VPS via `docker compose pull && docker compose up -d`.
+
+---
+
 ## 1. LiteLLM Proxy Invariant (No Direct Provider Calls / No Hardcoded Keys)
 - All LLM, Live Audio WebSocket, and TTS interactions MUST route strictly through `LiteLLM_Proxy` (`D:\projects\LiteLLM_Proxy` / `http://litellm-gateway:4000`) running in Docker:
   - HTTP REST endpoints: `${LITELLM_PROXY_URL}` (`http://host.docker.internal:4000/v1` or `http://localhost:4000/v1`).
@@ -64,8 +76,8 @@
   3. `PLAYOUT_FINISHED` (zero-audio turn completion).
 - **Two-Phase Watchdog Invariant:** The gateway watchdog operates in two phases:
   1. Informational nudge at 5.0s (standard) / 8.0s (thinking) dispatching `{ type: 'thinking_delay' }` without disturbing upstream session.
-  2. Generation timeout at 18.0s (standard) / 25.0s (thinking) dispatching clean interruption `{ clientContent: { interrupted: true } }` upstream (NEVER inject duplicate text prompts into active sessions) and `{ type: 'dead_air_recovery' }` to client.
-- **Client Autonomous Safety Fallback:** `LiveVoiceEngine` maintains an autonomous 22s safety timer in case both upstream and gateway hang.
+  2. Generation timeout at 22.0s (standard) / 25.0s (thinking) dispatching clean `{ type: 'dead_air_recovery' }` to client and reclaiming microphone (clean state reset without illegal schema injections).
+- **Client Autonomous Safety Fallback:** `LiveVoiceEngine` maintains an autonomous 25s safety timer in case both upstream and gateway hang.
 
 ### 2.9. Non-Speech Interception & Zero-Audio Prevention Invariant (SOTA Late 2026)
 - **Non-Speech Token Sanitization:** Raw acoustic tokens from Gemini (`<no speech>`, `<no speech>{pause}`, `[no speech]`, `<pause>`) MUST NEVER leak into candidate transcripts or subtitles.

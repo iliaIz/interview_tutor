@@ -166,7 +166,7 @@ The legacy reactive guards in the Node.js gateway (`STALE_GUARD`, `ZERO_CHUNK_GU
 
 ### 5.5. Two-Phase Watchdog & Clean Upstream Interruption Protocol
 - **Phase 1: Informational Nudge (5.0s / 8.0s):** Standard models (`gemini-live-v3`): $5000\text{ ms}$; thinking models: $8000\text{ ms}$. Dispatches `{ type: 'thinking_delay', elapsedMs }` without disturbing upstream session.
-- **Phase 2: Bounded Generation Watchdog (18.0s / 25.0s):** Standard models: $18,000\text{ ms}$; thinking models: $25,000\text{ ms}$. Sends clean interruption frame `{ clientContent: { interrupted: true } }` upstream and `{ type: 'dead_air_recovery' }` to client.
+- **Phase 2: Bounded Generation Watchdog (22.0s / 25.0s):** Standard models: $22,000\text{ ms}$; thinking models: $25,000\text{ ms}$. Dispatches `{ type: 'dead_air_recovery' }` to client and reclaims microphone (clean state reset without illegal schema injections).
 
 ### 5.6. Non-Speech Token Interception & Active Conversational Recovery Invariant
 - **Strict Regex Anchoring:** Acoustic token patterns in `liveStreamErrorDetector.ts` MUST use strict boundaries (`/^<no\s*speech>$/i`, `/^<pause>$/i`). Conversational `<pause>` tokens occurring naturally within candidate or tutor speech are never treated as errors.

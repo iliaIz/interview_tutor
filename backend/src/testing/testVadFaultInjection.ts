@@ -119,8 +119,8 @@ async function testUpstreamDeadAirTimeout(): Promise<void> {
   assert((session.isAiGenerating as boolean) === false, 'Session isAiGenerating cleared to false after deadAir timeout');
   assert(clientReceived.some((m) => m.type === 'dead_air_recovery'), 'Client received dead_air_recovery notification frame');
   assert(
-    geminiReceived.some((m) => m.clientContent?.interrupted === true),
-    'Gemini received clean interruption frame'
+    !geminiReceived.some((m) => m.clientContent?.interrupted === true),
+    'Gemini did not receive illegal clientContent.interrupted frame'
   );
 
   await cleanupSocketPair(clientPair);

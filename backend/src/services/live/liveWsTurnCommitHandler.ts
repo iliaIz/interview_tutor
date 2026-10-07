@@ -78,8 +78,8 @@ export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket)
     }
   }, nudgeDelay);
 
-  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (18.0s for standard, 25.0s for thinking)
-  const defaultTimeout = isThinkingModel ? 25000 : 18000;
+  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (22.0s for standard, 25.0s for thinking)
+  const defaultTimeout = isThinkingModel ? 25000 : 22000;
   const deadAirTimeoutMs = session.deadAirTimeoutMs ?? defaultTimeout;
   if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
   session.deadAirWatchdog = setTimeout(() => {
@@ -95,18 +95,6 @@ export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket)
           reason: 'upstream_timeout',
           timestamp: Date.now()
         }));
-      }
-      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-        try {
-          // SOTA Late 2026: Send clean interruption rather than injecting colliding text turn
-          session.geminiSocket.send(JSON.stringify({
-            clientContent: {
-              interrupted: true
-            }
-          }));
-        } catch (e) {
-          console.warn('Failed to send clean interruption to Gemini:', e);
-        }
       }
     }
   }, deadAirTimeoutMs);

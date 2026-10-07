@@ -79,6 +79,13 @@ def create_tarball():
     return tar_path
 
 def deploy():
+    print("🛑 [ERROR] Direct deployment via local Docker build is disabled on this VPS!")
+    print("Host memory is strictly limited (1.8 GB RAM). Local builds cause OOM freezes.")
+    print("👉 Canonical CI/CD workflow: Push changes to GitHub (`git push origin <branch>`).")
+    print("   GitHub Actions (.github/workflows/deploy.yml) will build images in cloud runners and deploy safely.")
+    sys.exit(1)
+
+    # Legacy code retained below for historical reference
     tar_path = create_tarball()
 
     print(f"\n[2/5] Connecting via SSH to {USERNAME}@{HOSTNAME}...")
