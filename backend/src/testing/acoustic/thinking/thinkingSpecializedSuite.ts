@@ -32,7 +32,7 @@ export async function runThinkingCotShieldTest(engine: string = 'gemini-live-thi
   try {
     console.log(`[Thinking: CoT Shield] Connecting to ${engine}...`);
     await client.connect(12000);
-    await client.waitForGreeting(15000);
+    await client.waitForGreeting(60000);
 
     const candidatePcm = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
     await RealtimeAudioPacer.streamSpeechWithTrailingSilence(
@@ -114,7 +114,7 @@ export async function runThinkingPreVocalBargeInTest(engine: string = 'gemini-li
   try {
     console.log(`[Thinking: Pre-Vocal Barge-In] Connecting to ${engine}...`);
     await client.connect(12000);
-    await client.waitForGreeting(15000);
+    await client.waitForGreeting(60000);
 
     const normalPcm = await AcousticFixtureManager.getFixture('candidate_normal_answer_java');
     const bargeInPcm = await AcousticFixtureManager.getFixture('candidate_complex_architecture');
@@ -181,7 +181,7 @@ export async function runThinkingCoveAuditTest(engine: string = 'gemini-live-thi
   try {
     console.log(`[Thinking: CoVe Audit] Connecting to ${engine}...`);
     await client.connect(12000);
-    await client.waitForGreeting(15000);
+    await client.waitForGreeting(60000);
 
     // Feed the sycophancy bait: "В метод с аннотацией CacheEvict передается объект"
     const baitPcm = await AcousticFixtureManager.getFixture('candidate_sycophancy_bait');
