@@ -15,7 +15,6 @@ export interface BuildGeminiSetupOptions {
   vadPauseMs?: number;
   turnMode?: 'auto' | 'manual';
   temperature?: number;
-  resumptionHandle?: string;
 }
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
@@ -27,8 +26,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     strategy,
     normalizedTools,
     vadPauseMs = 500,
-    turnMode = 'auto',
-    resumptionHandle
+    turnMode = 'auto'
   } = opts;
 
   const validVoices = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'];
@@ -57,7 +55,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
 
   if (isThinkingModel) {
     generationConfig.thinkingConfig = {
-      thinkingLevel: 'LOW',
+      thinkingLevel: 'low',
       includeThoughts: true
     };
   }
@@ -83,10 +81,6 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
   };
 
-  const sessionResumption = resumptionHandle
-    ? { handle: resumptionHandle }
-    : {};
-
   const setupMessage: any = {
     setup: {
       model: `models/${liveModel}`,
@@ -96,8 +90,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      realtimeInputConfig,
-      sessionResumption
+      realtimeInputConfig
     }
   };
 

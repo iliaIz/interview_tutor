@@ -61,7 +61,6 @@ export interface ProxySession {
   lastToolCallHash?: string;
   lastToolCallTime?: number;
   isGreetingSent?: boolean;
-  resumptionHandle?: string;
   isTerminated?: boolean;
   audioChunksCount?: number;
   lastTurnCommitTime?: number;

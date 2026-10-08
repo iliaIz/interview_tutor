@@ -70,11 +70,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     const reasonStr = reason ? reason.toString() : '';
     console.warn(`⚠️ Upstream Gemini Live WS disconnected [${source}], code=${code}, reason=${reasonStr || 'none'}`);
 
-    if (code === 1008 || code === 1011) {
-      console.warn(`🧹 [SESSION_RESUMPTION] Invalidating resumption handle after code=${code}`);
-      session.resumptionHandle = undefined;
-    }
-
     const isNonRetryable = session.hasTerminalError || isNonRetryableUpstreamError(reasonStr, code);
 
     if (isNonRetryable) {
@@ -150,10 +145,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
     geminiSocket.on('open', () => {
       console.log(`✅ Connected to Upstream Gemini Live WS (${liveModel}), sending setup frame...`);
-      if (isInternalReconnect && session.resumptionHandle) {
-        setupMessage.setup.sessionResumption = { handle: session.resumptionHandle };
-        console.log(`🔄 [SESSION_RESUMPTION] Reusing resumption handle for reconnection.`);
-      }
       geminiSocket.send(JSON.stringify(setupMessage));
     });
 
@@ -191,11 +182,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             }
             return;
           }
-        }
-
-        if (parsed.sessionResumptionUpdate?.newHandle) {
-          session.resumptionHandle = parsed.sessionResumptionUpdate.newHandle;
-          console.log(`🔑 [SESSION_RESUMPTION] Captured upstream resumption handle for session ${session.sessionId || 'anon'}`);
         }
 
         // 1. Setup Complete Greeting & History Replay
