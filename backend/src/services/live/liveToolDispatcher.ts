@@ -60,7 +60,8 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
                 message: 'Интерактивная доска обновлена на экране кандидата.',
                 directive: 'Кратко (в 1-2 предложениях) объясни кандидату голосом ключевые особенности показанного на доске фрагмента. Не вызывай повторных инструментов до ответа кандидата.'
               }
-            }
+            },
+            scheduling: 'SILENT'
           }
         ]
       }
@@ -87,6 +88,40 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
     return true;
   }
 
+  if (call.name === 'read_file') {
+    const filePath = (call.args?.filePath || '').trim();
+    const manifest = (session as any).workspaceManifest;
+    const fileContent = manifest?.files?.find((f: any) => f.path === filePath)?.content
+      || (manifest?.activeFile?.path === filePath ? manifest?.activeFile?.content : null)
+      || ((session as any).codeSnippet && filePath.endsWith('.java') ? (session as any).codeSnippet : null)
+      || `Файл "${filePath}" не найден в структуре проекта.`;
+
+    console.log(`📂 [READ_FILE] Gemini Live requested file: "${filePath}" (${fileContent.length} chars)`);
+
+    const toolResponse = {
+      toolResponse: {
+        functionResponses: [
+          {
+            id: call.id,
+            name: call.name,
+            response: {
+              result: {
+                filePath,
+                content: fileContent
+              }
+            },
+            scheduling: 'SILENT'
+          }
+        ]
+      }
+    };
+
+    if (geminiSocket.readyState === WebSocket.OPEN) {
+      geminiSocket.send(JSON.stringify(toolResponse));
+    }
+    return true;
+  }
+
   if (call.name === 'mark_bug_solved') {
     const args = call.args || {};
     const isSolved = args.isSolved ?? true;
@@ -106,7 +141,8 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
                 status: 'SUCCESS',
                 message: 'Баг подтвержден как решенный.'
               }
-            }
+            },
+            scheduling: 'SILENT'
           }
         ]
       }

@@ -5,6 +5,7 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
   toolDeclarations.push({
     name: 'update_whiteboard',
     description: 'Отобразить, обновить, выделить или стереть пример кода или архитектурную схему на интерактивной доске кандидата',
+    behavior: 'NON_BLOCKING',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -27,10 +28,28 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
     }
   });
 
+  // Dynamic file reader tool for project workspace (SOTA Late 2026)
+  toolDeclarations.push({
+    name: 'read_file',
+    description: 'Асинхронно прочитать содержимое файла из проекта кандидата (например pom.xml, класс или тест)',
+    behavior: 'NON_BLOCKING',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        filePath: {
+          type: 'STRING',
+          description: 'Относительный путь к файлу в проекте (например: src/main/java/Solution.java)'
+        }
+      },
+      required: ['filePath']
+    }
+  });
+
   if (sessionType === 'interview') {
     toolDeclarations.push({
       name: 'submit_interview_evaluation',
       description: 'Сохранить итоговую оценку, баллы и рекомендации по устному ответу кандидата',
+      behavior: 'NON_BLOCKING',
       parameters: {
         type: 'OBJECT',
         properties: {

@@ -49,9 +49,9 @@ class GeminiAudioProcessor extends AudioWorkletProcessor {
     this.concealmentFrames = 48;
     this.lastRenderedSample = 0.0;
 
-    // Interruption Flush De-ramping (64 frames ~1.33ms)
+    // Interruption Flush De-ramping (5ms raised-cosine de-ramp: 120-240 samples @ 24k-48kHz)
     this.deRampIndex = 0;
-    this.deRampDuration = 64;
+    this.deRampDuration = Math.max(120, Math.round(hostSampleRate * 0.005));
 
     this.port.onmessage = (event) => {
       this.handleMessage(event.data);

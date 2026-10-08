@@ -16,8 +16,8 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     this.resamplePos = 0;
     this.prevSample = 0;
 
-    // 1024 samples @ 16kHz = 64ms chunk (optimal real-time latency matching Gemini Live)
-    this.outputChunkCapacity = 1024;
+    // 512 samples @ 16kHz = 32ms chunk (canonical real-time latency matching Gemini 3.8 Live)
+    this.outputChunkCapacity = 512;
     this.outputBuffer = new Int16Array(this.outputChunkCapacity);
     this.outputBufferIndex = 0;
 

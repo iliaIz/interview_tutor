@@ -5,7 +5,6 @@ import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
 import { LiveToolCallExecutor } from './LiveToolCallExecutor';
 import { isNonRetryableUpstreamError, isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
-import { LiveDeadAirGuard } from './LiveDeadAirGuard';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -65,13 +64,16 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     challengeTrack = ''
   } = options;
 
-  const deadAirGuard = new LiveDeadAirGuard();
-
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;
     session.isAiGenerating = false;
     const reasonStr = reason ? reason.toString() : '';
     console.warn(`⚠️ Upstream Gemini Live WS disconnected [${source}], code=${code}, reason=${reasonStr || 'none'}`);
+
+    if (code === 1008 || code === 1011) {
+      console.warn(`🧹 [SESSION_RESUMPTION] Invalidating resumption handle after code=${code}`);
+      session.resumptionHandle = undefined;
+    }
 
     const isNonRetryable = session.hasTerminalError || isNonRetryableUpstreamError(reasonStr, code);
 
@@ -148,6 +150,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
     geminiSocket.on('open', () => {
       console.log(`✅ Connected to Upstream Gemini Live WS (${liveModel}), sending setup frame...`);
+      if (isInternalReconnect && session.resumptionHandle) {
+        setupMessage.setup.sessionResumption = { handle: session.resumptionHandle };
+        console.log(`🔄 [SESSION_RESUMPTION] Reusing resumption handle for reconnection.`);
+      }
       geminiSocket.send(JSON.stringify(setupMessage));
     });
 
@@ -263,39 +269,14 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             };
           }
 
-          let shouldClampDeadAir = false;
-
           if (parsed.serverContent.modelTurn.parts) {
-            const filteredParts: any[] = [];
-            for (const part of parsed.serverContent.modelTurn.parts) {
-              const pcm = part.inlineData?.data || part.inline_data?.data;
-              if (pcm && session.debugStep !== 0) {
-                const res = deadAirGuard.processChunk(pcm);
-                if (res.shouldClampTurn) {
-                  shouldClampDeadAir = true;
-                  console.warn(`🛑 [DEAD_AIR_GUARD] Detected continuous acoustic silence after speech. Clamping model turn.`);
-                }
-                if (!res.suppressChunk) {
-                  filteredParts.push(part);
-                }
-              } else {
-                filteredParts.push(part);
-              }
-            }
-            parsed.serverContent.modelTurn.parts = filteredParts;
-
-            LiveTelemetryAccumulator.processModelTurnParts(session, filteredParts, commitAnchor);
+            LiveTelemetryAccumulator.processModelTurnParts(session, parsed.serverContent.modelTurn.parts, commitAnchor);
             LiveCannedErrorRecovery.evaluateAndIntercept(
               session,
               clientSocket,
               session.currentAiTurnText || '',
               session.currentTurnAudioBytes
             );
-          }
-
-          if (shouldClampDeadAir) {
-            parsed.serverContent.turnComplete = true;
-            parsed.serverContent.generationComplete = true;
           }
         }
 
@@ -335,14 +316,12 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // 5. Barge-In Interruption
         if (parsed.serverContent?.interrupted) {
-          deadAirGuard.reset();
           LiveTelemetryAccumulator.handleBargeIn(session);
         }
 
         // 6. Turn Complete / Generation Complete (SOTA Equivalence)
         const isUpstreamTurnComplete = Boolean(parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete);
         if (isUpstreamTurnComplete) {
-          deadAirGuard.reset();
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
             // SOTA Late 2026: Deduplicate terminal frame invocations

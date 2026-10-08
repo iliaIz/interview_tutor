@@ -67,7 +67,7 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     temperature
   } = params;
 
-  console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}${debugStep !== undefined ? `, debugStep=${debugStep}` : ''}`);
+  console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}`);
 
   const session: ProxySession = {
     clientSocket,
@@ -159,12 +159,12 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     session.frameQueue = [];
     try {
       if (session.geminiSocket && (session.geminiSocket.readyState === WebSocket.OPEN || session.geminiSocket.readyState === WebSocket.CONNECTING)) {
-        session.geminiSocket.close();
+        session.geminiSocket.close(1000, 'Normal Closure');
       }
     } catch {}
     try {
       if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
-        clientSocket.close();
+        clientSocket.close(1000, 'Normal Closure');
       }
     } catch {}
   };
@@ -235,7 +235,6 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     normalizedTools,
     vadPauseMs: session.vadPauseMs,
     turnMode,
-    debugStep,
     temperature
   });
 

@@ -14,8 +14,8 @@ export interface BuildGeminiSetupOptions {
   normalizedTools: any[];
   vadPauseMs?: number;
   turnMode?: 'auto' | 'manual';
-  debugStep?: number;
   temperature?: number;
+  resumptionHandle?: string;
 }
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
@@ -26,21 +26,21 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     sessionType,
     strategy,
     normalizedTools,
-    vadPauseMs = 1800,
+    vadPauseMs = 500,
     turnMode = 'auto',
-    debugStep
+    resumptionHandle
   } = opts;
 
   const validVoices = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'];
-  const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
+  const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Puck';
 
   const isThinkingModel = liveModel.includes('thinking') || liveModel === 'gemini-live-thinking-v3';
 
   // Canonical Gemini Live Standard (SOTA Late 2026):
   // Audio vocoder autoregressive synthesis requires temperature 1.0 (Google default).
   // Lower temperatures (<0.7) collapse latent acoustic space into 14-50s digital silence stalls.
-  const effectiveTemperature = typeof (opts as any).temperature === 'number'
-    ? (opts as any).temperature
+  const effectiveTemperature = typeof opts.temperature === 'number'
+    ? opts.temperature
     : 1.0;
 
   const generationConfig: any = {
@@ -62,43 +62,6 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     };
   }
 
-  if (debugStep === 0) {
-    return {
-      setup: {
-        model: `models/${liveModel}`,
-        generationConfig
-      }
-    };
-  }
-
-  if (debugStep === 1 || debugStep === 2) {
-    return {
-      setup: {
-        model: `models/${liveModel}`,
-        generationConfig,
-        systemInstruction: {
-          parts: [{ text: systemPromptText }]
-        }
-      }
-    };
-  }
-
-  if (debugStep === 3) {
-    const msg: any = {
-      setup: {
-        model: `models/${liveModel}`,
-        generationConfig,
-        systemInstruction: {
-          parts: [{ text: systemPromptText }]
-        }
-      }
-    };
-    if (normalizedTools && normalizedTools.length > 0) {
-      msg.setup.tools = [{ functionDeclarations: normalizedTools }];
-    }
-    return msg;
-  }
-
   // Native Cloud VAD & Activity Detection for Gemini 3.8 Live (Canonical Google Standard)
   const isAutoVad = turnMode === 'auto';
   const effectiveSilenceDurationMs = Math.max(500, Math.min(1000, vadPauseMs ? Number(vadPauseMs) : 500));
@@ -106,8 +69,10 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
   const automaticActivityDetection: any = isAutoVad
     ? {
         disabled: false,
-        silenceDurationMs: effectiveSilenceDurationMs,
-        prefixPaddingMs: 500
+        startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+        prefixPaddingMs: 200,
+        endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+        silenceDurationMs: effectiveSilenceDurationMs
       }
     : {
         disabled: true
@@ -118,6 +83,10 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
   };
 
+  const sessionResumption = resumptionHandle
+    ? { handle: resumptionHandle }
+    : {};
+
   const setupMessage: any = {
     setup: {
       model: `models/${liveModel}`,
@@ -127,7 +96,8 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      realtimeInputConfig
+      realtimeInputConfig,
+      sessionResumption
     }
   };
 

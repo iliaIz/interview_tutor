@@ -202,7 +202,7 @@ export async function resolveLiveWsSessionParams(
   }
 
   const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
-  const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}`;
+  const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(proxyApiKey)}&session_id=${encodeURIComponent(sessionId)}`;
 
   return {
     authenticatedUser,

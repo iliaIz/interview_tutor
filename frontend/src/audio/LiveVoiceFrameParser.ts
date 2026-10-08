@@ -21,6 +21,7 @@ export interface ParsedLiveFrameResult {
   isTurnDone: boolean;
   interactionStatus?: string;
   isInterrupted: boolean;
+  voiceActivity?: 'ACTIVITY_START' | 'ACTIVITY_END';
   evaluation?: VoiceEvaluationResult;
   toolCallPayload?: any;
   whiteboardPayload?: any;
@@ -44,6 +45,7 @@ export class LiveVoiceFrameParser {
         isTurnDone: false,
         interactionStatus: data.serverContent?.interactionStatus,
         isInterrupted: Boolean(data.serverContent?.interrupted),
+        voiceActivity: data.serverContent?.voiceActivity,
         rawParsed: data
       };
 

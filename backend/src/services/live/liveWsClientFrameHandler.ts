@@ -110,19 +110,6 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
             .filter((t: any) => t.text.length > 0);
           mem.lastSpeaker = mem.turns[mem.turns.length - 1]?.role || 'none';
           mem.updatedAt = Date.now();
-
-          if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-            const replayTurns = mem.turns.map((t) => ({
-              role: t.role,
-              parts: [{ text: t.text }]
-            }));
-            session.geminiSocket.send(JSON.stringify({
-              clientContent: {
-                turns: replayTurns,
-                turnComplete: false
-              }
-            }));
-          }
         }
         return;
       }
@@ -316,9 +303,8 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         }
       } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
         session.hasCandidateResponded = true;
-        payloadBuffer = Buffer.from(JSON.stringify({
-          realtimeInput: { audioStreamEnd: true }
-        }));
+        // SOTA Late 2026: Suppress synthetic audioStreamEnd to upstream to prevent 1011 vocoder crash
+        return;
       } else if (parsed.clientContent) {
         payloadBuffer = Buffer.from(JSON.stringify({ clientContent: parsed.clientContent }));
       }

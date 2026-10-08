@@ -7,7 +7,6 @@
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { MicrophoneCapture, MicrophoneMetrics } from './MicrophoneCapture';
-import { SileroVadDetector } from './SileroVadDetector';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { AcousticBargeInGuard } from './AcousticBargeInGuard';
 import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
@@ -25,7 +24,6 @@ export class LiveVoiceEngine {
   private config: VoiceEngineConfig | null = null;
   private playoutManager: AudioPlayoutManager;
   private micCapture: MicrophoneCapture;
-  private sileroVad: SileroVadDetector | null = null;
   private bargeInGuard: AcousticBargeInGuard;
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
@@ -65,24 +63,7 @@ export class LiveVoiceEngine {
       await this.playoutManager.resume();
       const ctx = this.playoutManager.getContext();
 
-      try {
-        const vad = new SileroVadDetector({
-          vadPauseMs: config.vadPauseMs || 1800,
-          callbacks: {
-            onSpeechStart: () => this.handleSpeechStarted(),
-            onSpeechEnd: () => this.handleSpeechEnded(),
-            onAudioFrame: (b64, _, isSpeech, rmsDb) => {
-              this.callbacks.onAudioLevel?.(rmsDb);
-              this.handleMicrophoneChunk(b64, { rmsDb, speechDetected: isSpeech });
-            },
-            onError: () => this.fallbackToMicrophoneCapture(ctx)
-          }
-        });
-        await vad.start(ctx);
-        this.sileroVad = vad;
-      } catch {
-        this.fallbackToMicrophoneCapture(ctx);
-      }
+      await this.micCapture.start(ctx);
 
       const ws = new WebSocket(buildLiveVoiceWebSocketUrl(config));
       this.ws = ws;
@@ -104,12 +85,6 @@ export class LiveVoiceEngine {
     }
   }
 
-  private fallbackToMicrophoneCapture(ctx?: AudioContext): void {
-    if (!this.micCapture.isActive()) {
-      void this.micCapture.start(ctx || this.playoutManager.getContext());
-    }
-  }
-
   public disconnect(): void {
     this.wakeLock.release();
     this.clearClientSafetyTimer();
@@ -120,12 +95,10 @@ export class LiveVoiceEngine {
     if (this.ws) {
       try {
         this.ws.onclose = null;
-        this.ws.close();
+        this.ws.close(1000, 'Normal Closure');
       } catch {}
       this.ws = null;
     }
-    this.sileroVad?.stop();
-    this.sileroVad = null;
     this.micCapture.stop();
     this.playoutManager.handleInterruption();
     this.bargeInGuard.reset();
@@ -193,7 +166,6 @@ export class LiveVoiceEngine {
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
-    this.sileroVad?.setMuted(muted);
     this.micCapture.setMuted(muted);
   }
 
@@ -232,16 +204,17 @@ export class LiveVoiceEngine {
     if (this.fsm.isCandidateTurnActive()) {
       this.fsm.transition({ type: 'SPEECH_PAUSED' });
     }
-
-    // Canonical Google Hybrid VAD (Late 2026): notify turn end on client-detected silence
-    if (this.hasSpokenInTurn && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
-    }
   }
 
   private handleServerFrame(rawData: any): void {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
+
+    if (parsed.voiceActivity === 'ACTIVITY_START') {
+      this.handleSpeechStarted();
+    } else if (parsed.voiceActivity === 'ACTIVITY_END') {
+      this.handleSpeechEnded();
+    }
 
     if (parsed.type === 'setupComplete') {
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.bargeInGuard.isTurn0RecitationLocked() });
@@ -372,7 +345,7 @@ export class LiveVoiceEngine {
       }));
     }
 
-    if (!this.sileroVad && metrics?.speechDetected) {
+    if (metrics?.speechDetected) {
       this.hasSpokenInTurn = true;
     }
   }
