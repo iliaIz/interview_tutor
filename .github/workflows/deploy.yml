@@ -4,11 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/practice-senior-review-resilience
-      - feature/wave-12-platform-actualization
-      - fix/auto-vad-live-v3-investigation
-      - test/clean-native-gemini-live
-      - feature/ide-bridge
+      - feat/wave-14-gemini-3-8-live-native
   workflow_dispatch:
 
 permissions:
