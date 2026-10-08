@@ -127,17 +127,28 @@ async function main() {
       console.log('🦅 RUNNING SOTA DUAL-ENGINE CANARY SUITE');
       console.log('======================================================');
 
+      const cooldown = (ms: number = 3000) => new Promise((resolve) => setTimeout(resolve, ms));
+
       // 1. Multi-Turn Turn-Taking with Strict Latency SLA on gemini-live-v3
       console.log('\n[Canary 1/4] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
       results.push(await runMultiTurnDialogueScenario('gemini-live-v3', 2));
+      await cooldown(3000);
 
       // 2. Acoustic Barge-In Voice Interruption
       console.log('\n[Canary 2/4] Acoustic Barge-In Interruption on gemini-live-v3...');
       results.push(await runBargeInScenario('gemini-live-v3'));
+      await cooldown(3000);
 
       // 3. Extended Thinking CoT Shield Smoke Test on gemini-live-thinking-v3
       console.log('\n[Canary 3/4] Thinking CoT Shield & Zero-Leakage on gemini-live-thinking-v3...');
-      results.push(await runThinkingCotShieldTest('gemini-live-thinking-v3'));
+      let thinkingResult = await runThinkingCotShieldTest('gemini-live-thinking-v3');
+      if (!thinkingResult.passed && thinkingResult.failureReason?.includes('Greeting timeout')) {
+        console.warn('⚠️ First attempt encountered TPU cold-start greeting timeout. Retrying with key rotation in 3s...');
+        await cooldown(3000);
+        thinkingResult = await runThinkingCotShieldTest('gemini-live-thinking-v3');
+      }
+      results.push(thinkingResult);
+      await cooldown(3000);
 
       // 4. Code Handover & Atomic Fusion SLA in Tutor Practice Mode
       console.log('\n[Canary 4/4] Code Handover & Atomic Fusion SLA on gemini-live-v3...');
