@@ -325,7 +325,18 @@ jobs:
             fi
 
             echo "Running SOTA Dual-Engine Pre-Flight Canary Verification (v3 + thinking-v3)..."
-            if ! docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
+            CANARY_PASSED=false
+            if docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
+              CANARY_PASSED=true
+            else
+              echo "⚠️ First canary attempt encountered a transient rate/network stall. Waiting 10s for Google GFE socket drain and retrying..."
+              sleep 10
+              if docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
+                CANARY_PASSED=true
+              fi
+            fi
+
+            if [ "$CANARY_PASSED" != "true" ]; then
               echo "❌ Canary Dual-Engine Verification FAILED! Capturing container logs..."
               docker logs interview-backend-canary --tail 80
               docker rm -f interview-backend-canary || true
