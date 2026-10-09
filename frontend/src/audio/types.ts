@@ -154,9 +154,10 @@ export interface ILiveVoiceEngine {
   disconnect(): void;
   setMuted(muted: boolean): void;
   handleCentralButtonClick(): void;
+  handleBargeInInterruption(source?: 'tactile' | 'acoustic'): void;
   sendTextMessage(text: string, displayText?: string): void;
-  commitSpokenTurn?(): void;
-  sendCustomFrame?(frame: any): void;
+  commitSpokenTurn(): void;
+  sendCustomFrame(frame: any): void;
   getState(): VoiceEngineState;
   getInternalState(): string;
   getDialogueTurns(): DialogueTurnItem[];

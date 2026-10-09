@@ -121,16 +121,19 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.armClientSafetyTimer();
   }
 
+  public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
+    this.playoutManager.handleInterruption();
+    this.isServerTurnComplete = true;
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'barge_in', bargeIn: true, bargeInType: source, source }));
+    }
+    this.unlockCandidateTurn();
+  }
+
   public handleCentralButtonClick(): void {
     const pub = this.getState();
     if (pub === 'AI_SPEAKING') {
-      // Tactile Barge-In: silence AI audio instantly and claim floor
-      this.playoutManager.handleInterruption();
-      this.isServerTurnComplete = true;
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'barge_in', bargeIn: true, source: 'tactile' }));
-      }
-      this.unlockCandidateTurn();
+      this.handleBargeInInterruption('tactile');
     } else if (pub === 'LISTENING') {
       this.commitSpokenTurn();
     }
@@ -183,12 +186,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     if (this.getState() === 'AI_SPEAKING') {
       if (metrics?.speechDetected && !this.isTurn0Lockdown) {
-        this.playoutManager.handleInterruption();
-        this.isServerTurnComplete = true;
-        if (this.ws?.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({ type: 'barge_in', bargeIn: true, bargeInType: 'acoustic' }));
-        }
-        this.unlockCandidateTurn();
+        this.handleBargeInInterruption('acoustic');
       }
       return;
     }
