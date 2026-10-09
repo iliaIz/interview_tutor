@@ -152,3 +152,20 @@
     `docs/architecture/specs/AUTO_VAD_LIVE_AUDIO_SPECIFICATION.md`
   - The Dual-Sided Handshake, EchoGuard drop conditions, and Turn 0 tool gating are immutable invariants defined in that document.
 
+---
+
+## 10. Mandatory Functional Registry Consultation & Decision Logging (SOTA Late 2026)
+- **Pre-Flight Functional Consultation:**
+  - Before modifying, refactoring, or debugging ANY function or handler (especially in Voice, WebSocket, LiteLLM Proxy, Audio DSP, or Verification pipelines), the agent MUST consult `docs/architecture/functional_registry/INDEX.md` and read the corresponding subsystem document.
+  - The agent MUST verify what was already attempted on this function, what intermediate conclusions were reached, why previous architectural decisions were made, and what upstream failure modes were verified.
+  - Blindly modifying functions without checking their historical rationale and invariants is strictly forbidden.
+- **Mandatory Decision Recording & SSOT Maintenance:**
+  - Whenever any function is touched or modified, the agent MUST document the change in `docs/architecture/functional_registry/`.
+  - Every entry MUST capture:
+    1. **What Was Done:** Exact architectural and code modifications.
+    2. **Hypotheses & Intermediate Conclusions:** What was expected vs. what was empirically observed.
+    3. **Rationale & "Why":** Deep root-cause justification avoiding superficial symptom-patching.
+    4. **Failure Modes & Invariants:** Specific upstream API errors (e.g. 1011 Quota), timing races, or acoustic constraints discovered.
+  - Historical rationale must NEVER be deleted; only appended or explicitly refuted with empirical log/metric evidence.
+
+

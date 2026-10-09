@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Gemini 3.8 Live Clean Baseline Tester</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; display: flex; flex-direction: column; align-items: center; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; max-width: 640px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    h1 { font-size: 20px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .status { padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 16px; background: #334155; }
+    .btn { background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+    .btn:hover { background: #0369a1; }
+    .btn:disabled { background: #475569; cursor: not-allowed; }
+    .btn-red { background: #e11d48; margin-left: 8px; }
+    .btn-red:hover { background: #be123c; }
+    .log-box { background: #090d16; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; height: 320px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: #94a3b8; margin-top: 16px; }
+    .log-row { margin-bottom: 4px; }
+    .log-info { color: #38bdf8; }
+    .log-audio { color: #4ade80; }
+    .log-warn { color: #facc15; }
+    .log-err { color: #f43f5e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎙️ Gemini 3.8 Live Clean Baseline Tester</h1>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+      Автономная проверка прямого голосового диалога без мидлвари и таймеров платформы.
+    </p>
+
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 12px; color: #cbd5e1; display: block; margin-bottom: 4px;">Адрес WebSocket (для локального ПК используйте wss://ai.djelu.site):</label>
+      <input id="wsUrlInput" type="text" value="wss://ai.djelu.site/ws/live?model=gemini-live-v3&token=sk-interview-training" style="width: 100%; box-sizing: border-box; background: #090d16; border: 1px solid #334155; color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-family: monospace;" />
+    </div>
+
+    <div class="status" id="statusBadge">⚪ Готов к подключению</div>
+
+    <div>
+      <button class="btn" id="startBtn" onclick="startSession()">Подключить и Начать Диалог</button>
+      <button class="btn btn-red" id="stopBtn" onclick="stopSession()" disabled>Отключить</button>
+    </div>
+
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <script>
+    let ws = null;
+    let audioCtx = null;
+    let mediaStream = null;
+    let processorNode = null;
+    let playoutTime = 0;
+
+    function log(msg, type = '') {
+      const box = document.getElementById('logBox');
+      const row = document.createElement('div');
+      row.className = `log-row log-${type}`;
+      row.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      box.appendChild(row);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function setStatus(text, bg = '#334155', color = '#f8fafc') {
+      const b = document.getElementById('statusBadge');
+      b.textContent = text;
+      b.style.background = bg;
+      b.style.color = color;
+    }
+
+    async function startSession() {
+      const url = document.getElementById('wsUrlInput').value.trim();
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      setStatus('⚡ Подключение...', '#0369a1');
+      log(`Подключение к ${url}`, 'info');
+
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+        // Capture mic at native rate with hardware AEC
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+        log('Микрофон успешно захвачен (AEC включен)', 'info');
+
+        ws = new WebSocket(url);
+
+        ws.onopen = () => {
+          setStatus('🎉 Сокет открыт, отправка setup...', '#047857');
+          log('WebSocket открыт. Отправка чистого setup фрейма...', 'info');
+
+          // Send minimal setup frame
+          ws.send(JSON.stringify({
+            setup: {
+              model: 'models/gemini-live-v3',
+              generationConfig: {
+                responseModalities: ['AUDIO'],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
+                temperature: 1.0
+              },
+              systemInstruction: { parts: [{ text: 'Ты голосовой собеседник. Отвечай кратко в 1-2 предложениях на русском языке.' }] },
+              realtimeInputConfig: {
+                automaticActivityDetection: {
+                  disabled: false,
+                  silenceDurationMs: 600,
+                  prefixPaddingMs: 200
+                },
+                activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
+              }
+            }
+          }));
+        };
+
+        ws.onmessage = async (event) => {
+          let text = '';
+          if (typeof event.data === 'string') {
+            text = event.data;
+          } else if (event.data instanceof Blob) {
+            text = await event.data.text();
+          } else if (event.data instanceof ArrayBuffer) {
+            text = new TextDecoder().decode(event.data);
+          }
+
+          let parsed = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch (err) {
+            log(`Не удалось распарсить JSON фрейм: ${err.message}`, 'err');
+            return;
+          }
+
+          if (parsed.setupComplete) {
+            setStatus('🤖 Приветствие модели...', '#6366f1');
+            log('SetupComplete! Запрашиваем приветствие...', 'info');
+            ws.send(JSON.stringify({
+              clientContent: {
+                turns: [{ role: 'user', parts: [{ text: 'Привет! Поприветствуй меня в 1 предложении и спроси, как дела.' }] }],
+                turnComplete: true
+              }
+            }));
+            startMicStreaming();
+            return;
+          }
+
+          if (parsed.serverContent?.modelTurn?.parts) {
+            for (const part of parsed.serverContent.modelTurn.parts) {
+              if (part.inlineData?.data) {
+                playPcmChunk24k(part.inlineData.data);
+              }
+              if (part.text) {
+                log(`ИИ: "${part.text.trim()}"`, 'audio');
+              }
+            }
+          }
+
+          if (parsed.serverContent?.interrupted) {
+            log('🛑 Модель перебита (Barge-In)!', 'warn');
+          }
+
+          if (parsed.serverContent?.turnComplete) {
+            setStatus('🎙️ Ваша очередь: говорите в микрофон...', '#047857');
+            log('TurnComplete: ИИ закончил реплику. Нативный VAD слушает ваш голос...', 'info');
+          }
+        };
+
+        ws.onerror = (e) => log(`Ошибка WS: ${e}`, 'err');
+        ws.onclose = () => {
+          setStatus('🔌 Сессия закрыта', '#475569');
+          log('WebSocket соединение закрыто', 'warn');
+          stopSession();
+        };
+
+      } catch (err) {
+        log(`Ошибка запуска: ${err.message}`, 'err');
+        stopSession();
+      }
+    }
+
+    function startMicStreaming() {
+      const source = audioCtx.createMediaStreamSource(mediaStream);
+      // ScriptProcessor for clean 16kHz chunking (1600 samples = 100ms)
+      processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+      
+      let pcm16Buffer = [];
+
+      processorNode.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const input = e.inputBuffer.getChannelData(0);
+        
+        // Simple linear resample from audioCtx.sampleRate down to 16kHz
+        const ratio = audioCtx.sampleRate / 16000;
+        for (let i = 0; i < input.length; i += ratio) {
+          const sample = Math.max(-1, Math.min(1, input[Math.floor(i)]));
+          const int16 = sample < 0 ? sample * 32768 : sample * 32767;
+          pcm16Buffer.push(int16);
+        }
+
+        // Emit when buffer reaches 1600 samples (100ms)
+        while (pcm16Buffer.length >= 1600) {
+          const chunk = pcm16Buffer.splice(0, 1600);
+          const bytes = new Uint8Array(chunk.length * 2);
+          for (let j = 0; j < chunk.length; j++) {
+            bytes[j * 2] = chunk[j] & 0xff;
+            bytes[j * 2 + 1] = (chunk[j] >> 8) & 0xff;
+          }
+          const base64 = btoa(String.fromCharCode.apply(null, bytes));
+          ws.send(JSON.stringify({
+            realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64 } }
+          }));
+        }
+      };
+
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
+      source.connect(processorNode);
+      processorNode.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+      log('Потоковая передача 16kHz PCM (100ms чанки) активирована', 'info');
+    }
+
+    function playPcmChunk24k(base64Data) {
+      if (!audioCtx) return;
+      const binary = atob(base64Data);
+      const len = binary.length / 2;
+      const floats = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        const lo = binary.charCodeAt(i * 2);
+        const hi = binary.charCodeAt(i * 2 + 1);
+        let val = (hi << 8) | lo;
+        if (val >= 32768) val -= 65536;
+        floats[i] = val / 32768;
+      }
+
+      const audioBuf = audioCtx.createBuffer(1, floats.length, 24000);
+      audioBuf.copyToChannel(floats, 0);
+
+      const src = audioCtx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      if (playoutTime < now) playoutTime = now;
+      src.start(playoutTime);
+      playoutTime += audioBuf.duration;
+    }
+
+    function stopSession() {
+      if (processorNode) { processorNode.disconnect(); processorNode = null; }
+      if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+      if (ws) { ws.close(); ws = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      setStatus('⚪ Готов к подключению');
+    }
+  </script>
+</body>
+</html>
