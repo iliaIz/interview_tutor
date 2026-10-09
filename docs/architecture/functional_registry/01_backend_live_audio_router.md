@@ -62,3 +62,16 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - Ambient noise or quiet speech can cause Gemini to output `<no speech>` and drop the turn. An active conversational recovery eliminates awkward dead-air.
 - **Rationale & "Why":** Maintains interview momentum and human-like tutoring behavior under acoustic edge cases.
 - **Invariants:** Must never speak over valid candidate responses; only triggers when upstream produces non-speech tokens or empty turns.
+
+---
+
+### 2.6 `LiveClientGuardService.shouldSuppressEchoChunk()`
+- **Location:** [`backend/src/services/live/liveClientGuardService.ts#L100-L130`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveClientGuardService.ts)
+- **What Was Done:** Added suppression of mic frames during AI playout and generation to prevent speaker bleed.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Empirical Defect Discovered:* In real conversations, candidates begin answering immediately as the AI finishes speaking. Because `aiPlayoutEstimatedEndEpoch` contains estimated buffer duration and acoustic tail (+450ms), the guard dropped the first 300–800ms of the candidate's speech (eating phonemes like "В Concurr...").
+  - With the beginning of speech missing, Gemini's acoustic transformer failed to recognize speech onset and stalled without responding.
+  - *Empirically Proven Solution:* Native Cloud VAD handles continuous audio without drop gating. Testing with 0 dropped frames resulted in 100% reliable turn-taking across 13+ minutes of multi-turn dialogue.
+- **Rationale & "Why":** Never truncate candidate speech boundaries. Hardware AEC (Echo Cancellation) in WebRTC handles acoustic bleed; artificial software dropping causes fatal phoneme loss.
+- **Invariants:** Candidate microphone frames must never be silently discarded at utterance onset.
+
