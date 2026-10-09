@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { LiveVoiceEngine } from '../audio/LiveVoiceEngine';
-import { VoiceEngineState, VoiceEngineConfig, DialogueTurnItem } from '../audio/types';
+import { NativeLiveVoiceEngine } from '../audio/NativeLiveVoiceEngine';
+import { VoiceEngineState, VoiceEngineConfig, DialogueTurnItem, ILiveVoiceEngine } from '../audio/types';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import { useAppStore } from '../store/useAppStore';
 
@@ -81,11 +81,11 @@ export function useLiveAudioSession(options: UseLiveAudioSessionOptions = {}) {
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurn[]>([]);
   const [aiTranscript, setAiTranscript] = useState('');
 
-  const engineRef = useRef<LiveVoiceEngine | null>(null);
+  const engineRef = useRef<ILiveVoiceEngine | null>(null);
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
 
   if (!engineRef.current) {
-    engineRef.current = new LiveVoiceEngine({
+    engineRef.current = new NativeLiveVoiceEngine({
       onStateChange: (newState) => {
         setState(newState);
         if (newState === 'IDLE' || newState === 'COMPLETED') {

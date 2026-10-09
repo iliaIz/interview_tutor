@@ -21,29 +21,6 @@ export interface GreetingReplayOptions {
   challengeTrack?: string;
 }
 
-export function buildWorkspaceGroundingTurn(session: ProxySession): { role: 'user'; parts: [{ text: string }] } | null {
-  const workspaceXml = session.workspaceManifest?.xmlManifest || '';
-  const activeSnippet = session.codeSnippet || session.workspaceManifest?.activeFile?.content || '';
-  const activePath = session.workspaceManifest?.activeFile?.path || 'src/main/java/Solution.java';
-  const effectiveTitle = session.bugTitle || session.questionText || session.topic || 'Практическая задача';
-
-  if (!workspaceXml && !activeSnippet) {
-    return null;
-  }
-
-  const text = `📌 [КОНТЕКСТ ЗАДАЧИ И РАБОЧЕГО ПРОСТРАНСТВА]:
-Задача: "${effectiveTitle}"
-Инструкции / Бизнес-требования:
-${session.bugExplanation || 'Реализуйте требуемый функционал.'}
-
-${workspaceXml ? `Структура проекта и исходные файлы:\n${workspaceXml}` : `Активный файл (${activePath}):\n\`\`\`java\n${activeSnippet}\n\`\`\``}`;
-
-  return {
-    role: 'user',
-    parts: [{ text }]
-  };
-}
-
 /**
  * LiveGreetingReplay (SOTA Late 2026).
  * Handles Turn 0 greeting generation and multi-turn replay upon reconnect.

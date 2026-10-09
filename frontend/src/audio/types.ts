@@ -148,3 +148,17 @@ export interface VoiceEngineCallbacks {
   onChaosInjected?: (payload: any) => void;
   onHiringCommitteeVerdict?: (payload: any) => void;
 }
+
+export interface ILiveVoiceEngine {
+  connect(config: VoiceEngineConfig): Promise<void>;
+  disconnect(): void;
+  setMuted(muted: boolean): void;
+  handleCentralButtonClick(): void;
+  sendTextMessage(text: string, displayText?: string): void;
+  sendCustomFrame?(frame: any): void;
+  getState(): VoiceEngineState;
+  getInternalState(): string;
+  getDialogueTurns(): DialogueTurnItem[];
+  getPlayoutManager(): any;
+}
+

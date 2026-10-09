@@ -127,6 +127,18 @@ export class LiveToolCallExecutor {
         }
       }
     }
+
+    session.isToolCallPending = false;
+    if (session.toolCallSafetyTimeout) {
+      clearTimeout(session.toolCallSafetyTimeout);
+      session.toolCallSafetyTimeout = null;
+    }
+    if (clientSocket.readyState === WebSocket.OPEN) {
+      clientSocket.send(JSON.stringify({
+        type: 'tool_execution_complete',
+        tools: functionCalls.map((fc: any) => fc.name)
+      }));
+    }
   }
 
   public static handleCancellation(session: ProxySession, ids: string[]): void {

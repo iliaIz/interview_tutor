@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/wave-14-gemini-3-8-live-native
+      - feat/wave-14-clean-native-voice
   workflow_dispatch:
 
 permissions:

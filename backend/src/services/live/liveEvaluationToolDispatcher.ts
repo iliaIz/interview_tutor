@@ -25,7 +25,8 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
               response: {
                 error: 'Кандидат еще не отвечал на вопрос. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку на этапе первого приветствия. Пожалуйста, поприветствуйте кандидата голосом и четко зачитайте вопрос темы вслух.'
               },
-              id: call.id
+              id: call.id,
+              scheduling: 'SILENT'
             }
           ]
         }

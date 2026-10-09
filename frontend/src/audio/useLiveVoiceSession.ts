@@ -5,13 +5,14 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LiveVoiceEngine } from './LiveVoiceEngine';
+import { NativeLiveVoiceEngine } from './NativeLiveVoiceEngine';
 import { useAppStore } from '../store/useAppStore';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
   DialogueTurnItem,
-  VoiceEvaluationResult
+  VoiceEvaluationResult,
+  ILiveVoiceEngine
 } from './types';
 
 export interface UseLiveVoiceSessionReturn {
@@ -30,9 +31,9 @@ export interface UseLiveVoiceSessionReturn {
   connect: (config: VoiceEngineConfig) => Promise<void>;
   disconnect: () => void;
   toggleMute: () => void;
-  handleCentralButtonClick: () => void;
+  handleCentralButtonClick(): void;
   sendTextMessage: (text: string, displayText?: string) => void;
-  engineRef: React.MutableRefObject<LiveVoiceEngine | null>;
+  engineRef: React.MutableRefObject<ILiveVoiceEngine | null>;
 }
 
 export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
@@ -45,10 +46,10 @@ export function useLiveVoiceSession(): UseLiveVoiceSessionReturn {
   const [evaluation, setEvaluation] = useState<VoiceEvaluationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const engineRef = useRef<LiveVoiceEngine | null>(null);
+  const engineRef = useRef<ILiveVoiceEngine | null>(null);
 
   if (!engineRef.current) {
-    engineRef.current = new LiveVoiceEngine({
+    engineRef.current = new NativeLiveVoiceEngine({
       onStateChange: (newState) => setState(newState),
       onAudioLevel: (db) => setRmsDb(db),
       onStatusMessage: (msg) => setStatusMessage(msg),

@@ -107,6 +107,12 @@ export class LiveClientGuardService {
       return false;
     }
 
+    // Audio Mutex Invariant: while a tool call is in-flight, MUST freeze mic chunks
+    // regardless of turnMode to avoid Google WebSocket close 1008 Policy Violation!
+    if (session.isToolCallPending) {
+      return true;
+    }
+
     // Native Cloud VAD: Gemini needs continuous audio to detect speech start/end
     if (turnMode === 'auto') {
       return false;

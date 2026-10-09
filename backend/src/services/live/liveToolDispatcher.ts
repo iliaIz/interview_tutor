@@ -110,7 +110,7 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
                 content: fileContent
               }
             },
-            scheduling: 'SILENT'
+            scheduling: 'WHEN_IDLE'
           }
         ]
       }

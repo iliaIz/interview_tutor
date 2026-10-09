@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { EventEmitter } from 'events';
-import { LiveVoiceEngine } from '../src/audio/LiveVoiceEngine';
+import { NativeLiveVoiceEngine as LiveVoiceEngine } from '../src/audio/NativeLiveVoiceEngine';
 import { VoiceEngineState } from '../src/audio/types';
 
 class MockMessagePort extends EventEmitter {
