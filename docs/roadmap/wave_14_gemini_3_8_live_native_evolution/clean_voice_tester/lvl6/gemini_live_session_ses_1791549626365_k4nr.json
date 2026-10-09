@@ -1,0 +1,49 @@
+{
+  "sessionId": "ses_1791549626365_k4nr",
+  "preset": "level6_read_file",
+  "durationSeconds": 43.2,
+  "turnsCount": 3,
+  "avgTtfaMs": 40,
+  "minTtfaMs": 16,
+  "maxTtfaMs": 64,
+  "audioInKB": 1271.9,
+  "audioOutKB": 817.5,
+  "audioInChunks": 407,
+  "audioOutChunks": 53,
+  "bargeInCount": 0,
+  "toolCallsCount": 1,
+  "errorsCount": 0,
+  "toolCalls": [
+    {
+      "id": "call_83809",
+      "name": "read_file",
+      "latencyMs": 54,
+      "scheduling": "WHEN_IDLE",
+      "success": true,
+      "timestamp": 1791549646317
+    }
+  ],
+  "audioMutexEvents": [
+    {
+      "lockedAt": 1791549646263,
+      "durationMs": 55
+    }
+  ],
+  "turns": [
+    {
+      "turnIndex": 1,
+      "completedAt": 1791549634581,
+      "ttfaMs": 16
+    },
+    {
+      "turnIndex": 2,
+      "completedAt": 1791549646266,
+      "ttfaMs": null
+    },
+    {
+      "turnIndex": 3,
+      "completedAt": 1791549658230,
+      "ttfaMs": 64
+    }
+  ]
+}
