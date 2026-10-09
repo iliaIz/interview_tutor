@@ -16,7 +16,7 @@ class TesterTelemetry {
     this.sessionEndEpoch = null;
     this.turns = [];
     this.currentTurnIndex = 0;
-    this.currentTurn = null;
+    this.currentTurn = {};
     this.userSpeechEndEpoch = null;
     this.toolCalls = [];
     this.pendingToolStartEpochs = {};
