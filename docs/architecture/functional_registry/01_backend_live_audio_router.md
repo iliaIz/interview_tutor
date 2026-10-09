@@ -75,3 +75,16 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Never truncate candidate speech boundaries. Hardware AEC (Echo Cancellation) in WebRTC handles acoustic bleed; artificial software dropping causes fatal phoneme loss.
 - **Invariants:** Candidate microphone frames must never be silently discarded at utterance onset.
 
+---
+
+### 2.7 `LiveToolDispatcher.dispatch()` (Tool Scheduling & Turn 0 Lockdown)
+- **Location:** [`backend/src/services/live/liveToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDispatcher.ts) / [`clean_voice_tester.html#L233-L272`](file:///home/djelu/projects/interview_tutor/scripts/clean_voice_tester.html#L233-L272)
+- **What Was Done:** Added discriminated `scheduling` parameter (`"SILENT"` vs `"WHEN_IDLE"`) and Turn 0 Fail-Closed Gate for terminal evaluation tools.
+- **Hypotheses & Intermediate Conclusions:**
+  - *UI Tools (`update_whiteboard`):* Must use `scheduling: "SILENT"` to prevent parasitic AI commentary (*«Я обновила доску»*).
+  - *Data/File Tools (`read_file`):* Must use `scheduling: "WHEN_IDLE"` so Gemini resumes speaking and explains the file content to candidate. The previous bug where `read_file` returned `SILENT` caused model speech to freeze.
+  - *Turn 0 Lockdown:* If Gemini hallucinates `submit_interview_evaluation` before candidate responds (`turnIndex === 0`), dispatch rejects it with `{ error: "PRECONDITION_FAILED", scheduling: "SILENT" }`.
+- **Rationale & "Why":** Adheres strictly to Gemini Live Tool specification (Module 03 §3 & §8).
+- **Invariants:** Visual mutations must be `SILENT`; content fetching must be `WHEN_IDLE`; terminal tools must never execute on Turn 0.
+
+

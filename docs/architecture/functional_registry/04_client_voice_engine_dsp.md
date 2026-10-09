@@ -76,3 +76,15 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 - **Rationale & "Why":** 100ms is the canonical SOTA frame size for WebRTC and Google Gemini Live bidirectional streaming.
 - **Invariants:** Real-time microphone PCM chunks must be sized to 100ms (1600 samples @ 16kHz).
 
+---
+
+### 2.7 `LiveVoiceEngine.setAudioMutex()` (Audio Mutex during Tool Execution)
+- **Location:** [`LiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceEngine.ts) / [`clean_voice_tester.html#L101-L112`](file:///home/djelu/projects/interview_tutor/scripts/clean_voice_tester.html#L101-L112)
+- **What Was Done:** Added an audio transmission mutex that freezes microphone PCM streaming while a `toolCall` is in-flight until `toolResponse` is delivered to Google.
+- **Hypotheses & Intermediate Conclusions:**
+  - Streaming audio chunks into WebSocket while upstream Gemini is awaiting tool results triggers WebSocket Close `1008 Policy Violation: Operation is not implemented`.
+  - Mutex prevents packet collisions in the Gemini Live multimodal transformer.
+- **Rationale & "Why":** Upstream Gemini Live protocol strictly forbids interleaved acoustic frames during synchronous tool execution.
+- **Invariants:** No `realtimeInput.audio` chunks may be transmitted to the WebSocket between receiving `toolCall` and dispatching `toolResponse`.
+
+
