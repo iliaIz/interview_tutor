@@ -1,0 +1,44 @@
+{
+  "sessionId": "ses_1791549385727_pn8z",
+  "preset": "level5_audio_mutex",
+  "durationSeconds": 25.8,
+  "turnsCount": 2,
+  "avgTtfaMs": null,
+  "minTtfaMs": null,
+  "maxTtfaMs": null,
+  "audioInKB": 725,
+  "audioOutKB": 203.9,
+  "audioInChunks": 232,
+  "audioOutChunks": 16,
+  "bargeInCount": 0,
+  "toolCallsCount": 1,
+  "errorsCount": 0,
+  "toolCalls": [
+    {
+      "id": "call_64489",
+      "name": "update_whiteboard",
+      "latencyMs": 51,
+      "scheduling": "SILENT",
+      "success": true,
+      "timestamp": 1791549402422
+    }
+  ],
+  "audioMutexEvents": [
+    {
+      "lockedAt": 1791549402371,
+      "durationMs": 51
+    }
+  ],
+  "turns": [
+    {
+      "turnIndex": 1,
+      "completedAt": 1791549391988,
+      "ttfaMs": null
+    },
+    {
+      "turnIndex": 2,
+      "completedAt": 1791549402372,
+      "ttfaMs": null
+    }
+  ]
+}
