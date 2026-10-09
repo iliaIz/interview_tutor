@@ -39,6 +39,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isServerTurnComplete = false;
   private isAudioMutexLocked = false;
   private isMuted = false;
+  private isTurn0Lockdown = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -60,6 +61,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.disconnect();
     this.config = config;
     this.isAudioMutexLocked = false;
+    this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && (config as any).turn0Lockdown !== false;
     this.fsm.transition({ type: 'CONNECT' });
     this.callbacks.onStatusMessage?.('⚡ Подключение к нативному голосовому шлюзу...');
 
@@ -106,8 +108,17 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     }
 
     this.micCapture.stop();
-    this.playoutManager.stopAll();
+    this.playoutManager.clearQueue();
     this.fsm.transition({ type: 'DISCONNECT' });
+  }
+
+  public commitSpokenTurn(): void {
+    this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+    }
+    this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
+    this.armClientSafetyTimer();
   }
 
   public handleCentralButtonClick(): void {
@@ -121,13 +132,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       }
       this.unlockCandidateTurn();
     } else if (pub === 'LISTENING') {
-      // Explicit manual turn commit
-      this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
-      }
-      this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
-      this.armClientSafetyTimer();
+      this.commitSpokenTurn();
     }
   }
 
@@ -176,6 +181,18 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     // AUDIO MUTEX: Freeze mic chunks while tool call is executing to prevent Google Close 1008
     if (this.isAudioMutexLocked) return;
 
+    if (this.getState() === 'AI_SPEAKING') {
+      if (metrics?.speechDetected && !this.isTurn0Lockdown) {
+        this.playoutManager.handleInterruption();
+        this.isServerTurnComplete = true;
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'barge_in', bargeIn: true, bargeInType: 'acoustic' }));
+        }
+        this.unlockCandidateTurn();
+      }
+      return;
+    }
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
@@ -196,7 +213,10 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     }
 
     if (parsed.type === 'setupComplete') {
-      this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: false });
+      this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
+      if (!this.isTurn0Lockdown) {
+        this.unlockCandidateTurn();
+      }
       return;
     }
 
@@ -269,6 +289,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private unlockCandidateTurn(): void {
+    this.isTurn0Lockdown = false;
     this.clearClientSafetyTimer();
     this.isAudioMutexLocked = false;
     this.callbacks.onDrainingStateChange?.(false);
@@ -277,6 +298,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleDeadAirRecovery(): void {
+    this.isTurn0Lockdown = false;
     this.clearClientSafetyTimer();
     this.isAudioMutexLocked = false;
     this.callbacks.onDrainingStateChange?.(false);

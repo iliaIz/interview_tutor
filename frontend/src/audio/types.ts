@@ -155,6 +155,7 @@ export interface ILiveVoiceEngine {
   setMuted(muted: boolean): void;
   handleCentralButtonClick(): void;
   sendTextMessage(text: string, displayText?: string): void;
+  commitSpokenTurn?(): void;
   sendCustomFrame?(frame: any): void;
   getState(): VoiceEngineState;
   getInternalState(): string;
