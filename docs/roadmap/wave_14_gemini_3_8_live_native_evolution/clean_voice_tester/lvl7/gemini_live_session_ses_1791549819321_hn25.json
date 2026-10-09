@@ -1,0 +1,49 @@
+{
+  "sessionId": "ses_1791549819321_hn25",
+  "preset": "level7_turn0_lockdown",
+  "durationSeconds": 82.8,
+  "turnsCount": 3,
+  "avgTtfaMs": 34,
+  "minTtfaMs": 30,
+  "maxTtfaMs": 38,
+  "audioInKB": 2259.4,
+  "audioOutKB": 769.7,
+  "audioInChunks": 723,
+  "audioOutChunks": 43,
+  "bargeInCount": 0,
+  "toolCallsCount": 1,
+  "errorsCount": 0,
+  "toolCalls": [
+    {
+      "id": "call_47407",
+      "name": "submit_interview_evaluation",
+      "latencyMs": 66,
+      "scheduling": "SILENT",
+      "success": true,
+      "timestamp": 1791549879465
+    }
+  ],
+  "audioMutexEvents": [
+    {
+      "lockedAt": 1791549879399,
+      "durationMs": 66
+    }
+  ],
+  "turns": [
+    {
+      "turnIndex": 1,
+      "completedAt": 1791549828916,
+      "ttfaMs": 38
+    },
+    {
+      "turnIndex": 2,
+      "completedAt": 1791549862003,
+      "ttfaMs": 30
+    },
+    {
+      "turnIndex": 3,
+      "completedAt": 1791549879401,
+      "ttfaMs": null
+    }
+  ]
+}
