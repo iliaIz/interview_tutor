@@ -225,7 +225,7 @@
       let scheduling = 'SILENT';
 
       if (call.name === 'update_whiteboard') {
-        scheduling = 'SILENT'; // SILENT avoids chatter
+        scheduling = 'WHEN_IDLE'; // WHEN_IDLE allows model to verbally explain the board content
         resp = { output: { status: 'SUCCESS', message: 'Whiteboard updated' } };
       } else if (call.name === 'read_file') {
         scheduling = 'WHEN_IDLE'; // WHEN_IDLE allows model to speak file content

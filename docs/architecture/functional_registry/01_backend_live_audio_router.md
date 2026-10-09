@@ -78,13 +78,15 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 ---
 
 ### 2.7 `LiveToolDispatcher.dispatch()` (Tool Scheduling & Turn 0 Lockdown)
-- **Location:** [`backend/src/services/live/liveToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDispatcher.ts) / [`clean_voice_tester.html#L233-L272`](file:///home/djelu/projects/interview_tutor/scripts/clean_voice_tester.html#L233-L272)
-- **What Was Done:** Added discriminated `scheduling` parameter (`"SILENT"` vs `"WHEN_IDLE"`) and Turn 0 Fail-Closed Gate for terminal evaluation tools.
+- **Location:** [`backend/src/services/live/liveToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDispatcher.ts) / [`clean_voice_tester.html#L225-L250`](file:///home/djelu/projects/interview_tutor/frontend/public/clean_voice_tester.html#L225-L250)
+- **What Was Done:** Added discriminated `scheduling` parameter (`"SILENT"` vs `"WHEN_IDLE"`) and Turn 0 Fail-Closed Gate for terminal evaluation tools. Migrated `update_whiteboard` from `"SILENT"` to `"WHEN_IDLE"`.
 - **Hypotheses & Intermediate Conclusions:**
-  - *UI Tools (`update_whiteboard`):* Must use `scheduling: "SILENT"` to prevent parasitic AI commentary (*«Я обновила доску»*).
-  - *Data/File Tools (`read_file`):* Must use `scheduling: "WHEN_IDLE"` so Gemini resumes speaking and explains the file content to candidate. The previous bug where `read_file` returned `SILENT` caused model speech to freeze.
+  - *UI Tools (`update_whiteboard`):* Originally set to `scheduling: "SILENT"` to suppress parasitic meta-commentary (*«Я вывела пример на доску справа...»*). However, empirical testing revealed this silenced Gemini Live completely: whenever candidate asked *"покажи на коде и расскажи"*, the model updated the board but generated zero audio tokens (`ttfaMs: null`), leaving candidate in silence.
+  - *Resolution:* Switched to `scheduling: "WHEN_IDLE"` with an explicit directive: *"Сразу голосом объясни суть фрагмента. Не произноси сервисных фраз вроде 'я вывела код на доску' — сразу обсуждай логику"*. Fixed root cause in prompt (`livePromptBuilder.ts`) by removing the meta-phrase example.
+  - *Data/File Tools (`read_file`):* Must use `scheduling: "WHEN_IDLE"` so Gemini resumes speaking and explains the file content to candidate.
   - *Turn 0 Lockdown:* If Gemini hallucinates `submit_interview_evaluation` before candidate responds (`turnIndex === 0`), dispatch rejects it with `{ error: "PRECONDITION_FAILED", scheduling: "SILENT" }`.
-- **Rationale & "Why":** Adheres strictly to Gemini Live Tool specification (Module 03 §3 & §8).
-- **Invariants:** Visual mutations must be `SILENT`; content fetching must be `WHEN_IDLE`; terminal tools must never execute on Turn 0.
+- **Rationale & "Why":** Solves the root cause (instruction tuning) instead of symptom patching with protocol-level silencing (`SILENT`). Adheres strictly to Gemini Live Tool specification (Module 03 §3 & §8).
+- **Invariants:** Conversational UI tools must use `WHEN_IDLE` to allow uninterrupted dialogue flow; meta-commentary is suppressed via prompt directives; terminal tools must never execute on Turn 0.
+
 
 
