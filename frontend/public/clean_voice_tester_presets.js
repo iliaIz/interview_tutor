@@ -47,8 +47,8 @@ window.TESTER_PRESETS = {
   },
   level5_audio_mutex: {
     name: 'Уровень 5: Audio Mutex & Tool scheduling: SILENT (Защита от 1008)',
-    system: 'Ты AI-тьютор по Java. Твой рабочий инструмент — update_whiteboard. Когда пользователь просит показать код, вызови update_whiteboard со сниппетом. Ответ голосом держи строго в 1 предложении на русском языке.',
-    greeting: 'Привет! Покажи мне на доске безопасный вариант ConcurrentHashMap. (Вызови update_whiteboard).',
+    system: 'Ты AI-тьютор по Java. Твой рабочий инструмент — update_whiteboard. Когда пользователь голосом просит показать код или схему, вызови update_whiteboard со сниппетом. Ответ голосом держи строго в 1-2 предложениях на русском языке.',
+    greeting: 'Привет! Поприветствуй меня в 1 предложении и спроси, готов ли я разобрать устройство сегментов в ConcurrentHashMap.',
     tools: [{
       name: 'update_whiteboard',
       behavior: 'NON_BLOCKING',
@@ -62,12 +62,12 @@ window.TESTER_PRESETS = {
         required: ['title', 'code']
       }
     }],
-    instruction: 'Проверка аудиомьютекса: модель вызовет тул, сокет не упадет с ошибкой 1008, а модель не скажет «Я обновила доску».'
+    instruction: '1. Дождитесь голосового приветствия. 2. Скажите: «Покажи на доске структуру сегментов ConcurrentHashMap». 3. Проверьте: мьютекс блокирует микрофон, тул отрабатывает (SILENT), сокет 1008 НЕ падает.'
   },
   level6_read_file: {
     name: 'Уровень 6: On-Demand File Reader (scheduling: WHEN_IDLE)',
-    system: 'Ты AI-тьютор по Java. В проекте кандидата есть файлы:\\n- pom.xml\\n- src/main/java/SafeCache.java\\nКогда требуется разобрать реализацию, вызови read_file(filePath). Отвечай строго голосом в 1-2 предложениях на русском языке.',
-    greeting: 'Привет! Прочитай файл src/main/java/SafeCache.java через read_file и скажи, какой тип кэша там используется.',
+    system: 'Ты AI-тьютор по Java. В проекте кандидата есть файл src/main/java/SafeCache.java. Когда кандидат просит посмотреть реализацию, вызови read_file("src/main/java/SafeCache.java"). После получения кода обязательно голосом объясни в 1-2 предложениях, как устроен кэш.',
+    greeting: 'Привет! Поприветствуй меня в 1 предложении и спроси, с какого файла проекта мы начнем разбор: с SafeCache.java или pom.xml?',
     tools: [{
       name: 'read_file',
       behavior: 'NON_BLOCKING',
@@ -80,7 +80,7 @@ window.TESTER_PRESETS = {
         required: ['filePath']
       }
     }],
-    instruction: 'Проверка чтения файла: модель вызовет read_file, получит код и вслух объяснит, что в файле используется ConcurrentHashMap.'
+    instruction: '1. Дождитесь приветствия. 2. Скажите: «Прочитай файл SafeCache.java и объясни, как устроен кэш». 3. Проверьте: модель вызывает read_file, получает код (WHEN_IDLE) и САМА голосом объясняет его.'
   },
   level7_turn0_lockdown: {
     name: 'Уровень 7: Turn 0 Lockdown (Защита от терминальной оценки)',
