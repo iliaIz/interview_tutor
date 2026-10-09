@@ -2,117 +2,74 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Gemini 3.8 Live Multi-Level Voice Tester</title>
+  <title>Gemini 3.8 Live Multi-Level Tester & Telemetry</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; max-width: 680px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.4); box-sizing: border-box; }
-    h1 { font-size: 19px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
-    .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 14px; background: #334155; }
-    .metrics { display: flex; gap: 12px; font-size: 12px; color: #94a3b8; font-family: monospace; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 18px; max-width: 720px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.4); box-sizing: border-box; }
+    h1 { font-size: 18px; margin: 0 0 8px 0; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-weight: 600; font-size: 12px; margin-bottom: 12px; background: #334155; flex-wrap: wrap; gap: 8px; }
+    .metrics { display: flex; gap: 10px; font-size: 11px; color: #94a3b8; font-family: monospace; }
     .metric-val { color: #38bdf8; font-weight: bold; }
-    .btn { background: #0284c7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
-    .btn:hover { background: #0369a1; }
-    .btn:disabled { background: #475569; cursor: not-allowed; }
-    .btn-red { background: #e11d48; margin-left: 8px; }
-    .btn-red:hover { background: #be123c; }
-    select, input, textarea { background: #090d16; border: 1px solid #334155; color: white; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-family: monospace; width: 100%; box-sizing: border-box; margin-top: 4px; }
-    .field { margin-bottom: 12px; }
-    label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .log-box { background: #090d16; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; height: 260px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: #94a3b8; margin-top: 14px; }
-    .log-row { margin-bottom: 3px; }
-    .log-info { color: #38bdf8; }
-    .log-audio { color: #4ade80; }
-    .log-tool { color: #c084fc; }
-    .log-warn { color: #facc15; }
-    .log-err { color: #f43f5e; }
+    .btn { background: #0284c7; color: white; border: none; padding: 9px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; }
+    .btn:hover { background: #0369a1; } .btn:disabled { background: #475569; cursor: not-allowed; } .btn-red { background: #e11d48; margin-left: 6px; } .btn-green { background: #059669; margin-left: 6px; }
+    select, input, textarea { background: #090d16; border: 1px solid #334155; color: white; padding: 7px 10px; border-radius: 8px; font-size: 12px; font-family: monospace; width: 100%; box-sizing: border-box; margin-top: 3px; }
+    .field { margin-bottom: 10px; } label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .instruction-box { background: #0f172a; border-left: 4px solid #38bdf8; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #e2e8f0; margin-bottom: 12px; }
+    .mutex-badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: #065f46; color: #a7f3d0; } .mutex-locked { background: #881337; color: #fecdd3; }
+    .log-box { background: #090d16; border: 1px solid #1e293b; border-radius: 10px; padding: 10px; height: 220px; overflow-y: auto; font-family: monospace; font-size: 11px; line-height: 1.45; color: #94a3b8; margin-top: 12px; }
+    .log-row { margin-bottom: 2px; } .log-info { color: #38bdf8; } .log-audio { color: #4ade80; } .log-tool { color: #c084fc; } .log-warn { color: #facc15; } .log-err { color: #f43f5e; }
   </style>
+  <script src="clean_voice_tester_presets.js"></script>
+  <script src="clean_voice_tester_telemetry.js"></script>
 </head>
 <body>
   <div class="card">
-    <h1>🎙️ Gemini 3.8 Live: Multi-Level Context Tester</h1>
-    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 14px;">
-      Пошаговая проверка нативного голосового сокета (Wave 14): от базового диалога до Java-кода и Whiteboard tool.
-    </p>
+    <h1>🎙️ Gemini 3.8 Live: Granular SOTA Protocol Tester</h1>
 
     <div class="field">
-      <label>1. Выберите уровень проверки (Preset):</label>
+      <label>1. Выберите уровень проверки (Granular Level):</label>
       <select id="presetSelect" onchange="applyPreset()">
-        <option value="baseline">Уровень 1: Чистый собеседник (Базовый - уже проверен ✅)</option>
-        <option value="socratic" selected>Уровень 2: Socratic Persona (Тьютор, 1-2 предложения)</option>
-        <option value="task_context">Уровень 3: Контекст задачи (ConcurrentHashMap vs synchronizedMap)</option>
-        <option value="code_and_tools">Уровень 4: Задача + Java Код + Whiteboard Tool</option>
+        <option value="level1_baseline">Уровень 1: Чистый собеседник (Базовый) ✅</option>
+        <option value="level2_socratic">Уровень 2: Socratic Persona (1-2 предложения) ✅</option>
+        <option value="level3_task_context">Уровень 3: Контекст задачи (ConcurrentHashMap) ✅</option>
+        <option value="level4_code_whiteboard">Уровень 4: Задача + Java-код + Доска ✅</option>
+        <option value="level5_audio_mutex" selected>Уровень 5: Audio Mutex & Tool scheduling: SILENT (Защита от 1008)</option>
+        <option value="level6_read_file">Уровень 6: On-Demand File Reader (scheduling: WHEN_IDLE)</option>
+        <option value="level7_turn0_lockdown">Уровень 7: Turn 0 Lockdown (Защита от терминальной оценки)</option>
+        <option value="level8_barge_in">Уровень 8: Acoustic Barge-In & DAC Drain Stress-Test</option>
       </select>
     </div>
-
-    <div class="field">
-      <label>Системная инструкция (System Instruction):</label>
-      <textarea id="sysPromptInput" rows="3"></textarea>
-    </div>
-
-    <div class="field">
-      <label>Приветственный запрос (Greeting Prompt):</label>
-      <input id="greetingInput" type="text" />
-    </div>
-
+    <div class="instruction-box" id="instructionBox"></div>
     <div class="status-bar" id="statusBar">
       <span id="statusBadge">⚪ Готов к подключению</span>
       <div class="metrics">
         <span>Раунд: <span class="metric-val" id="turnMetric">0</span></span>
         <span>TTFA: <span class="metric-val" id="ttfaMetric">-</span></span>
+        <span>Мьютекс: <span class="mutex-badge" id="mutexBadge">🟢 Свободен</span></span>
       </div>
     </div>
-
-    <div>
-      <button class="btn" id="startBtn" onclick="startSession()">Подключить и Начать Диалог</button>
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <button class="btn" id="startBtn" onclick="startSession()">Подключить и Начать</button>
       <button class="btn btn-red" id="stopBtn" onclick="stopSession()" disabled>Отключить</button>
+      <button class="btn btn-green" id="exportBtn" onclick="exportReport()" disabled>📥 Скачать статистику (JSON)</button>
     </div>
-
+    <div class="field"><label>Системная инструкция (System Instruction):</label><textarea id="sysPromptInput" rows="2"></textarea></div>
+    <div class="field"><label>Приветственный запрос (Greeting Prompt):</label><input id="greetingInput" type="text" /></div>
     <div class="log-box" id="logBox"></div>
   </div>
 
   <script>
-    const PRESETS = {
-      baseline: {
-        system: 'Ты голосовой собеседник. Отвечай кратко в 1-2 предложениях на русском языке.',
-        greeting: 'Привет! Поприветствуй меня в 1 предложении и спроси, как дела.',
-        tools: []
-      },
-      socratic: {
-        system: 'Ты опытный AI-тьютор по Java. Твоя роль — вести сократический диалог: не читай лекций, не давай готовых ответов сразу, отвечай кратко (1–2 емких предложения) строго на русском языке, задавай точные наводящие вопросы и помогай собеседнику докопаться до сути самому.',
-        greeting: 'Привет! Я готов разобрать тему Java. Поприветствуй меня в 1 предложении и спроси, с какого аспекта мы начнем.',
-        tools: []
-      },
-      task_context: {
-        system: 'Ты AI-тьютор по Java. Мы разбираем тему: «ConcurrentHashMap vs Collections.synchronizedMap в Java 8+».\\nКритерии: ConcurrentHashMap блокирует бакет (CAS+synchronized), нет Segment[] в Java 8, volatile-чтение без локов. SynchronizedMap блокирует весь объект (mutex).\\nПравило: отвечай строго голосом в 1–2 предложениях на русском языке. Задавай по одному наводящему вопросу за раз. Не читай лекций.',
-        greeting: 'Привет! Я изучаю вопрос «ConcurrentHashMap vs Collections.synchronizedMap». Поприветствуй меня в 1 предложении и задай первый наводящий вопрос по устройству под капотом.',
-        tools: []
-      },
-      code_and_tools: {
-        system: 'Ты AI-тьютор по Java. Мы разбираем метод: computeIfAbsent(key, mappingFunction) в ConcurrentHashMap. Опасность: рекурсивный вызов внутри mappingFunction вызывает deadlock. Если нужно показать схему на доске, вызывай update_whiteboard. Отвечай строго в 1-2 предложениях голосом на русском языке.',
-        greeting: 'Привет! Я смотрю на computeIfAbsent в ConcurrentHashMap. Поприветствуй меня в 1 предложении и спроси, есть ли здесь риск взаимной блокировки.',
-        tools: [{
-          name: 'update_whiteboard',
-          description: 'Обновляет интерактивную доску кода на экране кандидата.',
-          parameters: {
-            type: 'OBJECT',
-            properties: {
-              title: { type: 'STRING', description: 'Заголовок схемы или кода' },
-              code: { type: 'STRING', description: 'Код Java' }
-            },
-            required: ['title', 'code']
-          }
-        }]
-      }
-    };
-
     let ws = null, audioCtx = null, mediaStream = null, processorNode = null;
-    let playoutTime = 0, turnCount = 0, userSpeechEndEpoch = null;
-    let scheduledSources = [];
+    let playoutTime = 0, isAudioMutexLocked = false, scheduledSources = [];
+    const telemetry = new window.TesterTelemetry();
 
     function applyPreset() {
-      const p = PRESETS[document.getElementById('presetSelect').value];
+      const key = document.getElementById('presetSelect').value;
+      const p = window.TESTER_PRESETS[key];
       document.getElementById('sysPromptInput').value = p.system;
       document.getElementById('greetingInput').value = p.greeting;
+      document.getElementById('instructionBox').innerHTML = `💡 <b>Что делать:</b> ${p.instruction}`;
+      telemetry.setPreset(key);
     }
     applyPreset();
 
@@ -126,41 +83,52 @@
     }
 
     function setStatus(text, bg = '#334155') {
-      const b = document.getElementById('statusBadge');
-      const bar = document.getElementById('statusBar');
-      b.textContent = text;
-      bar.style.background = bg;
+      document.getElementById('statusBadge').textContent = text;
+      document.getElementById('statusBar').style.background = bg;
+    }
+
+    function setAudioMutex(locked) {
+      isAudioMutexLocked = locked;
+      telemetry.recordAudioMutex(locked);
+      const b = document.getElementById('mutexBadge');
+      if (locked) {
+        b.className = 'mutex-badge mutex-locked';
+        b.textContent = '🔒 Заблокирован (Пауза mic)';
+      } else {
+        b.className = 'mutex-badge';
+        b.textContent = '🟢 Свободен';
+      }
     }
 
     async function startSession() {
       const url = 'wss://ai.djelu.site/ws/live?model=gemini-live-v3&token=sk-interview-training';
-      const presetKey = document.getElementById('presetSelect').value;
-      const preset = PRESETS[presetKey];
+      const key = document.getElementById('presetSelect').value;
+      const preset = window.TESTER_PRESETS[key];
       const sysPrompt = document.getElementById('sysPromptInput').value.trim();
       const greeting = document.getElementById('greetingInput').value.trim();
 
+      telemetry.reset();
+      telemetry.setPreset(key);
       document.getElementById('startBtn').disabled = true;
       document.getElementById('stopBtn').disabled = false;
       document.getElementById('presetSelect').disabled = true;
-      turnCount = 0;
+      document.getElementById('exportBtn').disabled = true;
       document.getElementById('turnMetric').textContent = '0';
       document.getElementById('ttfaMetric').textContent = '-';
-      setStatus('⚡ Подключение...', '#0369a1');
+      setAudioMutex(false);
+      setStatus('⚡ Подключение к сокету...', '#0369a1');
 
       try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
         if (audioCtx.state === 'suspended') await audioCtx.resume();
-
         mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
-        log('Микрофон захвачен (AEC включен)', 'info');
 
         ws = new WebSocket(url);
-
         ws.onopen = () => {
           setStatus('🎉 Сокет открыт, отправка setup...', '#047857');
-          log(`Setup фрейм (${presetKey}): голос Aoede, VAD 600ms...`, 'info');
+          log(`Setup (${key}): 16kHz PCM, Auto-VAD 600ms...`, 'info');
 
           const setupObj = {
             setup: {
@@ -177,26 +145,17 @@
               }
             }
           };
-
-          if (preset.tools && preset.tools.length > 0) {
-            setupObj.setup.tools = [{ functionDeclarations: preset.tools }];
-            log(`Подключен инструмент: ${preset.tools.map(t => t.name).join(', ')}`, 'tool');
-          }
-
+          if (preset.tools?.length > 0) setupObj.setup.tools = [{ functionDeclarations: preset.tools }];
           ws.send(JSON.stringify(setupObj));
         };
 
         ws.onmessage = async (event) => {
           let text = typeof event.data === 'string' ? event.data : await event.data.text();
-          let parsed;
-          try { parsed = JSON.parse(text); } catch { return; }
+          let parsed; try { parsed = JSON.parse(text); } catch { return; }
 
           if (parsed.setupComplete) {
             setStatus('🤖 Приветствие модели...', '#6366f1');
-            log(`SetupComplete! Отправка приветствия: "${greeting.slice(0, 50)}..."`, 'info');
-            ws.send(JSON.stringify({
-              clientContent: { turns: [{ role: 'user', parts: [{ text: greeting }] }], turnComplete: true }
-            }));
+            ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: greeting }] }], turnComplete: true } }));
             startMicStreaming();
             return;
           }
@@ -204,51 +163,100 @@
           if (parsed.serverContent?.modelTurn?.parts) {
             for (const part of parsed.serverContent.modelTurn.parts) {
               if (part.inlineData?.data) {
-                if (userSpeechEndEpoch) {
-                  const ttfa = Date.now() - userSpeechEndEpoch;
+                const ttfa = telemetry.recordFirstAudio();
+                if (ttfa) {
                   document.getElementById('ttfaMetric').textContent = `${ttfa}ms`;
-                  log(`⚡ TTFA (ответ модели): ${ttfa}ms`, 'info');
-                  userSpeechEndEpoch = null;
+                  log(`⚡ TTFA: ${ttfa}ms`, 'info');
                 }
+                const bytes = atob(part.inlineData.data).length;
+                telemetry.recordModelChunk(bytes);
                 playPcmChunk24k(part.inlineData.data);
               }
-              if (part.text) {
-                log(`ИИ: "${part.text.trim()}"`, 'audio');
-              }
+              if (part.text) log(`ИИ: "${part.text.trim()}"`, 'audio');
             }
           }
 
+          // Tool Call Handler with Audio Mutex and Scheduling Control
           if (parsed.toolCall) {
+            setAudioMutex(true); // LOCK MIC CHUNKS TO PREVENT 1008
             for (const call of parsed.toolCall.functionCalls || []) {
+              telemetry.recordToolCall(call);
               log(`🛠️ Tool Call: ${call.name}(${JSON.stringify(call.args)})`, 'tool');
-              ws.send(JSON.stringify({
-                toolResponse: {
-                  functionResponses: [{ response: { output: { success: true } }, id: call.id }]
-                }
-              }));
-              log(`✅ Tool Response отправлен для ${call.id}`, 'tool');
+              handleToolCall(call);
             }
           }
 
           if (parsed.serverContent?.interrupted) {
             log('🛑 Модель перебита (Barge-In)!', 'warn');
+            telemetry.recordBargeIn();
             stopAllPlayout();
           }
 
           if (parsed.serverContent?.turnComplete) {
-            turnCount++;
-            document.getElementById('turnMetric').textContent = String(turnCount);
-            setStatus(`🎙️ Раунд ${turnCount}: говорите в микрофон...`, '#047857');
-            log(`TurnComplete (Раунд ${turnCount}). VAD слушает...`, 'info');
+            telemetry.recordTurnComplete();
+            const count = telemetry.currentTurnIndex;
+            document.getElementById('turnMetric').textContent = String(count);
+            
+            // DAC Drain delay before listening
+            const remainingDrainMs = Math.max(0, Math.round((playoutTime - audioCtx.currentTime) * 1000));
+            setStatus(`⏳ Доигрывание динамика (${remainingDrainMs}ms)...`, '#d97706');
+            setTimeout(() => {
+              setStatus(`🎙️ Раунд ${count}: говорите в микрофон...`, '#047857');
+              log(`TurnComplete. Микрофон открыт (ЦАП опустошен)`, 'info');
+            }, remainingDrainMs + 50);
           }
         };
 
-        ws.onerror = (e) => log(`Ошибка WS: ${e}`, 'err');
-        ws.onclose = () => { setStatus('🔌 Сессия закрыта', '#475569'); stopSession(); };
+        ws.onerror = (e) => { log(`Ошибка WS: ${e}`, 'err'); telemetry.recordError(e); };
+        ws.onclose = (e) => {
+          setStatus(`🔌 Сессия закрыта (Код: ${e.code})`, '#475569');
+          log(`WebSocket закрыт (Код: ${e.code}, Причина: ${e.reason || 'нет'})`, 'warn');
+          stopSession();
+        };
       } catch (err) {
         log(`Ошибка запуска: ${err.message}`, 'err');
         stopSession();
       }
+    }
+
+    function handleToolCall(call) {
+      const turnIdx = telemetry.currentTurnIndex;
+      let resp = { output: { success: true } };
+      let scheduling = 'SILENT';
+
+      if (call.name === 'update_whiteboard') {
+        scheduling = 'SILENT'; // SILENT avoids chatter
+        resp = { output: { status: 'SUCCESS', message: 'Whiteboard updated' } };
+      } else if (call.name === 'read_file') {
+        scheduling = 'WHEN_IDLE'; // WHEN_IDLE allows model to speak file content
+        const p = call.args?.filePath || '';
+        const content = window.MOCK_FILES[p] || 'Файл не найден.';
+        resp = { output: { filePath: p, content } };
+        log(`📂 Прочитан файл: ${p} (${content.length} симв)`, 'tool');
+      } else if (call.name === 'submit_interview_evaluation') {
+        if (turnIdx === 0) {
+          // TURN 0 LOCKDOWN: Reject premature evaluation
+          scheduling = 'SILENT';
+          resp = { error: 'PRECONDITION_FAILED', message: 'Интервью только началось, оценка заблокирована.' };
+          log('🛡️ Turn 0 Lockdown: вызов оценки отклонен (PRECONDITION_FAILED)', 'warn');
+        } else {
+          scheduling = 'SILENT';
+          resp = { output: { status: 'SAVED', score: call.args?.score } };
+        }
+      }
+
+      setTimeout(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            toolResponse: {
+              functionResponses: [{ response: resp, id: call.id, scheduling }]
+            }
+          }));
+          telemetry.recordToolResponse(call.id, call.name, scheduling, !resp.error);
+          log(`✅ Tool Response отправлен (${scheduling}) для ${call.name}`, 'tool');
+          setAudioMutex(false); // UNLOCK MIC
+        }
+      }, 50);
     }
 
     function startMicStreaming() {
@@ -258,6 +266,8 @@
 
       processorNode.onaudioprocess = (e) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (isAudioMutexLocked) return; // Audio mutex active during tool execution!
+
         const input = e.inputBuffer.getChannelData(0);
         const ratio = audioCtx.sampleRate / 16000;
         for (let i = 0; i < input.length; i += ratio) {
@@ -272,11 +282,9 @@
             bytes[j * 2] = chunk[j] & 0xff;
             bytes[j * 2 + 1] = (chunk[j] >> 8) & 0xff;
           }
+          telemetry.recordUserChunk(bytes.byteLength);
           const base64 = btoa(String.fromCharCode.apply(null, bytes));
-          userSpeechEndEpoch = Date.now();
-          ws.send(JSON.stringify({
-            realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64 } }
-          }));
+          ws.send(JSON.stringify({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64 } } }));
         }
       };
 
@@ -285,25 +293,21 @@
       source.connect(processorNode);
       processorNode.connect(silentGain);
       silentGain.connect(audioCtx.destination);
-      log('Поток 16kHz PCM (100ms чанки) запущен', 'info');
+      log('16kHz PCM стриминг (100ms чанки) запущен', 'info');
     }
 
     function playPcmChunk24k(base64Data) {
       if (!audioCtx) return;
       const binary = atob(base64Data);
-      const len = binary.length / 2;
-      const floats = new Float32Array(len);
-      for (let i = 0; i < len; i++) {
-        const lo = binary.charCodeAt(i * 2);
-        const hi = binary.charCodeAt(i * 2 + 1);
-        let val = (hi << 8) | lo;
+      const floats = new Float32Array(binary.length / 2);
+      for (let i = 0; i < floats.length; i++) {
+        let val = (binary.charCodeAt(i * 2 + 1) << 8) | binary.charCodeAt(i * 2);
         if (val >= 32768) val -= 65536;
         floats[i] = val / 32768;
       }
 
       const audioBuf = audioCtx.createBuffer(1, floats.length, 24000);
       audioBuf.copyToChannel(floats, 0);
-
       const src = audioCtx.createBufferSource();
       src.buffer = audioBuf;
       src.connect(audioCtx.destination);
@@ -323,6 +327,7 @@
 
     function stopSession() {
       stopAllPlayout();
+      setAudioMutex(false);
       if (processorNode) { processorNode.disconnect(); processorNode = null; }
       if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
       if (ws) { ws.close(); ws = null; }
@@ -330,8 +335,11 @@
       document.getElementById('startBtn').disabled = false;
       document.getElementById('stopBtn').disabled = true;
       document.getElementById('presetSelect').disabled = false;
+      document.getElementById('exportBtn').disabled = false;
       setStatus('⚪ Готов к подключению');
     }
+
+    function exportReport() { telemetry.exportJson(); }
   </script>
 </body>
 </html>
