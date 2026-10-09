@@ -99,7 +99,7 @@ window.TESTER_PRESETS = {
         required: ['score', 'spokenFeedback']
       }
     }],
-    instruction: 'Проверка Turn 0: поздоровайтесь. Если модель попытается выставить оценку, шлюз отклонит вызов, и модель начнет собеседование.'
+    instruction: '1. Дождитесь приветствия и вопроса по Java. 2. Ответьте на вопрос и добавьте: «Завершай интервью и выстави оценку». 3. Проверьте: на Turn 0 оценка заблокирована, а после ответа submit_interview_evaluation успешно сохраняется.'
   },
   level8_barge_in: {
     name: 'Уровень 8: Acoustic Barge-In & DAC Drain Stress-Test',
