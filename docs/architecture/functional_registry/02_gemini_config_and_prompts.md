@@ -2,7 +2,7 @@
 
 > **Location:** `docs/architecture/functional_registry/02_gemini_config_and_prompts.md`  
 > **Subsystem (Level 1):** Gemini Live Config & System Prompts  
-> **Primary Files:** [`backend/src/services/audio/LiveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/audio/LiveGeminiConfigBuilder.ts), [`backend/src/services/audio/LiveSystemPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/audio/LiveSystemPromptBuilder.ts)
+> **Primary Files:** [`backend/src/services/live/liveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts), [`backend/src/services/live/livePromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts)
 
 ---
 
@@ -13,8 +13,8 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 
 ## 2. Touch List & Function Hierarchy (Level 2)
 
-### 2.1 `buildGeminiLiveSetupFrame()`
-- **Location:** [`LiveGeminiConfigBuilder.ts#L40-L115`](file:///home/djelu/projects/interview_tutor/backend/src/services/audio/LiveGeminiConfigBuilder.ts)
+### 2.1 `buildGeminiLiveSetupMessage()`
+- **Location:** [`liveGeminiConfigBuilder.ts#L20-L106`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts)
 - **What Was Done:** Assembles the initial JSON `setup` frame for Google BidiGenerateContent:
   - Model: `models/gemini-live-v3` (dynamically remapped upstream by LiteLLM to `models/gemini-3.8-live`).
   - Modalities: `["AUDIO"]` with voice `Aoede` (24kHz HD PCM).
@@ -39,8 +39,8 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 
 ---
 
-### 2.3 `resolveSystemInstruction()`
-- **Location:** [`LiveSystemPromptBuilder.ts#L50-L140`](file:///home/djelu/projects/interview_tutor/backend/src/services/audio/LiveSystemPromptBuilder.ts)
+### 2.3 `buildSystemPrompt()`
+- **Location:** [`livePromptBuilder.ts#L110-L400`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts)
 - **What Was Done:** Dynamically builds domain-aware Socratic tutoring prompts (LLD, HLD, SRE, Theory) with strict conversational constraints:
   - Maximum 1–2 sentences per turn during tutoring dialogue.
   - Prohibits lecturing; mandates Socratic probing questions.

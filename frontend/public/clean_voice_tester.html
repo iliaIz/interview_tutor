@@ -2,38 +2,65 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Gemini 3.8 Live Clean Baseline Tester</title>
+  <title>Gemini 3.8 Live Multi-Level Voice Tester</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; display: flex; flex-direction: column; align-items: center; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; max-width: 640px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
-    h1 { font-size: 20px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
-    .status { padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 16px; background: #334155; }
-    .btn { background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; max-width: 680px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.4); box-sizing: border-box; }
+    h1 { font-size: 19px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 14px; background: #334155; }
+    .metrics { display: flex; gap: 12px; font-size: 12px; color: #94a3b8; font-family: monospace; }
+    .metric-val { color: #38bdf8; font-weight: bold; }
+    .btn { background: #0284c7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
     .btn:hover { background: #0369a1; }
     .btn:disabled { background: #475569; cursor: not-allowed; }
     .btn-red { background: #e11d48; margin-left: 8px; }
     .btn-red:hover { background: #be123c; }
-    .log-box { background: #090d16; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; height: 320px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: #94a3b8; margin-top: 16px; }
-    .log-row { margin-bottom: 4px; }
+    select, input, textarea { background: #090d16; border: 1px solid #334155; color: white; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-family: monospace; width: 100%; box-sizing: border-box; margin-top: 4px; }
+    .field { margin-bottom: 12px; }
+    label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .log-box { background: #090d16; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; height: 260px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: #94a3b8; margin-top: 14px; }
+    .log-row { margin-bottom: 3px; }
     .log-info { color: #38bdf8; }
     .log-audio { color: #4ade80; }
+    .log-tool { color: #c084fc; }
     .log-warn { color: #facc15; }
     .log-err { color: #f43f5e; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>🎙️ Gemini 3.8 Live Clean Baseline Tester</h1>
-    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
-      Автономная проверка прямого голосового диалога без мидлвари и таймеров платформы.
+    <h1>🎙️ Gemini 3.8 Live: Multi-Level Context Tester</h1>
+    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 14px;">
+      Пошаговая проверка нативного голосового сокета (Wave 14): от базового диалога до Java-кода и Whiteboard tool.
     </p>
 
-    <div style="margin-bottom: 16px;">
-      <label style="font-size: 12px; color: #cbd5e1; display: block; margin-bottom: 4px;">Адрес WebSocket (для локального ПК используйте wss://ai.djelu.site):</label>
-      <input id="wsUrlInput" type="text" value="wss://ai.djelu.site/ws/live?model=gemini-live-v3&token=sk-interview-training" style="width: 100%; box-sizing: border-box; background: #090d16; border: 1px solid #334155; color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-family: monospace;" />
+    <div class="field">
+      <label>1. Выберите уровень проверки (Preset):</label>
+      <select id="presetSelect" onchange="applyPreset()">
+        <option value="baseline">Уровень 1: Чистый собеседник (Базовый - уже проверен ✅)</option>
+        <option value="socratic" selected>Уровень 2: Socratic Persona (Тьютор, 1-2 предложения)</option>
+        <option value="task_context">Уровень 3: Контекст задачи (ConcurrentHashMap vs synchronizedMap)</option>
+        <option value="code_and_tools">Уровень 4: Задача + Java Код + Whiteboard Tool</option>
+      </select>
     </div>
 
-    <div class="status" id="statusBadge">⚪ Готов к подключению</div>
+    <div class="field">
+      <label>Системная инструкция (System Instruction):</label>
+      <textarea id="sysPromptInput" rows="3"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Приветственный запрос (Greeting Prompt):</label>
+      <input id="greetingInput" type="text" />
+    </div>
+
+    <div class="status-bar" id="statusBar">
+      <span id="statusBadge">⚪ Готов к подключению</span>
+      <div class="metrics">
+        <span>Раунд: <span class="metric-val" id="turnMetric">0</span></span>
+        <span>TTFA: <span class="metric-val" id="ttfaMetric">-</span></span>
+      </div>
+    </div>
 
     <div>
       <button class="btn" id="startBtn" onclick="startSession()">Подключить и Начать Диалог</button>
@@ -44,11 +71,50 @@
   </div>
 
   <script>
-    let ws = null;
-    let audioCtx = null;
-    let mediaStream = null;
-    let processorNode = null;
-    let playoutTime = 0;
+    const PRESETS = {
+      baseline: {
+        system: 'Ты голосовой собеседник. Отвечай кратко в 1-2 предложениях на русском языке.',
+        greeting: 'Привет! Поприветствуй меня в 1 предложении и спроси, как дела.',
+        tools: []
+      },
+      socratic: {
+        system: 'Ты опытный AI-тьютор по Java. Твоя роль — вести сократический диалог: не читай лекций, не давай готовых ответов сразу, отвечай кратко (1–2 емких предложения) строго на русском языке, задавай точные наводящие вопросы и помогай собеседнику докопаться до сути самому.',
+        greeting: 'Привет! Я готов разобрать тему Java. Поприветствуй меня в 1 предложении и спроси, с какого аспекта мы начнем.',
+        tools: []
+      },
+      task_context: {
+        system: 'Ты AI-тьютор по Java. Мы разбираем тему: «ConcurrentHashMap vs Collections.synchronizedMap в Java 8+».\\nКритерии: ConcurrentHashMap блокирует бакет (CAS+synchronized), нет Segment[] в Java 8, volatile-чтение без локов. SynchronizedMap блокирует весь объект (mutex).\\nПравило: отвечай строго голосом в 1–2 предложениях на русском языке. Задавай по одному наводящему вопросу за раз. Не читай лекций.',
+        greeting: 'Привет! Я изучаю вопрос «ConcurrentHashMap vs Collections.synchronizedMap». Поприветствуй меня в 1 предложении и задай первый наводящий вопрос по устройству под капотом.',
+        tools: []
+      },
+      code_and_tools: {
+        system: 'Ты AI-тьютор по Java. Мы разбираем метод: computeIfAbsent(key, mappingFunction) в ConcurrentHashMap. Опасность: рекурсивный вызов внутри mappingFunction вызывает deadlock. Если нужно показать схему на доске, вызывай update_whiteboard. Отвечай строго в 1-2 предложениях голосом на русском языке.',
+        greeting: 'Привет! Я смотрю на computeIfAbsent в ConcurrentHashMap. Поприветствуй меня в 1 предложении и спроси, есть ли здесь риск взаимной блокировки.',
+        tools: [{
+          name: 'update_whiteboard',
+          description: 'Обновляет интерактивную доску кода на экране кандидата.',
+          parameters: {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING', description: 'Заголовок схемы или кода' },
+              code: { type: 'STRING', description: 'Код Java' }
+            },
+            required: ['title', 'code']
+          }
+        }]
+      }
+    };
+
+    let ws = null, audioCtx = null, mediaStream = null, processorNode = null;
+    let playoutTime = 0, turnCount = 0, userSpeechEndEpoch = null;
+    let scheduledSources = [];
+
+    function applyPreset() {
+      const p = PRESETS[document.getElementById('presetSelect').value];
+      document.getElementById('sysPromptInput').value = p.system;
+      document.getElementById('greetingInput').value = p.greeting;
+    }
+    applyPreset();
 
     function log(msg, type = '') {
       const box = document.getElementById('logBox');
@@ -59,38 +125,44 @@
       box.scrollTop = box.scrollHeight;
     }
 
-    function setStatus(text, bg = '#334155', color = '#f8fafc') {
+    function setStatus(text, bg = '#334155') {
       const b = document.getElementById('statusBadge');
+      const bar = document.getElementById('statusBar');
       b.textContent = text;
-      b.style.background = bg;
-      b.style.color = color;
+      bar.style.background = bg;
     }
 
     async function startSession() {
-      const url = document.getElementById('wsUrlInput').value.trim();
+      const url = 'wss://ai.djelu.site/ws/live?model=gemini-live-v3&token=sk-interview-training';
+      const presetKey = document.getElementById('presetSelect').value;
+      const preset = PRESETS[presetKey];
+      const sysPrompt = document.getElementById('sysPromptInput').value.trim();
+      const greeting = document.getElementById('greetingInput').value.trim();
+
       document.getElementById('startBtn').disabled = true;
       document.getElementById('stopBtn').disabled = false;
+      document.getElementById('presetSelect').disabled = true;
+      turnCount = 0;
+      document.getElementById('turnMetric').textContent = '0';
+      document.getElementById('ttfaMetric').textContent = '-';
       setStatus('⚡ Подключение...', '#0369a1');
-      log(`Подключение к ${url}`, 'info');
 
       try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
         if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-        // Capture mic at native rate with hardware AEC
         mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
-        log('Микрофон успешно захвачен (AEC включен)', 'info');
+        log('Микрофон захвачен (AEC включен)', 'info');
 
         ws = new WebSocket(url);
 
         ws.onopen = () => {
           setStatus('🎉 Сокет открыт, отправка setup...', '#047857');
-          log('WebSocket открыт. Отправка чистого setup фрейма...', 'info');
+          log(`Setup фрейм (${presetKey}): голос Aoede, VAD 600ms...`, 'info');
 
-          // Send minimal setup frame
-          ws.send(JSON.stringify({
+          const setupObj = {
             setup: {
               model: 'models/gemini-live-v3',
               generationConfig: {
@@ -98,45 +170,32 @@
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
                 temperature: 1.0
               },
-              systemInstruction: { parts: [{ text: 'Ты голосовой собеседник. Отвечай кратко в 1-2 предложениях на русском языке.' }] },
+              systemInstruction: { parts: [{ text: sysPrompt }] },
               realtimeInputConfig: {
-                automaticActivityDetection: {
-                  disabled: false,
-                  silenceDurationMs: 600,
-                  prefixPaddingMs: 200
-                },
+                automaticActivityDetection: { disabled: false, silenceDurationMs: 600, prefixPaddingMs: 200 },
                 activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
               }
             }
-          }));
+          };
+
+          if (preset.tools && preset.tools.length > 0) {
+            setupObj.setup.tools = [{ functionDeclarations: preset.tools }];
+            log(`Подключен инструмент: ${preset.tools.map(t => t.name).join(', ')}`, 'tool');
+          }
+
+          ws.send(JSON.stringify(setupObj));
         };
 
         ws.onmessage = async (event) => {
-          let text = '';
-          if (typeof event.data === 'string') {
-            text = event.data;
-          } else if (event.data instanceof Blob) {
-            text = await event.data.text();
-          } else if (event.data instanceof ArrayBuffer) {
-            text = new TextDecoder().decode(event.data);
-          }
-
-          let parsed = null;
-          try {
-            parsed = JSON.parse(text);
-          } catch (err) {
-            log(`Не удалось распарсить JSON фрейм: ${err.message}`, 'err');
-            return;
-          }
+          let text = typeof event.data === 'string' ? event.data : await event.data.text();
+          let parsed;
+          try { parsed = JSON.parse(text); } catch { return; }
 
           if (parsed.setupComplete) {
             setStatus('🤖 Приветствие модели...', '#6366f1');
-            log('SetupComplete! Запрашиваем приветствие...', 'info');
+            log(`SetupComplete! Отправка приветствия: "${greeting.slice(0, 50)}..."`, 'info');
             ws.send(JSON.stringify({
-              clientContent: {
-                turns: [{ role: 'user', parts: [{ text: 'Привет! Поприветствуй меня в 1 предложении и спроси, как дела.' }] }],
-                turnComplete: true
-              }
+              clientContent: { turns: [{ role: 'user', parts: [{ text: greeting }] }], turnComplete: true }
             }));
             startMicStreaming();
             return;
@@ -145,6 +204,12 @@
           if (parsed.serverContent?.modelTurn?.parts) {
             for (const part of parsed.serverContent.modelTurn.parts) {
               if (part.inlineData?.data) {
+                if (userSpeechEndEpoch) {
+                  const ttfa = Date.now() - userSpeechEndEpoch;
+                  document.getElementById('ttfaMetric').textContent = `${ttfa}ms`;
+                  log(`⚡ TTFA (ответ модели): ${ttfa}ms`, 'info');
+                  userSpeechEndEpoch = null;
+                }
                 playPcmChunk24k(part.inlineData.data);
               }
               if (part.text) {
@@ -153,23 +218,33 @@
             }
           }
 
+          if (parsed.toolCall) {
+            for (const call of parsed.toolCall.functionCalls || []) {
+              log(`🛠️ Tool Call: ${call.name}(${JSON.stringify(call.args)})`, 'tool');
+              ws.send(JSON.stringify({
+                toolResponse: {
+                  functionResponses: [{ response: { output: { success: true } }, id: call.id }]
+                }
+              }));
+              log(`✅ Tool Response отправлен для ${call.id}`, 'tool');
+            }
+          }
+
           if (parsed.serverContent?.interrupted) {
             log('🛑 Модель перебита (Barge-In)!', 'warn');
+            stopAllPlayout();
           }
 
           if (parsed.serverContent?.turnComplete) {
-            setStatus('🎙️ Ваша очередь: говорите в микрофон...', '#047857');
-            log('TurnComplete: ИИ закончил реплику. Нативный VAD слушает ваш голос...', 'info');
+            turnCount++;
+            document.getElementById('turnMetric').textContent = String(turnCount);
+            setStatus(`🎙️ Раунд ${turnCount}: говорите в микрофон...`, '#047857');
+            log(`TurnComplete (Раунд ${turnCount}). VAD слушает...`, 'info');
           }
         };
 
         ws.onerror = (e) => log(`Ошибка WS: ${e}`, 'err');
-        ws.onclose = () => {
-          setStatus('🔌 Сессия закрыта', '#475569');
-          log('WebSocket соединение закрыто', 'warn');
-          stopSession();
-        };
-
+        ws.onclose = () => { setStatus('🔌 Сессия закрыта', '#475569'); stopSession(); };
       } catch (err) {
         log(`Ошибка запуска: ${err.message}`, 'err');
         stopSession();
@@ -178,24 +253,18 @@
 
     function startMicStreaming() {
       const source = audioCtx.createMediaStreamSource(mediaStream);
-      // ScriptProcessor for clean 16kHz chunking (1600 samples = 100ms)
       processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
-      
       let pcm16Buffer = [];
 
       processorNode.onaudioprocess = (e) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         const input = e.inputBuffer.getChannelData(0);
-        
-        // Simple linear resample from audioCtx.sampleRate down to 16kHz
         const ratio = audioCtx.sampleRate / 16000;
         for (let i = 0; i < input.length; i += ratio) {
-          const sample = Math.max(-1, Math.min(1, input[Math.floor(i)]));
-          const int16 = sample < 0 ? sample * 32768 : sample * 32767;
-          pcm16Buffer.push(int16);
+          const s = Math.max(-1, Math.min(1, input[Math.floor(i)]));
+          pcm16Buffer.push(s < 0 ? s * 32768 : s * 32767);
         }
 
-        // Emit when buffer reaches 1600 samples (100ms)
         while (pcm16Buffer.length >= 1600) {
           const chunk = pcm16Buffer.splice(0, 1600);
           const bytes = new Uint8Array(chunk.length * 2);
@@ -204,6 +273,7 @@
             bytes[j * 2 + 1] = (chunk[j] >> 8) & 0xff;
           }
           const base64 = btoa(String.fromCharCode.apply(null, bytes));
+          userSpeechEndEpoch = Date.now();
           ws.send(JSON.stringify({
             realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64 } }
           }));
@@ -215,7 +285,7 @@
       source.connect(processorNode);
       processorNode.connect(silentGain);
       silentGain.connect(audioCtx.destination);
-      log('Потоковая передача 16kHz PCM (100ms чанки) активирована', 'info');
+      log('Поток 16kHz PCM (100ms чанки) запущен', 'info');
     }
 
     function playPcmChunk24k(base64Data) {
@@ -242,15 +312,24 @@
       if (playoutTime < now) playoutTime = now;
       src.start(playoutTime);
       playoutTime += audioBuf.duration;
+      scheduledSources.push(src);
+    }
+
+    function stopAllPlayout() {
+      for (const s of scheduledSources) { try { s.stop(); } catch {} }
+      scheduledSources = [];
+      if (audioCtx) playoutTime = audioCtx.currentTime;
     }
 
     function stopSession() {
+      stopAllPlayout();
       if (processorNode) { processorNode.disconnect(); processorNode = null; }
       if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
       if (ws) { ws.close(); ws = null; }
       if (audioCtx) { audioCtx.close(); audioCtx = null; }
       document.getElementById('startBtn').disabled = false;
       document.getElementById('stopBtn').disabled = true;
+      document.getElementById('presetSelect').disabled = false;
       setStatus('⚪ Готов к подключению');
     }
   </script>
