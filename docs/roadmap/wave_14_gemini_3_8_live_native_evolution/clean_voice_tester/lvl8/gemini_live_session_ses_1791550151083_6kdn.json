@@ -1,0 +1,30 @@
+{
+  "sessionId": "ses_1791550151083_6kdn",
+  "preset": "level8_barge_in",
+  "durationSeconds": 38.3,
+  "turnsCount": 2,
+  "avgTtfaMs": 31,
+  "minTtfaMs": 5,
+  "maxTtfaMs": 57,
+  "audioInKB": 1140.6,
+  "audioOutKB": 2284.7,
+  "audioInChunks": 365,
+  "audioOutChunks": 146,
+  "bargeInCount": 1,
+  "toolCallsCount": 0,
+  "errorsCount": 0,
+  "toolCalls": [],
+  "audioMutexEvents": [],
+  "turns": [
+    {
+      "turnIndex": 1,
+      "completedAt": 1791550160414,
+      "ttfaMs": 5
+    },
+    {
+      "turnIndex": 2,
+      "completedAt": 1791550182102,
+      "ttfaMs": 57
+    }
+  ]
+}
