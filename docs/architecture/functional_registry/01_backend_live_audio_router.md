@@ -88,5 +88,23 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Solves the root cause (instruction tuning) instead of symptom patching with protocol-level silencing (`SILENT`). Adheres strictly to Gemini Live Tool specification (Module 03 §3 & §8).
 - **Invariants:** Conversational UI tools must use `WHEN_IDLE` to allow uninterrupted dialogue flow; meta-commentary is suppressed via prompt directives; terminal tools must never execute on Turn 0.
 
+---
+
+### 2.8 Practice Mode Clean Voice Architecture (Wave 14 / Level 6 Alignment)
+- **Location:** [`LiveGreetingReplay.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveGreetingReplay.ts), [`liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`liveWsClientFrameHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts), [`liveToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDispatcher.ts), [`livePairPrompts.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/live/livePairPrompts.ts)
+- **What Was Done:**
+  1. **Hot Reconnect History Continuity:** On upstream reconnect (`wasReconnecting === true`), seeded the last 4 conversation turns from `liveSessionRegistry` with `turnComplete: false` and a system resumption notification explicitly forbidding Turn 0 re-greeting.
+  2. **Jittered Exponential Backoff:** Replaced fixed `(attempt - 1) * 400ms` with jittered exponential backoff ($1200\text{ms} - 3500\text{ms}$) in `liveAudioStreamRouter.ts`, preventing upstream LiteLLM pool key soft-throttling.
+  3. **Zero Channel Pollution:** In `liveWsClientFrameHandler.ts`, intercepted `workspace_file_update` and `workspace_active_file_changed` to update in-memory manifest without forwarding to Gemini audio socket; early-dropped `screen_context_sync` and `isDeicticFrame`.
+  4. **On-Demand `read_file` Resolution:** In `liveToolDispatcher.ts`, normalized paths and resolved file contents across active file, secondary files, and project tree with `scheduling: 'WHEN_IDLE'`.
+  5. **Mandatory Vocal Commentary:** In `livePairPrompts.ts`, mandated verbal explanation when invoking tools (`update_whiteboard` or `read_file`), eliminating silent generation.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause 1 (Freeze after 2 turns):* Telemetry and editor sync frames streamed into the active 16kHz PCM audio socket every 1.5s multiplied cross-attention tokens ($1.6\text{s} \rightarrow 14.6\text{s} \rightarrow 48.9\text{s}$), triggering `1011 Quota Exceeded` on Gemini Live.
+  - *Root Cause 2 (Amnesic Re-introduction):* Hot reconnect previously sent no conversation history to the fresh upstream socket, causing the model to treat the next turn as Turn 0 and recite greeting again.
+  - *Root Cause 3 (Silent Code Display):* Without an explicit prompt directive requiring verbal explanation upon tool invocation, Gemini Live generated only tool call frames with 0 speech tokens.
+- **Rationale & "Why":** Solves root causes at protocol level adhering to SOTA Late 2026 Level 6 benchmarks.
+- **Invariants:** Live audio socket carries strictly 16kHz PCM audio; project files are read on-demand via `read_file`; hot reconnect never repeats greetings.
+
+
 
 

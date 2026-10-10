@@ -103,7 +103,11 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           }));
         } catch {}
 
-        const backoffDelay = (session.reconnectAttempts - 1) * 400;
+        const baseDelay = 1200 * Math.pow(1.5, (session.reconnectAttempts || 1) - 1);
+        const jitter = Math.floor(Math.random() * 800);
+        const backoffDelay = Math.min(4500, Math.floor(baseDelay + jitter));
+        console.log(`⏱️ Hot reconnect backoff scheduled: ${backoffDelay}ms (attempt ${session.reconnectAttempts}/3)`);
+
         if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
         session.reconnectTimer = setTimeout(() => {
           if (!session.isTerminated && clientSocket.readyState === WebSocket.OPEN) {

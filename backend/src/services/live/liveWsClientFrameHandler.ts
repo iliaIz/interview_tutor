@@ -99,6 +99,50 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         return;
       }
 
+      if (parsed.type === 'workspace_file_update') {
+        const filePath = parsed.path || '';
+        const content = typeof parsed.content === 'string' ? parsed.content : '';
+        if (filePath && content) {
+          if (!session.workspaceManifest) {
+            session.workspaceManifest = { files: [] };
+          }
+          if (!session.workspaceManifest.files) {
+            session.workspaceManifest.files = [];
+          }
+          const existingFile = session.workspaceManifest.files.find((f: any) => f.path === filePath);
+          if (existingFile) {
+            existingFile.content = content;
+          } else {
+            session.workspaceManifest.files.push({ path: filePath, content });
+          }
+          if (session.workspaceManifest.activeFile?.path === filePath || !session.workspaceManifest.activeFile) {
+            session.workspaceManifest.activeFile = { path: filePath, content };
+          }
+          session.codeSnippet = content;
+          console.log(`📝 [WORKSPACE_FILE_UPDATE] Updated in-memory file "${filePath}" (${content.length} chars)`);
+        }
+        return;
+      }
+
+      if (parsed.type === 'workspace_active_file_changed') {
+        const filePath = parsed.path || '';
+        if (filePath && session.workspaceManifest) {
+          const found = session.workspaceManifest.files?.find((f: any) => f.path === filePath || f.path?.endsWith(filePath))
+            || session.workspaceManifest.secondaryFiles?.find((f: any) => f.path === filePath || f.path?.endsWith(filePath));
+          if (found) {
+            session.workspaceManifest.activeFile = { path: found.path, content: found.content };
+            session.codeSnippet = found.content;
+            console.log(`🎯 [WORKSPACE_ACTIVE_FILE] Active file switched to "${found.path}" in memory`);
+          }
+        }
+        return;
+      }
+
+      if (parsed.type === 'screen_context_sync') {
+        // SOTA Late 2026 Level 6: Suppress editor code streaming from live audio channel
+        return;
+      }
+
       if (parsed.type === 'resume_sync' && Array.isArray(parsed.turns) && session.sessionId) {
         const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
         if (mem.turns.length === 0 && parsed.turns.length > 0) {
@@ -207,6 +251,12 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
           )
         )
       );
+
+      if (isDeicticFrame) {
+        // SOTA Late 2026 Invariant 2.6: Channel Separation.
+        // Screen context / telemetry frames must NEVER pollute active bidirectional audio socket.
+        return;
+      }
 
       if (parsed.clientContent?.turns) {
         if (!isDeicticFrame) {

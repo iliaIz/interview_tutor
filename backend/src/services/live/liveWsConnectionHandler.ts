@@ -220,7 +220,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     targetGrade,
     strictness,
     challengeCategory,
-    challengeTrack
+    challengeTrack,
+    workspaceManifest: session.workspaceManifest
   });
 
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);

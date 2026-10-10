@@ -46,13 +46,47 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   } = options;
 
   if (wasReconnecting) {
-    console.log(`🔄 [HOT_RECONNECT] Upstream connected for session ${session.sessionId || 'anon'}. Resumption handle preserved.`);
+    console.log(`🔄 [HOT_RECONNECT] Upstream connected for session ${session.sessionId || 'anon'}. Resuming conversation.`);
+
+    const effectiveTitle = bugTitle || session.bugTitle || questionText || topic;
+    const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
+    const recentTurns = (mem?.turns || []).slice(-4);
+
+    if (geminiSocket.readyState === WebSocket.OPEN) {
+      const turnsToSeed: Array<{ role: 'user' | 'model'; parts: [{ text: string }] }> = [];
+
+      for (const t of recentTurns) {
+        turnsToSeed.push({
+          role: t.role,
+          parts: [{ text: t.text }]
+        });
+      }
+
+      turnsToSeed.push({
+        role: 'user',
+        parts: [{
+          text: `[СИСТЕМНОЕ УВЕДОМЛЕНИЕ]: Связь с кандидатом восстановлена после сетевого сбоя. Приветствие Turn 0 УЖЕ БЫЛО ПРОИЗНЕДЕНО РАНЕЕ. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО здороваться заново! Продолжай обсуждение задачи «${effectiveTitle}». Жди следующей реплики кандидата.`
+        }]
+      });
+
+      geminiSocket.send(JSON.stringify({
+        clientContent: {
+          turns: turnsToSeed,
+          turnComplete: false
+        }
+      }));
+    }
+
+    session.isGreetingSent = true;
+    session.hasCandidateResponded = true;
+
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
       clientSocket.send(JSON.stringify({
         type: 'setupComplete',
         hasInitialUserMessage: !!initialUserMessage,
-        reconnected: true
+        reconnected: true,
+        silent: true
       }));
     }
     return;
@@ -107,6 +141,12 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         greetingText = `Привет! Я изучаю современные идиомы Java 21 LTS в задаче «${effectiveTitle}». Поприветствуй меня в 1 коротком предложении и предложи обсудить Pattern Matching, Records или sealed-типы. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
       } else {
         greetingText = `Привет! Я готов к разбору задачи «${effectiveTitle}». Поприветствуй меня в 1 коротком предложении и предложи обсудить граничные случаи или план решения. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
+      }
+
+      if (session.workspaceManifest?.projectTree && session.workspaceManifest.projectTree.length > 0) {
+        const treeStr = session.workspaceManifest.projectTree.map((p: string) => `• ${p}`).join('\n');
+        const activePath = session.workspaceManifest.activeFile?.path || 'Solution.java';
+        greetingText += `\n[ФАЙЛЫ ВОРКСПЕЙСА ДЛЯ ЧТЕНИЯ ЧЕРЕЗ read_file]:\n${treeStr}\nАктивный файл: ${activePath}`;
       }
     } else {
       greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;

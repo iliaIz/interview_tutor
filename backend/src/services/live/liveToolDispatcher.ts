@@ -89,14 +89,46 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
   }
 
   if (call.name === 'read_file') {
-    const filePath = (call.args?.filePath || '').trim();
-    const manifest = (session as any).workspaceManifest;
-    const fileContent = manifest?.files?.find((f: any) => f.path === filePath)?.content
-      || (manifest?.activeFile?.path === filePath ? manifest?.activeFile?.content : null)
-      || ((session as any).codeSnippet && filePath.endsWith('.java') ? (session as any).codeSnippet : null)
-      || `Файл "${filePath}" не найден в структуре проекта.`;
+    const rawPath = (call.args?.filePath || '').trim();
+    const normalizedTarget = rawPath.replace(/\\/g, '/');
+    const simpleTarget = normalizedTarget.split('/').pop() || normalizedTarget;
 
-    console.log(`📂 [READ_FILE] Gemini Live requested file: "${filePath}" (${fileContent.length} chars)`);
+    const manifest = (session as any).workspaceManifest;
+    let foundContent: string | null = null;
+
+    if (manifest) {
+      // 1. Check active file
+      if (manifest.activeFile?.path) {
+        const p = (manifest.activeFile.path || '').replace(/\\/g, '/');
+        if (p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget) {
+          foundContent = manifest.activeFile.content;
+        }
+      }
+      // 2. Check secondary files
+      if (!foundContent && Array.isArray(manifest.secondaryFiles)) {
+        const sec = manifest.secondaryFiles.find((f: any) => {
+          const p = (f.path || '').replace(/\\/g, '/');
+          return p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget;
+        });
+        if (sec) foundContent = sec.content;
+      }
+      // 3. Check generic files array
+      if (!foundContent && Array.isArray(manifest.files)) {
+        const f = manifest.files.find((file: any) => {
+          const p = (file.path || '').replace(/\\/g, '/');
+          return p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget;
+        });
+        if (f) foundContent = f.content;
+      }
+    }
+
+    // 4. Fallback to session.codeSnippet
+    if (!foundContent && (session as any).codeSnippet) {
+      foundContent = (session as any).codeSnippet;
+    }
+
+    const fileContent = foundContent || `Файл "${rawPath}" не найден в структуре проекта.`;
+    console.log(`📂 [READ_FILE] Gemini Live requested: "${rawPath}" (resolved: ${Boolean(foundContent)}, len: ${fileContent.length})`);
 
     const toolResponse = {
       toolResponse: {
@@ -105,8 +137,12 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
             id: call.id,
             name: call.name,
             response: {
+              output: {
+                filePath: rawPath,
+                content: fileContent
+              },
               result: {
-                filePath,
+                filePath: rawPath,
                 content: fileContent
               }
             },
