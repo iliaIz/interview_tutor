@@ -51,16 +51,8 @@ export function usePracticeVoiceTelemetrySync(session: LiveVoiceFrameSender): vo
 
     if (telemetryText) {
       session.sendCustomFrame?.({
-        type: 'screen_context_sync',
-        clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: telemetryText }]
-            }
-          ],
-          turnComplete: false
-        }
+        type: 'sandbox_result_update',
+        summary: telemetryText
       });
     }
   }, [session, latestSandboxResult]);
@@ -92,16 +84,8 @@ export function usePracticeVoiceTelemetrySync(session: LiveVoiceFrameSender): vo
 
     if (mutationText) {
       session.sendCustomFrame?.({
-        type: 'screen_context_sync',
-        clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: mutationText }]
-            }
-          ],
-          turnComplete: false
-        }
+        type: 'mutation_result_update',
+        summary: mutationText
       });
     }
   }, [session, latestMutationResult]);
@@ -129,16 +113,8 @@ export function usePracticeVoiceTelemetrySync(session: LiveVoiceFrameSender): vo
 
     if (txText) {
       session.sendCustomFrame?.({
-        type: 'screen_context_sync',
-        clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: txText }]
-            }
-          ],
-          turnComplete: false
-        }
+        type: 'tx_evaluation_update',
+        summary: txText
       });
     }
   }, [session, latestTxEvaluation]);

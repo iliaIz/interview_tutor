@@ -7,7 +7,6 @@ import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
 import { resolveTutorDomain } from './TutorDomain';
 import { buildWorkspaceManifest } from '../../../utils/workspaceManifest';
-import { usePracticeVoiceTelemetrySync } from './usePracticeVoiceTelemetrySync';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -61,8 +60,6 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     getActiveLanguage: () => 'java',
     enableGlobalSelection: true
   });
-
-  usePracticeVoiceTelemetrySync(session);
 
   const {
     isConnected,
@@ -171,13 +168,12 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     setModality
   ]);
 
+  // SOTA Late 2026: Zero live audio channel pollution. Code is read on-demand via read_file tool.
   const codeSyncDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const focusGroundingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (codeSyncDebounceRef.current) clearTimeout(codeSyncDebounceRef.current);
-      if (focusGroundingDebounceRef.current) clearTimeout(focusGroundingDebounceRef.current);
     };
   }, []);
 
@@ -190,82 +186,33 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     const performSync = () => {
+      // SOTA Late 2026: Update backend memory for read_file tool resolution.
+      // NEVER inject clientContent text turns into Gemini Live audio stream!
       session.sendCustomFrame?.({
-        type: 'screen_context_sync',
-        clientContent: {
-          turns: [{
-            role: 'user',
-            parts: [{
-              text: `📝 [АКТУАЛЬНЫЙ КОД В РЕДАКТОРЕ (${fileName || 'Solution.java'})]:\n\`\`\`${language}\n${code}\n\`\`\``
-            }]
-          }],
-          turnComplete: false
-        }
+        type: 'workspace_file_update',
+        path: fileName || 'Solution.java',
+        content: code,
+        language
       });
     };
 
     if (immediate) {
       performSync();
     } else {
-      codeSyncDebounceRef.current = setTimeout(performSync, 1500);
+      codeSyncDebounceRef.current = setTimeout(performSync, 1000);
     }
   }, [session]);
 
   const injectActiveFocusGroundingFrame = useCallback(() => {
     if (!session.isConnected) return;
-
-    if (focusGroundingDebounceRef.current) {
-      clearTimeout(focusGroundingDebounceRef.current);
-      focusGroundingDebounceRef.current = null;
-    }
-
-    focusGroundingDebounceRef.current = setTimeout(() => {
-      const state = useAppStore.getState();
-      const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
-      if (!current) return;
-      const fileName = current.path.split('/').pop() || current.path;
-      session.sendCustomFrame?.({
-        type: 'screen_context_sync',
-        clientContent: {
-          turns: [{
-            role: 'user',
-            parts: [{
-              text: `🎯 [ФОКУС ВНИМАНИЯ]: Кандидат переключился на файл ${fileName}.\nСодержимое:\n\`\`\`java\n${current.content}\n\`\`\``
-            }]
-          }],
-          turnComplete: false
-        }
-      });
-    }, 300);
-  }, [session]);
-
-  // Synchronize active editor code into model context upon connection/reconnection
-  useEffect(() => {
-    if (session.isConnected) {
-      const state = useAppStore.getState();
-      const files = state.practiceWorkspaceFiles;
-      const activeIndex = state.activeWorkspaceFileIndex;
-      const current = files[activeIndex] || files[0];
-      if (current?.content) {
-        const fileName = current.path?.split('/').pop() || current.path || 'Solution.java';
-        syncEditorCode(current.content, fileName, 'java', true);
-      }
-    }
-  }, [session.isConnected, syncEditorCode]);
-
-  // Forward IDE bridge code frames to active Gemini Live session
-  useEffect(() => {
-    if (!session.isConnected) return;
-    const handleCodeFrameEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail && session.sendCustomFrame) {
-        session.sendCustomFrame(customEvent.detail);
-      }
-    };
-    window.addEventListener('gemini_live_code_frame', handleCodeFrameEvent);
-    return () => {
-      window.removeEventListener('gemini_live_code_frame', handleCodeFrameEvent);
-    };
+    const state = useAppStore.getState();
+    const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
+    if (!current) return;
+    const fileName = current.path.split('/').pop() || current.path;
+    session.sendCustomFrame?.({
+      type: 'workspace_active_file_changed',
+      path: fileName
+    });
   }, [session]);
 
   const handleCentralButtonClick = useCallback(() => {

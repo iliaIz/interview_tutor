@@ -138,7 +138,7 @@ export const WorkspaceEditor: React.FC = () => {
           onChange={(value) => {
             updateWorkspaceFileContent(activeWorkspaceFileIndex, value);
             if (isVoiceConnected && syncEditorCode) {
-              syncEditorCode(value, currentFile.path.split('/').pop() || currentFile.path, 'java', false);
+              syncEditorCode(value, currentFile.path, 'java', false);
             }
           }}
         />
