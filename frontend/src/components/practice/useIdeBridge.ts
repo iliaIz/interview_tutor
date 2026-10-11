@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { createCodeFrame } from '../../services/DeicticGroundingManager';
 
 export type IdeBridgeStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing';
 
@@ -64,12 +63,16 @@ export function useIdeBridge() {
         setStatus('syncing');
         setTimeout(() => setStatus('connected'), 600);
 
-        // Notify Gemini Live with real-time code frame
+        // Notify active Live Voice Session about updated file content
         try {
-          const frame = createCodeFrame(newContent, existing.path, 'java');
-          // Global event bus dispatch for active live voice sessions
           if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('gemini_live_code_frame', { detail: frame }));
+            window.dispatchEvent(new CustomEvent('workspace_file_updated', {
+              detail: {
+                path: existing.path,
+                content: newContent,
+                language: 'java'
+              }
+            }));
           }
         } catch {
           // Non-critical if voice session not active

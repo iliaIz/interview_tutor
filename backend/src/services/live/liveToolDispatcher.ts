@@ -4,6 +4,7 @@ import { applyKnowledgeDecay } from '../vectorMemoryService';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
 import { handleEvaluationToolCall } from './liveEvaluationToolDispatcher';
 import { handleSystemDesignToolCall } from './liveSystemDesignToolDispatcher';
+import { ProxySession } from './liveSessionTypes';
 
 export interface LiveToolContext {
   call: {
@@ -32,6 +33,64 @@ export interface LiveToolContext {
   };
   parsedHints?: string[];
   liveCoaching?: boolean;
+}
+
+export function matchWorkspaceFilePath(candidatePath: string | undefined, targetPath: string): boolean {
+  if (!candidatePath || !targetPath) return false;
+  const c = candidatePath.replace(/\\/g, '/').trim();
+  const t = targetPath.replace(/\\/g, '/').trim();
+  if (c === t) return true;
+  const cSimple = c.split('/').pop() || c;
+  const tSimple = t.split('/').pop() || t;
+  return cSimple === tSimple || c.endsWith(`/${tSimple}`) || t.endsWith(`/${cSimple}`);
+}
+
+export function applyWorkspaceFileUpdate(session: ProxySession, rawPath: string, content: string): void {
+  const trimmedPath = (rawPath || '').trim();
+  if (!trimmedPath || typeof content !== 'string') return;
+
+  if (!session.workspaceManifest) {
+    session.workspaceManifest = { files: [] };
+  }
+  if (!Array.isArray(session.workspaceManifest.files)) {
+    session.workspaceManifest.files = [];
+  }
+
+  // 1. Update in files array
+  const existingFile = session.workspaceManifest.files.find((f: any) => matchWorkspaceFilePath(f.path, trimmedPath));
+  if (existingFile) {
+    existingFile.content = content;
+  } else {
+    session.workspaceManifest.files.push({ path: trimmedPath, content });
+  }
+
+  // 2. Update in secondaryFiles array if present
+  if (Array.isArray(session.workspaceManifest.secondaryFiles)) {
+    const secFile = session.workspaceManifest.secondaryFiles.find((f: any) => matchWorkspaceFilePath(f.path, trimmedPath));
+    if (secFile) {
+      secFile.content = content;
+    }
+  }
+
+  // 3. Update activeFile if it matches or if none set
+  const isActive = matchWorkspaceFilePath(session.workspaceManifest.activeFile?.path, trimmedPath) || !session.workspaceManifest.activeFile;
+  if (isActive) {
+    session.workspaceManifest.activeFile = {
+      path: session.workspaceManifest.activeFile?.path || trimmedPath,
+      content
+    };
+    session.codeSnippet = content;
+  }
+
+  // 4. Ensure projectTree has the path
+  if (!Array.isArray(session.workspaceManifest.projectTree)) {
+    session.workspaceManifest.projectTree = [];
+  }
+  if (!session.workspaceManifest.projectTree.some((p: string) => matchWorkspaceFilePath(p, trimmedPath))) {
+    session.workspaceManifest.projectTree.push(trimmedPath);
+  }
+
+  console.log(`📝 [WORKSPACE_FILE_UPDATE] Updated in-memory file "${trimmedPath}" (${content.length} chars, active: ${isActive})`);
 }
 
 export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean> {
@@ -90,34 +149,22 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
 
   if (call.name === 'read_file') {
     const rawPath = (call.args?.filePath || '').trim();
-    const normalizedTarget = rawPath.replace(/\\/g, '/');
-    const simpleTarget = normalizedTarget.split('/').pop() || normalizedTarget;
-
     const manifest = (session as any).workspaceManifest;
     let foundContent: string | null = null;
 
     if (manifest) {
       // 1. Check active file
-      if (manifest.activeFile?.path) {
-        const p = (manifest.activeFile.path || '').replace(/\\/g, '/');
-        if (p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget) {
-          foundContent = manifest.activeFile.content;
-        }
+      if (manifest.activeFile?.path && matchWorkspaceFilePath(manifest.activeFile.path, rawPath)) {
+        foundContent = manifest.activeFile.content;
       }
       // 2. Check secondary files
       if (!foundContent && Array.isArray(manifest.secondaryFiles)) {
-        const sec = manifest.secondaryFiles.find((f: any) => {
-          const p = (f.path || '').replace(/\\/g, '/');
-          return p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget;
-        });
+        const sec = manifest.secondaryFiles.find((f: any) => matchWorkspaceFilePath(f.path, rawPath));
         if (sec) foundContent = sec.content;
       }
       // 3. Check generic files array
       if (!foundContent && Array.isArray(manifest.files)) {
-        const f = manifest.files.find((file: any) => {
-          const p = (file.path || '').replace(/\\/g, '/');
-          return p === normalizedTarget || p.endsWith(normalizedTarget) || p.endsWith(`/${simpleTarget}`) || p === simpleTarget;
-        });
+        const f = manifest.files.find((file: any) => matchWorkspaceFilePath(file.path, rawPath));
         if (f) foundContent = f.content;
       }
     }

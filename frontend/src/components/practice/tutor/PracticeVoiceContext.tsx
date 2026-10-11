@@ -215,6 +215,22 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, [session]);
 
+  // Synchronize external file updates (e.g. from IntelliJ IDEA bridge or Whiteboard)
+  useEffect(() => {
+    if (!session.isConnected) return;
+    const handleWorkspaceFileUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ path: string; content: string; language?: string }>;
+      if (customEvent.detail) {
+        const { path, content, language = 'java' } = customEvent.detail;
+        syncEditorCode(content, path, language, true);
+      }
+    };
+    window.addEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
+    return () => {
+      window.removeEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
+    };
+  }, [session.isConnected, syncEditorCode]);
+
   const handleCentralButtonClick = useCallback(() => {
     const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
     if (isAiSpeaking || isPlaying) {

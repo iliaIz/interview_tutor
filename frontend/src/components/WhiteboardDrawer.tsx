@@ -98,7 +98,13 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
 
   const handleInsertIntoEditor = () => {
     if (activeCode && practiceWorkspaceFiles[activeWorkspaceFileIndex]) {
+      const current = practiceWorkspaceFiles[activeWorkspaceFileIndex];
       updateWorkspaceFileContent(activeWorkspaceFileIndex, activeCode);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('workspace_file_updated', {
+          detail: { path: current.path, content: activeCode, language: 'java' }
+        }));
+      }
       showToast({
         type: 'success',
         title: 'Код перенесён',

@@ -7,6 +7,7 @@ on:
       - feat/wave-14-gemini-3-8-live-native
       - feat/wave-14-clean-native-voice
       - feat/wave-14-practice-clean-native-voice
+      - feat/wave-14-intellij-bridge-live-code-sync
   workflow_dispatch:
 
 permissions:

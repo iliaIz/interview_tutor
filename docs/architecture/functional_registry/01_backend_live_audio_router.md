@@ -103,8 +103,22 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - *Root Cause 2 (Amnesic Re-introduction):* Hot reconnect previously sent no conversation history to the fresh upstream socket, causing the model to treat the next turn as Turn 0 and recite greeting again.
   - *Root Cause 3 (Silent Code Display):* Without an explicit prompt directive requiring verbal explanation upon tool invocation, Gemini Live generated only tool call frames with 0 speech tokens.
 - **Rationale & "Why":** Solves root causes at protocol level adhering to SOTA Late 2026 Level 6 benchmarks.
-- **Invariants:** Live audio socket carries strictly 16kHz PCM audio; project files are read on-demand via `read_file`; hot reconnect never repeats greetings.
 
 
+---
 
-
+### 2.9 IntelliJ IDEA Companion Bridge Code Sync & Bidirectional File Resolution
+- **Location:** [`useIdeBridge.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/useIdeBridge.ts), [`PracticeVoiceContext.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceContext.tsx), [`WhiteboardDrawer.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/WhiteboardDrawer.tsx), [`liveToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDispatcher.ts), [`liveWsClientFrameHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts), [`livePairPrompts.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/live/livePairPrompts.ts)
+- **What Was Done:**
+  1. **Frontend IDE Event Forwarding:** In `useIdeBridge.ts`, dispatched `workspace_file_updated` custom event upon receiving `FILE_UPDATED` from `bridge.mjs`. Wired listener in `PracticeVoiceContext.tsx` to forward changes directly to `syncEditorCode(content, path, language, true)`, transmitting `workspace_file_update` to the backend live audio socket.
+  2. **Bidirectional Path Normalization:** Implemented `matchWorkspaceFilePath(candidatePath, targetPath)` supporting exact matches, suffix matches, and base names, resolving differences between IntelliJ Maven paths (e.g. `src/main/java/Solution.java`) and flat web workspace paths (`Solution.java`).
+  3. **Atomic Workspace Manifest Synchronization:** Implemented `applyWorkspaceFileUpdate(session, rawPath, content)` in `liveToolDispatcher.ts` to update `session.workspaceManifest.files`, `secondaryFiles`, `activeFile`, and `projectTree` atomically.
+  4. **Dynamic On-Demand Prompt Directives:** In `livePairPrompts.ts`, explicitly designated `<user_code_snippet>` as starting stub and mandated that the model call `read_file(filePath)` when candidate mentions editing code in their IDE or asks for feedback on their implementation.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause 1 (Frontend Event Loss):* `useIdeBridge.ts` dispatched a legacy dead `CustomEvent('gemini_live_code_frame')` instead of updating the live audio socket via `syncEditorCode`, causing backend session manifest to remain stale.
+  - *Root Cause 2 (Path Prefix Mismatch):* IntelliJ IDEA sends full repository paths (`src/main/java/...`), preventing matches against flat filenames in `session.workspaceManifest.files`.
+  - *Root Cause 3 (Static Prompt Context):* Gemini Live relied on initial session context unless instructed that code changes dynamically in IDE and mandated to invoke `read_file`.
+- **Rationale & "Why":** Guarantees zero code drift between candidate's local IntelliJ IDEA editor and the AI tutor, maintaining clean channel separation without injecting large text payloads into 16kHz PCM audio streaming frames.
+- **Invariants:**
+  - Files edited in IntelliJ IDEA must be reflected in backend session workspace manifest and retrievable via `read_file`.
+  - Path matching must resolve Maven package structures to web editor files bidirectionally.

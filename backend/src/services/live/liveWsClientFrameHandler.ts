@@ -3,6 +3,7 @@ import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleTurnCommit } from './liveWsTurnCommitHandler';
+import { applyWorkspaceFileUpdate, matchWorkspaceFilePath } from './liveToolDispatcher';
 
 export interface ClientFrameHandlerOptions {
   session: ProxySession;
@@ -100,35 +101,15 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
       }
 
       if (parsed.type === 'workspace_file_update') {
-        const filePath = parsed.path || '';
-        const content = typeof parsed.content === 'string' ? parsed.content : '';
-        if (filePath && content) {
-          if (!session.workspaceManifest) {
-            session.workspaceManifest = { files: [] };
-          }
-          if (!session.workspaceManifest.files) {
-            session.workspaceManifest.files = [];
-          }
-          const existingFile = session.workspaceManifest.files.find((f: any) => f.path === filePath);
-          if (existingFile) {
-            existingFile.content = content;
-          } else {
-            session.workspaceManifest.files.push({ path: filePath, content });
-          }
-          if (session.workspaceManifest.activeFile?.path === filePath || !session.workspaceManifest.activeFile) {
-            session.workspaceManifest.activeFile = { path: filePath, content };
-          }
-          session.codeSnippet = content;
-          console.log(`📝 [WORKSPACE_FILE_UPDATE] Updated in-memory file "${filePath}" (${content.length} chars)`);
-        }
+        applyWorkspaceFileUpdate(session, parsed.path, parsed.content);
         return;
       }
 
       if (parsed.type === 'workspace_active_file_changed') {
-        const filePath = parsed.path || '';
+        const filePath = (parsed.path || '').trim();
         if (filePath && session.workspaceManifest) {
-          const found = session.workspaceManifest.files?.find((f: any) => f.path === filePath || f.path?.endsWith(filePath))
-            || session.workspaceManifest.secondaryFiles?.find((f: any) => f.path === filePath || f.path?.endsWith(filePath));
+          const found = session.workspaceManifest.files?.find((f: any) => matchWorkspaceFilePath(f.path, filePath))
+            || session.workspaceManifest.secondaryFiles?.find((f: any) => matchWorkspaceFilePath(f.path, filePath));
           if (found) {
             session.workspaceManifest.activeFile = { path: found.path, content: found.content };
             session.codeSnippet = found.content;
