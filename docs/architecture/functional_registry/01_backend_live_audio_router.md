@@ -122,3 +122,25 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Invariants:**
   - Files edited in IntelliJ IDEA must be reflected in backend session workspace manifest and retrievable via `read_file`.
   - Path matching must resolve Maven package structures to web editor files bidirectionally.
+---
+
+### 2.10 `liveWsClientFrameHandler.ts: Telemetry Frame Interception & Upstream Isolation`
+- **Location:** [`backend/src/services/live/liveWsClientFrameHandler.ts#L45-L95`](file:///d:/projects/synced_with_vps/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts)
+- **What Was Done:** Intercepted custom client telemetry frames (`sandbox_result_update`, `mutation_result_update`, `tx_evaluation_update`) at the proxy frame handler level. Telemetry is saved in-memory on `session` (`latestSandboxSummary`, `latestMutationSummary`, `latestTxSummary`) and prevented from passing through to `geminiSocket.send()`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Forwarding raw custom client telemetry JSON frames to Google Gemini Live WebSocket risks unexpected closure with status 1008/1011 (policy violation/unsupported schema).
+  - *Empirical Finding:* By intercepting and consuming telemetry in the gateway memory, the proxy isolates Google's live audio WebSocket contract from arbitrary client application events while keeping the latest test metrics accessible for system prompts.
+- **Rationale & "Why":** Upstream WebSocket protocol purity must be preserved at all times without leaking application-level telemetry payloads into Google's binary/Bidi stream.
+- **Invariants:** Upstream Gemini WebSocket must NEVER receive raw JSON frames with unmapped `type` attributes.
+
+---
+
+### 2.11 `liveEvaluationToolDispatcher.ts: Evaluation WHEN_IDLE Tool Scheduling & Closing Dialogue Directive`
+- **Location:** [`backend/src/services/live/liveEvaluationToolDispatcher.ts#L30-L75`](file:///d:/projects/synced_with_vps/interview_tutor/backend/src/services/live/liveEvaluationToolDispatcher.ts)
+- **What Was Done:** Added `scheduling: 'WHEN_IDLE'` and an explicit verbal closure instruction in `toolResponse` when `submit_interview_evaluation` completes.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* When `submit_interview_evaluation` was called on Gemini 3.8 Live, the model sometimes stalled or omitted closing verbal remarks, causing sudden dead air after evaluation payload was dispatched.
+  - *Empirical Finding:* Adding `scheduling: 'WHEN_IDLE'` per Google Gemini Live API SOTA specification ensures tool results are ingested without interrupting natural speech pacing, and explicit directive prompts the model to deliver a concise 1-2 sentence spoken verdict summary.
+- **Rationale & "Why":** Completely eliminates awkward dead air between tool execution and session conclusion.
+- **Invariants:** Tool responses MUST adhere to official Google Live ToolResponse format with output status confirmation.
+

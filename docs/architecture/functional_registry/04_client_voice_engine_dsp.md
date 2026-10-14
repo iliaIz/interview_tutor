@@ -87,4 +87,41 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 - **Rationale & "Why":** Upstream Gemini Live protocol strictly forbids interleaved acoustic frames during synchronous tool execution.
 - **Invariants:** No `realtimeInput.audio` chunks may be transmitted to the WebSocket between receiving `toolCall` and dispatching `toolResponse`.
 
+---
+
+### 2.8 `useLiveVoiceSession() & useLiveAudioSession(): Authoritative Single-Engine Unification`
+- **Location:** [`frontend/src/audio/useLiveVoiceSession.ts`](file:///d:/projects/synced_with_vps/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts), [`frontend/src/hooks/useLiveAudioSession.ts`](file:///d:/projects/synced_with_vps/interview_tutor/frontend/src/hooks/useLiveAudioSession.ts)
+- **What Was Done:** Consolidated parallel React hook bindings into a single authoritative adapter (`useLiveVoiceSession.ts`), maintaining backwards-compatible re-exports from `useLiveAudioSession.ts`. Exposed unified callbacks (`onEvaluationCompleted`, `onBugSolved`, `onChaosInjected`, `onCandidateObservationRecorded`, `onHiringCommitteeVerdict`, `onWhiteboardUpdate`), action methods (`sendCanvasDelta`, `sendCustomFrame`, `sendActionEventMessage`), and reactive properties (`isDraining`, `rmsDb`, `statusMessage`).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Maintaining two separate React hooks (`useLiveVoiceSession` in Theory vs `useLiveAudioSession` in Practice) risked protocol divergence and code bloat.
+  - *Empirical Finding:* All practice tracks (LLD, Transactions, Testing, Bug Hunt, System Design) and theory modals share the identical `NativeLiveVoiceEngine` core. Unifying into one adapter with backward compatibility yields zero regression across all test suites (18 playout contracts, 14 live session contracts, 12 voice engine contracts passed).
+- **Rationale & "Why":** Strict adherence to Rule 8 (Zero Parallel Reimplementation & Strict Reuse Invariant).
+- **Invariants:** No secondary voice WebSocket hook may be instantiated. All UI arenas must route through `useLiveVoiceSession` / `NativeLiveVoiceEngine`.
+
+---
+
+### 2.9 `VoiceModal.tsx & VoiceActiveView.tsx: Dual-Sided Handshake for Verdict & Tutor Controls`
+- **Location:** [`frontend/src/components/VoiceModal.tsx`](file:///d:/projects/synced_with_vps/interview_tutor/frontend/src/components/VoiceModal.tsx), [`frontend/src/components/voice/VoiceActiveView.tsx`](file:///d:/projects/synced_with_vps/interview_tutor/frontend/src/components/voice/VoiceActiveView.tsx)
+- **What Was Done:**
+  1. Decomposed active stage rendering into `VoiceActiveView.tsx` (< 150 lines), bringing `VoiceModal.tsx` down to 329 lines (under 350-line limit).
+  2. Implemented Dual-Sided Handshake for evaluation: when `evaluation` payload arrives, modal stays in `stage = 'active'` showing `"🎙️ ИИ подводит итоги ответа... Дослушайте вердикт"` until physical audio drains (`!isDraining && state !== 'AI_SPEAKING'`).
+  3. Added explicit Socratic Tutor controls with "Завершить разбор темы" button and `onTutorComplete` callback to allow clean completion and topic progress saving in `StudyDeck`.
+  4. Added clean socket disconnection and timeout delay on `handleNextQuestion` to prevent WebSocket collisions during batch transitions.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause 1 (Audio Cutoff):* `VoiceModal` immediately switched to `stage = 'verdict'` upon receiving evaluation, unmounting the active visualizer and cutting Web Audio before the AI finished speaking the closing sentence.
+  - *Root Cause 2 (Tutor Trapped in Interview UI):* Socratic tutor never dispatches `submit_interview_evaluation` by design, so the modal had no finish action other than the close 'X' button.
+- **Rationale & "Why":** Eliminates premature audio cutoff and provides complete lifecycle support for Theory tutoring and interview sessions.
+- **Invariants:** Verdict view must NEVER unmount active audio visualizer while DAC audio buffers are draining.
+
+---
+
+### 2.10 `PracticeArena.tsx: PracticeVoiceDefenseGate Dual-Mic Concurrency Suppression`
+- **Location:** [`frontend/src/components/practice/PracticeArena.tsx#L17-L27`](file:///d:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/PracticeArena.tsx)
+- **What Was Done:** Implemented `PracticeVoiceDefenseGate` component inside `PracticeVoiceProvider`. When `isVoiceDefenseOpen` becomes true, the gate checks `isConnected` and immediately disconnects any background practice voice session.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* If an ambient voice tutor session is running in `PracticeArena` when the candidate launches Voice Defense in Transaction Lab, two concurrent `NativeLiveVoiceEngine` instances would compete for the microphone and audio output.
+  - *Empirical Finding:* Cleanly disconnecting the background session upon opening defense modal ensures a single active microphone pipeline and prevents acoustic echo.
+- **Rationale & "Why":** Enforces Single-Sink Audio Routing & Capture Invariant (Rule 2.5).
+- **Invariants:** Exactly one voice session may hold microphone capture custody at any given time.
+
 
