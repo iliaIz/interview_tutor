@@ -124,6 +124,24 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         return;
       }
 
+      if (parsed.type === 'sandbox_result_update') {
+        session.latestSandboxSummary = parsed.summary;
+        console.log(`🧪 [SANDBOX_RESULT_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
+        return;
+      }
+
+      if (parsed.type === 'mutation_result_update') {
+        session.latestMutationSummary = parsed.summary;
+        console.log(`🧬 [MUTATION_RESULT_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
+        return;
+      }
+
+      if (parsed.type === 'tx_evaluation_update') {
+        session.latestTxSummary = parsed.summary;
+        console.log(`💳 [TX_EVALUATION_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
+        return;
+      }
+
       if (parsed.type === 'resume_sync' && Array.isArray(parsed.turns) && session.sessionId) {
         const mem = getOrCreateSessionMemory(session.sessionId, session.questionId || '');
         if (mem.turns.length === 0 && parsed.turns.length > 0) {

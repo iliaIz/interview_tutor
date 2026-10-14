@@ -244,7 +244,7 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     }
   }
 
-  // Return tool response to Gemini Live
+  // Return tool response to Gemini Live with WHEN_IDLE scheduling (SOTA Late 2026)
   const toolResponse = {
     toolResponse: {
       functionResponses: [
@@ -258,9 +258,11 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
               score,
               isPassed,
               evaluationId: savedEvalId,
-              message: 'Оценка сохранена.'
+              message: 'Оценка сохранена в ведомость.',
+              directive: 'Кратко подведи итог (1-2 предложения), поблагодари за ответ и назови вердикт. Не молчи.'
             }
-          }
+          },
+          scheduling: 'WHEN_IDLE'
         }
       ]
     }

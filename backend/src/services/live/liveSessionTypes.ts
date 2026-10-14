@@ -90,4 +90,7 @@ export interface ProxySession {
   lastBargeInEpoch?: number;
   enableSilenceClarification?: boolean;
   debugStep?: number;
+  latestSandboxSummary?: string;
+  latestMutationSummary?: string;
+  latestTxSummary?: string;
 }
