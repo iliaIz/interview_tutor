@@ -17,8 +17,7 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     questionId: cfg.questionId,
     sessionType: cfg.sessionType,
     topic: cfg.topic || '',
-    questionText: cfg.questionText || '',
-    referenceAnswer: cfg.referenceAnswer || '',
+    questionText: cfg.questionText ? cfg.questionText.slice(0, 300) : '',
     voice: cfg.voice || 'Kore',
     turnMode: cfg.turnMode || 'auto',
     liveModel: cfg.liveModel || 'gemini-live-v3',
@@ -33,7 +32,7 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
   if (cfg.challengeCategory) params.set('category', cfg.challengeCategory);
   if (cfg.challengeTrack) params.set('track', cfg.challengeTrack);
   if (cfg.challengeDomain) params.set('domain', cfg.challengeDomain);
-  if (cfg.bugTitle) params.set('bugTitle', cfg.bugTitle);
+  if (cfg.bugTitle) params.set('bugTitle', cfg.bugTitle.slice(0, 200));
 
   if (typeof cfg.enableSilenceClarification === 'boolean') {
     params.set('enableSilenceClarification', String(cfg.enableSilenceClarification));
@@ -59,9 +58,12 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
     sessionType: cfg.sessionType,
     tutorMode: cfg.tutorMode,
     topic: cfg.topic,
+    questionText: cfg.questionText,
+    referenceAnswer: cfg.referenceAnswer,
     persona: cfg.persona,
     strategy: cfg.strategy,
     targetGrade: cfg.targetGrade,
+    customPrompt: cfg.customPrompt,
     challenge: {
       id: cfg.questionId,
       title: cfg.bugTitle || cfg.questionText,

@@ -85,6 +85,12 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
           session.questionText = parsed.bugTitle;
         }
         if (parsed.bugExplanation) session.bugExplanation = parsed.bugExplanation;
+        if (parsed.questionText && !session.questionText) {
+          session.questionText = parsed.questionText;
+        }
+        if (parsed.referenceAnswer && !session.referenceAnswer) {
+          session.referenceAnswer = parsed.referenceAnswer;
+        }
         if (parsed.topic) session.topic = parsed.topic;
         if (parsed.persona) session.persona = parsed.persona;
         if (parsed.strategy) session.strategy = parsed.strategy;

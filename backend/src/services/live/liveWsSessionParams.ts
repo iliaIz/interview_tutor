@@ -1,6 +1,7 @@
 import http from 'http';
 import url from 'url';
 import { envConfig } from '../../config/env';
+import { db } from '../db';
 import { authService } from '../authService';
 import { parseCookies } from '../../middleware/auth';
 import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vectorMemoryService';
@@ -128,9 +129,34 @@ export async function resolveLiveWsSessionParams(
 
   const sessionId = (query.sessionId as string) || '';
   const questionId = (query.questionId as string) || '';
-  const topic = (query.topic as string) || 'Java & Spring Framework';
-  const questionText = (query.questionText as string) || '';
-  const referenceAnswer = (query.referenceAnswer as string) || '';
+  let topic = (query.topic as string) || 'Java & Spring Framework';
+  let questionText = (query.questionText as string) || '';
+  let referenceAnswer = (query.referenceAnswer as string) || '';
+
+  // Canonical SQLite SSOT resolution: if questionId is provided, resolve authoritative topic, question, and answer
+  if (questionId) {
+    try {
+      const qRow = db.prepare('SELECT topic, question, answer FROM questions WHERE id = ?').get(questionId) as any;
+      if (qRow) {
+        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
+          topic = qRow.topic || topic;
+        }
+        if (!questionText) {
+          questionText = qRow.question || questionText;
+        }
+        if (!referenceAnswer) {
+          referenceAnswer = qRow.answer || referenceAnswer;
+        }
+      }
+    } catch (err) {
+      console.warn(`[resolveLiveWsSessionParams] Could not fetch question by id ${questionId}:`, err);
+    }
+  }
+
+  // Safety safeguard: sanitize referenceAnswer if passed via query to prevent memory explosion
+  if (referenceAnswer && referenceAnswer.length > 20000) {
+    referenceAnswer = referenceAnswer.slice(0, 20000);
+  }
   const voiceName = (query.voice as string) || 'Kore';
   const userGender = ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral';
   const turnMode = ((query.turnMode as string) === 'manual' ? 'manual' : 'auto') as 'manual' | 'auto';

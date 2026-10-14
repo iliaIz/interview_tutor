@@ -82,10 +82,16 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
       ws.onmessage = (event) => this.handleServerFrame(event.data);
       ws.onerror = (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err);
-      ws.onclose = () => {
+      ws.onclose = (event: CloseEvent) => {
         if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
           this.fsm.transition({ type: 'DISCONNECT' });
-          this.callbacks.onStatusMessage?.('🔌 Сессия завершена.');
+          if (event?.code === 1006) {
+            this.callbacks.onStatusMessage?.('🔌 Сбой соединения со шлюзом (1006).');
+          } else if (event?.code === 4401) {
+            this.callbacks.onStatusMessage?.('⛔ Требуется авторизация для голосовой сессии.');
+          } else {
+            this.callbacks.onStatusMessage?.('🔌 Сессия завершена.');
+          }
         }
       };
     } catch (err) {

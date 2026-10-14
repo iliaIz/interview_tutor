@@ -80,9 +80,12 @@ export interface LiveSessionInitFrame {
   sessionType?: string;
   tutorMode?: string;
   topic?: string;
+  questionText?: string;
+  referenceAnswer?: string;
   persona?: string;
   strategy?: string;
   targetGrade?: string;
+  customPrompt?: string;
   challenge?: {
     id?: string;
     title?: string;

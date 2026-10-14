@@ -144,3 +144,19 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Completely eliminates awkward dead air between tool execution and session conclusion.
 - **Invariants:** Tool responses MUST adhere to official Google Live ToolResponse format with output status confirmation.
 
+---
+
+### 2.12 `liveWsSessionParams.ts: Canonical SQLite SSOT Resolution & HTTP 431 Elimination`
+- **Location:** [`backend/src/services/live/liveWsSessionParams.ts#L130-L165`](file:///d:/projects/synced_with_vps/interview_tutor/backend/src/services/live/liveWsSessionParams.ts)
+- **What Was Done:**
+  - Removed `referenceAnswer` from WebSocket URL query parameters in client (`liveVoiceUrlBuilder.ts`).
+  - Added authoritative SQLite lookup in `resolveLiveWsSessionParams`: when `questionId` is passed, `topic`, `questionText`, and `referenceAnswer` are loaded directly from the `questions` table in SQLite DB.
+  - Sliced `questionText` in query parameters to max 300 characters as a protective boundary.
+  - Delegated dynamic custom questions/answers to `session_init` frame payload.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Theory sessions in Tutor and Interview modes immediately crashed upon startup because the full reference answer (e.g. 7,776 chars of Cyrillic text for JMM) was percent-encoded into the WebSocket HTTP GET Upgrade URL, producing a >37,000-byte URL.
+  - *Empirical Finding:* Node.js default `http.maxHeaderSize` is 16,384 bytes. When the 37KB URL hit Node.js, the HTTP parser aborted the connection with `431 Request Header Fields Too Large` and closed the socket with code `1006` before Express/WebSocket upgrade could execute. Practice sessions avoided this because they did not pass a reference answer in the URL.
+- **Rationale & "Why":** Large textbook answers have no place in HTTP GET request lines or query strings. SQLite is the persistent Single Source of Truth for all 821 interview questions; resolving directly by primary key `questionId` is $O(1)$ (< 0.1ms), eliminates URL bloat, and guarantees zero HTTP 431 header overflow.
+- **Invariants:** WebSocket connection URL query strings MUST NEVER exceed 2,048 bytes. Authoritative question text and reference answers MUST be resolved from SQLite DB by `questionId` or delivered via WebSocket `session_init` data frames.
+
+
