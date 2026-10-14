@@ -147,6 +147,8 @@ export interface VoiceEngineCallbacks {
   onToolCall?: (data: any) => void;
   onChaosInjected?: (payload: any) => void;
   onHiringCommitteeVerdict?: (payload: any) => void;
+  onBugSolved?: (payload: any) => void;
+  onCandidateObservationRecorded?: (payload: any) => void;
 }
 
 export interface ILiveVoiceEngine {

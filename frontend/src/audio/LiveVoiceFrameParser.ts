@@ -27,6 +27,8 @@ export interface ParsedLiveFrameResult {
   whiteboardPayload?: any;
   chaosPayload?: any;
   verdictPayload?: any;
+  bugSolvedPayload?: any;
+  candidateObservationPayload?: any;
   rawParsed?: any;
 }
 
@@ -66,6 +68,16 @@ export class LiveVoiceFrameParser {
 
       if (data.type === 'hiring_committee_verdict') {
         result.verdictPayload = data.payload;
+        return result;
+      }
+
+      if (data.type === 'bug_solved') {
+        result.bugSolvedPayload = data.payload || data;
+        return result;
+      }
+
+      if (data.type === 'candidate_observation_recorded' || data.type === 'candidate_observation') {
+        result.candidateObservationPayload = data.payload || data;
         return result;
       }
 
