@@ -10,13 +10,23 @@ import { ArrowLeft, BookOpen, Code, Trophy, Maximize2, Minimize2, Compass, Bot, 
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { PracticeCompassSheet } from './compass/PracticeCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
-import { PracticeVoiceProvider } from './tutor/PracticeVoiceContext';
+import { PracticeVoiceProvider, usePracticeVoice } from './tutor/PracticeVoiceContext';
 import { AmbientVoicePill } from './tutor/AmbientVoicePill';
 import { StudioErrorBoundary } from '../StudioErrorBoundary';
 
 import { VoiceModal } from '../VoiceModal';
 import { TransactionScenario } from '../../types/transactionLab';
 import { resolveTutorDomain } from './tutor/TutorDomain';
+
+const PracticeVoiceDefenseGate: React.FC<{ isVoiceDefenseOpen: boolean }> = ({ isVoiceDefenseOpen }) => {
+  const { isConnected, disconnectSession } = usePracticeVoice();
+  React.useEffect(() => {
+    if (isVoiceDefenseOpen && isConnected) {
+      disconnectSession();
+    }
+  }, [isVoiceDefenseOpen, isConnected, disconnectSession]);
+  return null;
+};
 
 export const PracticeArena: React.FC = () => {
   const {
@@ -68,6 +78,7 @@ export const PracticeArena: React.FC = () => {
   if (activeTransactionLabScenarioId !== null) {
     return (
       <PracticeVoiceProvider>
+        <PracticeVoiceDefenseGate isVoiceDefenseOpen={isVoiceDefenseOpen} />
         <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
           <TransactionLabArena
             initialScenarioId={activeTransactionLabScenarioId}
