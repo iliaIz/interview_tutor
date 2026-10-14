@@ -14,11 +14,9 @@ import { useLiveVoiceSession } from '../audio/useLiveVoiceSession';
 import { VoiceEngineConfig } from '../audio/types';
 import { VoiceEvaluationResult } from '../types/voice';
 import { VoiceLobbyView } from './voice/VoiceLobbyView';
+import { VoiceActiveView } from './voice/VoiceActiveView';
 import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
-import { VoiceMicButton } from './voice/VoiceMicButton';
-import { VoiceSubtitles } from './voice/VoiceSubtitles';
-import { VoiceVisualizer } from './voice/VoiceVisualizer';
 
 export interface QuestionItem {
   id: string;
@@ -43,6 +41,7 @@ export interface VoiceModalProps {
   onIndexChange?: (newIndex: number) => void;
   onBatchComplete?: (batchResults: Record<string, VoiceEvaluationResult>) => void;
   onEvaluationComplete?: (evaluation: VoiceEvaluationResult) => void;
+  onTutorComplete?: (topic: string, questionId: string) => void;
 }
 
 export const VoiceModal: React.FC<VoiceModalProps> = ({
@@ -59,7 +58,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   customPromptOverride,
   onIndexChange,
   onBatchComplete,
-  onEvaluationComplete
+  onEvaluationComplete,
+  onTutorComplete
 }) => {
   useBodyScrollLock(isOpen);
   const { config: interviewConfig, setConfig: setInterviewConfig } = useInterviewConfig();
@@ -136,31 +136,58 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     connect
   ]);
 
-  // Handle incoming evaluation: present verdict for current question
+  const pendingEvaluationRef = useRef<VoiceEvaluationResult | null>(null);
+
+  // Handle incoming evaluation: save result and wait for physical audio to drain
   useEffect(() => {
     if (evaluation) {
+      pendingEvaluationRef.current = evaluation;
       setBatchResults((prev) => ({ ...prev, [activeQuestionId]: evaluation }));
       onEvaluationComplete?.(evaluation);
-      setStage('verdict');
+
+      // Dual-Sided Handshake: if physical audio has already drained, switch immediately
+      if (!isDraining && state !== 'AI_SPEAKING') {
+        setStage('verdict');
+      }
     }
-  }, [evaluation, activeQuestionId, onEvaluationComplete]);
+  }, [evaluation, activeQuestionId, onEvaluationComplete, isDraining, state]);
+
+  // When physical audio finishes draining, transition to verdict if evaluation was received
+  useEffect(() => {
+    if (pendingEvaluationRef.current && stage === 'active') {
+      if (!isDraining && state !== 'AI_SPEAKING') {
+        setStage('verdict');
+      }
+    }
+  }, [isDraining, state, stage]);
 
   const handleNextQuestion = useCallback(() => {
+    disconnect();
+    pendingEvaluationRef.current = null;
     const nextIdx = activeBatchIndex + 1;
     setActiveBatchIndex(nextIdx);
     onIndexChange?.(nextIdx);
     setTimeout(() => {
       startSession();
-    }, 50);
-  }, [activeBatchIndex, onIndexChange, startSession]);
+    }, 100);
+  }, [activeBatchIndex, onIndexChange, disconnect, startSession]);
 
   const handleFinishBatch = useCallback(() => {
     setStage('grand_finale');
     onBatchComplete?.(batchResults);
   }, [batchResults, onBatchComplete]);
 
+  const handleFinishTutor = useCallback(() => {
+    disconnect();
+    pendingEvaluationRef.current = null;
+    onTutorComplete?.(activeTopic, activeQuestionId);
+    setStage('lobby');
+    onClose();
+  }, [disconnect, onTutorComplete, activeTopic, activeQuestionId, onClose]);
+
   const handleClose = () => {
     disconnect();
+    pendingEvaluationRef.current = null;
     setStage('lobby');
     onClose();
   };
@@ -235,33 +262,27 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         )}
 
         {stage === 'active' && (
-          <div className="flex flex-col flex-1 min-h-0 py-2">
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mb-3 line-clamp-2 px-1">
-              {activeQuestionText}
-            </p>
-
-            <VoiceVisualizer rmsDb={rmsDb} isActive={state === 'AI_SPEAKING' || state === 'LISTENING'} color={state === 'AI_SPEAKING' ? 'rose' : 'emerald'} />
-            <VoiceSubtitles turns={dialogueTurns} statusMessage={statusMessage} />
-            <VoiceMicButton state={state} isMuted={isMuted} rmsDb={rmsDb} isDraining={isDraining} onClick={handleCentralButtonClick} onToggleMute={toggleMute} />
-
-            {/* Candidate Text Fallback */}
-            <form onSubmit={handleSendText} className="flex gap-2 pt-2 border-t border-slate-100">
-              <input
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Или напишите ответ текстом..."
-                className="flex-1 bg-white/80 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
-              />
-              <button
-                type="submit"
-                disabled={!textInput.trim()}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 text-white text-xs sm:text-sm font-medium hover:bg-slate-700 disabled:opacity-40 transition-all flex items-center gap-1.5"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
+          <VoiceActiveView
+            activeQuestionText={activeQuestionText}
+            isPendingEvaluation={Boolean(pendingEvaluationRef.current)}
+            initialSessionType={initialSessionType}
+            isBatchMode={isBatchMode}
+            activeBatchIndex={activeBatchIndex}
+            totalQuestions={totalQuestions}
+            onNextQuestion={isBatchMode && activeBatchIndex + 1 < totalQuestions ? handleNextQuestion : undefined}
+            onFinishTutor={handleFinishTutor}
+            state={state}
+            isMuted={isMuted}
+            rmsDb={rmsDb}
+            isDraining={isDraining}
+            statusMessage={statusMessage}
+            dialogueTurns={dialogueTurns}
+            onCentralButtonClick={handleCentralButtonClick}
+            onToggleMute={toggleMute}
+            textInput={textInput}
+            setTextInput={setTextInput}
+            onSendText={handleSendText}
+          />
         )}
 
         {stage === 'verdict' && evaluation && (

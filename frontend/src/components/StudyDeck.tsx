@@ -211,6 +211,11 @@ export const StudyDeck: React.FC = () => {
           initialSessionType={voiceModalSessionType}
           initialTutorMode={voiceModalTutorMode}
           customPromptOverride={customPromptForTutor}
+          onTutorComplete={(topic, qId) => {
+            if (selectedTopicId) {
+              updateTopicProgress(selectedTopicId, qId, true, currentBatch.length);
+            }
+          }}
           onBatchComplete={(evaluations: Record<string, any>) => {
             Object.entries(evaluations).forEach(([qId, evalData]: [string, any]) => {
               const numScore = typeof evalData.score === 'number' ? evalData.score : parseFloat(String(evalData.score)) || 0;
