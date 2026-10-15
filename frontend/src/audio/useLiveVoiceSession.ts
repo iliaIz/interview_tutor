@@ -58,6 +58,15 @@ export interface LiveAudioSessionParams {
   isResumed?: boolean;
   enableSilenceClarification?: boolean;
   workspaceManifest?: any;
+  academyCourse?: string;
+  academyStep?: string;
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
 }
 
 export interface UseLiveVoiceSessionOptions {
@@ -214,7 +223,10 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       isResumed: params.isResumed,
       enableSilenceClarification: params.enableSilenceClarification,
       workspaceManifest: params.workspaceManifest,
-      activeCodeArtifact: params.activeCodeArtifact as any
+      activeCodeArtifact: params.activeCodeArtifact as any,
+      academyCourse: params.academyCourse,
+      academyStep: params.academyStep,
+      academyBridgeContext: params.academyBridgeContext
     };
     await connect(config);
   }, [connect]);

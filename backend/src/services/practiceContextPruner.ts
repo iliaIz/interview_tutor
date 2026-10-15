@@ -96,6 +96,10 @@ export function skeletonizeJavaFile(content: string, maxLines = 40): string {
   return skeletonLines.join('\n');
 }
 
+function normalizePath(p?: string): string {
+  return (p || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
 /**
  * Skeletonizes all secondary files in a workspace manifest while leaving active file intact.
  */
@@ -105,7 +109,7 @@ export function skeletonizeWorkspaceSecondaryFiles(manifest: any, activeFilePath
     ...manifest,
     secondaryFiles: manifest.secondaryFiles.map((f: any) => ({
       ...f,
-      content: f.path === activeFilePath ? f.content : skeletonizeJavaFile(f.content || '', 30)
+      content: normalizePath(f.path) === normalizePath(activeFilePath) ? f.content : skeletonizeJavaFile(f.content || '', 30)
     }))
   };
 }
@@ -164,7 +168,7 @@ export function pruneTutorContext(options: PruneTutorContextOptions): PrunedTuto
     }
     xml += '  <secondary_files>\n';
     for (const f of workspaceManifest.secondaryFiles) {
-      if (f.path === activeFilePath) continue;
+      if (normalizePath(f.path) === normalizePath(activeFilePath)) continue;
       const skeleton = skeletonizeJavaFile(f.content || '', 25);
       xml += `    <file path="${f.path}">\n<![CDATA[\n${skeleton}\n]]>\n    </file>\n`;
     }

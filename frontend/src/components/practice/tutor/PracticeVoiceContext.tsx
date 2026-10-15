@@ -154,7 +154,16 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         liveModel: interviewConfig.liveModel,
         vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
         tutorPersona,
-        strategy: 'socratic_tutoring'
+        strategy: 'socratic_tutoring',
+        academyCourse: state.academyBreadcrumbContext?.courseId,
+        academyStep: state.academyBreadcrumbContext ? `step-${state.academyBreadcrumbContext.stepNumber}` : undefined,
+        academyBridgeContext: state.academyBreadcrumbContext ? {
+          courseId: state.academyBreadcrumbContext.courseId,
+          stepId: `step-${state.academyBreadcrumbContext.stepNumber}`,
+          moduleTitle: state.academyBreadcrumbContext.moduleTitle || state.academyBreadcrumbContext.stepTitle,
+          learningObjective: state.academyBreadcrumbContext.learningObjective,
+          targetConcepts: state.academyBreadcrumbContext.targetConcepts
+        } : undefined
       });
       setModality('voice');
     } catch (err) {

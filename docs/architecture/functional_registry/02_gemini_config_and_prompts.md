@@ -107,9 +107,11 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
   - Implemented sliding window algorithm: retains last $K=6$ turns verbatim and condenses earlier turns into a compact narrative digest (`earlierTurnsSummary`).
   - Implemented Java file skeletonizer: strips method and constructor bodies in secondary workspace files into `{ /* ... */ }` while keeping class headers, annotations, fields, and signatures intact.
   - Enforced token budget ceiling: total prompt tokens reduced by $\ge 53-65\%$, strictly bounded to $\le 5500$ tokens.
-  - Linked Academy Curriculum Bridge: enriched `useAppStore` `AcademyBreadcrumbContext` with `moduleTitle`, `learningObjective`, and `targetConcepts`. Injected into `PracticeTutorDrawer.tsx`, `liveVoiceUrlBuilder.ts`, `practiceTutorPrompts.ts`, and `livePairPrompts.ts` (`=== ДИДАКТИЧЕСКИЙ КОНТЕКСТ АКАДЕМИИ (CURRICULUM BRIDGE) ===`).
+  - Linked Academy Curriculum Bridge: enriched `useAppStore` `AcademyBreadcrumbContext` with `moduleTitle`, `learningObjective`, and `targetConcepts`. Injected into `PracticeTutorDrawer.tsx`, `liveVoiceUrlBuilder.ts`, `useLiveVoiceSession.ts`, `PracticeVoiceContext.tsx`, `practiceTutorPrompts.ts`, and `livePairPrompts.ts` (`=== ДИДАКТИЧЕСКИЙ КОНТЕКСТ АКАДЕМИИ (CURRICULUM BRIDGE) ===`), ensuring both text drawer and live voice sessions retain pedagogical continuity.
+  - Added cross-platform `normalizePath()` in `practiceContextPruner.ts` stripping leading slashes and converting Windows backslashes (`\`) to forward slashes (`/`) so active file detection never fails across operating systems.
 - **Hypotheses & Intermediate Conclusions:**
   - Unbounded conversational history caused prompt bloat up to 25,000 tokens by turn 10, increasing TTFT to > 5s and causing Lost-in-the-Middle instruction forgetfulness.
   - Skeletonizing secondary Java classes while retaining active test/service code cuts tokens by > 50% without impairing tutor contextual awareness of interfaces and types.
-- **Rationale & "Why":** Provides fast, responsive Socratic tutoring with sub-second generation starts and unifies the pedagogical journey between Academy lessons and Practice arenas.
+- **Rationale & "Why":** Provides fast, responsive Socratic tutoring with sub-second generation starts and unifies the pedagogical journey between Academy lessons and Practice arenas across both text and voice modalities.
 - **Invariants:** Text tutor prompts must never exceed 5500 tokens. Active file must be preserved verbatim; secondary files must be skeletonized. Academy context must guide Socratic probing when active.
+
