@@ -294,7 +294,6 @@ export function useEvaluationPipeline() {
             }
 
             currentEvent = 'message';
-          }
         }
       }
     } catch (err: any) {
