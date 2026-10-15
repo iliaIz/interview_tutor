@@ -58,7 +58,8 @@ export async function handleChallengeEvaluation({
 
   sendSse('stage', {
     stage: 'sandbox',
-    label: 'Компиляция Java 21 и прогон модульных тестов...'
+    label: 'Компиляция Java 21 и прогон модульных тестов...',
+    timestamp: Date.now()
   });
 
   const sandboxResult = await JvmExecutionService.execute({
@@ -76,28 +77,43 @@ export async function handleChallengeEvaluation({
     label: sandboxResult.isCompilable
       ? `Песочница JVM 21: ${sandboxResult.passedCount}/${sandboxResult.testResults.length} тестов пройдено (${sandboxResult.executionTimeMs}мс)`
       : 'Обнаружены синтаксические ошибки компиляции Java 21',
-    isCompilable: sandboxResult.isCompilable,
-    passedCount: sandboxResult.passedCount,
-    failedCount: sandboxResult.failedCount
+    timestamp: Date.now(),
+    details: {
+      isCompilable: sandboxResult.isCompilable,
+      passedCount: sandboxResult.passedCount,
+      failedCount: sandboxResult.failedCount,
+      totalCount: sandboxResult.testResults.length,
+      durationMs: sandboxResult.executionTimeMs
+    }
   });
 
   if (sandboxResult.isCompilable) {
     sendSse('stage', {
       stage: 'ast_analysis',
-      label: 'AST-анализ: проверка Loom (Carrier Thread Pinning) и Java Memory Model...'
+      label: 'AST-анализ: проверка Loom (Carrier Thread Pinning) и Java Memory Model...',
+      timestamp: Date.now()
     });
 
     sendSse('stage', {
       stage: 'ai_reasoning',
-      label: 'Senior AI Архитектор: глубокий аудит (SOLID, потокобезопасность, идиоматика)...'
+      label: 'Senior AI Архитектор: глубокий аудит (SOLID, потокобезопасность, идиоматика)...',
+      timestamp: Date.now(),
+      details: {
+        model: 'gemini-smart'
+      }
     });
   }
 
+  let elapsedSeconds = 0;
   const heartbeatInterval = setInterval(() => {
+    elapsedSeconds += 3;
     if (isSse && !res.writableEnded && !res.destroyed) {
-      res.write(': keep-alive\n\n');
+      sendSse('heartbeat', {
+        elapsedSeconds,
+        timestamp: Date.now()
+      });
     }
-  }, 5000);
+  }, 3000);
 
   let evaluation;
   try {
@@ -109,6 +125,24 @@ export async function handleChallengeEvaluation({
       sandboxResult,
       abortSignal: abortController.signal
     });
+  } catch (err: any) {
+    clearInterval(heartbeatInterval);
+    console.error('❌ Senior AI Review pipeline failed:', err.message);
+    if (isSse && !res.writableEnded && !res.destroyed) {
+      sendSse('error', {
+        stage: 'failed',
+        error: err.message || 'Ошибка вызова AI-шлюза при оценке',
+        canRetryAiOnly: Boolean(sandboxResult?.isCompilable),
+        timestamp: Date.now()
+      });
+      res.end();
+    } else if (!res.headersSent) {
+      res.status(502).json({
+        error: err.message || 'Ошибка вызова AI-шлюза при оценке',
+        canRetryAiOnly: Boolean(sandboxResult?.isCompilable)
+      });
+    }
+    return;
   } finally {
     clearInterval(heartbeatInterval);
   }
@@ -153,10 +187,12 @@ export async function handleChallengeEvaluation({
 
   if (isSse) {
     sendSse('complete', {
+      stage: 'complete',
       success: true,
       isPassed,
       status,
-      evaluation
+      evaluation,
+      timestamp: Date.now()
     });
     res.end();
   } else {

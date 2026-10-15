@@ -248,9 +248,9 @@ ${codeXml}
         ]
       })
     },
-    2, // maxRetries
+    1, // maxRetries = 1 (Fast Failover without client starvation)
     abortSignal,
-    60_000 // 60s per attempt timeout
+    40_000 // 40s per attempt timeout (fits cleanly in 85s backend budget)
   );
 
   if (!response.ok) {
@@ -259,7 +259,8 @@ ${codeXml}
   }
 
   const rawJson = await response.json();
-  const contentStr = rawJson.choices?.[0]?.message?.content;
+  const choice = rawJson.choices?.[0];
+  const contentStr = choice?.message?.content || choice?.message?.reasoning_content || choice?.text;
   if (!contentStr) {
     throw new Error('LiteLLM returned empty completion response');
   }

@@ -13,6 +13,7 @@ import { WorkspaceHeaderBar } from './WorkspaceHeaderBar';
 import { WorkspaceFooterBar } from './WorkspaceFooterBar';
 import { GoldenMasterDiffViewer } from './GoldenMasterDiffViewer';
 import { SandboxTestConsole } from './SandboxTestConsole';
+import { ReviewProgressConsole } from './ReviewProgressConsole';
 
 /**
  * WorkspaceEditor.tsx (SOTA Late 2026 Decomposed).
@@ -162,7 +163,21 @@ export const WorkspaceEditor: React.FC = () => {
         requiredMutationScore={activePracticeChallenge.requiredMutationScore || 85}
       />
 
-      {/* 4. Action Footer Bar */}
+      {/* 4. Slide-Up Senior AI Review Progress Console & Stepper */}
+      <ReviewProgressConsole
+        isOpen={runner.evalPipeline.isConsoleOpen}
+        isEvaluating={runner.evalPipeline.isEvaluating}
+        currentStage={runner.evalPipeline.currentStage}
+        evaluationTimer={runner.evalPipeline.evaluationTimer}
+        stepperState={runner.evalPipeline.stepperState}
+        reviewLogs={runner.evalPipeline.reviewLogs}
+        activeError={runner.evalPipeline.activeError}
+        onClose={() => runner.evalPipeline.setIsConsoleOpen(false)}
+        onAbort={runner.evalPipeline.handleAbortEvaluation}
+        onRetry={() => runner.evalPipeline.handleStartEvaluation()}
+      />
+
+      {/* 5. Action Footer Bar */}
       <WorkspaceFooterBar
         hasGoldenMaster={Boolean(activePracticeChallenge.goldenMasterConfig?.enabled)}
         onOpenDiff={() => setIsDiffOpen(true)}
@@ -177,6 +192,7 @@ export const WorkspaceEditor: React.FC = () => {
         evaluationTimer={runner.evaluationTimer}
         onRunSandbox={runner.handleRunSandbox}
         onStartEvaluation={runner.handleStartEvaluation}
+        onToggleReviewConsole={() => runner.evalPipeline.setIsConsoleOpen(!runner.evalPipeline.isConsoleOpen)}
       />
 
       {/* 5. Golden Master Diff Modal */}

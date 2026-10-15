@@ -25,6 +25,7 @@ interface WorkspaceFooterBarProps {
   evaluationTimer: number;
   onRunSandbox: () => void;
   onStartEvaluation: () => void;
+  onToggleReviewConsole?: () => void;
 }
 
 export const WorkspaceFooterBar: React.FC<WorkspaceFooterBarProps> = ({
@@ -40,7 +41,8 @@ export const WorkspaceFooterBar: React.FC<WorkspaceFooterBarProps> = ({
   evaluationStage,
   evaluationTimer,
   onRunSandbox,
-  onStartEvaluation
+  onStartEvaluation,
+  onToggleReviewConsole
 }) => {
   return (
     <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
@@ -141,13 +143,18 @@ export const WorkspaceFooterBar: React.FC<WorkspaceFooterBarProps> = ({
 
         {/* Senior AI Review Button */}
         {isPracticeEvaluating ? (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm">
+          <button
+            type="button"
+            onClick={onToggleReviewConsole}
+            title="Нажмите, чтобы развернуть/свернуть детальную консоль статусов Senior AI Review"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm hover:border-pastel-accentRose hover:bg-slate-750 transition cursor-pointer active:scale-95"
+          >
             <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose flex-shrink-0" />
-            <span className="truncate max-w-[260px]">
+            <span className="truncate max-w-[240px]">
               {evaluationStage.label || 'Senior AI Рецензия...'}
             </span>
             <span className="text-[10px] text-pastel-muted font-mono opacity-75">({evaluationTimer}с)</span>
-          </div>
+          </button>
         ) : (
           <button
             type="button"

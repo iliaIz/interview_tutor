@@ -4,11 +4,10 @@ import { SandboxExecutionResponse } from './SandboxTestConsole';
 import { MutationExecutionResponse } from '../../types/practice';
 import { useWorkspaceAutosave } from './useWorkspaceAutosave';
 import { removeLocalDraft } from '../../services/practiceDraftStorage';
+import { useEvaluationPipeline } from './useEvaluationPipeline';
+import { ReviewProgressEvent } from '../../types/practice';
 
-export interface EvaluationStageState {
-  stage: 'idle' | 'sandbox' | 'sandbox_done' | 'ast_analysis' | 'ai_reasoning' | 'complete';
-  label: string;
-}
+export type EvaluationStageState = ReviewProgressEvent;
 
 export function useWorkspaceRunner() {
   const {
@@ -40,25 +39,8 @@ export function useWorkspaceRunner() {
   const [isSandboxRunning, setIsSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<SandboxExecutionResponse | null>(null);
   const [mutationResult, setMutationResult] = useState<MutationExecutionResponse | null>(null);
-  const [evaluationTimer, setEvaluationTimer] = useState(0);
-  const [evaluationStage, setEvaluationStage] = useState<EvaluationStageState>({
-    stage: 'idle',
-    label: ''
-  });
 
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Auto-increment timer while evaluation is in progress
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPracticeEvaluating) {
-      setEvaluationTimer(0);
-      interval = setInterval(() => {
-        setEvaluationTimer((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isPracticeEvaluating]);
+  const evalPipeline = useEvaluationPipeline();
 
   const isWriteTheTestsMode = Boolean(
     activePracticeChallenge?.challengeMode === 'write_the_tests' ||
@@ -128,111 +110,7 @@ export function useWorkspaceRunner() {
     showToast
   ]);
 
-  const handleStartEvaluation = useCallback(async () => {
-    if (!activePracticeChallenge || isPracticeEvaluating) return;
-
-    setIsPracticeEvaluating(true);
-    setEvaluationStage({ stage: 'sandbox', label: 'Компиляция и виртуальное исполнение в In-Memory Sandbox...' });
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    const clientTimeoutId = setTimeout(() => {
-      controller.abort();
-    }, 90000);
-
-    try {
-      const response = await fetch('/api/practice/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        signal: controller.signal,
-        body: JSON.stringify({
-          challengeId: activePracticeChallenge.id,
-          files: practiceWorkspaceFiles,
-          activePhase: activePracticePhase
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: Ошибка отправки на проверку`);
-      }
-
-      if (!response.body) throw new Error('ReadableStream not supported');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-
-          const jsonStr = trimmed.slice(5).trim();
-          if (!jsonStr) continue;
-
-          const event = JSON.parse(jsonStr);
-          const { event: eventType, data: eventData } = event;
-
-          if (eventType === 'stage') {
-            setEvaluationStage({
-              stage: eventData.stage,
-              label: eventData.label || 'Обработка решения...'
-            });
-          } else if (eventType === 'complete' && eventData?.evaluation) {
-            setActivePracticeReport(eventData.evaluation);
-            if (eventData.isPassed && academyBreadcrumbContext) {
-              toggleAcademyStepProgress(
-                academyBreadcrumbContext.courseId,
-                academyBreadcrumbContext.stepNumber,
-                true
-              );
-            }
-          } else if (eventType === 'error' && eventData?.error) {
-            throw new Error(eventData.error);
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        showToast({
-          type: 'warning',
-          title: 'Оценка остановлена',
-          message: 'Запрос отменен пользователем или истекло максимальное время ожидания.'
-        });
-        return;
-      }
-      showToast({
-        type: 'error',
-        title: 'Ошибка проверки',
-        message: err.message || 'Не удалось завершить оценку решения.'
-      });
-    } finally {
-      clearTimeout(clientTimeoutId);
-      setIsPracticeEvaluating(false);
-      setEvaluationStage({ stage: 'idle', label: '' });
-      abortControllerRef.current = null;
-    }
-  }, [
-    activePracticeChallenge,
-    isPracticeEvaluating,
-    practiceWorkspaceFiles,
-    activePracticePhase,
-    academyBreadcrumbContext,
-    setIsPracticeEvaluating,
-    setActivePracticeReport,
-    toggleAcademyStepProgress,
-    showToast
-  ]);
+  const handleStartEvaluation = evalPipeline.handleStartEvaluation;
 
   const handleSaveDraft = useCallback(async () => {
     if (!activePracticeChallenge || autosave.isSaving) return;
@@ -287,8 +165,9 @@ export function useWorkspaceRunner() {
     isSavingDraft: autosave.isSaving,
     lastSavedTime: autosave.lastSavedTime,
     syncStatus: autosave.syncStatus,
-    evaluationTimer,
-    evaluationStage,
+    evaluationTimer: evalPipeline.evaluationTimer,
+    evaluationStage: evalPipeline.currentStage,
+    evalPipeline,
     handleRunSandbox,
     handleStartEvaluation,
     handleSaveDraft,

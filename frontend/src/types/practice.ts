@@ -232,3 +232,25 @@ export interface SandboxExecutionResponse {
   }>;
   error?: string;
 }
+
+export type ReviewStageId = 'idle' | 'sandbox' | 'sandbox_done' | 'ast_analysis' | 'ai_reasoning' | 'complete' | 'failed';
+
+export interface ReviewProgressDetails {
+  durationMs?: number;
+  passedCount?: number;
+  failedCount?: number;
+  totalCount?: number;
+  isCompilable?: boolean;
+  model?: string;
+  canRetryAiOnly?: boolean;
+  error?: string;
+  log?: string;
+  retryAttempt?: number;
+}
+
+export interface ReviewProgressEvent {
+  stage: ReviewStageId;
+  label: string;
+  timestamp: number;
+  details?: ReviewProgressDetails;
+}

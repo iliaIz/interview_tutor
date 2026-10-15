@@ -29,6 +29,7 @@ This registry maintains an explicit, traceable, and empirically verified record 
 | **03** | **LiteLLM Proxy & Upstream Bidi Gateway** | Python FastAPI / Proxy Layer | `LiteLLM_Proxy/gateway/` | [`03_litellm_proxy_gateway.md`](./03_litellm_proxy_gateway.md) |
 | **04** | **Client Voice Engine & Audio DSP** | Frontend Web Audio / Worklet | `frontend/src/utils/audio/` | [`04_client_voice_engine_dsp.md`](./04_client_voice_engine_dsp.md) |
 | **05** | **Verification Harness & Acoustic Canary** | CI/CD & Headless Replay | `backend/tests/audio/` | [`05_verification_and_canary_pipeline.md`](./05_verification_and_canary_pipeline.md) |
+| **06** | **Practice Evaluation & Review Console** | Backend SSE / Frontend Console | `backend/src/services/` & `frontend/` | [`06_practice_evaluation_and_sandbox_pipeline.md`](./06_practice_evaluation_and_sandbox_pipeline.md) |
 
 ---
 

@@ -46,3 +46,19 @@ Centralized proxy service running in Docker container `litellm-gateway`. Manages
   - Round-robin / priority sorting distributes load across multiple free-tier and paid accounts.
 - **Rationale & "Why":** Essential for zero-downtime key rotation without restarting containers.
 - **Invariants:** When all keys are exhausted, must return an empty plan triggering graceful error response rather than crashing the gateway process.
+
+---
+
+### 2.4 `chat_completions()`
+- **Location:** [`LiteLLM_Proxy/gateway/app/routers/chat.py`](file:///home/djelu/projects/LiteLLM_Proxy/gateway/app/routers/chat.py)
+- **What Was Done:**
+  - Added missing `import httpx` at module level, eliminating fatal `NameError: name 'httpx' is not defined` when read-timeouts occur.
+  - Replaced narrow `except httpx.ReadTimeout:` with universal `except httpx.TimeoutException:` (covering connect, read, write, and pool timeouts).
+  - Extracted reasoning/thinking blocks (`p["thought"]`) from Gemini response parts so `message_dict["content"]` never degrades to `None` when upstream answers with reasoning tokens.
+  - Added fast-failover on HTTP 500/502/503/504 with 45s model cooldown.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* Upstream models `gemini-3.8-flash` and `3.7-flash` returned HTTP 503 Overloaded. When read-timeout (60s) triggered, Python raised `NameError` due to missing import, crashing the gateway with 500.
+  - *Intermediate Conclusion:* Adding `import httpx` and catching `httpx.TimeoutException` allows the gateway to cleanly cycle to healthy models/keys and return controlled status codes.
+- **Rationale & "Why":** Upstream Gemini capacity spikes must not crash proxy processes or freeze downstream client assessment sessions.
+- **Invariants:** Gateway must never throw unhandled python exceptions on upstream timeouts.
+
