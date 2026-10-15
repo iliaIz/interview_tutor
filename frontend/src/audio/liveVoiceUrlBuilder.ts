@@ -79,7 +79,8 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
       workspaceManifest: cfg.workspaceManifest
     },
     activeCodeArtifact: cfg.activeCodeArtifact,
-    academyBridgeContext: cfg.academyBridgeContext
+    academyBridgeContext: cfg.academyBridgeContext,
+    seniorReview: cfg.seniorReview
   };
 
   try {

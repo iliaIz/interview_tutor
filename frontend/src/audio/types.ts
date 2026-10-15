@@ -82,6 +82,7 @@ export interface VoiceEngineConfig {
     learningObjective?: string;
     targetConcepts?: string[];
   };
+  seniorReview?: any;
 }
 
 export interface LiveSessionInitFrame {
@@ -126,6 +127,7 @@ export interface LiveSessionInitFrame {
     learningObjective?: string;
     targetConcepts?: string[];
   };
+  seniorReview?: any;
 }
 
 export interface VoiceEvaluationResult {

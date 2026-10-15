@@ -12,7 +12,8 @@ import {
   Shield,
   ArrowRight,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  Mic
 } from 'lucide-react';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 
@@ -21,13 +22,15 @@ interface PracticeEvaluationModalProps {
   onClose: () => void;
   result: EvaluationResult | null;
   onRetry: () => void;
+  onStartVoiceDiscussion?: (finding?: any) => void;
 }
 
 export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = ({
   isOpen,
   onClose,
   result,
-  onRetry
+  onRetry,
+  onStartVoiceDiscussion
 }) => {
   if (!isOpen || !result) return null;
 
@@ -187,6 +190,17 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
                         💡 <strong>Рекомендация:</strong> {f.remediation}
                       </p>
                     )}
+                    {onStartVoiceDiscussion && (
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          onClick={() => onStartVoiceDiscussion(f)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pastel-accentRose/10 hover:bg-pastel-accentRose/20 text-pastel-accentRose border border-pastel-accentRose/30 font-semibold text-[11px] transition cursor-pointer"
+                        >
+                          <Mic className="w-3 h-3 text-pastel-accentRose animate-pulse" />
+                          <span>Разобрать замечание голосом</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -240,7 +254,7 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-pastel-border bg-white flex items-center justify-between">
+        <div className="p-4 border-t border-pastel-border bg-white flex items-center justify-between gap-2">
           <button
             onClick={onRetry}
             className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-pastel-border text-pastel-text font-bold text-xs hover:bg-pastel-bg transition cursor-pointer"
@@ -249,12 +263,24 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
             <span>Исправить решение</span>
           </button>
 
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-2xl font-bold text-xs hover:opacity-95 transition shadow-2xs cursor-pointer"
-          >
-            Закрыть отчет
-          </button>
+          <div className="flex items-center gap-2">
+            {onStartVoiceDiscussion && (
+              <button
+                onClick={() => onStartVoiceDiscussion(null)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white rounded-2xl font-bold text-xs hover:opacity-95 transition shadow-2xs cursor-pointer"
+              >
+                <Mic className="w-3.5 h-3.5" />
+                <span>Обсудить отчет голосом</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-pastel-bg hover:bg-pastel-border/60 text-pastel-text rounded-2xl font-bold text-xs transition border border-pastel-border cursor-pointer"
+            >
+              К коду (свернуть)
+            </button>
+          </div>
         </div>
       </div>
     </div>

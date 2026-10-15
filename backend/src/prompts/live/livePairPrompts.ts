@@ -30,6 +30,22 @@ export interface LivePairPromptParams {
     learningObjective?: string;
     targetConcepts?: string[];
   };
+  seniorReview?: {
+    overallScore: number;
+    summaryReview: string;
+    findings?: Array<{
+      category: string;
+      location: string;
+      description: string;
+      remediation: string;
+    }>;
+    focusedFinding?: {
+      category: string;
+      location: string;
+      description: string;
+      remediation: string;
+    } | null;
+  };
 }
 
 export function buildLivePairPrompt(params: LivePairPromptParams): string {
@@ -45,7 +61,8 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     codeSnippet,
     activeCodeArtifact,
     workspaceManifest,
-    academyBridgeContext
+    academyBridgeContext,
+    seniorReview
   } = params;
 
   const isLld = domain === 'lld';
@@ -238,6 +255,21 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
           : 'Привет! Я твой напарник по тестированию. Внимательно смотрю на код и готов обсуждать граничные случаи. С чего начнем?');
   }
 
+  if (seniorReview) {
+    const score = Math.round(seniorReview.overallScore);
+    const target = seniorReview.focusedFinding
+      ? `по замечанию [${seniorReview.focusedFinding.category}] в ${seniorReview.focusedFinding.location}`
+      : 'по итогам отчёта ревью';
+
+    greeting = isFemale
+      ? (userGender === 'neutral'
+          ? `Здравствуйте! Я изучила Ваш отчет Senior Review — оценка ${score} баллов. Давайте вместе разберем замечания ${target}. С чего начнем?`
+          : `Привет! Я изучила твой отчет Senior Review — оценка ${score} баллов. Давай вместе разберем замечания ${target}. С чего начнем?`)
+      : (userGender === 'neutral'
+          ? `Здравствуйте! Я изучил Ваш отчет Senior Review — оценка ${score} баллов. Давайте вместе разберем замечания ${target}. С чего начнем?`
+          : `Привет! Я изучил твой отчет Senior Review — оценка ${score} баллов. Давай вместе разберем замечания ${target}. С чего начнем?`);
+  }
+
   let roleHeader = `=== 1. РОЛЬ: MULTIMODAL AI PAIR-PROGRAMMER & TESTING COACH ===
 Ты доброжелательный и опытный ${isFemale ? 'напарник по парному программированию (женщина)' : 'напарник по парному программированию (мужчина)'}.
 Ты помогаешь кандидату решать практические задачи по написанию юнит-тестов (JUnit 5, AssertJ, Mockito, мутационное тестирование).`;
@@ -334,6 +366,26 @@ ${workspaceManifest.projectTree.map((p) => `• ${p}`).join('\n')}
 ${academyBridgeContext.learningObjective ? `Образовательная цель: ${academyBridgeContext.learningObjective}` : ''}
 ${academyBridgeContext.targetConcepts && academyBridgeContext.targetConcepts.length > 0 ? `Целевые концепции: ${academyBridgeContext.targetConcepts.join(', ')}` : ''}
 ДИРЕКТИВА: Направляй наводящие вопросы и подсказки так, чтобы помочь кандидату практически освоить целевые концепции.`
+    : ''
+}${
+  seniorReview
+    ? `\n\n=== 3.1. КОНТЕКСТ SENIOR AI CODE REVIEW (УСТНЫЙ РАЗБОР ЗАМЕЧАНИЙ) ===
+Кандидат нажал кнопку "Разобрать замечания голосом" над открытым кодом решения!
+ИТОГОВЫЙ СКОР РЕВЬЮ: ${Math.round(seniorReview.overallScore)}/100
+ЗАКЛЮЧЕНИЕ:
+"${seniorReview.summaryReview}"
+${seniorReview.focusedFinding ? `\nАКТИВНОЕ ЗАМЕЧАНИЕ ДЛЯ РАЗБОРА В ПЕРВУЮ ОЧЕРЕДЬ:
+- Категория: [${seniorReview.focusedFinding.category}]
+- Локация: ${seniorReview.focusedFinding.location}
+- Описание дефекта: ${seniorReview.focusedFinding.description}
+- Рекомендация: ${seniorReview.focusedFinding.remediation}` : ''}
+${seniorReview.findings && seniorReview.findings.length > 0 ? `\nВСЕ ЗАМЕЧАНИЯ РЕВЬЮ:
+${seniorReview.findings.map((f, i) => `${i + 1}. [${f.category}] ${f.location}: ${f.description} (Рекомендация: ${f.remediation})`).join('\n')}` : ''}
+
+ДИРЕКТИВА ПО ВЕДЕНИЮ УСТНОГО ДИАЛОГА:
+1. Помоги кандидату осознать физику проблемы (многопоточность, JMM, Project Loom, SOLID).
+2. Не диктуй готовый Java-код сразу. Задавай наводящие вопросы по архитектуре решения.
+3. Когда кандидат предлагает верную идею — похвали и предложи применить её в коде.`
     : ''
 }
 

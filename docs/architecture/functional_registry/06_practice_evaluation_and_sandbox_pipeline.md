@@ -71,3 +71,23 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - *Intermediate Conclusion:* LLMs must receive concrete few-shot JSON structures in output format prompts, and the backend/frontend must enforce symmetrical normalization contracts to tolerate schema drift and gracefully support legacy database submissions.
 - **Invariants:** Every finding rendered in `PracticeEvaluationModal` is guaranteed to contain non-empty text, and praise comments are never presented under the red concurrency defect banner.
 
+### 2.6 Voice-First Review Discussion & 100% Russian Language Lock
+- **Location:** [`backend/src/services/codeEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/codeEvaluator.ts), [`backend/src/services/live/LiveGreetingReplay.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveGreetingReplay.ts), [`backend/src/prompts/live/livePairPrompts.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/live/livePairPrompts.ts), [`frontend/src/store/useAppStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/useAppStore.ts), [`frontend/src/components/practice/PracticeEvaluationModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeEvaluationModal.tsx), [`frontend/src/components/practice/PracticeArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeArena.tsx)
+- **What Was Done:**
+  - Locked `codeEvaluator.ts` system prompt to 100% Russian via `LANGUAGE_LOCK_INVARIANT`, preserving code tokens and Java terms in Latin.
+  - Extended WebSocket `session_init` frame and backend `ProxySession` with `seniorReview` payload (`overallScore`, `summaryReview`, `findings`, `focusedFinding`).
+  - Added Section 3.1 in `livePairPrompts.ts` to ground Gemini Live pair programming with the exact defects and scores from the code review.
+  - Enhanced `LiveGreetingReplay.ts` on Turn 0 to verbalize the review results, score, and specific defect directly into the candidate's headphones.
+  - Added `isPracticeReportModalOpen` to `useAppStore.ts` ensuring that closing or docking the modal retains `activePracticeReport`.
+  - Upgraded `PracticeEvaluationModal.tsx` with 🎙️ «Разобрать замечание голосом» on defect cards and 🎙️ «Обсудить отчет голосом» in the footer, with «К коду (свернуть)» for non-destructive docking.
+  - Integrated `PracticeArena.tsx` with file auto-focus in Monaco editor and docked `🏆 85/100` badge to reopen the review modal at any time.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* Review reports were previously written in English because the system prompt was in English without the language lock invariant. In addition, users who prefer voice had no way to transition from reading defects to discussing them with the AI in real time.
+  - *Intermediate Conclusion:* Seamless modal-to-voice handoff preserves the candidate's working memory, auto-focuses the relevant file in the editor, and starts an interactive verbal pairing session without cognitive friction.
+- **Rationale & "Why":** SOTA 2026 Voice-First platform paradigm: voice is the primary modality for interactive review, reflection, and live refactoring.
+- **Invariants:**
+  - All review findings and summaries must be 100% Russian.
+  - Closing the review modal must never discard `activePracticeReport`.
+  - Turn 0 greeting must immediately address the candidate and the defect in Russian.
+
+

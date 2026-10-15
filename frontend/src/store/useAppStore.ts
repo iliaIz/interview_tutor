@@ -277,6 +277,7 @@ interface AppState {
   activePracticePhase: number;
   isPracticeEvaluating: boolean;
   activePracticeReport: EvaluationResult | null;
+  isPracticeReportModalOpen: boolean;
   practiceElapsedSeconds: number;
 
   // Real-Time Practice Execution Results (Sandbox, Mutations, Transactions)
@@ -294,6 +295,7 @@ interface AppState {
   setActivePracticePhase: (phase: number) => void;
   setIsPracticeEvaluating: (isEval: boolean) => void;
   setActivePracticeReport: (report: EvaluationResult | null) => void;
+  setIsPracticeReportModalOpen: (open: boolean) => void;
   setPracticeElapsedSeconds: (sec: number | ((prev: number) => number)) => void;
 
   // Spring Transaction Playground (@Transactional Lab)
@@ -808,6 +810,7 @@ export const useAppStore = create<AppState>()(
       activePracticePhase: 1,
       isPracticeEvaluating: false,
       activePracticeReport: null,
+      isPracticeReportModalOpen: false,
       practiceElapsedSeconds: 0,
 
       // Practice Runtime Execution Results
@@ -846,6 +849,7 @@ export const useAppStore = create<AppState>()(
           activeWorkspaceFileIndex: activeIndex,
           activePracticePhase: activePhase,
           activePracticeReport: null,
+          isPracticeReportModalOpen: false,
           latestSandboxResult: null,
           latestMutationResult: null,
           latestTxEvaluation: null,
@@ -860,6 +864,7 @@ export const useAppStore = create<AppState>()(
         practiceWorkspaceFiles: [],
         activeWorkspaceFileIndex: 0,
         activePracticeReport: null,
+        isPracticeReportModalOpen: false,
         latestSandboxResult: null,
         latestMutationResult: null,
         latestTxEvaluation: null
@@ -888,7 +893,11 @@ export const useAppStore = create<AppState>()(
       setActiveWorkspaceFileIndex: (idx) => set({ activeWorkspaceFileIndex: idx }),
       setActivePracticePhase: (phase) => set({ activePracticePhase: phase }),
       setIsPracticeEvaluating: (isEval) => set({ isPracticeEvaluating: isEval }),
-      setActivePracticeReport: (report) => set({ activePracticeReport: report }),
+      setActivePracticeReport: (report) => set({ 
+        activePracticeReport: report,
+        isPracticeReportModalOpen: Boolean(report)
+      }),
+      setIsPracticeReportModalOpen: (open) => set({ isPracticeReportModalOpen: open }),
       setPracticeElapsedSeconds: (val) => set((state) => ({
         practiceElapsedSeconds: typeof val === 'function' ? val(state.practiceElapsedSeconds) : val
       })),

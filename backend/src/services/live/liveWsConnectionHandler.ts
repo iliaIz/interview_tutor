@@ -226,7 +226,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     challengeCategory,
     challengeTrack,
     workspaceManifest: session.workspaceManifest,
-    academyBridgeContext: session.academyBridgeContext || (academyCourse ? { courseId: academyCourse, stepId: academyStep } : undefined)
+    academyBridgeContext: session.academyBridgeContext || (academyCourse ? { courseId: academyCourse, stepId: academyStep } : undefined),
+    seniorReview: session.seniorReview
   });
 
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);

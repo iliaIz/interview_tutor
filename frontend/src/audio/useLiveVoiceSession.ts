@@ -67,6 +67,7 @@ export interface LiveAudioSessionParams {
     learningObjective?: string;
     targetConcepts?: string[];
   };
+  seniorReview?: any;
 }
 
 export interface UseLiveVoiceSessionOptions {
@@ -226,7 +227,8 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       activeCodeArtifact: params.activeCodeArtifact as any,
       academyCourse: params.academyCourse,
       academyStep: params.academyStep,
-      academyBridgeContext: params.academyBridgeContext
+      academyBridgeContext: params.academyBridgeContext,
+      seniorReview: params.seniorReview
     };
     await connect(config);
   }, [connect]);

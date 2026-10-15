@@ -129,7 +129,16 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       const isRefactoring = domain === 'refactoring';
       const isJava21 = domain === 'java21';
 
-      if (isLld) {
+      if (session.seniorReview) {
+        const sr = session.seniorReview;
+        const score = Math.round(sr.overallScore);
+        const focused = sr.focusedFinding;
+        if (focused) {
+          greetingText = `Привет! Я только что завершил Senior AI Review задачи «${effectiveTitle}» (оценка ${score}/100). Поприветствуй меня в 1-2 предложениях и сразу голосом озвучь замечание [${focused.category}] в ${focused.location}: «${focused.description}». Спроси, с чего начнем устранение дефекта в коде. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1-2 емких предложения).`;
+        } else {
+          greetingText = `Привет! Я только что завершил Senior AI Review задачи «${effectiveTitle}» (оценка ${score}/100). Заключение: "${sr.summaryReview}". Поприветствуй меня в 1-2 предложениях и предложи голосом разобрать замечания по коду. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1-2 емких предложения).`;
+        }
+      } else if (isLld) {
         greetingText = `Привет! Я готов к проектированию архитектуры задачи «${effectiveTitle}». Поприветствуй меня в 1 коротком предложении и спроси, с каких интерфейсов или доменной модели начнем проектирование. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
       } else if (isTx) {
         greetingText = `Привет! Я разбираю сценарий транзакций «${effectiveTitle}». Поприветствуй меня в 1 коротком предложении и предложи разобрать уровни изоляции и поведение БД. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;

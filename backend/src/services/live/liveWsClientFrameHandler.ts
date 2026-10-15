@@ -97,8 +97,9 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         if (parsed.targetGrade) session.targetGrade = parsed.targetGrade;
         if (parsed.activeCodeArtifact) session.activeCodeArtifact = parsed.activeCodeArtifact;
         if (parsed.academyBridgeContext) session.academyBridgeContext = parsed.academyBridgeContext;
+        if (parsed.seniorReview) session.seniorReview = parsed.seniorReview;
 
-        console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}`);
+        console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}${session.seniorReview ? ', with seniorReview' : ''}`);
 
         // SOTA Late 2026 Invariant 2.6: Strict Channel Separation (No Interleaving).
         // session_init updates workspace manifest in memory. The initial grounding turn

@@ -25,6 +25,7 @@ interface PracticeVoiceContextType {
   sendTextMessage: (text: string, displayText?: string) => void;
   playoutManagerRef: React.MutableRefObject<AudioPlayoutManager | null>;
   startPracticeSession: () => Promise<void>;
+  startPracticeSessionWithReview: (focusedFinding?: any) => Promise<void>;
   handleCentralButtonClick: () => void;
   syncEditorCode?: (code: string, fileName?: string, language?: string, immediate?: boolean) => void;
   injectActiveFocusGroundingFrame?: () => void;
@@ -74,7 +75,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     playoutManagerRef
   } = session;
 
-  const startPracticeSession = useCallback(async () => {
+  const launchPracticeSession = useCallback(async (seniorReviewPayload?: any) => {
     try {
       const state = useAppStore.getState();
       const files = state.practiceWorkspaceFiles.length > 0 ? state.practiceWorkspaceFiles : practiceWorkspaceFiles;
@@ -153,8 +154,9 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         turnMode,
         liveModel: interviewConfig.liveModel,
         vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
-        tutorPersona,
+        tutorPersona: seniorReviewPayload ? 'senior_socratic' : tutorPersona,
         strategy: 'socratic_tutoring',
+        seniorReview: seniorReviewPayload,
         academyCourse: state.academyBreadcrumbContext?.courseId,
         academyStep: state.academyBreadcrumbContext ? `step-${state.academyBreadcrumbContext.stepNumber}` : undefined,
         academyBridgeContext: state.academyBreadcrumbContext ? {
@@ -179,6 +181,22 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     startSession,
     setModality
   ]);
+
+  const startPracticeSession = useCallback(async () => {
+    return launchPracticeSession(undefined);
+  }, [launchPracticeSession]);
+
+  const startPracticeSessionWithReview = useCallback(async (focusedFinding?: any) => {
+    const state = useAppStore.getState();
+    const report = state.activePracticeReport;
+    const seniorReviewPayload = report ? {
+      overallScore: report.overallScore ?? 0,
+      summaryReview: report.summaryReview || '',
+      findings: report.concurrency?.findings || [],
+      focusedFinding: focusedFinding || null
+    } : undefined;
+    return launchPracticeSession(seniorReviewPayload);
+  }, [launchPracticeSession]);
 
   // SOTA Late 2026: Zero live audio channel pollution. Code is read on-demand via read_file tool.
   const codeSyncDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -260,6 +278,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         ...session,
         sendTextMessage,
         startPracticeSession,
+        startPracticeSessionWithReview,
         handleCentralButtonClick,
         syncEditorCode,
         injectActiveFocusGroundingFrame

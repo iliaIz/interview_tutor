@@ -73,6 +73,7 @@ export interface ProxySession {
   strategy?: 'adaptive_probing' | 'socratic_tutoring';
   workspaceManifest?: any;
   activeCodeArtifact?: any;
+  seniorReview?: any;
   isAiGenerating?: boolean;
   hasTerminalError?: boolean;
   terminalErrorCode?: string;
