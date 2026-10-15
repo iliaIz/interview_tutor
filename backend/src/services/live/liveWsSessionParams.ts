@@ -131,6 +131,7 @@ export async function resolveLiveWsSessionParams(
     } catch {}
   }
 
+  const sessionId = (query.sessionId as string) || '';
   const questionId = (query.questionId as string) || (query.challengeId as string) || '';
   const challengeId = (query.challengeId as string) || (query.questionId as string) || '';
   let topic = (query.topic as string) || 'Java & Spring Framework';
