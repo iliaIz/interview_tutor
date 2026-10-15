@@ -53,6 +53,9 @@ export async function handleChallengeEvaluation({
   const sendSse = (event: string, data: any) => {
     if (isSse && !res.writableEnded && !res.destroyed) {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
     }
   };
 

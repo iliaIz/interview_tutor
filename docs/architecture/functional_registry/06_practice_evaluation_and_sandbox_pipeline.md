@@ -45,3 +45,17 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - Built interactive 4-stage visual Stepper (`JVM 21 Sandbox` $\rightarrow$ `AST Loom` $\rightarrow$ `Senior AI Architect` $\rightarrow$ `Report`) with live auto-scrolling terminal log stream and 1-click retry recovery card.
 - **Rationale & "Why":** Provides complete visibility into technical assessment stages, eliminating user uncertainty during deep LLM reasoning.
 - **Invariants:** All newly created UI components must stay $\le 350$ lines with decoupled state hooks.
+
+---
+
+### 2.4 SSE Content Negotiation & Reverse-Proxy Flush Contract
+- **Location:** [`backend/src/routes/practice.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practice.ts), [`backend/src/services/challengeSubmissionService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/challengeSubmissionService.ts), [`frontend/src/components/practice/useEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/useEvaluationPipeline.ts)
+- **What Was Done:**
+  - Standardized SSE content negotiation: backend defaults `isSse = true` unless client explicitly requests `application/json` without `?stream=true`.
+  - Frontend explicitly passes `Accept: text/event-stream` and `?stream=true`.
+  - Added explicit `res.flush()` invocation in `sendSse()` to bypass Node compression middleware buffer lag.
+  - Implemented client defensive fallback: if proxy strips SSE and delivers direct `application/json` payload, or returns un-prefixed JSON chunks, client parses it directly and transitions Stepper to final report instead of stalling.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* Browser `fetch('/api/practice/evaluate')` without explicit `Accept` defaults to `*/*`. Backend evaluated `isSse` as `false`, completed JVM + Gemini evaluation in 8s, and returned `res.json(...)`. Frontend SSE reader ignored lines without `data:` prefix, leaving the UI permanently stuck on Step 1 ("Песочница JVM 21").
+  - *Intermediate Conclusion:* End-to-end stream contract must be symmetrical and defense-in-depth: explicit request headers, unbuffered proxy routing (`flush_interval -1`), immediate server socket flushes, and resilient multi-mode client parsers.
+- **Invariants:** Review pipeline must stream progress by default and cleanly resolve both streaming SSE frames and direct JSON payloads without client deadlocks.

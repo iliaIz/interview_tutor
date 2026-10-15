@@ -127,7 +127,9 @@ router.get('/challenges/:id', (req, res) => {
 
 // POST /api/practice/evaluate - Submit workspace files for dual-pass evaluation (SSE streaming & JSON compatible)
 router.post('/evaluate', async (req, res) => {
-  const isSse = req.headers.accept?.includes('text/event-stream') || req.query.stream === 'true';
+  const isSse = req.headers.accept?.includes('text/event-stream') || 
+                req.query.stream === 'true' || 
+                req.headers.accept !== 'application/json';
 
   try {
     const userId = getAuthUserId(req);

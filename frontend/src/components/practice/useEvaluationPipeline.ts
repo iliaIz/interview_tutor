@@ -122,9 +122,12 @@ export function useEvaluationPipeline() {
     }, 120000);
 
     try {
-      const response = await fetch('/api/practice/evaluate', {
+      const response = await fetch('/api/practice/evaluate?stream=true', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
         credentials: 'include',
         signal: controller.signal,
         body: JSON.stringify({
@@ -137,6 +140,30 @@ export function useEvaluationPipeline() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}: Ошибка отправки на проверку`);
+      }
+
+      // SOTA Defensive: Check if response arrived as direct non-streaming JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        if (data.evaluation) {
+          setStepperState({
+            sandbox: { status: 'success', label: 'Тесты пройдены' },
+            ast: { status: 'success', label: 'AST чистый' },
+            ai: { status: 'success', label: 'Аудит завершен' },
+            report: { status: 'success', label: `Оценка: ${Math.round(data.evaluation.scoreBreakdown?.overallScore || 0)}/100` }
+          });
+          addLog(`Рецензия готова! Финальный балл: ${Math.round(data.evaluation.scoreBreakdown?.overallScore || 0)}/100`, 'success');
+          setActivePracticeReport(data.evaluation);
+          if (data.isPassed && academyBreadcrumbContext) {
+            toggleAcademyStepProgress(
+              academyBreadcrumbContext.courseId,
+              academyBreadcrumbContext.stepNumber,
+              true
+            );
+          }
+          return;
+        }
       }
 
       if (!response.body) throw new Error('ReadableStream not supported');
@@ -163,20 +190,27 @@ export function useEvaluationPipeline() {
             continue;
           }
 
+          let jsonStr = '';
           if (trimmed.startsWith('data:')) {
-            const jsonStr = trimmed.slice(5).trim();
-            if (!jsonStr) continue;
+            jsonStr = trimmed.slice(5).trim();
+          } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            jsonStr = trimmed;
+          } else {
+            continue;
+          }
 
-            let parsed: any;
-            try {
-              parsed = JSON.parse(jsonStr);
-            } catch {
-              continue;
-            }
+          if (!jsonStr) continue;
 
-            // Universal SOTA SSE event dispatcher
-            const eventType = parsed.event || currentEvent;
-            const eventData = parsed.data || parsed;
+          let parsed: any;
+          try {
+            parsed = JSON.parse(jsonStr);
+          } catch {
+            continue;
+          }
+
+          // Universal SOTA SSE event dispatcher
+          const eventType = parsed.event || currentEvent;
+          const eventData = parsed.data || parsed;
 
             if (eventType === 'stage') {
               const stageId: ReviewStageId = eventData.stage;
