@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { IncidentTriageEvaluation } from '../../types/nextgen';
 import { Activity, Flame, Search } from 'lucide-react';
+import { parseThreadDumpFast } from '../../utils/threadDumpParser';
 import { TriageCompassSheet } from './compass/TriageCompassSheet';
 import { IncidentTriageTopBar } from './studio/IncidentTriageTopBar';
 import { ThreadDumpVisualizer } from './studio/ThreadDumpVisualizer';
@@ -67,6 +68,39 @@ export const IncidentTriageStudio: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
+  // Real-time Triage Epistemic Digest (Tarjan SCC & Thread Telemetry)
+  const triageDigest = useMemo(() => {
+    if (!activeTriageIncident) return null;
+    let deadlockSummary = '';
+    let threadCounts: any = undefined;
+
+    if (activeTriageIncident.rawArtifactText) {
+      const raw = activeTriageIncident.rawArtifactText;
+      const isThreadDump =
+        raw.includes('java.lang.Thread.State:') ||
+        raw.includes('Java-level deadlock');
+      if (isThreadDump) {
+        try {
+          const parsed = parseThreadDumpFast(raw);
+          threadCounts = parsed.counts;
+          if (parsed.hasDeadlock && parsed.deadlockCycles.length > 0) {
+            deadlockSummary = parsed.deadlockCycles
+              .map((c) => `Цикл ${c.cycleId}: [${c.threadNames.join(' -> ')}] на локах [${c.lockIds.join(', ')}]`)
+              .join('; ');
+          }
+        } catch {}
+      }
+    }
+
+    return {
+      phase,
+      elapsedSeconds,
+      deadlockSummary: deadlockSummary || undefined,
+      threadCounts,
+      candidateRcaDraft: rcaHypothesis.trim() || undefined
+    };
+  }, [activeTriageIncident, phase, elapsedSeconds, rcaHypothesis]);
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isSendingMessage || !activeTriageIncident) return;
     const userMsg = inputMessage.trim();
@@ -84,7 +118,8 @@ export const IncidentTriageStudio: React.FC = () => {
         body: JSON.stringify({
           incidentId: activeTriageIncident.id,
           userMessage: userMsg,
-          conversationHistory: updatedChat.slice(-6)
+          conversationHistory: updatedChat.slice(-6),
+          triageDigest
         })
       });
 
@@ -172,7 +207,9 @@ export const IncidentTriageStudio: React.FC = () => {
         body: JSON.stringify({
           incidentId: activeTriageIncident.id,
           rcaHypothesis,
-          preventionPlan
+          preventionPlan,
+          conversationHistory: chatMessages,
+          investigationDigest: triageDigest
         })
       });
 

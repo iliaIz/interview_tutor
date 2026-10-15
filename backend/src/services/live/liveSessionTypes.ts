@@ -93,4 +93,13 @@ export interface ProxySession {
   latestSandboxSummary?: string;
   latestMutationSummary?: string;
   latestTxSummary?: string;
+  academyCourse?: string;
+  academyStep?: string;
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
 }

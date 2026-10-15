@@ -8,6 +8,7 @@ export interface EvaluationPayload {
   architectureMermaid?: string;
   notesMarkdown?: string;
   canvasTopology?: any;
+  conversationHistory?: Array<{ role: string; content: string }>;
   verdict?: string;
   totalScore?: number;
   radarMetrics?: any;
@@ -21,7 +22,7 @@ export async function evaluateSystemDesign(
   userId: string,
   abortSignal?: AbortSignal
 ): Promise<any> {
-  const { scenarioId, architectureMermaid, notesMarkdown, canvasTopology } = payload;
+  const { scenarioId, architectureMermaid, notesMarkdown, canvasTopology, conversationHistory } = payload;
   const scenario = resolveScenarioManifest(scenarioId) || {};
 
   let topologySection = architectureMermaid || 'Не предоставлена';
@@ -61,7 +62,8 @@ export async function evaluateSystemDesign(
     scenarioCategory: scenario.category,
     trafficProfile: scenario.trafficProfile,
     topologySection,
-    notesMarkdown
+    notesMarkdown,
+    conversationHistory
   });
 
   let parsed: any;

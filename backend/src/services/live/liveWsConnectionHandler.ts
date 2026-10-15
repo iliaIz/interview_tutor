@@ -64,7 +64,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     vadPauseMs,
     enableSilenceClarification,
     debugStep,
-    temperature
+    temperature,
+    academyCourse,
+    academyStep
   } = params;
 
   console.log(`📡 [WS_CONNECT] New Live Session connected: type=${sessionType}, mode=${tutorMode}, cat=${challengeCategory || 'none'}, track=${challengeTrack || 'none'}, model=${liveModel}`);
@@ -114,7 +116,9 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     enableSilenceClarification: Boolean(enableSilenceClarification),
     debugStep,
     lastRttMs: null,
-    sessionStartedAt: Date.now()
+    sessionStartedAt: Date.now(),
+    academyCourse,
+    academyStep
   };
 
   let isTerminated = false;
@@ -221,7 +225,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     strictness,
     challengeCategory,
     challengeTrack,
-    workspaceManifest: session.workspaceManifest
+    workspaceManifest: session.workspaceManifest,
+    academyBridgeContext: session.academyBridgeContext || (academyCourse ? { courseId: academyCourse, stepId: academyStep } : undefined)
   });
 
   const toolDeclarations = getLiveToolDeclarations(sessionType, tutorMode);

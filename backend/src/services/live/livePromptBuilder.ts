@@ -149,6 +149,7 @@ export function buildSystemPrompt(params: {
   challengeTrack?: string;
   strictness?: StrictnessLevel;
   workspaceManifest?: any;
+  academyBridgeContext?: any;
 }): string {
   const {
     topic,
@@ -183,7 +184,8 @@ export function buildSystemPrompt(params: {
     strictness,
     challengeCategory = '',
     challengeTrack = '',
-    workspaceManifest
+    workspaceManifest,
+    academyBridgeContext
   } = params;
 
   const isFemale = ['Kore', 'Aoede'].includes(voiceName);
@@ -389,7 +391,8 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
         referenceAnswer,
         codeSnippet,
         activeCodeArtifact,
-        workspaceManifest
+        workspaceManifest,
+        academyBridgeContext
       });
     } else if (tutorMode === 'free_chat') {
       const incidentInfo = incidentContext

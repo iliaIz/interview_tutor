@@ -166,7 +166,9 @@ export const SystemDesignArena: React.FC = () => {
           scenarioId: activeSystemDesignScenario.id,
           userMessage: userMsg,
           mode: tutorMode,
-          conversationHistory: updatedChat.slice(-6)
+          conversationHistory: updatedChat.slice(-6),
+          currentTopology,
+          candidateNotes
         })
       });
 

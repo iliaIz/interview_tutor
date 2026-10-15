@@ -63,6 +63,14 @@ export interface PracticeTutorContext {
   workspaceManifest?: {
     xmlManifest?: string;
   };
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
+  earlierTurnsSummary?: string;
 }
 
 export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): string {
@@ -319,6 +327,16 @@ ${personaDirectives}
 ${hintLadderDirective}
 
 ${compassDirective}
+${context.academyBridgeContext?.moduleTitle || context.academyBridgeContext?.learningObjective ? `
+=== ДИДАКТИЧЕСКИЙ КОНТЕКСТ АКАДЕМИИ (CURRICULUM BRIDGE) ===
+Учебный модуль: "${context.academyBridgeContext.moduleTitle || 'Урок Академии'}"
+Дидактическая цель: "${context.academyBridgeContext.learningObjective || 'Отработка навыков'}"
+Целевые концепты для применения: ${(context.academyBridgeContext.targetConcepts || []).join(', ')}
+ПЕДАГОГИЧЕСКОЕ ПРАВИЛО: Направляйте наводящие вопросы так, чтобы кандидат самостоятельно применил эти ключевые концепты.
+` : ''}${context.earlierTurnsSummary ? `
+=== РЕЗЮМЕ РАННЕГО ДИАЛОГА (СЖАТЫЙ КОНТЕКСТ) ===
+${context.earlierTurnsSummary}
+` : ''}
 
 ТЕКУЩИЙ КОНТЕКСТ ЗАДАЧИ:
 - Название задачи: "${kataTitle}"

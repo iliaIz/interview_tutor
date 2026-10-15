@@ -117,7 +117,9 @@ systemDesignRouter.post('/probe', async (req: Request, res: Response) => {
       conversationHistory,
       mode = 'free_chat',
       contextType = 'scenario',
-      mathContext
+      mathContext,
+      currentTopology,
+      candidateNotes
     } = req.body;
 
     const scenario = contextType === 'scenario' ? resolveScenarioManifest(scenarioId) : null;
@@ -131,7 +133,9 @@ systemDesignRouter.post('/probe', async (req: Request, res: Response) => {
       tradeOffProbes: scenario?.tradeOffProbes,
       mode: mode as SystemDesignTutorMode,
       contextType: contextType as 'scenario' | 'math_coach',
-      mathContext
+      mathContext,
+      currentTopology,
+      candidateNotes
     });
 
     const messages = [

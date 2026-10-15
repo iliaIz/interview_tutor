@@ -78,7 +78,7 @@ triageRouter.get('/submissions/:incidentId', (req: Request, res: Response) => {
 // POST /api/triage/evaluate
 triageRouter.post('/evaluate', async (req: Request, res: Response) => {
   try {
-    const { incidentId, rcaHypothesis, preventionPlan } = req.body;
+    const { incidentId, rcaHypothesis, preventionPlan, conversationHistory, investigationDigest } = req.body;
     const row = db.prepare('SELECT manifest_json FROM production_triage_challenges WHERE id = ?').get(incidentId) as any;
     const incident = row ? JSON.parse(row.manifest_json) : {};
 
@@ -90,7 +90,9 @@ triageRouter.post('/evaluate', async (req: Request, res: Response) => {
       rootCauseAnalysis: incident.rootCauseAnalysis,
       remediationMarkdown: incident.remediationMarkdown,
       rcaHypothesis,
-      preventionPlan
+      preventionPlan,
+      conversationHistory,
+      investigationDigest
     });
 
     const endpointUrl = envConfig.proxy.chatUrl;
@@ -173,7 +175,7 @@ triageRouter.post('/evaluate', async (req: Request, res: Response) => {
 // POST /api/triage/probe (Socratic AI Incident Commander Interactive Probing)
 triageRouter.post('/probe', async (req: Request, res: Response) => {
   try {
-    const { incidentId, userMessage, conversationHistory } = req.body;
+    const { incidentId, userMessage, conversationHistory, triageDigest } = req.body;
     const row = db.prepare('SELECT manifest_json FROM production_triage_challenges WHERE id = ?').get(incidentId) as any;
     const incident = row ? JSON.parse(row.manifest_json) : null;
 
@@ -184,7 +186,8 @@ triageRouter.post('/probe', async (req: Request, res: Response) => {
       symptomsMarkdown: incident?.symptomsMarkdown,
       rootCauseAnalysis: incident?.rootCauseAnalysis,
       remediationMarkdown: incident?.remediationMarkdown,
-      keyMetricTrigger: incident?.keyMetricTrigger
+      keyMetricTrigger: incident?.keyMetricTrigger,
+      triageDigest
     });
 
     const messages = [

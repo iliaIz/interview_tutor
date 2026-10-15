@@ -42,6 +42,8 @@ export interface SystemDesignProbeParams {
   mode: SystemDesignTutorMode;
   contextType?: 'scenario' | 'math_coach';
   mathContext?: SystemDesignMathContext;
+  currentTopology?: string;
+  candidateNotes?: string;
 }
 
 export interface SystemDesignEvalParams {
@@ -50,6 +52,7 @@ export interface SystemDesignEvalParams {
   trafficProfile?: any;
   topologySection: string;
   notesMarkdown?: string;
+  conversationHistory?: Array<{ role: string; content: string }>;
 }
 
 export function buildSystemDesignProbePrompt(params: SystemDesignProbeParams): string {
@@ -63,7 +66,9 @@ export function buildSystemDesignProbePrompt(params: SystemDesignProbeParams): s
     tradeOffProbes,
     mode = 'free_chat',
     contextType = 'scenario',
-    mathContext
+    mathContext,
+    currentTopology,
+    candidateNotes
   } = params;
 
   if (contextType === 'math_coach') {
@@ -125,6 +130,16 @@ ${mathDetails}
 Всегда отвечай на русском языке. Ответ должен быть компактным (2-4 абзаца или емкий список), структурированным и прямо отвечать на вопрос кандидата.`.trim();
   }
 
+  const topologyContext = currentTopology ? `
+=== АКТУАЛЬНАЯ АРХИТЕКТУРА НА ХОЛСТЕ КАНДИДАТА (MERMAID / CANVAS) ===
+${wrapUntrustedContext('candidate_topology', currentTopology)}
+` : '';
+
+  const notesContext = candidateNotes ? `
+=== АРХИТЕКТУРНЫЕ ЗАМЕТКИ КАНДИДАТА ===
+${wrapUntrustedContext('candidate_notes', candidateNotes)}
+` : '';
+
   // Scenario-based tutor
   const scenarioContext = `
 Контекст задачи: ${scenarioTitle} (${category || archetype || 'System Design'})
@@ -133,6 +148,8 @@ ${mathDetails}
 Узкие места и сбои: ${bottlenecksMarkdown || '—'}
 Эталонные вопросы Staff-интервьюера:
 ${tradeOffProbes?.map((p) => `- Вопрос: ${p.question}\n  Эталон: ${p.modelAnswer}`).join('\n') || '—'}
+${topologyContext}
+${notesContext}
 `.trim();
 
   const scenarioModeDirectives: Record<SystemDesignTutorMode, string> = {
@@ -175,10 +192,27 @@ ${scenarioContext}
 }
 
 export function buildSystemDesignEvaluationPrompt(params: SystemDesignEvalParams): string {
-  const { scenarioTitle, trafficProfile, topologySection, notesMarkdown } = params;
+  const { scenarioTitle, trafficProfile, topologySection, notesMarkdown, conversationHistory } = params;
 
   const wrappedNotes = wrapUntrustedContext('candidate_notes', notesMarkdown || 'Не предоставлена');
   const wrappedTopology = wrapUntrustedContext('architecture_topology', topologySection || 'Не предоставлена');
+  const wrappedHistory = conversationHistory && conversationHistory.length > 0
+    ? wrapUntrustedContext(
+        'conversation_history',
+        conversationHistory.map((m) => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n')
+      )
+    : '';
+
+  const historySection = wrappedHistory ? `
+=== ХОД ОБСУЖДЕНИЯ И ЗАЩИТА АРХИТЕКТУРНЫХ РЕШЕНИЙ (CONVERSATION HISTORY) ===
+${wrappedHistory}
+
+ИНВАРИАНТ УЧЕТА ДИАЛОГА:
+Кандидат обсуждал и защищал свои решения в ходе интервью.
+Если кандидат устно или в чате аргументировал выбор базы данных, стратегию шардирования, кэширования или обработку сбоев,
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО снижать балл по шкале "tradeOffJustification" за отсутствие этого в пояснительной записке!
+Учитывай аргументы кандидата из диалога в блоках tradeOffJustification и strengths.
+` : '';
 
   return `Ты — комитет оценки System Design собеседований (Staff Bar-Raiser).
 ${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
@@ -194,6 +228,7 @@ ${wrappedTopology}
 
 ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА:
 ${wrappedNotes}
+${historySection}
 
 ПРАВИЛА ОЦЕНКИ И КАЛИБРОВКИ (ZERO-PHANTOM-DEDUCTIONS):
 1. Стартовый балл = 100.

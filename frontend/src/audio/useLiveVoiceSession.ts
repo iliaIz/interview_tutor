@@ -192,6 +192,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       sessionType: params.sessionType || 'interview',
       tutorMode: params.tutorMode,
       voice: params.voice || 'Kore',
+      userGender: params.userGender,
       turnMode: params.turnMode || 'auto',
       liveModel: params.liveModel,
       vadPauseMs: params.vadPauseMs,

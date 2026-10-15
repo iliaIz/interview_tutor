@@ -34,6 +34,13 @@ export interface PracticeTutorContextPayload {
     language: string;
   };
   workspaceManifest?: any;
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
 }
 
 interface PracticeTutorState {

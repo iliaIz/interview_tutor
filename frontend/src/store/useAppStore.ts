@@ -197,6 +197,9 @@ export interface AcademyBreadcrumbContext {
   courseTitle: string;
   stepNumber: number;
   stepTitle: string;
+  moduleTitle?: string;
+  learningObjective?: string;
+  targetConcepts?: string[];
 }
 
 interface AppState {
@@ -524,7 +527,10 @@ export const useAppStore = create<AppState>()(
             courseId,
             courseTitle,
             stepNumber: step.stepNumber,
-            stepTitle: step.title
+            stepTitle: step.title,
+            moduleTitle: step.milestoneId || step.domain,
+            learningObjective: step.seniorBarConcept || step.pedagogicalRationale,
+            targetConcepts: step.masteryChecklist || []
           },
           activeAcademyStepModal: null
         });

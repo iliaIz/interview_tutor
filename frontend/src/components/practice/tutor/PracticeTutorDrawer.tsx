@@ -45,6 +45,7 @@ export const PracticeTutorDrawer: React.FC = () => {
     latestSandboxResult,
     latestMutationResult,
     latestTxEvaluation,
+    academyBreadcrumbContext,
   } = useAppStore();
 
   const [inputVal, setInputVal] = useState('');
@@ -124,9 +125,12 @@ export const PracticeTutorDrawer: React.FC = () => {
         : activePracticeChallenge?.category ||
           (domain === 'lld' ? 'Low-Level Design (LLD)'
             : domain === 'transactions' ? 'Transactions'
-            : 'Testing & Mutation'),
-    kataInstructions: txScenario?.problemStatement || activePracticeChallenge?.instructionsMarkdown || '',
-    activeFilePath:
+    kataInstructions:
+      txScenario?.problemStatement ||
+      activePracticeChallenge?.instructionsMarkdown ||
+      activePracticeChallenge?.scenarioMarkdown ||
+      activePracticeChallenge?.shortDescription ||
+      '',
       txScenario
         ? `${txScenario.services[0]?.className}.java`
         : currentFile?.path || (domain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
@@ -146,6 +150,13 @@ export const PracticeTutorDrawer: React.FC = () => {
       return undefined;
     })(),
     workspaceManifest: buildWorkspaceManifest(practiceWorkspaceFiles, activeWorkspaceFileIndex),
+    academyBridgeContext: academyBreadcrumbContext ? {
+      courseId: academyBreadcrumbContext.courseId,
+      stepId: `step-${academyBreadcrumbContext.stepNumber}`,
+      moduleTitle: academyBreadcrumbContext.moduleTitle || academyBreadcrumbContext.stepTitle,
+      learningObjective: academyBreadcrumbContext.learningObjective,
+      targetConcepts: academyBreadcrumbContext.targetConcepts
+    } : undefined,
   };
 
   const handleSend = () => {

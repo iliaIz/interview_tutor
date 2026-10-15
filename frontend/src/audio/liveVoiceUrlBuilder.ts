@@ -16,15 +16,18 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     sessionId: cfg.sessionId,
     questionId: cfg.questionId,
     sessionType: cfg.sessionType,
-    topic: cfg.topic || '',
-    questionText: cfg.questionText ? cfg.questionText.slice(0, 300) : '',
+    questionText: cfg.questionText ? cfg.questionText.slice(0, 300) : (cfg.bugExplanation ? cfg.bugExplanation.slice(0, 300) : ''),
     voice: cfg.voice || 'Kore',
     turnMode: cfg.turnMode || 'auto',
     liveModel: cfg.liveModel || 'gemini-live-v3',
     vadPauseMs: String(cfg.vadPauseMs || 1800)
   });
 
-  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy'] as const;
+  if (cfg.questionId) {
+    params.set('challengeId', cfg.questionId);
+  }
+
+  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy', 'userGender', 'academyCourse', 'academyStep'] as const;
   for (const k of optionalKeys) {
     if (cfg[k]) params.set(k, String(cfg[k]));
   }
@@ -75,7 +78,8 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
       activeFileContent: cfg.codeSnippet || cfg.workspaceManifest?.activeFile?.content,
       workspaceManifest: cfg.workspaceManifest
     },
-    activeCodeArtifact: cfg.activeCodeArtifact
+    activeCodeArtifact: cfg.activeCodeArtifact,
+    academyBridgeContext: cfg.academyBridgeContext
   };
 
   try {

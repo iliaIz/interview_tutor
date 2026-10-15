@@ -96,6 +96,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         if (parsed.strategy) session.strategy = parsed.strategy;
         if (parsed.targetGrade) session.targetGrade = parsed.targetGrade;
         if (parsed.activeCodeArtifact) session.activeCodeArtifact = parsed.activeCodeArtifact;
+        if (parsed.academyBridgeContext) session.academyBridgeContext = parsed.academyBridgeContext;
 
         console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}`);
 

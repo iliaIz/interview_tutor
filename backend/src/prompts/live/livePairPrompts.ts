@@ -23,6 +23,13 @@ export interface LivePairPromptParams {
   codeSnippet?: string;
   activeCodeArtifact?: { id?: string; title?: string; language?: string; code?: string };
   workspaceManifest?: { xmlManifest?: string; projectTree?: string[]; activeFile?: { path?: string; content?: string } };
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
 }
 
 export function buildLivePairPrompt(params: LivePairPromptParams): string {
@@ -37,7 +44,8 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     referenceAnswer,
     codeSnippet,
     activeCodeArtifact,
-    workspaceManifest
+    workspaceManifest,
+    academyBridgeContext
   } = params;
 
   const isLld = domain === 'lld';
@@ -178,23 +186,24 @@ export function buildLivePairPrompt(params: LivePairPromptParams): string {
     }
   }
 
+  const taskMention = bugTitle ? ` по задаче «${bugTitle}»` : '';
   let greeting = '';
   if (isLld) {
     greeting = isFemale
       ? (userGender === 'neutral'
-          ? 'Здравствуйте! Я Ваша напарница по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?'
-          : 'Привет! Я твоя напарница по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?')
+          ? `Здравствуйте! Я Ваша напарница по проектированию архитектуры${taskMention}. С каких интерфейсов или доменной модели начнем?`
+          : `Привет! Я твоя напарница по проектированию архитектуры${taskMention}. С каких интерфейсов или доменной модели начнем?`)
       : (userGender === 'neutral'
-          ? 'Здравствуйте! Я Ваш напарник по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?'
-          : 'Привет! Я твой напарник по проектированию архитектуры. С каких интерфейсов или доменной модели начнем?');
+          ? `Здравствуйте! Я Ваш напарник по проектированию архитектуры${taskMention}. С каких интерфейсов или доменной модели начнем?`
+          : `Привет! Я твой напарник по проектированию архитектуры${taskMention}. С каких интерфейсов или доменной модели начнем?`);
   } else if (isTx) {
     greeting = isFemale
       ? (userGender === 'neutral'
-          ? 'Здравствуйте! Я Ваша напарница по транзакциям Spring. Какой сценарий аномалий БД разберем?'
-          : 'Привет! Я твоя напарница по транзакциям Spring. Какой сценарий аномалий БД разберем?')
+          ? `Здравствуйте! Я Ваша напарница по транзакциям Spring${taskMention}. Какой сценарий аномалий БД разберем?`
+          : `Привет! Я твоя напарница по транзакциям Spring${taskMention}. Какой сценарий аномалий БД разберем?`)
       : (userGender === 'neutral'
-          ? 'Здравствуйте! Я Ваш напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?'
-          : 'Привет! Я твой напарник по транзакциям Spring. Какой сценарий аномалий БД разберем?');
+          ? `Здравствуйте! Я Ваш напарник по транзакциям Spring${taskMention}. Какой сценарий аномалий БД разберем?`
+          : `Привет! Я твой напарник по транзакциям Spring${taskMention}. Какой сценарий аномалий БД разберем?`);
   } else if (isConcurrency) {
     greeting = isFemale
       ? (userGender === 'neutral'
@@ -284,10 +293,19 @@ ${personaInstruction}
 5. БЕСПРИСТРАСТНОСТЬ: Не соглашайся с неверными догадками кандидата! Если кандидат высказал ложное предположение, сразу скажи правду: «Нет, в этом случае возникнет...».
 6. ОБЯЗАТЕЛЬНОЕ ГОЛОСОВОЕ СОПРОВОЖДЕНИЕ ТУЛОВ: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО молчать при вызове инструментов! Если ты вызываешь \`update_whiteboard\` или \`read_file\`, ты ОБЯЗАН одновременно или сразу после получения данных сказать голосом 1-2 предложения с объяснением для кандидата.
 
-=== 3. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
-НАЗВАНИЕ: "${bugTitle || questionText || 'Практическая задача'}"
-ИНСТРУКЦИЯ / ЦЕЛЬ:
+=== 3. АВТОРИЗОВАННАЯ СПЕЦИФИКАЦИЯ И ТРЕБОВАНИЯ К ЗАДАЧЕ (GROUND TRUTH) ===
+НАЗВАНИЕ ЗАДАЧИ: "${bugTitle || questionText || 'Практическая задача'}"
+КАТЕГОРИЯ И ДОМЕН: ${domain.toUpperCase()}
+
+ПОЛНОЕ ТЗ И ТРЕБОВАНИЯ К РЕАЛИЗАЦИИ:
+"""
 ${referenceAnswer || bugExplanation || (isLld ? 'Спроектируйте чистую и расширяемую LLD-архитектуру задачи.' : isTx ? 'Исследуйте поведение транзакций и устраните аномалию БД.' : 'Напишите надежные тесты и уничтожьте всех мутантов.')}
+"""
+
+ИНВАРИАНТ ЗНАНИЯ СПЕЦИФИКАЦИИ:
+Ты в совершенстве знаешь и держишь в памяти все требования к задаче выше.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО заявлять кандидату: «я не вижу спецификации задачи», «расскажи, что нужно сделать» или «какие требования у задачи».
+Если кандидат спрашивает «С чего начать?», «Какая задача?» или «Помоги решить» — сразу отвечай по существу требований задачи выше!
 
 ИСХОДНЫЙ КОД В РЕДАКТОРЕ (НАЧАЛЬНОЕ СОСТОЯНИЕ НА СТАРТЕ СЕССИИ):
 ${wrapUntrustedContext('user_code_snippet', codeSnippet || '// Код задачи')}
@@ -307,6 +325,15 @@ ${wrapUntrustedContext('active_whiteboard_artifact', activeCodeArtifact.code)}
 ${workspaceManifest.projectTree.map((p) => `• ${p}`).join('\n')}
 АКТИВНЫЙ ФАЙЛ В РЕДАКТОРЕ: ${workspaceManifest.activeFile?.path || 'Solution.java'}
 ДИРЕКТИВА ПО ЧТЕНИЮ КОДА: Ты видишь дерево файлов проекта. Когда тебе или кандидату нужно изучить реализацию любого класса, интерфейса, конфига или тестов — вызови инструмент \`read_file(filePath)\`. Не проси кандидата зачитывать код вслух!`
+    : ''
+}${
+  academyBridgeContext?.courseId
+    ? `\n\n=== КОНТЕКСТ АКАДЕМИИ (CURRICULUM BRIDGE) ===
+Кандидат решает эту задачу в рамках курса Академии: "${academyBridgeContext.courseId}".
+Модуль/Шаг: ${academyBridgeContext.moduleTitle || academyBridgeContext.stepId || 'Практический шаг'}
+${academyBridgeContext.learningObjective ? `Образовательная цель: ${academyBridgeContext.learningObjective}` : ''}
+${academyBridgeContext.targetConcepts && academyBridgeContext.targetConcepts.length > 0 ? `Целевые концепции: ${academyBridgeContext.targetConcepts.join(', ')}` : ''}
+ДИРЕКТИВА: Направляй наводящие вопросы и подсказки так, чтобы помочь кандидату практически освоить целевые концепции.`
     : ''
 }
 

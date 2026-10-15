@@ -28,6 +28,7 @@ export interface VoiceEngineConfig {
   sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | string;
   tutorMode?: string;
   voice?: string;
+  userGender?: string;
   turnMode?: 'auto' | 'manual';
   liveModel?: string;
   vadPauseMs?: number;
@@ -72,6 +73,15 @@ export interface VoiceEngineConfig {
   enableSilenceClarification?: boolean;
   debugStep?: number;
   temperature?: number;
+  academyCourse?: string;
+  academyStep?: string;
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
+  };
 }
 
 export interface LiveSessionInitFrame {
@@ -108,6 +118,13 @@ export interface LiveSessionInitFrame {
     title: string;
     language: string;
     code: string;
+  };
+  academyBridgeContext?: {
+    courseId?: string;
+    stepId?: string;
+    moduleTitle?: string;
+    learningObjective?: string;
+    targetConcepts?: string[];
   };
 }
 

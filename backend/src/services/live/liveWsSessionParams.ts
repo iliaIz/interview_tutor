@@ -56,6 +56,8 @@ export interface LiveWsSessionParams {
   enableSilenceClarification: boolean;
   debugStep?: number;
   temperature?: number;
+  academyCourse?: string;
+  academyStep?: string;
 }
 
 export function authenticateWsRequest(req: http.IncomingMessage, query: any): any | null {
@@ -106,11 +108,13 @@ export async function resolveLiveWsSessionParams(
   ) as 'interview' | 'tutor' | 'system_design';
 
   const tutorMode = (query.tutorMode as any) || 'deep_dive';
-  const bugTitle = (query.bugTitle as string) || '';
-  const bugExplanation = (query.bugExplanation as string) || '';
-  const codeSnippet = (query.codeSnippet as string) || '';
-  const fixedCode = (query.fixedCode as string) || '';
-  const unitTest = (query.unitTest as string) || '';
+  let bugTitle = (query.bugTitle as string) || '';
+  let bugExplanation = (query.bugExplanation as string) || '';
+  let codeSnippet = (query.codeSnippet as string) || '';
+  let fixedCode = (query.fixedCode as string) || '';
+  let unitTest = (query.unitTest as string) || '';
+  let challengeCategory = (query.category as string) || (query.challengeCategory as string) || '';
+  let challengeTrack = (query.track as string) || (query.challengeTrack as string) || '';
 
   let incidentContext: any = null;
   if (query.incidentContext) {
@@ -127,14 +131,51 @@ export async function resolveLiveWsSessionParams(
     } catch {}
   }
 
-  const sessionId = (query.sessionId as string) || '';
-  const questionId = (query.questionId as string) || '';
+  const questionId = (query.questionId as string) || (query.challengeId as string) || '';
+  const challengeId = (query.challengeId as string) || (query.questionId as string) || '';
   let topic = (query.topic as string) || 'Java & Spring Framework';
   let questionText = (query.questionText as string) || '';
   let referenceAnswer = (query.referenceAnswer as string) || '';
 
-  // Canonical SQLite SSOT resolution: if questionId is provided, resolve authoritative topic, question, and answer
-  if (questionId) {
+  // Canonical SQLite SSOT resolution (SOTA Late 2026: Multi-Studio Context Grounding)
+  // 1. Coding challenges (Machine Coding & LLD Arena)
+  if (challengeId) {
+    try {
+      const cRow = db.prepare('SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+      if (cRow) {
+        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
+          topic = cRow.category || 'Machine Coding & LLD';
+        }
+        if (!bugTitle) bugTitle = cRow.title;
+        if (!questionText) questionText = `${cRow.title}: ${cRow.short_description || ''}`;
+        if (!referenceAnswer) referenceAnswer = cRow.instructions_markdown;
+        if (!bugExplanation) bugExplanation = cRow.instructions_markdown;
+        if (!challengeCategory) challengeCategory = cRow.category;
+        if (!challengeTrack) challengeTrack = cRow.track;
+      }
+    } catch (err) {
+      console.warn(`[resolveLiveWsSessionParams] Could not fetch coding challenge ${challengeId}:`, err);
+    }
+  }
+
+  // 2. Bug challenges (Bug Hunt Arena)
+  if (challengeId && (!bugExplanation || !codeSnippet)) {
+    try {
+      const bRow = db.prepare('SELECT id, title, subtopic, code_snippet, bug_explanation, fixed_code, hints_json FROM bug_challenges WHERE id = ?').get(challengeId) as any;
+      if (bRow) {
+        if (!bugTitle) bugTitle = bRow.title;
+        if (!bugExplanation) bugExplanation = bRow.bug_explanation;
+        if (!fixedCode) fixedCode = bRow.fixed_code;
+        if (!codeSnippet) codeSnippet = bRow.code_snippet;
+        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') topic = bRow.subtopic || topic;
+      }
+    } catch (err) {
+      console.warn(`[resolveLiveWsSessionParams] Could not fetch bug challenge ${challengeId}:`, err);
+    }
+  }
+
+  // 3. Theory questions (Questions Table)
+  if (questionId && (!questionText || !referenceAnswer)) {
     try {
       const qRow = db.prepare('SELECT topic, question, answer FROM questions WHERE id = ?').get(questionId) as any;
       if (qRow) {
@@ -177,8 +218,6 @@ export async function resolveLiveWsSessionParams(
   const isResumed = query.isResumed === 'true';
   const initialProbesCount = Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0);
   const initialUserMessage = ((query.initialUserMessage as string) || '').trim();
-  const challengeCategory = (query.category as string) || (query.challengeCategory as string) || '';
-  const challengeTrack = (query.track as string) || (query.challengeTrack as string) || '';
 
   let activeCodeArtifact: any = null;
   if (query.activeCodeArtifact) {
@@ -276,6 +315,8 @@ export async function resolveLiveWsSessionParams(
     vadPauseMs: Number(query.vadPauseMs) || 1800,
     enableSilenceClarification: query.enableSilenceClarification === 'true',
     debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined,
-    temperature: query.temperature !== undefined ? parseFloat(String(query.temperature)) : undefined
+    temperature: query.temperature !== undefined ? parseFloat(String(query.temperature)) : undefined,
+    academyCourse: (query.academyCourse as string) || undefined,
+    academyStep: (query.academyStep as string) || undefined
   };
 }

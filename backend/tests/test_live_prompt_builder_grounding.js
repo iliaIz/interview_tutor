@@ -117,6 +117,8 @@ function testMachineCodingFullRequirementsGrounding() {
   assert.ok(prompt.includes('Sliding Window Log'), 'Prompt must contain the challenge title');
   assert.ok(prompt.includes('Memory cleanup of expired timestamps'), 'Prompt must preserve deep requirements');
   assert.ok(prompt.includes(initialCode), 'Prompt must contain active editor code snippet');
+  assert.ok(prompt.includes('=== 3. АВТОРИЗОВАННАЯ СПЕЦИФИКАЦИЯ И ТРЕБОВАНИЯ К ЗАДАЧЕ (GROUND TRUTH) ==='), 'Prompt must contain explicit ground truth task specification section');
+  assert.ok(prompt.includes('ИНВАРИАНТ ЗНАНИЯ СПЕЦИФИКАЦИИ'), 'Prompt must enforce specification knowledge invariant');
 
   console.log('    ✅ Machine Coding Grounding passed.');
 }

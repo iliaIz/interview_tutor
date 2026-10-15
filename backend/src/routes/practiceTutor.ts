@@ -14,29 +14,20 @@ import {
   PracticeTutorContext
 } from '../prompts/practiceTutorPrompts';
 import { ALL_MUTATION_CHALLENGES } from '../services/mutationChallenges';
+import { db } from '../services/db';
+import { pruneTutorContext } from '../services/practiceContextPruner';
 
 const router = Router();
 
 // Cache of solution sources per challenge for the AST guard
 function getChallengeCanonicalSolutions(challengeId: string): string[] {
   const challenge = ALL_MUTATION_CHALLENGES.find((c) => c.id === challengeId);
-  if (!challenge) return [];
-  // Return test files and solution templates
-  return challenge.workspaceFiles
-    .filter((f) => f.path.includes('Test.java'))
-    .map((f) => f.content);
+  return challenge ? challenge.workspaceFiles.filter((f) => f.path.includes('Test.java')).map((f) => f.content) : [];
 }
 
-// GET /api/practice-tutor/compass-rules
-router.get('/compass-rules', (_req: Request, res: Response) => {
-  res.json({ rules: Object.values(TESTING_COMPASS_RULES) });
-});
-
-// GET /api/practice-tutor/lld-compass-rules
-router.get('/lld-compass-rules', (_req: Request, res: Response) => {
-  res.json({ rules: Object.values(LLD_COMPASS_RULES) });
-});
-
+// GET /api/practice-tutor/*compass-rules
+router.get('/compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(TESTING_COMPASS_RULES) }));
+router.get('/lld-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(LLD_COMPASS_RULES) }));
 router.get('/transaction-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(TRANSACTION_COMPASS_RULES) }));
 router.get('/concurrency-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(CONCURRENCY_COMPASS_RULES) }));
 router.get('/refactoring-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(REFACTORING_COMPASS_RULES) }));
@@ -44,32 +35,19 @@ router.get('/refactoring-compass-rules', (_req: Request, res: Response) => res.j
 // Helper for LiteLLM fetch with host.docker.internal -> localhost failover
 async function callLiteLlm(payload: any, abortSignal?: AbortSignal): Promise<globalThis.Response> {
   const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-
+  const init = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${envConfig.proxy.apiKey}` },
+    signal: abortSignal,
+    body: JSON.stringify(payload)
+  };
   try {
-    const res = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${proxyApiKey}`
-      },
-      signal: abortSignal,
-      body: JSON.stringify(payload)
-    });
-    return res;
+    return await fetch(endpointUrl, init);
   } catch (err: any) {
     if (endpointUrl.includes('host.docker.internal')) {
       const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
       console.log(`🔄 Retrying LiteLLM Proxy with local URL: ${localUrl}`);
-      return await fetch(localUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${proxyApiKey}`
-        },
-        signal: abortSignal,
-        body: JSON.stringify(payload)
-      });
+      return await fetch(localUrl, init);
     }
     throw err;
   }
@@ -102,15 +80,42 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       activeWhiteboardSnippet,
       workspaceManifest,
       messages = [],
+      academyBridgeContext,
       stream = true
     } = req.body;
+
+    let resolvedInstructions = (kataInstructions as string) || '';
+    let resolvedTitle = (kataTitle as string) || kataId || '';
+    let resolvedCategory = (kataCategory as string) || 'Testing & Mutation Katas';
+
+    if (kataId && (!resolvedInstructions || resolvedInstructions.trim().length < 20)) {
+      try {
+        const row = db.prepare('SELECT title, category, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(kataId, kataId) as any;
+        if (row) {
+          resolvedInstructions = row.instructions_markdown || row.short_description || '';
+          if (!resolvedTitle || resolvedTitle === kataId) resolvedTitle = row.title;
+          if (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas') resolvedCategory = row.category;
+        }
+      } catch (dbErr) {
+        console.warn('[practiceTutor] Failed to hydrate kata instructions from SQLite:', dbErr);
+      }
+    }
+
+    // Gate 04: Token Budgeting & Sliding Window Pruning
+    const pruned = pruneTutorContext({
+      messages,
+      activeFilePath,
+      activeFileContent,
+      workspaceManifest,
+      academyBridgeContext
+    });
 
     const context: PracticeTutorContext = {
       persona: persona as TutorPersona,
       assistanceLevel: Number(assistanceLevel),
-      kataTitle: kataTitle || kataId,
-      kataCategory,
-      kataInstructions,
+      kataTitle: resolvedTitle,
+      kataCategory: resolvedCategory,
+      kataInstructions: resolvedInstructions,
       activeFilePath: activeFilePath || 'src/test/java/ExampleTest.java',
       activeFileContent: activeFileContent || '',
       selectedCodeSnippet,
@@ -121,7 +126,9 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       testFailureMessage,
       activeCompassRuleId,
       activeWhiteboardSnippet,
-      workspaceManifest
+      workspaceManifest: pruned.prunedXmlManifest ? { xmlManifest: pruned.prunedXmlManifest } : workspaceManifest,
+      academyBridgeContext,
+      earlierTurnsSummary: pruned.earlierTurnsSummary
     };
 
     const systemPrompt = buildPracticeTutorSystemPrompt(context);
@@ -132,7 +139,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       model: envConfig.models.text,
       messages: [
         { role: 'system', content: systemPrompt },
-        ...messages.map((m: any) => ({ role: m.role, content: m.content }))
+        ...pruned.prunedMessages.map((m: any) => ({ role: m.role, content: m.content }))
       ],
       temperature: isSocratic ? 0.2 : 0.4,
       max_tokens: 1500,

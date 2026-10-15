@@ -122,10 +122,12 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const revs = state.codeRevisions || [];
       const revSummary = revs.length > 0 ? revs.map((r) => ({ id: r.id, title: r.title })) : undefined;
       const workspaceManifest = buildWorkspaceManifest(files, activeIndex);
+      const challengeId = activePracticeChallenge?.id || activePracticeChallenge?.slug || activeTransactionLabScenarioId || '';
       const practiceSessionId = `session_practice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
       await startSession({
         sessionId: practiceSessionId,
+        questionId: challengeId,
         sessionType: 'tutor',
         tutorMode: 'practice_pair',
         topic,
@@ -133,7 +135,8 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         challengeTrack,
         challengeDomain: domain,
         bugTitle,
-        bugExplanation,
+        bugExplanation: bugExplanation || activePracticeChallenge?.instructionsMarkdown || activePracticeChallenge?.shortDescription || '',
+        referenceAnswer: activePracticeChallenge?.instructionsMarkdown || bugExplanation || '',
         codeSnippet,
         workspaceManifest,
         activeCodeArtifact: activeArtifact

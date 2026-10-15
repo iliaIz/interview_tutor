@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore, Question } from '../store/useAppStore';
+import { useInterviewConfig } from '../hooks/useInterviewConfig';
 import { VoiceModal } from './VoiceModal';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
@@ -53,6 +54,8 @@ export const ExamQuiz: React.FC = () => {
     setQuestionEvaluation,
     setBatch
   } = useAppStore();
+
+  const { config: interviewConfig } = useInterviewConfig();
 
   const [isAutoHealing, setIsAutoHealing] = useState(false);
 
@@ -136,7 +139,8 @@ export const ExamQuiz: React.FC = () => {
           topic: selectedTopicName || currentQ.topic,
           question: currentQ.question,
           referenceAnswer: currentQ.answer,
-          userAnswer
+          userAnswer,
+          userGender: interviewConfig.userGender || 'female'
         })
       });
 
