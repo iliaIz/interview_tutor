@@ -190,9 +190,9 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     const state = useAppStore.getState();
     const report = state.activePracticeReport;
     const seniorReviewPayload = report ? {
-      overallScore: report.overallScore ?? 0,
-      summaryReview: report.summaryReview || '',
-      findings: report.concurrency?.findings || [],
+      overallScore: report.scoreBreakdown?.overallScore ?? 0,
+      summaryReview: report.scoreBreakdown?.summaryReview || '',
+      findings: report.concurrencyAnalysis?.findings || [],
       focusedFinding: focusedFinding || null
     } : undefined;
     return launchPracticeSession(seniorReviewPayload);
