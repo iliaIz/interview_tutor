@@ -34,6 +34,39 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
   const score = Math.round(result.scoreBreakdown.overallScore);
   const isPassed = score >= 70 && !result.concurrencyAnalysis.hasCarrierThreadPinning;
 
+  const normalizedFindings = React.useMemo(() => {
+    const raw = result.concurrencyAnalysis?.findings;
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+      .map((f: any) => {
+        if (!f) return null;
+        if (typeof f === 'string') {
+          const text = f.trim();
+          if (!text) return null;
+          // Filter out positive praises mistakenly stored in findings when no race condition is flagged
+          const isPraise = /used correctly|manage thread-safe|thread safe|properly synchronized|корректно|правильно|безопасно|без гонок/i.test(text)
+            && !/vulnerability|leak|hazard|race condition|deadlock|pinning|риск|гонк|утечк|ошибк/i.test(text);
+          if (isPraise && !result.concurrencyAnalysis.hasRaceConditions && !result.concurrencyAnalysis.hasCarrierThreadPinning && !result.concurrencyAnalysis.hasJmmVisibilityIssues) {
+            return null;
+          }
+          return {
+            category: /pinning/i.test(text) ? 'CARRIER_THREAD_PINNING' : /deadlock/i.test(text) ? 'DEADLOCK_RISK' : /visibility|volatile/i.test(text) ? 'JMM_VISIBILITY' : /race/i.test(text) ? 'RACE_CONDITION' : 'NON_ATOMIC_COMPOUND',
+            location: 'Shared State / Concurrency Logic',
+            description: text,
+            remediation: 'Обеспечьте синхронизацию или использование потокобезопасных структур данных.'
+          };
+        }
+        return {
+          category: typeof f.category === 'string' && f.category.trim().length > 0 ? f.category.trim() : null,
+          location: typeof f.location === 'string' && f.location.trim().length > 0 ? f.location.trim() : null,
+          description: typeof f.description === 'string' ? f.description.trim() : (typeof f.finding === 'string' ? f.finding.trim() : ''),
+          remediation: typeof f.remediation === 'string' && f.remediation.trim().length > 0 ? f.remediation.trim() : null
+        };
+      })
+      .filter((f): f is { category: string | null; location: string | null; description: string; remediation: string | null } => Boolean(f && f.description));
+  }, [result.concurrencyAnalysis]);
+
   React.useEffect(() => {
     if (isPassed) {
       triggerSuccessConfetti();
@@ -133,23 +166,27 @@ export const PracticeEvaluationModal: React.FC<PracticeEvaluationModalProps> = (
           </div>
 
           {/* Concurrency & Loom Findings (if any) */}
-          {result.concurrencyAnalysis.findings.length > 0 && (
+          {normalizedFindings.length > 0 && (
             <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 space-y-3">
               <h4 className="font-bold text-xs flex items-center gap-1.5 text-rose-800">
                 <AlertTriangle className="w-4 h-4 text-rose-600" />
                 <span>Замечания по Concurrency & Project Loom:</span>
               </h4>
               <div className="space-y-2">
-                {result.concurrencyAnalysis.findings.map((f, i) => (
+                {normalizedFindings.map((f, i) => (
                   <div key={i} className="p-3 rounded-xl bg-white border border-rose-200/80 space-y-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[11px] text-rose-700">[{f.category}]</span>
-                      <span className="text-[10px] text-rose-500 font-mono">{f.location}</span>
-                    </div>
-                    <p className="text-xs text-pastel-text">{f.description}</p>
-                    <p className="text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                      💡 <strong>Рекомендация:</strong> {f.remediation}
-                    </p>
+                    {(f.category || f.location) && (
+                      <div className="flex items-center justify-between">
+                        {f.category && <span className="font-bold text-[11px] text-rose-700">[{f.category}]</span>}
+                        {f.location && <span className="text-[10px] text-rose-500 font-mono">{f.location}</span>}
+                      </div>
+                    )}
+                    {f.description && <p className="text-xs text-pastel-text">{f.description}</p>}
+                    {f.remediation && (
+                      <p className="text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                        💡 <strong>Рекомендация:</strong> {f.remediation}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

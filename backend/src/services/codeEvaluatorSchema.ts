@@ -117,3 +117,93 @@ export const EVALUATION_JSON_SCHEMA = {
     'scoreBreakdown'
   ]
 };
+
+export interface ConcurrencyFinding {
+  category: 'RACE_CONDITION' | 'NON_ATOMIC_COMPOUND' | 'JMM_VISIBILITY' | 'CARRIER_THREAD_PINNING' | 'DEADLOCK_RISK';
+  location: string;
+  description: string;
+  remediation: string;
+}
+
+export function normalizeConcurrencyFindings(
+  rawFindings: unknown,
+  hasRaceConditions: boolean,
+  hasCarrierThreadPinning: boolean,
+  hasJmmVisibilityIssues: boolean
+): ConcurrencyFinding[] {
+  if (!Array.isArray(rawFindings)) {
+    return [];
+  }
+
+  const validCategories: Set<ConcurrencyFinding['category']> = new Set([
+    'RACE_CONDITION',
+    'NON_ATOMIC_COMPOUND',
+    'JMM_VISIBILITY',
+    'CARRIER_THREAD_PINNING',
+    'DEADLOCK_RISK'
+  ]);
+
+  const normalized: ConcurrencyFinding[] = [];
+
+  for (const item of rawFindings) {
+    if (!item) continue;
+
+    if (typeof item === 'object') {
+      const obj = item as Record<string, any>;
+      const desc = String(obj.description || obj.finding || obj.message || '').trim();
+      if (!desc) continue;
+
+      let category: ConcurrencyFinding['category'] = 'NON_ATOMIC_COMPOUND';
+      if (validCategories.has(obj.category)) {
+        category = obj.category;
+      } else if (/pinning|carrier/i.test(desc) || /pinning|carrier/i.test(String(obj.category))) {
+        category = 'CARRIER_THREAD_PINNING';
+      } else if (/deadlock/i.test(desc) || /deadlock/i.test(String(obj.category))) {
+        category = 'DEADLOCK_RISK';
+      } else if (/visibility|volatile|barrier|jmm/i.test(desc) || /visibility|volatile/i.test(String(obj.category))) {
+        category = 'JMM_VISIBILITY';
+      } else if (/race/i.test(desc) || /race/i.test(String(obj.category))) {
+        category = 'RACE_CONDITION';
+      }
+
+      normalized.push({
+        category,
+        location: String(obj.location || 'Shared State / Concurrency Logic').trim(),
+        description: desc,
+        remediation: String(obj.remediation || 'Обеспечьте синхронизацию или использование потокобезопасных структур (Atomic/Concurrent)').trim()
+      });
+    } else if (typeof item === 'string') {
+      const text = item.trim();
+      if (!text) continue;
+
+      // Filter out praises/compliments erroneously placed in findings if no real issues flagged
+      const isPositivePraise = /used correctly|manage thread-safe|thread safe|properly synchronized|корректно|правильно|безопасно|без гонок/i.test(text)
+        && !/vulnerability|leak|hazard|race condition|deadlock|pinning|риск|гонк|утечк|ошибк/i.test(text);
+
+      if (isPositivePraise && !hasRaceConditions && !hasCarrierThreadPinning && !hasJmmVisibilityIssues) {
+        continue;
+      }
+
+      let category: ConcurrencyFinding['category'] = 'NON_ATOMIC_COMPOUND';
+      if (/pinning|carrier/i.test(text)) {
+        category = 'CARRIER_THREAD_PINNING';
+      } else if (/deadlock/i.test(text)) {
+        category = 'DEADLOCK_RISK';
+      } else if (/visibility|volatile|barrier|jmm/i.test(text)) {
+        category = 'JMM_VISIBILITY';
+      } else if (/race condition|гонк/i.test(text)) {
+        category = 'RACE_CONDITION';
+      }
+
+      normalized.push({
+        category,
+        location: 'Shared State / Concurrency Logic',
+        description: text,
+        remediation: 'Обеспечьте синхронизацию или использование потокобезопасных структур данных.'
+      });
+    }
+  }
+
+  return normalized;
+}
+

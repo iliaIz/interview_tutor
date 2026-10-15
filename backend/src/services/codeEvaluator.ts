@@ -5,11 +5,11 @@ import { envConfig } from '../config/env';
 import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 import { fetchWithFullJitterRetry } from '../utils/httpRetry';
-import { EVALUATION_JSON_SCHEMA } from './codeEvaluatorSchema';
+import { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, normalizeConcurrencyFindings } from './codeEvaluatorSchema';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
 import { ANTI_SYCOPHANCY_DIRECTIVES } from '../prompts/core/antiSycophancy';
 
-export { EVALUATION_JSON_SCHEMA };
+export { EVALUATION_JSON_SCHEMA, ConcurrencyFinding };
 
 export interface EvaluationRequest {
   challenge: CodingChallenge;
@@ -27,13 +27,6 @@ export interface TestCaseResult {
   expectedOutput: string;
   actualVirtualOutput: string;
   failureReason?: string;
-}
-
-export interface ConcurrencyFinding {
-  category: 'RACE_CONDITION' | 'NON_ATOMIC_COMPOUND' | 'JMM_VISIBILITY' | 'CARRIER_THREAD_PINNING' | 'DEADLOCK_RISK';
-  location: string;
-  description: string;
-  remediation: string;
 }
 
 export interface EvaluationResult {
@@ -154,6 +147,8 @@ EVALUATION RULES:
    - Check for non-atomic compound mutations on shared state (e.g. count++ without Atomic/Lock).
    - Check for memory visibility defects (missing volatile or memory barriers).
    - CRITICAL PROJECT LOOM CHECK: Check for Carrier Thread Pinning when Virtual Threads execute blocking operations (I/O, Thread.sleep) inside 'synchronized' blocks. Recommend 'ReentrantLock'.
+   - FINDINGS CONTRACT: "findings" array MUST contain ONLY actionable concurrency defects or risks. If the code is thread-safe and has NO concurrency bugs, "findings" MUST be empty []. Never put compliments or positive observations into findings.
+   - Each item in "findings" MUST be an object with "category" (one of RACE_CONDITION, NON_ATOMIC_COMPOUND, JMM_VISIBILITY, CARRIER_THREAD_PINNING, DEADLOCK_RISK), "location", "description", "remediation".
 3. Architecture, SOLID & Clean Code:
    - Check Single Responsibility, Open-Closed Principle (especially for Phase 2 extensions), and Interface Segregation.
    - For Refactoring Katas: Verify that public API contracts remain backwards-compatible and seams (protected methods) are cleanly isolated.
@@ -177,7 +172,14 @@ Generate ONLY valid JSON adhering strictly to this JSON format:
     "hasRaceConditions": false,
     "hasJmmVisibilityIssues": false,
     "hasCarrierThreadPinning": false,
-    "findings": []
+    "findings": [
+      {
+        "category": "NON_ATOMIC_COMPOUND",
+        "location": "ClassName.methodName()",
+        "description": "Lost updates due to non-atomic state mutation under concurrency",
+        "remediation": "Use AtomicInteger or ReentrantLock to guard shared state"
+      }
+    ]
   },
   "architecturalCompliance": {
     "isSolidCompliant": true,
@@ -323,7 +325,12 @@ ${codeXml}
       hasRaceConditions: Boolean(evalData.concurrencyAnalysis?.hasRaceConditions) || Boolean(sandboxResult?.concurrencyHarness?.raceConditionDetected),
       hasJmmVisibilityIssues: Boolean(evalData.concurrencyAnalysis?.hasJmmVisibilityIssues),
       hasCarrierThreadPinning: Boolean(evalData.concurrencyAnalysis?.hasCarrierThreadPinning),
-      findings: Array.isArray(evalData.concurrencyAnalysis?.findings) ? evalData.concurrencyAnalysis.findings : []
+      findings: normalizeConcurrencyFindings(
+        evalData.concurrencyAnalysis?.findings,
+        Boolean(evalData.concurrencyAnalysis?.hasRaceConditions) || Boolean(sandboxResult?.concurrencyHarness?.raceConditionDetected),
+        Boolean(evalData.concurrencyAnalysis?.hasCarrierThreadPinning),
+        Boolean(evalData.concurrencyAnalysis?.hasJmmVisibilityIssues)
+      )
     },
     architecturalCompliance: {
       isSolidCompliant: Boolean(evalData.architecturalCompliance?.isSolidCompliant ?? true),

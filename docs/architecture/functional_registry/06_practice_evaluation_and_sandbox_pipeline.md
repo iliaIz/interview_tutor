@@ -59,3 +59,15 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - *Observation:* Browser `fetch('/api/practice/evaluate')` without explicit `Accept` defaults to `*/*`. Backend evaluated `isSse` as `false`, completed JVM + Gemini evaluation in 8s, and returned `res.json(...)`. Frontend SSE reader ignored lines without `data:` prefix, leaving the UI permanently stuck on Step 1 ("Песочница JVM 21").
   - *Intermediate Conclusion:* End-to-end stream contract must be symmetrical and defense-in-depth: explicit request headers, unbuffered proxy routing (`flush_interval -1`), immediate server socket flushes, and resilient multi-mode client parsers.
 - **Invariants:** Review pipeline must stream progress by default and cleanly resolve both streaming SSE frames and direct JSON payloads without client deadlocks.
+
+### 2.5 Concurrency Finding Normalization & Safe Modal Rendering
+- **Location:** [`backend/src/services/codeEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/codeEvaluator.ts), [`backend/src/services/codeEvaluatorSchema.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/codeEvaluatorSchema.ts), [`frontend/src/components/practice/PracticeEvaluationModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeEvaluationModal.tsx)
+- **What Was Done:**
+  - Strengthened system prompt contract in `codeEvaluator.ts` to explicitly define the `findings` schema as an array of objects `{ category, location, description, remediation }`, and mandated that `findings` MUST be empty `[]` when code is thread-safe without placing praises/compliments in findings.
+  - Implemented `normalizeConcurrencyFindings()` in `codeEvaluatorSchema.ts` to normalize both structured objects and plain string arrays from LLMs or legacy records, mapping categories to valid enums and filtering out false-positive praises when no concurrency race conditions exist.
+  - Added resilient client-side normalization in `PracticeEvaluationModal.tsx`, preventing empty category brackets `[]` or blank `💡 Рекомендация:` boxes from ever rendering if optional fields are missing or if raw text was returned.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* Candidate review modal displayed empty `[]` and `💡 Рекомендация: ` with blank text because the LLM generated an array of strings (e.g. `["AtomicReference used correctly..."]`) rather than objects, which the frontend rendered by accessing non-existent object properties `f.category` and `f.remediation`.
+  - *Intermediate Conclusion:* LLMs must receive concrete few-shot JSON structures in output format prompts, and the backend/frontend must enforce symmetrical normalization contracts to tolerate schema drift and gracefully support legacy database submissions.
+- **Invariants:** Every finding rendered in `PracticeEvaluationModal` is guaranteed to contain non-empty text, and praise comments are never presented under the red concurrency defect banner.
+
