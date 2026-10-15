@@ -125,12 +125,14 @@ export const PracticeTutorDrawer: React.FC = () => {
         : activePracticeChallenge?.category ||
           (domain === 'lld' ? 'Low-Level Design (LLD)'
             : domain === 'transactions' ? 'Transactions'
+            : 'Testing Kata'),
     kataInstructions:
       txScenario?.problemStatement ||
       activePracticeChallenge?.instructionsMarkdown ||
       activePracticeChallenge?.scenarioMarkdown ||
       activePracticeChallenge?.shortDescription ||
       '',
+    activeFilePath:
       txScenario
         ? `${txScenario.services[0]?.className}.java`
         : currentFile?.path || (domain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
