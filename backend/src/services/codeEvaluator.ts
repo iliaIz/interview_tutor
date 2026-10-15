@@ -248,9 +248,9 @@ ${codeXml}
         ]
       })
     },
-    1, // maxRetries = 1 (Fast Failover without client starvation)
+    2, // maxRetries = 2 (1 initial + 2 retries = 3 total attempts per invariant)
     abortSignal,
-    40_000 // 40s per attempt timeout (fits cleanly in 85s backend budget)
+    40_000 // 40s per attempt timeout
   );
 
   if (!response.ok) {
