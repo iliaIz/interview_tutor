@@ -8,6 +8,7 @@ import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vect
 import { TargetGrade } from '../../prompts/personas';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
 import { extractDefaultAnchors } from './livePromptBuilder';
+import { matchWorkspaceFilePath } from './liveToolDispatcher';
 
 export interface LiveWsSessionParams {
   authenticatedUser: any;
@@ -16,6 +17,8 @@ export interface LiveWsSessionParams {
   bugTitle: string;
   bugExplanation: string;
   codeSnippet: string;
+  activeFilePath?: string;
+  workspaceManifest?: any;
   fixedCode: string;
   unitTest: string;
   incidentContext: any;
@@ -140,9 +143,11 @@ export async function resolveLiveWsSessionParams(
 
   // Canonical SQLite SSOT resolution (SOTA Late 2026: Multi-Studio Context Grounding)
   // 1. Coding challenges (Machine Coding & LLD Arena)
+  let workspaceManifest: any = null;
+  let activeFilePath: string = (query.activeFilePath as string) || '';
   if (challengeId) {
     try {
-      const cRow = db.prepare('SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+      const cRow = db.prepare('SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown, manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
       if (cRow) {
         if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
           topic = cRow.category || 'Machine Coding & LLD';
@@ -153,6 +158,66 @@ export async function resolveLiveWsSessionParams(
         if (!bugExplanation) bugExplanation = cRow.instructions_markdown;
         if (!challengeCategory) challengeCategory = cRow.category;
         if (!challengeTrack) challengeTrack = cRow.track;
+
+        if (cRow.manifest_json) {
+          try {
+            const parsedManifest = JSON.parse(cRow.manifest_json);
+            if (Array.isArray(parsedManifest.workspaceFiles) && parsedManifest.workspaceFiles.length > 0) {
+              const visibleFiles = parsedManifest.workspaceFiles.filter((f: any) => !f.hidden);
+              const activeIndex = activeFilePath
+                ? visibleFiles.findIndex((f: any) => matchWorkspaceFilePath(f.path, activeFilePath))
+                : visibleFiles.findIndex((f: any) => !f.readOnly);
+              const safeIndex = activeIndex >= 0 ? activeIndex : 0;
+              const active = visibleFiles[safeIndex] || visibleFiles[0];
+              const secondary = visibleFiles.filter((_: any, idx: number) => idx !== safeIndex);
+
+              workspaceManifest = {
+                activeFile: {
+                  path: active.path,
+                  content: active.content,
+                  isReadOnly: Boolean(active.readOnly)
+                },
+                fileCount: visibleFiles.length,
+                projectTree: visibleFiles.map((f: any) => f.path),
+                secondaryFiles: secondary.map((f: any) => ({
+                  path: f.path,
+                  content: f.content,
+                  isReadOnly: Boolean(f.readOnly)
+                })),
+                files: visibleFiles.map((f: any) => ({
+                  path: f.path,
+                  content: f.content,
+                  isReadOnly: Boolean(f.readOnly)
+                })),
+                xmlManifest: [
+                  `<project_workspace active_file="${active.path}">`,
+                  `  <project_tree>`,
+                  ...visibleFiles.map((f: any) => `    <file path="${f.path}" />`),
+                  `  </project_tree>`,
+                  `  <active_file path="${active.path}" read_only="${Boolean(active.readOnly)}">`,
+                  active.content,
+                  `  </active_file>`,
+                  ...(secondary.length > 0
+                    ? [
+                        `  <secondary_files>`,
+                        ...secondary.flatMap((sec: any) => [
+                          `    <file path="${sec.path}" read_only="${Boolean(sec.readOnly)}">`,
+                          sec.content,
+                          `    </file>`
+                        ]),
+                        `  </secondary_files>`
+                      ]
+                    : []),
+                  `</project_workspace>`
+                ].join('\n')
+              };
+              if (!activeFilePath) activeFilePath = active.path;
+              if (!codeSnippet) codeSnippet = active.content;
+            }
+          } catch (mErr) {
+            console.warn('[resolveLiveWsSessionParams] Could not parse manifest_json:', mErr);
+          }
+        }
       }
     } catch (err) {
       console.warn(`[resolveLiveWsSessionParams] Could not fetch coding challenge ${challengeId}:`, err);
@@ -277,6 +342,8 @@ export async function resolveLiveWsSessionParams(
     bugTitle,
     bugExplanation,
     codeSnippet,
+    activeFilePath,
+    workspaceManifest,
     fixedCode,
     unitTest,
     incidentContext,

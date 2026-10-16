@@ -33,9 +33,20 @@ export function setupLiveWebSocketProxy(server: http.Server) {
   const wss = new WebSocketServer({ server, path: '/ws/live' });
 
   wss.on('connection', async (clientSocket: WebSocket, req: http.IncomingMessage) => {
+    // SOTA Late 2026 Invariant: Zero early message loss.
+    // Immediately buffer incoming client frames before async resolution (DB lookups / vector search).
+    const earlyQueue: any[] = [];
+    const earlyCapture = (data: any) => earlyQueue.push(data);
+    clientSocket.on('message', earlyCapture);
+
+    const cleanupEarlyCapture = () => {
+      clientSocket.off('message', earlyCapture);
+    };
+
     try {
-      await handleLiveClientConnection(clientSocket, req);
+      await handleLiveClientConnection(clientSocket, req, earlyQueue, cleanupEarlyCapture);
     } catch (err) {
+      cleanupEarlyCapture();
       console.error('Unhandled error in Live WebSocket connection handler:', err);
       try {
         clientSocket.close(1011, 'Internal Server Error');

@@ -70,6 +70,7 @@ export interface ProxySession {
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
+  activeFilePath?: string;
   strategy?: 'adaptive_probing' | 'socratic_tutoring';
   workspaceManifest?: any;
   activeCodeArtifact?: any;

@@ -10,9 +10,15 @@ import { buildGeminiLiveSetupMessage } from './liveGeminiConfigBuilder';
 import { resolveLiveWsSessionParams } from './liveWsSessionParams';
 import { attachLiveClientFrameHandler } from './liveWsClientFrameHandler';
 
-export async function handleLiveClientConnection(clientSocket: WebSocket, req: http.IncomingMessage) {
+export async function handleLiveClientConnection(
+  clientSocket: WebSocket,
+  req: http.IncomingMessage,
+  earlyQueue?: any[],
+  cleanupEarlyCapture?: () => void
+) {
   const params = await resolveLiveWsSessionParams(req);
   if (!params) {
+    if (cleanupEarlyCapture) cleanupEarlyCapture();
     console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
     clientSocket.close(4401, 'Unauthorized: Valid ticket or invite session required');
     return;
@@ -25,6 +31,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     bugTitle,
     bugExplanation,
     codeSnippet,
+    activeFilePath,
+    workspaceManifest,
     fixedCode,
     unitTest,
     incidentContext,
@@ -107,6 +115,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     bugTitle,
     bugExplanation,
     codeSnippet,
+    activeFilePath,
+    workspaceManifest,
     strategy,
     activeCodeArtifact,
     currentTurnIndex: 0,
@@ -279,6 +289,8 @@ export async function handleLiveClientConnection(clientSocket: WebSocket, req: h
     session,
     clientSocket,
     turnMode,
-    terminate
+    terminate,
+    earlyQueue,
+    cleanupEarlyCapture
   });
 }
