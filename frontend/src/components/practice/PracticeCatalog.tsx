@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CodingChallenge, ChallengeCategory } from '../../types/practice';
-import { Code2, ArrowRight, Zap, ChevronDown, ChevronRight } from 'lucide-react';
+import { Code2, ArrowRight, Zap, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSACTION_LAB_SCENARIOS } from '../../data/transactionLabCatalog';
 import { getLocalDraft, removeLocalDraft } from '../../services/practiceDraftStorage';
