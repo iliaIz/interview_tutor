@@ -85,9 +85,22 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - *Observation:* Review reports were previously written in English because the system prompt was in English without the language lock invariant. In addition, users who prefer voice had no way to transition from reading defects to discussing them with the AI in real time.
   - *Intermediate Conclusion:* Seamless modal-to-voice handoff preserves the candidate's working memory, auto-focuses the relevant file in the editor, and starts an interactive verbal pairing session without cognitive friction.
 - **Rationale & "Why":** SOTA 2026 Voice-First platform paradigm: voice is the primary modality for interactive review, reflection, and live refactoring.
+### 2.7 Transactions Lab Unification, Ambient Voice Pairing, Submission Persistence & Focus Mode Fix
+- **Location:** [`frontend/src/components/practice/PracticeArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeArena.tsx), [`frontend/src/components/practice/TransactionLabArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/TransactionLabArena.tsx), [`frontend/src/components/practice/TransactionLabHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/TransactionLabHeader.tsx), [`frontend/src/components/practice/TransactionServiceEditor.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/TransactionServiceEditor.tsx), [`backend/src/services/practiceTxCatalogService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/practiceTxCatalogService.ts), [`backend/src/services/live/liveWsChallengeResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsChallengeResolver.ts), [`backend/src/routes/practice.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practice.ts)
+- **What Was Done:**
+  - **Focus Mode CSS Specificity Resolution:** Fixed specificity collision in `PracticeArena.tsx` where `mobileTab === 'spec'` caused `md:flex` to override `hidden` when `isFocusMode === true`. De-duplicated conditional class strings so `hidden` is unconditionally applied during Focus Mode, allowing the code editor to occupy 100% width.
+  - **Transactions Lab Soft Luxury Pastel UI & 100dvh:** Replaced legacy dark slate background with platform canonical soft luxury pastel palette (`#FFF0F5`, `bg-pastel-bg text-pastel-text`, `h-[calc(100dvh-4rem)]`), matching Refactoring and Machine Coding arenas.
+  - **Ambient Voice AI-Напарник:** Wired `usePracticeVoice()` and `AmbientVoicePill` into `TransactionLabArena`, allowing users to summon the voice AI partner during Spring Transaction puzzle solving and oral defense.
+  - **Catalog Unification & SQLite Persistence:** Created `practiceTxCatalogService.ts` to surface 16 Spring Transaction scenarios under `/api/practice/challenges` (catalog total: 137 challenges), with full support for search queries and completion status filtering ("Все", "Решенные", "В процессе"). Enabled automatic submission recording to `/api/roadmaps/transactions/submissions` upon passing verification.
+  - **Gemini Live Challenge Resolution Decomposition:** Extracted `liveWsChallengeResolver.ts` from `liveWsSessionParams.ts` (keeping both $\le 300$ lines, Rule 8 compliant) to resolve `spring_transaction_challenges` with `domain: 'transactions'` instead of falling back to `'lld'`.
+  - **Cognitive Bounding Modularization:** Decomposed `TransactionLabArena.tsx` (436 lines down to 306 lines) into `TransactionLabHeader.tsx` (119 lines) and `TransactionServiceEditor.tsx` (91 lines).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* Focus Mode was squeezing or hiding the code editor rather than the specification because Tailwind's responsive media query classes (`md:flex`) evaluate after non-responsive base classes (`hidden`), overriding visibility.
+  - *Intermediate Conclusion:* In responsive layouts, hide/show states must be conditionally constructed in JSX/template strings to prevent CSS cascade specificity leaks.
 - **Invariants:**
-  - All review findings and summaries must be 100% Russian.
-  - Closing the review modal must never discard `activePracticeReport`.
-  - Turn 0 greeting must immediately address the candidate and the defect in Russian.
+  - In Focus Mode, specification panels MUST have `hidden` and editors MUST expand to 100% available container width.
+  - All source files must strictly respect Rule 8 cognitive limits ($\le 350$ lines for new files, $\le 400$ lines for modified files).
+  - Passing Spring Transaction scenarios MUST persist verification status into SQLite database.
+
 
 

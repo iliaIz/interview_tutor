@@ -251,26 +251,44 @@ export const PracticeCatalog: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {TRANSACTION_LAB_SCENARIOS.map((sc, idx) => (
-              <div key={sc.id} className="p-5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm hover:shadow-md transition space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-slate-400">#{idx + 1} • {sc.difficulty}</span>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">{sc.badge}</span>
+          {filteredChallenges.length === 0 ? (
+            <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">
+              <Code2 className="w-10 h-10 text-pastel-muted mx-auto opacity-40" />
+              <h3 className="text-base font-bold text-pastel-text">Сценарии не найдены</h3>
+              <p className="text-xs text-pastel-muted max-w-sm mx-auto">По запросу «{searchQuery || statusFilter}» ничего не найдено в лаборатории транзакций.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredChallenges.map((sc, idx) => (
+                <div key={sc.id} className="p-5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-sm hover:shadow-md transition space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-slate-400">#{idx + 1} • {sc.difficulty}</span>
+                      <div className="flex items-center gap-1.5">
+                        {sc.isCompleted && (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            {sc.lastScore ? `${sc.lastScore}%` : 'Решено'}
+                          </span>
+                        )}
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">{sc.badge}</span>
+                      </div>
+                    </div>
+                    <h4 className="font-extrabold text-sm text-slate-900">{sc.title}</h4>
+                    <p className="text-xs text-slate-600 line-clamp-3">{sc.shortDescription}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openTransactionLab(sc.id)}
+                    className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-violet-600 hover:text-white text-slate-800 font-bold text-xs border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Исследовать кейс</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <h4 className="font-extrabold text-sm text-slate-900">{sc.title}</h4>
-                <p className="text-xs text-slate-600 line-clamp-3">{sc.problemStatement}</p>
-                <button
-                  type="button"
-                  onClick={() => openTransactionLab(sc.id)}
-                  className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-violet-600 hover:text-white text-slate-800 font-bold text-xs border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>Исследовать кейс</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : filteredChallenges.length === 0 ? (
         <div className="bg-white/95 border border-pastel-border/80 rounded-3xl p-12 text-center shadow-xs space-y-3 animate-fade-in">

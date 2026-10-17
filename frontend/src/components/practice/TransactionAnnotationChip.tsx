@@ -96,7 +96,7 @@ export const TransactionAnnotationChip: React.FC<TransactionAnnotationChipProps>
 
       {/* Popover Settings Menu */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-2 z-50 w-96 p-4 rounded-2xl bg-white/98 backdrop-blur-xl border border-violet-200/90 shadow-2xl space-y-3.5 animate-fadeIn text-xs">
+        <div className="absolute left-0 top-full mt-2 z-50 w-[calc(100vw-2rem)] max-w-sm sm:max-w-md sm:w-96 p-4 rounded-2xl bg-white/98 backdrop-blur-xl border border-violet-200/90 shadow-2xl space-y-3.5 animate-fadeIn text-xs">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
               <Settings2 className="w-4 h-4 text-violet-600" />

@@ -8,7 +8,7 @@ import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vect
 import { TargetGrade } from '../../prompts/personas';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
 import { extractDefaultAnchors } from './livePromptBuilder';
-import { matchWorkspaceFilePath } from './liveToolDispatcher';
+import { resolveLiveChallengeContext } from './liveWsChallengeResolver';
 
 export interface LiveWsSessionParams {
   authenticatedUser: any;
@@ -142,123 +142,32 @@ export async function resolveLiveWsSessionParams(
   let referenceAnswer = (query.referenceAnswer as string) || '';
 
   // Canonical SQLite SSOT resolution (SOTA Late 2026: Multi-Studio Context Grounding)
-  // 1. Coding challenges (Machine Coding & LLD Arena)
-  let workspaceManifest: any = null;
-  let activeFilePath: string = (query.activeFilePath as string) || '';
-  if (challengeId) {
-    try {
-      const cRow = db.prepare('SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown, manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
-      if (cRow) {
-        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
-          topic = cRow.category || 'Machine Coding & LLD';
-        }
-        if (!bugTitle) bugTitle = cRow.title;
-        if (!questionText) questionText = `${cRow.title}: ${cRow.short_description || ''}`;
-        if (!referenceAnswer) referenceAnswer = cRow.instructions_markdown;
-        if (!bugExplanation) bugExplanation = cRow.instructions_markdown;
-        if (!challengeCategory) challengeCategory = cRow.category;
-        if (!challengeTrack) challengeTrack = cRow.track;
+  const resolved = resolveLiveChallengeContext({
+    challengeId,
+    questionId,
+    queryTopic: topic,
+    queryBugTitle: bugTitle,
+    queryQuestionText: questionText,
+    queryReferenceAnswer: referenceAnswer,
+    queryBugExplanation: bugExplanation,
+    queryFixedCode: fixedCode,
+    queryCodeSnippet: codeSnippet,
+    queryChallengeCategory: challengeCategory,
+    queryChallengeTrack: challengeTrack,
+    queryActiveFilePath: (query.activeFilePath as string) || ''
+  });
 
-        if (cRow.manifest_json) {
-          try {
-            const parsedManifest = JSON.parse(cRow.manifest_json);
-            if (Array.isArray(parsedManifest.workspaceFiles) && parsedManifest.workspaceFiles.length > 0) {
-              const visibleFiles = parsedManifest.workspaceFiles.filter((f: any) => !f.hidden);
-              const activeIndex = activeFilePath
-                ? visibleFiles.findIndex((f: any) => matchWorkspaceFilePath(f.path, activeFilePath))
-                : visibleFiles.findIndex((f: any) => !f.readOnly);
-              const safeIndex = activeIndex >= 0 ? activeIndex : 0;
-              const active = visibleFiles[safeIndex] || visibleFiles[0];
-              const secondary = visibleFiles.filter((_: any, idx: number) => idx !== safeIndex);
-
-              workspaceManifest = {
-                activeFile: {
-                  path: active.path,
-                  content: active.content,
-                  isReadOnly: Boolean(active.readOnly)
-                },
-                fileCount: visibleFiles.length,
-                projectTree: visibleFiles.map((f: any) => f.path),
-                secondaryFiles: secondary.map((f: any) => ({
-                  path: f.path,
-                  content: f.content,
-                  isReadOnly: Boolean(f.readOnly)
-                })),
-                files: visibleFiles.map((f: any) => ({
-                  path: f.path,
-                  content: f.content,
-                  isReadOnly: Boolean(f.readOnly)
-                })),
-                xmlManifest: [
-                  `<project_workspace active_file="${active.path}">`,
-                  `  <project_tree>`,
-                  ...visibleFiles.map((f: any) => `    <file path="${f.path}" />`),
-                  `  </project_tree>`,
-                  `  <active_file path="${active.path}" read_only="${Boolean(active.readOnly)}">`,
-                  active.content,
-                  `  </active_file>`,
-                  ...(secondary.length > 0
-                    ? [
-                        `  <secondary_files>`,
-                        ...secondary.flatMap((sec: any) => [
-                          `    <file path="${sec.path}" read_only="${Boolean(sec.readOnly)}">`,
-                          sec.content,
-                          `    </file>`
-                        ]),
-                        `  </secondary_files>`
-                      ]
-                    : []),
-                  `</project_workspace>`
-                ].join('\n')
-              };
-              if (!activeFilePath) activeFilePath = active.path;
-              if (!codeSnippet) codeSnippet = active.content;
-            }
-          } catch (mErr) {
-            console.warn('[resolveLiveWsSessionParams] Could not parse manifest_json:', mErr);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn(`[resolveLiveWsSessionParams] Could not fetch coding challenge ${challengeId}:`, err);
-    }
-  }
-
-  // 2. Bug challenges (Bug Hunt Arena)
-  if (challengeId && (!bugExplanation || !codeSnippet)) {
-    try {
-      const bRow = db.prepare('SELECT id, title, subtopic, code_snippet, bug_explanation, fixed_code, hints_json FROM bug_challenges WHERE id = ?').get(challengeId) as any;
-      if (bRow) {
-        if (!bugTitle) bugTitle = bRow.title;
-        if (!bugExplanation) bugExplanation = bRow.bug_explanation;
-        if (!fixedCode) fixedCode = bRow.fixed_code;
-        if (!codeSnippet) codeSnippet = bRow.code_snippet;
-        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') topic = bRow.subtopic || topic;
-      }
-    } catch (err) {
-      console.warn(`[resolveLiveWsSessionParams] Could not fetch bug challenge ${challengeId}:`, err);
-    }
-  }
-
-  // 3. Theory questions (Questions Table)
-  if (questionId && (!questionText || !referenceAnswer)) {
-    try {
-      const qRow = db.prepare('SELECT topic, question, answer FROM questions WHERE id = ?').get(questionId) as any;
-      if (qRow) {
-        if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
-          topic = qRow.topic || topic;
-        }
-        if (!questionText) {
-          questionText = qRow.question || questionText;
-        }
-        if (!referenceAnswer) {
-          referenceAnswer = qRow.answer || referenceAnswer;
-        }
-      }
-    } catch (err) {
-      console.warn(`[resolveLiveWsSessionParams] Could not fetch question by id ${questionId}:`, err);
-    }
-  }
+  topic = resolved.topic;
+  bugTitle = resolved.bugTitle;
+  questionText = resolved.questionText;
+  referenceAnswer = resolved.referenceAnswer;
+  bugExplanation = resolved.bugExplanation;
+  fixedCode = resolved.fixedCode;
+  codeSnippet = resolved.codeSnippet;
+  challengeCategory = resolved.challengeCategory;
+  challengeTrack = resolved.challengeTrack;
+  const workspaceManifest = resolved.workspaceManifest;
+  let activeFilePath = resolved.activeFilePath;
 
   // Safety safeguard: sanitize referenceAnswer if passed via query to prevent memory explosion
   if (referenceAnswer && referenceAnswer.length > 20000) {

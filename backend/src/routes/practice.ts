@@ -6,6 +6,7 @@ import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
 import { handleChallengeEvaluation } from '../services/challengeSubmissionService';
 import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
+import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../services/practiceTxCatalogService';
 
 const router = Router();
 
@@ -72,7 +73,15 @@ router.get('/challenges', (req, res) => {
       };
     });
 
-    res.json(result);
+    const txChallenges = (!category || category === 'all' || category === 'spring_transactions')
+      ? fetchSpringTransactionChallenges(userId)
+      : [];
+
+    if (category === 'spring_transactions') {
+      return res.json(txChallenges);
+    }
+
+    res.json([...result, ...txChallenges]);
   } catch (err: any) {
     console.error('Error fetching practice challenges:', err);
     res.status(500).json({ error: err.message });
@@ -84,9 +93,13 @@ router.get('/challenges/:id', (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const challengeId = req.params.id;
-    const row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+    let row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
 
     if (!row) {
+      const txData = fetchSpringTransactionManifest(challengeId, userId);
+      if (txData) {
+        return res.json(txData);
+      }
       return res.status(404).json({ error: 'Coding challenge not found' });
     }
 
