@@ -27,8 +27,8 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 
 ### 2.1. `verifyRefactoringAst(files, constraints)`
 - **File:** `backend/src/services/sandbox/RefactoringAstVerifier.ts`
-- **1. What Was Done:** Created specialized AST/Opcode verifier for refactoring challenges. Verifies `SynchronizedTree` (Loom pinning), `double`/`float` in financial entities, `ThreadLocal` storage, and `java.time.Clock` injection.
-- **2. Hypotheses & Intermediate Conclusions:** Regex-only heuristics on source code fail when keywords appear inside comments or string literals. AST node parsing via `@babel/parser` / Tree-sitter AST or precise token stream analysis reliably isolates field definitions and method body statements without false positives.
+- **1. What Was Done:** Created specialized AST/Opcode verifier for refactoring challenges. Verifies `SynchronizedTree` (Loom pinning), `double`/`float` in financial entities, `ThreadLocal` storage, and `java.time.Clock` injection. Corrected schema import to use canonical `@interview-prep/shared` monorepo link.
+- **2. Hypotheses & Intermediate Conclusions:** Regex-only heuristics on source code fail when keywords appear inside comments or string literals. AST node parsing via `@babel/parser` / Tree-sitter AST or precise token stream analysis reliably isolates field definitions and method body statements without false positives. Deep relative path imports (`../../../../shared/src/...`) break TypeScript cross-package compilation under rootDir rules.
 - **3. Rationale & "Why":** Greenfield machine coding bans `new Thread` or `new FileWriter` entirely, but refactoring challenges start with *dirty legacy code* that contains simulated legacy network/file calls. Refactoring AST scanner inspects target entities and flags only architectural smells while allowing legacy seams.
 - **4. Failure Modes & Invariants:** Bypassing AST scan by wrapping code in reflection is prevented by `AstSecurityScanner` sandbox boundary.
 
@@ -36,7 +36,7 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 
 ### 2.2. `handleRefactoringSmellToolCall(ctx)`
 - **File:** `backend/src/services/live/liveRefactoringToolDispatcher.ts`
-- **1. What Was Done:** Implemented native non-blocking tool dispatcher for `report_identified_smell(smellId, justification)`. Dispatches real-time WebSocket frame `{ type: 'smell_discovered', smellId, justification }` to client frontend.
+- **1. What Was Done:** Implemented native non-blocking tool dispatcher for `report_identified_smell(smellId, justification)`. Dispatches real-time WebSocket frame `{ type: 'smell_discovered', smellId, justification }` to client frontend. Fixed context typing to canonical `LiveToolContext` from `liveToolDispatcher.ts`.
 - **2. Hypotheses & Intermediate Conclusions:** Relying on transcript text scraping with regex caused severe false positives/negatives due to speech recognition variations in Russian tech jargon (e.g., "пиннинг потоков", "блокировка монитора", "гонка данных").
 - **3. Rationale & "Why":** Gemini Live's function calling protocol provides semantic comprehension of candidate arguments. Emitting a dedicated WebSocket frame decouples audio playout from UI scorecard rendering.
 - **4. Failure Modes & Invariants:** Tool responses MUST be sent back to `geminiSocket` immediately with valid function response schema to prevent upstream generation stalls or 1011 timeout disconnects.

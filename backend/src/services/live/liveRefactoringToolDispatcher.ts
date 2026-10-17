@@ -1,4 +1,4 @@
-import { LiveToolCallContext } from './liveToolDispatcher';
+import { LiveToolContext } from './liveToolDispatcher';
 
 /**
  * liveRefactoringToolDispatcher.ts
@@ -6,7 +6,7 @@ import { LiveToolCallContext } from './liveToolDispatcher';
  * Single responsibility: Refactoring smell tool handling and WebSocket event emission.
  * Cognitive bounding limit: <= 350 lines (Rule 8).
  */
-export function handleRefactoringSmellToolCall(ctx: LiveToolCallContext): boolean {
+export function handleRefactoringSmellToolCall(ctx: LiveToolContext): boolean {
   const { call, clientSocket, geminiSocket } = ctx;
   const { smellId, justification } = call.args || {};
 

@@ -1,4 +1,4 @@
-import { AstBytecodeConstraint } from '../../../../shared/src/schemas/refactoringManifest';
+import { AstBytecodeConstraint } from '@interview-prep/shared';
 
 /**
  * RefactoringAstVerifier.ts
