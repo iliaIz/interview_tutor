@@ -213,16 +213,22 @@ const PracticeArenaWorkspace: React.FC<{ activePracticeChallenge: CodingChalleng
           className={`h-full overflow-hidden shrink-0 border-r border-pastel-border transition-all duration-200 ${
             isFocusMode
               ? 'hidden'
-              : 'w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
-          } ${mobileTab === 'spec' ? 'flex flex-col' : 'hidden md:flex flex-col'}`}
+              : mobileTab === 'spec'
+                ? 'flex flex-col w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
+                : 'hidden md:flex flex-col md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
+          }`}
         >
           <ChallengeSpecPanel />
         </div>
 
-        {/* Right Code Editor & Terminal (62%) */}
+        {/* Right Code Editor & Terminal (100% in Focus Mode, 62% in Split View) */}
         <div
           className={`flex-1 h-full overflow-hidden ${
-            mobileTab === 'editor' ? 'flex flex-col' : 'hidden md:flex flex-col'
+            isFocusMode
+              ? 'flex flex-col w-full'
+              : mobileTab === 'editor'
+                ? 'flex flex-col'
+                : 'hidden md:flex flex-col'
           }`}
         >
           <WorkspaceEditor />
