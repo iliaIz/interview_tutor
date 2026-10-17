@@ -9,7 +9,9 @@ import {
   TESTING_ARCHETYPES,
   REFACTORING_ARCHETYPES,
   GRADE_CONFIG,
-  StatusFilter
+  StatusFilter,
+  isChallengeInCategory,
+  isChallengeInArchetype
 } from './PracticeCatalogConstants';
 import { PracticeCatalogHeader } from './PracticeCatalogHeader';
 import { PracticeChallengeCard } from './PracticeChallengeCard';
@@ -30,10 +32,10 @@ export const PracticeCatalog: React.FC = () => {
 
   const fetchChallenges = useCallback(async () => {
     try {
-      const res = await fetch('/api/practice/challenges');
+      const res = await fetch('/api/practice/challenges', { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const loaded: CodingChallenge[] = data.challenges || [];
+      const loaded: CodingChallenge[] = Array.isArray(data) ? data : (data.challenges || []);
       setChallenges(loaded);
 
       if (loaded.length > 0 && !selectedId) {
@@ -61,30 +63,12 @@ export const PracticeCatalog: React.FC = () => {
 
   const filteredChallenges = useMemo(() => {
     return challenges.filter((c) => {
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'refactoring_kata' && c.category !== 'refactoring_kata') return false;
-        if (selectedCategory === 'spring_transactions' && c.category !== 'spring_transactions') return false;
-        if (selectedCategory === 'testing_mutation' && c.category !== 'testing_mutation') return false;
-        if (selectedCategory === 'lld_bigtech' && c.category !== 'lld_bigtech' && c.category !== 'machine_coding') return false;
-        if (selectedCategory === 'lld_fintech' && c.category !== 'lld_fintech') return false;
-        if (selectedCategory === 'lld_concurrency' && c.category !== 'lld_concurrency' && c.category !== 'concurrency_lab') return false;
-        if (selectedCategory === 'java21_idioms' && c.category !== 'java21_idioms') return false;
+      if (!isChallengeInCategory(c, selectedCategory)) {
+        return false;
       }
 
-      if (selectedCategory === 'testing_mutation' && selectedArchetype !== 'all') {
-        const arch = TESTING_ARCHETYPES.find((a) => a.id === selectedArchetype);
-        if (arch && arch.match.length > 0) {
-          const matched = arch.match.some((m) => c.id.toLowerCase().includes(m) || c.slug?.toLowerCase().includes(m));
-          if (!matched) return false;
-        }
-      }
-
-      if (selectedCategory === 'refactoring_kata' && selectedArchetype !== 'all') {
-        const arch = REFACTORING_ARCHETYPES.find((a) => a.id === selectedArchetype);
-        if (arch && arch.match.length > 0) {
-          const matched = arch.match.some((m) => c.id.toLowerCase().includes(m) || c.slug?.toLowerCase().includes(m));
-          if (!matched) return false;
-        }
+      if (!isChallengeInArchetype(c, selectedCategory, selectedArchetype)) {
+        return false;
       }
 
       if (statusFilter !== 'all') {
@@ -120,13 +104,7 @@ export const PracticeCatalog: React.FC = () => {
   }, [filteredChallenges, selectedId]);
 
   const categoryStats = useMemo(() => {
-    const relevant = challenges.filter((c) => {
-      if (selectedCategory === 'all') return true;
-      if (selectedCategory === 'refactoring_kata') return c.category === 'refactoring_kata';
-      if (selectedCategory === 'spring_transactions') return c.category === 'spring_transactions';
-      if (selectedCategory === 'testing_mutation') return c.category === 'testing_mutation';
-      return c.category === selectedCategory;
-    });
+    const relevant = challenges.filter((c) => isChallengeInCategory(c, selectedCategory));
     const completed = relevant.filter((c) => c.status === 'COMPLETED').length;
     const inProgress = relevant.filter((c) => c.status === 'IN_PROGRESS' || c.status === 'FAILED').length;
     const total = relevant.length;
@@ -142,7 +120,7 @@ export const PracticeCatalog: React.FC = () => {
   const groupedSections = useMemo(() => {
     return GRADE_CONFIG.map((grade) => {
       const allForGrade = challenges.filter((c) => {
-        if (selectedCategory !== 'all' && c.category !== selectedCategory) return false;
+        if (!isChallengeInCategory(c, selectedCategory)) return false;
         return c.difficulty === grade.id;
       });
       const items = filteredChallenges.filter((c) => c.difficulty === grade.id);
@@ -150,7 +128,7 @@ export const PracticeCatalog: React.FC = () => {
       const totalCount = allForGrade.length;
       const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
       return { grade, items, completedCount, totalCount, progressPercent };
-    }).filter((sec) => sec.totalCount > 0);
+    }).filter((sec) => sec.items.length > 0);
   }, [challenges, filteredChallenges, selectedCategory]);
 
   const handleStartChallenge = async (challengeId: string) => {

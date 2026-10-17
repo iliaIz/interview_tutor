@@ -90,7 +90,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
               <span className="text-xs font-bold text-pastel-text block group-hover:text-amber-800 transition">
                 Refactoring & Review
               </span>
-              <span className="text-[11px] text-pastel-muted">24 каты L0–L3 • Голос</span>
+              <span className="text-[11px] text-pastel-muted">26 кат L0–L3 • Голос</span>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-pastel-muted group-hover:text-amber-600 transition group-hover:translate-x-0.5" />
@@ -159,7 +159,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
               <span className="text-xs font-bold text-pastel-text block group-hover:text-purple-700 transition">
                 Machine Coding LLD
               </span>
-              <span className="text-[11px] text-pastel-muted">55 задач BigTech</span>
+              <span className="text-[11px] text-pastel-muted">51 задача LLD</span>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-pastel-muted group-hover:text-purple-600 transition group-hover:translate-x-0.5" />

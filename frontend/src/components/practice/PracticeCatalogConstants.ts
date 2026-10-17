@@ -30,23 +30,62 @@ export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.Comp
 
 export const TESTING_ARCHETYPES = [
   { id: 'all', name: 'Все (42 каты)', badge: '🏆 Все уровни', icon: Sparkles, match: [] },
-  { id: 'l0_primitives', name: '🟢 L0: Primitives (6)', badge: '🟢 База', icon: CheckCircle2, match: ['prim-01', 'prim-02', 'prim-03', 'prim-04', 'prim-05', 'prim-06'] },
-  { id: 'l1_reverse', name: '🟡 L1: Reverse Testing (6)', badge: '🟡 Code Defenders', icon: Crosshair, match: ['rev-01', 'rev-02', 'rev-03', 'rev-04', 'rev-05', 'rev-06'] },
-  { id: 'legacy', name: 'Legacy Seams (5)', badge: '✂️ Seams', icon: Shield, match: ['trip-service', 'gilded-rose', 'overloaded-constructor', 'legacy-invoice', 'legacy-tax'] },
-  { id: 'junit5', name: 'JUnit 5 & Boundaries (5)', badge: '🧪 Deep JUnit', icon: Terminal, match: ['financial-tx', 'combinatorial-pricing', 'dynamic-rbac', 'nested-account', 'security-context'] },
-  { id: 'mockito', name: 'Mockito 5 Verification (5)', badge: '🎭 Mockito 5', icon: CheckCircle2, match: ['audit-trail', 'async-event-captor', 'spy-do-return', 'resilient-retry', 'deterministic-time-uuid'] },
-  { id: 'fsm', name: 'State Machines & Retries (5)', badge: '🔄 Automata', icon: FlameIcon, match: ['order-state-machine', 'idempotent-account', 'circuit-breaker-state', 'sliding-window-rate-limiter', 'distributed-saga'] },
-  { id: 'concurrency', name: 'Concurrency & Loom (5)', badge: '⚡ Loom & Races', icon: Zap, match: ['awaitility-polling', 'cyclic-barrier', 'threadmxbean-deadlock', 'virtual-thread-pinning', 'lockfree-ringbuffer'] },
-  { id: 'archunit', name: 'ArchUnit & Slices (5)', badge: '🏛️ ArchUnit', icon: Layers, match: ['archunit-layer-isolation', 'archunit-enterprise-api-governance', 'archunit-transactional-integrity', 'spring-webmvc-problem-detail', 'jackson-financial-pan-masking'] },
+  { id: 'l0_primitives', name: '🟢 L0: Primitives (6)', badge: '🟢 База', icon: CheckCircle2, match: ['prim_01', 'prim_02', 'prim_03', 'prim_04', 'prim_05', 'prim_06'] },
+  { id: 'l1_reverse', name: '🟡 L1: Reverse Testing (6)', badge: '🟡 Code Defenders', icon: Crosshair, match: ['rev_01', 'rev_02', 'rev_03', 'rev_04', 'rev_05', 'rev_06'] },
+  { id: 'legacy', name: 'Legacy Seams (5)', badge: '✂️ Seams', icon: Shield, match: ['trip_service_seam', 'gilded_rose_approval', 'overloaded_constructor', 'legacy_security_context', 'legacy_tax_engine'] },
+  { id: 'junit5', name: 'JUnit 5 & Boundaries (5)', badge: '🧪 Deep JUnit', icon: Terminal, match: ['financial_tx_validator', 'combinatorial_pricing', 'dynamic_rbac', 'banking_account_lifecycle', 'security_context_cleanup'] },
+  { id: 'mockito', name: 'Mockito 5 Verification (5)', badge: '🎭 Mockito 5', icon: CheckCircle2, match: ['strict_in_order_audit', 'async_event_dto_captor', 'spy_partial_mocking', 'resilient_cascading_retry', 'deterministic_time_mockstatic'] },
+  { id: 'fsm', name: 'State Machines & Retries (5)', badge: '🔄 Automata', icon: FlameIcon, match: ['order_state_machine', 'idempotent_account', 'resilience_circuit_breaker', 'sliding_window_rate_limiter', 'distributed_saga'] },
+  { id: 'concurrency', name: 'Concurrency & Loom (5)', badge: '⚡ Loom & Races', icon: Zap, match: ['awaitility_polling', 'race_condition_ledger', 'deadlock_provocation', 'virtual_thread_carrier_pinning', 'lock_free_ringbuffer'] },
+  { id: 'archunit', name: 'ArchUnit & Slices (5)', badge: '🏛️ ArchUnit', icon: Layers, match: ['archunit_layer_isolation', 'archunit_enterprise_api_governance', 'archunit_transactional_integrity', 'spring_webmvc_problem_detail', 'jackson_financial_pan_masking'] }
 ];
 
 export const REFACTORING_ARCHETYPES = [
-  { id: 'all', name: 'Все каты (24)', badge: '🏆 Все уровни (L0–L3)', icon: Sparkles, match: [] },
-  { id: 'l0_junior', name: '🟢 Junior L0 (4)', badge: '🟢 Clean Code', icon: CheckCircle2, match: ['l0-ref-01', 'l0-ref-02', 'l0-ref-03', 'l0-ref-04'] },
-  { id: 'l1_middle', name: '🟡 Middle L1 (4)', badge: '🟡 Seams & DTO', icon: Shield, match: ['l1-ref-01', 'l1-ref-02', 'l1-ref-03', 'l1-ref-04'] },
-  { id: 'l2_senior', name: '🔴 Senior L2 (8)', badge: '🔴 Concurrency & Loom', icon: Zap, match: ['l2-ref-01', 'l2-ref-02', 'l2-ref-03', 'l2-ref-04', 'l2-ref-05', 'l2-ref-06', 'l2-ref-07', 'l2-ref-08'] },
-  { id: 'l3_staff', name: '🟣 Staff L3 (8)', badge: '🟣 BigTech Architecture', icon: Crown, match: ['l3-ref-01', 'l3-ref-02', 'l3-ref-03', 'l3-ref-04', 'l3-ref-05', 'l3-ref-06', 'l3-ref-07', 'l3-ref-08'] }
+  { id: 'all', name: 'Все каты (26)', badge: '🏆 Все уровни (L0–L3)', icon: Sparkles, match: [] },
+  { id: 'l0_junior', name: '🟢 Junior L0 (4)', badge: '🟢 Clean Code', icon: CheckCircle2, match: ['l0-ref'] },
+  { id: 'l1_middle', name: '🟡 Middle L1 (4)', badge: '🟡 Seams & DTO', icon: Shield, match: ['l1-ref'] },
+  { id: 'l2_senior', name: '🔴 Senior L2 (10)', badge: '🔴 Concurrency & Loom', icon: Zap, match: ['l2-ref', 'gilded_rose', 'trip_service'] },
+  { id: 'l3_staff', name: '🟣 Staff L3 (8)', badge: '🟣 BigTech Architecture', icon: Crown, match: ['l3-ref'] }
 ];
+
+export function isChallengeInCategory(c: { category?: string; track?: string }, category: ChallengeCategory): boolean {
+  if (category === 'all') return true;
+  if (category === 'refactoring_kata') return c.category === 'refactoring_kata' || c.track === 'refactoring';
+  if (category === 'spring_transactions') return c.category === 'spring_transactions';
+  if (category === 'testing_mutation') return c.category === 'testing_mutation' || c.track === 'testing_mutation';
+  if (category === 'lld_bigtech') return (c.track === 'lld_bigtech' && c.category === 'machine_coding') || c.category === 'lld_bigtech';
+  if (category === 'lld_fintech') return c.track === 'lld_fintech' || c.category === 'lld_fintech';
+  if (category === 'lld_concurrency') return c.track === 'lld_concurrency' || c.category === 'lld_concurrency' || c.category === 'concurrency_lab';
+  if (category === 'java21_idioms') return c.category === 'java21_idioms';
+  return c.category === category || c.track === category;
+}
+
+export function isChallengeInArchetype(
+  c: { id: string; slug?: string; taskCode?: string; difficulty?: string },
+  category: ChallengeCategory,
+  archetypeId: string
+): boolean {
+  if (archetypeId === 'all') return true;
+
+  if (category === 'refactoring_kata') {
+    const cid = (c.id || '').toLowerCase();
+    const diff = (c.difficulty || '').toLowerCase();
+    if (archetypeId === 'l0_junior') return cid.startsWith('l0-ref') || diff === 'junior';
+    if (archetypeId === 'l1_middle') return cid.startsWith('l1-ref') || diff === 'middle';
+    if (archetypeId === 'l2_senior') return cid.startsWith('l2-ref') || cid === 'kata_gilded_rose' || cid === 'kata_trip_service' || diff === 'senior';
+    if (archetypeId === 'l3_staff') return cid.startsWith('l3-ref') || diff === 'lead' || diff === 'staff';
+    return true;
+  }
+
+  if (category === 'testing_mutation') {
+    const arch = TESTING_ARCHETYPES.find((a) => a.id === archetypeId);
+    if (!arch || arch.match.length === 0) return true;
+    const target = `${c.id} ${c.slug || ''} ${c.taskCode || ''}`.toLowerCase().replace(/-/g, '_');
+    return arch.match.some((m) => target.includes(m.toLowerCase().replace(/-/g, '_')));
+  }
+
+  return true;
+}
 
 export const GRADE_CONFIG = [
   {

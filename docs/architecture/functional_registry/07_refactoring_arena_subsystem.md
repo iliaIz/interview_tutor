@@ -71,9 +71,26 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 - **3. Rationale & "Why":** The database stores raw JSON string in column `manifest_json`, but upon SELECT and JSON.parse, the typed object is `CodingChallenge` (which contains `structuralConstraints` at root level for refactoring challenges).
 - **4. Failure Modes & Invariants:** If structural constraints fail, violations are injected into `sandboxResult.securityViolations`, failing Gate 2 and providing precise file/line/snippet feedback in SSE.
 
+### 2.6. `PracticeCatalog` Subsection & Archetype Filter Matching
+- **Files:** `frontend/src/components/practice/PracticeCatalog.tsx`, `frontend/src/components/practice/PracticeCatalogConstants.ts`, `frontend/src/components/practice/PracticeCatalogHeader.tsx`
+- **1. What Was Done:** 
+  - Fixed API response deserialization in `PracticeCatalog.tsx`: `/api/practice/challenges` returns a raw JSON array `CodingChallenge[]`, not an object with `{ challenges: [...] }`. Wrapped response parsing with `Array.isArray(data) ? data : (data.challenges || [])` and added `{ credentials: 'include' }`.
+  - Fixed `TESTING_ARCHETYPES` match arrays to use exact SQLite challenge slug patterns (e.g. `prim_01`..`prim_06`, `rev_01`..`rev_06`, `strict_in_order_audit`, `async_event_dto_captor`, `spy_partial_mocking`, `resilient_cascading_retry`, `deterministic_time_mockstatic`, `resilience_circuit_breaker`, `race_condition_ledger`, `deadlock_provocation`, `virtual_thread_carrier_pinning`, `lock_free_ringbuffer`, `trip_service_seam`, `gilded_rose_approval`, `legacy_security_context`, etc.).
+  - Fixed `REFACTORING_ARCHETYPES` prefix matching for `l0-ref`, `l1-ref`, `l2-ref`, `l3-ref` plus legacy katas `gilded_rose` and `trip_service`.
+  - Added centralized helpers `isChallengeInCategory` and `isChallengeInArchetype` in `PracticeCatalogConstants.ts` handling track/category mapping (`category === 'machine_coding'` with `track === 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency'`).
+  - Filtered `groupedSections` by `sec.items.length > 0` so empty section accordion headers are not rendered when filtered by archetype/difficulty.
+  - Updated card counts in `PracticeCatalogHeader.tsx` to match catalog realities (26 katas in Refactoring Arena, 51 in Machine Coding LLD).
+- **2. Hypotheses & Intermediate Conclusions:** 
+  - When `data.challenges` was undefined, `loaded` fell back to `[]`, meaning no challenges were ever stored in state when fetched via client.
+  - When `TESTING_ARCHETYPES` had kebab-case slugs that didn't match the snake_case SQLite database slugs (e.g. `audit-trail` vs `strict_in_order_audit`), every subsection under Testing & Mutation evaluated to 0 matches, displaying "Задачи не найдены".
+- **3. Rationale & "Why":** Eliminate friction in challenge discovery and ensure 100% accurate alignment between database records, category taxonomy, archetype filters, and the UI.
+- **4. Failure Modes & Invariants:** Case/punctuation normalization (`.replace(/-/g, '_')`) protects against future kebab-case vs snake-case variations in task codes and IDs.
+
 ---
 
 ## 3. Subsystem Health & Verification Summary
-- **Database Catalog:** 24 canonical challenges ingested into SQLite `data/interview.db` (4 Junior, 4 Middle, 8 Senior, 8 Lead).
+- **Database Catalog:** 24 canonical challenges ingested into SQLite `data/interview.db` (4 Junior, 4 Middle, 8 Senior, 8 Lead) + 2 legacy katas (`gilded_rose`, `trip_service`) = 26 katas total.
+- **Testing & Mutation Catalog:** 42 katas across 8 archetypes (Primitives, Reverse, Legacy, JUnit5, Mockito, FSM, Concurrency, ArchUnit).
+- **Machine Coding LLD:** 51 challenges across BigTech, FinTech, and Concurrency tracks.
 - **JSON Manifest SSOT:** `json/refactoring_challenges.json` verified with complete multi-file workspaces and Bar-Raiser questions.
 - **Automated Verification:** `scripts/verify_refactoring_suite.py` passes 100% green.
