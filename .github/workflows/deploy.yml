@@ -8,6 +8,7 @@ on:
       - feat/wave-14-clean-native-voice
       - feat/wave-14-practice-clean-native-voice
       - feat/wave-14-intellij-bridge-live-code-sync
+      - feat/wave-16-refactoring-arena-voice-review
   workflow_dispatch:
 
 permissions:
