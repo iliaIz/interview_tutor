@@ -22,6 +22,7 @@ export interface SandboxExecutionRequest {
   files: Array<{ path: string; content: string }>;
   activePhase?: number;
   timeoutMs?: number;
+  isRefactoring?: boolean;
 }
 
 export interface TestCaseResult {
@@ -69,7 +70,7 @@ export class JvmExecutionService {
     const startTime = Date.now();
 
     // 1. Level 1 Defense: AST Security Pre-Scan
-    const scanResult = AstSecurityScanner.scan(request.files);
+    const scanResult = AstSecurityScanner.scan(request.files, { isRefactoring: request.isRefactoring });
     if (!scanResult.isSafe) {
       const primaryViolation = scanResult.violations[0];
       return {

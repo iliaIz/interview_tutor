@@ -128,11 +128,15 @@ export async function evaluateChallengeSubmission(req: EvaluationRequest): Promi
   <failed_tests_count>${sandboxResult.failedCount}</failed_tests_count>
   <deadlock_detected>${sandboxResult.concurrencyHarness?.deadlockDetected ?? false}</deadlock_detected>
   <race_condition_detected>${sandboxResult.concurrencyHarness?.raceConditionDetected ?? false}</race_condition_detected>
+  ${sandboxResult.securityViolations && sandboxResult.securityViolations.length > 0 ? `
+  <ast_structural_violations>
+${sandboxResult.securityViolations.map(v => `    <violation rule="${v.rule}" file="${v.file}" line="${v.lineNumber}" message="${v.message}" />`).join('\n')}
+  </ast_structural_violations>` : ''}
   <test_runs>
 ${sandboxResult.testResults.map(t => `    <test name="${t.testName}" status="${t.status}" durationMs="${t.durationMs}" ${t.failureReason ? `failure="${t.failureReason}"` : ''} />`).join('\n')}
   </test_runs>
 </real_sandbox_execution_proof>
-NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, and Concurrency.` : '';
+NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, Concurrency, and whether AST structural violations were resolved.` : '';
 
   // System instruction for Gemini Evaluator
   const systemInstruction = `${LANGUAGE_LOCK_INVARIANT}

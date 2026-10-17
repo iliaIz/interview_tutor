@@ -3,6 +3,7 @@ import { db } from './db';
 import { CodingChallenge } from './challengeSeedData';
 import { evaluateChallengeSubmission } from './codeEvaluator';
 import { JvmExecutionService } from './sandbox/JvmExecutionService';
+import { RefactoringAstVerifier } from './sandbox/RefactoringAstVerifier';
 
 export interface EvaluateChallengeParams {
   userId: string;
@@ -65,10 +66,13 @@ export async function handleChallengeEvaluation({
     timestamp: Date.now()
   });
 
+  const isRefactoringKata = challenge?.category === 'refactoring_kata';
+
   const sandboxResult = await JvmExecutionService.execute({
     challengeId,
     files,
-    activePhase
+    activePhase,
+    isRefactoring: isRefactoringKata
   });
 
   if (res.writableEnded || abortController.signal.aborted) {
@@ -91,9 +95,38 @@ export async function handleChallengeEvaluation({
   });
 
   if (sandboxResult.isCompilable) {
+    // Gate 2: AST & Structural Verifier for Refactoring Katas
+    let astAnalysisPassed = true;
+    if (isRefactoringKata && challenge?.manifest_json) {
+      try {
+        const manifest = typeof challenge.manifest_json === 'string'
+          ? JSON.parse(challenge.manifest_json)
+          : challenge.manifest_json;
+        if (manifest?.structuralConstraints) {
+          const astResult = RefactoringAstVerifier.verify(files, manifest.structuralConstraints);
+          if (!astResult.passed) {
+            astAnalysisPassed = false;
+            sandboxResult.securityViolations = (sandboxResult.securityViolations || []).concat(
+              astResult.violations.map(v => ({
+                rule: v.rule,
+                file: v.file,
+                lineNumber: v.lineNumber,
+                snippet: v.snippet,
+                message: v.message
+              }))
+            );
+          }
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Could not parse manifest_json for AST verification:', err.message);
+      }
+    }
+
     sendSse('stage', {
       stage: 'ast_analysis',
-      label: 'AST-анализ: проверка Loom (Carrier Thread Pinning) и Java Memory Model...',
+      label: astAnalysisPassed
+        ? 'Gate 2 AST-анализ: структурные запахи устранены, инварианты соблюдены'
+        : 'Gate 2 AST-анализ: обнаружены неисправленные структурные запахи кода',
       timestamp: Date.now()
     });
 

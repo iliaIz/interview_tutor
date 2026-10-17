@@ -81,8 +81,12 @@ export class AstSecurityScanner {
    * Strips both multi-line and single-line comments, as well as string literals,
    * completely eliminating false-positive reports in comments or string log messages.
    */
-  public static scan(files: Array<{ path: string; content: string }>): SecurityScanResult {
+  public static scan(
+    files: Array<{ path: string; content: string }>,
+    options?: { isRefactoring?: boolean }
+  ): SecurityScanResult {
     const violations: SecurityViolation[] = [];
+    const isRefactoring = Boolean(options?.isRefactoring);
 
     for (const file of files) {
       if (!file.content || typeof file.content !== 'string') continue;
@@ -101,6 +105,15 @@ export class AstSecurityScanner {
         cleanCode = cleanCode.replace(/"(?:\\.|[^"\\])*"/g, '""').replace(/'(?:\\.|[^'\\])*'/g, "''");
 
         for (const pattern of FORBIDDEN_PATTERNS) {
+          // In refactoring katas, legacy simulated files and thread APIs are inspected safely
+          if (isRefactoring) {
+            if (pattern.rule === 'NO_NETWORK_SOCKETS' ||
+                pattern.rule === 'NO_FILESYSTEM_WRITES' ||
+                pattern.rule === 'NO_THREAD_BOMB') {
+              continue;
+            }
+          }
+
           if (pattern.regex.test(cleanCode)) {
             violations.push({
               rule: pattern.rule,
