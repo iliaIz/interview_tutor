@@ -139,6 +139,10 @@ export interface CodingChallenge {
   mutants?: MutantDefinition[];
   astRules?: string[];
   hints?: string[];
+  smellsChecklist?: CodeSmellItem[];
+  barRaiserQuestions?: BarRaiserQuestion[];
+  structuralConstraints?: AstBytecodeConstraint;
+  referenceSolutionFiles?: FileNode[];
   scoringWeights?: {
     functionalCorrectness: number;
     concurrencySafety: number;
@@ -254,3 +258,34 @@ export interface ReviewProgressEvent {
   timestamp: number;
   details?: ReviewProgressDetails;
 }
+
+export interface CodeSmellItem {
+  id: string;
+  name: string;
+  category: 'CLEAN_CODE' | 'CONCURRENCY_JMM' | 'TRANSACTION_BOUNDARY' | 'ARCHITECTURAL_COUPLING' | 'RESOURCE_MANAGEMENT' | 'TYPE_SAFETY';
+  description: string;
+  targetLinesSnippet?: string;
+  voiceKeywords: string[];
+  severity: 'CRITICAL' | 'MAJOR' | 'MINOR';
+  isDiscovered?: boolean;
+  discoveredAt?: number;
+  candidateQuote?: string;
+}
+
+export interface BarRaiserQuestion {
+  id: string;
+  questionText: string;
+  voicePrompt: string;
+  idealResponseSummary: string;
+  followUpDeepDives: string[];
+  candidateAnswerScore?: number;
+  feedback?: string;
+}
+
+export interface AstBytecodeConstraint {
+  disallowedAstNodes?: string[];
+  disallowedClassImports?: string[];
+  disallowedFieldTypes?: string[];
+  requiredInjections?: string[];
+}
+
