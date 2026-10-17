@@ -108,6 +108,16 @@
       },
       {
         "id": "l0-ref-01-bar-raiser-2",
+        "questionText": "Если поменять порядок парсинга, то при одновременной передаче некорректной зоны и нулевого веса изменится сообщение выбрасываемого исключения, что нарушит наблюдаемый контракт для внешних клиентов.",
+        "voicePrompt": "Если поменять порядок парсинга, то при одновременной передаче некорректной зоны и нулевого веса изменится сообщение выбрасываемого исключения, что нар",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l0-ref-01-bar-raiser-3",
         "questionText": "Второй вопрос проверяет понимание исчерпываемости `switch` в Java 21: почему в методе `MembershipTier.discountMultiplier` не требуется ветка `default`, и какую гарантию это дает при добавлении нового уровня `DIAMOND`? Поскольку `switch` используется как выражение над перечислением `enum`, компилятор",
         "voicePrompt": "Второй вопрос проверяет понимание исчерпываемости `switch` в Java 21: почему в методе `MembershipTier.discountMultiplier` не требуется ветка `default`",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -117,7 +127,7 @@
         ]
       },
       {
-        "id": "l0-ref-01-bar-raiser-3",
+        "id": "l0-ref-01-bar-raiser-4",
         "questionText": "Третий вопрос исследует нюансы IEEE 754 и `BigDecimal`: в чем разница между `new BigDecimal(0.1)` и `BigDecimal.valueOf(0.1)`, и почему `Math.round(cost * 100.0) / 100.0` опасен в финансовых сервисах? Конструктор `new BigDecimal(double)` фиксирует неточное двоичное представление числа с плавающей то",
         "voicePrompt": "Третий вопрос исследует нюансы IEEE 754 и `BigDecimal`: в чем разница между `new BigDecimal(0.1)` и `BigDecimal.valueOf(0.1)`, и почему `Math.round(co",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -135,6 +145,13 @@
         "float"
       ],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -245,6 +262,16 @@
       },
       {
         "id": "l1-ref-02-bar-raiser-2",
+        "questionText": "Поскольку булев предикат `when` не покрывает все множество значений типа `int`, компилятор требует вторую безусловную ветку `case CustomerProfile.Vip _` (с безымянным паттерном `_`) для доказательства исчерпываемости типа `Vip`.",
+        "voicePrompt": "Поскольку булев предикат `when` не покрывает все множество значений типа `int`, компилятор требует вторую безусловную ветку `case CustomerProfile.Vip ",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l1-ref-02-bar-raiser-3",
         "questionText": "Второй вопрос затрагивает интеграцию со Spring Boot 3.4 DI: если бы реализации `PricingStepStrategy` инжектировались из контекста Spring как `List<PricingStepStrategy>`, как гарантировать строгий порядок выполнения шагов (сначала категория, затем клиентский уровень, затем промокод, затем глобальный ",
         "voicePrompt": "Второй вопрос затрагивает интеграцию со Spring Boot 3.4 DI: если бы реализации `PricingStepStrategy` инжектировались из контекста Spring как `List<Pri",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -254,7 +281,7 @@
         ]
       },
       {
-        "id": "l1-ref-02-bar-raiser-3",
+        "id": "l1-ref-02-bar-raiser-4",
         "questionText": "Третий вопрос исследует архитектурную границу между паттерном Visitor/Strategy и запечатанными интерфейсами: в каких случаях классический паттерн Strategy с открытым интерфейсом предпочтительнее запечатанного интерфейса `sealed interface PromoOffer`? Запечатанная иерархия (`sealed interface`) оптима",
         "voicePrompt": "Третий вопрос исследует архитектурную границу между паттерном Visitor/Strategy и запечатанными интерфейсами: в каких случаях классический паттерн Stra",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -272,6 +299,13 @@
         "float"
       ],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -367,6 +401,16 @@
       },
       {
         "id": "l0-ref-03-bar-raiser-3",
+        "questionText": "Без защитного копирования переданный извне `ArrayList` можно мутировать после создания `OnboardingCommand`, что также разрушит инвариант `hashCode()` при использовании записи в качестве ключа `HashMap`.",
+        "voicePrompt": "Без защитного копирования переданный извне `ArrayList` можно мутировать после создания `OnboardingCommand`, что также разрушит инвариант `hashCode()` ",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l0-ref-03-bar-raiser-4",
         "questionText": "Третий вопрос касается границ применимости `record` в слое персистентности: почему записи Java 21 нельзя напрямую аннотировать как `@Entity` в JPA / Hibernate? Спецификация Jakarta Persistence требует от сущностей наличия конструктора без аргументов, нефинальных полей и возможности создания runtime-",
         "voicePrompt": "Третий вопрос касается границ применимости `record` в слое персистентности: почему записи Java 21 нельзя напрямую аннотировать как `@Entity` в JPA / H",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -381,6 +425,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -466,8 +517,8 @@
       },
       {
         "id": "l1-ref-04-bar-raiser-2",
-        "questionText": "Второй вопрос исследует поведение `Map.copyOf` при наличии `null`-значений: в оригинальном коде присутствовала проверка `if (rate == null |",
-        "voicePrompt": "Второй вопрос исследует поведение `Map.copyOf` при наличии `null`-значений: в оригинальном коде присутствовала проверка `if (rate == null |",
+        "questionText": "Благодаря тому, что компактный конструктор `Money` принудительно нормализует масштаб всех входных значений через `amount = amount.setScale(2, RoundingMode.HALF_UP)`, любые два экземпляра `Money` с одинаковой валютой имеют идентичный `scale = 2`, что делает автоматически сгенерированные `equals()` и ",
+        "voicePrompt": "Благодаря тому, что компактный конструктор `Money` принудительно нормализует масштаб всех входных значений через `amount = amount.setScale(2, Rounding",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -476,8 +527,18 @@
       },
       {
         "id": "l1-ref-04-bar-raiser-3",
-        "questionText": "| rate.compareTo(BigDecimal.ZERO) <= 0)`. Что произойдет, если вызывающий код передаст` HashMap`, содержащую ключ с` null`-значением, в конструктор` ExchangeRateTable`, использующий` Map.copyOf(rates)`[cite: 25]? Метод`Map.copyOf()`немедленно выбрасывает`NullPointerException`при обнаружении любого`n",
-        "voicePrompt": "| rate.compareTo(BigDecimal.ZERO) <= 0)`. Что произойдет, если вызывающий код передаст` HashMap`, содержащую ключ с` null`-значением, в конструктор` E",
+        "questionText": "Второй вопрос исследует поведение `Map.copyOf` при наличии `null`-значений: в оригинальном коде присутствовала проверка `if (rate == null |.",
+        "voicePrompt": "Второй вопрос исследует поведение `Map.copyOf` при наличии `null`-значений: в оригинальном коде присутствовала проверка `if (rate == null |.",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l1-ref-04-bar-raiser-4",
+        "questionText": "| rate.compareTo(BigDecimal.ZERO) <= 0).",
+        "voicePrompt": "| rate.compareTo(BigDecimal.ZERO) <= 0).",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -495,6 +556,13 @@
       "requiredInjections": [
         "java.time.Clock"
       ]
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -576,6 +644,16 @@
       },
       {
         "id": "l0-ref-05-bar-raiser-2",
+        "questionText": "Поэтому в циклах обязательно применение `StringBuilder`, `Collectors.joining()` или специализированного `HexFormat`.",
+        "voicePrompt": "Поэтому в циклах обязательно применение `StringBuilder`, `Collectors.joining()` или специализированного `HexFormat`.",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l0-ref-05-bar-raiser-3",
         "questionText": "Второй вопрос оценивает понимание потокобезопасности стандартных классов: если зарегистрировать `UserAccountLifecycleManager` как синглтон-бин в Spring, какие проблемы конкурентного доступа возникнут в `InMemoryAccountRepository` и можно ли сделать экземпляр `MessageDigest` общим `static final` поле",
         "voicePrompt": "Второй вопрос оценивает понимание потокобезопасности стандартных классов: если зарегистрировать `UserAccountLifecycleManager` как синглтон-бин в Sprin",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -585,9 +663,9 @@
         ]
       },
       {
-        "id": "l0-ref-05-bar-raiser-3",
-        "questionText": "Третий вопрос касается криптографической стойкости: почему даже после выделения интерфейса `PasswordHasher` реализация `Sha256SaltedPasswordHasher` со статической солью уязвима в продакшене? Быстрый алгоритм `SHA-256` в сочетании с единой статической солью позволяет злоумышленнику при утечке БД пере",
-        "voicePrompt": "Третий вопрос касается криптографической стойкости: почему даже после выделения интерфейса `PasswordHasher` реализация `Sha256SaltedPasswordHasher` со",
+        "id": "l0-ref-05-bar-raiser-4",
+        "questionText": "Класс `MessageDigest` также хранит мутабельное внутреннее состояние расчета дайджеста и **не потокобезопасен**, поэтому его нельзя разделять между потоками без `ThreadLocal` или инстанциирования на каждый вызов.",
+        "voicePrompt": "Класс `MessageDigest` также хранит мутабельное внутреннее состояние расчета дайджеста и **не потокобезопасен**, поэтому его нельзя разделять между пот",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -600,6 +678,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -686,6 +771,16 @@
       },
       {
         "id": "l1-ref-06-bar-raiser-2",
+        "questionText": "При этом `@MockitoSpyBean` требует, чтобы целевой бин уже существовал в тестовом `ApplicationContext` (поэтому в `@WebMvcTest` его нужно явно импортировать через `@Import(MyBeanClass.class)`), тогда как старый `@SpyBean` автоматически создавал бин при его отсутствии.",
+        "voicePrompt": "При этом `@MockitoSpyBean` требует, чтобы целевой бин уже существовал в тестовом `ApplicationContext` (поэтому в `@WebMvcTest` его нужно явно импортир",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l1-ref-06-bar-raiser-3",
         "questionText": "Второй вопрос проверяет понимание границ транзакций БД и сетевого взаимодействия (`@Transactional` Trap): почему недопустимо вешать аннотацию `@Transactional` на весь метод `executeFulfillment`, если `paymentPort.charge(...)` и `shippingPort.dispatch(...)` выполняют синхронные HTTP-вызовы во внешние",
         "voicePrompt": "Второй вопрос проверяет понимание границ транзакций БД и сетевого взаимодействия (`@Transactional` Trap): почему недопустимо вешать аннотацию `@Transa",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -695,7 +790,7 @@
         ]
       },
       {
-        "id": "l1-ref-06-bar-raiser-3",
+        "id": "l1-ref-06-bar-raiser-4",
         "questionText": "Третий вопрос исследует паттерн функциональной обработки ошибок через запечатанные типы (`Sealed Result` vs `Exceptions`): в чем преимущество возврата `sealed interface FulfillmentOutcome` перед выбрасыванием проверенных или непроверенных исключений для бизнес-отказов вроде `OUT_OF_STOCK`? Отказ из-",
         "voicePrompt": "Третий вопрос исследует паттерн функциональной обработки ошибок через запечатанные типы (`Sealed Result` vs `Exceptions`): в чем преимущество возврата",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -710,6 +805,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -805,6 +907,16 @@
       },
       {
         "id": "l0-ref-07-bar-raiser-2",
+        "questionText": "Если же `final`-класс находится в закрытой сторонней библиотеке, вокруг него создается тонкая адаптерная обертка (Wrapper / Facade) и внедряется через перегруженный конструктор (Overloaded Constructor Seam).",
+        "voicePrompt": "Если же `final`-класс находится в закрытой сторонней библиотеке, вокруг него создается тонкая адаптерная обертка (Wrapper / Facade) и внедряется через",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l0-ref-07-bar-raiser-3",
         "questionText": "Второй вопрос исследует разницу жизненного цикла зависимостей: почему в рефакторинге `TripRepository` передается через конструктор `TripServiceKata(TripRepository)`, а `loggedUser` вынесен в аргумент метода `getTripsByUser(User user, User loggedUser)`? `TripRepository` является инфраструктурным комп",
         "voicePrompt": "Второй вопрос исследует разницу жизненного цикла зависимостей: почему в рефакторинге `TripRepository` передается через конструктор `TripServiceKata(Tr",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -814,9 +926,9 @@
         ]
       },
       {
-        "id": "l0-ref-07-bar-raiser-3",
-        "questionText": "Третий вопрос проверяет инженерную зрелость при работе с инструментами мокирования: в Mockito 5 существует `Mockito.mockStatic(TripDAO.class)`. Почему на интервью по рефакторингу использование `mockStatic` вместо выделения `TripRepository` расценивается как анти-паттерн? Применение `mockStatic` лишь",
-        "voicePrompt": "Третий вопрос проверяет инженерную зрелость при работе с инструментами мокирования: в Mockito 5 существует `Mockito.mockStatic(TripDAO.class)`. Почему",
+        "id": "l0-ref-07-bar-raiser-4",
+        "questionText": "Передача текущего пользователя явно в аргументе метода освобождает бизнес-логику от скрытой связности с `ThreadLocal` или статическим `UserSession`.",
+        "voicePrompt": "Передача текущего пользователя явно в аргументе метода освобождает бизнес-логику от скрытой связности с `ThreadLocal` или статическим `UserSession`.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -829,6 +941,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -872,16 +991,55 @@
     "smellsChecklist": [
       {
         "id": "l1-ref-08-smell-1",
-        "name": "dayOfWeek == 7`) зависят от момента запуска теста, что делает невозможным стабил",
+        "name": "Первая проблема — недетерминированная зависимость от физических системных часов",
         "category": "CLEAN_CODE",
-        "description": "| dayOfWeek == 7`) зависят от момента запуска теста, что делает невозможным стабильное воспроизведение граничных и субботних сценариев без инъекции` java.time.Clock`. Вторая проблема — жесткое инстанц",
+        "description": "Первая проблема — недетерминированная зависимость от физических системных часов (`System.currentTimeMillis()`): расчет скользящего 24-часового окна, форматирование метки `GENERATED_AT` и определение ф",
         "voiceKeywords": [
-          "dayofweek",
-          "зависят",
-          "момента",
-          "запуска"
+          "первая",
+          "проблема",
+          "недетерминированная",
+          "зависимость"
         ],
         "severity": "CRITICAL"
+      },
+      {
+        "id": "l1-ref-08-smell-2",
+        "name": "Вторая проблема — жесткое инстанциирование внешнего сетевого клиента (`new Compl",
+        "category": "CLEAN_CODE",
+        "description": "Вторая проблема — жесткое инстанциирование внешнего сетевого клиента (`new ComplianceBlacklistClient()`) непосредственно внутри метода, что блокирует выполнение модульных тестов и требует введения шва",
+        "voiceKeywords": [
+          "вторая",
+          "проблема",
+          "жесткое",
+          "инстанциирование"
+        ],
+        "severity": "MAJOR"
+      },
+      {
+        "id": "l1-ref-08-smell-3",
+        "name": "Третий дефект связан с устаревшим управлением ресурсами ввода-вывода (`BufferedW",
+        "category": "CLEAN_CODE",
+        "description": "Третий дефект связан с устаревшим управлением ресурсами ввода-вывода (`BufferedWriter` / `FileWriter` в ручном `try-finally` без `try-with-resources`): конструктор `new FileWriter(outputFile)` без ука",
+        "voiceKeywords": [
+          "третий",
+          "дефект",
+          "связан",
+          "устаревшим"
+        ],
+        "severity": "MAJOR"
+      },
+      {
+        "id": "l1-ref-08-smell-4",
+        "name": "Четвертый запах — смешение бизнес-правил AML-классификации транзакций, сериализа",
+        "category": "CLEAN_CODE",
+        "description": "Четвертый запах — смешение бизнес-правил AML-классификации транзакций, сериализации текстового отчета и дискового ввода-вывода в одном методе.",
+        "voiceKeywords": [
+          "четвертый",
+          "запах",
+          "смешение",
+          "бизнес-правил"
+        ],
+        "severity": "MAJOR"
       }
     ],
     "socraticProbes": [
@@ -903,6 +1061,16 @@
       },
       {
         "id": "l1-ref-08-bar-raiser-2",
+        "questionText": "В конструкции `try-with-resources` первичное исключение из тела `try` сохраняется как главное, а сбой метода `close()` автоматически прикрепляется к нему через `primaryException.addSuppressed(closeException)` и выводится в полном стектрейсе.",
+        "voicePrompt": "В конструкции `try-with-resources` первичное исключение из тела `try` сохраняется как главное, а сбой метода `close()` автоматически прикрепляется к н",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l1-ref-08-bar-raiser-3",
         "questionText": "Второй вопрос оценивает знание специализированных коллекций для перечислений: почему для константы `WEEKEND_DAYS` мы выбрали `EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)` вместо стандартного `Set.of(...)` или `HashSet`? Реализация `EnumSet` (`RegularEnumSet` для перечислений до 64 элементов) хр",
         "voicePrompt": "Второй вопрос оценивает знание специализированных коллекций для перечислений: почему для константы `WEEKEND_DAYS` мы выбрали `EnumSet.of(DayOfWeek.SAT",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -912,7 +1080,7 @@
         ]
       },
       {
-        "id": "l1-ref-08-bar-raiser-3",
+        "id": "l1-ref-08-bar-raiser-4",
         "questionText": "Третий вопрос касается работы с часовыми поясами и переходом на летнее время (DST) при использовании `java.time.Clock`: если бы бизнес-требование изменилось с «последних 24 астрономических часов» (`Duration.ofHours(24)`) на «предыдущие календарные сутки в часовом поясе `Europe/Berlin`», почему вычит",
         "voicePrompt": "Третий вопрос касается работы с часовыми поясами и переходом на летнее время (DST) при использовании `java.time.Clock`: если бы бизнес-требование изме",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -929,6 +1097,13 @@
       "requiredInjections": [
         "java.time.Clock"
       ]
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1029,8 +1204,8 @@
       },
       {
         "id": "l2-ref-01-bar-raiser-2",
-        "questionText": "Второй вопрос проверяет навыки производственной диагностики: почему стандартная утилита `jstack` оказалась неинформативной при расследовании дедлока виртуальных потоков в Netflix, и какие инструменты JDK 21 позволяют точно локализовать пиннинг? Стандартный `jstack` выводит стеки только платформенных",
-        "voicePrompt": "Второй вопрос проверяет навыки производственной диагностики: почему стандартная утилита `jstack` оказалась неинформативной при расследовании дедлока в",
+        "questionText": "В Java 21 метод `LockSupport.park()` проверяет, является ли текущий поток виртуальным, и делегирует парковку в `VirtualThread.park()`, который вызывает `Continuation.yield(VTHREAD_SCOPE)` и копирует стек в кучу.",
+        "voicePrompt": "В Java 21 метод `LockSupport.park()` проверяет, является ли текущий поток виртуальным, и делегирует парковку в `VirtualThread.park()`, который вызывае",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1039,8 +1214,18 @@
       },
       {
         "id": "l2-ref-01-bar-raiser-3",
-        "questionText": "Третий вопрос затрагивает семантику JMM в паттерне Double-Checked Locking: достаточно ли сделать поля внутри `record OAuthToken` финальными, чтобы убрать модификатор `volatile` у поля `currentToken` в методе `ensureValidToken()`? Ответ отрицательный: хотя финальные поля `record` гарантируют безопасн",
-        "voicePrompt": "Третий вопрос затрагивает семантику JMM в паттерне Double-Checked Locking: достаточно ли сделать поля внутри `record OAuthToken` финальными, чтобы убр",
+        "questionText": "Напротив, вход в `synchronized` (`monitorenter`) в JDK 21–23 фиксирует владение монитором на уровне C++ в структуре `ObjectMonitor` за платформенным потоком ОС (`OSThread`) и помечает стек продолжения флагом удержания монитора.",
+        "voicePrompt": "Напротив, вход в `synchronized` (`monitorenter`) в JDK 21–23 фиксирует владение монитором на уровне C++ в структуре `ObjectMonitor` за платформенным п",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-01-bar-raiser-4",
+        "questionText": "В JDK 24 (JEP 491) виртуальная машина переработана так, чтобы `ObjectMonitor` отслеживал идентификатор виртуального потока и позволял размонтирование как при конкуренции на входе в `synchronized`, так и при блокирующем вызове внутри него, за исключением нативных фреймов JNI/FFM и инициализации класс",
+        "voicePrompt": "В JDK 24 (JEP 491) виртуальная машина переработана так, чтобы `ObjectMonitor` отслеживал идентификатор виртуального потока и позволял размонтирование ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1055,6 +1240,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1140,6 +1332,16 @@
       },
       {
         "id": "l2-ref-02-bar-raiser-2",
+        "questionText": "Если `dbLoader` выполняет блокирующий сетевой или JDBC-вызов внутри `computeIfAbsent`, виртуальный поток оказывается привязан (pinned) к потоку-носителю в Java 21–23, а все остальные потоки, попавшие в ту же хеш-корзину по хеш-коду, блокируются на входе в `synchronized`.",
+        "voicePrompt": "Если `dbLoader` выполняет блокирующий сетевой или JDBC-вызов внутри `computeIfAbsent`, виртуальный поток оказывается привязан (pinned) к потоку-носите",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-02-bar-raiser-3",
         "questionText": "Второй вопрос углубляется во внутреннее устройство `StampedLock` и барьеры памяти JMM: какие именно барьеры памяти используются внутри `tryOptimisticRead()` и `validate(stamp)`, и почему `StampedLock` не является реентерабельным? Метод `tryOptimisticRead()` выполняет `volatile`-чтение (барьер LoadLo",
         "voicePrompt": "Второй вопрос углубляется во внутреннее устройство `StampedLock` и барьеры памяти JMM: какие именно барьеры памяти используются внутри `tryOptimisticR",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1149,9 +1351,9 @@
         ]
       },
       {
-        "id": "l2-ref-02-bar-raiser-3",
-        "questionText": "Третий вопрос проверяет граничные условия времени в неблокирующем CAS-цикле: может ли в цикле `tryAcquire` возникнуть ситуация, когда `System.nanoTime()` вернет меньшее значение, чем `current.lastRefillNanos()`, при высокой конкуренции потоков? Такая ситуация возможна, если Поток B прочитал `System.",
-        "voicePrompt": "Третий вопрос проверяет граничные условия времени в неблокирующем CAS-цикле: может ли в цикле `tryAcquire` возникнуть ситуация, когда `System.nanoTime",
+        "id": "l2-ref-02-bar-raiser-4",
+        "questionText": "Чтение защищаемых полей располагается между `tryOptimisticRead()` и `validate(stamp)`, который вставляет барьер `VarHandle.loadLoadFence()` перед повторным чтением `state`, гарантируя, что чтения полей не будут переупорядочены компилятором или процессором после проверки штампа.",
+        "voicePrompt": "Чтение защищаемых полей располагается между `tryOptimisticRead()` и `validate(stamp)`, который вставляет барьер `VarHandle.loadLoadFence()` перед повт",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1164,6 +1366,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1264,8 +1473,8 @@
       },
       {
         "id": "l2-ref-03-bar-raiser-2",
-        "questionText": "Второй вопрос посвящен семантике `VarHandle` (Plain, Opaque, Acquire/Release, Volatile): чем режимы доступа `getAcquire` / `setRelease` в `VarHandle` отличаются от `getVolatile` / `setVolatile` на архитектурах x86_64 и ARM64 (AArch64)? Режим `Volatile` гарантирует полную последовательную консистентн",
-        "voicePrompt": "Второй вопрос посвящен семантике `VarHandle` (Plain, Opaque, Acquire/Release, Volatile): чем режимы доступа `getAcquire` / `setRelease` в `VarHandle` ",
+        "questionText": "Класс `LongAdder` наследует `Striped64`: при отсутствии конкуренции он обновляет базовое поле `base`, но при первом же провале CAS выделяет массив `Cell[]` (размером степени двойки до числа ядер CPU), где каждый объект `Cell` изолирован для предотвращения ложного разделения кэш-линий (false sharing)",
+        "voicePrompt": "Класс `LongAdder` наследует `Striped64`: при отсутствии конкуренции он обновляет базовое поле `base`, но при первом же провале CAS выделяет массив `Ce",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1274,8 +1483,18 @@
       },
       {
         "id": "l2-ref-03-bar-raiser-3",
-        "questionText": "Третий вопрос касается идемпотентности и чистоты функций внутри `ConcurrentHashMap.compute()`: почему в отрефакторенном методе `reserveStock` вызов `totalUnitsAllocated.add(quantity)` вынесен за пределы лямбда-выражения `inventoryMap.compute()`, несмотря на то что текущая реализация `ConcurrentHashM",
-        "voicePrompt": "Третий вопрос касается идемпотентности и чистоты функций внутри `ConcurrentHashMap.compute()`: почему в отрефакторенном методе `reserveStock` вызов `t",
+        "questionText": "Метод `sum()` последовательно суммирует `base` и все элементы `cells[]` без захвата глобальной блокировки, поэтому конкурентные записи во время обхода массива могут быть частично учтены или пропущены (eventual consistency); следовательно, `LongAdder` оптимален для метрик и телеметрии, но неприменим ",
+        "voicePrompt": "Метод `sum()` последовательно суммирует `base` и все элементы `cells[]` без захвата глобальной блокировки, поэтому конкурентные записи во время обхода",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-03-bar-raiser-4",
+        "questionText": "Второй вопрос посвящен семантике `VarHandle` (Plain, Opaque, Acquire/Release, Volatile): чем режимы доступа `getAcquire` / `setRelease` в `VarHandle` отличаются от `getVolatile` / `setVolatile` на архитектурах x86_64 и ARM64 (AArch64)? Режим `Volatile` гарантирует полную последовательную консистентн",
+        "voicePrompt": "Второй вопрос посвящен семантике `VarHandle` (Plain, Opaque, Acquire/Release, Volatile): чем режимы доступа `getAcquire` / `setRelease` в `VarHandle` ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1288,6 +1507,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1371,6 +1597,16 @@
       },
       {
         "id": "l2-ref-04-bar-raiser-2",
+        "questionText": "В соответствии с парадоксом дней рождения в куче с десятками тысяч объектов коллизии `System.identityHashCode(a) == System.identityHashCode(b)` для двух различных экземпляров `a != b` неизбежны; при совпадении хешей порядок становится неопределенным, поэтому необходим глобальный `TIE_BREAKER_LOCK`, ",
+        "voicePrompt": "В соответствии с парадоксом дней рождения в куче с десятками тысяч объектов коллизии `System.identityHashCode(a) == System.identityHashCode(b)` для дв",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-04-bar-raiser-3",
         "questionText": "Второй вопрос оценивает понимание разницы между честными и нечестными блокировками (`ReentrantLock(true)` против `ReentrantLock(false)`) под виртуальными потоками: как включение флага `fair = true` в `ReentrantLock` влияет на пропускную способность при 50 000 RPS? Нечестный лок (`new ReentrantLock(f",
         "voicePrompt": "Второй вопрос оценивает понимание разницы между честными и нечестными блокировками (`ReentrantLock(true)` против `ReentrantLock(false)`) под виртуальн",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1380,9 +1616,9 @@
         ]
       },
       {
-        "id": "l2-ref-04-bar-raiser-3",
-        "questionText": "Третий вопрос анализирует проблему активной блокировки (Livelock) при использовании `tryLock` без глобального порядка: почему два потока, использующие цикл `tryLock()` без сортировки по ID, могут войти в Livelock и как это устраняется математически? Если Поток 1 захватывает `lockA` и получает `false",
-        "voicePrompt": "Третий вопрос анализирует проблему активной блокировки (Livelock) при использовании `tryLock` без глобального порядка: почему два потока, использующие",
+        "id": "l2-ref-04-bar-raiser-4",
+        "questionText": "При `fair = true` поток обязан встать в хвост очереди при наличии ожидающих, что снижает общую пропускную способность из-за принудительных циклов парковки и распарковки продолжений.",
+        "voicePrompt": "При `fair = true` поток обязан встать в хвост очереди при наличии ожидающих, что снижает общую пропускную способность из-за принудительных циклов парк",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1395,6 +1631,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1482,8 +1725,8 @@
       },
       {
         "id": "l2-ref-05-bar-raiser-2",
-        "questionText": "Второй вопрос сравнивает оптимистичную (`@Version`) и пессимистичную (`SELECT ... FOR UPDATE`) блокировки при высокой нагрузке: в каких сценариях следует предпочесть `SELECT ... FOR UPDATE` аннотации `@Version` в Spring Data JPA? Оптимистичная блокировка (`@Version`) эффективна при низкой вероятност",
-        "voicePrompt": "Второй вопрос сравнивает оптимистичную (`@Version`) и пессимистичную (`SELECT ... FOR UPDATE`) блокировки при высокой нагрузке: в каких сценариях след",
+        "questionText": "Если один код загрузил сущности в порядке `1 -> 2` без предварительного `FOR UPDATE`, а другой — в порядке `2 -> 1`, то при сбросе сессии запросы `UPDATE` захватят строковые блокировки в противоположном порядке; кроме того, для пакетных обновлений в Hibernate необходимо явно включать свойство `hiber",
+        "voicePrompt": "Если один код загрузил сущности в порядке `1 -> 2` без предварительного `FOR UPDATE`, а другой — в порядке `2 -> 1`, то при сбросе сессии запросы `UPD",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1492,8 +1735,18 @@
       },
       {
         "id": "l2-ref-05-bar-raiser-3",
-        "questionText": "Третий вопрос касается совместимости JDBC-драйвера PostgreSQL с виртуальными потоками: почему при миграции на виртуальные потоки Java 21 критично обновить драйвер `org.postgresql:postgresql` минимум до версии 42.7.4+? Ранние версии `pgjdbc` использовали блоки `synchronized` вокруг буферизованного по",
-        "voicePrompt": "Третий вопрос касается совместимости JDBC-драйвера PostgreSQL с виртуальными потоками: почему при миграции на виртуальные потоки Java 21 критично обно",
+        "questionText": "Второй вопрос сравнивает оптимистичную (`@Version`) и пессимистичную (`SELECT ..",
+        "voicePrompt": "Второй вопрос сравнивает оптимистичную (`@Version`) и пессимистичную (`SELECT ..",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-05-bar-raiser-4",
+        "questionText": "FOR UPDATE`) блокировки при высокой нагрузке: в каких сценариях следует предпочесть `SELECT ..",
+        "voicePrompt": "FOR UPDATE`) блокировки при высокой нагрузке: в каких сценариях следует предпочесть `SELECT ..",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1506,6 +1759,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1606,6 +1866,16 @@
       },
       {
         "id": "l2-ref-06-bar-raiser-2",
+        "questionText": "Как только внутри запроса выполняется первая операция с БД, физическое соединение HikariCP привязывается к сессии и не возвращается в пул после выхода из `@Transactional`-метода, оставаясь захваченным на время всех последующих вызовов внешних микросервисов и сериализации ответа, что мгновенно опусто",
+        "voicePrompt": "Как только внутри запроса выполняется первая операция с БД, физическое соединение HikariCP привязывается к сессии и не возвращается в пул после выхода",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-06-bar-raiser-3",
         "questionText": "Второй вопрос проверяет обработку сбоев между фазами: что произойдет, если узел приложения аварийно завершится (`OOMKilled` или потеря питания) ровно между успешным ответом `paymentGateway.capturePayment()` и началом Фазы 3 (`executeInTransaction`), и как восстановить консистентность без распределен",
         "voicePrompt": "Второй вопрос проверяет обработку сбоев между фазами: что произойдет, если узел приложения аварийно завершится (`OOMKilled` или потеря питания) ровно ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1615,9 +1885,9 @@
         ]
       },
       {
-        "id": "l2-ref-06-bar-raiser-3",
-        "questionText": "Третий вопрос анализирует механизм дедлока пула соединений (Pool Deadlock) при использовании `Propagation.REQUIRES_NEW`: при каких условиях вызов метода с `@Transactional(propagation = Propagation.REQUIRES_NEW)` вызывает 100% зависание приложения без единой блокировки в самой СУБД? Режим `REQUIRES_N",
-        "voicePrompt": "Третий вопрос анализирует механизм дедлока пула соединений (Pool Deadlock) при использовании `Propagation.REQUIRES_NEW`: при каких условиях вызов мето",
+        "id": "l2-ref-06-bar-raiser-4",
+        "questionText": "Фоновый процесс сверки (Reconciliation Worker) периодически запрашивает заказы, находящиеся в статусе `PENDING` дольше заданного порога, проверяет фактический статус списания в платежном шлюзе по ключу идемпотентности и либо завершает перевод заказа в статус `PAID`, либо отменяет резерв.",
+        "voicePrompt": "Фоновый процесс сверки (Reconciliation Worker) периодически запрашивает заказы, находящиеся в статусе `PENDING` дольше заданного порога, проверяет фак",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1632,6 +1902,13 @@
       ],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1709,8 +1986,8 @@
     "barRaiserQuestions": [
       {
         "id": "l2-ref-07-bar-raiser-1",
-        "questionText": "Первый вопрос проверяет знание механики `SELECT ... FOR UPDATE SKIP LOCKED` в PostgreSQL 16: чем `FOR UPDATE SKIP LOCKED` отличается от `FOR UPDATE NOWAIT`, и почему он оптимален для реализации распределенных таблиц-очередей и фоновых батчей? Конструкция `FOR UPDATE NOWAIT` немедленно выбрасывает ош",
-        "voicePrompt": "Первый вопрос проверяет знание механики `SELECT ... FOR UPDATE SKIP LOCKED` в PostgreSQL 16: чем `FOR UPDATE SKIP LOCKED` отличается от `FOR UPDATE NO",
+        "questionText": "Первый вопрос проверяет знание механики `SELECT ..",
+        "voicePrompt": "Первый вопрос проверяет знание механики `SELECT ..",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1719,6 +1996,16 @@
       },
       {
         "id": "l2-ref-07-bar-raiser-2",
+        "questionText": "FOR UPDATE SKIP LOCKED` в PostgreSQL 16: чем `FOR UPDATE SKIP LOCKED` отличается от `FOR UPDATE NOWAIT`, и почему он оптимален для реализации распределенных таблиц-очередей и фоновых батчей? Конструкция `FOR UPDATE NOWAIT` немедленно выбрасывает ошибку базы данных, если хотя бы одна из выбираемых ст",
+        "voicePrompt": "FOR UPDATE SKIP LOCKED` в PostgreSQL 16: чем `FOR UPDATE SKIP LOCKED` отличается от `FOR UPDATE NOWAIT`, и почему он оптимален для реализации распреде",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-07-bar-raiser-3",
         "questionText": "Второй вопрос анализирует фундаментальное различие между ограничением скорости (Rate Limiter, $X$ запросов в секунду) и ограничением параллелизма (`Semaphore`, $N$ запросов в полете): почему установка Rate Limiter со скоростью 10 батч-задач в секунду не защищает пул HikariCP от исчерпания при замедл",
         "voicePrompt": "Второй вопрос анализирует фундаментальное различие между ограничением скорости (Rate Limiter, $X$ запросов в секунду) и ограничением параллелизма (`Se",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1728,9 +2015,9 @@
         ]
       },
       {
-        "id": "l2-ref-07-bar-raiser-3",
-        "questionText": "Третий вопрос обращается к производственной истории HikariCP (Issue #2293) на JDK 21: в чем заключался реальный механизм голодания потоков-носителей внутри `HikariDataSource.getConnection()` при совместной работе с Logback на Java 21? В JDK 21–23 при конкурентном захвате синхронизированных секций на",
-        "voicePrompt": "Третий вопрос обращается к производственной истории HikariCP (Issue #2293) на JDK 21: в чем заключался реальный механизм голодания потоков-носителей в",
+        "id": "l2-ref-07-bar-raiser-4",
+        "questionText": "Если из-за деградации сети время операции вырастает до $W = 5\\text{ с}$, то даже при скорости запуска 10 задач в секунду в полете одновременно оказывается $L = 10 \\times 5 = 50$ активных задач, что полностью исчерпывает пул соединений; следовательно, для защиты конечного ресурса необходим именно `Se",
+        "voicePrompt": "Если из-за деградации сети время операции вырастает до $W = 5\\text{ с}$, то даже при скорости запуска 10 задач в секунду в полете одновременно оказыва",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1743,6 +2030,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1830,6 +2124,16 @@
       },
       {
         "id": "l2-ref-08-bar-raiser-2",
+        "questionText": "При этом устаревшие пулы вроде `ForkJoinPool` не поддерживают наследование `ScopedValue`, так как не могут гарантировать завершение дочернего потока до выхода родителя из области видимости.",
+        "voicePrompt": "При этом устаревшие пулы вроде `ForkJoinPool` не поддерживают наследование `ScopedValue`, так как не могут гарантировать завершение дочернего потока д",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l2-ref-08-bar-raiser-3",
         "questionText": "Второй вопрос касается оптимизации чтения `ScopedValue.get()` в JIT-компиляторе C2: за счет чего `ScopedValue.get()` достигает существенно меньшей латентности по сравнению с `ThreadLocal.get()` на глубоких стеках вызовов? Помимо неизменяемого снимка привязок, среда исполнения поддерживает компактный",
         "voicePrompt": "Второй вопрос касается оптимизации чтения `ScopedValue.get()` в JIT-компиляторе C2: за счет чего `ScopedValue.get()` достигает существенно меньшей лат",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1839,7 +2143,7 @@
         ]
       },
       {
-        "id": "l2-ref-08-bar-raiser-3",
+        "id": "l2-ref-08-bar-raiser-4",
         "questionText": "Третий вопрос проверяет практические паттерны замены `ThreadLocal`-кэшей в эпоху виртуальных потоков: какой архитектурный подход следует применять вместо `ThreadLocal.withInitial(...)` для дорогих потоконебезопасных объектов, таких как криптографические контексты или специализированные сериализаторы",
         "voicePrompt": "Третий вопрос проверяет практические паттерны замены `ThreadLocal`-кэшей в эпоху виртуальных потоков: какой архитектурный подход следует применять вме",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
@@ -1854,6 +2158,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -1962,7 +2273,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-01-bar-raiser-1",
-        "questionText": "На уровне Staff/Principal защита этого архитектурного решения фокусируется на анализе накладных расходов двойного маппинга (Two-Way Mapping Overhead) и стратегии поэтапного внедрения архитектурных проверок в живой монолит. Разделение доменной модели `Order` (Java 21 Record), транспортного DTO (`Crea",
+        "questionText": "На уровне Staff/Principal защита этого архитектурного решения фокусируется на анализе накладных расходов двойного маппинга (Two-Way Mapping Overhead) и стратегии поэтапного внедрения архитектурных проверок в живой монолит.",
         "voicePrompt": "На уровне Staff/Principal защита этого архитектурного решения фокусируется на анализе накладных расходов двойного маппинга (Two-Way Mapping Overhead) ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -1972,8 +2283,28 @@
       },
       {
         "id": "l3-ref-01-bar-raiser-2",
-        "questionText": "Второй важный компромисс касается внедрения ArchUnit в существующий монолит. В унаследованной кодовой базе на сотни тысяч строк кода одномоментное включение правила `layeredArchitecture()` в конвейер CI/CD приведет к сотням ошибок сборки, и команда просто закомментирует падающий тест. Инженерная стр",
-        "voicePrompt": "Второй важный компромисс касается внедрения ArchUnit в существующий монолит. В унаследованной кодовой базе на сотни тысяч строк кода одномоментное вкл",
+        "questionText": "Разделение доменной модели `Order` (Java 21 Record), транспортного DTO (`CreateOrderRequestDto`/`OrderResponseDto`) и JPA-сущности (`OrderJpaEntity`) требует написания мапперов на границах адаптеров и создает краткоживущие объекты в куче.",
+        "voicePrompt": "Разделение доменной модели `Order` (Java 21 Record), транспортного DTO (`CreateOrderRequestDto`/`OrderResponseDto`) и JPA-сущности (`OrderJpaEntity`) ",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-01-bar-raiser-3",
+        "questionText": "Для тривиальных CRUD-сервисов без бизнес-инвариантов это избыточно, однако в ядре обработки заказов такое разделение полностью окупается: неизменяемые `record`-объекты эффективно аллоцируются в молодом поколении (Eden Space) сборщиков мусора ZGC и G1, исключают побочные эффекты механизма dirty-check",
+        "voicePrompt": "Для тривиальных CRUD-сервисов без бизнес-инвариантов это избыточно, однако в ядре обработки заказов такое разделение полностью окупается: неизменяемые",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-01-bar-raiser-4",
+        "questionText": "Второй важный компромисс касается внедрения ArchUnit в существующий монолит.",
+        "voicePrompt": "Второй важный компромисс касается внедрения ArchUnit в существующий монолит.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -1986,6 +2317,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2060,7 +2398,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-02-bar-raiser-1",
-        "questionText": "Защита данного рефакторинга строится вокруг выбора социабельных модульных тестов с In-Memory стабами вместо классического мокирования через Mockito и определения границ транзакционности. Использование легковесных стабов (`FakeSubscriptionPersistence`) вместо конструкций `Mockito.when(...)/verify(...",
+        "questionText": "Защита данного рефакторинга строится вокруг выбора социабельных модульных тестов с In-Memory стабами вместо классического мокирования через Mockito и определения границ транзакционности.",
         "voicePrompt": "Защита данного рефакторинга строится вокруг выбора социабельных модульных тестов с In-Memory стабами вместо классического мокирования через Mockito и ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2070,8 +2408,8 @@
       },
       {
         "id": "l3-ref-02-bar-raiser-2",
-        "questionText": "## Архетип 3.2: Устранение несогласованности двойной записи (Dual-Write) через Transactional Outbox и CDC",
-        "voicePrompt": "## Архетип 3.2: Устранение несогласованности двойной записи (Dual-Write) через Transactional Outbox и CDC",
+        "questionText": "Использование легковесных стабов (`FakeSubscriptionPersistence`) вместо конструкций `Mockito.when(...)/verify(...)` делает тесты устойчивыми к рефакторингу сигнатур внутренних приватных вызовов и проверяет конечное состояние бизнес-процесса, а не детали реализации.",
+        "voicePrompt": "Использование легковесных стабов (`FakeSubscriptionPersistence`) вместо конструкций `Mockito.when(...)/verify(...)` делает тесты устойчивыми к рефакто",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2080,8 +2418,18 @@
       },
       {
         "id": "l3-ref-02-bar-raiser-3",
-        "questionText": "В событийно-ориентированных микросервисных архитектурах одной из самых опасных и распространенных ошибок является антипаттерн двойной записи (Dual-Write), когда сервис обновляет состояние в реляционной базе данных (например, PostgreSQL) и в том же методе напрямую публикует сообщение в брокер (Apache",
-        "voicePrompt": "В событийно-ориентированных микросервисных архитектурах одной из самых опасных и распространенных ошибок является антипаттерн двойной записи (Dual-Wri",
+        "questionText": "При этом в адаптерных тестах (`@DataJpaTest`) проверяется исключительно корректность трансляции между доменным объектом `Subscription` и JPA-сущностью через вторичный порт, что предотвращает комбинаторный взрыв числа медленных интеграционных тестов.",
+        "voicePrompt": "При этом в адаптерных тестах (`@DataJpaTest`) проверяется исключительно корректность трансляции между доменным объектом `Subscription` и JPA-сущностью",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-02-bar-raiser-4",
+        "questionText": "Кроме того, отказ от аннотаций `@Service` и `@Transactional` внутри доменного и прикладного пакетов сохраняет ядро полностью независимым от Spring Framework: регистрация бинов и управление транзакциями выносятся в явный `@Configuration`-класс инфраструктурного модуля либо реализуются через собственн",
+        "voicePrompt": "Кроме того, отказ от аннотаций `@Service` и `@Transactional` внутри доменного и прикладного пакетов сохраняет ядро полностью независимым от Spring Fra",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2094,6 +2442,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2171,7 +2526,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-03-bar-raiser-1",
-        "questionText": "На собеседовании уровня Staff/Principal защита этого решения охватывает две глубокие операционные проблемы: восстановление зависших задач при краше воркера и сохранение строгого FIFO-порядка событий внутри одного агрегата. Поскольку воркер переводит строку в `PROCESSING` и закрывает транзакцию БД пе",
+        "questionText": "На собеседовании уровня Staff/Principal защита этого решения охватывает две глубокие операционные проблемы: восстановление зависших задач при краше воркера и сохранение строгого FIFO-порядка событий внутри одного агрегата.",
         "voicePrompt": "На собеседовании уровня Staff/Principal защита этого решения охватывает две глубокие операционные проблемы: восстановление зависших задач при краше во",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2181,8 +2536,28 @@
       },
       {
         "id": "l3-ref-03-bar-raiser-2",
-        "questionText": "Второй тонкий аспект касается упорядочивания. Параллельный поллинг через `SKIP LOCKED` может привести к тому, что Воркер А захватит событие `PaymentCaptured`, а Воркер Б одновременно захватит следующее событие `PaymentRefunded` того же платежа и доставит его в Kafka раньше первого. Для сохранения ст",
-        "voicePrompt": "Второй тонкий аспект касается упорядочивания. Параллельный поллинг через `SKIP LOCKED` может привести к тому, что Воркер А захватит событие `PaymentCa",
+        "questionText": "Поскольку воркер переводит строку в `PROCESSING` и закрывает транзакцию БД перед отправкой в Kafka, внезапное уничтожение пода (`OOMKilled` / `SIGKILL`) оставит запись в статусе `PROCESSING` навсегда.",
+        "voicePrompt": "Поскольку воркер переводит строку в `PROCESSING` и закрывает транзакцию БД перед отправкой в Kafka, внезапное уничтожение пода (`OOMKilled` / `SIGKILL",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-03-bar-raiser-3",
+        "questionText": "Для устранения этого риска в схему таблицы вводится колонка `locked_until` (или `claimed_at` с механизмом heartbeats) и фоновый процесс восстановления (reaper), который возвращает зависшие записи из `PROCESSING` обратно в `PENDING`, если время обработки превысило допустимый порог без обновления пуль",
+        "voicePrompt": "Для устранения этого риска в схему таблицы вводится колонка `locked_until` (или `claimed_at` с механизмом heartbeats) и фоновый процесс восстановления",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-03-bar-raiser-4",
+        "questionText": "Второй тонкий аспект касается упорядочивания.",
+        "voicePrompt": "Второй тонкий аспект касается упорядочивания.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2195,6 +2570,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2268,7 +2650,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-04-bar-raiser-1",
-        "questionText": "Защита этого решения на уровне Staff/Principal требует глубокого понимания эксплуатационных рисков Debezium CDC и механизмов управления объемом хранения таблицы Outbox. В отличие от поллинга, CDC переносит сложность из кода приложения в инфраструктурный контур. Если коннектор Debezium остановится из",
+        "questionText": "Защита этого решения на уровне Staff/Principal требует глубокого понимания эксплуатационных рисков Debezium CDC и механизмов управления объемом хранения таблицы Outbox.",
         "voicePrompt": "Защита этого решения на уровне Staff/Principal требует глубокого понимания эксплуатационных рисков Debezium CDC и механизмов управления объемом хранен",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2278,8 +2660,8 @@
       },
       {
         "id": "l3-ref-04-bar-raiser-2",
-        "questionText": "Второй важный компромисс связан с предотвращением бесконечного разрастания таблицы Outbox. Поскольку трансформация `OutboxEventRouter` в Debezium реагирует исключительно на события `INSERT` в логе предзаписи и автоматически фильтрует операции `DELETE`, приложение может удалять запись из таблицы `out",
-        "voicePrompt": "Второй важный компромисс связан с предотвращением бесконечного разрастания таблицы Outbox. Поскольку трансформация `OutboxEventRouter` в Debezium реаг",
+        "questionText": "В отличие от поллинга, CDC переносит сложность из кода приложения в инфраструктурный контур.",
+        "voicePrompt": "В отличие от поллинга, CDC переносит сложность из кода приложения в инфраструктурный контур.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2288,8 +2670,18 @@
       },
       {
         "id": "l3-ref-04-bar-raiser-3",
-        "questionText": "## Архетип 3.3: Миграция корпоративного легаси со Spring Boot 2.7 на 3.4+, Jakarta EE и виртуальные потоки Java 21",
-        "voicePrompt": "## Архетип 3.3: Миграция корпоративного легаси со Spring Boot 2.7 на 3.4+, Jakarta EE и виртуальные потоки Java 21",
+        "questionText": "Если коннектор Debezium остановится из-за сбоя кластера Kafka Connect, а логический слот репликации в PostgreSQL останется активным, база данных перестанет удалять старые сегменты журнала предзаписи (WAL), что приведет к исчерпанию дискового пространства и аварийной остановке СУБД.",
+        "voicePrompt": "Если коннектор Debezium остановится из-за сбоя кластера Kafka Connect, а логический слот репликации в PostgreSQL останется активным, база данных перес",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-04-bar-raiser-4",
+        "questionText": "Архитектор уровня Staff обязан предусмотреть ограничение размера удерживаемого лога (`max_slot_wal_keep_size`), алерты на отставание слота репликации и автоматизацию перезапуска коннекторов.",
+        "voicePrompt": "Архитектор уровня Staff обязан предусмотреть ограничение размера удерживаемого лога (`max_slot_wal_keep_size`), алерты на отставание слота репликации ",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2302,6 +2694,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2379,7 +2778,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-05-bar-raiser-1",
-        "questionText": "Архитектурная защита данного решения строится вокруг тонкостей автоконфигурации HTTP-клиентов в Spring Boot 3.4 и управления параллелизмом при переходе на виртуальные потоки. В Spring Boot 3.4 появился `ClientHttpRequestFactoryBuilder` и расширенная автоконфигурация `RestClient`. Если в classpath пр",
+        "questionText": "Архитектурная защита данного решения строится вокруг тонкостей автоконфигурации HTTP-клиентов в Spring Boot 3.4 и управления параллелизмом при переходе на виртуальные потоки.",
         "voicePrompt": "Архитектурная защита данного решения строится вокруг тонкостей автоконфигурации HTTP-клиентов в Spring Boot 3.4 и управления параллелизмом при переход",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2389,8 +2788,28 @@
       },
       {
         "id": "l3-ref-05-bar-raiser-2",
-        "questionText": "Второй фундаментальный компромисс касается ограничения параллелизма (Bulkheading). В старой архитектуре фиксированный размер пула платформенных потоков сервлет-контейнера косвенно ограничивал число одновременных исходящих запросов к внешнему апстриму. Поскольку виртуальные потоки создаются миллионам",
-        "voicePrompt": "Второй фундаментальный компромисс касается ограничения параллелизма (Bulkheading). В старой архитектуре фиксированный размер пула платформенных потоко",
+        "questionText": "В Spring Boot 3.4 появился `ClientHttpRequestFactoryBuilder` и расширенная автоконфигурация `RestClient.",
+        "voicePrompt": "В Spring Boot 3.4 появился `ClientHttpRequestFactoryBuilder` и расширенная автоконфигурация `RestClient.",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-05-bar-raiser-3",
+        "questionText": "Если в classpath присутствует библиотека Apache HttpComponents 5, Spring Boot автоматически сконфигурирует `HttpComponentsClientHttpRequestFactory`, а при ее отсутствии на Java 21+ выберет `JdkClientHttpRequestFactory` поверх встроенного `java.net.http.HttpClient`, который полностью свободен от проб",
+        "voicePrompt": "Если в classpath присутствует библиотека Apache HttpComponents 5, Spring Boot автоматически сконфигурирует `HttpComponentsClientHttpRequestFactory`, а",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-05-bar-raiser-4",
+        "questionText": "При этом важно учитывать нетривиальный нюанс настройки взаимного TLS (mTLS) через `RestClientSsl` и `SslBundles`: прямой вызов `ssl.fromBundle(...)` на `RestClient.Builder` перезаписывает кастомную фабрику `HttpComponentsClientHttpRequestFactory`, поэтому для одновременного использования тонкого пул",
+        "voicePrompt": "При этом важно учитывать нетривиальный нюанс настройки взаимного TLS (mTLS) через `RestClientSsl` и `SslBundles`: прямой вызов `ssl.fromBundle(...)` н",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2403,6 +2822,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2480,7 +2906,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-06-bar-raiser-1",
-        "questionText": "Защита данного архитектурного решения опирается на разграничение пулов потоков для I/O-bound и CPU-bound нагрузок, а также на выбор стратегии отказа при переполнении буфера аудита. Хотя входящие HTTP-запросы в Spring Boot 3.4 обслуживаются виртуальными потоками, фоновый пул `cryptoWorkerPool` намере",
+        "questionText": "Защита данного архитектурного решения опирается на разграничение пулов потоков для I/O-bound и CPU-bound нагрузок, а также на выбор стратегии отказа при переполнении буфера аудита.",
         "voicePrompt": "Защита данного архитектурного решения опирается на разграничение пулов потоков для I/O-bound и CPU-bound нагрузок, а также на выбор стратегии отказа п",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2490,8 +2916,8 @@
       },
       {
         "id": "l3-ref-06-bar-raiser-2",
-        "questionText": "Второй важный компромисс связан с политикой обратного давления (Back-Pressure) и бюджетами завершения работы (Shutdown Budgets) в Kubernetes. Ограниченная очередь `ArrayBlockingQueue` защищает кучу JVM от `OutOfMemoryError` при резких всплесках трафика. Однако в банковских системах уровня PCI DSS мо",
-        "voicePrompt": "Второй важный компромисс связан с политикой обратного давления (Back-Pressure) и бюджетами завершения работы (Shutdown Budgets) в Kubernetes. Ограниче",
+        "questionText": "Хотя входящие HTTP-запросы в Spring Boot 3.4 обслуживаются виртуальными потоками, фоновый пул `cryptoWorkerPool` намеренно спроектирован поверх фиксированного числа платформенных потоков (`Executors.newFixedThreadPool`), соразмерного числу доступных ядер процессора.",
+        "voicePrompt": "Хотя входящие HTTP-запросы в Spring Boot 3.4 обслуживаются виртуальными потоками, фоновый пул `cryptoWorkerPool` намеренно спроектирован поверх фиксир",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2500,8 +2926,18 @@
       },
       {
         "id": "l3-ref-06-bar-raiser-3",
-        "questionText": "## Архетип 3.4: Антикоррупционный слой (Anti-Corruption Layer, ACL) для интеграции с мейнфреймами и внешними провайдерами",
-        "voicePrompt": "## Архетип 3.4: Антикоррупционный слой (Anti-Corruption Layer, ACL) для интеграции с мейнфреймами и внешними провайдерами",
+        "questionText": "Виртуальные потоки эффективны только для задач, проводящих время в ожидании ввода-вывода, тогда как прогон регулярных выражений, вычисление SHA-256 и шифрование AES-GCM являются чисто вычислительными задачами (CPU-bound), где создание тысяч виртуальных потоков лишь увеличит накладные расходы планиро",
+        "voicePrompt": "Виртуальные потоки эффективны только для задач, проводящих время в ожидании ввода-вывода, тогда как прогон регулярных выражений, вычисление SHA-256 и ",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-06-bar-raiser-4",
+        "questionText": "Второй важный компромисс связан с политикой обратного давления (Back-Pressure) и бюджетами завершения работы (Shutdown Budgets) в Kubernetes.",
+        "voicePrompt": "Второй важный компромисс связан с политикой обратного давления (Back-Pressure) и бюджетами завершения работы (Shutdown Budgets) в Kubernetes.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2514,6 +2950,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2591,8 +3034,38 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-07-bar-raiser-1",
-        "questionText": "Защита данного решения на уровне Staff/Principal фокусируется на выборе топологии развертывания ACL (внутрипроцессный модуль против выделенного микросервиса-шлюза) и жизненном цикле антикоррупционного слоя в стратегии Strangler Fig. Антикоррупционный слой может быть реализован как модульный адаптер ",
+        "questionText": "Защита данного решения на уровне Staff/Principal фокусируется на выборе топологии развертывания ACL (внутрипроцессный модуль против выделенного микросервиса-шлюза) и жизненном цикле антикоррупционного слоя в стратегии Strangler Fig.",
         "voicePrompt": "Защита данного решения на уровне Staff/Principal фокусируется на выборе топологии развертывания ACL (внутрипроцессный модуль против выделенного микрос",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-07-bar-raiser-2",
+        "questionText": "Антикоррупционный слой может быть реализован как модульный адаптер внутри самого микросервиса кредитования либо как отдельный развертываемый сервис-посредник.",
+        "voicePrompt": "Антикоррупционный слой может быть реализован как модульный адаптер внутри самого микросервиса кредитования либо как отдельный развертываемый сервис-по",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-07-bar-raiser-3",
+        "questionText": "Если к одной и той же транзакции мейнфрейма обращаются десять различных микросервисов, вынос ACL в отдельный пограничный сервис позволяет централизованно управлять пулом сессий CICS/MQ и квотами нагрузки на мейнфрейм, однако добавляет дополнительный сетевой прыжок (Latency overhead) и снижает общую ",
+        "voicePrompt": "Если к одной и той же транзакции мейнфрейма обращаются десять различных микросервисов, вынос ACL в отдельный пограничный сервис позволяет централизова",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-07-bar-raiser-4",
+        "questionText": "Поэтому для критичных по задержке путей предпочтителен внутрипроцессный ACL-адаптер в сочетании с асинхронной выгрузкой изменений мейнфрейма в локальную проекцию чтения (CQRS Read Model).",
+        "voicePrompt": "Поэтому для критичных по задержке путей предпочтителен внутрипроцессный ACL-адаптер в сочетании с асинхронной выгрузкой изменений мейнфрейма в локальн",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2605,6 +3078,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   },
   {
@@ -2692,7 +3172,7 @@
     "barRaiserQuestions": [
       {
         "id": "l3-ref-08-bar-raiser-1",
-        "questionText": "Защита данного решения на уровне Staff/Principal раскрывает соотношение между естественной идемпотентностью доменной модели и дедупликационными таблицами Inbox, а также стратегию сохранения сырых данных провайдера для расследования инцидентов. Для некоммутативных операций вроде `IncrementShippingCou",
+        "questionText": "Защита данного решения на уровне Staff/Principal раскрывает соотношение между естественной идемпотентностью доменной модели и дедупликационными таблицами Inbox, а также стратегию сохранения сырых данных провайдера для расследования инцидентов.",
         "voicePrompt": "Защита данного решения на уровне Staff/Principal раскрывает соотношение между естественной идемпотентностью доменной модели и дедупликационными таблиц",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
@@ -2702,8 +3182,8 @@
       },
       {
         "id": "l3-ref-08-bar-raiser-2",
-        "questionText": "Второй практический компромисс касается сохранения диагностических данных. Полное удаление полей `raw_provider_bitmask` и `raw_provider_subcode` из доменной таблицы `shipments` защищает чистоту ядра, но при разборе претензий с логистическим партнером инженерам поддержки необходим исходный ответ пров",
-        "voicePrompt": "Второй практический компромисс касается сохранения диагностических данных. Полное удаление полей `raw_provider_bitmask` и `raw_provider_subcode` из до",
+        "questionText": "Для некоммутативных операций вроде `IncrementShippingCount()` необходима явная таблица дедупликации `ProcessedEventInbox` по уникальному `event_id.",
+        "voicePrompt": "Для некоммутативных операций вроде `IncrementShippingCount()` необходима явная таблица дедупликации `ProcessedEventInbox` по уникальному `event_id.",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2712,8 +3192,18 @@
       },
       {
         "id": "l3-ref-08-bar-raiser-3",
-        "questionText": "## Сводная матрица оценки кандидатов уровня Staff и Principal (L3 Bar-Raiser Rubric)",
-        "voicePrompt": "## Сводная матрица оценки кандидатов уровня Staff и Principal (L3 Bar-Raiser Rubric)",
+        "questionText": "Однако при интеграции с внешними 3PL-провайдерами один и тот же физический переход статуса посылки часто приходит в повторных вебхуках с *разными* идентификаторами запросов и даже от разных промежуточных хабов.",
+        "voicePrompt": "Однако при интеграции с внешними 3PL-провайдерами один и тот же физический переход статуса посылки часто приходит в повторных вебхуках с *разными* иде",
+        "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
+        "followUpDeepDives": [
+          "Edge case handling under high concurrency",
+          "Rollback and failure recovery"
+        ]
+      },
+      {
+        "id": "l3-ref-08-bar-raiser-4",
+        "questionText": "Поэтому проектирование доменной логики как монотонной полурешетки состояний (`canTransitionTo` по рангу `precedenceRank`, подобно команде `UpdateOrderStatus(status=SHIPPED)`) обеспечивает естественную идемпотентность на уровне самого бизнес-инварианта даже тогда, когда внешний провайдер генерирует н",
+        "voicePrompt": "Поэтому проектирование доменной логики как монотонной полурешетки состояний (`canTransitionTo` по рангу `precedenceRank`, подобно команде `UpdateOrder",
         "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
         "followUpDeepDives": [
           "Edge case handling under high concurrency",
@@ -2726,6 +3216,13 @@
       "disallowedClassImports": [],
       "disallowedFieldTypes": [],
       "requiredInjections": []
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.2,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1,
+      "oralDefense": 0.1
     }
   }
 ]

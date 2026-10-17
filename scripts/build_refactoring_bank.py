@@ -141,6 +141,22 @@ def parse_kata_details(k_id, k_title, k_body):
                         "severity": "CRITICAL" if idx == 0 else "MAJOR"
                     })
 
+        # Strategy C: If fewer than 2 smells, check for ordinal indicators
+        if len(smells) < 2:
+            parts = [p.strip() for p in re.split(r'(?=(?:Первая|Вторая|Третья|Четвертая|Пятая|Первый|Второй|Третий|Четвертый)\s+(?:проблема|дефект|запах))', raw_smells_text) if len(p.strip()) > 20 and not p.strip().startswith('На этапе')]
+            if len(parts) >= 2:
+                smells = []
+                for idx, p in enumerate(parts[:5]):
+                    lead = p.split('.')[0]
+                    smells.append({
+                        "id": f"{k_id.lower()}-smell-{idx+1}",
+                        "name": lead[:80].strip(' *#`'),
+                        "category": "CONCURRENCY_JMM" if "L2" in k_id else ("ARCHITECTURAL_COUPLING" if "L3" in k_id else "CLEAN_CODE"),
+                        "description": p[:200],
+                        "voiceKeywords": [w.lower() for w in re.findall(r'[A-Za-zА-Яа-я0-9_-]{4,}', lead)[:4]],
+                        "severity": "CRITICAL" if idx == 0 else "MAJOR"
+                    })
+
 
     if not smells:
         smells.append({
@@ -158,13 +174,23 @@ def parse_kata_details(k_id, k_title, k_body):
     m_q = re.search(r'#### (?:7\.\s*)?(?:Interview Follow-Up Questions|Bar-Raiser Follow-Up Questions|Staff Bar-Raiser Trade-Off Defense)\s*\n+(.*?)(?=###|\Z)', k_body, re.DOTALL)
     if m_q:
         q_text = m_q.group(1).strip()
-        # Extract sentences or questions
-        sentences = [s.strip() for s in q_text.split('\n') if len(s.strip()) > 20]
-        for idx, sentence in enumerate(sentences[:3]):
+        raw_chunks = [s.strip() for s in q_text.split('\n') if len(s.strip()) > 20]
+        sentences = []
+        for chunk in raw_chunks:
+            split_sentences = [s.strip() for s in re.split(r'\.\s+', chunk) if len(s.strip()) > 30]
+            if len(split_sentences) > 1:
+                sentences.extend(split_sentences)
+            else:
+                sentences.append(chunk)
+
+        for idx, sentence in enumerate(sentences[:4]):
+            clean_sentence = sentence.strip(' *#-`')
+            if clean_sentence and not clean_sentence.endswith('.'):
+                clean_sentence += '.'
             questions.append({
                 "id": f"{k_id.lower()}-bar-raiser-{idx+1}",
-                "questionText": sentence[:300],
-                "voicePrompt": sentence[:150],
+                "questionText": clean_sentence[:300],
+                "voicePrompt": clean_sentence[:150],
                 "idealResponseSummary": "Detailed defense demonstrating JVM 21 LTS mechanics, JMM invariants, or architectural trade-offs.",
                 "followUpDeepDives": ["Edge case handling under high concurrency", "Rollback and failure recovery"]
             })
@@ -237,6 +263,13 @@ def parse_kata_details(k_id, k_title, k_body):
             "disallowedClassImports": ["java.lang.ThreadLocal"] if "REF-06" in k_id and "L2" in k_id else [],
             "disallowedFieldTypes": disallowed_fields,
             "requiredInjections": ["java.time.Clock"] if "L1-REF-08" in k_id or "L1-REF-04" in k_id else []
+        },
+        "scoringWeights": {
+            "functionalCorrectness": 0.4,
+            "concurrencySafety": 0.2,
+            "architectureAndCleanCode": 0.2,
+            "modernIdioms": 0.1,
+            "oralDefense": 0.1
         }
     }
 
