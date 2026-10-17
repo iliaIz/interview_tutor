@@ -13,9 +13,11 @@ import {
   Sparkles,
   Zap,
   Lock,
-  Unlock
+  Unlock,
+  ShieldAlert
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { RefactoringSmellChecklistPanel } from '../refactoring/RefactoringSmellChecklistPanel';
 
 export const ChallengeSpecPanel: React.FC = () => {
   const {
@@ -25,12 +27,13 @@ export const ChallengeSpecPanel: React.FC = () => {
     practiceElapsedSeconds
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'spec' | 'phase2' | 'hints'>('spec');
+  const [activeTab, setActiveTab] = useState<'spec' | 'phase2' | 'hints' | 'smells'>('spec');
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
 
   if (!activePracticeChallenge) return null;
 
   const challenge = activePracticeChallenge;
+  const isRefactoring = challenge.category === 'refactoring_kata' || Boolean(challenge.smellsChecklist && challenge.smellsChecklist.length > 0);
   const phasedReq = challenge.phasedRequirements?.[0];
   const isPhase2Available = Boolean(phasedReq);
   const unlockMinutes = phasedReq?.unlockTimeMinutes || 45;
@@ -121,6 +124,25 @@ export const ChallengeSpecPanel: React.FC = () => {
           <Lightbulb className="w-3.5 h-3.5" />
           <span>Подсказки</span>
         </button>
+
+        {isRefactoring && (
+          <button
+            onClick={() => setActiveTab('smells')}
+            className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'smells'
+                ? 'border-amber-500 text-amber-700 font-extrabold'
+                : 'border-transparent text-pastel-muted hover:text-pastel-text'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+            <span>Аудит запахов</span>
+            {challenge.smellsChecklist && challenge.smellsChecklist.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                {challenge.smellsChecklist.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Tab Content Area */}
@@ -213,6 +235,10 @@ export const ChallengeSpecPanel: React.FC = () => {
               );
             })}
           </div>
+        )}
+
+        {activeTab === 'smells' && isRefactoring && (
+          <RefactoringSmellChecklistPanel challenge={challenge} />
         )}
       </div>
     </div>
