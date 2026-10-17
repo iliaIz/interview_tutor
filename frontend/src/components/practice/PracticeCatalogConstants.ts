@@ -11,12 +11,11 @@ import {
   Crown,
   CheckCircle2,
   Crosshair,
-  Terminal
+  Terminal,
+  Flame
 } from 'lucide-react';
 
-export function FlameIcon(props: any) {
-  return <Sparkles {...props} />;
-}
+export const FlameIcon = Flame;
 
 export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },

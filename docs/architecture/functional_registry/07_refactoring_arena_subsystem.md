@@ -53,13 +53,14 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 ---
 
 ### 2.4. `RefactoringSmellChecklistPanel` & `PracticeCatalogHeader`
-- **Files:** `frontend/src/components/refactoring/RefactoringSmellChecklistPanel.tsx`, `frontend/src/components/practice/PracticeCatalog.tsx`
+- **Files:** `frontend/src/components/refactoring/RefactoringSmellChecklistPanel.tsx`, `frontend/src/components/practice/PracticeCatalog.tsx`, `frontend/src/components/practice/PracticeCatalogConstants.ts`
 - **1. What Was Done:** 
   - Created `RefactoringSmellChecklistPanel` (254 lines) listening to `window.addEventListener('smell_discovered')` with real-time green glowing badges, manual checklist fallback, and Bar-Raiser Q&A accordion.
   - Decomposed 1130-line `PracticeCatalog.tsx` into `PracticeCatalogHeader.tsx` (289 lines), `PracticeChallengeCard.tsx` (89 lines), and `PracticeChallengeInspector.tsx` (245 lines), reducing `PracticeCatalog.tsx` to 357 lines.
   - Added Refactoring Arena flagship card and level filters (L0 Junior, L1 Middle, L2 Senior, L3 Staff).
-- **2. Hypotheses & Intermediate Conclusions:** Previously, `refactoring_kata` was the 7th item in an overflow horizontal tab strip, virtually invisible to users. Elevating it to a top-level flagship card alongside Transactions Lab and Testing Arena boosts discovery to 100%.
-- **3. Rationale & "Why":** Strict adherence to Rule 8 (file decomposition) and Rule 6 (viewport stability and reference-counted locks).
+  - Exported `Flame` from `lucide-react` directly in `PracticeCatalogConstants.ts` without JSX wrapper in a `.ts` file.
+- **2. Hypotheses & Intermediate Conclusions:** Previously, `refactoring_kata` was the 7th item in an overflow horizontal tab strip, virtually invisible to users. Elevating it to a top-level flagship card alongside Transactions Lab and Testing Arena boosts discovery to 100%. In `.ts` files (non-`.tsx`), JSX angle brackets `<Icon />` are interpreted as generic type assertions by `tsc`, causing syntax errors.
+- **3. Rationale & "Why":** Strict adherence to Rule 8 (file decomposition), Rule 6 (viewport stability and reference-counted locks), and pure TypeScript syntax compliance.
 - **4. Failure Modes & Invariants:** Client-side event bus prevents race conditions: if WebSocket frame arrives before DOM component mounts, the manifest's default state is preserved until hydration.
 
 ### 2.5. `handleChallengeEvaluation(params)` Gate 2 AST Hook
