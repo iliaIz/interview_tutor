@@ -246,6 +246,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     if (parsed.verdictPayload) this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
     if (parsed.bugSolvedPayload) this.callbacks.onBugSolved?.(parsed.bugSolvedPayload);
     if (parsed.candidateObservationPayload) this.callbacks.onCandidateObservationRecorded?.(parsed.candidateObservationPayload);
+    if (parsed.smellDiscoveredPayload) {
+      this.callbacks.onSmellDiscovered?.(parsed.smellDiscoveredPayload);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('smell_discovered', { detail: parsed.smellDiscoveredPayload }));
+      }
+    }
     if (parsed.toolCallPayload) this.callbacks.onToolCall?.(parsed.toolCallPayload);
 
     // 2. Incoming Model Speech / Audio

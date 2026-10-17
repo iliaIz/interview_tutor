@@ -45,6 +45,28 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
     }
   });
 
+  // Code smell reporter for Refactoring Arena (SOTA Late 2026)
+  toolDeclarations.push({
+    name: 'report_identified_smell',
+    description: 'Вызывается ИИ-собеседующим, когда кандидат устно аргументировал и указал на конкретный запах кода или архитектурный риск',
+    behavior: 'NON_BLOCKING',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        smellId: {
+          type: 'STRING',
+          description: 'Идентификатор или краткое название запаха (например: "l2-ref-01-smell-1" или "Carrier Pinning")'
+        },
+        justification: {
+          type: 'STRING',
+          description: 'Краткая цитата или суть аргументации кандидата'
+        }
+      },
+      required: ['smellId', 'justification']
+    }
+  });
+
+
   if (sessionType === 'interview') {
     toolDeclarations.push({
       name: 'submit_interview_evaluation',

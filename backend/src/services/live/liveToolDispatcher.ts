@@ -5,6 +5,7 @@ import { applyKnowledgeDecay } from '../vectorMemoryService';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
 import { handleEvaluationToolCall } from './liveEvaluationToolDispatcher';
 import { handleSystemDesignToolCall } from './liveSystemDesignToolDispatcher';
+import { handleRefactoringSmellToolCall } from './liveRefactoringToolDispatcher';
 import { ProxySession } from './liveSessionTypes';
 
 export interface LiveToolContext {
@@ -370,6 +371,10 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
 
   if (call.name === 'submit_interview_evaluation') {
     return handleEvaluationToolCall(ctx);
+  }
+
+  if (call.name === 'report_identified_smell') {
+    return handleRefactoringSmellToolCall(ctx);
   }
 
   if (

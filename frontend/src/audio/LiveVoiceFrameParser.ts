@@ -29,6 +29,7 @@ export interface ParsedLiveFrameResult {
   verdictPayload?: any;
   bugSolvedPayload?: any;
   candidateObservationPayload?: any;
+  smellDiscoveredPayload?: any;
   rawParsed?: any;
 }
 
@@ -78,6 +79,11 @@ export class LiveVoiceFrameParser {
 
       if (data.type === 'candidate_observation_recorded' || data.type === 'candidate_observation') {
         result.candidateObservationPayload = data.payload || data;
+        return result;
+      }
+
+      if (data.type === 'smell_discovered') {
+        result.smellDiscoveredPayload = data.payload || data;
         return result;
       }
 
