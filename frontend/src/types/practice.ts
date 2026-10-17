@@ -139,6 +139,8 @@ export interface CodingChallenge {
   mutants?: MutantDefinition[];
   astRules?: string[];
   hints?: string[];
+  companyTags?: string[];
+  companyContext?: string;
   smellsChecklist?: CodeSmellItem[];
   barRaiserQuestions?: BarRaiserQuestion[];
   structuralConstraints?: AstBytecodeConstraint;
