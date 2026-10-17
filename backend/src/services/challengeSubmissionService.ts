@@ -97,28 +97,24 @@ export async function handleChallengeEvaluation({
   if (sandboxResult.isCompilable) {
     // Gate 2: AST & Structural Verifier for Refactoring Katas
     let astAnalysisPassed = true;
-    if (isRefactoringKata && challenge?.manifest_json) {
+    const refactoringManifest = challenge as any;
+    if (isRefactoringKata && refactoringManifest?.structuralConstraints) {
       try {
-        const manifest = typeof challenge.manifest_json === 'string'
-          ? JSON.parse(challenge.manifest_json)
-          : challenge.manifest_json;
-        if (manifest?.structuralConstraints) {
-          const astResult = RefactoringAstVerifier.verify(files, manifest.structuralConstraints);
-          if (!astResult.passed) {
-            astAnalysisPassed = false;
-            sandboxResult.securityViolations = (sandboxResult.securityViolations || []).concat(
-              astResult.violations.map(v => ({
-                rule: v.rule,
-                file: v.file,
-                lineNumber: v.lineNumber,
-                snippet: v.snippet,
-                message: v.message
-              }))
-            );
-          }
+        const astResult = RefactoringAstVerifier.verify(files, refactoringManifest.structuralConstraints);
+        if (!astResult.passed) {
+          astAnalysisPassed = false;
+          sandboxResult.securityViolations = (sandboxResult.securityViolations || []).concat(
+            astResult.violations.map(v => ({
+              rule: v.rule,
+              file: v.file,
+              lineNumber: v.lineNumber,
+              snippet: v.snippet,
+              message: v.message
+            }))
+          );
         }
       } catch (err: any) {
-        console.warn('⚠️ Could not parse manifest_json for AST verification:', err.message);
+        console.warn('⚠️ Could not run AST verification for refactoring kata:', err.message);
       }
     }
 

@@ -62,6 +62,13 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 - **3. Rationale & "Why":** Strict adherence to Rule 8 (file decomposition) and Rule 6 (viewport stability and reference-counted locks).
 - **4. Failure Modes & Invariants:** Client-side event bus prevents race conditions: if WebSocket frame arrives before DOM component mounts, the manifest's default state is preserved until hydration.
 
+### 2.5. `handleChallengeEvaluation(params)` Gate 2 AST Hook
+- **File:** `backend/src/services/challengeSubmissionService.ts`
+- **1. What Was Done:** Hooked `RefactoringAstVerifier.verify` into the SSE submission evaluation pipeline for `isRefactoringKata`. Extracted `structuralConstraints` directly from parsed challenge manifest.
+- **2. Hypotheses & Intermediate Conclusions:** In `challengeSubmissionService.ts`, `challenge` is already deserialized from `row.manifest_json`. Attempting to access `challenge.manifest_json` resulted in TypeScript compilation failure `TS2339`.
+- **3. Rationale & "Why":** The database stores raw JSON string in column `manifest_json`, but upon SELECT and JSON.parse, the typed object is `CodingChallenge` (which contains `structuralConstraints` at root level for refactoring challenges).
+- **4. Failure Modes & Invariants:** If structural constraints fail, violations are injected into `sandboxResult.securityViolations`, failing Gate 2 and providing precise file/line/snippet feedback in SSE.
+
 ---
 
 ## 3. Subsystem Health & Verification Summary
