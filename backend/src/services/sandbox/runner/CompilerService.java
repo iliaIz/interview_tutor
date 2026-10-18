@@ -747,7 +747,7 @@ public class CompilerService {
                         if (!mutantRun.isCompilable) {
                             em.stillborn = true;
                             em.failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)" +
-                                (mutantRun.compilerOutput != null && !mutantRun.compilerOutput.isBlank() ? ": " + mutantRun.compilerOutput.trim() : "");
+                                (!mutantRun.syntaxErrors.isEmpty() ? ": " + String.join("; ", mutantRun.syntaxErrors) : "");
                         } else if (mutantRun.failedCount > 0) {
                             em.killed = true;
                             for (Map<String, Object> tr : mutantRun.testResults) {
