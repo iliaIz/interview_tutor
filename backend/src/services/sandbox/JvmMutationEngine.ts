@@ -105,9 +105,36 @@ export class JvmMutationEngine {
     }
 
     // 3. Run Mutation Compiler (Hot Daemon -> Fallback CLI)
+    const normalizedMutants = (request.mutants || []).map((m) => {
+      let mutatedContent = m.mutatedContent;
+      if (
+        mutatedContent &&
+        !mutatedContent.includes('class ') &&
+        !mutatedContent.includes('interface ') &&
+        !mutatedContent.includes('record ') &&
+        !mutatedContent.includes('enum ')
+      ) {
+        const targetFile = request.files.find(
+          (f) => f.path === m.file || f.path.endsWith(m.file) || m.file.endsWith(f.path)
+        );
+        if (targetFile && m.line > 0) {
+          const lines = targetFile.content.split('\n');
+          const lineIdx = m.line - 1;
+          if (lineIdx >= 0 && lineIdx < lines.length) {
+            lines[lineIdx] = mutatedContent;
+            mutatedContent = lines.join('\n');
+          }
+        }
+      }
+      return {
+        ...m,
+        mutatedContent
+      };
+    });
+
     const payloadJson = JSON.stringify({
       files: request.files,
-      mutants: request.mutants || []
+      mutants: normalizedMutants
     });
     const timeoutMs = request.timeoutMs || 8000;
     const { output, error } = await JvmDaemonClient.runCompiler(payloadJson, timeoutMs);

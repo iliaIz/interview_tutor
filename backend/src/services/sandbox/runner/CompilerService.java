@@ -706,15 +706,36 @@ public class CompilerService {
                             String mutContent = m.mutatedContent
                                 .replace("UUID.randomUUID()", "org.mockito.internal.MockableUUID.randomUUID()")
                                 .replace("Instant.now()", "org.mockito.internal.MockableInstant.now()");
-                            if (targetKey.contains("RiskValuationEngine")) {
-                                mutContent = mutContent.replace(
-                                    "public String validateHardwareEntitlement(String licenseKey) {",
-                                    "public String validateHardwareEntitlement(String licenseKey) {\n" +
-                                    "        if (org.mockito.Mockito.isStubbing(this)) { org.mockito.Mockito.recordStubMethod(this, \"validateHardwareEntitlement\"); return null; }\n" +
-                                    "        if (org.mockito.Mockito.hasStub(this, \"validateHardwareEntitlement\")) { return (String) org.mockito.Mockito.getStub(this, \"validateHardwareEntitlement\"); }"
-                                );
+
+                            boolean isFullUnit = mutContent.contains("class ") ||
+                                                 mutContent.contains("interface ") ||
+                                                 mutContent.contains("record ") ||
+                                                 mutContent.contains("enum ");
+                            if (isFullUnit) {
+                                if (targetKey.contains("RiskValuationEngine")) {
+                                    mutContent = mutContent.replace(
+                                        "public String validateHardwareEntitlement(String licenseKey) {",
+                                        "public String validateHardwareEntitlement(String licenseKey) {\n" +
+                                        "        if (org.mockito.Mockito.isStubbing(this)) { org.mockito.Mockito.recordStubMethod(this, \"validateHardwareEntitlement\"); return null; }\n" +
+                                        "        if (org.mockito.Mockito.hasStub(this, \"validateHardwareEntitlement\")) { return (String) org.mockito.Mockito.getStub(this, \"validateHardwareEntitlement\"); }"
+                                    );
+                                }
+                                mutatedSources.put(targetKey, mutContent);
+                            } else {
+                                String origSource = mutatedSources.get(targetKey);
+                                if (origSource != null && m.line > 0) {
+                                    String[] srcLines = origSource.split("\r?\n", -1);
+                                    int targetLineIdx = m.line - 1;
+                                    if (targetLineIdx >= 0 && targetLineIdx < srcLines.length) {
+                                        srcLines[targetLineIdx] = mutContent;
+                                        mutatedSources.put(targetKey, String.join("\n", srcLines));
+                                    } else {
+                                        mutatedSources.put(targetKey, mutContent);
+                                    }
+                                } else {
+                                    mutatedSources.put(targetKey, mutContent);
+                                }
                             }
-                            mutatedSources.put(targetKey, mutContent);
                         }
 
                         ExecutionResult mutantRun = runCompilationAndTests(mutatedSources);
@@ -725,7 +746,8 @@ public class CompilerService {
 
                         if (!mutantRun.isCompilable) {
                             em.stillborn = true;
-                            em.failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)";
+                            em.failureReason = "Мутация привела к синтаксической ошибке компиляции (Stillborn Mutant)" +
+                                (mutantRun.compilerOutput != null && !mutantRun.compilerOutput.isBlank() ? ": " + mutantRun.compilerOutput.trim() : "");
                         } else if (mutantRun.failedCount > 0) {
                             em.killed = true;
                             for (Map<String, Object> tr : mutantRun.testResults) {

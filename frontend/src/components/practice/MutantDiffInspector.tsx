@@ -48,7 +48,13 @@ void testDefectResistance_Line${mutant.line}() {
       {/* 1. Header with Mutator Type and Line */}
       <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded-lg ${isKilled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+          <div className={`p-1.5 rounded-lg ${
+            isKilled
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : isStillborn
+              ? 'bg-amber-500/10 text-amber-400'
+              : 'bg-rose-500/10 text-rose-400'
+          }`}>
             <Bug className="w-4 h-4" />
           </div>
           <div>
@@ -63,7 +69,7 @@ void testDefectResistance_Line${mutant.line}() {
           isKilled
             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
             : isStillborn
-            ? 'bg-slate-700/40 text-slate-400'
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
             : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
         }`}>
           {mutant.status}
@@ -88,7 +94,20 @@ void testDefectResistance_Line${mutant.line}() {
       </div>
 
       {/* 3. Root Cause Analysis / Defect Explanation */}
-      {!isKilled && (
+      {isStillborn && (
+        <div className="p-2.5 rounded-lg bg-amber-950/30 border border-amber-900/40 text-[11px] text-amber-200">
+          <div className="flex items-center gap-1.5 font-bold text-amber-300 mb-1">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <span>Ошибка компиляции мутанта (Stillborn Mutant)</span>
+          </div>
+          <p className="leading-relaxed text-slate-300">
+            {mutant.failureReason ||
+              'Инъецированная мутация привела к синтаксической ошибке компиляции в Java-компиляторе. Мутант исключен из зачета мутационного покрытия.'}
+          </p>
+        </div>
+      )}
+
+      {!isKilled && !isStillborn && (
         <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-900/40 text-[11px] text-rose-200">
           <div className="flex items-center gap-1.5 font-bold text-rose-300 mb-1">
             <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
@@ -111,7 +130,7 @@ void testDefectResistance_Line${mutant.line}() {
 
       {/* 5. Action Triggers */}
       <div className="flex items-center gap-2 pt-1 flex-wrap">
-        {!isKilled && (
+        {!isKilled && !isStillborn && (
           <button
             type="button"
             onClick={(e) => {

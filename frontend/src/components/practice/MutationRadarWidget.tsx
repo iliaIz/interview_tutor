@@ -129,7 +129,7 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
       </div>
 
       {/* 3. Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-2 ${(report.stillbornCount ?? 0) > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-3`}>
         <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 flex flex-col justify-between">
           <span className="text-xs text-slate-400 font-medium">Всего мутантов</span>
           <span className="text-xl font-bold text-white mt-1">{report.totalMutants}</span>
@@ -148,6 +148,15 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
             <span className="text-xs text-rose-500/70">брешей</span>
           </div>
         </div>
+        {(report.stillbornCount ?? 0) > 0 && (
+          <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 flex flex-col justify-between">
+            <span className="text-xs text-amber-400/80 font-medium">Синтаксис (Stillborn)</span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-xl font-bold text-amber-400">{report.stillbornCount}</span>
+              <span className="text-xs text-amber-500/70">ошибок</span>
+            </div>
+          </div>
+        )}
         <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/20 flex flex-col justify-between">
           <span className="text-xs text-indigo-300 font-medium">Время прогона</span>
           <span className="text-xl font-bold text-indigo-300 mt-1">{report.executionTimeMs} <span className="text-xs font-normal">мс</span></span>
@@ -229,7 +238,12 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                         убит: {mutant.killedBy}()
                       </span>
                     )}
-                    {!isKilled && (
+                    {isStillborn && (
+                      <span className="text-xs text-amber-400 font-medium">
+                        Ошибка компиляции
+                      </span>
+                    )}
+                    {!isKilled && !isStillborn && (
                       <span className="text-xs text-rose-400 font-medium">
                         Брешь в тестах
                       </span>

@@ -50,6 +50,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Temporary files & Local credentials
+tmp/
 .tmp/
 scratch/
 scratch*/

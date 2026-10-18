@@ -5,7 +5,8 @@ import { MOCKITO_CHALLENGES } from './mockitoChallenges';
 import { FSM_CHALLENGES } from './fsmChallenges';
 import { CONCURRENCY_CHALLENGES } from './concurrencyChallenges';
 import { ARCHUNIT_CHALLENGES } from './archUnitChallenges';
-import { L0_PRIMITIVES_CHALLENGES, L1_REVERSE_TESTING_CHALLENGES } from './primitivesChallenges';
+import { L0_PRIMITIVES_CHALLENGES } from './primitivesChallenges';
+import { L1_REVERSE_TESTING_CHALLENGES } from './reverseTestingChallenges';
 
 export {
   LEGACY_SEAMS_CHALLENGES,

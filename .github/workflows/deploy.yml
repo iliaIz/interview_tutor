@@ -102,6 +102,10 @@ jobs:
         working-directory: backend
         run: npm run test:practice:task-codes
 
+      - name: Run Mutation Challenges Catalog & Zero-Stillborn Integrity Tests
+        working-directory: backend
+        run: npm run test:practice:mutation-challenges
+
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
