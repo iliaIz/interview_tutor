@@ -124,7 +124,7 @@
 
 ## 7. Multi-Faceted Research-Driven Architecture (MFRDA) Invariant
 - **Zero Premature Planning:** Never generate speculative execution roadmaps or "locked" phase files before empirical baseline fact-checking and external Deep Research verification.
-- **Unconstrained Inquiry (Zero Anchoring):** Never restrict Deep Research prompts to pre-selected arbitrary choices (e.g., "Option A vs Option B"). Always mandate the discovery of emergent SOTA paradigms as of September 2026.
+- **Unconstrained Inquiry (Zero Anchoring):** Never restrict Deep Research prompts to pre-selected arbitrary choices (e.g., "Option A vs Option B"). Always mandate the discovery of emergent SOTA paradigms as of late 2026. Prompts must strictly adhere to the [deep-research-prompt-crafting](.agents/skills/deep-research-prompt-crafting/SKILL.md) skill, avoiding obsolete version anchoring and specifying capabilities via first-principles constraints.
 - **Empirical Codebase Verification First:** Before proposing any architectural refactoring, verify the As-Is state directly in the code (DB schemas, routing, types, scripts) to prevent hallucinated assumptions.
 - **Living Documentation & SSOT:** All high-level plans, verified defects, research prompts, and decisions MUST be persistently maintained in `docs/roadmap/wave_05_system_and_ai_evolution/`.
 

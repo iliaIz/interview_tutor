@@ -35,12 +35,16 @@ This skill governs how the agent approaches macro-level system architecture, tax
 - Document findings in `01_BASELINE_DEFECT_AUDIT.md`.
 
 ### Step 1: Multi-Faceted Deep Research Battery
+- Author prompts strictly adhering to the [`deep-research-prompt-crafting`](../deep-research-prompt-crafting/SKILL.md) skill:
+  * Mandate Zero-Anchoring (never presuppose historical library versions or candidate models from 2022–2024).
+  * Frame inquiries strictly around physical constraints, memory contracts, and latency SLAs (First Principles).
+  * Fencing protocol invariants (explicitly guard against known fatal errors like WS 1011/1008).
 - Decompose system-level uncertainty into orthogonal, unanchored research planes:
-  * Plane 1: Macro-Taxonomy & Strategy.
-  * Plane 2: Pedagogical Cognitive Ladders (Junior -> Senior).
-  * Plane 3: Mathematical Modeling of Domain Engines (e.g., DES Queuing theory for AI/LLMs).
-  * Plane 4: Data Architecture & SSOT Patterns.
-- Document prompts in `02_RESEARCH_INQUIRY_SUITE.md` for human dispatch.
+  * Plane 1: Macro-Taxonomy / Edge Infrastructure.
+  * Plane 2: Machine Learning & Mathematical Models.
+  * Plane 3: Protocol & Session State Arbitration.
+  * Plane 4: HCI, Domain Ergonomics & UX.
+- Document prompts in `02_RESEARCH_INQUIRY_SUITE.md` (or dedicated inquiry directory) for human dispatch.
 
 ### Step 2: Report Ingestion & Master Architectural RFC
 - Ingest finalized Deep Research reports placed in `docs/roadmap/reports/`.
@@ -62,5 +66,6 @@ This skill governs how the agent approaches macro-level system architecture, tax
 - ❌ **The Hallucinated Progression Trap:** Labeling advanced distributed algorithms (e.g., Consistent Hashing, LSM trees, Fencing Tokens) as "Junior L0" without an authentic web-engineering baseline.
 - ❌ **The Duplicate Truth Trap:** Storing one version of scenarios in SQLite and another version statically bundled in client-side TypeScript.
 - ❌ **The Single-Prompt Fallacy:** Attempting to solve taxonomy, pedagogy, and queuing math in a single generic research query instead of a focused battery.
+- ❌ **The Obsolete Version & Anchoring Trap:** Naming legacy candidate libraries or versions (e.g. 2022–2024 packages), which biases the research LLM and hides 2026 SOTA breakthroughs.
 - ❌ **Premature Spec Creation:** Writing stage specifications while research is still running.
 - ❌ **Prompt/Operational Bloat:** Polluting agent instructions with human-side operational details (browser extensions, clipboard workarounds). The agent expects clean reports in `docs/roadmap/reports/` and focuses strictly on architectural synthesis.
