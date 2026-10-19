@@ -191,3 +191,16 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Provides unified conversational continuity and accurate evaluation attribution across multi-question batch workflows.
 - **Invariants:** WebSocket session state MUST reflect the actual `questionIndex` and `totalQuestions` of the client batch. Evaluation payloads MUST always carry the explicit `questionId`.
 
+---
+
+### 2.15 `liveAudioStreamRouter.ts: Pre-Connection Frame Queue Purge & Turn 0 False Barge-In Shielding (Wave 18)`
+- **Location:** [`backend/src/services/live/liveAudioStreamRouter.ts#L100-L130`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts)
+- **What Was Done:**
+  - On Turn 0 session initialization (`!isResumed && !wasReconnecting`), explicitly cleared `session.frameQueue.length = 0` immediately after dispatching the initial greeting prompt to Gemini Live.
+  - Corrected `commitAnchor` timestamping to record the exact moment `commitSpokenTurn()` is triggered, preventing latency measurement drift into total elapsed session duration.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Upstream Gemini was randomly truncating or silencing Turn 0 greetings (0 audio bytes returned, session terminating immediately).
+  - *Empirical Finding:* Client browsers captured ambient audio and microphone clicks before WebSocket setup was acknowledged. These early frames were buffered in `session.frameQueue` and flushed directly into `geminiSocket` the millisecond `setupComplete` arrived. Cloud VAD on Google's servers detected this trailing pre-greeting audio as candidate speech and triggered server-side barge-in, aborting Turn 0 recitation before the first greeting token could be synthesized.
+- **Rationale & "Why":** Turn 0 greeting is a one-way recitation of the question and greeting directive. Flushed pre-connection audio is non-speech ambient noise that acts as false barge-in. Discarding early frames on Turn 0 ensures pristine greeting synthesis.
+- **Invariants:** On fresh Turn 0 connections, pre-greeting buffered microphone frames MUST NEVER be flushed into `geminiSocket`.
+

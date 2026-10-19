@@ -142,5 +142,23 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 - **Rationale & "Why":** Deterministic state handoff eliminates UI/AI desynchronization, while instant tutor launch removes unnecessary friction for theory study.
 - **Invariants:** Modal batch navigation MUST NOT use asynchronous timeouts to sequence connection drops and starts. Target question index MUST be explicitly passed to connection handlers.
 
+---
+
+### 2.12 `VoiceModal.tsx & NativeLiveVoiceEngine.ts: Idempotent Single-Fire Guards, Pre-Setup Capture Gating & Race-Free Batch Navigation (Wave 18)`
+- **Location:** [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx), [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts)
+- **What Was Done:**
+  1. **Idempotent Single-Fire Ref Guards:** Replaced the multi-dependency reactive auto-start `useEffect` in `VoiceModal.tsx` with an explicit `hasAutoStartedRef` and connection mutex `isConnectingRef`. Auto-start executes strictly once upon modal opening and resets cleanly upon closing.
+  2. **Pre-`setupComplete` Capture Gate:** In `NativeLiveVoiceEngine.ts`, introduced `isSessionReady` boolean flag. In `handleMicrophoneChunk`, mic frames are blocked until `isSessionReady === true` and state is strictly candidate-active (`LISTENING`).
+  3. **Batch Question SSOT:** In `VoiceModal.tsx`, prioritized `questionsBatch[targetIndex]` as the authoritative source of question metadata for each turn, eliminating re-render cascades caused by parent deck state synchronization.
+  4. **Decoupled Parent State Sync:** Wrapped parent `onIndexChange` notifications in `requestAnimationFrame` to ensure modal socket re-establishment completes before parent re-rendering occurs.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Re-triggering and repeated greetings in VoiceModal were caused by reactive dependencies in the auto-start effect (`startSessionForIndex` identity changes when parent props updated), causing the effect to fire a second time while the first connection was still establishing.
+  - *Empirical Finding:* When `startSessionForIndex` ran, `connect()` called `disconnect()`, setting state to `IDLE`. The effect observed `state === 'IDLE'` and the updated callback, executing a second time, closing the active socket with code 1000 ("Normal Closure") and reconnecting with a repeated Turn 0 greeting.
+- **Rationale & "Why":** Completely eliminates the reactive reconnection loop, prevents race conditions during batch question transitions, and shields Gemini Live from pre-setup ambient microphone streaming.
+- **Invariants:**
+  - Auto-start in `VoiceModal` MUST be idempotent and guarded by a ref, firing exactly once per modal session.
+  - `NativeLiveVoiceEngine` MUST NEVER emit microphone PCM chunks to the WebSocket before `setupComplete` is received from the server.
+
+
 
 
