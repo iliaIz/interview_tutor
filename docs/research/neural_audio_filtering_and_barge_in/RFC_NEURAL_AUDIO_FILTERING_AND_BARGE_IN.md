@@ -1,32 +1,47 @@
-# Master Architectural RFC: Neural Audio Filtering, Speculative Ducking & Gemini 3.8 Live Stream Arbitration
+# Master Architectural RFC: Continuous Stream Neural Audio Filtering & Speculative Barge-In Resilience for Gemini 3.8 Live
 
 > **Document:** `docs/research/neural_audio_filtering_and_barge_in/RFC_NEURAL_AUDIO_FILTERING_AND_BARGE_IN.md`  
-> **Status:** Proposed / Synthesized from Deep Research Battery (Planes 1–4)  
-> **Target Standard:** SOTA Late-2026 (Web Audio API Level 2, AudioWorklets, WASM SIMD, Gemini 3.8 Live)  
-> **Target Subsystem:** Client Audio DSP, Neural Phonetic VAD, Pre-Socket Gating, Floor Control & UX
+> **Status:** Fully Audited & Grounded against `tmp/gemini 3.8 live docs/` and `AGENTS.md` Rule 2.6  
+> **Target Standard:** SOTA Late-2026 (Web Audio API Level 2, AudioWorklet, WASM SIMD, Gemini 3.8 Live)  
+> **Target Subsystem:** Client Audio DSP, Neural Phonetic VAD, Speculative Barge-In & Continuous Stream Arbitration
 
 ---
 
-## 1. Problem Statement & Root Cause Synthesis
+## 1. Grounded Baseline Verification & Root Cause Identification
 
-### The Core Failure Mode
-In full-duplex conversational voice tutoring and technical mock interviews, candidate physiological transients (coughing, sneezing, throat clearing, sighing) and mechanical impacts (keyboard clicks, desk thumps) accidentally interrupt the AI tutor while it is explaining concepts and contaminate the upstream cloud model's real-time audio pipeline.
-
-### Root Cause Verified in Codebase
-1. **Naive Energy-Only VAD in AudioWorklet:** [`audio-capture-processor.js`](file:///home/djelu/projects/interview_tutor/frontend/public/worklets/audio-capture-processor.js#L118-L127) uses a Schmitt trigger on RMS decibels (`db > dynamicAssertDb`, ~-35 dB). Any sound louder than ambient room noise asserts `speechDetected = true` on the very first 100ms chunk.
-2. **Hard Local Interruption:** [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts#L195-L200) evaluates `metrics.speechDetected` during `AI_SPEAKING` and immediately triggers `handleBargeInInterruption('acoustic')`, cutting off playback without evaluating whether the sound was human speech.
-3. **Cloud KV-Cache Truncation:** When the cough audio is subsequently forwarded to Google Gemini 3.8 Live, Cloud VAD (`AutomaticActivityDetection`) triggers `interrupted: true`, which physically truncates the model's generated turn in the cloud KV-cache, permanently destroying the AI's unspoken thoughts.
+### The Dual Defect in Current Codebase
+1. **Local False Interruption during `AI_SPEAKING`:**
+   - In [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts#L195-L200), when the AI tutor is speaking, audio is **NOT** sent to Gemini Live (to prevent speaker echo).
+   - Instead, the engine monitors `metrics?.speechDetected`.
+   - In [`audio-capture-processor.js`](file:///home/djelu/projects/interview_tutor/frontend/public/worklets/audio-capture-processor.js#L118-L127), `speechDetected` is calculated via a naive RMS decibel Schmitt trigger (`db > -35 dB`).
+   - When the candidate coughs or clears their throat, the energy spike immediately asserts `speechDetected = true`.
+   - `NativeLiveVoiceEngine` immediately calls `handleBargeInInterruption('acoustic')`. The AI speech is killed locally, even though Google never received a barge-in signal!
+2. **Cloud VAD Contamination during `LISTENING`:**
+   - When the candidate is in `LISTENING` state (thinking before answering), the microphone stream is forwarded to Gemini Live.
+   - If the candidate coughs, that raw high-energy acoustic transient ($-15$ dB to $-22$ dB RMS) is forwarded to Google Gemini 3.8 Live.
+   - Google's Cloud VAD interprets the energetic spike as a speech onset (`ACTIVITY_START`), then times out over `silenceDurationMs: 500`, and hallucinates a turn answering a non-existent question.
 
 ---
 
-## 2. Ingested Architectural Foundations (Cross-Plane Synthesis)
+## 2. Gemini 3.8 Live Protocol Audit: Why Discontinuous Gating is Rejected
 
-| Plane | Core Finding / Standard | Implementation Mechanism |
-|---|---|---|
-| **Plane 1: Edge DSP** | Hybrid 2-stage DSP: Fast Transient Clamping ($\tau < 0.15$ms) via Teager-Kaiser Energy Operator (TKEO) + Causal Neural Filtering (`libDF` / `LiteRT.js` WASM SIMD). Zero-allocation inside `AudioWorklet.process()`. | Replace naive Schmitt trigger in AudioWorklet with zero-allocation ring buffer, transient clippers (-26 dBFS ceiling for non-harmonic spikes), and 512-sample (32ms) frame aggregation. |
-| **Plane 2: Neural VAD** | Phonetic feature discrimination (F1–F3 formants, pitch periodicity $F_0 \in [85, 300]$Hz vs cough roll-off $4451$Hz). Minimum voicing duration $T_{\text{min\_voice}}^* \in [192, 240]$ms ($N=7$ frames @ 32ms). Speculative Audio Ducking (-12 dB). | Dual-gate state machine: duck AI playback volume to -12 dB (15ms ramp) on initial sound; if speech verified over 224ms $\to$ commit full barge-in; if transient $\to$ instant rollback to 0 dB in 15ms. |
-| **Plane 3: Protocol Gateway** | Paradigm B (Client-Gated Neural Streaming) with 240ms Pre-Speech Circular Buffer (40ms quiet anchor + 200ms onset) flushed in 40ms sub-chunks. Trailing hangover $T_{\text{total\_trailing}} = 800$ms (300ms redemption + 500ms comfort noise @ -60 dBFS). | Zero frames sent during candidate pause/cough. Upon verified speech, flush 240ms buffer. Upon candidate stop, stream 800ms trailing silence to let server Cloud VAD (`silenceDurationMs: 500`) naturally commit `ACTIVITY_END`. Strict audio mutex during tools. |
-| **Plane 4: Turn-Taking & UX** | Multi-phase dynamic silence timeouts ($T_{\text{pause}} = 350$ms to $5000$ms). Reassurance UX with 5 pastel visual states. Backchannel suppression (<300ms flat $F_0$ without floor seizure). Push-to-Talk and Cough-Mute (`C` key) ergonomic overrides. | Adaptive pause calculator in FSM; State B (Transient Ignored) micro-indicator reassuring candidate; Spacebar Push-to-Talk fallback. |
+A critical finding emerges when comparing the Deep Research Plane 3 report with the official documentation in `tmp/gemini 3.8 live docs/` (`04_audio_context_and_turn_taking.md`) and platform rule `AGENTS.md` Rule 2.6:
+
+> [!CAUTION]
+> **Rejection of Discontinuous Gating (Sending 0 bytes during pauses):**  
+> Plane 3 proposed completely stopping WebSocket audio frames during candidate pauses.  
+> **This contradicts Google's authoritative specification:**  
+> - `04_audio_context_and_turn_taking.md` (§5.1, §6): *"Внутри диалога поток непрерывен! Непрерывный PCM-стрим 16 кГц, сквозной серверный VAD с калибровкой silenceDurationMs: 500"*.  
+> - `AGENTS.md` (Rule 2.6): *"Continuous Mic Streaming: The microphone stream flows continuously as 16kHz 16-bit Mono PCM chunks... Ambient trailing silence is naturally streamed between utterances so server-side VAD can cleanly endpoint turns."*  
+> If the client sends 0 frames during silence, Google's Cloud VAD noise-floor estimator loses adaptation, WebSocket proxies risk idle read-timeouts, and if the client stops sending mid-utterance, the server VAD deadlocks because `silenceDurationMs` advances **strictly on incoming PCM samples**.
+
+### The Bulletproof Solution: Continuous Clean PCM Streaming
+Instead of breaking continuous network streaming, the **client-side DSP suppresses non-speech impulses in-place within the audio buffer**:
+- During `LISTENING`, 16kHz Mono PCM chunks continue streaming smoothly and continuously to Gemini Live.
+- Non-speech transients (coughs, sneezes, clicks) are detected by the client DSP and **clamped/attenuated down to ambient room floor ($-50$ dBFS)** before being encoded to base64.
+- To Google Gemini 3.8 Live, the stream remains uninterrupted, but the cough is completely silent. Google's Cloud VAD (`startOfSpeechSensitivity: "START_SENSITIVITY_LOW"`) never fires!
+- When genuine speech begins (vocal formants, $P(\text{speech}) > 0.85$), the audio flows through with pristine fidelity.
+- When speech ends, natural trailing silence flows into the server, allowing Google's calibrated `silenceDurationMs: 500` to cleanly fire `ACTIVITY_END` naturally.
 
 ---
 
@@ -41,31 +56,37 @@ In full-duplex conversational voice tutoring and technical mock interviews, cand
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Web Audio API AudioWorklet (Real-Time Audio Thread - Zero Allocation)                            │
 │                                                                                                 │
-│  1. Minimum-Phase FIR Resampler (48kHz/44.1kHz -> 16kHz Mono Int16)                             │
-│  2. TKEO Fast Transient Clipper (Clamps cough/click impulses to -26 dBFS in < 0.15ms)           │
-│  3. SPSC Lock-Free Circular Buffer (3,840 samples / 240ms lookback)                             │
+│  1. Fast Minimum-Phase Downsampler (48kHz/44.1kHz -> 16kHz Mono Int16)                          │
+│  2. TKEO Non-Linear Transient Clipper (Clamps cough/click spikes to -26 dBFS in < 0.15ms)      │
+│  3. Frame Aggregator: 512 samples (32ms @ 16kHz) matching Google Gemini Live chunk standard     │
+│  4. Zero-Allocation memory layout: static WASM memory + transferable ArrayBuffer ring pool       │
 └───────────────────────┬─────────────────────────────────────────────────┬───────────────────────┘
-                        │ Transferable ArrayBuffers (8-buffer ring pool)  │ SharedArrayBuffer / Atomics
+                        │ Transferable 512-sample ArrayBuffers            │
                         ▼                                                 ▼
 ┌───────────────────────────────────────────────┐ ┌───────────────────────────────────────────────┐
 │ Web Worker: Neural Phonetic VAD Engine        │ │ Speculative Audio Playout Manager             │
 │                                               │ │                                               │
-│  • Silero VAD v5 / Agora TEN-VAD (WASM SIMD)  │ │  • Normal State: Volume 0 dB (1.0)            │
-│  • 32ms frame inference (512 samples @ 16kHz) │ │  • Acoustic Onset: Duck to -12 dB (15ms ramp) │
-│  • P(speech) evaluation + F0 Harmonicity      │ │  • Speech Verified (>224ms): Hard Barge-In    │
-│  • Cough/Sneeze Rejection (Roll-off > 2.8kHz) │ │  • Transient/Cough (<180ms): Rollback to 0 dB │
+│  • Silero VAD v5 / WASM SIMD runtime          │ │  • Normal Playout: 0 dB gain (1.0)            │
+│  • 32ms frame inference (latency < 2ms)       │ │  • Acoustic Onset: Duck to -12 dB (15ms ramp) │
+│  • P(speech) + F0 harmonicity scoring         │ │  • Speech Verified (>224ms): Hard Barge-In    │
+│  • High roll-off penalty (>2.8kHz) for coughs │ │  • Transient/Cough (<180ms): Rollback to 0 dB │
 └───────────────────────┬───────────────────────┘ └───────────────────────────────────────────────┘
-                        │ Speech Confirmed & Gated Chunks
+                        │ Speech Probability & Transient Mask
                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Upstream Stream Arbitrator & WebSocket Gateway (Gemini 3.8 Live Bridge)                         │
+│ LiveVoiceEngine: Continuous Stream Arbitration & WebSocket Gateway Bridge                       │
 │                                                                                                 │
-│  • SILENT: 0 bytes sent (cough/clicks completely blocked from network)                          │
-│  • ONSET: Flush 240ms Pre-Speech Ring Buffer as six 40ms paced sub-chunks                       │
-│  • ACTIVE_SPEECH: Stream continuous live 16kHz PCM chunks                                       │
-│  • OFFSET: Stream 300ms redemption + 500ms comfort noise (-60 dBFS)                            │
-│  • HANDOFF: Google Cloud VAD commits ACTIVITY_END via silenceDurationMs: 500                    │
-│  • AUDIO MUTEX: Freeze mic chunks between toolCall and toolResponse (WS 1008 protection)        │
+│  • AI_SPEAKING State: Local audio playout active. Mic processed locally by Neural VAD.          │
+│    - Cough / Sneeze (P < 0.20) -> IGNORED 100%. AI speaks uninterrupted. KV-cache intact!       │
+│    - Intentional Speech -> Speculative Ducking (-12 dB) -> Hard Barge-In at 224ms.              │
+│                                                                                                 │
+│  • LISTENING State: Continuous 16kHz PCM streaming to WebSocket (100% Rule 2.6 compliant).      │
+│    - Cough / Sneeze detected -> Impulse clamped to -50 dBFS in buffer. Google VAD stays quiet.  │
+│    - Real Speech -> Streamed with full fidelity. Google Cloud VAD triggers ACTIVITY_START.      │
+│    - Candidate finishes -> Continuous trailing silence streams -> Server triggers ACTIVITY_END.│
+│                                                                                                 │
+│  • Audio Mutex: Frozen during toolCall -> toolResponse (WS Close 1008 protection).              │
+│  • Dual-Sided Handshake: T_drain synchronized before transitioning to LISTENING.                │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,52 +94,48 @@ In full-duplex conversational voice tutoring and technical mock interviews, cand
 
 ## 4. Phase-Gated Implementation Plan (Wave 19)
 
-### Stage 1: Zero-Allocation AudioWorklet DSP & Transient Clipper
-- Update [`audio-capture-processor.js`](file:///home/djelu/projects/interview_tutor/frontend/public/worklets/audio-capture-processor.js):
-  * Remove naive RMS dB Schmitt trigger barge-in flag.
-  * Implement zero-allocation static memory layout (no heap allocations in `process()`).
-  * Implement Teager-Kaiser Energy Operator (TKEO) transient detection to clamp high-energy impulsive spikes (coughs, sneezes, clicks) to $-26\text{ dBFS}$.
-  * Maintain continuous 240ms circular lookback buffer (`Int16Array`, 3,840 samples).
-  * Package audio into 512-sample (32ms @ 16kHz) transferable ArrayBuffers.
+### Phase 1: Zero-Allocation AudioWorklet DSP & TKEO Transient Clamping
+- Modify [`audio-capture-processor.js`](file:///home/djelu/projects/interview_tutor/frontend/public/worklets/audio-capture-processor.js):
+  * Remove the naive RMS decibel Schmitt trigger that was prematurely tripping barge-in.
+  * Implement static memory arena: zero heap allocations in `process()`.
+  * Add Teager-Kaiser Energy Operator (TKEO) fast transient detector: clamps high-energy non-harmonic spikes (coughs, sneezes, clicks) from $-15$ dB to $-26$ dBFS in $< 0.15$ ms.
+  * Standardize chunking on 512 samples (32ms @ 16kHz), matching Google reference architecture.
+  * Output via transferable ArrayBuffer ring pool ($8 \times \text{ArrayBuffer}$) to eliminate GC pressure.
 
-### Stage 2: Neural Phonetic VAD Worker & Speculative Ducking Controller
-- Implement headless `NeuralVadWorker`:
-  * Stream 512-sample chunks to worker running neural VAD with WASM SIMD.
-  * Compute composite neuro-spectral speech probability $P(\text{speech})$ with high roll-off penalty.
+### Phase 2: Neural Phonetic VAD Worker & Speculative Ducking Controller
+- Implement `NeuralVadWorker` (using Silero VAD v5 / WASM SIMD):
+  * Ingest 512-sample (32ms) frames from the AudioWorklet.
+  * Calculate neural speech probability $P(\text{speech})$ with spectral roll-off penalty (coughs roll off at $4451$ Hz; human speech at $1770$ Hz).
+  * Enforce Minimum Voicing Duration $T_{\text{min\_voice}} = 224$ ms ($N = 7$ consecutive 32ms frames).
 - Update [`AudioPlayoutManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AudioPlayoutManager.ts):
   * Add `speculativeDuck(targetGain = 0.25, rampMs = 15)`.
   * Add `rollbackDucking(rampMs = 15)`.
   * Add `commitBargeIn(deClickMs = 5)`.
 - Update [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts):
-  * Replace immediate `handleBargeInInterruption('acoustic')` with the 3-stage speculative barge-in state machine.
-  * Enforce $T_{\text{min\_voice}} = 224\text{ ms}$ ($N=7$ frames) before committing barge-in.
+  * In `AI_SPEAKING`: if sound is non-speech ($P < 0.20$), ignore 100%. If voicing begins, duck volume to -12 dB. If verified $\ge 224$ ms $\to$ commit barge-in. If transient $\to$ instant rollback to 0 dB.
 
-### Stage 3: Upstream Client-Gated Stream Arbitrator (Gemini 3.8 Live Synergy)
-- Implement `LiveStreamArbitrator`:
-  * Manage 240ms Pre-Speech Ring Buffer flushing (six 40ms sub-chunks paced by 3ms).
-  * Enforce Gated Streaming: zero frames sent during silent candidate listening.
-  * Implement 800ms trailing hangover (300ms redemption + 500ms comfort noise @ -60 dBFS) to advance server `silenceDurationMs: 500` deterministically.
-  * Strictly preserve Audio Mutex during `toolCall` execution.
-- Calibrate WebSocket `setup.realtimeInputConfig`:
-  * `automaticActivityDetection`: `disabled: false`, `startOfSpeechSensitivity: "START_SENSITIVITY_LOW"`, `prefixPaddingMs: 200`, `endOfSpeechSensitivity: "END_SENSITIVITY_LOW"`, `silenceDurationMs: 500`.
-  * `turnCoverage`: `"TURN_INCLUDES_ONLY_ACTIVITY"`.
-  * `activityHandling`: `"START_OF_ACTIVITY_INTERRUPTS"`.
+### Phase 3: In-Place Transient Clamping for Continuous Upstream Streaming
+- Update `handleMicrophoneChunk` in [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts):
+  * In `LISTENING`: maintain **strictly continuous** 16kHz PCM streaming over WebSocket.
+  * If a frame contains a non-speech transient (cough/sneeze/click), clamp its samples in-place to ambient floor ($-50$ dBFS) before sending to Gemini Live.
+  * Ensure Google Cloud VAD receives clean, continuous silence during thinking pauses, completely immune to cough-induced false `ACTIVITY_START`.
+  * Maintain strict Audio Mutex: zero chunks transmitted during `toolCall` execution (preventing WS Close 1008).
 
-### Stage 4: Dynamic Floor Control, Reassurance UX & Ergonomics
-- Implement Reassurance UX state indicators in the active session UI:
-  * State A (Passive Ambient)
-  * State B (Transient Ignored — subtle micro-indicator reassuring user that cough was safely filtered)
-  * State C (Candidate Speaking — live acoustic aura)
-  * State D (Speculative Yielding — ducking active)
-  * State E (AI Thinking / Extended Deliberation)
-- Add ergonomic controls: Spacebar Push-to-Talk and `C` hotkey for instant Cough Mute.
-- Adaptive silence timeout $T_{\text{pause}}$ scaling across interview tracks (Verification: 400ms, Concurrency/LLD: 800ms, System Design: 1100ms, Coding: 1400ms).
+### Phase 4: Reassurance UX & Ergonomic Overrides
+- Update active session UI:
+  * Add subtle micro-indicator for State B (**Transient Ignored**): reassuring the user with a gentle pastel ripple when a cough or desk tap was safely filtered.
+  * Add Push-to-Talk via Spacebar override.
+  * Add Cough Mute hotkey (`C`).
 
 ---
 
-## 5. Non-Functional Requirements & Verification Gates
+## 5. Formal Invariants Verification Matrix
 
-1. **Acoustic Rejection Gate:** 100% of recorded coughs, sneezes, and mechanical keyboard clicks must NOT interrupt AI speech or trigger Cloud VAD.
-2. **Speech Responsiveness Gate:** Intentional speech interruption must feel instantaneous to the candidate (ducking commences in $\le 32$ms, full barge-in committed in $\le 224$ms).
-3. **Zero Audio Glitch Gate:** Zero heap allocations inside `AudioWorklet.process()`; 0 buffer underruns over a 45-minute continuous interview.
-4. **Protocol Compliance Gate:** Zero WebSocket Close 1011 errors, zero Close 1008 errors, zero KV-cache desynchronization during tool execution.
+| Protocol Invariant | Risk in Naive Approach | Protection in this RFC | Specification Reference |
+|---|---|---|---|
+| **No 1011 Close on Stream End** | Sending `audioStreamEnd` in pauses breaks vocoder. | `audioStreamEnd` is NEVER sent in dialogue. | `04_audio_context_and_turn_taking.md` §5.1 |
+| **No KV-Cache Temporal Desync** | Injecting empty `clientContent` corrupts attention. | `clientContent` is NEVER injected into audio. | `04_audio_context_and_turn_taking.md` §5.2 |
+| **No 1008 Close during Tools** | Audio sent during `toolCall` causes policy violation. | Strict programmatic Audio Mutex freezes streaming. | `03_tools_and_turn_lockdown.md` §2, §6 |
+| **No Continuous Gating Jitter** | Sending 0 bytes starves Cloud VAD noise estimator. | Stream remains strictly continuous with clamped silence. | `AGENTS.md` Rule 2.6 & `04_audio_context` §3 |
+| **No KV-Cache Truncation on Cough** | Cough trips client barge-in, cutting AI audio. | Neural VAD + 224ms minimum voicing ignores cough. | `04_audio_context_and_turn_taking.md` §4.1 |
+| **No Acoustic Echo Barge-In Loop** | Loudspeaker audio leaks into mic after turnComplete. | Dual-Sided Handshake waits for physical DAC drain $T_{\text{drain}}$. | `04_audio_context_and_turn_taking.md` §4.2, §4.3 |
