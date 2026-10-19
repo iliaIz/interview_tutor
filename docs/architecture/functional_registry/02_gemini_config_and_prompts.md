@@ -115,3 +115,17 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 - **Rationale & "Why":** Provides fast, responsive Socratic tutoring with sub-second generation starts and unifies the pedagogical journey between Academy lessons and Practice arenas across both text and voice modalities.
 - **Invariants:** Text tutor prompts must never exceed 5500 tokens. Active file must be preserved verbatim; secondary files must be skeletonized. Academy context must guide Socratic probing when active.
 
+---
+
+### 2.9 `LiveGreetingReplay.ts & liveVoiceUrlBuilder.ts: Dynamic Batch Recitation & Transition Greeting (Wave 17)`
+- **Location:** [`backend/src/services/live/LiveGreetingReplay.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveGreetingReplay.ts), [`frontend/src/audio/liveVoiceUrlBuilder.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveVoiceUrlBuilder.ts)
+- **What Was Done:**
+  - Updated `generateTurn0RecitationGreeting` in `LiveGreetingReplay.ts` to distinguish question transitions in `tutor` mode: when `questionIndex > 0`, the greeting is phrased as a dynamic transition (*«Мы переходим к следующему вопросу темы: [Вопрос]. Как ты понимаешь эту концепцию?»*) rather than an initial formal greeting.
+  - Ensured question text and reference answer resolution from SQLite accurately updates across batch transitions via updated `questionId` and serialized query params.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Repeating the introductory greeting on question #2 and beyond confused candidates and broke conversational immersion.
+  - *Empirical Finding:* Acknowledging progress with a natural conversational bridge improves immersion and immediately invites candidate thinking on the new question.
+- **Rationale & "Why":** Adheres to SOTA conversational UX standards for multi-question continuous voice dialogues.
+- **Invariants:** For questions with `questionIndex > 0`, Turn 0 greeting MUST NOT re-introduce the AI tutor from scratch; it MUST transition directly to the next question.
+
+

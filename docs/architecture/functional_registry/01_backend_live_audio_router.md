@@ -176,3 +176,18 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Invariants:**
   - Incoming WebSocket client frames MUST NEVER be lost during asynchronous connection setup.
   - `read_file` MUST NEVER return the active file's code snippet when asked for a different file. If not found, it must return an explicit `FILE_NOT_FOUND` error listing existing files.
+
+---
+
+### 2.14 `liveWsConnectionHandler.ts, liveAudioStreamRouter.ts & liveEvaluationToolDispatcher.ts: Batch Progression Grounding & Evaluation Alignment (Wave 17)`
+- **Location:** [`backend/src/services/live/liveWsConnectionHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), [`backend/src/services/live/liveWsClientFrameHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts), [`backend/src/services/live/liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`backend/src/services/live/liveEvaluationToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveEvaluationToolDispatcher.ts)
+- **What Was Done:**
+  - Added extraction and persistence of `questionIndex`, `totalQuestions`, and `isRetry` from both URL query parameters in `liveWsConnectionHandler.ts` and WebSocket `session_init` control frames in `liveWsClientFrameHandler.ts`.
+  - Wired `session.questionIndex` and `session.totalQuestions` into `handleSetupCompleteGreeting` inside `liveAudioStreamRouter.ts` so Turn 0 greeting respects multi-question batch progress.
+  - Explicitly injected `questionId: session.questionId` into the `submit_interview_evaluation` payload in `liveEvaluationToolDispatcher.ts` to guarantee unambiguous per-question evaluation storage in batch sessions.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* When candidates advanced through questions in a study deck or interview marathon, the backend defaulted `questionIndex` to 0 and `totalQuestions` to 1 because the URL query params and `session_init` frame lacked these metadata fields.
+  - *Empirical Finding:* Persisting batch position at both the connection handshake and `session_init` level ensures Gemini is fully grounded on the specific question number and does not treat subsequent questions as repeated initial encounters.
+- **Rationale & "Why":** Provides unified conversational continuity and accurate evaluation attribution across multi-question batch workflows.
+- **Invariants:** WebSocket session state MUST reflect the actual `questionIndex` and `totalQuestions` of the client batch. Evaluation payloads MUST always carry the explicit `questionId`.
+

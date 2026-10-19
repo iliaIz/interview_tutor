@@ -124,4 +124,23 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 - **Rationale & "Why":** Enforces Single-Sink Audio Routing & Capture Invariant (Rule 2.5).
 - **Invariants:** Exactly one voice session may hold microphone capture custody at any given time.
 
+---
+
+### 2.11 `VoiceModal.tsx & liveVoiceUrlBuilder.ts: Zero-Timeout State Handoff, Question Serialization & Instant Tutor Start (Wave 17)`
+- **Location:** [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx), [`frontend/src/audio/liveVoiceUrlBuilder.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveVoiceUrlBuilder.ts), [`frontend/src/components/voice/VoiceModalHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceModalHeader.tsx), [`frontend/src/components/voice/voiceModalTypes.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/voiceModalTypes.ts)
+- **What Was Done:**
+  - Removed the `setTimeout(() => startSession(), 100)` anti-pattern in `handleNextQuestion` and `handleRetryQuestion`.
+  - Implemented `startSessionForIndex(targetIndex: number, isRetryAttempt = false)` which accepts the next question index explicitly, eliminating React stale closure traps on `activeBatchIndex`.
+  - Added reactive synchronization `useEffect(() => setActiveBatchIndex(initialQuestionIndex), [initialQuestionIndex])` so external changes to selected questions immediately sync active state.
+  - In `tutor` mode, set initial `stage` to `'active'` and auto-connected immediately, bypassing the exam lobby screen.
+  - Serialized `questionIndex`, `totalQuestions`, and `isRetry` into URL query parameters via `buildLiveVoiceWebSocketUrl` and into `session_init` control frames.
+  - Linked `activeBatchSession`, `saveBatchSessionCheckpoint`, and `clearBatchSession` from `useAppStore` for robust session recovery.
+  - Extracted header and types to keep `VoiceModal.tsx` strictly under the 350-line limit (346 lines).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* When navigating between questions in a study deck, the AI tutor remained stuck on question #1 because `setTimeout` closed over the initial `activeBatchIndex = 0`.
+  - *Empirical Finding:* Parameterizing `startSessionForIndex(targetIndex)` cleanly disconnects the existing socket and connects to the correct question index deterministically, without relying on asynchronous timer delays.
+- **Rationale & "Why":** Deterministic state handoff eliminates UI/AI desynchronization, while instant tutor launch removes unnecessary friction for theory study.
+- **Invariants:** Modal batch navigation MUST NOT use asynchronous timeouts to sequence connection drops and starts. Target question index MUST be explicitly passed to connection handlers.
+
+
 
