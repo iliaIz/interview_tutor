@@ -40,6 +40,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isAudioMutexLocked = false;
   private isMuted = false;
   private isTurn0Lockdown = false;
+  private isSessionReady = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -60,6 +61,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   public async connect(config: VoiceEngineConfig): Promise<void> {
     this.disconnect();
     this.config = config;
+    this.isSessionReady = false;
     this.isAudioMutexLocked = false;
     this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && (config as any).turn0Lockdown !== false;
     this.fsm.transition({ type: 'CONNECT' });
@@ -83,6 +85,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       ws.onmessage = (event) => this.handleServerFrame(event.data);
       ws.onerror = (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err);
       ws.onclose = (event: CloseEvent) => {
+        this.isSessionReady = false;
         if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
           this.fsm.transition({ type: 'DISCONNECT' });
           if (event?.code === 1006) {
@@ -103,6 +106,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   public disconnect(): void {
     this.wakeLock.release();
     this.clearClientSafetyTimer();
+    this.isSessionReady = false;
     this.isAudioMutexLocked = false;
 
     if (this.ws) {
@@ -186,9 +190,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.isMuted) return;
-    // AUDIO MUTEX: Freeze mic chunks while tool call is executing to prevent Google Close 1008
-    if (this.isAudioMutexLocked) return;
+    if (this.isMuted || this.isAudioMutexLocked || !this.isSessionReady) return;
 
     if (this.getState() === 'AI_SPEAKING') {
       if (metrics?.speechDetected && !this.isTurn0Lockdown) {
@@ -196,6 +198,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       }
       return;
     }
+
+    if (this.getState() !== 'LISTENING') return;
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
@@ -217,6 +221,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     }
 
     if (parsed.type === 'setupComplete') {
+      this.isSessionReady = true;
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
       if (!this.isTurn0Lockdown) {
         this.unlockCandidateTurn();
@@ -336,6 +341,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleFatalError(msg: string, retryable: boolean): void {
+    this.isSessionReady = false;
     this.clearClientSafetyTimer();
     this.fsm.transition({ type: 'ERROR_OCCURRED' });
     this.callbacks.onError?.(msg, retryable);
