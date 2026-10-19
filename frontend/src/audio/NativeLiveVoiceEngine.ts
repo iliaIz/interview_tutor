@@ -190,7 +190,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.isMuted || this.isAudioMutexLocked || !this.isSessionReady) return;
+    if (this.isMuted || this.isAudioMutexLocked) return;
 
     if (this.getState() === 'AI_SPEAKING') {
       if (metrics?.speechDetected && !this.isTurn0Lockdown) {
@@ -199,7 +199,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    if (this.getState() !== 'LISTENING') return;
+    if (!this.isSessionReady || this.getState() !== 'LISTENING') return;
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
@@ -261,6 +261,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     // 2. Incoming Model Speech / Audio
     if (parsed.hasAudio || parsed.hasText) {
+      this.isSessionReady = true;
       this.clearClientSafetyTimer();
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
@@ -286,6 +287,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     // 4. Turn Completion & Dual-Sided Handshake
     if (parsed.isTurnDone) {
+      this.isSessionReady = true;
       if (parsed.interactionStatus === 'IN_PROGRESS') return;
       this.isServerTurnComplete = true;
       this.playoutManager.notifyTurnComplete();
