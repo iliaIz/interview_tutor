@@ -106,7 +106,10 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
     session.hasCandidateResponded = true;
     console.log(`💬 User initiated session with direct prompt turn: "${initialUserMessage.slice(0, 80)}..."`);
   } else if (sessionType === 'tutor') {
-    if (tutorMode === 'bug_hunt') {
+    const isSubsequent = questionIndex > 0;
+    if (isSubsequent) {
+      greetingText = `Мы переходим к следующему вопросу темы (вопрос ${questionIndex + 1} из ${totalQuestions}): «${questionText || topic}». В 1 короткой фразе предложи с чего начнем разбор: с базовых концепций или устройства под капотом. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 короткая фраза).`;
+    } else if (tutorMode === 'bug_hunt') {
       greetingText = `Привет! Я смотрю на задачу на экране «${bugTitle || 'Code Review'}». Поприветствуй меня в 1 коротком предложении и спроси, в чем здесь ошибка. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
     } else if (tutorMode === 'deep_dive') {
       greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 предложении и предложи разобрать любые тонкости или устройство под капотом. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;

@@ -275,6 +275,7 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
   // Notify frontend client with evaluation data (both evaluation and payload for zero-drift compatibility)
   const evaluationPayload = {
     id: savedEvalId,
+    questionId: session.questionId,
     score,
     isPassed,
     positivePoints,

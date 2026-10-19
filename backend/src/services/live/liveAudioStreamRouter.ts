@@ -208,8 +208,8 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             isResumed: Boolean(isResumed),
             wasReconnecting: Boolean(wasReconnecting),
             initialUserMessage,
-            questionIndex,
-            totalQuestions,
+            questionIndex: session.questionIndex !== undefined ? session.questionIndex : questionIndex,
+            totalQuestions: session.totalQuestions !== undefined ? session.totalQuestions : totalQuestions,
             challengeCategory,
             challengeTrack
           });
