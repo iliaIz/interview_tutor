@@ -17,6 +17,9 @@ Our platform conducts rigorous technical mock interviews and Socratic tutoring (
 When voice systems are too aggressive with VAD or barge-in, candidates feel "rushed", "interrupted", or terrified that a cough or sigh will destroy their explanation. When systems are too sluggish, conversation feels unnatural.
 CRITICAL UX REQUIREMENT: Candidates must feel completely psychologically safe: accidental coughing, throat clearing, or thinking pauses must NEVER derail the interview or cause the AI tutor to talk over them.
 
+RESEARCH METHODOLOGY MANDATE (ZERO-ANCHORING):
+Do not restrict your recommendations to legacy or generic chatbot UI paradigms. Investigate the emergent late-2026 frontier in human-agent conversational turn-taking, multi-modal interaction design, and cognitive load management used in premier duplex voice systems and professional assessment platforms.
+
 Inquiry & Technical Scope:
 
 1. Cognitive Load, Verbal Fillers & Floor Holding in Technical Dialogue:
