@@ -98,6 +98,7 @@ export interface UseLiveVoiceSessionReturn {
   isDraining: boolean;
   isMuted: boolean;
   isUserSpeaking: boolean;
+  isTransientFiltered: boolean;
   isPauseHolding: boolean;
   rmsDb: number;
   statusMessage: string;
@@ -139,6 +140,8 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   const [aiTranscript, setAiTranscript] = useState<string>('');
   const [evaluation, setEvaluation] = useState<VoiceEvaluationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isTransientFiltered, setIsTransientFiltered] = useState<boolean>(false);
+  const transientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const engineRef = useRef<ILiveVoiceEngine | null>(null);
   const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
@@ -161,6 +164,13 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       onEvaluationReceived: (res) => {
         setEvaluation(res);
         optionsRef.current.onEvaluationCompleted?.(res);
+      },
+      onTransientFiltered: () => {
+        setIsTransientFiltered(true);
+        if (transientTimerRef.current) clearTimeout(transientTimerRef.current);
+        transientTimerRef.current = setTimeout(() => {
+          setIsTransientFiltered(false);
+        }, 1200);
       },
       onWhiteboardUpdate: (payload) => {
         try {
@@ -293,6 +303,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     isDraining,
     isMuted,
     isUserSpeaking: isListening && rmsDb > -45,
+    isTransientFiltered,
     isPauseHolding: false,
     rmsDb,
     statusMessage,

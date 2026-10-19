@@ -79,6 +79,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isMuted,
     rmsDb,
     isDraining,
+    isTransientFiltered,
     statusMessage,
     dialogueTurns,
     evaluation,
@@ -253,6 +254,29 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setTextInput('');
   };
 
+  // Ergonomic Shortcuts: Spacebar (PTT / Central Click) and 'C' (Cough Mute)
+  useEffect(() => {
+    if (!isOpen || stage !== 'active') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
+        return;
+      }
+
+      if (e.code === 'KeyC' && !e.repeat) {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.code === 'Space' && !e.repeat && state === 'LISTENING') {
+        e.preventDefault();
+        handleCentralButtonClick();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, stage, state, toggleMute, handleCentralButtonClick]);
+
   if (!isOpen) return null;
 
   return (
@@ -310,6 +334,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             isMuted={isMuted}
             rmsDb={rmsDb}
             isDraining={isDraining}
+            isTransientFiltered={isTransientFiltered}
             statusMessage={statusMessage}
             dialogueTurns={dialogueTurns}
             onCentralButtonClick={handleCentralButtonClick}

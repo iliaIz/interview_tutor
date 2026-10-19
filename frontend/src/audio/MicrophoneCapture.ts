@@ -6,12 +6,13 @@
 
 export interface MicrophoneMetrics {
   rmsDb: number;
-  speechDetected: boolean;
+  speechDetected?: boolean;
+  isTransientSpike?: boolean;
   noiseFloorDb?: number;
 }
 
 export interface MicrophoneCaptureOptions {
-  onAudioFrame: (base64Pcm: string, metrics?: MicrophoneMetrics) => void;
+  onAudioFrame: (base64Pcm: string, metrics?: MicrophoneMetrics, pcmBuffer?: ArrayBuffer) => void;
   onAudioLevel?: (rmsDb: number) => void;
   onError?: (err: Error) => void;
 }
@@ -72,7 +73,15 @@ export class MicrophoneCapture {
               this.options.onAudioLevel?.(metrics.rmsDb);
             }
             const base64 = this.arrayBufferToBase64(pcmBuffer);
-            this.options.onAudioFrame(base64, metrics);
+            this.options.onAudioFrame(base64, metrics, pcmBuffer);
+
+            // Recycle buffer back to worklet pool for zero-GC memory reuse
+            try {
+              this.workletNode?.port.postMessage(
+                { type: 'RECYCLE_BUFFER', buffer: pcmBuffer },
+                [pcmBuffer]
+              );
+            } catch {}
           }
         };
 

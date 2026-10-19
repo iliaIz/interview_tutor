@@ -52,3 +52,14 @@ export function playHoldChimeHelper(
     };
   } catch {}
 }
+
+export function stopAllActiveChimes(activeChimes: Set<ChimeHandle>): void {
+  for (const chime of activeChimes) {
+    try {
+      chime.osc.stop();
+      chime.osc.disconnect();
+      chime.gain.disconnect();
+    } catch {}
+  }
+  activeChimes.clear();
+}

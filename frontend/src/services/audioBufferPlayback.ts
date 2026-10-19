@@ -48,3 +48,13 @@ export async function playBase64AudioHelper(
     onPcmFallback(sanitized);
   }
 }
+
+export function stopAllActiveSources(activeSources: Set<AudioBufferSourceNode>): void {
+  for (const source of activeSources) {
+    try {
+      source.stop();
+      source.disconnect();
+    } catch {}
+  }
+  activeSources.clear();
+}

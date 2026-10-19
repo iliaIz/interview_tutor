@@ -27,6 +27,8 @@ import {
   ILiveVoiceEngine
 } from './types';
 
+const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
+
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private fsm: LiveVoiceStateMachine;
   private ws: WebSocket | null = null;
@@ -43,6 +45,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isSessionReady = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
+  private consecutiveVoicingFrames = 0;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
@@ -192,19 +195,53 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     if (this.isMuted || this.isAudioMutexLocked) return;
 
+    // 1. Transient / Cough Suppression during AI_SPEAKING (Local False Interruption Protection)
     if (this.getState() === 'AI_SPEAKING') {
-      if (metrics?.speechDetected && !this.isTurn0Lockdown) {
-        this.handleBargeInInterruption('acoustic');
+      if (this.isTurn0Lockdown) return;
+
+      if (metrics?.isTransientSpike) {
+        if (this.consecutiveVoicingFrames > 0) {
+          this.playoutManager.rollbackDucking(15);
+          this.consecutiveVoicingFrames = 0;
+        }
+        this.callbacks.onTransientFiltered?.();
+        return;
+      }
+
+      if (metrics?.speechDetected || (metrics && metrics.rmsDb > -38)) {
+        if (metrics?.speechDetected) {
+          this.handleBargeInInterruption('acoustic');
+          this.consecutiveVoicingFrames = 0;
+          return;
+        }
+        this.playoutManager.speculativeDuck(0.35, 15);
+        this.consecutiveVoicingFrames++;
+        if (this.consecutiveVoicingFrames >= 7) {
+          this.handleBargeInInterruption('acoustic');
+          this.consecutiveVoicingFrames = 0;
+        }
+      } else if (this.consecutiveVoicingFrames > 0) {
+        this.playoutManager.rollbackDucking(15);
+        this.callbacks.onTransientFiltered?.();
+        this.consecutiveVoicingFrames = 0;
       }
       return;
     }
 
     if (!this.isSessionReady || this.getState() !== 'LISTENING') return;
 
+    // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
-      }));
+      if (metrics?.isTransientSpike) {
+        this.callbacks.onTransientFiltered?.();
+        this.ws.send(JSON.stringify({
+          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: STATIC_SILENCE_BASE64 } }
+        }));
+      } else {
+        this.ws.send(JSON.stringify({
+          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
+        }));
+      }
     }
   }
 

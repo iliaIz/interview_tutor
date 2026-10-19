@@ -24,6 +24,7 @@ export interface VoiceActiveViewProps {
   isMuted: boolean;
   rmsDb: number;
   isDraining: boolean;
+  isTransientFiltered?: boolean;
   statusMessage: string;
   dialogueTurns: DialogueTurnItem[];
   onCentralButtonClick: () => void;
@@ -46,6 +47,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
   isMuted,
   rmsDb,
   isDraining,
+  isTransientFiltered = false,
   statusMessage,
   dialogueTurns,
   onCentralButtonClick,
@@ -111,6 +113,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
         isMuted={isMuted}
         rmsDb={rmsDb}
         isDraining={isDraining}
+        isTransientFiltered={isTransientFiltered}
         onClick={onCentralButtonClick}
         onToggleMute={onToggleMute}
       />

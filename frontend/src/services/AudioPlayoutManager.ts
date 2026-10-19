@@ -4,19 +4,21 @@
  */
 
 import { decodeBase64PcmToFloat32 } from './audioPcmCodec';
-import { playHoldChimeHelper, ChimeHandle } from './audioChimes';
-import { setupMobileSpeakerphoneBridge } from './audioSinkRouting';
+import { playHoldChimeHelper, ChimeHandle, stopAllActiveChimes } from './audioChimes';
+import { setupMobileSpeakerphoneBridge, teardownSpeakerphoneBridge } from './audioSinkRouting';
 import {
   getOrCreateSharedAudioContext,
   warmupSharedAudioContext,
   clearSharedAudioContext
 } from './audioContextHolder';
-import { playBase64AudioHelper, playDecodedBufferHelper } from './audioBufferPlayback';
+import { playBase64AudioHelper, playDecodedBufferHelper, stopAllActiveSources } from './audioBufferPlayback';
 import { createGeminiAudioWorklet } from './audioWorkletFactory';
+import { AudioDuckingController } from './audioDuckingController';
 
 export class AudioPlayoutManager {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private duckingController = new AudioDuckingController();
   private workletNode: AudioWorkletNode | null = null;
   private workletInitPromise: Promise<void> | null = null;
   private speakerphoneElement: HTMLAudioElement | null = null;
@@ -311,58 +313,57 @@ export class AudioPlayoutManager {
     this.isWorkletPlaying = false;
     this.hasReportedFirstPlayoutInTurn = false;
     this.pendingSamples = [];
+    this.duckingController.reset();
 
     if (this.workletNode) {
       this.workletNode.port.postMessage({ type: 'flush' });
     }
 
-    for (const chime of this.activeChimes) {
-      try {
-        chime.osc.stop();
-        chime.osc.disconnect();
-        chime.gain.disconnect();
-      } catch {}
-    }
-    this.activeChimes.clear();
+    stopAllActiveChimes(this.activeChimes);
+    stopAllActiveSources(this.activeSources);
+  }
 
-    for (const source of this.activeSources) {
-      try {
-        source.stop();
-        source.disconnect();
-      } catch {}
-    }
-    this.activeSources.clear();
+  public speculativeDuck(targetGain = 0.35, rampMs = 15): void {
+    if (this.isMuted) return;
+    const { context, masterGain } = this.ensureContext();
+    this.duckingController.speculativeDuck(context, masterGain, targetGain, rampMs);
+  }
+
+  public rollbackDucking(rampMs = 15): void {
+    if (this.isMuted) return;
+    const { context, masterGain } = this.ensureContext();
+    this.duckingController.rollbackDucking(context, masterGain, 1.5, rampMs);
+  }
+
+  public commitBargeIn(deClickMs = 5): void {
+    const { context, masterGain } = this.ensureContext();
+    this.duckingController.commitBargeIn(
+      context,
+      masterGain,
+      () => {
+        this.clearQueue();
+      },
+      1.5,
+      deClickMs
+    );
   }
 
   public handleInterruption(): void {
-    this.clearQueue();
+    this.commitBargeIn(5);
   }
 
   public async teardown(): Promise<void> {
     this.onPlaybackFinished = undefined;
     this.clearQueue();
 
-    if (this.workletNode) {
-      try {
-        this.workletNode.disconnect();
-      } catch {}
-      this.workletNode = null;
-    }
-
-    if (this.speakerphoneElement) {
-      try {
-        this.speakerphoneElement.pause();
-        this.speakerphoneElement.srcObject = null;
-      } catch {}
-      this.speakerphoneElement = null;
-    }
-
-    if (this.mediaStreamDest) {
-      try {
-        this.mediaStreamDest.disconnect();
-      } catch {}
-      this.mediaStreamDest = null;
-    }
+    teardownSpeakerphoneBridge({
+      workletNode: this.workletNode,
+      speakerphoneElement: this.speakerphoneElement,
+      mediaStreamDest: this.mediaStreamDest
+    });
+    this.workletNode = null;
+    this.speakerphoneElement = null;
+    this.mediaStreamDest = null;
 
     if (this.context && this.context.state !== 'closed') {
       clearSharedAudioContext(this.context);

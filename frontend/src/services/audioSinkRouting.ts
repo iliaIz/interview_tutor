@@ -32,3 +32,22 @@ export function setupMobileSpeakerphoneBridge(
     return null;
   }
 }
+
+export function teardownSpeakerphoneBridge(bridge: {
+  workletNode?: AudioWorkletNode | null;
+  speakerphoneElement?: HTMLAudioElement | null;
+  mediaStreamDest?: MediaStreamAudioDestinationNode | null;
+}): void {
+  if (bridge.workletNode) {
+    try { bridge.workletNode.disconnect(); } catch {}
+  }
+  if (bridge.speakerphoneElement) {
+    try {
+      bridge.speakerphoneElement.pause();
+      bridge.speakerphoneElement.srcObject = null;
+    } catch {}
+  }
+  if (bridge.mediaStreamDest) {
+    try { bridge.mediaStreamDest.disconnect(); } catch {}
+  }
+}

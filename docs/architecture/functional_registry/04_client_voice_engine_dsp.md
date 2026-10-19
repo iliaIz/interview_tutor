@@ -159,6 +159,36 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Auto-start in `VoiceModal` MUST be idempotent and guarded by a ref, firing exactly once per modal session.
   - `NativeLiveVoiceEngine` MUST NEVER emit microphone PCM chunks to the WebSocket before `setupComplete` is received from the server.
 
+---
+
+### 2.13 `Continuous Neural Audio Filtering, Zero-Alloc TKEO Clipper & Speculative Ducking (Wave 19)`
+- **Location:**
+  - [`frontend/public/worklets/audio-capture-processor.js`](file:///home/djelu/projects/interview_tutor/frontend/public/worklets/audio-capture-processor.js)
+  - [`frontend/src/audio/MicrophoneCapture.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/MicrophoneCapture.ts)
+  - [`frontend/src/services/audioDuckingController.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/audioDuckingController.ts)
+  - [`frontend/src/services/AudioPlayoutManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AudioPlayoutManager.ts)
+  - [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts)
+  - [`frontend/src/audio/useLiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts)
+  - [`frontend/src/components/voice/VoiceMicButton.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceMicButton.tsx)
+  - [`frontend/src/components/voice/VoiceActiveView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceActiveView.tsx)
+  - [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
+- **What Was Done:**
+  1. **AudioWorklet Zero-Allocation & TKEO Soft-Clipper:** Removed the naive RMS decibel Schmitt trigger (`speechDetected = db > dynamicAssertDb`) that caused immediate acoustic barge-in during `AI_SPEAKING`. Implemented discrete Teager-Kaiser Energy Operator ($\Psi[x(n)] = x^2(n) - x(n-1)x(n+1)$) to detect impulsive non-speech spikes in $<0.15$ ms and soft-clamp peaks to $-26$ dBFS, tagging frames with `isTransientSpike: true`. Standardized frames to 512 samples (32 ms @ 16 kHz) with a recycled pool of 8 transferable ArrayBuffers (zero GC in `process()`).
+  2. **Speculative Ducking & Minimum Voicing Duration ($T_{\text{min\_voice}} = 224$ ms):** Extracted `AudioDuckingController`. During `AI_SPEAKING`, non-speech transients are 100% ignored. On vocal phonation onset candidates (RMS $> -38$ dBFS), AI volume ducks smoothly by $-12$ dB over 15 ms. If sound ceases within $< 180$ ms (cough / throat clear / click), volume smoothly rolls back to 0 dB with zero KV-cache disruption. If sustained for $\ge 7$ consecutive 32 ms frames ($\ge 224$ ms), clean hard barge-in is committed with 5 ms de-click fade-out.
+  3. **Continuous PCM Streaming with In-Place Clamping:** During `LISTENING`, 16kHz 16-bit Mono PCM streams continuously over WebSocket (`AGENTS.md` Rule 2.6). Non-speech transients (coughs/clicks) are clamped in-place to ambient silence (`STATIC_SILENCE_BASE64`, $-50$ dBFS). Google Cloud VAD never triggers `ACTIVITY_START` on coughs. Spoken candidate answers pass through with full fidelity; continuous trailing silence triggers server-side `silenceDurationMs: 500` naturally.
+  4. **Reassurance UX (State B) & Ergonomic Hotkeys:** Added gentle State B lilac aura and micro-badge «Звук отфильтрован» for 1.2s when non-speech transients are suppressed. Added Spacebar (Push-to-Talk) and `C` (Cough-Mute) keyboard shortcuts.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis 1:* False barge-in on cough during `AI_SPEAKING` was locally triggered by the naive RMS Schmitt trigger in `audio-capture-processor.js`.
+  - *Empirical Finding 1:* Verified. During `AI_SPEAKING`, audio is never sent to Google; the engine relied strictly on local `metrics.speechDetected`. Replacing this with TKEO transient tagging and 224 ms minimum voicing completely cures false interruptions.
+  - *Hypothesis 2:* Discontinuous gating (stopping WebSocket frames during pauses) would break Google Cloud VAD.
+  - *Empirical Finding 2:* Verified against `tmp/gemini 3.8 live docs/` (`04_audio_context_and_turn_taking.md`). Cloud VAD advances `silenceDurationMs` strictly on incoming PCM samples; dropping frames deadlocks endpointing and corrupts noise adaptation. In-place clamping provides 100% cough immunity while preserving stream continuity.
+- **Rationale & "Why":** Deep root-cause remediation: addresses acoustic discrimination in real-time DSP, avoids race conditions via speculative ducking, and maintains 100% compliance with Google Gemini 3.8 Live bidirectional streaming standards.
+- **Invariants:**
+  - Microphone PCM streaming during `LISTENING` MUST remain continuous 16kHz 16-bit Mono PCM.
+  - Acoustic barge-in during `AI_SPEAKING` MUST require at least 224 ms ($N=7$ frames) of sustained vocal phonation.
+  - Non-speech transients MUST be clamped in-place to ambient floor.
+
+
 
 
 

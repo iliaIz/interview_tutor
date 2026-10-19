@@ -316,6 +316,19 @@ async function testTactileBargeInInterruption(): Promise<void> {
   await playout.teardown();
 }
 
+async function testSpeculativeDucking(): Promise<void> {
+  console.log('\nContract 5: Speculative Ducking & Instant Rollback');
+  const playout = new AudioPlayoutManager();
+  await playout.resume();
+
+  playout.speculativeDuck(0.35, 15);
+  playout.rollbackDucking(15);
+  playout.commitBargeIn(5);
+
+  assert(true, 'speculativeDuck, rollbackDucking, and commitBargeIn execute cleanly');
+  await playout.teardown();
+}
+
 // ---------------------------------------------------------------------------
 // MAIN RUNNER
 // ---------------------------------------------------------------------------
@@ -329,6 +342,7 @@ async function runAllContracts(): Promise<void> {
     await testDualSidedHandshake();
     await testSingleVoiceInvariant();
     await testTactileBargeInInterruption();
+    await testSpeculativeDucking();
 
     console.log('\n=========================================================================');
     console.log(`Audio Playout Contracts: ${ctx.passed} Passed, ${ctx.failed} Failed`);

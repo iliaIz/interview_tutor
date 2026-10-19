@@ -175,6 +175,7 @@ export interface VoiceEngineCallbacks {
   onBugSolved?: (payload: any) => void;
   onCandidateObservationRecorded?: (payload: any) => void;
   onSmellDiscovered?: (payload: any) => void;
+  onTransientFiltered?: () => void;
 }
 
 export interface ILiveVoiceEngine {

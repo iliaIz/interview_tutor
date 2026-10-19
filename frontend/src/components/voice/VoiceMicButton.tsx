@@ -13,6 +13,7 @@ export interface VoiceMicButtonProps {
   isMuted: boolean;
   rmsDb: number;
   isDraining?: boolean;
+  isTransientFiltered?: boolean;
   onClick: () => void;
   onToggleMute: () => void;
 }
@@ -22,6 +23,7 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
   isMuted,
   rmsDb,
   isDraining = false,
+  isTransientFiltered = false,
   onClick,
   onToggleMute
 }) => {
@@ -36,10 +38,20 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
 
   return (
     <div className="relative flex flex-col items-center justify-center my-6">
+      {/* State B: Transient Ignored Reassurance Badge */}
+      {isTransientFiltered && (
+        <div className="absolute -top-3 z-20 px-2.5 py-0.5 rounded-full bg-purple-100/95 border border-purple-300 text-purple-800 text-[10px] font-semibold flex items-center gap-1 shadow-xs animate-in fade-in zoom-in duration-200">
+          <Sparkles className="w-3 h-3 text-purple-600 animate-spin" />
+          <span>Звук отфильтрован</span>
+        </div>
+      )}
+
       {/* Outer Atmospheric Aura */}
       <div
         className={`absolute rounded-full transition-all duration-300 pointer-events-none ${
-          isDraining
+          isTransientFiltered
+            ? 'w-48 h-48 bg-purple-400/35 blur-2xl animate-pulse'
+            : isDraining
             ? 'w-44 h-44 bg-purple-300/30 blur-2xl animate-pulse'
             : isAiSpeaking
             ? 'w-44 h-44 bg-rose-300/30 blur-2xl animate-pulse'
