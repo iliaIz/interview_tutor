@@ -45,8 +45,14 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     params.set('debugStep', String(cfg.debugStep));
   }
 
-  if (typeof cfg.temperature === 'number') {
-    params.set('temperature', String(cfg.temperature));
+  if (typeof cfg.questionIndex === 'number') {
+    params.set('questionIndex', String(cfg.questionIndex));
+  }
+  if (typeof cfg.totalQuestions === 'number') {
+    params.set('totalQuestions', String(cfg.totalQuestions));
+  }
+  if (cfg.isRetry) {
+    params.set('isRetry', 'true');
   }
 
   return `${protocol}//${host}/ws/live?${params.toString()}`;
@@ -67,6 +73,9 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
     strategy: cfg.strategy,
     targetGrade: cfg.targetGrade,
     customPrompt: cfg.customPrompt,
+    questionIndex: cfg.questionIndex,
+    totalQuestions: cfg.totalQuestions,
+    isRetry: cfg.isRetry,
     challenge: {
       id: cfg.questionId,
       title: cfg.bugTitle || cfg.questionText,

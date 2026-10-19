@@ -93,6 +93,8 @@ export async function handleLiveClientConnection(
     relevantGapIds,
     probesCount: isResumed ? initialProbesCount : 0,
     isRetry,
+    questionIndex,
+    totalQuestions,
     hasCandidateResponded: isResumed,
     isGreetingSent: false,
     isOnHold: false,

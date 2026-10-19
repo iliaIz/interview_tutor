@@ -128,6 +128,9 @@ export interface LiveSessionInitFrame {
     targetConcepts?: string[];
   };
   seniorReview?: any;
+  questionIndex?: number;
+  totalQuestions?: number;
+  isRetry?: boolean;
 }
 
 export interface VoiceEvaluationResult {

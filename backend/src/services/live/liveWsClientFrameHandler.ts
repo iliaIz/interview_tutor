@@ -95,6 +95,9 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         if (parsed.activeCodeArtifact) session.activeCodeArtifact = parsed.activeCodeArtifact;
         if (parsed.academyBridgeContext) session.academyBridgeContext = parsed.academyBridgeContext;
         if (parsed.seniorReview) session.seniorReview = parsed.seniorReview;
+        if (typeof parsed.questionIndex === 'number') session.questionIndex = parsed.questionIndex;
+        if (typeof parsed.totalQuestions === 'number') session.totalQuestions = parsed.totalQuestions;
+        if (typeof parsed.isRetry === 'boolean') session.isRetry = parsed.isRetry;
 
         console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}${session.seniorReview ? ', with seniorReview' : ''}`);
 

@@ -39,6 +39,8 @@ export interface ProxySession {
   relevantGapIds?: string[];
   probesCount?: number;
   isRetry?: boolean;
+  questionIndex?: number;
+  totalQuestions?: number;
   hasCandidateResponded?: boolean;
   isOnHold?: boolean;
   lastActivityAt: number;
