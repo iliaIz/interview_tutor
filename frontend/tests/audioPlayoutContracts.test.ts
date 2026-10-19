@@ -324,6 +324,7 @@ async function testSpeculativeDucking(): Promise<void> {
   playout.speculativeDuck(0.35, 15);
   playout.rollbackDucking(15);
   playout.commitBargeIn(5);
+  await sleep(20);
 
   assert(true, 'speculativeDuck, rollbackDucking, and commitBargeIn execute cleanly');
   await playout.teardown();

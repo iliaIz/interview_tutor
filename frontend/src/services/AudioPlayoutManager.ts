@@ -349,7 +349,7 @@ export class AudioPlayoutManager {
   }
 
   public handleInterruption(): void {
-    this.commitBargeIn(5);
+    this.clearQueue();
   }
 
   public async teardown(): Promise<void> {
