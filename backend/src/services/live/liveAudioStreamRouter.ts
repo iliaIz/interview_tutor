@@ -214,11 +214,21 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             challengeTrack
           });
 
-          // Drain queued frames
-          while (session.frameQueue.length > 0) {
-            const frame = session.frameQueue.shift();
-            if (frame && geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(frame);
+          // Turn 0 Protection (Wave 18): Purge pre-connection ambient audio frames to prevent
+          // false acoustic barge-in on Gemini Turn 0 greeting recitation.
+          if (!isResumed && !wasReconnecting) {
+            const purgedCount = session.frameQueue.length;
+            session.frameQueue = [];
+            if (purgedCount > 0) {
+              console.log(`🧹 [FRAME_QUEUE_PURGE] Purged ${purgedCount} pre-connection audio frames to protect Turn 0 recitation.`);
+            }
+          } else {
+            // Drain legitimate queued frames only for session resumptions/reconnections
+            while (session.frameQueue.length > 0) {
+              const frame = session.frameQueue.shift();
+              if (frame && geminiSocket.readyState === WebSocket.OPEN) {
+                geminiSocket.send(frame);
+              }
             }
           }
         }
@@ -231,7 +241,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             clearTimeout(session.toolCallSafetyTimeout);
             session.toolCallSafetyTimeout = null;
           }
-          const commitAnchor = session.lastTurnCommitTime || session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastToolCallTime || session.sessionStartedAt || session.lastActivityAt || Date.now();
+          const commitAnchor = session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastTurnCommitTime || session.lastToolCallTime || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
           if (session.nudgeWatchdog) {
