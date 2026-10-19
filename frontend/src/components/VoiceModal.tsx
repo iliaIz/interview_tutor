@@ -17,32 +17,10 @@ import { VoiceLobbyView } from './voice/VoiceLobbyView';
 import { VoiceActiveView } from './voice/VoiceActiveView';
 import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
+import { VoiceModalHeader } from './voice/VoiceModalHeader';
+import { QuestionItem, VoiceModalProps } from './voice/voiceModalTypes';
 
-export interface QuestionItem {
-  id: string;
-  topic?: string;
-  question: string;
-  answer?: string;
-  num?: number;
-}
-
-export interface VoiceModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  questionId?: string;
-  topic?: string;
-  currentQuestionText?: string;
-  referenceAnswer?: string;
-  questionsBatch?: QuestionItem[];
-  initialQuestionIndex?: number;
-  initialSessionType?: 'interview' | 'tutor';
-  initialTutorMode?: string;
-  customPromptOverride?: string;
-  onIndexChange?: (newIndex: number) => void;
-  onBatchComplete?: (batchResults: Record<string, VoiceEvaluationResult>) => void;
-  onEvaluationComplete?: (evaluation: VoiceEvaluationResult) => void;
-  onTutorComplete?: (topic: string, questionId: string) => void;
-}
+export type { QuestionItem, VoiceModalProps };
 
 export const VoiceModal: React.FC<VoiceModalProps> = ({
   isOpen,
@@ -63,11 +41,20 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 }) => {
   useBodyScrollLock(isOpen);
   const { config: interviewConfig, setConfig: setInterviewConfig } = useInterviewConfig();
-  const [stage, setStage] = useState<'lobby' | 'active' | 'verdict' | 'grand_finale'>('lobby');
+  const [stage, setStage] = useState<'lobby' | 'active' | 'verdict' | 'grand_finale'>(() => {
+    return initialSessionType === 'tutor' ? 'active' : 'lobby';
+  });
   const [activeBatchIndex, setActiveBatchIndex] = useState<number>(initialQuestionIndex);
   const [batchResults, setBatchResults] = useState<Record<string, VoiceEvaluationResult>>({});
   const [textInput, setTextInput] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+
+  // Sync internal activeBatchIndex when parent updates initialQuestionIndex
+  useEffect(() => {
+    if (initialQuestionIndex !== undefined && initialQuestionIndex !== activeBatchIndex) {
+      setActiveBatchIndex(initialQuestionIndex);
+    }
+  }, [initialQuestionIndex]);
 
   const isBatchMode = Boolean(questionsBatch && questionsBatch.length > 0);
   const totalQuestions = isBatchMode && questionsBatch ? questionsBatch.length : 1;
@@ -80,6 +67,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const isWhiteboardOpen = useAppStore((s) => s.isWhiteboardOpen);
   const setIsWhiteboardOpen = useAppStore((s) => s.setIsWhiteboardOpen);
   const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
+  const activeBatchSession = useAppStore((s) => s.activeBatchSession);
+  const saveBatchSessionCheckpoint = useAppStore((s) => s.saveBatchSessionCheckpoint);
+  const clearBatchSession = useAppStore((s) => s.clearBatchSession);
 
   const session = useLiveVoiceSession();
   const {
@@ -98,15 +88,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     sendTextMessage
   } = session;
 
-  const startSession = useCallback(async () => {
+  const startSessionForIndex = useCallback(async (targetIndex: number, isRetryAttempt = false) => {
     setStage('active');
+    const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
+    const qId = targetQ?.id || questionId || 'Q_DEFAULT';
+    const qTopic = targetQ?.topic || topic;
+    const qText = targetQ?.question || currentQuestionText;
+    const qAnswer = targetQ?.answer || referenceAnswer;
+
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const config: VoiceEngineConfig = {
       sessionId,
-      questionId: activeQuestionId,
-      topic: activeTopic,
-      questionText: activeQuestionText,
-      referenceAnswer: activeReferenceAnswer,
+      questionId: qId,
+      topic: qTopic,
+      questionText: qText,
+      referenceAnswer: qAnswer,
       sessionType: initialSessionType,
       tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
       voice: interviewConfig.voice || 'Kore',
@@ -118,23 +114,32 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
       strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
       customPrompt: customPromptOverride,
-      questionIndex: activeBatchIndex,
-      totalQuestions
+      questionIndex: targetIndex,
+      totalQuestions,
+      isRetry: isRetryAttempt
     };
     await connect(config);
   }, [
-    activeQuestionId,
-    activeTopic,
-    activeQuestionText,
-    activeReferenceAnswer,
+    isBatchMode,
+    questionsBatch,
+    questionId,
+    topic,
+    currentQuestionText,
+    referenceAnswer,
     initialSessionType,
     initialTutorMode,
     interviewConfig,
     customPromptOverride,
-    activeBatchIndex,
     totalQuestions,
     connect
   ]);
+
+  // Auto-start session for Socratic Tutor when launched from study flashcard
+  useEffect(() => {
+    if (isOpen && initialSessionType === 'tutor' && stage === 'active' && state === 'IDLE') {
+      void startSessionForIndex(activeBatchIndex, false);
+    }
+  }, [isOpen, initialSessionType, stage, state, activeBatchIndex, startSessionForIndex]);
 
   const pendingEvaluationRef = useRef<VoiceEvaluationResult | null>(null);
 
@@ -145,12 +150,35 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       setBatchResults((prev) => ({ ...prev, [activeQuestionId]: evaluation }));
       onEvaluationComplete?.(evaluation);
 
+      if (isBatchMode && questionsBatch) {
+        saveBatchSessionCheckpoint(`batch_${activeTopic}_${Date.now()}`, {
+          topicName: activeTopic,
+          questions: questionsBatch as any,
+          currentIndex: activeBatchIndex,
+          results: { ...batchResults, [activeQuestionId]: evaluation },
+          isComplete: activeBatchIndex + 1 >= totalQuestions
+        });
+      }
+
       // Dual-Sided Handshake: if physical audio has already drained, switch immediately
       if (!isDraining && state !== 'AI_SPEAKING') {
         setStage('verdict');
       }
     }
-  }, [evaluation, activeQuestionId, onEvaluationComplete, isDraining, state]);
+  }, [
+    evaluation,
+    activeQuestionId,
+    onEvaluationComplete,
+    isDraining,
+    state,
+    isBatchMode,
+    questionsBatch,
+    activeTopic,
+    activeBatchIndex,
+    batchResults,
+    totalQuestions,
+    saveBatchSessionCheckpoint
+  ]);
 
   // When physical audio finishes draining, transition to verdict if evaluation was received
   useEffect(() => {
@@ -167,28 +195,33 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     const nextIdx = activeBatchIndex + 1;
     setActiveBatchIndex(nextIdx);
     onIndexChange?.(nextIdx);
-    setTimeout(() => {
-      startSession();
-    }, 100);
-  }, [activeBatchIndex, onIndexChange, disconnect, startSession]);
+    void startSessionForIndex(nextIdx, false);
+  }, [activeBatchIndex, onIndexChange, disconnect, startSessionForIndex]);
+
+  const handleRetryCurrentQuestion = useCallback(() => {
+    disconnect();
+    pendingEvaluationRef.current = null;
+    void startSessionForIndex(activeBatchIndex, true);
+  }, [activeBatchIndex, disconnect, startSessionForIndex]);
 
   const handleFinishBatch = useCallback(() => {
+    clearBatchSession();
     setStage('grand_finale');
     onBatchComplete?.(batchResults);
-  }, [batchResults, onBatchComplete]);
+  }, [batchResults, onBatchComplete, clearBatchSession]);
 
   const handleFinishTutor = useCallback(() => {
     disconnect();
     pendingEvaluationRef.current = null;
     onTutorComplete?.(activeTopic, activeQuestionId);
-    setStage('lobby');
+    setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
     onClose();
-  }, [disconnect, onTutorComplete, activeTopic, activeQuestionId, onClose]);
+  }, [disconnect, onTutorComplete, activeTopic, activeQuestionId, initialSessionType, onClose]);
 
   const handleClose = () => {
     disconnect();
     pendingEvaluationRef.current = null;
-    setStage('lobby');
+    setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
     onClose();
   };
 
@@ -204,43 +237,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-gradient-to-b from-[#FFF0F5]/95 via-white/95 to-slate-50/95 border border-rose-100/80 rounded-3xl shadow-2xl p-5 sm:p-6 flex flex-col max-h-[92vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-rose-100/60 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping" />
-            <h2 className="font-bold text-slate-800 text-sm sm:text-base tracking-tight truncate max-w-[260px] sm:max-w-md">
-              {activeTopic}
-            </h2>
-            {isBatchMode && (
-              <span className="px-2 py-0.5 rounded-full bg-rose-100/80 text-rose-700 text-xs font-semibold">
-                {activeBatchIndex + 1} / {totalQuestions}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-              title="Интерактивная доска кода"
-              className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
-                isWhiteboardOpen || activeWhiteboardState
-                  ? 'bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-200'
-                  : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-rose-50/70 hover:text-rose-600 hover:border-rose-200'
-              }`}
-            >
-              <Code2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Доска кода</span>
-              {activeWhiteboardState && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              )}
-            </button>
-            <button
-              onClick={handleClose}
-              className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        <VoiceModalHeader
+          activeTopic={activeTopic}
+          isBatchMode={isBatchMode}
+          activeBatchIndex={activeBatchIndex}
+          totalQuestions={totalQuestions}
+          isWhiteboardOpen={isWhiteboardOpen}
+          activeWhiteboardState={activeWhiteboardState}
+          onToggleWhiteboard={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+          onClose={handleClose}
+        />
 
         {/* Dynamic Stage Render */}
         {stage === 'lobby' && (
@@ -251,11 +257,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             totalQuestions={totalQuestions}
             speechCoachingMode="adaptive"
             updateSpeechCoachingMode={() => {}}
-            canResumeSession={false}
-            activeBatchSession={null}
-            handleResumeSession={() => {}}
-            handleStartFresh={() => {}}
-            startLiveInterview={startSession}
+            canResumeSession={Boolean(activeBatchSession && !activeBatchSession.isComplete)}
+            activeBatchSession={activeBatchSession}
+            handleResumeSession={() => {
+              const resumeIdx = activeBatchSession?.currentIndex ?? 0;
+              setActiveBatchIndex(resumeIdx);
+              void startSessionForIndex(resumeIdx, false);
+            }}
+            handleStartFresh={() => {
+              clearBatchSession();
+              setActiveBatchIndex(0);
+              void startSessionForIndex(0, false);
+            }}
+            startLiveInterview={() => void startSessionForIndex(activeBatchIndex, false)}
             systemHealth={{ isAiReady: true }}
             setIsSettingsOpen={setIsSettingsOpen}
           />
@@ -289,7 +303,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           <VoiceVerdictView
             evaluation={evaluation}
             interviewConfig={interviewConfig}
-            retryCurrentQuestionCleanly={startSession}
+            retryCurrentQuestionCleanly={handleRetryCurrentQuestion}
             onClose={handleClose}
             onNextQuestion={isBatchMode && activeBatchIndex + 1 < totalQuestions ? handleNextQuestion : undefined}
             nextQuestionIndex={activeBatchIndex + 1}
@@ -311,8 +325,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             allResults={batchResults}
             handleRetry={() => {
               setBatchResults({});
+              clearBatchSession();
               setActiveBatchIndex(0);
-              setStage('lobby');
+              setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
+              if (initialSessionType === 'tutor') {
+                void startSessionForIndex(0, false);
+              }
             }}
             onClose={handleClose}
           />
