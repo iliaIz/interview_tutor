@@ -15,9 +15,11 @@ export class AudioDuckingController {
   ): void {
     if (this.isDucked || !masterGain || !context || context.state === 'closed') return;
     const now = context.currentTime;
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(targetGain, now + rampMs / 1000);
+    try {
+      masterGain.gain.cancelScheduledValues?.(now);
+      masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
+      masterGain.gain.linearRampToValueAtTime?.(targetGain, now + rampMs / 1000);
+    } catch {}
     this.isDucked = true;
   }
 
@@ -29,9 +31,11 @@ export class AudioDuckingController {
   ): void {
     if (!this.isDucked || !masterGain || !context || context.state === 'closed') return;
     const now = context.currentTime;
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(baseGain, now + rampMs / 1000);
+    try {
+      masterGain.gain.cancelScheduledValues?.(now);
+      masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
+      masterGain.gain.linearRampToValueAtTime?.(baseGain, now + rampMs / 1000);
+    } catch {}
     this.isDucked = false;
   }
 
@@ -44,14 +48,18 @@ export class AudioDuckingController {
   ): void {
     if (masterGain && context && context.state !== 'closed') {
       const now = context.currentTime;
-      masterGain.gain.cancelScheduledValues(now);
-      masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-      masterGain.gain.linearRampToValueAtTime(0.0, now + deClickMs / 1000);
+      try {
+        masterGain.gain.cancelScheduledValues?.(now);
+        masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime?.(0.0, now + deClickMs / 1000);
+      } catch {}
     }
     setTimeout(() => {
       onCommitted();
       if (masterGain && context && context.state !== 'closed') {
-        masterGain.gain.setValueAtTime(baseGain, context.currentTime);
+        try {
+          masterGain.gain.setValueAtTime?.(baseGain, context.currentTime);
+        } catch {}
       }
       this.isDucked = false;
     }, deClickMs + 2);

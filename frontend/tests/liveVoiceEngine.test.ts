@@ -26,7 +26,9 @@ class MockGainNode {
   public gain = {
     value: 1.0,
     setValueAtTime: () => {},
-    exponentialRampToValueAtTime: () => {}
+    linearRampToValueAtTime: () => {},
+    exponentialRampToValueAtTime: () => {},
+    cancelScheduledValues: () => {}
   };
   public connect(): void {}
   public disconnect(): void {}
