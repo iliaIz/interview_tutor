@@ -5,7 +5,6 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Send, Settings, Sparkles, AlertCircle, RotateCcw, Code2 } from 'lucide-react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
 import { useAppStore } from '../store/useAppStore';
@@ -71,6 +70,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const saveBatchSessionCheckpoint = useAppStore((s) => s.saveBatchSessionCheckpoint);
   const clearBatchSession = useAppStore((s) => s.clearBatchSession);
 
+  const hasAutoStartedRef = useRef<boolean>(false);
+  const isConnectingRef = useRef<boolean>(false);
+
   const session = useLiveVoiceSession();
   const {
     state,
@@ -89,36 +91,42 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   } = session;
 
   const startSessionForIndex = useCallback(async (targetIndex: number, isRetryAttempt = false) => {
-    setStage('active');
-    const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
-    const qId = targetQ?.id || questionId || 'Q_DEFAULT';
-    const qTopic = targetQ?.topic || topic;
-    const qText = targetQ?.question || currentQuestionText;
-    const qAnswer = targetQ?.answer || referenceAnswer;
+    if (isConnectingRef.current) return;
+    isConnectingRef.current = true;
+    try {
+      setStage('active');
+      const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
+      const qId = targetQ?.id || questionId || 'Q_DEFAULT';
+      const qTopic = targetQ?.topic || topic;
+      const qText = targetQ?.question || currentQuestionText;
+      const qAnswer = targetQ?.answer || referenceAnswer;
 
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const config: VoiceEngineConfig = {
-      sessionId,
-      questionId: qId,
-      topic: qTopic,
-      questionText: qText,
-      referenceAnswer: qAnswer,
-      sessionType: initialSessionType,
-      tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
-      voice: interviewConfig.voice || 'Kore',
-      turnMode: interviewConfig.turnMode || 'auto',
-      liveModel: interviewConfig.liveModel || 'gemini-live-v3',
-      vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
-      enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
-      persona: interviewConfig.persona || 'mentor',
-      targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
-      strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
-      customPrompt: customPromptOverride,
-      questionIndex: targetIndex,
-      totalQuestions,
-      isRetry: isRetryAttempt
-    };
-    await connect(config);
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const config: VoiceEngineConfig = {
+        sessionId,
+        questionId: qId,
+        topic: qTopic,
+        questionText: qText,
+        referenceAnswer: qAnswer,
+        sessionType: initialSessionType,
+        tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
+        voice: interviewConfig.voice || 'Kore',
+        turnMode: interviewConfig.turnMode || 'auto',
+        liveModel: interviewConfig.liveModel || 'gemini-live-v3',
+        vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
+        enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
+        persona: interviewConfig.persona || 'mentor',
+        targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
+        strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+        customPrompt: customPromptOverride,
+        questionIndex: targetIndex,
+        totalQuestions,
+        isRetry: isRetryAttempt
+      };
+      await connect(config);
+    } finally {
+      isConnectingRef.current = false;
+    }
   }, [
     isBatchMode,
     questionsBatch,
@@ -136,10 +144,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   // Auto-start session for Socratic Tutor when launched from study flashcard
   useEffect(() => {
-    if (isOpen && initialSessionType === 'tutor' && stage === 'active' && state === 'IDLE') {
+    if (isOpen && initialSessionType === 'tutor' && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
       void startSessionForIndex(activeBatchIndex, false);
     }
-  }, [isOpen, initialSessionType, stage, state, activeBatchIndex, startSessionForIndex]);
+    if (!isOpen) {
+      hasAutoStartedRef.current = false;
+      isConnectingRef.current = false;
+    }
+  }, [isOpen, initialSessionType, activeBatchIndex, startSessionForIndex]);
 
   const pendingEvaluationRef = useRef<VoiceEvaluationResult | null>(null);
 
@@ -190,15 +203,19 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   }, [isDraining, state, stage]);
 
   const handleNextQuestion = useCallback(() => {
+    if (isConnectingRef.current) return;
     disconnect();
     pendingEvaluationRef.current = null;
     const nextIdx = activeBatchIndex + 1;
     setActiveBatchIndex(nextIdx);
-    onIndexChange?.(nextIdx);
+    if (onIndexChange) {
+      requestAnimationFrame(() => onIndexChange(nextIdx));
+    }
     void startSessionForIndex(nextIdx, false);
   }, [activeBatchIndex, onIndexChange, disconnect, startSessionForIndex]);
 
   const handleRetryCurrentQuestion = useCallback(() => {
+    if (isConnectingRef.current) return;
     disconnect();
     pendingEvaluationRef.current = null;
     void startSessionForIndex(activeBatchIndex, true);
@@ -213,6 +230,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const handleFinishTutor = useCallback(() => {
     disconnect();
     pendingEvaluationRef.current = null;
+    hasAutoStartedRef.current = false;
+    isConnectingRef.current = false;
     onTutorComplete?.(activeTopic, activeQuestionId);
     setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
     onClose();
@@ -221,6 +240,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const handleClose = () => {
     disconnect();
     pendingEvaluationRef.current = null;
+    hasAutoStartedRef.current = false;
+    isConnectingRef.current = false;
     setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
     onClose();
   };
@@ -329,6 +350,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
               setActiveBatchIndex(0);
               setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
               if (initialSessionType === 'tutor') {
+                hasAutoStartedRef.current = true;
                 void startSessionForIndex(0, false);
               }
             }}
