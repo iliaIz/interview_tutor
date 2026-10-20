@@ -64,13 +64,32 @@ class MockAudioContext {
   removeEventListener: () => {},
   dispatchEvent: () => {}
 };
-(global as any).navigator = {
-  mediaDevices: {
-    getUserMedia: async () => ({
-      getTracks: () => [{ stop: () => {} }]
-    })
-  }
-};
+try {
+  Object.defineProperty(globalThis, 'navigator', {
+    value: {
+      mediaDevices: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => {} }],
+          getAudioTracks: () => [{ enabled: true }]
+        })
+      }
+    },
+    configurable: true,
+    writable: true
+  });
+} catch {
+  try {
+    Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => {} }],
+          getAudioTracks: () => [{ enabled: true }]
+        })
+      },
+      configurable: true
+    });
+  } catch {}
+}
 
 async function runTests() {
   console.log('========================================================================');
