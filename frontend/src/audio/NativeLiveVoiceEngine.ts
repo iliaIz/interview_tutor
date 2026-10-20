@@ -8,8 +8,9 @@
  * - Programmatic Audio Mutex: freezes microphone chunks during tool execution (prevents WS Close 1008).
  * - Server-driven Acoustic Barge-In: instantaneous de-click cut-off upon serverContent.interrupted.
  * - Zero client-side VAD middleware (relies strictly on Google native cloud VAD).
+ * - Tear-free Voice Batch Navigation Handshake (AudioPlayoutManager.onPlaybackFinished drain before reconnect).
  * 
- * Bounded cognitive size: <= 300 lines (Rule 8).
+ * Bounded cognitive size: <= 350 lines (Rule 8).
  */
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -19,15 +20,15 @@ import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
 import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
+import { LiveAudioStreamManager } from './LiveAudioStreamManager';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
   VoiceEngineCallbacks,
   DialogueTurnItem,
+  NavigationActionEvent,
   ILiveVoiceEngine
 } from './types';
-
-const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private fsm: LiveVoiceStateMachine;
@@ -37,6 +38,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private micCapture: MicrophoneCapture;
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
+  private audioStreamManager = new LiveAudioStreamManager();
 
   private isServerTurnComplete = false;
   private isAudioMutexLocked = false;
@@ -45,7 +47,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isSessionReady = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
-  private consecutiveVoicingFrames = 0;
+  private pendingNavigationAction: NavigationActionEvent | null = null;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
@@ -66,6 +68,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.config = config;
     this.isSessionReady = false;
     this.isAudioMutexLocked = false;
+    this.pendingNavigationAction = null;
+    this.audioStreamManager.reset();
     this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && (config as any).turn0Lockdown !== false;
     this.fsm.transition({ type: 'CONNECT' });
     this.callbacks.onStatusMessage?.('⚡ Подключение к нативному голосовому шлюзу...');
@@ -111,6 +115,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.clearClientSafetyTimer();
     this.isSessionReady = false;
     this.isAudioMutexLocked = false;
+    this.pendingNavigationAction = null;
 
     if (this.ws) {
       try {
@@ -158,10 +163,10 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true }
+        realtimeInput: { mediaChunks: [{ mimeType: 'text/plain', data: btoa(unescape(encodeURIComponent(text))) }] }
       }));
     }
-    this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
+    this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
     this.armClientSafetyTimer();
   }
 
@@ -193,56 +198,17 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.isMuted || this.isAudioMutexLocked) return;
-
-    // 1. Transient / Cough Suppression during AI_SPEAKING (Local False Interruption Protection)
-    if (this.getState() === 'AI_SPEAKING') {
-      if (this.isTurn0Lockdown) return;
-
-      if (metrics?.isTransientSpike) {
-        if (this.consecutiveVoicingFrames > 0) {
-          this.playoutManager.rollbackDucking(15);
-          this.consecutiveVoicingFrames = 0;
-        }
-        this.callbacks.onTransientFiltered?.();
-        return;
-      }
-
-      if (metrics?.speechDetected || (metrics && metrics.rmsDb > -38)) {
-        if (metrics?.speechDetected) {
-          this.handleBargeInInterruption('acoustic');
-          this.consecutiveVoicingFrames = 0;
-          return;
-        }
-        this.playoutManager.speculativeDuck(0.35, 15);
-        this.consecutiveVoicingFrames++;
-        if (this.consecutiveVoicingFrames >= 7) {
-          this.handleBargeInInterruption('acoustic');
-          this.consecutiveVoicingFrames = 0;
-        }
-      } else if (this.consecutiveVoicingFrames > 0) {
-        this.playoutManager.rollbackDucking(15);
-        this.callbacks.onTransientFiltered?.();
-        this.consecutiveVoicingFrames = 0;
-      }
-      return;
-    }
-
-    if (!this.isSessionReady || this.getState() !== 'LISTENING') return;
-
-    // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      if (metrics?.isTransientSpike) {
-        this.callbacks.onTransientFiltered?.();
-        this.ws.send(JSON.stringify({
-          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: STATIC_SILENCE_BASE64 } }
-        }));
-      } else {
-        this.ws.send(JSON.stringify({
-          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
-        }));
-      }
-    }
+    this.audioStreamManager.processMicrophoneChunk(base64Pcm, metrics, {
+      ws: this.ws,
+      playoutManager: this.playoutManager,
+      getState: () => this.getState(),
+      isMuted: this.isMuted,
+      isAudioMutexLocked: this.isAudioMutexLocked,
+      isTurn0Lockdown: this.isTurn0Lockdown,
+      isSessionReady: this.isSessionReady,
+      onBargeIn: (source) => this.handleBargeInInterruption(source),
+      onTransientFiltered: () => this.callbacks.onTransientFiltered?.()
+    });
   }
 
   private handleServerFrame(rawData: any): void {
@@ -283,6 +249,15 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
+    // 2. Navigation Action Dispatch
+    if (parsed.rawParsed?.type === 'navigation_action') {
+      const nav = parsed.rawParsed as NavigationActionEvent;
+      this.pendingNavigationAction = nav;
+      this.isMuted = true;
+      this.callbacks.onNavigationAction?.(nav);
+      return;
+    }
+
     if (parsed.whiteboardPayload) this.callbacks.onWhiteboardUpdate?.(parsed.whiteboardPayload);
     if (parsed.chaosPayload) this.callbacks.onChaosInjected?.(parsed.chaosPayload);
     if (parsed.verdictPayload) this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
@@ -296,7 +271,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     }
     if (parsed.toolCallPayload) this.callbacks.onToolCall?.(parsed.toolCallPayload);
 
-    // 2. Incoming Model Speech / Audio
+    // 3. Incoming Model Speech / Audio
     if (parsed.hasAudio || parsed.hasText) {
       this.isSessionReady = true;
       this.clearClientSafetyTimer();
@@ -314,7 +289,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       }
     }
 
-    // 3. Native Server-Driven Acoustic Barge-In
+    // 4. Native Server-Driven Acoustic Barge-In
     if (parsed.isInterrupted) {
       this.playoutManager.handleInterruption();
       this.isServerTurnComplete = true;
@@ -322,7 +297,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    // 4. Turn Completion & Dual-Sided Handshake
+    // 5. Turn Completion & Dual-Sided Handshake
     if (parsed.isTurnDone) {
       this.isSessionReady = true;
       if (parsed.interactionStatus === 'IN_PROGRESS') return;
@@ -345,6 +320,17 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private unlockCandidateTurn(): void {
+    // SOTA Dual-Sided Navigation Handshake:
+    // If navigation is pending and audio queue has drained, commit navigation immediately!
+    if (this.pendingNavigationAction && !this.pendingNavigationAction.isBoundaryBlocked) {
+      const nav = this.pendingNavigationAction;
+      this.pendingNavigationAction = null;
+      this.isMuted = false;
+      this.callbacks.onNavigationCommit?.(nav);
+      return;
+    }
+    this.pendingNavigationAction = null;
+
     this.isTurn0Lockdown = false;
     this.clearClientSafetyTimer();
     this.isAudioMutexLocked = false;

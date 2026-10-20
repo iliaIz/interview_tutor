@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity,
   GraduationCap,
@@ -34,6 +34,22 @@ export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
   totalQuestions,
   onFinishBatch
 }) => {
+  const [countdown, setCountdown] = useState<number | null>(() => {
+    return onNextQuestion ? 6 : null;
+  });
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!onNextQuestion || isPaused || countdown === null) return;
+    if (countdown <= 0) {
+      onNextQuestion();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, isPaused, onNextQuestion]);
   return (
     <div className="my-2 space-y-4 overflow-y-auto max-h-[65vh] pr-1">
       <div
@@ -244,13 +260,37 @@ export const VoiceVerdictView: React.FC<VoiceVerdictViewProps> = ({
 
       <div className="pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-2 sm:gap-3">
         {onNextQuestion && (
-          <button
-            type="button"
-            onClick={onNextQuestion}
-            className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer min-w-[160px]"
-          >
-            <span>Следующий вопрос ({nextQuestionIndex !== undefined ? nextQuestionIndex + 1 : ''} / {totalQuestions || ''})</span>
-          </button>
+          <div className="flex-1 flex items-center gap-1.5 min-w-[180px]">
+            <button
+              type="button"
+              onClick={() => {
+                setCountdown(null);
+                onNextQuestion();
+              }}
+              className="flex-1 py-3 px-3 sm:px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs hover:opacity-95 transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Следующий ({nextQuestionIndex !== undefined ? nextQuestionIndex + 1 : ''} / {totalQuestions || ''})</span>
+              {countdown !== null && !isPaused && (
+                <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                  {countdown}с
+                </span>
+              )}
+            </button>
+            {countdown !== null && (
+              <button
+                type="button"
+                onClick={() => setIsPaused(!isPaused)}
+                className={`py-3 px-2.5 rounded-2xl border text-[11px] font-semibold transition cursor-pointer ${
+                  isPaused
+                    ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+                    : 'bg-white border-pastel-border text-slate-600 hover:bg-slate-50'
+                }`}
+                title={isPaused ? 'Возобновить автопереход' : 'Приостановить автопереход'}
+              >
+                {isPaused ? '▶️ Пуск' : '⏸ Пауза'}
+              </button>
+            )}
+          </div>
         )}
 
         {onFinishBatch && (

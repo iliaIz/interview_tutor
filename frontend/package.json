@@ -7,7 +7,7 @@
     "dev": "vite",
     "prebuild": "npm --prefix ../shared run build && node scripts/copy_vad_assets.js",
     "build": "tsc && vite build",
-    "test:audio-contracts": "npx tsx tests/audioPlayoutContracts.test.ts && npx tsx tests/liveAudioSessionContracts.test.ts && npx tsx tests/liveVoiceEngine.test.ts && npx tsx tests/liveVoiceStateMachine.test.ts && npx tsx tests/liveVoiceFrameParser.test.ts && npx tsx tests/workspaceAutosave.test.ts && npx tsx tests/ideBridgeContracts.test.ts",
+    "test:audio-contracts": "npx tsx tests/audioPlayoutContracts.test.ts && npx tsx tests/liveAudioSessionContracts.test.ts && npx tsx tests/liveVoiceEngine.test.ts && npx tsx tests/liveVoiceStateMachine.test.ts && npx tsx tests/liveVoiceFrameParser.test.ts && npx tsx tests/workspaceAutosave.test.ts && npx tsx tests/ideBridgeContracts.test.ts && npx tsx tests/voiceNavigationContracts.test.ts",
     "test:e2e:voice": "playwright test e2e/voiceSession.spec.ts",
     "verify-hygiene": "tsx ../scripts/verify_file_hygiene.ts",
     "preview": "vite preview"

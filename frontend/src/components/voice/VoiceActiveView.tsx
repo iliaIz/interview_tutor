@@ -9,11 +9,12 @@ import { Send, Sparkles } from 'lucide-react';
 import { VoiceVisualizer } from './VoiceVisualizer';
 import { VoiceSubtitles } from './VoiceSubtitles';
 import { VoiceMicButton } from './VoiceMicButton';
-import { VoiceEngineState, DialogueTurnItem } from '../../audio/types';
+import { VoiceEngineState, DialogueTurnItem, NavigationActionEvent } from '../../audio/types';
 
 export interface VoiceActiveViewProps {
   activeQuestionText: string;
   isPendingEvaluation: boolean;
+  pendingNavigation?: NavigationActionEvent | null;
   initialSessionType?: 'interview' | 'tutor';
   isBatchMode: boolean;
   activeBatchIndex: number;
@@ -37,6 +38,7 @@ export interface VoiceActiveViewProps {
 export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
   activeQuestionText,
   isPendingEvaluation,
+  pendingNavigation,
   initialSessionType,
   isBatchMode,
   activeBatchIndex,
@@ -67,6 +69,14 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
         <div className="flex items-center justify-center gap-2 py-1.5 px-3 mb-2 rounded-xl bg-purple-100/90 text-purple-900 text-xs font-semibold animate-pulse shadow-xs">
           <Sparkles className="w-4 h-4 text-purple-600 animate-spin" />
           <span>🎙️ ИИ подводит итоги ответа... Дослушайте вердикт</span>
+        </div>
+      )}
+
+      {/* Voice-Commanded Navigation Notice */}
+      {pendingNavigation && !pendingNavigation.isBoundaryBlocked && (
+        <div className="flex items-center justify-center gap-2 py-1.5 px-3 mb-2 rounded-xl bg-violet-100/90 text-violet-900 text-xs font-semibold animate-pulse shadow-xs">
+          <Sparkles className="w-4 h-4 text-violet-600 animate-spin" />
+          <span>🎙️ Переход: Вопрос {(pendingNavigation.targetIndex ?? 0) + 1} из {totalQuestions}...</span>
         </div>
       )}
 

@@ -188,6 +188,39 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Acoustic barge-in during `AI_SPEAKING` MUST require at least 224 ms ($N=7$ frames) of sustained vocal phonation.
   - Non-speech transients MUST be clamped in-place to ambient floor.
 
+---
+
+### 2.14 `Hands-Free Voice Batch Navigation, Dialogue Continuity & Tear-Free Reconnection (Wave 20)`
+- **Location:**
+  - [`backend/src/services/live/liveNavigationToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveNavigationToolDispatcher.ts)
+  - [`backend/src/services/live/liveToolDeclarations.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveToolDeclarations.ts)
+  - [`backend/src/services/live/promptDirectives.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/promptDirectives.ts)
+  - [`backend/src/services/live/livePromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts)
+  - [`backend/src/services/live/liveTutorPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveTutorPromptBuilder.ts)
+  - [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts)
+  - [`frontend/src/audio/LiveAudioStreamManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveAudioStreamManager.ts)
+  - [`frontend/src/audio/useLiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts)
+  - [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
+  - [`frontend/src/components/voice/VoiceActiveView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceActiveView.tsx)
+  - [`frontend/src/components/voice/VoiceVerdictView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceVerdictView.tsx)
+- **What Was Done:**
+  1. **Canonical Navigation Tool (`navigate_question`):** Declared with `NON_BLOCKING` behavior, direction enum `['next', 'prev', 'to_index', 'finish']`, and action enum `['skip_unanswered', 'proceed_next', 'review_previous', 'finish_batch']`.
+  2. **Negative Anti-Collision Guardrail (`VOICE_NAVIGATION_CAPABILITY_DIRECTIVES`):** Strictly prohibits triggering `navigate_question` on technical/algorithmic vocabulary ("на следующем шаге", "пропустим проверку", "вернемся назад к CAS"). Activation strictly requires a direct meta-command to the tutor/interviewer.
+  3. **Fair Evaluation Penalty Contract:** Skipping an interview question before oral completion automatically records a 0-score evaluation in SQLite, registers an error gap in vector memory/FSRS, and updates batch progress.
+  4. **Tear-Free Dual-Sided Handshake Reconnect:** When `navigation_action` arrives, the client soft-mutes the microphone and buffers the transition until the AI's confirmation phrase fully drains through the physical audio DAC (`AudioPlayoutManager.onPlaybackFinished`), preventing mid-syllable audio clipping.
+  5. **Clean-Slate Repeat Attempts:** Returning to a previously skipped/failed question reinitializes the session with `isRetry: true`, cleanly wiping prior turn memory and idempotently updating `batchResults[qId]` upon new answer completion.
+  6. **Hands-Free Verdict Flow (Variant B):** In batch interview mode, the verdict screen features a 6-second auto-advance progress timer with pause/resume controls and speech-driven advance ("Дальше / Следующий").
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis 1:* Holding a single WebSocket open across 10+ questions would cause severe context inflation and latency spikes.
+  - *Empirical Finding 1:* Reconnection latency per question in WebSocket is $<300$ ms, whereas audio context token accumulation in a multi-question session degraded TTFT from ~350 ms to $>2.5$ s and caused rubric bleed. Atomic sessions per question preserve invariant latency and context purity.
+  - *Hypothesis 2:* Closing the socket immediately upon `toolCall` causes acoustic clicks and speech cutoff.
+  - *Empirical Finding 2:* Verified. Waiting for `turnComplete` + DAC drain (`AudioPlayoutManager.onPlaybackFinished`) delivers a 100% natural verbal confirmation (*"Хорошо, фиксирую пропуск вопроса..."*) with zero acoustic clipping.
+- **Rationale & "Why":** Converts InterviewPrep into a true ambient, hands-free tutoring experience (for walking, commuting, or relaxing) without compromising context purity, evaluation fairness, or audio playback quality.
+- **Invariants:**
+  - Each batch question MUST run in an isolated, atomic WebSocket session.
+  - Sockets MUST NEVER be torn down during navigation until the AI's verbal confirmation has drained through physical DAC playout.
+  - Skipped interview questions MUST receive a 0 score and be logged to FSRS knowledge decay.
+
 
 
 

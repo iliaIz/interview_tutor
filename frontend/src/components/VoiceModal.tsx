@@ -10,6 +10,7 @@ import { useInterviewConfig } from '../hooks/useInterviewConfig';
 import { useAppStore } from '../store/useAppStore';
 import { WhiteboardDrawer } from './WhiteboardDrawer';
 import { useLiveVoiceSession } from '../audio/useLiveVoiceSession';
+import { useVoiceShortcuts } from '../audio/useVoiceShortcuts';
 import { VoiceEngineConfig } from '../audio/types';
 import { VoiceEvaluationResult } from '../types/voice';
 import { VoiceLobbyView } from './voice/VoiceLobbyView';
@@ -18,6 +19,7 @@ import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceModalHeader } from './voice/VoiceModalHeader';
 import { QuestionItem, VoiceModalProps } from './voice/voiceModalTypes';
+import { buildVoiceModalConfig } from './voice/voiceModalConfigBuilder';
 
 export type { QuestionItem, VoiceModalProps };
 
@@ -63,23 +65,29 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const activeQuestionText = currentQ?.question || currentQuestionText;
   const activeReferenceAnswer = currentQ?.answer || referenceAnswer;
 
-  const isWhiteboardOpen = useAppStore((s) => s.isWhiteboardOpen);
-  const setIsWhiteboardOpen = useAppStore((s) => s.setIsWhiteboardOpen);
-  const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
-  const activeBatchSession = useAppStore((s) => s.activeBatchSession);
-  const saveBatchSessionCheckpoint = useAppStore((s) => s.saveBatchSessionCheckpoint);
-  const clearBatchSession = useAppStore((s) => s.clearBatchSession);
+  const {
+    isWhiteboardOpen,
+    setIsWhiteboardOpen,
+    activeWhiteboardState,
+    activeBatchSession,
+    saveBatchSessionCheckpoint,
+    clearBatchSession
+  } = useAppStore();
 
   const hasAutoStartedRef = useRef<boolean>(false);
   const isConnectingRef = useRef<boolean>(false);
+  const navCommitRef = useRef<((nav: any) => void) | null>(null);
 
-  const session = useLiveVoiceSession();
+  const session = useLiveVoiceSession({
+    onNavigationCommit: (nav) => navCommitRef.current?.(nav)
+  });
   const {
     state,
     isMuted,
     rmsDb,
     isDraining,
     isTransientFiltered,
+    pendingNavigation,
     statusMessage,
     dialogueTurns,
     evaluation,
@@ -96,34 +104,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     isConnectingRef.current = true;
     try {
       setStage('active');
-      const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
-      const qId = targetQ?.id || questionId || 'Q_DEFAULT';
-      const qTopic = targetQ?.topic || topic;
-      const qText = targetQ?.question || currentQuestionText;
-      const qAnswer = targetQ?.answer || referenceAnswer;
-
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const config: VoiceEngineConfig = {
-        sessionId,
-        questionId: qId,
-        topic: qTopic,
-        questionText: qText,
-        referenceAnswer: qAnswer,
-        sessionType: initialSessionType,
-        tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
-        voice: interviewConfig.voice || 'Kore',
-        turnMode: interviewConfig.turnMode || 'auto',
-        liveModel: interviewConfig.liveModel || 'gemini-live-v3',
-        vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
-        enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
-        persona: interviewConfig.persona || 'mentor',
-        targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
-        strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
-        customPrompt: customPromptOverride,
-        questionIndex: targetIndex,
-        totalQuestions,
-        isRetry: isRetryAttempt
-      };
+      const config = buildVoiceModalConfig({
+        targetIndex,
+        isRetryAttempt,
+        isBatchMode,
+        questionsBatch,
+        questionId,
+        topic,
+        currentQuestionText,
+        referenceAnswer,
+        initialSessionType,
+        initialTutorMode,
+        interviewConfig,
+        customPromptOverride,
+        totalQuestions
+      });
       await connect(config);
     } finally {
       isConnectingRef.current = false;
@@ -136,6 +131,12 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     currentQuestionText,
     referenceAnswer,
     initialSessionType,
+    initialTutorMode,
+    interviewConfig,
+    customPromptOverride,
+    totalQuestions,
+    connect
+  ]);
     initialTutorMode,
     interviewConfig,
     customPromptOverride,
@@ -203,17 +204,22 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     }
   }, [isDraining, state, stage]);
 
-  const handleNextQuestion = useCallback(() => {
+  const handleNavigateToIndex = useCallback((targetIndex: number) => {
     if (isConnectingRef.current) return;
     disconnect();
     pendingEvaluationRef.current = null;
-    const nextIdx = activeBatchIndex + 1;
-    setActiveBatchIndex(nextIdx);
+    setActiveBatchIndex(targetIndex);
     if (onIndexChange) {
-      requestAnimationFrame(() => onIndexChange(nextIdx));
+      requestAnimationFrame(() => onIndexChange(targetIndex));
     }
-    void startSessionForIndex(nextIdx, false);
-  }, [activeBatchIndex, onIndexChange, disconnect, startSessionForIndex]);
+    const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
+    const isRetry = Boolean(targetQ?.id && batchResults[targetQ.id]);
+    void startSessionForIndex(targetIndex, isRetry);
+  }, [disconnect, onIndexChange, isBatchMode, questionsBatch, batchResults, startSessionForIndex]);
+
+  const handleNextQuestion = useCallback(() => {
+    handleNavigateToIndex(activeBatchIndex + 1);
+  }, [activeBatchIndex, handleNavigateToIndex]);
 
   const handleRetryCurrentQuestion = useCallback(() => {
     if (isConnectingRef.current) return;
@@ -227,6 +233,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setStage('grand_finale');
     onBatchComplete?.(batchResults);
   }, [batchResults, onBatchComplete, clearBatchSession]);
+
+  useEffect(() => {
+    navCommitRef.current = (nav) => {
+      if (nav.action === 'finish_batch') {
+        handleFinishBatch();
+      } else {
+        handleNavigateToIndex(nav.targetIndex);
+      }
+    };
+  }, [handleFinishBatch, handleNavigateToIndex]);
 
   const handleFinishTutor = useCallback(() => {
     disconnect();
@@ -255,27 +271,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   // Ergonomic Shortcuts: Spacebar (PTT / Central Click) and 'C' (Cough Mute)
-  useEffect(() => {
-    if (!isOpen || stage !== 'active') return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
-        return;
-      }
-
-      if (e.code === 'KeyC' && !e.repeat) {
-        e.preventDefault();
-        toggleMute();
-      } else if (e.code === 'Space' && !e.repeat && state === 'LISTENING') {
-        e.preventDefault();
-        handleCentralButtonClick();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, stage, state, toggleMute, handleCentralButtonClick]);
+  useVoiceShortcuts({
+    isOpen,
+    stage,
+    state,
+    toggleMute,
+    handleCentralButtonClick
+  });
 
   if (!isOpen) return null;
 
@@ -335,6 +337,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             rmsDb={rmsDb}
             isDraining={isDraining}
             isTransientFiltered={isTransientFiltered}
+            pendingNavigation={pendingNavigation}
             statusMessage={statusMessage}
             dialogueTurns={dialogueTurns}
             onCentralButtonClick={handleCentralButtonClick}
@@ -363,10 +366,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             totalEvaluated={Object.keys(batchResults).length}
             totalQuestions={totalQuestions}
             activeTopic={activeTopic}
-            avgScore={
-              Object.values(batchResults).reduce((sum, r) => sum + (r?.score || 0), 0) /
-              (Object.keys(batchResults).length || 1)
-            }
+            avgScore={Object.values(batchResults).reduce((sum, r) => sum + (r?.score || 0), 0) / (Object.keys(batchResults).length || 1)}
             passedCount={Object.values(batchResults).filter((r) => r?.isPassed).length}
             allResults={batchResults}
             handleRetry={() => {

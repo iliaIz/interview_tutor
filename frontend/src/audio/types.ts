@@ -176,6 +176,19 @@ export interface VoiceEngineCallbacks {
   onCandidateObservationRecorded?: (payload: any) => void;
   onSmellDiscovered?: (payload: any) => void;
   onTransientFiltered?: () => void;
+  onNavigationAction?: (event: NavigationActionEvent) => void;
+  onNavigationCommit?: (event: NavigationActionEvent) => void;
+}
+
+export interface NavigationActionEvent {
+  direction: 'next' | 'prev' | 'to_index' | 'finish';
+  action: 'skip_unanswered' | 'proceed_next' | 'review_previous' | 'finish_batch';
+  currentIndex: number;
+  targetIndex: number;
+  totalQuestions: number;
+  isBoundaryBlocked?: boolean;
+  boundaryMessage?: string;
+  reason?: string;
 }
 
 export interface ILiveVoiceEngine {

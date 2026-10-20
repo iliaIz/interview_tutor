@@ -14,6 +14,7 @@ import {
   VoiceEngineConfig,
   DialogueTurnItem,
   VoiceEvaluationResult,
+  NavigationActionEvent,
   ILiveVoiceEngine
 } from './types';
 
@@ -80,6 +81,8 @@ export interface UseLiveVoiceSessionOptions {
   onWhiteboardUpdate?: (payload: any) => void;
   onError?: (errorMsg: string) => void;
   onDisconnect?: () => void;
+  onNavigationAction?: (event: NavigationActionEvent) => void;
+  onNavigationCommit?: (event: NavigationActionEvent) => void;
   getActiveCode?: () => string | undefined;
   getActiveLanguage?: () => string | undefined;
   getActiveFileName?: () => string | undefined;
@@ -99,6 +102,7 @@ export interface UseLiveVoiceSessionReturn {
   isMuted: boolean;
   isUserSpeaking: boolean;
   isTransientFiltered: boolean;
+  pendingNavigation: NavigationActionEvent | null;
   isPauseHolding: boolean;
   rmsDb: number;
   statusMessage: string;
@@ -141,6 +145,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   const [evaluation, setEvaluation] = useState<VoiceEvaluationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransientFiltered, setIsTransientFiltered] = useState<boolean>(false);
+  const [pendingNavigation, setPendingNavigation] = useState<NavigationActionEvent | null>(null);
   const transientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const engineRef = useRef<ILiveVoiceEngine | null>(null);
@@ -171,6 +176,14 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
         transientTimerRef.current = setTimeout(() => {
           setIsTransientFiltered(false);
         }, 1200);
+      },
+      onNavigationAction: (nav) => {
+        setPendingNavigation(nav);
+        optionsRef.current.onNavigationAction?.(nav);
+      },
+      onNavigationCommit: (nav) => {
+        setPendingNavigation(null);
+        optionsRef.current.onNavigationCommit?.(nav);
       },
       onWhiteboardUpdate: (payload) => {
         try {
@@ -304,6 +317,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     isMuted,
     isUserSpeaking: isListening && rmsDb > -45,
     isTransientFiltered,
+    pendingNavigation,
     isPauseHolding: false,
     rmsDb,
     statusMessage,
