@@ -137,12 +137,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     totalQuestions,
     connect
   ]);
-    initialTutorMode,
-    interviewConfig,
-    customPromptOverride,
-    totalQuestions,
-    connect
-  ]);
 
   // Auto-start session for Socratic Tutor when launched from study flashcard
   useEffect(() => {
