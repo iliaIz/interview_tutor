@@ -116,8 +116,7 @@ export async function handleNavigationToolCall(ctx: LiveToolContext): Promise<bo
           userId: session.userId || 'default_user',
           questionId: session.questionId,
           topic: session.topic || 'General',
-          questionText: session.questionText || '',
-          gapDescription: 'Кандидат пропустил вопрос без ответа.',
+          errorConcept: session.questionText ? `Пропуск: ${session.questionText}` : 'Кандидат пропустил вопрос без ответа',
           initialDeficit: 1.0
         });
       } catch (err) {
