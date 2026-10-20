@@ -67,6 +67,37 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
   });
 
 
+  // Voice-Commanded Hands-Free Batch Navigation Tool (SOTA Late 2026)
+  toolDeclarations.push({
+    name: 'navigate_question',
+    description: 'Вызывается ИСКЛЮЧИТЕЛЬНО по прямой просьбе пользователя переключить текущую карточку вопроса в группе (например: "перейди к следующему вопросу", "пропусти этот вопрос", "вернись назад", "давай дальше"). КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать при рассуждениях о шагах алгоритма ("на следующем шаге"), технических пропусках ("пропустим валидацию") или возвратах к тезисам ("вернемся назад к CAS").',
+    behavior: 'NON_BLOCKING',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        direction: {
+          type: 'STRING',
+          enum: ['next', 'prev', 'to_index', 'finish'],
+          description: 'next: следующий вопрос; prev: предыдущий; to_index: переход по индексу; finish: завершение темы'
+        },
+        action: {
+          type: 'STRING',
+          enum: ['skip_unanswered', 'proceed_next', 'review_previous', 'finish_batch'],
+          description: 'skip_unanswered: пропуск без ответа (0 баллов в интервью); proceed_next: переход дальше; review_previous: возврат назад; finish_batch: завершение темы'
+        },
+        targetIndex: {
+          type: 'INTEGER',
+          description: '0-based индекс целевого вопроса (при to_index)'
+        },
+        candidateReason: {
+          type: 'STRING',
+          description: 'Причина переключения, озвученная пользователем'
+        }
+      },
+      required: ['direction', 'action']
+    }
+  });
+
   if (sessionType === 'interview') {
     toolDeclarations.push({
       name: 'submit_interview_evaluation',

@@ -7,7 +7,7 @@
  */
 
 import { PromptRegistry, getPersonaPromptDirectives, LANGUAGE_LOCK_INVARIANT, isLanguageDrifted } from '../prompts';
-import { buildSystemPrompt, LIVE_TOOL_CAPABILITY_DIRECTIVES } from '../services/live/livePromptBuilder';
+import { buildSystemPrompt, LIVE_TOOL_CAPABILITY_DIRECTIVES, VOICE_NAVIGATION_CAPABILITY_DIRECTIVES } from '../services/live/livePromptBuilder';
 import { getSafeSpokenText, TurnReasoningResult } from '../routes/interviewTurn';
 import { envConfig } from '../config/env';
 import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
@@ -456,6 +456,26 @@ const interviewPrompt = buildSystemPrompt({
 assert(
   interviewPrompt.includes('СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ'),
   'Interview prompt enforces LIVE_TOOL_CAPABILITY_DIRECTIVES'
+);
+assert(
+  interviewPrompt.includes('СТРОГИЕ ПРАВИЛА ГОЛОСОВОЙ НАВИГАЦИИ ПО ВОПРОСАМ'),
+  'Interview prompt enforces VOICE_NAVIGATION_CAPABILITY_DIRECTIVES'
+);
+assert(
+  VOICE_NAVIGATION_CAPABILITY_DIRECTIVES.includes('КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать `navigate_question`'),
+  'VOICE_NAVIGATION_CAPABILITY_DIRECTIVES contains anti-collision negative guardrail'
+);
+
+const batchInterviewPrompt = buildSystemPrompt({
+  sessionType: 'interview',
+  topic: 'Java Concurrency',
+  questionText: 'Explain volatile semantics',
+  questionIndex: 0,
+  totalQuestions: 5
+});
+assert(
+  batchInterviewPrompt.includes('Готов перейти к следующему вопросу?'),
+  'Batch interview prompt includes post-verdict continuous transition prompt'
 );
 assert(
   interviewPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
