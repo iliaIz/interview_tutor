@@ -96,52 +96,41 @@ export function buildSystemPrompt(params: {
     referenceAnswer = '',
     strategy = 'adaptive_probing',
     voiceName = 'Kore',
-    userGender = 'neutral',
-    turnMode = 'auto',
+    userGender = 'female',
+    turnMode = 'manual',
     maxProbes = 3,
     anchors = [],
-    deepDive = false,
-    liveCoaching = false,
+    deepDive,
+    liveCoaching,
     customPromptOverride,
-    questionIndex = 0,
-    totalQuestions = 1,
-    sessionType = 'interview',
-    tutorMode = 'deep_dive',
+    questionIndex,
+    totalQuestions,
+    sessionType,
+    tutorMode,
     bugTitle,
     bugExplanation,
     codeSnippet,
     fixedCode,
     unitTest,
     incidentContext,
-    candidateGaps,
+    hints,
+    candidateGaps = [],
     activeCodeArtifact,
     codeRevisionsSummary,
+    primaryStack = 'Java 21, Spring Boot 3.3',
     persona = 'mentor',
     targetGrade = 'L5_SENIOR',
-    challengeCategory,
-    challengeTrack,
+    challengeCategory = '',
+    challengeTrack = '',
     strictness = 'lenient',
     workspaceManifest,
     academyBridgeContext,
     seniorReview
   } = params;
 
-  // Intercept Refactoring Arena Senior Review
-  if (seniorReview) {
-    return buildLivePairPrompt({
-      taskTitle: seniorReview.taskTitle || topic,
-      problemStatement: seniorReview.problemStatement || questionText,
-      initialCode: seniorReview.initialCode || codeSnippet || '',
-      referenceCode: referenceAnswer,
-      knownSmells: seniorReview.knownSmells || [],
-      hints: seniorReview.hints || [],
-      userGender
-    });
-  }
-
-  const aiGenderRule = getAiGenderDirective(voiceName);
+  const isFemale = ['Kore', 'Aoede'].includes(voiceName);
+  const aiGenderRule = getAiGenderDirective(isFemale);
   const candidateGenderRule = getCandidateGenderDirective(userGender);
-  const isFemale = voiceName === 'Kore';
 
   const turnModeInstruction = turnMode === 'manual'
     ? '=== РЕЖИМ ПЕРЕДАЧИ ХОДА: РУЧНОЙ (PUSH-TO-TALK) ===\nКандидат управляет микрофоном вручную. Отвечай только после завершения хода.'
@@ -151,7 +140,7 @@ export function buildSystemPrompt(params: {
 Если нужно наглядно разобрать код или архитектурную схему, вызывай функцию update_whiteboard.`;
 
   const activeArtifactSection = activeCodeArtifact?.code
-    ? `\n=== ТЕКУЩИЙ КОД НА ДОСКЕ КАНДИДАТА ===\nЯзык: ${activeCodeArtifact.language || 'java'}\nКод:\n\`\`\`\n${activeCodeArtifact.code}\n\`\`\`\n`
+    ? `\n=== АКТИВНЫЙ КОД НА ЭКРАНЕ КАНДИДАТА (${activeCodeArtifact.id || 'активная версия'}: "${activeCodeArtifact.title || 'Сниппет'}") ===\n${wrapUntrustedContext('active_code_artifact', activeCodeArtifact.code)}\n${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ ВЕРСИИ КОДА В ИСТОРИИ СЕССИИ (Кандидат сейчас просматривает версию ${activeCodeArtifact.id || 'активную'}):\n${codeRevisionsSummary.map((r: any) => `  - [${r.id}] ${r.title} ${r.id === activeCodeArtifact?.id ? '(АКТИВНА)' : ''}`).join('\n')}\n` : ''}\n`
     : '';
 
   const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}${activeArtifactSection}`;
@@ -174,8 +163,28 @@ export function buildSystemPrompt(params: {
     });
   }
 
-  // 2. Tutor Session Logic (Study Card / Bug Hunt Arena)
-  if (sessionType === 'tutor' || tutorMode === 'practice_pair' || tutorMode === 'bug_hunt' || tutorMode === 'free_chat') {
+  // 2. Practice Pair Programming
+  if (tutorMode === 'practice_pair') {
+    const domain = getChallengeDomain({ category: challengeCategory, track: challengeTrack, slug: bugTitle });
+    return buildLivePairPrompt({
+      domain,
+      persona: typeof persona === 'string' ? persona : 'middle_scaffold',
+      isFemale,
+      userGender,
+      bugTitle,
+      questionText,
+      bugExplanation,
+      referenceAnswer,
+      codeSnippet,
+      activeCodeArtifact,
+      workspaceManifest,
+      academyBridgeContext,
+      seniorReview
+    });
+  }
+
+  // 3. Tutor Session Logic (Study Card / Bug Hunt Arena / Free Chat / Socratic / ELI5)
+  if (sessionType === 'tutor' || tutorMode === 'bug_hunt' || tutorMode === 'free_chat' || tutorMode === 'deep_dive' || tutorMode === 'socratic' || tutorMode === 'eli5') {
     return buildTutorPrompt({
       tutorMode,
       customPromptOverride,
@@ -191,6 +200,7 @@ export function buildSystemPrompt(params: {
       incidentContext,
       fixedCode,
       unitTest,
+      hints,
       totalQuestions,
       questionIndex
     });
@@ -270,8 +280,17 @@ ${VOICE_NAVIGATION_CAPABILITY_DIRECTIVES}`;
   });
 
   const candidateContextSection = candidateGaps && candidateGaps.length > 0
-    ? `=== 0. ПРОФИЛЬ И СМЕЖНЫЕ ЗОНЫ ВНИМАНИЯ ===\nИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}`
-    : `ИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}`;
+    ? `=== 0. ПРОФИЛЬ И СМЕЖНЫЕ ЗОНЫ ВНИМАНИЯ (EPISODIC VECTOR MEMORY) ===
+ИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}
+${personaDirectives.gradeExpectationDirective}
+СТЕК: ${primaryStack || 'Java 21, Spring Boot 3.3'}
+ИЗВЕСТНЫЕ ПРОБЕЛЫ КАНДИДАТА ИЗ СМЕЖНЫХ ТЕМ:
+${candidateGaps.map((g, i) => `  [Пробел ${i + 1}] "${g.errorConcept}" (Степень дефицита: ${g.deficitWeight.toFixed(1)}, Сходство: ${Math.round((g.similarity ?? 0.8) * 100)}%)`).join('\n')}
+ДИРЕКТИВА: Если кандидат в ответе касается этой темы, обрати особое внимание. Если раскрыл сам и без ошибок — зафиксируй самостоятельное освоение. Если затрудняется — мягко направь наводящим вопросом.`
+    : `=== 0. ПРОФИЛЬ КАНДИДАТА ===
+ИНТЕРВЬЮЕР: ${personaDirectives.personaTitle}
+${personaDirectives.gradeExpectationDirective}
+СТЕК: ${primaryStack || 'Java 21, Spring Boot 3.3'}`;
 
   return `${LANGUAGE_LOCK_INVARIANT}
 
@@ -279,7 +298,10 @@ ${firstTurnLockdownInstruction}
 
 ${candidateContextSection}
 
-${personaDirectives.promptInstructions}
+=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
+Ты ${personaDirectives.personaTitle} (${isFemale ? 'женщина' : 'мужчина'}) по теме «${topic}».
+${personaDirectives.roleDirective}
+${personaDirectives.evaluationRubricDirective}
 
 ${genderRule}
 

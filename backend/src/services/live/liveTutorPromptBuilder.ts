@@ -22,6 +22,7 @@ export interface TutorPromptParams {
   incidentContext?: any;
   fixedCode?: string;
   unitTest?: string;
+  hints?: string[];
   totalQuestions?: number;
   questionIndex?: number;
 }
@@ -42,6 +43,7 @@ export function buildTutorPrompt(params: TutorPromptParams): string {
     incidentContext,
     fixedCode,
     unitTest,
+    hints,
     totalQuestions,
     questionIndex
   } = params;
@@ -176,8 +178,34 @@ ${batchContext}
 1. Используй яркую и понятную бытовую аналогию.
 2. Длина: 2-3 коротких предложения.
 3. После аналогии спроси: «Понятна ли аналогия или разобрать на другом примере?» и слушай ответ.`;
+  } else if (tutorMode === 'free_chat') {
+    const incidentInfo = incidentContext
+      ? `\nПРОДАКШЕН-ИНЦИДЕНТ:\n- Система: ${incidentContext.systemName || ''}\n- Симптомы: ${incidentContext.incidentSymptoms || ''}\n`
+      : '';
+    const fixedInfo = fixedCode ? `\nЭТАЛОННЫЙ ФИКС:\n\`\`\`\n${fixedCode}\n\`\`\`\n` : '';
+    const hintsInfo = hints && hints.length > 0 ? `\nПОДСКАЗКИ:\n${hints.map((h, i) => `[${i + 1}] ${h}`).join('\n')}\n` : '';
+
+    tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
+Ты доброжелательный, высококвалифицированный Senior Java/Spring архитектор ${isFemale ? '(женщина)' : '(мужчина)'} и напарник по парному программированию.
+${genderRule}
+
+${cognitiveEpistemicDirectives}
+
+[КОНТЕКСТ ОБСУЖДЕНИЯ]
+ТЕМА: ${topic || 'Java & Spring'}
+${questionText ? `ВОПРОС: "${questionText}"` : ''}
+${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer}\n"""` : ''}
+${bugTitle ? `КЕЙС КОДА: "${bugTitle}"` : ''}
+${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}${incidentInfo}${fixedInfo}${hintsInfo}
+${batchContext}
+
+=== ПРАВИЛА СВОБОДНОГО ДИАЛОГА (CRITICAL INVARIANTS) ===
+1. БЕЗ ЭКЗАМЕНАЦИОННЫХ РАМОК И ЗАГАДОК: Кандидат пришел просто посоветоваться или спросить о непонятной детали.
+2. ПРЯМЫЕ И ЧЕТКИЕ ОТВЕТЫ: Если кандидат спрашивает «как это работает?», «почему тут ошибка?» или «объясни 10-ю строку» — отвечай прямо, дружелюбно, профессионально и по существу, приводя лучшие инженерные практики.
+3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай емко (2-4 предложения за раз), без бесконечных академических лекций.
+4. ПОДДЕРЖКА И НЕПРЕРЫВНЫЙ ДИАЛОГ: Всегда поддерживай, отвечай на вопросы и после каждого ответа переходи в режим прослушивания кандидата. НЕ пытайся завершить диалог самостоятельно.`;
   } else {
-    // Default tutor mode: quick_qa / free_chat
+    // Default tutor mode: quick_qa
     tutorPrompt = `=== 1. РОЛЬ: ЭКСПРЕСС-КОНСУЛЬТАНТ (QUICK Q&A) ===
 Ты лаконичный и точный технический консультант ${isFemale ? '(женщина)' : '(мужчина)'}.
 ${genderRule}
