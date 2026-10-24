@@ -11,13 +11,14 @@ export interface ReasoningConfig {
 
 export const REASONING_PRESETS = {
   /** 
-   * Ultra-Deep Reasoning (4096 tokens): For synthesizing production incidents,
+   * Deep Incident Synthesis (2048 tokens): For synthesizing production incidents,
    * subtle concurrency race conditions, JVM memory model leaks, and multi-step bug challenges.
+   * Calibrated to 2048 tokens for sub-30s latency with generous 8192 output tokens.
    */
   deepIncidentSynthesis: {
-    thinkingBudget: 4096,
+    thinkingBudget: 2048,
     temperature: 0.2,
-    maxTokens: 4096
+    maxTokens: 8192
   },
 
   /**

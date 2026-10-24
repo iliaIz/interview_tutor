@@ -438,6 +438,8 @@ ${contextInfo}
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${proxyApiKey}`,
+          'Request-Timeout': '90',
+          'X-Request-Timeout': '90'
         },
         signal: AbortSignal.timeout(90_000),
         body: JSON.stringify(reasoningPayload)
@@ -451,6 +453,8 @@ ${contextInfo}
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${proxyApiKey}`,
+            'Request-Timeout': '90',
+            'X-Request-Timeout': '90'
           },
           signal: AbortSignal.timeout(90_000),
           body: JSON.stringify(reasoningPayload)

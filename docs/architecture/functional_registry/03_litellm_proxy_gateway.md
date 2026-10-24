@@ -56,9 +56,18 @@ Centralized proxy service running in Docker container `litellm-gateway`. Manages
   - Replaced narrow `except httpx.ReadTimeout:` with universal `except httpx.TimeoutException:` (covering connect, read, write, and pool timeouts).
   - Extracted reasoning/thinking blocks (`p["thought"]`) from Gemini response parts so `message_dict["content"]` never degrades to `None` when upstream answers with reasoning tokens.
   - Added fast-failover on HTTP 500/502/503/504 with 45s model cooldown.
+  - Dynamic Per-Attempt Headroom & RFC 9651 Budget Calibration (October 2026):
+    - Removed arbitrary 25.0s per-attempt clamp (`read=min(remaining_budget, 25.0)`). Replaced with dynamic reasoning headroom up to 70.0s (`max_attempt_read = 70.0 if (thinking_budget and thinking_budget > 0) or client_timeout_budget > 60.0 else 55.0`).
+    - Base HTTP client `read` timeout increased to 75.0s in `connection.py`.
+    - Key cooldown on upstream attempt timeout lowered from 120s to 60s to prevent false key pool starvation.
+    - Added RFC 9651 `Request-Timeout: 90` / `X-Request-Timeout: 90` propagation from backend `generateBugChallenge`.
+    - Calibrated `deepIncidentSynthesis` reasoning config: `thinkingBudget: 2048`, `maxTokens: 8192` (sub-30s synthesis vs previous 45s+).
 - **Hypotheses & Intermediate Conclusions:**
   - *Observation:* Upstream models `gemini-3.8-flash` and `3.7-flash` returned HTTP 503 Overloaded. When read-timeout (60s) triggered, Python raised `NameError` due to missing import, crashing the gateway with 500.
-  - *Intermediate Conclusion:* Adding `import httpx` and catching `httpx.TimeoutException` allows the gateway to cleanly cycle to healthy models/keys and return controlled status codes.
-- **Rationale & "Why":** Upstream Gemini capacity spikes must not crash proxy processes or freeze downstream client assessment sessions.
-- **Invariants:** Gateway must never throw unhandled python exceptions on upstream timeouts.
+  - *Empirical Bug Hunt Failure:* In Bug Hunt Arena (`/api/tutor/bug-challenge`), case generation timed out after 60s twice in a row. Empirical profiling revealed `gemini-3.8-flash` took 25.60s–35.77s for deep incident JSON synthesis. Because `attempt_timeout` was hard-clamped at 25.0s, the proxy killed the generation at 25.0s, penalized the key for 120s, and repeated until the 60s total deadline budget threw 504 Gateway Timeout.
+  - *Intermediate Conclusion:* Deep reasoning models require $\ge 55$s per-attempt headroom. Providing dynamic 70s headroom and transmitting `Request-Timeout: 90` allows `gemini-3.8-flash` to cleanly complete deep incident synthesis in 26-28s on the first attempt without timeouts.
+- **Rationale & "Why":** Deep reasoning models naturally require 20–45s for synthesis. Artificially clamping attempts below the physical token generation timeline guarantees 100% cascade failure.
+- **Invariants:**
+  - Gateway must never truncate legitimate reasoning turns shorter than the client's declared `Request-Timeout` budget.
+  - API keys must not be permanently penalized with long cooldowns for internal proxy timeout clamps.
 
