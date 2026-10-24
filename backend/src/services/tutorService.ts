@@ -237,6 +237,49 @@ export function updateBugChallengeStatus(params: {
   }
 }
 
+/**
+ * Robustly sanitizes unescaped control characters (newlines, tabs, CR) inside JSON string literals.
+ * LLMs frequently emit raw literal newlines inside multi-line Java codeSnippet strings,
+ * which violates RFC 8259 Section 7 and causes V8 JSON.parse to throw:
+ * "SyntaxError: Bad control character in string literal in JSON".
+ */
+export function sanitizeJsonControlChars(raw: string): string {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i];
+    if (char === '"') {
+      if (!escaped) {
+        inString = !inString;
+      }
+      result += char;
+      escaped = false;
+    } else if (char === '\\') {
+      result += char;
+      escaped = !escaped;
+    } else {
+      if (inString && !escaped) {
+        if (char === '\n') {
+          result += '\\n';
+        } else if (char === '\r') {
+          result += '\\r';
+        } else if (char === '\t') {
+          result += '\\t';
+        } else if (char.charCodeAt(0) < 0x20) {
+          result += `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+        } else {
+          result += char;
+        }
+      } else {
+        result += char;
+      }
+      escaped = false;
+    }
+  }
+  return result;
+}
+
 export async function generateBugChallenge(params: GenerateBugChallengeParams): Promise<BugChallenge> {
   const endpointUrl = envConfig.proxy.chatUrl;
   const proxyApiKey = envConfig.proxy.apiKey;
@@ -482,12 +525,13 @@ ${contextInfo}
     try {
       parsed = JSON.parse(cleanedJson);
     } catch (parseErr) {
-      console.warn('JSON.parse failed on LLM output, extracting JSON block:', parseErr);
+      console.warn('JSON.parse failed on LLM output, extracting and sanitizing JSON block:', parseErr);
       const jsonMatch = cleanedJson.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw parseErr;
+      const candidateStr = jsonMatch ? jsonMatch[0] : cleanedJson;
+      try {
+        parsed = JSON.parse(candidateStr);
+      } catch {
+        parsed = JSON.parse(sanitizeJsonControlChars(candidateStr));
       }
     }
 
