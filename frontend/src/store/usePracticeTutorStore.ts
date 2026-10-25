@@ -63,7 +63,7 @@ interface PracticeTutorState {
   setPersona: (persona: TutorPersona) => void;
   setAssistanceLevel: (level: number) => void;
   clearMessages: () => void;
-  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => void;
+  initChallengeContext: (domain: TutorDomain, challengeTitle?: string, isBugHunt?: boolean) => void;
   abortGeneration: () => void;
 
   sendMessage: (text: string, context: PracticeTutorContextPayload) => Promise<void>;
@@ -103,8 +103,8 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     else if (level === 4) persona = 'faang_interviewer';
     set({ assistanceLevel: level, persona });
   },
-  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
-    const welcome = getDomainWelcomeMessage(domain, challengeTitle);
+  initChallengeContext: (domain: TutorDomain, challengeTitle?: string, isBugHunt?: boolean) => {
+    const welcome = getDomainWelcomeMessage(domain, challengeTitle, isBugHunt);
     set({
       messages: [
         {

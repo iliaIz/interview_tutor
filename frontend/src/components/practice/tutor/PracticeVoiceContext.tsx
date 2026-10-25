@@ -100,6 +100,9 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   const launchPracticeSession = useCallback(async (seniorReviewPayload?: any) => {
     try {
       const state = useAppStore.getState();
+      if (state.activeTopicBugHunt && !state.activeBugChallenge) {
+        return;
+      }
       const files = state.practiceWorkspaceFiles.length > 0 ? state.practiceWorkspaceFiles : practiceWorkspaceFiles;
       const activeIndex = typeof state.activeWorkspaceFileIndex === 'number' ? state.activeWorkspaceFileIndex : activeWorkspaceFileIndex;
       const currentFile = files[activeIndex] || files[0];

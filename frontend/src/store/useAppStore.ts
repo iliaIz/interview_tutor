@@ -331,6 +331,7 @@ interface AppState {
   openTopicBugHunt: (topicId: string, topicName: string) => void;
   closeTopicBugHunt: () => void;
   setActiveBugChallenge: (challenge: BugChallenge | null) => void;
+  resetBugHuntSession: () => void;
 
   // Actions
   setView: (view: 'topics' | 'questions' | 'study' | 'quiz') => void;
@@ -954,8 +955,18 @@ export const useAppStore = create<AppState>()(
           activeTopicBugHunt: { topicId, topicName } 
         });
       },
-      closeTopicBugHunt: () => set({ activeTopicBugHunt: null, activeBugChallenge: null }),
+      closeTopicBugHunt: () => {
+        get().resetBugHuntSession();
+        set({ activeTopicBugHunt: null });
+      },
       setActiveBugChallenge: (challenge) => set({ activeBugChallenge: challenge }),
+      resetBugHuntSession: () => set({
+        activeBugChallenge: null,
+        activeWhiteboardState: null,
+        codeRevisions: [],
+        activeRevisionId: null,
+        isWhiteboardOpen: false
+      }),
 
       setView: (view) => set({ currentView: view }),
       setSelectedTopic: (topicId, name) => {

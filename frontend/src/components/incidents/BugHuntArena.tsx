@@ -8,6 +8,7 @@ import { BugHuntHeader, WorkoutPreset } from './bughunt/BugHuntHeader';
 import { BugHuntThoughtAccordion } from './bughunt/BugHuntThoughtAccordion';
 import { useBugChallengeStream } from '../../hooks/useBugChallengeStream';
 import { PracticeVoiceProvider, usePracticeVoice } from '../practice/tutor/PracticeVoiceContext';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { PracticeTutorDrawer } from '../practice/tutor/PracticeTutorDrawer';
 import { AmbientVoicePill } from '../practice/tutor/AmbientVoicePill';
 import { WhiteboardDrawer } from '../WhiteboardDrawer';
@@ -26,10 +27,15 @@ const BugHuntArenaContent: React.FC = () => {
     setActiveBugChallenge,
     isWhiteboardOpen,
     setIsWhiteboardOpen,
-    activeWhiteboardState
+    activeWhiteboardState,
+    resetBugHuntSession
   } = useAppStore();
 
-  const { isConnected, disconnectSession, sendTextMessage } = usePracticeVoice();
+  const { isConnected, disconnectSession, sendTextMessage, startPracticeSession } = usePracticeVoice();
+  const { initChallengeContext } = usePracticeTutorStore();
+
+  const wasVoiceActiveRef = useRef(false);
+  const prevChallengeIdRef = useRef<string | null>(null);
 
   const topicId = activeTopicBugHunt?.topicId || 'core';
   const topicName = activeTopicBugHunt?.topicName || 'Java Core & Collections';
@@ -63,10 +69,25 @@ const BugHuntArenaContent: React.FC = () => {
 
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
 
-  // Sync current challenge to global store for PracticeVoiceContext and PracticeTutorDrawer
+  // Sync current challenge to global store and atomically re-initialize AI tutor context
   useEffect(() => {
     setActiveBugChallenge(challenge);
-  }, [challenge, setActiveBugChallenge]);
+    if (!challenge) return;
+
+    if (challenge.id !== prevChallengeIdRef.current) {
+      const wasNavigated = prevChallengeIdRef.current !== null;
+      prevChallengeIdRef.current = challenge.id;
+
+      // Re-initialize AI tutor text context for this specific bug challenge
+      initChallengeContext('testing', challenge.title, true);
+
+      // SOTA Late 2026: Seamless Voice Handoff if user was actively speaking with AI tutor
+      if (wasNavigated && wasVoiceActiveRef.current) {
+        wasVoiceActiveRef.current = false;
+        void startPracticeSession();
+      }
+    }
+  }, [challenge, setActiveBugChallenge, initChallengeContext, startPracticeSession]);
 
   // Sync solved state when AI tutor calls mark_bug_solved tool
   useEffect(() => {
@@ -101,6 +122,11 @@ const BugHuntArenaContent: React.FC = () => {
   }, [isLoadingChallenge, isLoadingVariation]);
 
   const fetchChallenge = async (overridePreset?: WorkoutPreset) => {
+    if (isConnected) {
+      wasVoiceActiveRef.current = true;
+      disconnectSession();
+    }
+    resetBugHuntSession();
     setIsSolved(false);
     const presetToUse = overridePreset || activePreset;
     const excludeIds = history.map((c) => c.id).filter(Boolean);
@@ -133,7 +159,11 @@ const BugHuntArenaContent: React.FC = () => {
   }, [topicId]);
 
   const handleNextChallenge = () => {
-    if (isConnected) disconnectSession();
+    if (isConnected) {
+      wasVoiceActiveRef.current = true;
+      disconnectSession();
+    }
+    resetBugHuntSession();
     if (currentIndex < history.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsSolved(Boolean(history[currentIndex + 1].isSolved));
@@ -143,7 +173,11 @@ const BugHuntArenaContent: React.FC = () => {
   };
 
   const handlePreviousChallenge = () => {
-    if (isConnected) disconnectSession();
+    if (isConnected) {
+      wasVoiceActiveRef.current = true;
+      disconnectSession();
+    }
+    resetBugHuntSession();
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setIsSolved(Boolean(history[currentIndex - 1].isSolved));
@@ -152,7 +186,11 @@ const BugHuntArenaContent: React.FC = () => {
 
   const handleGenerateVariation = async () => {
     if (!challenge) return;
-    if (isConnected) disconnectSession();
+    if (isConnected) {
+      wasVoiceActiveRef.current = true;
+      disconnectSession();
+    }
+    resetBugHuntSession();
     setIsLoadingVariation(true);
     try {
       const res = await fetch('/api/tutor/bug-challenge', {

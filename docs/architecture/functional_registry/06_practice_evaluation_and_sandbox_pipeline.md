@@ -170,3 +170,25 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 - **Invariants:**
   - The AI Whiteboard drawer MUST automatically open upon receipt of an `update_whiteboard` WebSocket event.
   - The whiteboard button in `BugHuntHeader` MUST display an active pulse dot whenever `activeWhiteboardState?.code` is non-empty.
+
+---
+
+### 2.12 Atomic Context Isolation & Lifecycle State Machine for Bug Hunt Arena (Wave 22.3)
+- **Location:** [`frontend/src/store/useAppStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/useAppStore.ts), [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts), [`frontend/src/components/practice/tutor/PracticeVoiceContext.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceContext.tsx), [`frontend/src/components/practice/tutor/tutorWelcomeMessages.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/tutorWelcomeMessages.ts), [`frontend/src/store/usePracticeTutorStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/usePracticeTutorStore.ts), [`frontend/src/components/incidents/BugHuntArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx)
+- **What Was Done:**
+  - **Atomic Session Reset in App Store:** Added `resetBugHuntSession()` in `useAppStore.ts` to atomically clear `activeBugChallenge: null`, `activeWhiteboardState: null`, `codeRevisions: []`, `activeRevisionId: null`, and `isWhiteboardOpen: false`. Wired `closeTopicBugHunt` to call `resetBugHuntSession()`.
+  - **Live Voice Engine History Purge:** Updated `NativeLiveVoiceEngine.connect()` to execute `this.turnManager.clear()` when `!config.isResumed`, purging dialogue turns accumulated from previous challenges upon reconnect.
+  - **Premature Reconnect Guard:** Added safety check in `PracticeVoiceContext.tsx` (`if (state.activeTopicBugHunt && !state.activeBugChallenge) return;`) preventing auto-reconnect while a new challenge is still streaming over SSE.
+  - **Challenge-Aware Tutor Welcome Greeting:** Updated `getDomainWelcomeMessage` and `usePracticeTutorStore.initChallengeContext` to accept `(domain, challengeTitle, isBugHunt)`, generating authentic case-specific intro messages (`«${challengeTitle}»`) and clearing old chat messages.
+  - **Seamless Navigation Orchestration in Arena:** In `BugHuntArena.tsx`, orchestrated challenge navigation across `handleNextChallenge`, `handlePreviousChallenge`, `handleGenerateVariation`, and preset changes via `wasVoiceActiveRef` and `prevChallengeIdRef`. Old voice sessions are disconnected immediately, store state is reset, and if voice was active, it automatically reconnects with the fresh challenge parameters and new `practiceSessionId`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* When switching to a new bug case, AI tutor retained instructions, code snippet, and chat dialogue from the old case.
+  - *Root Cause Analysis:*
+    1. *Text Chat:* `usePracticeTutorStore.messages` was never re-initialized on case navigation, passing old conversation history to `/api/practice-tutor/chat`.
+    2. *Voice WebSocket:* Gemini Live WebSocket maintains state and KV-cache bound to Turn 0 system prompt until explicitly disconnected and re-handshaked with a unique `sessionId`.
+    3. *Race Condition:* During the 10-15s SSE generation window of `fetchChallenge`, `PracticeVoiceHUD` auto-started a session before the new challenge arrived, pinning to the old context.
+    4. *Whiteboard State:* `activeWhiteboardState` and `codeRevisions` persisted in `useAppStore`, leaking outdated diagrams and diffs into the new case.
+- **Invariants:**
+  - Every challenge navigation (Next, Previous, Variation, Preset, Refresh) MUST atomically reset bug hunt store state (`resetBugHuntSession()`) and disconnect active Live WebSockets before the new case arrives.
+  - Case transitions MUST initialize a clean `initChallengeContext` in `usePracticeTutorStore` and generate a unique `practiceSessionId` for Live Audio streaming.
+  - Audio reconnect on navigation MUST occur ONLY if the user was actively connected to voice (`wasVoiceActiveRef.current === true`), preventing unexpected audio playback in text mode.

@@ -70,6 +70,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.isAudioMutexLocked = false;
     this.pendingNavigationAction = null;
     this.audioStreamManager.reset();
+    if (!config.isResumed) {
+      this.turnManager.clear();
+    }
     this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && (config as any).turn0Lockdown !== false;
     this.fsm.transition({ type: 'CONNECT' });
     this.callbacks.onStatusMessage?.('⚡ Подключение к нативному голосовому шлюзу...');
