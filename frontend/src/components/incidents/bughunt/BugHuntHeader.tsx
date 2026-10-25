@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Target, Flame, Sparkles, Trophy, Activity, Bot } from 'lucide-react';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
+import { useAppStore } from '../../../store/useAppStore';
 
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
 
@@ -52,6 +53,7 @@ export const BugHuntHeader: React.FC<BugHuntHeaderProps> = ({
   onOpenRadar
 }) => {
   const { isOpen: isTutorOpen, toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
+  const { isWhiteboardOpen, setIsWhiteboardOpen, activeWhiteboardState } = useAppStore();
 
   return (
     <div className="h-14 border-b border-pastel-border/80 bg-white/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 shrink-0 shadow-2xs z-10">
@@ -125,6 +127,23 @@ export const BugHuntHeader: React.FC<BugHuntHeaderProps> = ({
         >
           <Activity className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Радар</span>
+        </button>
+
+        {/* AI Whiteboard Action Button */}
+        <button
+          onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+          title="Интерактивная доска ИИ (код, диаграммы, diff)"
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+            isWhiteboardOpen
+              ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-purple-600'
+              : 'bg-white text-slate-700 border-pastel-border hover:border-purple-400'
+          }`}
+        >
+          <Sparkles className={`w-3.5 h-3.5 ${isWhiteboardOpen ? 'text-white' : 'text-purple-600'}`} />
+          <span className="hidden sm:inline">Доска ИИ</span>
+          {activeWhiteboardState?.code && (
+            <span className="w-2 h-2 rounded-full bg-pastel-accentRose animate-pulse" />
+          )}
         </button>
 
         {/* AI-Tutor (Co-Pilot) Action Button */}

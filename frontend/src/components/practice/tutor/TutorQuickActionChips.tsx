@@ -105,6 +105,11 @@ const BUG_HUNT_CHIPS: ChipDef[] = [
     label: 'Тест бага',
     message: 'Как лучше всего написать воспроизводящий юнит-тест на этот баг?',
     icon: <Sparkles className="w-3 h-3 text-sky-500" />
+  },
+  {
+    label: 'Покажи на доске',
+    message: 'Покажи на интерактивной доске (через функцию update_whiteboard) архитектурную схему или исправленный фрагмент кода с пояснением.',
+    icon: <Sparkles className="w-3 h-3 text-purple-500" />
   }
 ];
 

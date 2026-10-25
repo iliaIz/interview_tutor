@@ -10,6 +10,7 @@ import { useBugChallengeStream } from '../../hooks/useBugChallengeStream';
 import { PracticeVoiceProvider, usePracticeVoice } from '../practice/tutor/PracticeVoiceContext';
 import { PracticeTutorDrawer } from '../practice/tutor/PracticeTutorDrawer';
 import { AmbientVoicePill } from '../practice/tutor/AmbientVoicePill';
+import { WhiteboardDrawer } from '../WhiteboardDrawer';
 import { LOADER_STEPS, EDUCATIONAL_TRIVIA } from './bughunt/bughuntConstants';
 
 export type DefectFocus = 'all' | 'streams' | 'concurrency' | 'testing' | 'memory' | 'spring_aop' | 'contracts';
@@ -22,7 +23,10 @@ const BugHuntArenaContent: React.FC = () => {
     academyBreadcrumbContext,
     returnToAcademyStep,
     activeBugChallenge,
-    setActiveBugChallenge
+    setActiveBugChallenge,
+    isWhiteboardOpen,
+    setIsWhiteboardOpen,
+    activeWhiteboardState
   } = useAppStore();
 
   const { isConnected, disconnectSession, sendTextMessage } = usePracticeVoice();
@@ -284,8 +288,13 @@ const BugHuntArenaContent: React.FC = () => {
         }}
       />
 
-      {/* SOTA Late 2026: Unified AI Co-Pilot Drawer & Ambient Hands-Free Voice Pill */}
+      {/* SOTA Late 2026: Unified AI Co-Pilot Drawer, Interactive Whiteboard & Ambient Voice Pill */}
       <PracticeTutorDrawer />
+      <WhiteboardDrawer
+        isOpen={isWhiteboardOpen}
+        onClose={() => setIsWhiteboardOpen(false)}
+        state={activeWhiteboardState}
+      />
       <AmbientVoicePill />
     </div>
   );
