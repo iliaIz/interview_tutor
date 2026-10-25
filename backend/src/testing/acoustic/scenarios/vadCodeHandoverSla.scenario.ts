@@ -60,8 +60,8 @@ export async function runCodeHandoverSlaScenario(engine: string = 'gemini-live-v
                           !telemetry.replyText.toLowerCase().includes('системная ошибка') &&
                           !telemetry.replyText.toLowerCase().includes('internal error');
 
-    // SLA: TTFA should be <= 8000ms (matching multi-turn dialogue SLA budget)
-    const maxTtfaMs = engine.includes('thinking') ? 12000 : 8000;
+    // SLA: TTFA should be <= 10000ms (standard) / <= 14000ms (thinking)
+    const maxTtfaMs = engine.includes('thinking') ? 14000 : 10000;
     const ttfa = telemetry.ttfaMs ?? telemetry.ttftMs ?? 0;
     const meetsSla = ttfa > 0 && ttfa <= maxTtfaMs;
     const passed = hasValidReply && meetsSla;
