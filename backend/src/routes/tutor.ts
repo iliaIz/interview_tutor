@@ -17,7 +17,7 @@ router.post('/bug-challenge/stream', async (req, res) => {
   res.flushHeaders?.();
 
   const clientAbortController = new AbortController();
-  req.on('close', () => {
+  res.on('close', () => {
     if (!res.writableEnded) {
       clientAbortController.abort();
     }
