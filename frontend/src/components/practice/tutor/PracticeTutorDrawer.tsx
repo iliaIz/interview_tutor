@@ -135,7 +135,7 @@ export const PracticeTutorDrawer: React.FC = () => {
             : 'Testing Kata'),
     kataInstructions:
       activeBugChallenge
-        ? [activeBugChallenge.description, activeBugChallenge.productionContext?.incidentSymptoms ? `Симптомы инцидента: ${activeBugChallenge.productionContext.incidentSymptoms}` : ''].filter(Boolean).join('\n\n')
+        ? [activeBugChallenge.bugExplanation, activeBugChallenge.productionContext?.incidentSymptoms ? `Симптомы инцидента: ${activeBugChallenge.productionContext.incidentSymptoms}` : ''].filter(Boolean).join('\n\n')
         : txScenario?.problemStatement ||
           activePracticeChallenge?.instructionsMarkdown ||
           activePracticeChallenge?.scenarioMarkdown ||
