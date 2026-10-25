@@ -91,7 +91,7 @@ export const TECH_STACK_ARCHETYPES: Record<string, { name: string; badge: string
   }
 };
 
-const DEFECT_FOCUS_MAP: Record<string, string> = {
+export const DEFECT_FOCUS_MAP: Record<string, string> = {
   streams: 'ФОКУС: Java Streams API, Collectors null/collision safety, mapMulti vs flatMap (Zero-GC), Collectors.teeing, ForkJoinPool isolation, distinct/sorted stateful traps, Spliterators, sliding window collectors.',
   concurrency: 'ФОКУС: Многопоточность Java 21+, устранение Carrier Thread Pinning (synchronized -> ReentrantLock/StampedLock), ScopedValue vs ThreadLocal, JMM Release/Acquire fences на VarHandle, lock-free FieldUpdater, LongAdder, CompletableFuture DAGs.',
   testing: 'ФОКУС: Практическое тестирование и рефакторинг, Legacy Seams (Subclass & Override, Overloaded Constructor), Approval / Golden Master, JUnit 5 (@MethodSource, @TestFactory, Extensions), Mockito 5 (@MockitoBean, InOrder, mockStatic), Testcontainers (@ServiceConnection), ArchUnit и Pitest Mutation Score.',
@@ -104,7 +104,7 @@ const DEFECT_FOCUS_MAP: Record<string, string> = {
 /**
  * Saves or updates a bug challenge record in SQLite database
  */
-function saveBugChallengeToDb(challenge: BugChallenge, topicId: string, topicName: string, preset: string, difficulty: string) {
+export function saveBugChallengeToDb(challenge: BugChallenge, topicId: string, topicName: string, preset: string, difficulty: string) {
   try {
     const stmt = db.prepare(`
       INSERT INTO bug_challenges (

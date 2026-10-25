@@ -4,8 +4,27 @@ import {
   getSavedBugChallenges,
   updateBugChallengeStatus
 } from '../services/tutorService';
+import { streamBugChallengeToResponse } from '../services/bugChallengeStreamService';
 
 const router = Router();
+
+// POST /api/tutor/bug-challenge/stream (Two-Phase SSE Streaming)
+router.post('/bug-challenge/stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const clientAbortController = new AbortController();
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      clientAbortController.abort();
+    }
+  });
+
+  await streamBugChallengeToResponse(req.body || {}, res, clientAbortController.signal);
+});
 
 // POST /api/tutor/bug-challenge
 router.post('/bug-challenge', async (req, res) => {

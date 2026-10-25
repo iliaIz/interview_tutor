@@ -8,23 +8,13 @@ import { MemoryRadarDrawer } from '../MemoryRadarDrawer';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BugHuntHeader, WorkoutPreset } from './bughunt/BugHuntHeader';
 import { BugHuntVoiceMentor, TutorRole } from './bughunt/BugHuntVoiceMentor';
+import { BugHuntThoughtAccordion } from './bughunt/BugHuntThoughtAccordion';
+import { useBugChallengeStream } from '../../hooks/useBugChallengeStream';
 
 export type DefectFocus = 'all' | 'streams' | 'concurrency' | 'testing' | 'memory' | 'spring_aop' | 'contracts';
 export type TechStackProfile = 'modern_cloud' | 'fintech_transactional' | 'enterprise_migration' | 'reactive_streaming' | 'custom';
 
-const LOADER_STEPS = [
-  'Анализ AST-дерева и выявление дефектов...',
-  'Синтез антипаттерна в бизнес-логике...',
-  'Генерация селектора сложности и подсказок...',
-  'Подготовка контекста для AI-Техлида...'
-];
-
-const EDUCATIONAL_TRIVIA = [
-  'Virtual Threads не ускоряют CPU-bound вычисления, но устраняют блокировку OS Threads при I/O.',
-  'Вызов @Transactional метода из того же класса обходит CGLIB/JDK динамический прокси.',
-  'Мутация полей объекта после добавления в HashSet ломает контракт hashCode() и приводит к утечкам памяти.',
-  'ConcurrentHashMap.computeIfAbsent атомарен per-key, но не должен вызывать тяжелые блокирующие операции внутри лямбды.'
-];
+import { LOADER_STEPS, EDUCATIONAL_TRIVIA } from './bughunt/bughuntConstants';
 
 export const BugHuntArena: React.FC = () => {
   const {
@@ -48,16 +38,24 @@ export const BugHuntArena: React.FC = () => {
   // Challenge history & navigation state
   const [history, setHistory] = useState<BugChallenge[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
-  const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
   const [isLoadingVariation, setIsLoadingVariation] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
   const [isSolved, setIsSolved] = useState(false);
   const [sessionSolvedCount, setSessionSolvedCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [loaderStepIndex, setLoaderStepIndex] = useState(0);
   const [triviaIndex, setTriviaIndex] = useState(0);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const {
+    phase: streamPhase,
+    thoughts: streamThoughts,
+    isStreaming: isLoadingChallenge,
+    error: generationError,
+    elapsedMs: streamElapsedMs,
+    ttftMs: streamTtftMs,
+    startStream,
+    abortStream
+  } = useBugChallengeStream();
+
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
 
   const currentVariantNumber = useMemo(() => {
@@ -118,59 +116,34 @@ export const BugHuntArena: React.FC = () => {
   }, [isLoadingChallenge, isLoadingVariation]);
 
   const fetchChallenge = async (overridePreset?: WorkoutPreset) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setIsLoadingChallenge(true);
-    setGenerationError(null);
     setIsSolved(false);
-
     const presetToUse = overridePreset || activePreset;
+    const excludeIds = history.map((c) => c.id).filter(Boolean);
 
-    try {
-      const excludeIds = history.map((c) => c.id).filter(Boolean);
-      const res = await fetch('/api/tutor/bug-challenge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        signal: abortControllerRef.current.signal,
-        body: JSON.stringify({
-          topicId,
-          topic: topicName,
-          workoutPreset: presetToUse,
-          defectFocus: defectFocus !== 'all' ? defectFocus : undefined,
-          difficulty,
-          techStackProfile,
-          excludeIds
-        })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `HTTP ${res.status}`);
+    await startStream(
+      {
+        topicId,
+        topic: topicName,
+        workoutPreset: presetToUse,
+        defectFocus: defectFocus !== 'all' ? defectFocus : undefined,
+        difficulty,
+        techStackProfile,
+        excludeIds
+      },
+      (newChallenge) => {
+        setHistory((prev) => {
+          const nextHistory = [...prev, newChallenge];
+          setCurrentIndex(nextHistory.length - 1);
+          return nextHistory;
+        });
       }
-
-      const newChallenge: BugChallenge = await res.json();
-      setHistory((prev) => {
-        const nextHistory = [...prev, newChallenge];
-        setCurrentIndex(nextHistory.length - 1);
-        return nextHistory;
-      });
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setGenerationError(err.message || 'Ошибка генерации кейса');
-      }
-    } finally {
-      setIsLoadingChallenge(false);
-    }
+    );
   };
 
   useEffect(() => {
     void fetchChallenge();
     return () => {
-      if (abortControllerRef.current) abortControllerRef.current.abort();
+      abortStream();
     };
   }, [topicId]);
 
@@ -293,6 +266,14 @@ export const BugHuntArena: React.FC = () => {
       />
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-6 max-w-7xl 2xl:max-w-[2000px] w-full mx-auto">
+        <BugHuntThoughtAccordion
+          phase={streamPhase}
+          thoughts={streamThoughts}
+          elapsedMs={streamElapsedMs}
+          ttftMs={streamTtftMs}
+          onAbort={abortStream}
+        />
+
         {isLoadingChallenge ? (
           <div className="min-h-[420px] flex flex-col items-center justify-center p-6 bg-white/90 border border-pastel-border/80 rounded-3xl shadow-sm text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white shadow-md animate-pulse">
