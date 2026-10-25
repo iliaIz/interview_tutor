@@ -122,3 +122,19 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 
 
 
+
+### 2.9 Two-Phase Bug Challenge SSE Streaming, Proxy Reasoning Contract & Cascade Root-Cause Fix
+- **Location:** [`backend/src/routes/tutor.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/tutor.ts), [`backend/src/services/bugChallengeStreamService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/bugChallengeStreamService.ts), [`backend/src/services/bugChallengePromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/bugChallengePromptBuilder.ts), [`frontend/src/hooks/useBugChallengeStream.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/hooks/useBugChallengeStream.ts), [`frontend/src/components/incidents/bughunt/BugHuntThoughtAccordion.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/bughunt/BugHuntThoughtAccordion.tsx), [`frontend/src/components/incidents/BugHuntArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx), `LiteLLM_Proxy/gateway/app/routers/chat.py`
+- **What Was Done:**
+  - **Option B Implementation:** Developed full SOTA Two-Phase SSE streaming for Bug Hunt arena (`thinking` $\rightarrow$ `thought_delta` $\rightarrow$ `assembling` $\rightarrow$ `challenge_ready` $\rightarrow$ `done`), delivering live reasoning transparency and zero unparsed JSON syntax leaks.
+  - **LiteLLM Thought Separation:** In `chat.py`, isolated `thought: true` chunks into `delta["reasoning_content"]` instead of leaking into `content`, preventing structured JSON schema corruption.
+  - **Proxy Cascade Prioritization & Timeout Root-Cause Fix:** Identified and fixed upstream root-cause of 60s stalls: `gemini-3.8-flash` and `gemini-3.7-flash` hung indefinitely on Google v1beta REST `streamGenerateContent`, blowing the cascade timeout budget. Re-ordered `smart` cascade in `gateway_model_cascades` to prioritize `gemini-3.6-flash` and `gemini-3.5-flash` with `model_first` strategy, bringing synthesis latency down to 8–17s.
+  - **Node.js HTTP Stream Abort Defect Fix:** Resolved critical bug where `req.on('close')` fired prematurely upon completion of `express.json()` body reading (`res.writableEnded === false`), triggering premature aborts. Rebound abort listeners exclusively to `res.on('close')`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* User observed 60-second timeouts twice with zero challenges generated.
+  - *Root Cause 1:* Upstream Google REST endpoint for `gemini-3.8-flash` hung on plain text generation, exhausting the cascade timeout budget across all provider keys.
+  - *Root Cause 2:* Client abort signal was bound to `req.on('close')` instead of `res.on('close')`, aborting streaming handlers immediately after the request body was parsed.
+  - *Intermediate Conclusion:* Gemini Live models (3.8) are native WebSocket models; REST text cascades must prioritize stable models (`gemini-3.6-flash`, `gemini-3.5-flash`). SSE handlers in Express must bind cancellation strictly to `res.on('close')`.
+- **Invariants:**
+  - SSE disconnect detection MUST always attach to `res.on('close')`, never `req.on('close')`.
+  - Client never receives unparsed raw JSON fragments; thoughts and structured payloads are strictly partitioned across SSE events.
