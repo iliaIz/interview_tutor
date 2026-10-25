@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowLeft, Target, Flame, Sparkles, Trophy, Activity } from 'lucide-react';
+import { ArrowLeft, Target, Flame, Sparkles, Trophy, Activity, Bot } from 'lucide-react';
+import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 
 export type WorkoutPreset = 'exhaustive' | 'senior_multi' | 'random';
 
@@ -50,6 +51,8 @@ export const BugHuntHeader: React.FC<BugHuntHeaderProps> = ({
   sessionSolvedCount,
   onOpenRadar
 }) => {
+  const { isOpen: isTutorOpen, toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
+
   return (
     <div className="h-14 border-b border-pastel-border/80 bg-white/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 shrink-0 shadow-2xs z-10">
       {/* Left: Back Buttons & Topic Title */}
@@ -122,6 +125,20 @@ export const BugHuntHeader: React.FC<BugHuntHeaderProps> = ({
         >
           <Activity className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Радар</span>
+        </button>
+
+        {/* AI-Tutor (Co-Pilot) Action Button */}
+        <button
+          onClick={() => toggleTutorDrawer()}
+          title="AI-Напарник (Парное программирование & подсказки)"
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+            isTutorOpen
+              ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
+              : 'bg-white text-slate-700 border-pastel-border hover:border-pastel-accentRose/50'
+          }`}
+        >
+          <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
+          <span className="hidden sm:inline">AI-Напарник</span>
         </button>
       </div>
     </div>

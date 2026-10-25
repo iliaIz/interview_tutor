@@ -38,7 +38,9 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     activePracticeChallenge,
     practiceWorkspaceFiles,
     activeWorkspaceFileIndex,
-    activeTransactionLabScenarioId
+    activeTransactionLabScenarioId,
+    activeTopicBugHunt,
+    activeBugChallenge
   } = useAppStore();
   const { config: interviewConfig } = useInterviewConfig();
   const { persona: tutorPersona, setModality } = usePracticeTutorStore();
@@ -50,16 +52,36 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     getActiveCode: () => {
       const state = useAppStore.getState();
+      if (state.activeBugChallenge) {
+        return state.activeBugChallenge.codeSnippet || '';
+      }
       const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
       return current?.content || '';
     },
     getActiveFileName: () => {
       const state = useAppStore.getState();
+      if (state.activeBugChallenge) {
+        return 'BugChallenge.java';
+      }
       const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
       return current?.path?.split('/').pop() || current?.path || 'Solution.java';
     },
     getActiveLanguage: () => 'java',
-    enableGlobalSelection: true
+    enableGlobalSelection: true,
+    onBugSolved: () => {
+      const state = useAppStore.getState();
+      if (state.activeBugChallenge) {
+        state.setActiveBugChallenge({ ...state.activeBugChallenge, isSolved: true });
+        import('../../../utils/confetti').then(({ triggerSuccessConfetti }) => triggerSuccessConfetti());
+        if (state.academyBreadcrumbContext) {
+          state.toggleAcademyStepProgress(
+            state.academyBreadcrumbContext.courseId,
+            state.academyBreadcrumbContext.stepNumber,
+            true
+          );
+        }
+      }
+    }
   });
 
   const {
@@ -99,14 +121,36 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         testing: 'Юнит-тестирование и мутации Java 21'
       };
 
+      let tutorMode = 'practice_pair';
       let topic = DOMAIN_TOPICS[domain] || DOMAIN_TOPICS.testing;
       let challengeCategory = activePracticeChallenge?.category || domain;
       let challengeTrack = activePracticeChallenge?.track || domain;
       let bugTitle = activePracticeChallenge?.title || 'Практическая задача';
       let bugExplanation = activePracticeChallenge?.instructionsMarkdown || '';
       let codeSnippet = currentFile?.content || '';
+      let fixedCode: string | undefined = undefined;
+      let unitTest: string | undefined = undefined;
+      let incidentContext: any = undefined;
+      let hints: string[] | undefined = undefined;
+      let challengeId = activePracticeChallenge?.id || activePracticeChallenge?.slug || activeTransactionLabScenarioId || '';
+      let practiceSessionId = `session_practice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-      if (activeTransactionLabScenarioId) {
+      if (state.activeBugChallenge) {
+        const bug = state.activeBugChallenge;
+        tutorMode = 'bug_hunt';
+        topic = state.activeTopicBugHunt?.topicName || 'Поиск и исправление багов на Java';
+        challengeCategory = 'Production Incident / Bug Hunt';
+        challengeTrack = 'bug_hunt';
+        bugTitle = bug.title || 'Поиск ошибки в коде';
+        bugExplanation = bug.bugExplanation || bug.description || '';
+        codeSnippet = bug.codeSnippet || '';
+        fixedCode = bug.fixedCode || '';
+        unitTest = bug.testSuite || '';
+        incidentContext = bug.productionContext;
+        hints = bug.hints || [];
+        challengeId = bug.id || `bug_${Date.now()}`;
+        practiceSessionId = `session_bughunt_${challengeId}`;
+      } else if (activeTransactionLabScenarioId) {
         const txScenario =
           TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) ||
           TRANSACTION_LAB_SCENARIOS[0];
@@ -123,14 +167,12 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const revs = state.codeRevisions || [];
       const revSummary = revs.length > 0 ? revs.map((r) => ({ id: r.id, title: r.title })) : undefined;
       const workspaceManifest = buildWorkspaceManifest(files, activeIndex);
-      const challengeId = activePracticeChallenge?.id || activePracticeChallenge?.slug || activeTransactionLabScenarioId || '';
-      const practiceSessionId = `session_practice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
       await startSession({
         sessionId: practiceSessionId,
         questionId: challengeId,
         sessionType: 'tutor',
-        tutorMode: 'practice_pair',
+        tutorMode,
         topic,
         challengeCategory,
         challengeTrack,
@@ -139,6 +181,10 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         bugExplanation: bugExplanation || activePracticeChallenge?.instructionsMarkdown || activePracticeChallenge?.shortDescription || '',
         referenceAnswer: activePracticeChallenge?.instructionsMarkdown || bugExplanation || '',
         codeSnippet,
+        fixedCode,
+        unitTest,
+        incidentContext,
+        hints,
         workspaceManifest,
         activeCodeArtifact: activeArtifact
           ? {

@@ -4,6 +4,7 @@ import { CodingChallenge, FileNode, EvaluationResult, SandboxExecutionResponse, 
 import { ScenarioEvaluationResult } from '../types/transactionLab';
 import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
 import { getLocalDraft } from '../services/practiceDraftStorage';
+import type { BugChallenge } from '../components/BugChallengeCard';
 
 export interface Question {
   id: string;
@@ -326,8 +327,10 @@ interface AppState {
 
   // Topic Bug Hunt Arena State
   activeTopicBugHunt: { topicId: string; topicName: string } | null;
+  activeBugChallenge: BugChallenge | null;
   openTopicBugHunt: (topicId: string, topicName: string) => void;
   closeTopicBugHunt: () => void;
+  setActiveBugChallenge: (challenge: BugChallenge | null) => void;
 
   // Actions
   setView: (view: 'topics' | 'questions' | 'study' | 'quiz') => void;
@@ -942,6 +945,7 @@ export const useAppStore = create<AppState>()(
       isRecapModalOpen: false,
       recapTarget: null,
       activeTopicBugHunt: null,
+      activeBugChallenge: null,
 
       openTopicBugHunt: (topicId, topicName) => {
         get().recordTopicAccess(topicId);
@@ -950,7 +954,8 @@ export const useAppStore = create<AppState>()(
           activeTopicBugHunt: { topicId, topicName } 
         });
       },
-      closeTopicBugHunt: () => set({ activeTopicBugHunt: null }),
+      closeTopicBugHunt: () => set({ activeTopicBugHunt: null, activeBugChallenge: null }),
+      setActiveBugChallenge: (challenge) => set({ activeBugChallenge: challenge }),
 
       setView: (view) => set({ currentView: view }),
       setSelectedTopic: (topicId, name) => {

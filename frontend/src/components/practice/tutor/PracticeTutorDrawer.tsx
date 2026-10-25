@@ -46,6 +46,8 @@ export const PracticeTutorDrawer: React.FC = () => {
     latestMutationResult,
     latestTxEvaluation,
     academyBreadcrumbContext,
+    activeTopicBugHunt,
+    activeBugChallenge,
   } = useAppStore();
 
   const [inputVal, setInputVal] = useState('');
@@ -111,33 +113,44 @@ export const PracticeTutorDrawer: React.FC = () => {
     if (methodViolations.length > 0) failureParts.push(methodViolations.join('\n'));
   }
 
+  const isBugHunt = !!activeBugChallenge;
+
   const currentContext = {
-    kataId: txScenario?.id || activePracticeChallenge?.id || 'kata',
+    kataId: activeBugChallenge?.id || txScenario?.id || activePracticeChallenge?.id || 'kata',
     kataTitle:
+      activeBugChallenge?.title ||
       txScenario?.title ||
       activePracticeChallenge?.title ||
       (domain === 'lld' ? 'LLD Architecture Challenge'
         : domain === 'transactions' ? 'Spring Transactions Challenge'
         : 'Testing Kata'),
     kataCategory:
-      txScenario
+      activeBugChallenge
+        ? (activeTopicBugHunt?.topicName || 'Bug Hunt')
+        : txScenario
         ? 'Spring Transactions'
         : activePracticeChallenge?.category ||
           (domain === 'lld' ? 'Low-Level Design (LLD)'
             : domain === 'transactions' ? 'Transactions'
             : 'Testing Kata'),
     kataInstructions:
-      txScenario?.problemStatement ||
-      activePracticeChallenge?.instructionsMarkdown ||
-      activePracticeChallenge?.scenarioMarkdown ||
-      activePracticeChallenge?.shortDescription ||
-      '',
+      activeBugChallenge
+        ? [activeBugChallenge.description, activeBugChallenge.productionContext?.incidentSymptoms ? `Симптомы инцидента: ${activeBugChallenge.productionContext.incidentSymptoms}` : ''].filter(Boolean).join('\n\n')
+        : txScenario?.problemStatement ||
+          activePracticeChallenge?.instructionsMarkdown ||
+          activePracticeChallenge?.scenarioMarkdown ||
+          activePracticeChallenge?.shortDescription ||
+          '',
     activeFilePath:
-      txScenario
+      activeBugChallenge
+        ? 'ProductionDefect.java'
+        : txScenario
         ? `${txScenario.services[0]?.className}.java`
         : currentFile?.path || (domain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
     activeFileContent:
-      txScenario
+      activeBugChallenge
+        ? activeBugChallenge.codeSnippet
+        : txScenario
         ? txScenario.services
             .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
             .join('\n\n')
@@ -247,6 +260,7 @@ export const PracticeTutorDrawer: React.FC = () => {
         <HintTiersDropdown domain={domain} onSelectTier={(tier) => requestHint(tier, currentContext)} />
         <TutorQuickActionChips
           domain={domain}
+          isBugHunt={isBugHunt}
           onSendMessage={(text) => sendMessage(text, currentContext)}
           onOpenCompass={() => toggleCompass(true)}
         />

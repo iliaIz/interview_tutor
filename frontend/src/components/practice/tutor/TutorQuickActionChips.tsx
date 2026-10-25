@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Sparkles, Clock, Compass } from 'lucide-react';
+import { Sparkles, Clock, Compass, Bug } from 'lucide-react';
 import type { TutorDomain } from './TutorDomain';
 
 interface ChipDef {
@@ -90,25 +90,46 @@ const CHIPS: Record<TutorDomain, ChipDef[]> = {
   ],
 };
 
+const BUG_HUNT_CHIPS: ChipDef[] = [
+  {
+    label: 'В чем подвох?',
+    message: 'В чем заключается скрытый дефект или подвох в этом коде? Намекни без прямого спойлера решения.',
+    icon: <Bug className="w-3 h-3 text-rose-500" />
+  },
+  {
+    label: 'Намек на дефект',
+    message: 'На какой метод или строчку в коде стоит обратить самое пристальное внимание?',
+    icon: <Sparkles className="w-3 h-3 text-amber-500" />
+  },
+  {
+    label: 'Тест бага',
+    message: 'Как лучше всего написать воспроизводящий юнит-тест на этот баг?',
+    icon: <Sparkles className="w-3 h-3 text-sky-500" />
+  }
+];
+
 interface Props {
   domain: TutorDomain;
+  isBugHunt?: boolean;
   onSendMessage: (text: string) => void;
   onOpenCompass: () => void;
 }
 
-export const TutorQuickActionChips: React.FC<Props> = ({ domain, onSendMessage, onOpenCompass }) => {
-  const chips = CHIPS[domain];
+export const TutorQuickActionChips: React.FC<Props> = ({ domain, isBugHunt, onSendMessage, onOpenCompass }) => {
+  const chips = isBugHunt ? BUG_HUNT_CHIPS : CHIPS[domain];
 
   return (
     <>
-      {/* Compass trigger — always first */}
-      <button
-        onClick={onOpenCompass}
-        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pastel-rose text-pastel-accentRoseText hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/30 text-[11px] font-bold transition shrink-0 cursor-pointer"
-      >
-        <Compass className="w-3 h-3" />
-        <span>Компас (Ctrl+/)</span>
-      </button>
+      {/* Compass trigger — only when not in Bug Hunt */}
+      {!isBugHunt && (
+        <button
+          onClick={onOpenCompass}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pastel-rose text-pastel-accentRoseText hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/30 text-[11px] font-bold transition shrink-0 cursor-pointer"
+        >
+          <Compass className="w-3 h-3" />
+          <span>Компас (Ctrl+/)</span>
+        </button>
+      )}
 
       {/* Domain-specific chips */}
       {chips.map((chip) => (

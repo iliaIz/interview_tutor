@@ -1,29 +1,31 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bug, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
 import { BugChallenge, BugChallengeCard } from '../BugChallengeCard';
 import { TaskRecoveryCard } from '../TaskRecoveryCard';
 import { MemoryRadarDrawer } from '../MemoryRadarDrawer';
-import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BugHuntHeader, WorkoutPreset } from './bughunt/BugHuntHeader';
-import { BugHuntVoiceMentor, TutorRole } from './bughunt/BugHuntVoiceMentor';
 import { BugHuntThoughtAccordion } from './bughunt/BugHuntThoughtAccordion';
 import { useBugChallengeStream } from '../../hooks/useBugChallengeStream';
+import { PracticeVoiceProvider, usePracticeVoice } from '../practice/tutor/PracticeVoiceContext';
+import { PracticeTutorDrawer } from '../practice/tutor/PracticeTutorDrawer';
+import { AmbientVoicePill } from '../practice/tutor/AmbientVoicePill';
+import { LOADER_STEPS, EDUCATIONAL_TRIVIA } from './bughunt/bughuntConstants';
 
 export type DefectFocus = 'all' | 'streams' | 'concurrency' | 'testing' | 'memory' | 'spring_aop' | 'contracts';
 export type TechStackProfile = 'modern_cloud' | 'fintech_transactional' | 'enterprise_migration' | 'reactive_streaming' | 'custom';
 
-import { LOADER_STEPS, EDUCATIONAL_TRIVIA } from './bughunt/bughuntConstants';
-
-export const BugHuntArena: React.FC = () => {
+const BugHuntArenaContent: React.FC = () => {
   const {
     activeTopicBugHunt,
     closeTopicBugHunt,
     academyBreadcrumbContext,
     returnToAcademyStep,
-    toggleAcademyStepProgress
+    activeBugChallenge,
+    setActiveBugChallenge
   } = useAppStore();
+
+  const { isConnected, disconnectSession, sendTextMessage } = usePracticeVoice();
 
   const topicId = activeTopicBugHunt?.topicId || 'core';
   const topicName = activeTopicBugHunt?.topicName || 'Java Core & Collections';
@@ -32,7 +34,6 @@ export const BugHuntArena: React.FC = () => {
   const [activePreset, setActivePreset] = useState<WorkoutPreset>('exhaustive');
   const [defectFocus] = useState<DefectFocus>('all');
   const [difficulty] = useState<'middle' | 'senior'>('middle');
-  const [tutorRole, setTutorRole] = useState<TutorRole>('bug_hunt');
   const [techStackProfile] = useState<TechStackProfile>('modern_cloud');
 
   // Challenge history & navigation state
@@ -58,6 +59,20 @@ export const BugHuntArena: React.FC = () => {
 
   const challenge = currentIndex >= 0 && currentIndex < history.length ? history[currentIndex] : null;
 
+  // Sync current challenge to global store for PracticeVoiceContext and PracticeTutorDrawer
+  useEffect(() => {
+    setActiveBugChallenge(challenge);
+  }, [challenge, setActiveBugChallenge]);
+
+  // Sync solved state when AI tutor calls mark_bug_solved tool
+  useEffect(() => {
+    if (challenge?.id && activeBugChallenge?.id === challenge.id && activeBugChallenge.isSolved && !isSolved) {
+      setIsSolved(true);
+      setSessionSolvedCount((prev) => prev + 1);
+      setHistory((prev) => prev.map((c, i) => (i === currentIndex ? { ...c, isSolved: true } : c)));
+    }
+  }, [activeBugChallenge, challenge?.id, currentIndex, isSolved]);
+
   const currentVariantNumber = useMemo(() => {
     if (!challenge || currentIndex < 0) return 1;
     const sameSubtopicCount = history
@@ -65,40 +80,6 @@ export const BugHuntArena: React.FC = () => {
       .filter((c) => c.subtopic === challenge.subtopic).length;
     return Math.max(1, sameSubtopicCount);
   }, [challenge, currentIndex, history]);
-
-  const [inputText, setInputText] = useState('');
-
-  // Live Audio Hook
-  const {
-    isConnected,
-    isAiSpeaking,
-    isRecording,
-    isMuted,
-    isUserSpeaking,
-    isPauseHolding,
-    dialogueTurns,
-    startSession,
-    disconnectSession,
-    sendTextMessage,
-    sendActionEventMessage,
-    toggleMic,
-    toggleMute
-  } = useLiveAudioSession({
-    enableGlobalSelection: true,
-    onBugSolved: () => {
-      setIsSolved(true);
-      setSessionSolvedCount((prev) => prev + 1);
-      setHistory((prev) => prev.map((c, i) => (i === currentIndex ? { ...c, isSolved: true } : c)));
-      triggerSuccessConfetti();
-      if (academyBreadcrumbContext) {
-        toggleAcademyStepProgress(
-          academyBreadcrumbContext.courseId,
-          academyBreadcrumbContext.stepNumber,
-          true
-        );
-      }
-    }
-  });
 
   // Timer loop for loader and trivia
   useEffect(() => {
@@ -165,8 +146,6 @@ export const BugHuntArena: React.FC = () => {
     }
   };
 
-  const visitedChallengesRef = useRef<Set<string>>(new Set());
-
   const handleGenerateVariation = async () => {
     if (!challenge) return;
     if (isConnected) disconnectSession();
@@ -199,53 +178,6 @@ export const BugHuntArena: React.FC = () => {
     } finally {
       setIsLoadingVariation(false);
     }
-  };
-
-  const startBugVoiceSession = (targetChallenge?: BugChallenge | null) => {
-    const ch = targetChallenge || challenge;
-    if (!ch) return;
-
-    const chId = ch.id;
-    const isRevisit = visitedChallengesRef.current.has(chId);
-    visitedChallengesRef.current.add(chId);
-
-    const bridgeMessage = isRevisit
-      ? `[ВОЗВРАТ К ПРЕДЫДУЩЕМУ КЕЙСУ «${ch.title}»]: Кандидат вернулся назад к этой задаче. Кратко (1 предложение в доброжелательной манере напарника) напомни, какую гипотезу мы обсуждали, и спроси, готов ли он продолжить.`
-      : undefined;
-
-    return startSession({
-      sessionType: 'tutor',
-      tutorMode: tutorRole,
-      topic: topicName,
-      bugTitle: ch.title || '',
-      bugExplanation: ch.bugExplanation || '',
-      codeSnippet: ch.codeSnippet || '',
-      fixedCode: ch.fixedCode || '',
-      unitTest: ch.testSuite || '',
-      incidentContext: ch.productionContext ? {
-        systemName: ch.productionContext.systemName,
-        architectureType: ch.productionContext.architectureType,
-        incidentSymptoms: ch.productionContext.incidentSymptoms,
-        businessImpact: ch.productionContext.businessImpact,
-        prReviewContext: ch.productionContext.prReviewContext
-      } : undefined,
-      hints: ch.hints || [],
-      questionId: chId,
-      sessionId: chId ? `session_bughunt_${chId}` : undefined,
-      initialUserMessage: bridgeMessage
-    });
-  };
-
-  const handleSendBugText = (textToSend?: string) => {
-    const text = (textToSend !== undefined ? textToSend : inputText).trim();
-    if (!text) return;
-
-    if (!isConnected) {
-      void startBugVoiceSession();
-    }
-
-    sendTextMessage(text);
-    setInputText('');
   };
 
   return (
@@ -335,30 +267,9 @@ export const BugHuntArena: React.FC = () => {
               variantNumber={currentVariantNumber}
               onActionNotification={(actionText) => {
                 if (isConnected) {
-                  sendActionEventMessage(actionText);
+                  sendTextMessage(actionText);
                 }
               }}
-            />
-
-            <BugHuntVoiceMentor
-              tutorRole={tutorRole}
-              onSelectTutorRole={(r) => {
-                setTutorRole(r);
-                disconnectSession();
-              }}
-              isMuted={isMuted}
-              toggleMute={toggleMute}
-              isConnected={isConnected}
-              isAiSpeaking={isAiSpeaking}
-              isRecording={isRecording}
-              isPauseHolding={isPauseHolding}
-              isUserSpeaking={isUserSpeaking}
-              dialogueTurns={dialogueTurns}
-              inputText={inputText}
-              setInputText={setInputText}
-              handleSendBugText={handleSendBugText}
-              toggleMic={toggleMic}
-              startBugVoiceSession={startBugVoiceSession}
             />
           </div>
         ) : null}
@@ -372,7 +283,19 @@ export const BugHuntArena: React.FC = () => {
           void fetchChallenge();
         }}
       />
+
+      {/* SOTA Late 2026: Unified AI Co-Pilot Drawer & Ambient Hands-Free Voice Pill */}
+      <PracticeTutorDrawer />
+      <AmbientVoicePill />
     </div>
+  );
+};
+
+export const BugHuntArena: React.FC = () => {
+  return (
+    <PracticeVoiceProvider>
+      <BugHuntArenaContent />
+    </PracticeVoiceProvider>
   );
 };
 
