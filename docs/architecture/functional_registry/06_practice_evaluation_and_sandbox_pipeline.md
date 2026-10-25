@@ -157,3 +157,16 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 - **Invariants:**
   - All interactive coding arenas (Katas, Transaction Lab, Bug Hunt) MUST strictly use `PracticeVoiceProvider`, `PracticeTutorDrawer`, and `AmbientVoicePill`. Dedicated parallel voice mentor components are forbidden.
   - Newly written or refactored arena files must remain $\le 350$ lines.
+
+---
+
+### 2.11 Interactive AI Whiteboard Integration for Bug Hunt Arena (Wave 22.2)
+- **Location:** [`backend/src/services/live/liveTutorPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveTutorPromptBuilder.ts), [`frontend/src/components/incidents/bughunt/BugHuntHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/bughunt/BugHuntHeader.tsx), [`frontend/src/components/incidents/BugHuntArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx), [`frontend/src/components/practice/tutor/TutorQuickActionChips.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/TutorQuickActionChips.tsx)
+- **What Was Done:**
+  - **Surfaced Universal Whiteboard in Bug Hunt:** Integrated the production-proven [`WhiteboardDrawer.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/WhiteboardDrawer.tsx) directly into `BugHuntArena.tsx`, providing visual parity with Katas and Transaction Lab.
+  - **Header Toggle & Indicator:** Added «Доска ИИ» button with `Sparkles` icon and animated pulse dot in `BugHuntHeader.tsx` bound to `isWhiteboardOpen` and `activeWhiteboardState?.code`.
+  - **Live Prompt Directive:** In `liveTutorPromptBuilder.ts`, added explicit directive 4 for `tutorMode === 'bug_hunt'`, instructing the AI interviewer to use `update_whiteboard` when demonstrating class hierarchies, concurrency races, or fixes.
+  - **1-Click Whiteboard Quick Action:** Added `🎨 Покажи на доске` chip in `TutorQuickActionChips.tsx` for immediate text-based board requests.
+- **Invariants:**
+  - The AI Whiteboard drawer MUST automatically open upon receipt of an `update_whiteboard` WebSocket event.
+  - The whiteboard button in `BugHuntHeader` MUST display an active pulse dot whenever `activeWhiteboardState?.code` is non-empty.
