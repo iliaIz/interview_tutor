@@ -138,3 +138,22 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 - **Invariants:**
   - SSE disconnect detection MUST always attach to `res.on('close')`, never `req.on('close')`.
   - Client never receives unparsed raw JSON fragments; thoughts and structured payloads are strictly partitioned across SSE events.
+
+---
+
+### 2.10 AI Co-Pilot & Real-Time Voice Review Unification for Bug Hunt Arena (Wave 22)
+- **Location:** [`frontend/src/store/useAppStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/useAppStore.ts), [`frontend/src/components/practice/tutor/PracticeVoiceContext.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceContext.tsx), [`frontend/src/components/practice/tutor/PracticeTutorDrawer.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeTutorDrawer.tsx), [`frontend/src/components/practice/tutor/TutorQuickActionChips.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/TutorQuickActionChips.tsx), [`frontend/src/components/incidents/bughunt/BugHuntHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/bughunt/BugHuntHeader.tsx), [`frontend/src/components/incidents/BugHuntArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/incidents/BugHuntArena.tsx)
+- **What Was Done:**
+  - **Eliminated Parallel Voice Architecture:** Removed duplicate inline `useLiveAudioSession` hook instantiation and deleted isolated legacy component `BugHuntVoiceMentor.tsx` (-181 lines).
+  - **State Bridge in Global App Store:** Added `activeBugChallenge` and `setActiveBugChallenge` to `useAppStore.ts` to bridge bug challenge context to platform-wide tutoring and voice providers.
+  - **Unified Live Voice Integration:** Configured `PracticeVoiceContext.tsx` to automatically detect `activeBugChallenge` and launch Gemini Live sessions with `sessionType: 'tutor'`, `tutorMode: 'bug_hunt'`, injecting bug title, explanation, golden master fix, reproducing unit test, and incident production context. Connected `onBugSolved` callback to mark challenge solved and award progress.
+  - **Context-Aware Socratic Drawer:** Enhanced `PracticeTutorDrawer.tsx` and `TutorQuickActionChips.tsx` with dedicated Bug Hunt quick-action chips («В чем подвох?», «Намек на дефект», «Тест бага») and synchronized active code inspection.
+  - **Canonical Header Action Button:** Added «AI-Напарник» button with `Bot` icon and active state indicator to `BugHuntHeader.tsx`, identical to Katas and Transaction Lab.
+  - **Cognitive Bounding Compliance:** Reduced `BugHuntArena.tsx` from 379 lines down to 302 lines ($\le 350$ lines limit) while embedding `<PracticeVoiceProvider>`, `<PracticeTutorDrawer />`, and `<AmbientVoicePill />`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Observation:* User reported that AI-Напарник was absent in Bug Hunt arena.
+  - *Root Cause:* The backend voice engine and prompts for `bug_hunt` were fully ready, but the frontend lacked the standard header button, drawer, and ambient pill. Instead, it rendered an obsolete, isolated widget at the very bottom of the page beneath the fold, which bypassed the central practice voice provider.
+  - *Intermediate Conclusion:* Consolidating all practice and incident arenas around `PracticeVoiceProvider` and `PracticeTutorDrawer` eliminates code duplication, aligns UX, and adheres strictly to Rule 8 (Zero Parallel Reimplementation).
+- **Invariants:**
+  - All interactive coding arenas (Katas, Transaction Lab, Bug Hunt) MUST strictly use `PracticeVoiceProvider`, `PracticeTutorDrawer`, and `AmbientVoicePill`. Dedicated parallel voice mentor components are forbidden.
+  - Newly written or refactored arena files must remain $\le 350$ lines.
