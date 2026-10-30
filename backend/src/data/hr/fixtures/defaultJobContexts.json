@@ -1,0 +1,44 @@
+[
+  {
+    "jobId": "fintech_highload_expansion",
+    "companyName": "Fintech Tier-1 Ecosystem",
+    "industryDomain": "fintech_banking",
+    "roleTitle": "Senior Java Backend Engineer (Core Highload & Payments)",
+    "requiredKeywords": [
+      "Java 21",
+      "Spring Boot 3",
+      "Apache Kafka",
+      "PostgreSQL",
+      "Transactional Outbox",
+      "Resilience4j",
+      "Testcontainers"
+    ],
+    "hiringGoal": "highload_expansion",
+    "companyCultureRedFlags": [
+      "Необоснованное перекладывание вины на инфраструктуру",
+      "Оправдательный тон при вопросах о налогах и стаже",
+      "Отсутствие четкой юридической позиции по ФЗ-422",
+      "Бытовые эвфемизмы (сидел дома, пет-проект)"
+    ]
+  },
+  {
+    "jobId": "bigtech_ecommerce_platform",
+    "companyName": "BigTech E-Commerce Platform",
+    "industryDomain": "bigtech_ecommerce",
+    "roleTitle": "Senior Java Platform Engineer (Event Ingestion & Search)",
+    "requiredKeywords": [
+      "Java 21 Loom",
+      "Spring Boot 3",
+      "Kafka KRaft",
+      "pgvector",
+      "Redis",
+      "k6"
+    ],
+    "hiringGoal": "platform_engineering",
+    "companyCultureRedFlags": [
+      "Отсутствие метрик пропускной способности и задержки (RPS, p95)",
+      "Нерешительность и долгие паузы (>1.5 с)",
+      "Сбивчивая самопрезентация дольше 80 секунд"
+    ]
+  }
+]

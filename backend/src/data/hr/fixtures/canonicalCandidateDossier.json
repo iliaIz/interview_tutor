@@ -1,0 +1,94 @@
+{
+  "dossierId": "canonical_senior_java",
+  "fullName": "Илья Геннадьевич Ижуков",
+  "age": 35,
+  "targetRole": "Java Backend Engineer (Senior / Middle+)",
+  "totalExperienceYears": 8,
+  "location": "г. Краснодар, РФ",
+  "remotePolicy": "100_percent_remote_rf",
+  "careerTracks": [
+    {
+      "id": "btlab_enterprise",
+      "companyAlias": "ООО «БТЛаб» (Аккредитованная IT-компания)",
+      "role": "Ведущий разработчик Java",
+      "startDate": "2018-01",
+      "endDate": "2025-04",
+      "durationMonths": 88,
+      "isOfficialRecord": true,
+      "verificationProof": "Электронная выписка СТД-СФР с портала Госуслуг с усиленной ЭЦП",
+      "scaleMetrics": [
+        "15+ млн документов в БД",
+        "5 000+ активных пользователей",
+        "p95 ускорен с 520 мс до 45 мс"
+      ],
+      "primaryStack": [
+        "Java 11/17",
+        "Spring Boot",
+        "PostgreSQL",
+        "Apache Kafka",
+        "RabbitMQ",
+        "Testcontainers"
+      ],
+      "exitReason": "За 7.4 года ключевые архитектурные вызовы были закрыты, система перешла в фазу плавной поддержки. Осознанный переход к актуализации квалификации под новейший стек (Java 21, Spring Boot 3, Kafka KRaft, pgvector). Расставание на абсолютно позитивной ноте.",
+      "achievements": [
+        "Декомпозиция монолитного ядра СЭД: выделил 4 независимых микросервиса на Spring Boot и PostgreSQL",
+        "Проектирование асинхронного транспорта на Apache Kafka и RabbitMQ с гарантией At-Least-Once",
+        "Оптимизация PostgreSQL 16: устранение дефектов N+1, секционирование таблиц по годам, покрывающие B-Tree индексы INCLUDE",
+        "Построение тестового контура на Testcontainers (Postgres, Kafka) с поднятием покрытия критических путей до 82%"
+      ]
+    }
+  ],
+  "compliance": {
+    "military": {
+      "category": "V",
+      "inReserve": true,
+      "exemptByAge": true,
+      "ticketOnHands": true,
+      "description": "Постоянный военный билет категории «В» на руках, зачислен в запас, 35 лет (старше 30 лет, призыву на срочную службу не подлежит)"
+    },
+    "taxStatus": "npd_self_employed",
+    "taxRegistrationDate": "2026-02",
+    "taxDocumentForm": "Справка о постановке на учет физлица плательщиком НПД (КНД 1122035) с усиленной ЭЦП ФНС России",
+    "receiptsAvailable": false,
+    "receiptsLegalJustification": "Проект разрабатывался строго как исследовательский pre-revenue R&D Showcase на собственные ресурсы инженера. Коммерческие услуги третьим лицам не оказывались, расчетов не велось, объект налогообложения по ст. 2 и ст. 14 ФЗ № 422-ФЗ отсутствует, поэтому фискальные чеки закономерно не формировались. По ст. 65 ТК РФ справка о доходах (КНД 1122036) при найме в штат не требуется.",
+    "citizenship": "Гражданин РФ",
+    "taxResidency": "Налоговый резидент РФ (постоянное проживание в Краснодаре)"
+  },
+  "financials": {
+    "targetSalaryNet": 310000,
+    "currency": "RUB",
+    "taxFormat": "tk_rf",
+    "probationDiscountAcceptable": false,
+    "parallelOffersStatus": "Нахожусь в активной фазе общения в нескольких компаниях, но финальных обязательств ни перед кем не взял; вакансия вашей компании в приоритете",
+    "noticePeriodDays": 10
+  },
+  "showcase": {
+    "name": "Event Ingestion Platform",
+    "repoUrl": "https://github.com/izhukov-dev/event-ingestion-platform",
+    "isOpenSource": true,
+    "topology": "Dual-Service Topology (ingestion-service + core-platform-service)",
+    "rpsSustained": 2200,
+    "p95LatencyMs": 28.4,
+    "keyPatterns": [
+      "Transactional Outbox с CTE-лизингом SKIP LOCKED",
+      "Java 21 Project Loom Virtual Threads non-pinning",
+      "Spring AI + PostgreSQL pgvector HNSW halfvec(1536)",
+      "Redis L2 c вероятностным кэшированием XFetch",
+      "Kafka KRaft идемпотентный консьюмер"
+    ],
+    "testParity": "100% Testcontainers (Postgres, Kafka, Redis) без in-memory H2, ArchUnit, k6 нагрузочные испытания"
+  },
+  "prohibitedPhrases": [
+    "я был на фрилансе",
+    "брал заказы",
+    "писал код через чатгпт",
+    "проект надоел",
+    "токсичное руководство",
+    "устал на прошлой работе",
+    "ну можно и 250k",
+    "забыл пробить чеки",
+    "работал вчерную",
+    "сидел дома",
+    "не брали на работу"
+  ]
+}
