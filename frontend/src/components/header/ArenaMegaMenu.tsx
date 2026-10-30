@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useAppStore, StudioTab } from '../../store/useAppStore';
-import { Layers, Code2, Bug, Terminal, Zap, ChevronDown, Check, ArrowRight } from 'lucide-react';
+import { Layers, Code2, Bug, Terminal, Zap, ChevronDown, Check, ArrowRight, UserCheck } from 'lucide-react';
 
 interface ArenaItem {
   id: StudioTab;
@@ -88,6 +88,23 @@ const engineeringArenas: ArenaItem[] = [
       activeBg: 'bg-emerald-50/80',
       badgeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-200'
     }
+  },
+  {
+    id: 'hr_screening',
+    title: 'HR-Скрининг & Питч',
+    shortLabel: 'HR-Скрининг',
+    description: 'Голосовой симулятор: 75с питч, софт-скиллы, НПД 422-ФЗ, анти-сикофантия',
+    badge: '13 вопросов',
+    levelBadge: 'L3–L6',
+    icon: UserCheck,
+    theme: {
+      iconColor: 'text-pink-600',
+      bgIcon: 'bg-pink-100 text-pink-700',
+      borderHover: 'hover:border-pink-300 hover:bg-pink-50/50',
+      activeBorder: 'border-pink-400',
+      activeBg: 'bg-pink-50/80',
+      badgeStyle: 'bg-pink-100 text-pink-800 border-pink-200'
+    }
   }
 ];
 
@@ -145,7 +162,7 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
             <span className="hidden sm:inline">Инженерные Арены</span>
             <span className="sm:hidden">Арены</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
-              4
+              5
             </span>
           </>
         )}
@@ -168,7 +185,7 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
               </div>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border shrink-0">
-              4 арены • 216 задач
+              5 арен • 229 задач
             </span>
           </div>
 

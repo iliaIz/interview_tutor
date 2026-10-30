@@ -190,7 +190,7 @@ export interface ActiveBatchSession {
   isComplete: boolean;
 }
 
-export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage' | 'live_debug';
+export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage' | 'hr_screening' | 'live_debug';
 
 export interface AcademyBreadcrumbContext {
   courseId: string;
