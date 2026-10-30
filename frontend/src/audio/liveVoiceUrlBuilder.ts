@@ -27,7 +27,7 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     params.set('challengeId', cfg.questionId);
   }
 
-  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy', 'userGender', 'academyCourse', 'academyStep'] as const;
+  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy', 'userGender', 'academyCourse', 'academyStep', 'dossierId', 'targetQuestionId', 'hrMode'] as const;
   for (const k of optionalKeys) {
     if (cfg[k]) params.set(k, String(cfg[k]));
   }

@@ -30,6 +30,9 @@ export interface ParsedLiveFrameResult {
   bugSolvedPayload?: any;
   candidateObservationPayload?: any;
   smellDiscoveredPayload?: any;
+  hrPhaseTransitionPayload?: any;
+  hrScorecardPayload?: any;
+  hrTranscriptDelta?: string;
   rawParsed?: any;
 }
 
@@ -89,6 +92,21 @@ export class LiveVoiceFrameParser {
 
       if (data.type === 'tool_call') {
         result.toolCallPayload = data;
+        return result;
+      }
+
+      if (data.type === 'hr_phase_transition') {
+        result.hrPhaseTransitionPayload = data.payload || data;
+        return result;
+      }
+
+      if (data.type === 'hr_scorecard_ready') {
+        result.hrScorecardPayload = data.scorecard || data.payload || data;
+        return result;
+      }
+
+      if (data.type === 'hr_user_transcript_delta') {
+        result.hrTranscriptDelta = data.delta || data.text || '';
         return result;
       }
 

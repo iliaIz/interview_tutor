@@ -295,6 +295,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       }
     }
     if (parsed.toolCallPayload) this.callbacks.onToolCall?.(parsed.toolCallPayload);
+    if (parsed.hrPhaseTransitionPayload) this.callbacks.onHrPhaseTransition?.(parsed.hrPhaseTransitionPayload);
+    if (parsed.hrScorecardPayload) this.callbacks.onHrScorecardReady?.(parsed.hrScorecardPayload);
+    if (parsed.hrTranscriptDelta) this.callbacks.onHrTranscriptDelta?.(parsed.hrTranscriptDelta);
 
     // 2. Incoming Model Speech / Audio
     if (parsed.hasAudio || parsed.hasText) {

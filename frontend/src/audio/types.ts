@@ -25,7 +25,10 @@ export interface VoiceEngineConfig {
   topic?: string;
   questionText?: string;
   referenceAnswer?: string;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | string;
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | string;
+  dossierId?: string;
+  targetQuestionId?: string;
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill';
   tutorMode?: string;
   voice?: string;
   userGender?: string;
@@ -176,6 +179,9 @@ export interface VoiceEngineCallbacks {
   onCandidateObservationRecorded?: (payload: any) => void;
   onSmellDiscovered?: (payload: any) => void;
   onTransientFiltered?: () => void;
+  onHrPhaseTransition?: (payload: any) => void;
+  onHrScorecardReady?: (scorecard: any) => void;
+  onHrTranscriptDelta?: (delta: string) => void;
 }
 
 export interface ILiveVoiceEngine {
