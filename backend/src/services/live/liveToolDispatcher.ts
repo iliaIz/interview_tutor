@@ -1,3 +1,4 @@
+import { handleHrToolCall } from './liveHrToolDispatcher';
 import { WebSocket } from 'ws';
 import { db } from '../db';
 import { updateBugChallengeStatus } from '../tutorService';
@@ -383,6 +384,14 @@ export async function handleLiveToolCall(ctx: LiveToolContext): Promise<boolean>
     call.name === 'submit_hiring_committee_verdict'
   ) {
     return handleSystemDesignToolCall(ctx);
+  }
+
+  if (
+    call.name === 'advance_hr_phase' ||
+    call.name === 'submit_hr_evaluation' ||
+    call.name === 'emit_hr_round_evaluation'
+  ) {
+    return handleHrToolCall(ctx);
   }
 
   return false;
