@@ -31,6 +31,7 @@ This registry maintains an explicit, traceable, and empirically verified record 
 | **05** | **Verification Harness & Acoustic Canary** | CI/CD & Headless Replay | `backend/tests/audio/` | [`05_verification_and_canary_pipeline.md`](./05_verification_and_canary_pipeline.md) |
 | **06** | **Practice Evaluation & Review Console** | Backend SSE / Frontend Console | `backend/src/services/` & `frontend/` | [`06_practice_evaluation_and_sandbox_pipeline.md`](./06_practice_evaluation_and_sandbox_pipeline.md) |
 | **07** | **Refactoring Arena & Voice Code Review** | Practice / AST Sandbox / Voice Review | `backend/src/services/sandbox/` & `backend/src/services/live/` | [`07_refactoring_arena_subsystem.md`](./07_refactoring_arena_subsystem.md) |
+| **08** | **Generic HR Voice Simulator Engine** | Voice HR Screening & Micro-Drill | `backend/src/services/live/` & `frontend/src/` | [`08_hr_voice_simulator_engine.md`](./08_hr_voice_simulator_engine.md) |
 
 ---
 

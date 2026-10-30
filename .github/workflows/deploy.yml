@@ -92,6 +92,10 @@ jobs:
         working-directory: backend
         run: npm run test:live:tool-isolation
 
+      - name: Run HR Voice Simulator Engine Invariant & Acoustic Canary Tests
+        working-directory: backend
+        run: npm run test:hr
+
       - name: Build Java Sandbox Runner
         working-directory: backend
         run: npm run build:sandbox
