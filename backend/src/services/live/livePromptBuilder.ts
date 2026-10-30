@@ -1,3 +1,4 @@
+import { isHrSessionType } from '@interview-prep/shared';
 import {
   InterviewPersonaId,
   TargetGrade,
@@ -122,7 +123,11 @@ export function buildSystemPrompt(params: {
   customPromptOverride?: string;
   questionIndex?: number;
   totalQuestions?: number;
-  sessionType?: 'interview' | 'tutor' | 'system_design';
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | string;
+  candidateDossier?: any;
+  jobContext?: any;
+  hrQuestion?: any;
+  hrMode?: any;
   tutorMode?: 'deep_dive' | 'free_chat' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt' | 'practice_pair';
   bugTitle?: string;
   bugExplanation?: string;

@@ -7,7 +7,7 @@ export interface GreetingReplayOptions {
   session: ProxySession;
   geminiSocket: WebSocket;
   clientSocket: WebSocket;
-  sessionType: 'interview' | 'tutor' | 'system_design';
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
   tutorMode: string;
   bugTitle: string;
   questionText: string;

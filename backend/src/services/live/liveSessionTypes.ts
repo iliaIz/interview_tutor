@@ -52,7 +52,7 @@ export interface ProxySession {
   persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
-  sessionType?: 'interview' | 'tutor' | 'system_design';
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
   liveModel?: string;
   currentArchitectureMermaid?: string;
   currentGraphIr?: string;

@@ -1,3 +1,5 @@
+import { isHrSessionType, CandidateDossier, JobContext, HrQuestionRubricItem } from '@interview-prep/shared';
+import { getCandidateDossier, getJobContext, getHrQuestion } from './hrContextResolver';
 import http from 'http';
 import url from 'url';
 import { envConfig } from '../../config/env';
@@ -12,7 +14,14 @@ import { resolveLiveChallengeContext } from './liveWsChallengeResolver';
 
 export interface LiveWsSessionParams {
   authenticatedUser: any;
-  sessionType: 'interview' | 'tutor' | 'system_design';
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  dossierId?: string;
+  jobId?: string;
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill';
+  targetQuestionId?: string;
+  candidateDossier?: CandidateDossier;
+  jobContext?: JobContext;
+  hrQuestion?: HrQuestionRubricItem;
   tutorMode: any;
   bugTitle: string;
   bugExplanation: string;
