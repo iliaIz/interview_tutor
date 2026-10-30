@@ -86,6 +86,9 @@ export interface VoiceEngineConfig {
     targetConcepts?: string[];
   };
   seniorReview?: any;
+  jobId?: string;
+  hrPersonaId?: string;
+  questionMatrixId?: string;
 }
 
 export interface LiveSessionInitFrame {
@@ -134,6 +137,11 @@ export interface LiveSessionInitFrame {
   questionIndex?: number;
   totalQuestions?: number;
   isRetry?: boolean;
+  hrMode?: string;
+  dossierId?: string;
+  jobId?: string;
+  hrPersonaId?: string;
+  questionMatrixId?: string;
 }
 
 export interface VoiceEvaluationResult {

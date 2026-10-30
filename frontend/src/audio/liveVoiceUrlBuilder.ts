@@ -54,6 +54,11 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
   if (cfg.isRetry) {
     params.set('isRetry', 'true');
   }
+  if (cfg.hrMode) params.set('hrMode', cfg.hrMode);
+  if (cfg.dossierId) params.set('dossierId', cfg.dossierId);
+  if (cfg.jobId) params.set('jobId', cfg.jobId);
+  if (cfg.hrPersonaId) params.set('hrPersonaId', cfg.hrPersonaId);
+  if (cfg.questionMatrixId) params.set('questionMatrixId', cfg.questionMatrixId);
 
   return `${protocol}//${host}/ws/live?${params.toString()}`;
 }
@@ -89,7 +94,12 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
     },
     activeCodeArtifact: cfg.activeCodeArtifact,
     academyBridgeContext: cfg.academyBridgeContext,
-    seniorReview: cfg.seniorReview
+    seniorReview: cfg.seniorReview,
+    hrMode: cfg.hrMode,
+    dossierId: cfg.dossierId,
+    jobId: cfg.jobId,
+    hrPersonaId: cfg.hrPersonaId,
+    questionMatrixId: cfg.questionMatrixId
   };
 
   try {

@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NativeLiveVoiceEngine } from './NativeLiveVoiceEngine';
 import { useAppStore } from '../store/useAppStore';
+import { useHrSimulatorStore } from '../store/useHrSimulatorStore';
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
   VoiceEngineState,
@@ -68,6 +69,11 @@ export interface LiveAudioSessionParams {
     targetConcepts?: string[];
   };
   seniorReview?: any;
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill';
+  dossierId?: string;
+  jobId?: string;
+  hrPersonaId?: string;
+  questionMatrixId?: string;
 }
 
 export interface UseLiveVoiceSessionOptions {
@@ -184,6 +190,27 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       onHiringCommitteeVerdict: (payload) => optionsRef.current.onHiringCommitteeVerdict?.(payload),
       onBugSolved: (payload) => optionsRef.current.onBugSolved?.(payload),
       onCandidateObservationRecorded: (payload) => optionsRef.current.onCandidateObservationRecorded?.(payload),
+      onHrPhaseTransition: (payload) => {
+        try {
+          useHrSimulatorStore.getState().setPhase(payload.toPhase);
+        } catch (e) {
+          console.warn('[useLiveVoiceSession] HR phase transition update failed:', e);
+        }
+      },
+      onHrScorecardReady: (scorecard) => {
+        try {
+          useHrSimulatorStore.getState().setScorecard(scorecard);
+        } catch (e) {
+          console.warn('[useLiveVoiceSession] HR scorecard update failed:', e);
+        }
+      },
+      onHrTranscriptDelta: (delta) => {
+        try {
+          useHrSimulatorStore.getState().appendTranscriptDelta(delta);
+        } catch (e) {
+          console.warn('[useLiveVoiceSession] HR transcript delta update failed:', e);
+        }
+      },
       onError: (err) => {
         setError(err);
         optionsRef.current.onError?.(err);
@@ -238,7 +265,12 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       academyCourse: params.academyCourse,
       academyStep: params.academyStep,
       academyBridgeContext: params.academyBridgeContext,
-      seniorReview: params.seniorReview
+      seniorReview: params.seniorReview,
+      hrMode: params.hrMode as ('full_screening_simulation' | 'rapid_fire_micro_drill' | undefined),
+      dossierId: params.dossierId,
+      jobId: params.jobId,
+      hrPersonaId: params.hrPersonaId,
+      questionMatrixId: params.questionMatrixId
     };
     await connect(config);
   }, [connect]);
