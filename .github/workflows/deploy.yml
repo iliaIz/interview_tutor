@@ -10,6 +10,7 @@ on:
       - feat/wave-14-intellij-bridge-live-code-sync
       - feat/wave-16-refactoring-arena-voice-review
       - feat/wave-19-neural-audio-filtering
+      - feat/wave-20-hr-voice-screening-engine
   workflow_dispatch:
 
 permissions:
