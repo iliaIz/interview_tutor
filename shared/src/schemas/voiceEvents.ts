@@ -39,3 +39,20 @@ export interface WhiteboardUpdatePayload {
   explanation?: string;
   updatedAt?: number;
 }
+
+export const HR_VOICE_EVENTS = {
+  // Downstream from Gateway -> Client
+  HR_SESSION_INITIALIZED: 'hr_session_initialized',
+  HR_ANCHOR_HIT: 'hr_anchor_hit',
+  HR_TELEMETRY_TICK: 'hr_telemetry_tick',
+  HR_USER_TRANSCRIPT_DELTA: 'hr_user_transcript_delta',
+  HR_PHASE_TRANSITION: 'hr_phase_transition',
+  HR_SCORECARD_READY: 'hr_scorecard_ready',
+
+  // Upstream from Client -> Gateway
+  HR_DRILL_RETRY: 'hr_drill_retry',
+  HR_DRILL_NEXT: 'hr_drill_next',
+  HR_PHASE_ADVANCE_REQUEST: 'hr_phase_advance_req'
+} as const;
+
+export type HrVoiceEventType = typeof HR_VOICE_EVENTS[keyof typeof HR_VOICE_EVENTS];
