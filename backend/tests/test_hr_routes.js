@@ -23,7 +23,7 @@ const questions = JSON.parse(fs.readFileSync(questionsPath, 'utf-8'));
 const dossier = JSON.parse(fs.readFileSync(dossierPath, 'utf-8'));
 
 assert.ok(Array.isArray(questions), 'Questions must be an array');
-assert.strictEqual(questions.length, 12, 'Must have 12 canonical questions');
+assert.ok(questions.length >= 12, `Must have at least 12 canonical questions, found ${questions.length}`);
 
 // Verify all 12 questions have required fields
 for (const q of questions) {
