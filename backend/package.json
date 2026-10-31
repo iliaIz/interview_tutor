@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "prebuild": "npm --prefix ../shared run build",
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs'); fs.mkdirSync('dist/data/hr/fixtures', {recursive:true}); fs.cpSync('src/data/hr/fixtures', 'dist/data/hr/fixtures', {recursive:true});\"",
     "build:sandbox": "node src/scripts/buildSandbox.js",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

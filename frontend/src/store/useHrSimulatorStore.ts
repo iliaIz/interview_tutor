@@ -231,7 +231,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
     if (get().questionsList.length > 0) return;
     set({ isLoadingQuestions: true });
     try {
-      const res = await fetch('/api/hr/questions');
+      const res = await fetch('/api/hr/questions', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         const list: HrQuestionRubricItem[] = data.questions || [];

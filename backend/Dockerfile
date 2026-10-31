@@ -50,6 +50,8 @@ COPY backend/package*.json ./
 COPY scenarios/ ./scenarios/
 COPY json/ ./json/
 COPY bridge/ ./bridge/
+COPY backend/src/data/hr/fixtures/ ./dist/data/hr/fixtures/
+COPY backend/src/data/hr/fixtures/ ./src/data/hr/fixtures/
 
 # Expose internal API port
 EXPOSE 5000

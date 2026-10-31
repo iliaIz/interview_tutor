@@ -19,8 +19,12 @@ function resolveFixturesDir(): string {
   const candidates = [
     path.resolve(__dirname, '../../data/hr/fixtures'),
     path.resolve(__dirname, '../../../src/data/hr/fixtures'),
+    path.resolve(process.cwd(), 'dist/data/hr/fixtures'),
     path.resolve(process.cwd(), 'src/data/hr/fixtures'),
-    path.resolve(process.cwd(), 'backend/src/data/hr/fixtures')
+    path.resolve(process.cwd(), 'backend/src/data/hr/fixtures'),
+    path.resolve(process.cwd(), 'backend/dist/data/hr/fixtures'),
+    '/app/dist/data/hr/fixtures',
+    '/app/src/data/hr/fixtures'
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
