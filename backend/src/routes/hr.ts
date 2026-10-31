@@ -23,13 +23,14 @@ hrRouter.get('/questions', (_req: Request, res: Response) => {
  */
 hrRouter.get('/questions/:id', (req: Request, res: Response) => {
   try {
-    const question = getHrQuestion(req.params.id);
-    if (!question || (req.params.id !== question.id && req.params.id !== 'default')) {
-      return res.status(404).json({ error: `Question not found: ${req.params.id}` });
+    const questionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const question = getHrQuestion(questionId);
+    if (!question || (questionId !== question.id && questionId !== 'default')) {
+      return res.status(404).json({ error: `Question not found: ${questionId}` });
     }
     res.json({ question });
   } catch (err: any) {
-    console.error(`[HR_ROUTER_ERROR] Failed to fetch question ${req.params.id}:`, err);
+    console.error(`[HR_ROUTER_ERROR] Failed to fetch question:`, err);
     res.status(500).json({ error: 'Failed to fetch question' });
   }
 });
