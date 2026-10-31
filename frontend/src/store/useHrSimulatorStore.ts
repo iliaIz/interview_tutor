@@ -1,7 +1,8 @@
 /**
  * useHrSimulatorStore.ts
  * Dedicated Zustand Store for Generic HR Voice Simulator Engine.
- * Implements Monotonic State Latch and Speech Telemetry Tracking.
+ * Implements Monotonic State Latch, Speech Telemetry Tracking,
+ * and Pedagogical Question Catalog & Multi-Mode Studio State.
  * SOTA Late 2026 Engine vs. Payload isolation.
  */
 
@@ -17,13 +18,19 @@ import {
 } from '@interview-prep/shared';
 
 export interface HrSimulatorState {
-  // Session Configuration
+  // Session Configuration & Pedagogical State
   mode: HrSessionMode;
   personaId: HrPersonaId;
   currentPhase: HrSimulationPhase;
   activeQuestion: HrQuestionRubricItem | null;
   anchorCards: HrAnchorCard[];
   drillAttemptsCount: number;
+
+  // Multi-Mode Studio Tab & Catalog State
+  activeTab: 'study' | 'voice';
+  questionsList: HrQuestionRubricItem[];
+  selectedQuestionId: string | null;
+  isLoadingQuestions: boolean;
 
   // Real-Time Speech Telemetry
   elapsedTurnSec: number;
@@ -48,6 +55,13 @@ export interface HrSimulatorState {
   setScorecard: (scorecard: HrScorecard) => void;
   closeScorecard: () => void;
   resetForRetry: () => void;
+
+  // Pedagogical Suite Actions
+  setActiveTab: (tab: 'study' | 'voice') => void;
+  fetchQuestions: () => Promise<void>;
+  selectQuestion: (questionId: string) => void;
+  nextQuestion: () => void;
+  prevQuestion: () => void;
 }
 
 const FILLER_REGEX = /\b(ну|как бы|в общем|в общем-то|типа|наверное|э-э-э|м-м-м|так сказать|собственно говоря)\b/gi;
@@ -59,6 +73,11 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   activeQuestion: null,
   anchorCards: [],
   drillAttemptsCount: 1,
+
+  activeTab: 'study',
+  questionsList: [],
+  selectedQuestionId: null,
+  isLoadingQuestions: false,
 
   elapsedTurnSec: 0,
   rollingWpm: 0,
@@ -84,6 +103,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       personaId,
       currentPhase: mode === 'rapid_fire_micro_drill' ? 'phase2_elevator_pitch' : 'phase1_small_talk',
       activeQuestion: question,
+      selectedQuestionId: question.id,
       anchorCards: cards,
       drillAttemptsCount: 1,
       elapsedTurnSec: 0,
@@ -200,5 +220,80 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       latestScorecard: null,
       isScorecardOpen: false
     }));
+  },
+
+  // Pedagogical Suite Actions
+  setActiveTab: (tab) => {
+    set({ activeTab: tab });
+  },
+
+  fetchQuestions: async () => {
+    if (get().questionsList.length > 0) return;
+    set({ isLoadingQuestions: true });
+    try {
+      const res = await fetch('/api/hr/questions');
+      if (res.ok) {
+        const data = await res.json();
+        const list: HrQuestionRubricItem[] = data.questions || [];
+        set({
+          questionsList: list,
+          isLoadingQuestions: false,
+          activeQuestion: get().activeQuestion || list[0] || null,
+          selectedQuestionId: get().selectedQuestionId || list[0]?.id || null
+        });
+      } else {
+        set({ isLoadingQuestions: false });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch HR questions list:', err);
+      set({ isLoadingQuestions: false });
+    }
+  },
+
+  selectQuestion: (questionId) => {
+    const list = get().questionsList;
+    const found = list.find((q) => q.id === questionId);
+    if (found) {
+      const cards = (found.requiredAnchors || []).map((card) => ({
+        ...card,
+        status: 'PENDING' as const,
+        hitTimestampMs: undefined,
+        detectionLatencyMs: undefined
+      }));
+
+      set({
+        selectedQuestionId: found.id,
+        activeQuestion: found,
+        anchorCards: cards,
+        drillAttemptsCount: 1,
+        elapsedTurnSec: 0,
+        rollingWpm: 0,
+        pacingStatus: 'optimal',
+        pacingWindowStatus: 'building',
+        hesitationCount: 0,
+        fillerWordsSpotted: [],
+        liveCandidateTranscript: '',
+        latestScorecard: null,
+        isScorecardOpen: false
+      });
+    }
+  },
+
+  nextQuestion: () => {
+    const { questionsList, selectedQuestionId } = get();
+    if (!questionsList.length || !selectedQuestionId) return;
+    const currentIndex = questionsList.findIndex((q) => q.id === selectedQuestionId);
+    if (currentIndex >= 0 && currentIndex < questionsList.length - 1) {
+      get().selectQuestion(questionsList[currentIndex + 1].id);
+    }
+  },
+
+  prevQuestion: () => {
+    const { questionsList, selectedQuestionId } = get();
+    if (!questionsList.length || !selectedQuestionId) return;
+    const currentIndex = questionsList.findIndex((q) => q.id === selectedQuestionId);
+    if (currentIndex > 0) {
+      get().selectQuestion(questionsList[currentIndex - 1].id);
+    }
   }
 }));
