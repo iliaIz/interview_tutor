@@ -1,6 +1,8 @@
 import { WebSocket, RawData } from 'ws';
 import { InterviewPersonaId, TargetGrade } from '../../prompts/personas';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
+import { WatchdogManager } from './WatchdogManager';
+import { SessionFsm } from './sessionFsm';
 
 export function toRawBuffer(data: RawData): Buffer {
   if (Buffer.isBuffer(data)) return data;
@@ -48,6 +50,8 @@ export interface ProxySession {
   nudgeWatchdog?: NodeJS.Timeout | null;
   deadAirWatchdog?: NodeJS.Timeout | null;
   deadAirTimeoutMs?: number;
+  watchdogs?: WatchdogManager;
+  fsm?: SessionFsm;
   currentAiTurnText?: string;
   persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;

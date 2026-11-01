@@ -70,6 +70,16 @@ export function handleTurnCommit(
 export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
   const isThinkingModel = Boolean(session.liveModel && session.liveModel.includes('thinking'));
 
+  if (session.fsm) {
+    session.fsm.transition('COMMITTING');
+    session.fsm.transition('AI_THINKING');
+  }
+
+  if (session.watchdogs) {
+    session.watchdogs.arm(isThinkingModel, session.deadAirTimeoutMs);
+    return;
+  }
+
   if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
   const nudgeDelay = isThinkingModel ? 8000 : 5000;
   session.nudgeWatchdog = setTimeout(() => {
@@ -86,6 +96,7 @@ export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket)
     if (session.isAiGenerating) {
       console.warn(`⏱️ [DEAD_AIR_WATCHDOG] ${deadAirTimeoutMs}ms silence expired with zero response from Gemini Live (sessionId: ${session.sessionId || 'anon'}). Reclaiming microphone and canceling stuck generation.`);
       session.isAiGenerating = false;
+      session.fsm?.transition('CANDIDATE_LISTENING');
       if (session.currentTurnMetrics) {
         session.currentTurnMetrics.droppedEchoChunksCount = 0;
       }

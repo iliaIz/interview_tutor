@@ -242,5 +242,25 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - `SessionConfigurationResolver.ts` MUST adhere to Cognitive Bounding <= 150 lines.
   - All Live session startup parameters must be accessed through typed `LiveSessionResolvedConfig`.
 
+---
+
+### 2.18 `LiveVoiceSession: Encapsulation of Session Aggregate Root, SessionFsm & Watchdog Lifeline (Ticket #10)`
+- **Location:** [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts), [`backend/src/services/live/liveWsConnectionHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), [`backend/src/services/live/sessionFsm.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionFsm.ts), [`backend/src/services/live/sessionStartupHelper.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionStartupHelper.ts)
+- **What Was Done:**
+  1. **Aggregate Root Creation:** Created `LiveVoiceSession` (275 lines <= 300 SLA) encapsulating `SessionFsm`, `WatchdogManager`, and `LiveAudioStreamRouter`.
+  2. **Anemic Data Bag Elimination:** Replaced 45 loose public session mutations with private aggregate state and explicit control methods `start()`, `handleClientFrame()`, and `terminate()`.
+  3. **Thin HTTP Adapter:** Shrunk `liveWsConnectionHandler.ts` from 298 lines to 23 lines (<= 60 SLA), delegating directly to `LiveVoiceSession.start(...)`.
+  4. **Trap-Free FSM Enforcement:** Implemented `SessionFsm` (55 lines) ensuring clean transitions between `INIT`, `CANDIDATE_LISTENING`, `CANDIDATE_SPEAKING`, `COMMITTING`, `AI_THINKING`, and `AI_SPEAKING`, strictly preventing stuck commit/thinking states (Invariant 2.8).
+  5. **Watchdog Lifeline Integration:** Connected `WatchdogManager` with Two-Phase SLA (5s/8s nudge and 22s/25s dead-air recovery) into the turn commit pipeline and aggregate lifecycle.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Monolithic connection handler and loose `ProxySession` mutations allowed timers and state flags to desync during reconnects or abnormal closures.
+  - *Empirical Finding:* Encapsulating the session inside `LiveVoiceSession` ensures symmetrical lifecycle cleanup and guarantees that all watchdogs, sockets, and memory buffers are disposed in one atomic call.
+- **Rationale & "Why":** Establishes an aggregate boundary around real-time streaming sessions, protecting domain invariants from transport-level WebSocket anomalies.
+- **Invariants:**
+  - `LiveVoiceSession.ts` MUST NOT exceed 300 lines.
+  - `liveWsConnectionHandler.ts` MUST NOT exceed 60 lines.
+  - Committing and thinking states MUST always transition cleanly to `CANDIDATE_LISTENING` on dead-air recovery or barge-in (Invariant 2.8).
+
+
 
 
