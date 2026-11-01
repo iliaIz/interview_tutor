@@ -123,6 +123,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public commitSpokenTurn(): void {
+    this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
@@ -147,7 +148,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         clientContent: { interruption: true }
       }));
     }
-    this.unlockCandidateTurn();
+    this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
   }
 
   public handleCentralButtonClick(): void {
@@ -161,6 +162,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
   public sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
+    this.isServerTurnComplete = false;
     this.turnManager.appendTurn('user', displayText || text);
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -292,6 +294,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     // 2. Incoming Model Speech / Audio
     if (parsed.hasAudio || parsed.hasText) {
       this.isSessionReady = true;
+      this.isServerTurnComplete = false;
       this.clearClientSafetyTimer();
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
@@ -345,7 +348,10 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.resetTurnCustody({ type: 'DEAD_AIR_RECOVERED' }, '🎙️ ИИ завершил размышление. Ваша очередь говорить...');
   }
 
-  private resetTurnCustody(event: { type: 'PLAYOUT_FINISHED' } | { type: 'DEAD_AIR_RECOVERED' }, msg: string): void {
+  private resetTurnCustody(
+    event: { type: 'PLAYOUT_FINISHED' } | { type: 'DEAD_AIR_RECOVERED' } | { type: 'BARGE_IN_TRIGGERED'; source: 'tactile' | 'acoustic' },
+    msg: string
+  ): void {
     this.isTurn0Lockdown = false;
     this.clearClientSafetyTimer();
     this.isAudioMutexLocked = false;

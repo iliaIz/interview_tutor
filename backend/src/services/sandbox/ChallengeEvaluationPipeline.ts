@@ -64,12 +64,6 @@ export class ChallengeEvaluationPipeline {
     const testsPassed = Boolean(sandboxResult.isCompilable && failedCount === 0 && sandboxResult.success);
 
     if (!testsPassed) {
-      yield {
-        gate: 'JVM_UNIT_TESTS', status: 'FAILED', progressPercent: 20,
-        payload: { testResults: testResultsPayload, error: sandboxResult.error || (sandboxResult.isCompilable ? `${failedCount} test(s) failed` : 'Compilation failed') },
-        timestamp: Date.now()
-      };
-
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 0,
         evaluation: {
@@ -79,6 +73,12 @@ export class ChallengeEvaluationPipeline {
         },
         timeSpentSeconds
       });
+
+      yield {
+        gate: 'JVM_UNIT_TESTS', status: 'FAILED', progressPercent: 20,
+        payload: { testResults: testResultsPayload, error: sandboxResult.error || (sandboxResult.isCompilable ? `${failedCount} test(s) failed` : 'Compilation failed') },
+        timestamp: Date.now()
+      };
       return;
     }
 
@@ -94,17 +94,17 @@ export class ChallengeEvaluationPipeline {
     }));
 
     if (!astResult.passed) {
-      yield {
-        gate: 'AST_INVARIANTS', status: 'FAILED', progressPercent: 40,
-        payload: { astViolations, error: `Нарушены архитектурные AST-инварианты (${astViolations.length} нарушений).` },
-        timestamp: Date.now()
-      };
-
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 30,
         evaluation: { astViolations, scoreBreakdown: { overallScore: 30, summaryReview: `Отклонено Gate 2 AST: ${astViolations[0]?.message || 'нарушение инвариантов'}` } },
         timeSpentSeconds
       });
+
+      yield {
+        gate: 'AST_INVARIANTS', status: 'FAILED', progressPercent: 40,
+        payload: { astViolations, error: `Нарушены архитектурные AST-инварианты (${astViolations.length} нарушений).` },
+        timestamp: Date.now()
+      };
       return;
     }
 

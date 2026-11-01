@@ -53,14 +53,21 @@ export class SessionConfigurationResolver {
 
     let candidateGaps: CandidateGap[] = [];
     try {
-      candidateGaps = await findRelevantCandidateGaps(resolved.questionText || resolved.bugTitle || resolved.topic, resolved.topic, questionId);
+      candidateGaps = await findRelevantCandidateGaps(
+        resolved.questionText || resolved.bugTitle || resolved.topic,
+        resolved.topic,
+        questionId,
+        0.70,
+        authenticatedUser.id || 'default_user'
+      );
     } catch {}
 
     const rawStrict = ((query.strictness as string) || '').toLowerCase();
     const strictness = ['learning', 'standard', 'hardcore'].includes(rawStrict) ? (rawStrict as StrictnessLevel) : undefined;
     const isSupported = envConfig.models.supportedLiveModels.includes((query.liveModel as string) || '');
     const liveModel = isSupported ? (query.liveModel as string) : envConfig.models.live;
-    const sessionId = (query.sessionId as string) || '';
+    const rawSessionId = ((query.sessionId as string) || '').trim();
+    const sessionId = rawSessionId || `session_${authenticatedUser.id || 'anon'}_${Date.now()}`;
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
     const upstreamWsUrl = `${cleanProxyWs}/ws/live?model=${encodeURIComponent(liveModel)}&token=${encodeURIComponent(envConfig.proxy.apiKey)}&session_id=${encodeURIComponent(sessionId)}`;
 
@@ -80,7 +87,7 @@ export class SessionConfigurationResolver {
       deepDive: query.deepDive === 'true',
       liveCoaching: query.liveCoaching === 'true',
       strictness,
-      customPromptOverride: (query.customPrompt as string) || '',
+      customPromptOverride: String(query.customPrompt || '').slice(0, 4000),
       anchors,
       initialUserMessage: ((query.initialUserMessage as string) || '').trim(),
       temperature: query.temperature !== undefined ? parseFloat(String(query.temperature)) : undefined
@@ -111,7 +118,7 @@ export class SessionConfigurationResolver {
       initialProbesCount: Math.max(0, parseInt((query.probesCount as string) || '0', 10) || 0),
       candidateGaps,
       relevantGapIds: candidateGaps.map((g) => g.id),
-      userProfile: getUserProfile(),
+      userProfile: getUserProfile(authenticatedUser.id || 'default_user'),
       liveModel,
       upstreamWsUrl,
       vadPauseMs: Number(query.vadPauseMs) || 1800,

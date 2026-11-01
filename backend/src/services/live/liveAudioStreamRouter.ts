@@ -244,6 +244,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           const commitAnchor = session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastTurnCommitTime || session.lastToolCallTime || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
+          if (session.watchdogs) {
+            session.watchdogs.heartbeat();
+          }
+          session.fsm?.transition('AI_SPEAKING');
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
             session.nudgeWatchdog = null;
@@ -324,6 +328,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (isUpstreamTurnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
+            if (session.watchdogs) {
+              session.watchdogs.disarmAll();
+            }
+            session.fsm?.transition('CANDIDATE_LISTENING');
             // SOTA Late 2026: Deduplicate terminal frame invocations
             // If turn has already concluded and current audio bytes are 0, ignore duplicate turnComplete/generationComplete
             if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {

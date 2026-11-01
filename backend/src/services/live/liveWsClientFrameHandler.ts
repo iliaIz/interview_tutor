@@ -18,6 +18,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
   const { session, clientSocket, turnMode, earlyQueue, cleanupEarlyCapture } = options;
 
   const handleIncomingFrame = (data: RawData) => {
+    if (session.isTerminated) return;
     session.lastActivityAt = Date.now();
     const buffer = toRawBuffer(data);
     let payloadBuffer = buffer;
@@ -177,6 +178,8 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
 
       if (parsed.type === 'barge_in' || isBargeIn) {
         LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || (parsed.type === 'barge_in' ? 'tactile' : 'acoustic'), parsed.epoch || Date.now());
+        session.watchdogs?.disarmAll();
+        session.fsm?.transition('CANDIDATE_LISTENING');
         if (!parsed.realtimeInput && !parsed.realtime_input) {
           return;
         }
@@ -184,6 +187,8 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
 
       if (parsed.type === 'turn_reset') {
         session.isAiGenerating = false;
+        session.watchdogs?.disarmAll();
+        session.fsm?.transition('CANDIDATE_LISTENING');
         session.aiPlayoutEstimatedEndEpoch = 0;
         session.currentTurnAudioBytes = 0;
         session.audioChunksCount = 0;
@@ -319,6 +324,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         session.audioChunksCount = (session.audioChunksCount || 0) + 1;
         if (session.audioChunksCount === 1) {
           console.log(`🎤 [CLIENT_SPEECH_START] Audio streaming active from mic for session ${session.sessionId || 'anon'}`);
+          session.fsm?.transition('CANDIDATE_SPEAKING');
           session.currentTurnIndex = (session.currentTurnIndex || 0) + 1;
           session.currentTurnMetrics = {
             turnIndex: session.currentTurnIndex,
@@ -381,9 +387,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
     }
   };
 
-  if (cleanupEarlyCapture) {
-    cleanupEarlyCapture();
-  }
+  if (cleanupEarlyCapture) cleanupEarlyCapture();
   clientSocket.on('message', handleIncomingFrame);
 
   if (Array.isArray(earlyQueue) && earlyQueue.length > 0) {

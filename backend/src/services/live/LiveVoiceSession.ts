@@ -23,8 +23,9 @@ import { createInitialProxySession } from './sessionStartupHelper';
 
 export interface SessionStartupOptions {
   clientSocket: WebSocket;
-  req: http.IncomingMessage;
-  earlyQueue?: any[];
+  req?: http.IncomingMessage;
+  request?: http.IncomingMessage;
+  earlyQueue?: (Buffer | any)[];
   cleanupEarlyCapture?: () => void;
 }
 
@@ -58,16 +59,31 @@ export class LiveVoiceSession {
   public get state(): LiveSessionState { return this._fsm.state; }
   public get fsm(): SessionFsm { return this._fsm; }
   public get watchdogs(): WatchdogManager { return this._watchdogs; }
-  public get proxySession(): ProxySession { return this._session; }
 
   public static async start(options: SessionStartupOptions): Promise<LiveVoiceSession | null> {
-    const { clientSocket, req, earlyQueue, cleanupEarlyCapture } = options;
+    const { clientSocket, earlyQueue, cleanupEarlyCapture } = options;
+    const req = options.req || options.request;
+    if (!req) {
+      if (cleanupEarlyCapture) cleanupEarlyCapture();
+      clientSocket.close(1008, 'Missing HTTP IncomingMessage');
+      return null;
+    }
+
+    if ((clientSocket.readyState as number) === WebSocket.CLOSED || (clientSocket.readyState as number) === WebSocket.CLOSING) {
+      if (cleanupEarlyCapture) cleanupEarlyCapture();
+      return null;
+    }
 
     const config = await SessionConfigurationResolver.resolve(req);
     if (!config) {
       if (cleanupEarlyCapture) cleanupEarlyCapture();
       console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
       clientSocket.close(4401, 'Unauthorized: Valid ticket or invite session required');
+      return null;
+    }
+
+    if ((clientSocket.readyState as number) === WebSocket.CLOSED || (clientSocket.readyState as number) === WebSocket.CLOSING) {
+      if (cleanupEarlyCapture) cleanupEarlyCapture();
       return null;
     }
 
@@ -78,12 +94,15 @@ export class LiveVoiceSession {
     const session = createInitialProxySession(config, clientSocket, fsm, watchdogs);
 
     let instance: LiveVoiceSession;
-    const terminate = (source: string, code?: number, reason?: Buffer) => {
-      if (instance) instance.terminate(source, code, reason);
+    const terminate = (reason: string = 'Normal Closure', code: number = 1000, source: string = 'Session') => {
+      if (instance) instance.terminate(reason, code, source);
+    };
+    const terminateRouter = (source: string, code?: number, reason?: Buffer) => {
+      if (instance) instance.terminate(reason ? reason.toString() : 'StreamRouter terminated', code, source);
     };
 
     watchdogs.onNudge = (elapsedMs) => {
-      if (clientSocket.readyState === WebSocket.OPEN) {
+      if (session.isAiGenerating && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
       }
     };
@@ -172,7 +191,7 @@ export class LiveVoiceSession {
       setupMessage,
       upstreamWsUrl: config.upstreamWsUrl,
       clientSocket,
-      terminate,
+      terminate: terminateRouter,
       sessionId: config.sessionId,
       questionId: config.questionId,
       sessionType: config.sessionType,
@@ -195,10 +214,10 @@ export class LiveVoiceSession {
 
     instance = new LiveVoiceSession(config.sessionId, fsm, watchdogs, session, clientSocket, router);
 
-    clientSocket.on('close', (code, reason) => instance.terminate('ClientSocket', code, reason));
+    clientSocket.on('close', (code, reason) => instance.terminate(reason ? reason.toString() : 'Client closed', code, 'ClientSocket'));
     clientSocket.on('error', (err) => {
       console.error('Client WS error:', err.message);
-      instance.terminate('ClientSocketError');
+      instance.terminate(err.message, 1011, 'ClientSocketError');
     });
 
     router.connectGemini(false);
@@ -207,7 +226,7 @@ export class LiveVoiceSession {
       session,
       clientSocket,
       turnMode: config.turnMode,
-      terminate,
+      terminate: (src, cd, rsn) => instance.terminate(rsn ? rsn.toString() : 'Handler terminated', cd, src),
       earlyQueue,
       cleanupEarlyCapture
     });
@@ -220,14 +239,14 @@ export class LiveVoiceSession {
     this._clientSocket.emit('message', raw, false);
   }
 
-  public terminate(source: string, code?: number, reason?: Buffer): void {
+  public terminate(reason: string = 'Normal Closure', code: number = 1000, source: string = 'Application'): void {
     if (this.isTerminated || this._session.isTerminated) return;
     this.isTerminated = true;
     this._session.isTerminated = true;
     this._fsm.transition('TERMINATED');
     this._watchdogs.dispose();
 
-    console.log(`🔌 [LiveVoiceSession] Termination triggered by [${source}], code=${code}, reason=${reason ? reason.toString() : 'none'}`);
+    console.log(`🔌 [LiveVoiceSession] Termination triggered by [${source}], code=${code}, reason=${reason}`);
     if (this._session.heartbeatInterval) {
       clearInterval(this._session.heartbeatInterval);
       this._session.heartbeatInterval = null;

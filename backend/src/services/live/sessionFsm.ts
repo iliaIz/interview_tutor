@@ -43,9 +43,9 @@ export class SessionFsm {
 
     switch (this._state) {
       case 'INIT':
-        return to === 'AI_SPEAKING' || to === 'CANDIDATE_LISTENING';
+        return to === 'AI_SPEAKING' || to === 'CANDIDATE_LISTENING' || to === 'COMMITTING';
       case 'CANDIDATE_LISTENING':
-        return to === 'CANDIDATE_SPEAKING' || to === 'AI_SPEAKING';
+        return to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING' || to === 'AI_SPEAKING';
       case 'CANDIDATE_SPEAKING':
         return to === 'COMMITTING' || to === 'CANDIDATE_LISTENING';
       case 'COMMITTING':
@@ -55,7 +55,7 @@ export class SessionFsm {
         // Trap-free: Transitions to AI_SPEAKING, or reclaims mic (CANDIDATE_LISTENING) on timeout/barge-in
         return to === 'AI_SPEAKING' || to === 'CANDIDATE_LISTENING';
       case 'AI_SPEAKING':
-        return to === 'CANDIDATE_LISTENING' || to === 'CANDIDATE_SPEAKING';
+        return to === 'CANDIDATE_LISTENING' || to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING';
       default:
         return false;
     }

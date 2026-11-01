@@ -36,7 +36,9 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     // SOTA Late 2026 Invariant: Zero early message loss.
     // Immediately buffer incoming client frames before async resolution (DB lookups / vector search).
     const earlyQueue: any[] = [];
-    const earlyCapture = (data: any) => earlyQueue.push(data);
+    const earlyCapture = (data: any) => {
+      if (earlyQueue.length < 50) earlyQueue.push(data);
+    };
     clientSocket.on('message', earlyCapture);
 
     const cleanupEarlyCapture = () => {

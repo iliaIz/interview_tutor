@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../services/db';
 import { CodingChallenge } from '../services/challengeSeedData';
-import { getAuthUserId } from '../middleware/auth';
+import { getAuthUserId, requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
 import { ChallengeEvaluationPipeline } from '../services/sandbox/ChallengeEvaluationPipeline';
@@ -222,8 +222,8 @@ const handleEvaluationStream = async (req: any, res: any) => {
   }
 };
 
-router.post('/challenges/:id/evaluate', handleEvaluationStream);
-router.post('/evaluate', handleEvaluationStream);
+router.post('/challenges/:id/evaluate', requireAuth, handleEvaluationStream);
+router.post('/evaluate', requireAuth, handleEvaluationStream);
 
 // POST /api/practice/draft & /api/practice/save-draft - Auto-save workspace draft for active user
 const handleDraftSave = (req: any, res: any) => {
@@ -256,8 +256,8 @@ const handleDraftSave = (req: any, res: any) => {
   }
 };
 
-router.post('/draft', handleDraftSave);
-router.post('/save-draft', handleDraftSave);
+router.post('/draft', requireAuth, handleDraftSave);
+router.post('/save-draft', requireAuth, handleDraftSave);
 
 // POST /api/practice/transaction-lab/draft - Save Transaction Lab scenario draft
 router.post('/transaction-lab/draft', (req, res) => {
