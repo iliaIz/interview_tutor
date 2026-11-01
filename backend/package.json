@@ -20,7 +20,7 @@
     "test:vad:multiturn": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=multiturn",
     "test:vad:stress": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-v3 --scenario=stress",
     "test:vad:thinking": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=gemini-live-thinking-v3 --scenario=thinking",
-    "test:vad:canary": "ts-node src/scripts/runAcousticVadMatrix.ts --suite=canary",
+    "test:vad:canary": "ts-node src/scripts/runAcousticVadMatrix.ts --suite=canary --mock",
     "test:vad:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=all --scenario=all",
     "test:telemetry:engine": "ts-node src/scripts/testTelemetryEngine.ts",
     "test:telemetry:playout": "ts-node src/scripts/testPlayoutAndSkew.ts",

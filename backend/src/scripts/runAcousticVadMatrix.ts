@@ -127,7 +127,7 @@ async function main() {
       console.log('🦅 RUNNING SOTA DUAL-ENGINE CANARY SUITE');
       console.log('======================================================');
 
-      const cooldown = (ms: number = 3000) => new Promise((resolve) => setTimeout(resolve, ms));
+      const cooldown = (ms: number = 3000) => new Promise((resolve) => setTimeout(resolve, isMock ? 100 : ms));
 
       // 1. Multi-Turn Turn-Taking with Strict Latency SLA on gemini-live-v3
       console.log('\n[Canary 1/4] Multi-Turn Dialogue (2 Turns with SLA) on gemini-live-v3...');
