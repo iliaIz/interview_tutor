@@ -62,6 +62,7 @@ export interface ProxySession {
   toolCallSafetyTimeout?: NodeJS.Timeout | null;
   lastToolCallHash?: string;
   lastToolCallTime?: number;
+  toolDedupCache?: Record<string, { hash: string; timestamp: number }>;
   isGreetingSent?: boolean;
   isTerminated?: boolean;
   audioChunksCount?: number;

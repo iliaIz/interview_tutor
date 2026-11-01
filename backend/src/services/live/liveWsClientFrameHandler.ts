@@ -3,7 +3,7 @@ import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleTurnCommit } from './liveWsTurnCommitHandler';
-import { applyWorkspaceFileUpdate, matchWorkspaceFilePath, mergeWorkspaceManifests } from './liveToolDispatcher';
+import { applyWorkspaceFileUpdate, matchWorkspaceFilePath, mergeWorkspaceManifests } from './workspaceManifestStore';
 
 export interface ClientFrameHandlerOptions {
   session: ProxySession;

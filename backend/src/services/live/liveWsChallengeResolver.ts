@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { matchWorkspaceFilePath } from './liveToolDispatcher';
+import { matchWorkspaceFilePath } from './workspaceManifestStore';
 
 export interface ChallengeResolutionInput {
   challengeId: string;

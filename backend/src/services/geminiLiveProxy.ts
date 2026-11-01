@@ -14,7 +14,7 @@ import {
   buildSystemPrompt
 } from './live/livePromptBuilder';
 import { getLiveToolDeclarations } from './live/liveToolDeclarations';
-import { handleLiveToolCall } from './live/liveToolDispatcher';
+import { LiveToolEngine } from './live/LiveToolEngine';
 
 export {
   LiveTurn,
@@ -24,7 +24,7 @@ export {
   extractDefaultAnchors,
   buildSystemPrompt,
   getLiveToolDeclarations,
-  handleLiveToolCall
+  LiveToolEngine
 };
 
 dotenv.config();

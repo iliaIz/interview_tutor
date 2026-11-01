@@ -2,7 +2,7 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
 import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
-import { LiveToolCallExecutor } from './LiveToolCallExecutor';
+import { LiveToolEngine } from './LiveToolEngine';
 import { isNonRetryableUpstreamError, isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 
@@ -34,7 +34,7 @@ export interface StreamRouterOptions {
 
 /**
  * Headless Live Audio Stream Router (SOTA Late 2026).
- * Decomposed into LiveGreetingReplay, LiveTelemetryAccumulator, and LiveToolCallExecutor.
+ * Decomposed into LiveGreetingReplay, LiveTelemetryAccumulator, and LiveToolEngine.
  * Cognitive bounding limit: <= 350 lines.
  */
 export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
@@ -298,13 +298,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // 3. Tool Call Cancellation
         if (parsed.toolCallCancellation?.ids) {
-          LiveToolCallExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
+          LiveToolEngine.handleCancellation(session, parsed.toolCallCancellation.ids);
         }
 
         // 4. Tool Calls Execution
         if (parsed.toolCall?.functionCalls) {
           isToolCallProcessed = true;
-          await LiveToolCallExecutor.executeFunctionCalls({
+          await LiveToolEngine.executeFunctionCalls({
             functionCalls: parsed.toolCall.functionCalls,
             clientSocket,
             geminiSocket,

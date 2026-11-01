@@ -204,3 +204,24 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Turn 0 greeting is a one-way recitation of the question and greeting directive. Flushed pre-connection audio is non-speech ambient noise that acts as false barge-in. Discarding early frames on Turn 0 ensures pristine greeting synthesis.
 - **Invariants:** On fresh Turn 0 connections, pre-greeting buffered microphone frames MUST NEVER be flushed into `geminiSocket`.
 
+---
+
+### 2.16 `LiveToolEngine & workspaceManifestStore: Deep Module Consolidation, Turn 0 Lockdown Unification & Pure Tool Handlers`
+- **Location:** [`backend/src/services/live/LiveToolEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveToolEngine.ts), [`backend/src/services/live/workspaceManifestStore.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/workspaceManifestStore.ts), [`backend/src/services/live/liveWorkspaceHandlers.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWorkspaceHandlers.ts), [`backend/src/services/live/liveEvaluationToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveEvaluationToolDispatcher.ts), [`backend/src/services/live/liveSystemDesignToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveSystemDesignToolDispatcher.ts), [`backend/src/services/live/liveHrToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveHrToolDispatcher.ts), [`backend/src/services/live/liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts)
+- **What Was Done:**
+  1. **Consolidated Tool Call Execution:** Replaced the shallow pass-through module chain (`LiveToolCallExecutor` -> `liveToolDispatcher` -> 4 sub-dispatchers) with a single deep module `LiveToolEngine`.
+  2. **Isolated Workspace Manifest Operations:** Extracted `matchWorkspaceFilePath`, `applyWorkspaceFileUpdate`, and `mergeWorkspaceManifests` into an independent zero-dependency store `workspaceManifestStore.ts`.
+  3. **Pure Functional Seam for Tool Handlers:** Stripped all `WebSocket` (`ws`) dependencies from tool handlers. Handlers now adhere to a clean contract `(args, ctx) => Promise<ToolExecutionResult> | ToolExecutionResult`, returning `{ result, error, clientEvent, scheduling }`.
+  4. **Declarative Invariant & Deduplication Enforcement:** Centralized Invariant 2.1 (Turn 0 Tool Lockdown) and declarative per-tool deduplication windows (`dedupWindowMs`, `toolDedupCache`) inside `LiveToolEngine.executeFunctionCalls`.
+  5. **Canonical Gemini Live Bidi Protocol Serialization:** Centralized tool response serialization to guarantee that every `functionResponses` frame includes `id`, `name`, `response: { result }` or `response: { error }`, and `scheduling` (`WHEN_IDLE` or `SILENT`), eliminating upstream `1008` (Policy Violation) and `1011` (Internal Error) hangs caused by missing fields or improper nesting.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause 1 (Protocol Divergence & Leakage):* Different sub-dispatchers formatted responses inconsistently (e.g. `liveRefactoringToolDispatcher` omitted `name` and used `output` instead of canonical `result`), causing upstream Gemini Live WebSocket disconnects.
+  - *Root Cause 2 (Turn 0 Guard Fragmentation):* Turn 0 protection was duplicated with slight variations in some dispatchers and completely missing in `liveHrToolDispatcher` (`submit_hr_evaluation`).
+  - *Root Cause 3 (Low Cohesion):* Embedding workspace file mutation logic in a tool dispatcher forced frame transport handlers to import tools.
+- **Rationale & "Why":** Deep modules with narrow interfaces hide protocol complexities, isolate domain state mutation, and guarantee invariant enforcement in a single declarative registry.
+- **Invariants:**
+  - Tool handlers MUST NEVER import or touch WebSocket instances.
+  - Every Gemini tool response MUST be serialized with `id`, `name`, `response: { result | error }`, and canonical `scheduling`.
+  - Invariant 2.1 (Turn 0 Tool Lockdown) MUST be centrally enforced before delegating to gated tool handlers.
+
+
