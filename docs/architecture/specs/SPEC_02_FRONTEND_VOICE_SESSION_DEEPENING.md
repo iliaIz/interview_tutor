@@ -18,6 +18,9 @@ The implementation agent is **physically forbidden** from modifying:
 ## 3. Pre-Agreed Verification Seams
 - **Primary Seam**: Headless client contract at [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts) and [`frontend/src/audio/useLiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts).
 - **Real-Wire Dependencies**: Headless Web Audio API & WebSocket mock harness in [`frontend/tests/liveVoiceEngine.test.ts`](file:///home/djelu/projects/interview_tutor/frontend/tests/liveVoiceEngine.test.ts) (real timing clock, real Float32Array conversion, simulated DAC buffer drainage). Zero internal domain mocks.
+- **Verification Environment Invariant (Strict Rule 0)**:
+  - **Local VPS**: ONLY fast static typechecking (`export PATH="/home/djelu/.local/node/bin:$PATH" && cd frontend && npx tsc --noEmit`). Running `vitest`, `jest`, `npm test`, or `npm run build` locally on VPS is strictly prohibited and hardware-blocked.
+  - **GitHub Actions CI/CD**: All Web Audio contract tests and production build verification run exclusively in cloud runners via `remote-verify`.
 
 ## 4. Formal Wire & Messaging Contracts
 

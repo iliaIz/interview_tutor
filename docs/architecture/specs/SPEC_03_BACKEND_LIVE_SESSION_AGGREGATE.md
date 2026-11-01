@@ -18,6 +18,9 @@ The implementation agent is **physically forbidden** from modifying:
 ## 3. Pre-Agreed Verification Seams
 - **Primary Seam**: Factory entrypoint `LiveVoiceSession.start(clientSocket: WebSocket, req: http.IncomingMessage)` in [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts).
 - **Real-Wire Dependencies**: Upstream LiteLLM Proxy WebSocket or live loopback fixture [`backend/tests/test_hr_acoustic_canary.js`](file:///home/djelu/projects/interview_tutor/backend/tests/test_hr_acoustic_canary.js). Zero in-memory mock objects at the session boundary.
+- **Verification Environment Invariant (Strict Rule 0)**:
+  - **Local VPS**: ONLY fast static typechecking (`export PATH="/home/djelu/.local/node/bin:$PATH" && cd backend && npx tsc --noEmit`). Running local test runners, acoustic canaries, or backend compile/build on VPS is strictly prohibited and blocked.
+  - **GitHub Actions CI/CD**: Real-wire loopback fixtures, VAD fault-injection, and telemetry tests run exclusively in cloud runners via `remote-verify`.
 
 ## 4. Formal Wire & Messaging Contracts
 

@@ -1,0 +1,112 @@
+name: AI Remote Verification (CI)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Quality Gate & Invariant Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 LTS (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Node.js 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            shared/package-lock.json
+
+      - name: Install & Build Shared Package
+        run: |
+          npm --prefix shared ci
+          npm --prefix shared run build
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Prompt Invariant & Anti-Sycophancy Tests
+        working-directory: backend
+        run: npm run test:prompts
+
+      - name: Run Acoustic Fixture & Resampler Unit Tests
+        working-directory: backend
+        run: npm run test:vad:unit
+
+      - name: Run Realtime Audio Pacer Tests
+        working-directory: backend
+        run: npm run test:vad:pacer
+
+      - name: Run Auto-VAD & Gemini Live Fault-Injection Tests (10 Invariant Suites)
+        working-directory: backend
+        run: npm run test:vad:fault-injection
+
+      - name: Run Headless Acoustic Loopback Resilience Tests
+        working-directory: backend
+        run: npm run test:vad:loopback
+
+      - name: Run Deterministic Voice Observability & Telemetry Tests
+        working-directory: backend
+        run: |
+          npm run test:telemetry:engine
+          npm run test:telemetry:playout
+          npm run test:telemetry:db
+          npm run test:telemetry:router
+          npm run test:telemetry:diagnostics
+
+      - name: Verify Backend TypeScript Build
+        working-directory: backend
+        run: npm run build
+
+      - name: Run Live Tool & Silence Clarification Isolation Tests
+        working-directory: backend
+        run: npm run test:live:tool-isolation
+
+      - name: Run HR Voice Simulator Engine Invariant & Acoustic Canary Tests
+        working-directory: backend
+        run: npm run test:hr
+
+      - name: Build Java Sandbox Runner
+        working-directory: backend
+        run: npm run build:sandbox
+
+      - name: Run Practice LLD Resilience & Fault-Injection Tests
+        working-directory: backend
+        run: npm run test:practice:resilience
+
+      - name: Run Practice Task Codes & Catalog Integrity Tests
+        working-directory: backend
+        run: npm run test:practice:task-codes
+
+      - name: Run Mutation Challenges Catalog & Zero-Stillborn Integrity Tests
+        working-directory: backend
+        run: npm run test:practice:mutation-challenges
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Web Audio & Playout Contract Tests
+        working-directory: frontend
+        run: npm run test:audio-contracts
+
+      - name: Verify Frontend Production Build
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: npm run build

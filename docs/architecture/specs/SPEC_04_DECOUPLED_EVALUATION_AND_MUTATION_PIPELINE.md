@@ -17,7 +17,10 @@ The implementation agent is **physically forbidden** from modifying:
 
 ## 3. Pre-Agreed Verification Seams
 - **Primary Seam**: Domain evaluation interface `ChallengeEvaluationPipeline.evaluate(submission: EvaluationInput): AsyncIterable<EvaluationPipelineEvent>` in [`backend/src/services/sandbox/ChallengeEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeEvaluationPipeline.ts).
-- **Real-Wire Dependencies**: Real ephemeral JVM execution in Docker sandbox or local Java 21 process runner. Zero mocks for `JvmExecutionService`, `RefactoringAstVerifier`, or `JvmMutationEngine`.
+- **Real-Wire Dependencies**: Real ephemeral JVM execution in Docker sandbox or Java 21 process runner. Zero mocks for `JvmExecutionService`, `RefactoringAstVerifier`, or `JvmMutationEngine`.
+- **Verification Environment Invariant (Strict Rule 0)**:
+  - **Local VPS**: ONLY fast static typechecking (`export PATH="/home/djelu/.local/node/bin:$PATH" && cd backend && npx tsc --noEmit`). Running JVM sandbox, Gradle, PITest mutation runner, or Docker containers on VPS is strictly prohibited and blocked.
+  - **GitHub Actions CI/CD**: Real-wire ephemeral JVM sandbox execution, Gradle tests, and PITest mutation verification run exclusively in cloud runners (16 GB RAM) via `remote-verify`.
 
 ## 4. Formal Wire & Messaging Contracts
 

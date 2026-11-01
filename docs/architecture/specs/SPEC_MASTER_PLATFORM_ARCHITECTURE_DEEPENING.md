@@ -62,10 +62,11 @@ flowchart TD
 
 Все дочерние спецификации и тикеты подчиняются следующим жестким правилам:
 
-1. **Memory & VPS Safety (Инвариант 0):**
-   - Сервер имеет строго 1.8 GB RAM.
-   - **КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО** выполнять `docker build` или тяжелые сборки на VPS.
-   - Локальная верификация ограничена быстрыми проверками типов (`npx tsc --noEmit`) и изолированными тестами.
+1. **Memory & VPS Safety (Инвариант 0 — Strict Prohibition of Local Builds & Tests):**
+   - Хост VPS имеет строго 1.8 GB RAM.
+   - **КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО** выполнять на VPS локальные компиляции (`cargo build`, `mvn`, `gradle`, `gcc`), сборщики (`npm run build`, `vite build`), запуск тестовых фреймворков (`npm test`, `pytest`, `cargo test`, `vitest`, `jest`), контейнерные тесты (`docker exec ... runAcousticVadMatrix`), запуск JVM Sandbox или `docker build`.
+   - Любая локальная верификация на VPS ограничена **исключительно** быстрым статическим тайпчеком без эмита файлов (`export PATH="/home/djelu/.local/node/bin:$PATH" && npx tsc --noEmit`).
+   - Все тяжелые сборки, прогоны юнит/интеграционных тестов, PITest-мутации, компиляция Java Sandbox runner и акустические канарейки выполняются **исключительно в облачном раннере GitHub Actions** через команду `remote-verify`.
 2. **Dual-Sided Handshake (Инвариант 2.2):**
    - Переход от речи AI к микрофону кандидата симметрично разблокируется по завершении **последнего** из двух событий: слив физического аудио в буфере клиента (`onPlaybackFinished`) и прибытие сетевого пакета `turnComplete: true`.
 3. **Cognitive Bounding & File Hygiene (Инвариант 8):**
@@ -77,13 +78,19 @@ flowchart TD
 
 ---
 
-## 4. Сквозная стратегия верификации платформы
+## 4. Сквозная стратегия верификации платформы (Двухуровневая модель)
 
-Каждый воркстрим валидируется на pre-flight гейтах:
-- **Шов 1 (Статический анализ):** `npx tsc --noEmit` завершается с кодом 0.
-- **Шов 2 (Аудио-сеть):** Акустический тест-комплекс [`backend/tests/test_hr_acoustic_canary.js`](file:///home/djelu/projects/interview_tutor/backend/tests/test_hr_acoustic_canary.js) подтверждает отсутствие регрессий задержки и дед-эйра.
-- **Шов 3 (JVM Sandbox):** Пайплайн проверки кода подтверждает прогон unit-тестов, AST-правил и PITest-мутаций без моков Express.
-- **Шов 4 (CI/CD в облаке):** Сборка контейнеров и развертывание выполняются на GitHub Actions (`.github/workflows/deploy.yml`).
+### Уровень 1: Локальный быстрый шлюз (На хосте VPS — строго без сборщиков и тестов)
+- **Команда:** `export PATH="/home/djelu/.local/node/bin:$PATH" && cd <package> && npx tsc --noEmit`
+- **Критерий:** 0 ошибок типов, время выполнения $\le 5$s, потребление памяти $< 200$MB.
+- **Строгий запрет:** Никаких локальных `npm run build`, `vitest`, `jest`, `gradle`, `docker build` или `docker exec` с тестами на VPS.
+
+### Уровень 2: Облачный шлюз верификации (GitHub Actions CI/CD via `remote-verify`)
+- **Команда вызова с VPS:** `remote-verify` (автоматически отправляет коммит в ветку `feat/*` и запускает workflow верификации в облаке с 16 GB RAM).
+- **Облачные проверки:**
+  - **Шов 2 (Аудио-сеть):** Акустический тест-комплекс [`backend/tests/test_hr_acoustic_canary.js`](file:///home/djelu/projects/interview_tutor/backend/tests/test_hr_acoustic_canary.js), VAD fault-injection (`testVadFaultInjection.js`) и loopback resilience.
+  - **Шов 3 (JVM Sandbox & Mutation):** Сборка Java Sandbox runner (`npm run build:sandbox`), прогон unit-тестов, AST-правил и PITest-мутаций.
+  - **Шов 4 (Build & Bundle Integrity):** Полная сборка backend и frontend SPA (`npm run build`).
 
 ---
 
