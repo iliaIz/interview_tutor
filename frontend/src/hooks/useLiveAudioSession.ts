@@ -39,9 +39,11 @@ export interface UseLiveAudioSessionReturn {
   isAiSpeaking: boolean;
   isListening: boolean;
   isRecording: boolean;
+  isMuted: boolean;
   isUserSpeaking: boolean;
   isPauseHolding: boolean;
   rmsDb: number;
+  aiTranscript: string;
   startSession: (params: LiveAudioSessionParams) => Promise<void>;
   disconnectSession: () => void;
   toggleMute: () => void;
@@ -54,8 +56,8 @@ export interface UseLiveAudioSessionReturn {
   sendActionEventMessage: (eventName: string, payload?: any) => void;
   evaluation: any;
   error: string | null;
-  engineRef: { current: null };
-  playoutManagerRef: { current: null };
+  engineRef: { current: any };
+  playoutManagerRef: { current: any };
 }
 
 export function useLiveAudioSession(options: UseLiveVoiceSessionOptions = {}): UseLiveAudioSessionReturn {
@@ -70,9 +72,11 @@ export function useLiveAudioSession(options: UseLiveVoiceSessionOptions = {}): U
     isAiSpeaking,
     isListening,
     isRecording: isListening,
+    isMuted: false,
     isUserSpeaking: session.metrics.vadActive,
     isPauseHolding: session.state === 'AI_THINKING' || session.state === 'COMMITTING',
     rmsDb: session.metrics.rmsDb,
+    aiTranscript: '',
     startSession: session.connect,
     disconnectSession: session.disconnect,
     toggleMute: session.toggleMic,
@@ -85,7 +89,12 @@ export function useLiveAudioSession(options: UseLiveVoiceSessionOptions = {}): U
     sendActionEventMessage: () => {},
     evaluation: session.activeScorecard,
     error: session.state === 'ERROR' ? session.statusMessage : null,
-    engineRef: { current: null },
-    playoutManagerRef: { current: null }
+    engineRef: { current: null as any },
+    playoutManagerRef: {
+      current: {
+        isPlaying: () => isAiSpeaking,
+        handleInterruption: session.handleInteraction
+      } as any
+    }
   };
 }

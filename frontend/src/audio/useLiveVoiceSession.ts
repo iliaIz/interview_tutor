@@ -17,6 +17,8 @@ import {
 } from './types';
 import { HrScorecard } from '@interview-prep/shared';
 
+export type { DialogueTurnItem };
+
 export interface DialogueTurn {
   id?: string;
   role: 'ai' | 'user' | 'system';
