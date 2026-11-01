@@ -104,15 +104,38 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
             });
           }
         } else if (event.gate === 'AST_INVARIANTS') {
-          sendSseEvent('stage', {
-            ...event,
-            stage: 'ast_analysis',
-            label: event.status === 'PASSED'
-              ? 'Gate 2 AST-анализ: структурные запахи устранены, инварианты соблюдены'
-              : (event.status === 'RUNNING'
-                ? 'Gate 2 AST-анализ: проверка инвариантов...'
-                : 'Gate 2 AST-анализ: обнаружены неисправленные запахи кода')
-          });
+          if (event.status === 'FAILED') {
+            sendSseEvent('stage', {
+              ...event,
+              stage: 'ast_analysis',
+              label: event.payload?.error || 'Gate 2 AST-анализ: обнаружены неисправленные запахи кода'
+            });
+            // Complete event for fast-path AST invariants failure
+            sendSseEvent('complete', {
+              ...event,
+              gate: 'PERSISTENCE',
+              stage: 'complete',
+              success: false,
+              isPassed: false,
+              status: 'FAILED',
+              evaluation: {
+                compilationStatus: { isCompilable: true, syntaxErrors: [] },
+                astViolations: event.payload?.astViolations || [],
+                scoreBreakdown: {
+                  overallScore: 30,
+                  summaryReview: event.payload?.error || 'Нарушены архитектурные AST-инварианты.'
+                }
+              }
+            });
+          } else {
+            sendSseEvent('stage', {
+              ...event,
+              stage: 'ast_analysis',
+              label: event.status === 'PASSED'
+                ? 'Gate 2 AST-анализ: структурные запахи устранены, инварианты соблюдены'
+                : 'Gate 2 AST-анализ: проверка инвариантов...'
+            });
+          }
         } else if (event.gate === 'MUTATION_TESTS') {
           sendSseEvent('stage', {
             ...event,
