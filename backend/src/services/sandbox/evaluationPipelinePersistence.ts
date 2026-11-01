@@ -27,7 +27,7 @@ export class EvaluationPipelinePersistence {
   public static loadManifest(challengeIdOrSlug: string): CodingChallenge | undefined {
     try {
       if (!this.loadStmt) {
-        this.loadStmt = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?');
+        this.loadStmt = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ? LIMIT 1');
       }
       const row = this.loadStmt.get(challengeIdOrSlug, challengeIdOrSlug) as any;
       if (row?.manifest_json) {
@@ -42,7 +42,7 @@ export class EvaluationPipelinePersistence {
   public static resolveCanonicalChallengeId(challengeIdOrSlug: string): string {
     try {
       if (!this.resolveIdStmt) {
-        this.resolveIdStmt = db.prepare('SELECT id FROM coding_challenges WHERE id = ? OR slug = ?');
+        this.resolveIdStmt = db.prepare('SELECT id FROM coding_challenges WHERE id = ? OR slug = ? LIMIT 1');
       }
       const row = this.resolveIdStmt.get(challengeIdOrSlug, challengeIdOrSlug) as any;
       if (row?.id) {

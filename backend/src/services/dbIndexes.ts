@@ -15,6 +15,8 @@ export const COMPOSITE_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_err_vec_topic ON candidate_error_vectors(topic);
   CREATE INDEX IF NOT EXISTS idx_err_vec_user ON candidate_error_vectors(user_id);
   CREATE INDEX IF NOT EXISTS idx_code_chall_cat ON coding_challenges(category);
+  CREATE INDEX IF NOT EXISTS idx_coding_challenges_slug ON coding_challenges(slug);
+  CREATE INDEX IF NOT EXISTS idx_spring_tx_challenges_slug ON spring_transaction_challenges(slug);
   CREATE INDEX IF NOT EXISTS idx_code_sub_chall ON coding_submissions(challenge_id);
   CREATE INDEX IF NOT EXISTS idx_code_sub_user ON coding_submissions(user_id);
   CREATE INDEX IF NOT EXISTS idx_code_sub_user_chall ON coding_submissions(user_id, challenge_id);
