@@ -19,6 +19,7 @@ import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
 import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
+import { dispatchDomainEvents } from './liveVoiceDomainEvents';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
@@ -91,13 +92,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         this.isSessionReady = false;
         if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
           this.fsm.transition({ type: 'DISCONNECT' });
-          if (event?.code === 1006) {
-            this.callbacks.onStatusMessage?.('🔌 Сбой соединения со шлюзом (1006).');
-          } else if (event?.code === 4401) {
-            this.callbacks.onStatusMessage?.('⛔ Требуется авторизация для голосовой сессии.');
-          } else {
-            this.callbacks.onStatusMessage?.('🔌 Сессия завершена.');
-          }
+          const msg = event?.code === 1006 ? '🔌 Сбой соединения со шлюзом (1006).' :
+            event?.code === 4401 ? '⛔ Требуется авторизация для голосовой сессии.' : '🔌 Сессия завершена.';
+          this.callbacks.onStatusMessage?.(msg);
         }
       };
     } catch (err) {
@@ -126,6 +123,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public commitSpokenTurn(): void {
+    this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
@@ -134,19 +132,29 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.armClientSafetyTimer();
   }
 
+  public handleUserBargeIn(): void {
+    this.handleBargeInInterruption('tactile');
+  }
+
   public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
     this.playoutManager.handleInterruption();
     this.isServerTurnComplete = true;
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'barge_in', bargeIn: true, bargeInType: source, source }));
+      this.ws.send(JSON.stringify({
+        type: 'barge_in',
+        bargeIn: true,
+        bargeInType: source,
+        source,
+        clientContent: { interruption: true }
+      }));
     }
-    this.unlockCandidateTurn();
+    this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
   }
 
   public handleCentralButtonClick(): void {
     const pub = this.getState();
     if (pub === 'AI_SPEAKING') {
-      this.handleBargeInInterruption('tactile');
+      this.handleUserBargeIn();
     } else if (pub === 'LISTENING') {
       this.commitSpokenTurn();
     }
@@ -154,6 +162,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
   public sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
+    this.isServerTurnComplete = false;
     this.turnManager.appendTurn('user', displayText || text);
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -188,9 +197,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     return this.turnManager.getTurns();
   }
 
-  public getPlayoutManager(): AudioPlayoutManager {
-    return this.playoutManager;
-  }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     if (this.isMuted || this.isAudioMutexLocked) return;
@@ -283,25 +289,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    if (parsed.whiteboardPayload) this.callbacks.onWhiteboardUpdate?.(parsed.whiteboardPayload);
-    if (parsed.chaosPayload) this.callbacks.onChaosInjected?.(parsed.chaosPayload);
-    if (parsed.verdictPayload) this.callbacks.onHiringCommitteeVerdict?.(parsed.verdictPayload);
-    if (parsed.bugSolvedPayload) this.callbacks.onBugSolved?.(parsed.bugSolvedPayload);
-    if (parsed.candidateObservationPayload) this.callbacks.onCandidateObservationRecorded?.(parsed.candidateObservationPayload);
-    if (parsed.smellDiscoveredPayload) {
-      this.callbacks.onSmellDiscovered?.(parsed.smellDiscoveredPayload);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('smell_discovered', { detail: parsed.smellDiscoveredPayload }));
-      }
-    }
-    if (parsed.toolCallPayload) this.callbacks.onToolCall?.(parsed.toolCallPayload);
-    if (parsed.hrPhaseTransitionPayload) this.callbacks.onHrPhaseTransition?.(parsed.hrPhaseTransitionPayload);
-    if (parsed.hrScorecardPayload) this.callbacks.onHrScorecardReady?.(parsed.hrScorecardPayload);
-    if (parsed.hrTranscriptDelta) this.callbacks.onHrTranscriptDelta?.(parsed.hrTranscriptDelta);
+    dispatchDomainEvents(this.callbacks, parsed);
 
     // 2. Incoming Model Speech / Audio
     if (parsed.hasAudio || parsed.hasText) {
       this.isSessionReady = true;
+      this.isServerTurnComplete = false;
       this.clearClientSafetyTimer();
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
@@ -348,21 +341,23 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private unlockCandidateTurn(): void {
-    this.isTurn0Lockdown = false;
-    this.clearClientSafetyTimer();
-    this.isAudioMutexLocked = false;
-    this.callbacks.onDrainingStateChange?.(false);
-    this.fsm.transition({ type: 'PLAYOUT_FINISHED' });
-    this.callbacks.onStatusMessage?.('🎙️ Ваша очередь: говорите в микрофон...');
+    this.resetTurnCustody({ type: 'PLAYOUT_FINISHED' }, '🎙️ Ваша очередь: говорите в микрофон...');
   }
 
   private handleDeadAirRecovery(): void {
+    this.resetTurnCustody({ type: 'DEAD_AIR_RECOVERED' }, '🎙️ ИИ завершил размышление. Ваша очередь говорить...');
+  }
+
+  private resetTurnCustody(
+    event: { type: 'PLAYOUT_FINISHED' } | { type: 'DEAD_AIR_RECOVERED' } | { type: 'BARGE_IN_TRIGGERED'; source: 'tactile' | 'acoustic' },
+    msg: string
+  ): void {
     this.isTurn0Lockdown = false;
     this.clearClientSafetyTimer();
     this.isAudioMutexLocked = false;
     this.callbacks.onDrainingStateChange?.(false);
-    this.fsm.transition({ type: 'DEAD_AIR_RECOVERED' });
-    this.callbacks.onStatusMessage?.('🎙️ ИИ завершил размышление. Ваша очередь говорить...');
+    this.fsm.transition(event);
+    this.callbacks.onStatusMessage?.(msg);
   }
 
   private armClientSafetyTimer(): void {

@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { ReviewProgressEvent, ReviewStageId } from '../../types/practice';
+import { ReviewProgressEvent } from '../../types/practice';
+import {
+  EvaluationGateType,
+  EvaluationGateStatus,
+  GateState,
+  INITIAL_GATES,
+  buildEvaluationReport
+} from './evaluationReportBuilder';
+
+export type { EvaluationGateType, EvaluationGateStatus, GateState };
 
 export interface ReviewLogEntry {
   id: string;
@@ -12,6 +21,7 @@ export interface ReviewLogEntry {
 export interface StepperState {
   sandbox: { status: 'pending' | 'running' | 'success' | 'error'; label: string };
   ast: { status: 'pending' | 'running' | 'success' | 'error'; label: string };
+  mutation?: { status: 'pending' | 'running' | 'success' | 'error' | 'skipped'; label: string };
   ai: { status: 'pending' | 'running' | 'success' | 'error'; label: string; model?: string };
   report: { status: 'pending' | 'running' | 'success' | 'error'; label: string };
 }
@@ -38,6 +48,9 @@ export function useEvaluationPipeline() {
   });
 
   const [reviewLogs, setReviewLogs] = useState<ReviewLogEntry[]>([]);
+  const [gateStates, setGateStates] = useState<Record<EvaluationGateType, GateState>>(INITIAL_GATES);
+  const gateStatesRef = useRef<Record<EvaluationGateType, GateState>>(INITIAL_GATES);
+
   const [stepperState, setStepperState] = useState<StepperState>({
     sandbox: { status: 'pending', label: 'Ожидание запуска' },
     ast: { status: 'pending', label: 'Ожидание' },
@@ -61,13 +74,10 @@ export function useEvaluationPipeline() {
     ]);
   }, []);
 
-  // Timer while evaluation is active
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isPracticeEvaluating) {
-      interval = setInterval(() => {
-        setEvaluationTimer((prev) => prev + 1);
-      }, 1000);
+      interval = setInterval(() => setEvaluationTimer((prev) => prev + 1), 1000);
     }
     return () => clearInterval(interval);
   }, [isPracticeEvaluating]);
@@ -87,6 +97,116 @@ export function useEvaluationPipeline() {
     });
   }, [addLog, setIsPracticeEvaluating, showToast]);
 
+  const dispatchGateEvent = useCallback((event: any) => {
+    const gate: EvaluationGateType = event.gate;
+    const status: EvaluationGateStatus = event.status;
+    const progressPercent: number = event.progressPercent ?? 0;
+    const payload = event.payload || {};
+
+    const updatedGate: GateState = { gate, status, progressPercent, payload };
+    gateStatesRef.current = { ...gateStatesRef.current, [gate]: updatedGate };
+    setGateStates((prev) => ({ ...prev, [gate]: updatedGate }));
+
+    if (gate === 'JVM_UNIT_TESTS') {
+      if (status === 'RUNNING') {
+        setCurrentStage({ stage: 'sandbox', label: 'Компиляция Java 21 и прогон тестов...', timestamp: Date.now() });
+        setStepperState((prev) => ({ ...prev, sandbox: { status: 'running', label: 'Компиляция и тесты...' } }));
+      } else if (status === 'PASSED') {
+        const passed = payload.testResults?.passed ?? 0;
+        const total = payload.testResults?.total ?? passed;
+        const statLabel = `${passed}/${total} тестов пройдено`;
+        setStepperState((prev) => ({
+          ...prev,
+          sandbox: { status: 'success', label: statLabel },
+          ast: { status: 'running', label: 'Анализ AST-инвариантов...' }
+        }));
+        addLog(`JVM Sandbox: ${statLabel} успешно.`, 'success');
+      } else if (status === 'FAILED') {
+        const errMsg = payload.error || 'Тесты в песочнице не пройдены';
+        setStepperState((prev) => ({ ...prev, sandbox: { status: 'error', label: errMsg } }));
+        addLog(`JVM Sandbox сбой: ${errMsg}`, 'error');
+        setActiveError({ message: errMsg, canRetryAiOnly: false });
+      }
+    } else if (gate === 'AST_INVARIANTS') {
+      if (status === 'RUNNING') {
+        setCurrentStage({ stage: 'ast_analysis', label: 'Проверка AST-инвариантов...', timestamp: Date.now() });
+        setStepperState((prev) => ({ ...prev, ast: { status: 'running', label: 'Анализ AST-инвариантов...' } }));
+      } else if (status === 'PASSED') {
+        setStepperState((prev) => ({
+          ...prev,
+          ast: { status: 'success', label: 'Loom & JMM проверены' }
+        }));
+        addLog('AST Scanner: Инварианты архитектуры и Loom safety соблюдены.', 'success');
+      } else if (status === 'FAILED') {
+        const violations = payload.astViolations || [];
+        const errMsg = payload.error || `Нарушены AST-инварианты (${violations.length})`;
+        setStepperState((prev) => ({ ...prev, ast: { status: 'error', label: errMsg } }));
+        addLog(`AST Scanner сбой: ${errMsg}`, 'error');
+        setActiveError({ message: errMsg, canRetryAiOnly: false });
+      }
+    } else if (gate === 'MUTATION_TESTS') {
+      if (status === 'RUNNING') {
+        addLog('Шаг 3 [MUTATION_TESTS]: Мутационное тестирование (PITest)...', 'info');
+      } else if (status === 'PASSED') {
+        const score = payload.mutationScore?.percentage ?? 100;
+        const killed = payload.mutationScore?.killedMutants ?? 0;
+        const total = payload.mutationScore?.totalMutants ?? 0;
+        addLog(`PITest: Мутационный скор ${score}% (${killed}/${total} мутантов уничтожено).`, 'success');
+      } else if (status === 'SKIPPED') {
+        addLog('PITest: Мутационные тесты пропущены (мутанты не заданы).', 'info');
+      } else if (status === 'FAILED') {
+        const errMsg = payload.error || 'Мутационный скор ниже порога';
+        addLog(`PITest предупреждение: ${errMsg}`, 'warn');
+      }
+    } else if (gate === 'AI_EVALUATION') {
+      if (status === 'RUNNING') {
+        setCurrentStage({ stage: 'ai_reasoning', label: 'Senior AI Архитектор размышляет...', timestamp: Date.now() });
+        setStepperState((prev) => ({
+          ...prev,
+          ai: { status: 'running', label: 'Senior AI Архитектор размышляет...', model: 'gemini-smart' }
+        }));
+        addLog('Шаг 4 [AI_EVALUATION]: Senior AI Архитектор проводит глубокий аудит...', 'info');
+      } else if (status === 'PASSED') {
+        const score = payload.aiFeedback?.score ?? 75;
+        setStepperState((prev) => ({
+          ...prev,
+          ai: { status: 'success', label: `Аудит завершен (${score}/100)` },
+          report: { status: 'running', label: 'Формирование отчета...' }
+        }));
+        addLog(`AI Gateway: Рецензия сформирована (балл: ${score}/100).`, 'success');
+      } else if (status === 'FAILED') {
+        const errMsg = payload.error || 'Сбой вызова модели';
+        setStepperState((prev) => ({ ...prev, ai: { status: 'error', label: errMsg } }));
+        addLog(`AI Gateway сбой: ${errMsg}`, 'error');
+        setActiveError({ message: errMsg, canRetryAiOnly: true });
+      }
+    } else if (gate === 'PERSISTENCE') {
+      if (status === 'RUNNING') {
+        setCurrentStage({ stage: 'complete', label: 'Сохранение результатов...', timestamp: Date.now() });
+        setStepperState((prev) => ({ ...prev, report: { status: 'running', label: 'Сохранение в базу...' } }));
+        addLog('Шаг 5 [PERSISTENCE]: Атомарное сохранение в ledger...', 'info');
+      } else if (status === 'PASSED') {
+        const report = buildEvaluationReport(payload, gateStatesRef.current);
+        const finalScore = Math.round(report.scoreBreakdown?.overallScore ?? 75);
+        setStepperState((prev) => ({
+          ...prev,
+          report: { status: 'success', label: `Оценка: ${finalScore}/100` }
+        }));
+        addLog(`Рецензия готова! Финальный балл: ${finalScore}/100`, 'success');
+        setActivePracticeReport(report);
+
+        const isPassed = finalScore >= 70 && !report.concurrencyAnalysis?.hasCarrierThreadPinning;
+        if (isPassed && academyBreadcrumbContext) {
+          toggleAcademyStepProgress(academyBreadcrumbContext.courseId, academyBreadcrumbContext.stepNumber, true);
+        }
+      } else if (status === 'FAILED') {
+        const errMsg = payload.error || 'Ошибка сохранения';
+        setStepperState((prev) => ({ ...prev, report: { status: 'error', label: errMsg } }));
+        addLog(`Persistence сбой: ${errMsg}`, 'error');
+      }
+    }
+  }, [addLog, academyBreadcrumbContext, setActivePracticeReport, toggleAcademyStepProgress]);
+
   const handleStartEvaluation = useCallback(async () => {
     if (!activePracticeChallenge || isPracticeEvaluating) return;
 
@@ -95,14 +215,10 @@ export function useEvaluationPipeline() {
     setEvaluationTimer(0);
     setActiveError(null);
     setReviewLogs([]);
+    setGateStates(INITIAL_GATES);
+    gateStatesRef.current = INITIAL_GATES;
 
-    const initialEvent: ReviewProgressEvent = {
-      stage: 'sandbox',
-      label: 'Компиляция Java 21 и прогон модульных тестов в In-Memory Sandbox...',
-      timestamp: Date.now()
-    };
-    setCurrentStage(initialEvent);
-
+    setCurrentStage({ stage: 'sandbox', label: 'Инициализация 5-Gate Review Pipeline...', timestamp: Date.now() });
     setStepperState({
       sandbox: { status: 'running', label: 'Компиляция и тесты...' },
       ast: { status: 'pending', label: 'Ожидание' },
@@ -110,30 +226,24 @@ export function useEvaluationPipeline() {
       report: { status: 'pending', label: 'Ожидание' }
     });
 
-    addLog('Запуск Senior AI Review Pipeline (SOTA Late 2026)...', 'info');
-    addLog('Шаг 1: Инициализация JVM 21 Sandbox...', 'info');
+    addLog('Запуск Decoupled 5-Gate Evaluation Pipeline (SPEC-004)...', 'info');
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
-    // Safety timeout: 120s (exceeds backend's 85s ceiling)
-    const clientTimeoutId = setTimeout(() => {
-      controller.abort();
-    }, 120000);
+    const clientTimeoutId = setTimeout(() => controller.abort(), 120000);
 
     try {
-      const response = await fetch('/api/practice/evaluate?stream=true', {
+      const evaluateUrl = `/api/practice/challenges/${encodeURIComponent(activePracticeChallenge.id)}/evaluate`;
+      const response = await fetch(evaluateUrl, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         credentials: 'include',
         signal: controller.signal,
         body: JSON.stringify({
           challengeId: activePracticeChallenge.id,
           files: practiceWorkspaceFiles,
-          activePhase: activePracticePhase
+          activePhase: activePracticePhase,
+          timeSpentSeconds: evaluationTimer
         })
       });
 
@@ -142,36 +252,11 @@ export function useEvaluationPipeline() {
         throw new Error(errorData.error || `HTTP ${response.status}: Ошибка отправки на проверку`);
       }
 
-      // SOTA Defensive: Check if response arrived as direct non-streaming JSON
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data.evaluation) {
-          setStepperState({
-            sandbox: { status: 'success', label: 'Тесты пройдены' },
-            ast: { status: 'success', label: 'AST чистый' },
-            ai: { status: 'success', label: 'Аудит завершен' },
-            report: { status: 'success', label: `Оценка: ${Math.round(data.evaluation.scoreBreakdown?.overallScore || 0)}/100` }
-          });
-          addLog(`Рецензия готова! Финальный балл: ${Math.round(data.evaluation.scoreBreakdown?.overallScore || 0)}/100`, 'success');
-          setActivePracticeReport(data.evaluation);
-          if (data.isPassed && academyBreadcrumbContext) {
-            toggleAcademyStepProgress(
-              academyBreadcrumbContext.courseId,
-              academyBreadcrumbContext.stepNumber,
-              true
-            );
-          }
-          return;
-        }
-      }
-
       if (!response.body) throw new Error('ReadableStream not supported');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let currentEvent = 'message';
 
       while (true) {
         const { value, done } = await reader.read();
@@ -183,129 +268,27 @@ export function useEvaluationPipeline() {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed) continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
 
-          if (trimmed.startsWith('event:')) {
-            currentEvent = trimmed.slice(6).trim();
-            continue;
-          }
-
-          let jsonStr = '';
-          if (trimmed.startsWith('data:')) {
-            jsonStr = trimmed.slice(5).trim();
-          } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-            jsonStr = trimmed;
-          } else {
-            continue;
-          }
-
+          const jsonStr = trimmed.slice(5).trim();
           if (!jsonStr) continue;
 
-          let parsed: any;
           try {
-            parsed = JSON.parse(jsonStr);
-          } catch {
-            continue;
-          }
-
-          // Universal SOTA SSE event dispatcher
-          const eventType = parsed.event || currentEvent;
-          const eventData = parsed.data || parsed;
-
-            if (eventType === 'stage') {
-              const stageId: ReviewStageId = eventData.stage;
-              setCurrentStage({
-                stage: stageId,
-                label: eventData.label || 'Обработка...',
-                timestamp: eventData.timestamp || Date.now(),
-                details: eventData.details
-              });
-
-              if (stageId === 'sandbox') {
-                setStepperState((prev) => ({
-                  ...prev,
-                  sandbox: { status: 'running', label: 'Компиляция и тесты...' }
-                }));
-              } else if (stageId === 'sandbox_done') {
-                const details = eventData.details || {};
-                const isOk = details.isCompilable && (details.failedCount === 0 || details.passedCount > 0);
-                const statLabel = details.isCompilable
-                  ? `${details.passedCount || 0}/${details.totalCount || details.passedCount || 0} тестов (${details.durationMs || 0}мс)`
-                  : 'Ошибка компиляции';
-
-                setStepperState((prev) => ({
-                  ...prev,
-                  sandbox: { status: isOk ? 'success' : 'error', label: statLabel },
-                  ast: { status: isOk ? 'running' : 'pending', label: 'Анализ JMM & Loom...' }
-                }));
-                addLog(`JVM Sandbox: ${statLabel}`, isOk ? 'success' : 'error');
-              } else if (stageId === 'ast_analysis') {
-                setStepperState((prev) => ({
-                  ...prev,
-                  ast: { status: 'success', label: 'Loom & JMM проверены' },
-                  ai: { status: 'running', label: 'Аудит SOLID & Concurrency...' }
-                }));
-                addLog('AST Scanner: Loom Carrier-Pinning и JMM инварианты проверены.', 'info');
-              } else if (stageId === 'ai_reasoning') {
-                setStepperState((prev) => ({
-                  ...prev,
-                  ai: { status: 'running', label: 'Senior AI Архитектор размышляет...', model: eventData.details?.model }
-                }));
-                addLog(`AI Gateway: Запрос отправлен модели [${eventData.details?.model || 'gemini-smart'}]. Аудит архитектуры...`, 'info');
-              }
-            } else if (eventType === 'heartbeat') {
-              if (eventData.elapsedSeconds) {
-                addLog(`AI Gateway: Генерация архитектурного фидбека (прошло ${eventData.elapsedSeconds}с)...`, 'info');
-              }
-            } else if (eventType === 'complete') {
-              const evalResult = eventData.evaluation;
-              if (evalResult) {
-                setStepperState({
-                  sandbox: { status: 'success', label: 'Тесты пройдены' },
-                  ast: { status: 'success', label: 'AST чистый' },
-                  ai: { status: 'success', label: 'Аудит завершен' },
-                  report: { status: 'success', label: `Оценка: ${Math.round(evalResult.scoreBreakdown?.overallScore || 0)}/100` }
-                });
-
-                addLog(`Рецензия готова! Финальный балл: ${Math.round(evalResult.scoreBreakdown?.overallScore || 0)}/100`, 'success');
-                setActivePracticeReport(evalResult);
-
-                if (eventData.isPassed && academyBreadcrumbContext) {
-                  toggleAcademyStepProgress(
-                    academyBreadcrumbContext.courseId,
-                    academyBreadcrumbContext.stepNumber,
-                    true
-                  );
-                }
-              }
-              currentEvent = 'message';
-            } else if (eventType === 'error') {
-              const errMsg = eventData.error || 'Ошибка проверки';
-              setActiveError({
-                message: errMsg,
-                canRetryAiOnly: Boolean(eventData.canRetryAiOnly)
-              });
-              setStepperState((prev) => ({
-                ...prev,
-                ai: { status: 'error', label: 'Сбой вызова модели' }
-              }));
-              addLog(`Сбой: ${errMsg}`, 'error');
-              throw new Error(errMsg);
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.gate) {
+              dispatchGateEvent(parsed);
             }
-
-            currentEvent = 'message';
+          } catch {
+            // ignore malformed SSE frames
+          }
         }
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        addLog('Запрос отменен пользователем или истекло максимальное время ожидания (120с).', 'warn');
+        addLog('Запрос отменен пользователем или истек таймаут (120с).', 'warn');
         return;
       }
-      showToast({
-        type: 'error',
-        title: 'Ошибка проверки',
-        message: err.message || 'Не удалось завершить оценку решения.'
-      });
+      showToast({ type: 'error', title: 'Ошибка проверки', message: err.message || 'Сбой оценки решения.' });
     } finally {
       clearTimeout(clientTimeoutId);
       setIsPracticeEvaluating(false);
@@ -316,10 +299,9 @@ export function useEvaluationPipeline() {
     isPracticeEvaluating,
     practiceWorkspaceFiles,
     activePracticePhase,
-    academyBreadcrumbContext,
+    evaluationTimer,
+    dispatchGateEvent,
     setIsPracticeEvaluating,
-    setActivePracticeReport,
-    toggleAcademyStepProgress,
     showToast,
     addLog
   ]);
@@ -330,6 +312,7 @@ export function useEvaluationPipeline() {
     evaluationTimer,
     reviewLogs,
     stepperState,
+    gateStates,
     activeError,
     isConsoleOpen,
     setIsConsoleOpen,

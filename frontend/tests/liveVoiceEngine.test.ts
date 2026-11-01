@@ -173,7 +173,24 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(engine.getState(), 'LISTENING', 'Tactile click instantly unlocks LISTENING');
   const lastSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
   assert.strictEqual(lastSent.bargeIn, true, 'Barge-in frame sent with bargeIn: true');
+  assert.strictEqual(lastSent.clientContent?.interruption, true, 'clientContent.interruption is true');
   console.log('  ✅ Test 5 Passed: Tactile barge-in cuts AI speech and transitions to LISTENING');
+
+  // Test 5b: Direct handleUserBargeIn invocation
+  mockWs.onmessage?.({
+    data: JSON.stringify({
+      serverContent: {
+        modelTurn: { parts: [{ text: 'Еще одна реплика...' }] }
+      }
+    })
+  });
+  assert.strictEqual(engine.getState(), 'AI_SPEAKING', 'AI speaking for test 5b');
+  engine.handleUserBargeIn();
+  assert.strictEqual(engine.getState(), 'LISTENING', 'handleUserBargeIn transitions FSM to LISTENING');
+  const userBargeInSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
+  assert.strictEqual(userBargeInSent.bargeIn, true, 'bargeIn is true');
+  assert.strictEqual(userBargeInSent.clientContent?.interruption, true, 'clientContent.interruption is true');
+  console.log('  ✅ Test 5b Passed: Direct handleUserBargeIn encapsulates playoutManager and transitions to LISTENING');
 
   // Test 7: Gemini 3.8 Live interactionStatus: IN_PROGRESS (Cognitive filler / intermediate reasoning)
   let receivedEvaluation: any = null;
@@ -275,14 +292,21 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Turn 0 Acoustic Lockdown prevents mic bleed from interrupting question');
   console.log('  ✅ Test 11a Passed: Turn 0 Acoustic Lockdown protects initial question recitation');
 
-  // Turn 0 recitation concludes (audio playout finished & server sent turnComplete)
+  // Turn 0 recitation concludes with Dual-Sided Handshake Race Condition Testing (Invariant 2.2)
+  // Race A: Audio is actively playing when turnComplete arrives. Mic MUST remain locked until playout drains.
+  (engine3 as any).playoutManager.isWorkletPlaying = true;
   mockWs3.onmessage?.({
     data: JSON.stringify({
       serverContent: { turnComplete: true, interactionStatus: 'IDLE' }
     })
   });
+  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Candidate mic remains locked while audio is still actively playing in DAC');
+
+  // Physical audio DAC finishes playing
+  (engine3 as any).playoutManager.isWorkletPlaying = false;
   (engine3 as any).handleAudioPlayoutFinished();
-  assert.strictEqual(engine3.getState(), 'LISTENING', 'Candidate mic unlocked after Turn 0 question finished playing');
+  assert.strictEqual(engine3.getState(), 'LISTENING', 'Candidate mic symmetrically unlocked after physical audio finished draining');
+  console.log('  ✅ Test 11a-Race: Dual-Sided Handshake Race A (turnComplete before playout drain) passed');
 
   // 11b: AI begins mid-dialogue speech
   mockWs3.onmessage?.({
@@ -363,6 +387,7 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368, 'Continuous 512-sample clamped silence sent');
   console.log('  ✅ Test 13c Passed: Continuous clamped silence streamed during LISTENING');
 
+  engine.disconnect();
   engine2.disconnect();
   engine3.disconnect();
   engine4.disconnect();

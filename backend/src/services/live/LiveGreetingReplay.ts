@@ -94,6 +94,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
 
   if (isResumed) {
     console.log(`🤫 Resumption active for session ${session.sessionId || 'anon'}: AI remains quiet, microphone immediately unlocked for candidate.`);
+    session.fsm?.transition('CANDIDATE_LISTENING');
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({ type: 'setupComplete', silent: true, isResumed: true }));
     }
@@ -192,6 +193,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       geminiSocket.send(JSON.stringify(initialGreetingTurn));
     }
     session.isGreetingSent = true;
+    session.fsm?.transition('AI_SPEAKING');
 
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({

@@ -1,54 +1,29 @@
-import { WebSocket } from 'ws';
 import { db } from '../db';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
 import { recordEvaluationAndSyncProgress } from '../progressService';
 import { calculateFaangScorecard } from '../../prompts/personas';
 import { buildWeightedRubric } from './livePromptBuilder';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { LiveToolContext } from './liveToolDispatcher';
+import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
 
-export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<boolean> {
-  const { call, clientSocket, geminiSocket, session, liveCoaching = false } = ctx;
+export async function handleSubmitInterviewEvaluation(
+  args: Record<string, any>,
+  ctx: ToolExecutionContext
+): Promise<ToolExecutionResult> {
+  const { session, liveCoaching } = ctx;
 
-  if (call.name !== 'submit_interview_evaluation') {
-    return false;
-  }
-
-  // SOTA First-Turn Guard: Reject premature evaluation if candidate has not yet responded
-  if (!session.hasCandidateResponded) {
-    console.warn('🛡️ [First-Turn Guard] Blocked premature submit_interview_evaluation before candidate spoke. Re-prompting AI to speak question...');
-    if (geminiSocket.readyState === WebSocket.OPEN) {
-      geminiSocket.send(JSON.stringify({
-        toolResponse: {
-          functionResponses: [
-            {
-              response: {
-                error: 'Кандидат еще не отвечал на вопрос. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку на этапе первого приветствия. Пожалуйста, поприветствуйте кандидата голосом и четко зачитайте вопрос темы вслух.'
-              },
-              id: call.id,
-              scheduling: 'SILENT'
-            }
-          ]
-        }
-      }));
-    }
-    return true;
-  }
-
-  const args = call.args || {};
-  const score = typeof args.score === 'number' ? args.score : 75;
-  const isPassed = args.isPassed ?? (score >= 70);
+  const score = typeof args.score === 'number' ? Math.max(0, Math.min(100, Math.round(args.score))) : 70;
+  const isPassed = typeof args.isPassed === 'boolean' ? args.isPassed : score >= 70;
   const positivePoints = Array.isArray(args.positivePoints) ? args.positivePoints : [];
-  const missingPoints = Array.isArray(args.missingPoints) ? args.missingPoints : [];
-  const feedback = args.spokenFeedback || args.feedback || 'Ответ принят.';
+  const missingPoints = Array.isArray(args.missingPoints) ? [...args.missingPoints] : [];
+  const feedback = typeof args.spokenFeedback === 'string' ? args.spokenFeedback : (args.feedback || 'Ответ принят.');
   const questionType = args.questionType || 'definitional';
   const speechCoaching = args.speechCoaching || null;
 
   const rawCriteriaBreakdown = Array.isArray(args.criteriaBreakdown) ? args.criteriaBreakdown : [];
-  let rawDeductions = Array.isArray(args.deductions) ? args.deductions : [];
+  const rawDeductions = Array.isArray(args.deductions) ? args.deductions : [];
   const upgradeSnippet = typeof args.upgradeSnippet === 'string' ? args.upgradeSnippet : '';
 
-  // Auto-Balancer & Fallback: If model did not supply criteriaBreakdown, build it from default rubric
   let criteriaBreakdown = rawCriteriaBreakdown;
   if (criteriaBreakdown.length === 0) {
     const defaultRubric = buildWeightedRubric(session.referenceAnswer || '', session.questionText || '');
@@ -77,7 +52,6 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     });
   }
 
-  // Auto-Balancer for deductions: if score < 100 and deductions is empty, derive deductions from criteria gaps
   const totalLostPoints = Math.max(0, 100 - score);
   let deductions = rawDeductions;
   if (totalLostPoints > 0 && deductions.length === 0) {
@@ -104,39 +78,40 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     }
   }
 
-  // Synchronize missingPoints so legacy views and users never see an empty list when score < 100
   if (missingPoints.length === 0 && deductions.length > 0) {
     missingPoints.push(...deductions.map((d: any) => `${d.criteria}: ${d.reason} (-${d.penalty} б.)`));
   }
 
-  // FAANG Calibration Scorecard calculation
   const calculatedScorecard = calculateFaangScorecard({
     score,
-    persona: session.persona || 'mentor',
+    persona: (session.persona as any) || 'mentor',
     targetGrade: session.targetGrade || 'L5_SENIOR',
     positivePoints,
     missingPoints,
     questionType
   });
 
-  const faangScorecard = args.faangScorecard ? {
-    ...calculatedScorecard,
-    ...args.faangScorecard,
-    dimensionScores: {
-      ...calculatedScorecard.dimensionScores,
-      ...(args.faangScorecard.dimensionScores || {})
-    }
-  } : calculatedScorecard;
+  const faangScorecard = args.faangScorecard
+    ? {
+        ...calculatedScorecard,
+        ...args.faangScorecard,
+        dimensionScores: {
+          ...calculatedScorecard.dimensionScores,
+          ...(args.faangScorecard.dimensionScores || {})
+        }
+      }
+    : calculatedScorecard;
 
   let savedEvalId = '';
   if (session.questionId) {
     try {
       const mem = session.sessionId ? getOrCreateSessionMemory(session.sessionId, session.questionId || '') : null;
-      const dialogueTranscript = mem && mem.turns && mem.turns.length > 0
-        ? mem.turns.map(t => `${t.role === 'user' ? 'Кандидат' : 'Интервьюер'}: ${t.text}`).join('\n\n')
-        : (session.turnTelemetryHistory && session.turnTelemetryHistory.length > 0
-            ? session.turnTelemetryHistory.map(t => `Turn ${t.turnIndex} (${t.speaker}): duration ${t.speechDurationMs}ms`).join('\n')
-            : 'Устный диалог в Gemini Live');
+      const dialogueTranscript =
+        mem && mem.turns && mem.turns.length > 0
+          ? mem.turns.map((t) => `${t.role === 'user' ? 'Кандидат' : 'Интервьюер'}: ${t.text}`).join('\n\n')
+          : session.turnTelemetryHistory && session.turnTelemetryHistory.length > 0
+            ? session.turnTelemetryHistory.map((t) => `Turn ${t.turnIndex} (${t.speaker}): duration ${t.speechDurationMs}ms`).join('\n')
+            : 'Устный диалог в Gemini Live';
 
       const syncResult = recordEvaluationAndSyncProgress({
         userId: session.userId || 'default_user',
@@ -166,7 +141,6 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
       console.error('Error saving Live evaluation to DB:', dbErr);
     }
 
-    // If this session is for a System Design scenario, persist into user_progress_ledger
     try {
       const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(session.questionId) as any;
       const canonicalId = aliasRow ? aliasRow.canonical_id : session.questionId;
@@ -202,7 +176,6 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     }
   }
 
-  // Determine assistance level for knowledge tracing
   const probes = session.probesCount || 0;
   let assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse' = 'solo';
   if (session.isRetry) {
@@ -217,7 +190,6 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     assistanceLevel = 'relapse';
   }
 
-  // Apply knowledge decay & record new gap if failed
   let decayResult: any = null;
   try {
     decayResult = await applyKnowledgeDecay({
@@ -244,35 +216,6 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     }
   }
 
-  // Return tool response to Gemini Live with WHEN_IDLE scheduling (SOTA Late 2026)
-  const toolResponse = {
-    toolResponse: {
-      functionResponses: [
-        {
-          id: call.id,
-          name: call.name,
-          response: {
-            result: {
-              success: true,
-              saved: true,
-              score,
-              isPassed,
-              evaluationId: savedEvalId,
-              message: 'Оценка сохранена в ведомость.',
-              directive: 'Кратко подведи итог (1-2 предложения), поблагодари за ответ и назови вердикт. Не молчи.'
-            }
-          },
-          scheduling: 'WHEN_IDLE'
-        }
-      ]
-    }
-  };
-
-  if (geminiSocket.readyState === WebSocket.OPEN) {
-    geminiSocket.send(JSON.stringify(toolResponse));
-  }
-
-  // Notify frontend client with evaluation data (both evaluation and payload for zero-drift compatibility)
   const evaluationPayload = {
     id: savedEvalId,
     questionId: session.questionId,
@@ -292,14 +235,23 @@ export async function handleEvaluationToolCall(ctx: LiveToolContext): Promise<bo
     knowledgeUpdate: decayResult
   };
 
-  if (clientSocket.readyState === WebSocket.OPEN) {
-    clientSocket.send(JSON.stringify({
+  console.log('✅ Evaluation prepared for delivery to client. Keeping session lifeline open for Q&A and transition.');
+
+  return {
+    result: {
+      success: true,
+      saved: true,
+      score,
+      isPassed,
+      evaluationId: savedEvalId,
+      message: 'Оценка сохранена в ведомость.',
+      directive: 'Кратко подведи итог (1-2 предложения), поблагодари за ответ и назови вердикт. Не молчи.'
+    },
+    clientEvent: {
       type: 'evaluation_completed',
       evaluation: evaluationPayload,
       payload: evaluationPayload
-    }));
-  }
-
-  console.log('✅ Evaluation delivered to client. Keeping session lifeline open for Q&A and transition.');
-  return true;
+    },
+    scheduling: 'WHEN_IDLE'
+  };
 }

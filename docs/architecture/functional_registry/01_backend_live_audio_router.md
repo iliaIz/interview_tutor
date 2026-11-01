@@ -204,3 +204,63 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Rationale & "Why":** Turn 0 greeting is a one-way recitation of the question and greeting directive. Flushed pre-connection audio is non-speech ambient noise that acts as false barge-in. Discarding early frames on Turn 0 ensures pristine greeting synthesis.
 - **Invariants:** On fresh Turn 0 connections, pre-greeting buffered microphone frames MUST NEVER be flushed into `geminiSocket`.
 
+---
+
+### 2.16 `LiveToolEngine & workspaceManifestStore: Deep Module Consolidation, Turn 0 Lockdown Unification & Pure Tool Handlers`
+- **Location:** [`backend/src/services/live/LiveToolEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveToolEngine.ts), [`backend/src/services/live/workspaceManifestStore.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/workspaceManifestStore.ts), [`backend/src/services/live/liveWorkspaceHandlers.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWorkspaceHandlers.ts), [`backend/src/services/live/liveEvaluationToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveEvaluationToolDispatcher.ts), [`backend/src/services/live/liveSystemDesignToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveSystemDesignToolDispatcher.ts), [`backend/src/services/live/liveHrToolDispatcher.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveHrToolDispatcher.ts), [`backend/src/services/live/liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts)
+- **What Was Done:**
+  1. **Consolidated Tool Call Execution:** Replaced the shallow pass-through module chain (`LiveToolCallExecutor` -> `liveToolDispatcher` -> 4 sub-dispatchers) with a single deep module `LiveToolEngine`.
+  2. **Isolated Workspace Manifest Operations:** Extracted `matchWorkspaceFilePath`, `applyWorkspaceFileUpdate`, and `mergeWorkspaceManifests` into an independent zero-dependency store `workspaceManifestStore.ts`.
+  3. **Pure Functional Seam for Tool Handlers:** Stripped all `WebSocket` (`ws`) dependencies from tool handlers. Handlers now adhere to a clean contract `(args, ctx) => Promise<ToolExecutionResult> | ToolExecutionResult`, returning `{ result, error, clientEvent, scheduling }`.
+  4. **Declarative Invariant & Deduplication Enforcement:** Centralized Invariant 2.1 (Turn 0 Tool Lockdown) and declarative per-tool deduplication windows (`dedupWindowMs`, `toolDedupCache`) inside `LiveToolEngine.executeFunctionCalls`.
+  5. **Canonical Gemini Live Bidi Protocol Serialization:** Centralized tool response serialization to guarantee that every `functionResponses` frame includes `id`, `name`, `response: { result }` or `response: { error }`, and `scheduling` (`WHEN_IDLE` or `SILENT`), eliminating upstream `1008` (Policy Violation) and `1011` (Internal Error) hangs caused by missing fields or improper nesting.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause 1 (Protocol Divergence & Leakage):* Different sub-dispatchers formatted responses inconsistently (e.g. `liveRefactoringToolDispatcher` omitted `name` and used `output` instead of canonical `result`), causing upstream Gemini Live WebSocket disconnects.
+  - *Root Cause 2 (Turn 0 Guard Fragmentation):* Turn 0 protection was duplicated with slight variations in some dispatchers and completely missing in `liveHrToolDispatcher` (`submit_hr_evaluation`).
+  - *Root Cause 3 (Low Cohesion):* Embedding workspace file mutation logic in a tool dispatcher forced frame transport handlers to import tools.
+- **Rationale & "Why":** Deep modules with narrow interfaces hide protocol complexities, isolate domain state mutation, and guarantee invariant enforcement in a single declarative registry.
+- **Invariants:**
+  - Tool handlers MUST NEVER import or touch WebSocket instances.
+  - Every Gemini tool response MUST be serialized with `id`, `name`, `response: { result | error }`, and canonical `scheduling`.
+  - Invariant 2.1 (Turn 0 Tool Lockdown) MUST be centrally enforced before delegating to gated tool handlers.
+
+---
+
+### 2.17 `SessionConfigurationResolver: Encapsulation of Procedural Query Parsing, Workspace Hydration & session_init Frame Merging (Ticket #9)`
+- **Location:** [`backend/src/services/live/SessionConfigurationResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/SessionConfigurationResolver.ts), [`backend/src/services/live/liveSessionConfigTypes.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveSessionConfigTypes.ts), [`backend/src/services/live/sessionConfigAuth.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionConfigAuth.ts), [`backend/src/services/live/sessionInitFrameMerger.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionInitFrameMerger.ts), [`backend/src/services/live/liveWsSessionParams.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsSessionParams.ts)
+- **What Was Done:**
+  1. **Unified Configuration Factory:** Created `SessionConfigurationResolver.resolve(req, rawInitFrame): Promise<LiveSessionResolvedConfig | null>` encapsulating URL query parsing, authentication, SQLite challenge hydration, vector gap discovery, and prompt defaults.
+  2. **Strongly Typed Domain Config:** Extracted `LiveSessionResolvedConfig`, `LiveSessionPromptConfig`, and `LiveSessionConfig` eliminating 45+ loose procedural arguments.
+  3. **Atomic Frame Merging:** Factored `sessionInitFrameMerger` to handle two-phase WebSocket handshake merging (`session_init` frame updates to workspace manifests, code snippets, persona, and batch questions).
+  4. **Deprecated Procedural Resolver:** Shrunk `liveWsSessionParams.ts` from 308 to 23 lines by delegating directly to `SessionConfigurationResolver.resolve(req)` for zero-regression backwards compatibility until Ticket #10.
+  5. **Cognitive Bounding Compliance:** `SessionConfigurationResolver.ts` strictly complies with the 150-line SLA (127 lines).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Procedural unpacking across loose parameter chains resulted in fragile initialization and duplicate manifest merging logic between connection start and frame handling.
+  - *Empirical Finding:* Encapsulating authentication, SQLite context resolution, and `session_init` control frames into a dedicated resolver provides a clean seam for the upcoming `LiveVoiceSession` aggregate (#10).
+- **Rationale & "Why":** Ports & Adapters boundary cleanly separates HTTP request transport parsing from the session state machine and aggregate lifecycle.
+- **Invariants:**
+  - `SessionConfigurationResolver.ts` MUST adhere to Cognitive Bounding <= 150 lines.
+  - All Live session startup parameters must be accessed through typed `LiveSessionResolvedConfig`.
+
+---
+
+### 2.18 `LiveVoiceSession: Encapsulation of Session Aggregate Root, SessionFsm & Watchdog Lifeline (Ticket #10)`
+- **Location:** [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts), [`backend/src/services/live/liveWsConnectionHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), [`backend/src/services/live/sessionFsm.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionFsm.ts), [`backend/src/services/live/sessionStartupHelper.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionStartupHelper.ts)
+- **What Was Done:**
+  1. **Aggregate Root Creation:** Created `LiveVoiceSession` (275 lines <= 300 SLA) encapsulating `SessionFsm`, `WatchdogManager`, and `LiveAudioStreamRouter`.
+  2. **Anemic Data Bag Elimination:** Replaced 45 loose public session mutations with private aggregate state and explicit control methods `start()`, `handleClientFrame()`, and `terminate()`.
+  3. **Thin HTTP Adapter:** Shrunk `liveWsConnectionHandler.ts` from 298 lines to 23 lines (<= 60 SLA), delegating directly to `LiveVoiceSession.start(...)`.
+  4. **Trap-Free FSM Enforcement:** Implemented `SessionFsm` (55 lines) ensuring clean transitions between `INIT`, `CANDIDATE_LISTENING`, `CANDIDATE_SPEAKING`, `COMMITTING`, `AI_THINKING`, and `AI_SPEAKING`, strictly preventing stuck commit/thinking states (Invariant 2.8).
+  5. **Watchdog Lifeline Integration:** Connected `WatchdogManager` with Two-Phase SLA (5s/8s nudge and 22s/25s dead-air recovery) into the turn commit pipeline and aggregate lifecycle.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Monolithic connection handler and loose `ProxySession` mutations allowed timers and state flags to desync during reconnects or abnormal closures.
+  - *Empirical Finding:* Encapsulating the session inside `LiveVoiceSession` ensures symmetrical lifecycle cleanup and guarantees that all watchdogs, sockets, and memory buffers are disposed in one atomic call.
+- **Rationale & "Why":** Establishes an aggregate boundary around real-time streaming sessions, protecting domain invariants from transport-level WebSocket anomalies.
+- **Invariants:**
+  - `LiveVoiceSession.ts` MUST NOT exceed 300 lines.
+  - `liveWsConnectionHandler.ts` MUST NOT exceed 60 lines.
+  - Committing and thinking states MUST always transition cleanly to `CANDIDATE_LISTENING` on dead-air recovery or barge-in (Invariant 2.8).
+
+
+
+

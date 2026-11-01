@@ -296,6 +296,13 @@ export class AudioPlayoutManager {
 
   public startNewTurn(): void {
     this.resetTurnPlayoutState();
+    if (this.masterGain && this.context && this.context.state !== 'closed') {
+      try {
+        const now = this.context.currentTime;
+        this.masterGain.gain.cancelScheduledValues?.(now);
+        this.masterGain.gain.setValueAtTime?.(1.5, now);
+      } catch {}
+    }
     if (this.isWorkletPlaying || this.pendingSamples.length > 0) {
       this.clearQueue();
     }
@@ -349,6 +356,15 @@ export class AudioPlayoutManager {
   }
 
   public handleInterruption(): void {
+    const { context, masterGain } = this.ensureContext();
+    if (masterGain && context && context.state !== 'closed') {
+      const now = context.currentTime;
+      try {
+        masterGain.gain.cancelScheduledValues?.(now);
+        masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime?.(0.0, now + 0.005);
+      } catch {}
+    }
     this.clearQueue();
   }
 

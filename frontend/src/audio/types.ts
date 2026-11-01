@@ -1,6 +1,6 @@
 /**
  * types.ts
- * Canonical TypeScript types for Headless LiveVoiceEngine (SOTA Late 2026).
+ * Canonical TypeScript types for Headless NativeLiveVoiceEngine (SOTA Late 2026).
  */
 
 export type VoiceEngineState =
@@ -8,6 +8,8 @@ export type VoiceEngineState =
   | 'CONNECTING'
   | 'AI_SPEAKING'
   | 'LISTENING'
+  | 'COMMITTING'
+  | 'AI_THINKING'
   | 'EVALUATING'
   | 'COMPLETED'
   | 'ERROR';
@@ -198,12 +200,12 @@ export interface ILiveVoiceEngine {
   setMuted(muted: boolean): void;
   handleCentralButtonClick(): void;
   handleBargeInInterruption(source?: 'tactile' | 'acoustic'): void;
+  handleUserBargeIn(): void;
   sendTextMessage(text: string, displayText?: string): void;
   commitSpokenTurn(): void;
   sendCustomFrame(frame: any): void;
   getState(): VoiceEngineState;
   getInternalState(): string;
   getDialogueTurns(): DialogueTurnItem[];
-  getPlayoutManager(): any;
 }
 

@@ -59,10 +59,10 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
     }
 
     if (session.state === 'ERROR') {
-      addLog('error', `Ошибка сессии: ${session.error || 'Неизвестная ошибка'}`);
+      addLog('error', `Ошибка сессии: ${session.statusMessage || 'Неизвестная ошибка'}`);
       onStepResult(selectedStep, 'error');
     }
-  }, [session.state, session.statusMessage, session.error]);
+  }, [session.state, session.statusMessage]);
 
   // Track TTFT when turns appear
   useEffect(() => {
@@ -123,8 +123,10 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
     session.disconnect();
   };
 
+  const [isMuted, setIsMuted] = useState(false);
+
   // Convert RMS dB (-100 to 0) to 0-100 percentage
-  const rmsPercent = Math.max(0, Math.min(100, Math.round(((session.rmsDb + 60) / 60) * 100)));
+  const rmsPercent = Math.max(0, Math.min(100, Math.round(((session.metrics.rmsDb + 60) / 60) * 100)));
 
   return (
     <div className="bg-white/80 backdrop-blur-md border border-pastel-rose/80 rounded-3xl p-5 shadow-xl space-y-4">
@@ -152,7 +154,7 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
           ) : (
             <>
               <button
-                onClick={session.handleCentralButtonClick}
+                onClick={session.handleInteraction}
                 title="Тактильный Barge-in"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-violet-800 bg-violet-100 hover:bg-violet-200 transition cursor-pointer"
               >
@@ -161,13 +163,16 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
               </button>
 
               <button
-                onClick={session.toggleMute}
-                title={session.isMuted ? 'Включить микрофон' : 'Заглушить микрофон'}
+                onClick={() => {
+                  setIsMuted(!isMuted);
+                  session.toggleMic();
+                }}
+                title={isMuted ? 'Включить микрофон' : 'Заглушить микрофон'}
                 className={`p-2 rounded-xl transition cursor-pointer ${
-                  session.isMuted ? 'bg-rose-100 text-rose-700' : 'bg-pastel-bg text-slate-700 hover:bg-pastel-rose/40'
+                  isMuted ? 'bg-rose-100 text-rose-700' : 'bg-pastel-bg text-slate-700 hover:bg-pastel-rose/40'
                 }`}
               >
-                {session.isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </button>
 
               <button
@@ -215,7 +220,7 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
         <div className="p-2.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/80 flex flex-col">
           <div className="flex items-center justify-between text-[10px] text-pastel-muted">
             <span>Аудио RMS</span>
-            <span>{session.rmsDb > -90 ? `${Math.round(session.rmsDb)} dB` : 'Тишина'}</span>
+            <span>{session.metrics.rmsDb > -90 ? `${Math.round(session.metrics.rmsDb)} dB` : 'Тишина'}</span>
           </div>
           <div className="w-full bg-slate-200 h-2 rounded-full mt-1.5 overflow-hidden">
             <div

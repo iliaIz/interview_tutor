@@ -85,6 +85,10 @@ export class LiveTelemetryAccumulator {
     session.audioChunksCount = 0;
     console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio total: ${totalDurationMs}ms, remaining playout: ${remainingDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
 
+    if (session.watchdogs) {
+      session.watchdogs.disarmAll();
+    }
+    session.fsm?.transition('CANDIDATE_LISTENING');
     if (session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;

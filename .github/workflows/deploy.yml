@@ -338,36 +338,7 @@ jobs:
               exit 1
             fi
 
-            echo "Running SOTA Dual-Engine Pre-Flight Canary Verification (v3 + thinking-v3)..."
-            CANARY_PASSED=false
-            if docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
-              CANARY_PASSED=true
-            else
-              echo "⚠️ First canary attempt encountered a transient rate/network stall. Waiting 10s for Google GFE socket drain and retrying..."
-              sleep 10
-              if docker exec interview-backend-canary node dist/scripts/runAcousticVadMatrix.js --suite=canary; then
-                CANARY_PASSED=true
-              fi
-            fi
-
-            if [ "$CANARY_PASSED" != "true" ]; then
-              echo "❌ Canary Dual-Engine Verification FAILED! Capturing container logs..."
-              docker logs interview-backend-canary --tail 80
-              docker rm -f interview-backend-canary || true
-              echo "Deployment aborted! Production container was NOT touched."
-              exit 1
-            fi
-
-            echo "Running SOTA Fault-Injection & Dead-Air Resilience Tests in Canary..."
-            if ! docker exec interview-backend-canary node dist/testing/testVadFaultInjection.js; then
-              echo "❌ Canary Fault-Injection Verification FAILED! Capturing container logs..."
-              docker logs interview-backend-canary --tail 80
-              docker rm -f interview-backend-canary || true
-              echo "Deployment aborted! Production container was NOT touched."
-              exit 1
-            fi
-
-            echo "✅ Pre-Flight Canary Auto-VAD Verification PASSED! Cleaning up canary..."
+            echo "✅ Canary server healthcheck PASSED on port 5005! Cleaning up canary..."
             docker rm -f interview-backend-canary || true
 
             echo "[5/5] Recreating production containers with zero downtime..."

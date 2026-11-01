@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { db } from '../services/db';
 import { CodingChallenge } from '../services/challengeSeedData';
-import { getAuthUserId } from '../middleware/auth';
+import { getAuthUserId, requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
-import { handleChallengeEvaluation } from '../services/challengeSubmissionService';
+import { handleEvaluationStream } from './practiceSseAdapter';
 import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../services/practiceTxCatalogService';
 
@@ -138,68 +138,9 @@ router.get('/challenges/:id', (req, res) => {
   }
 });
 
-// POST /api/practice/evaluate - Submit workspace files for dual-pass evaluation (SSE streaming & JSON compatible)
-router.post('/evaluate', async (req, res) => {
-  const isSse = req.headers.accept?.includes('text/event-stream') || 
-                req.query.stream === 'true' || 
-                req.headers.accept !== 'application/json';
-
-  try {
-    const userId = getAuthUserId(req);
-    const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = req.body;
-
-    if (!challengeId || !Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({ error: 'challengeId and non-empty files array are required' });
-    }
-
-    if (files.length > 15) {
-      return res.status(400).json({ error: 'Exceeded maximum allowable files limit (15 files max)' });
-    }
-
-    for (const f of files) {
-      if (typeof f.content === 'string' && f.content.length > 200_000) {
-        return res.status(400).json({ error: `File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)` });
-      }
-    }
-
-    await handleChallengeEvaluation({
-      userId,
-      challengeId,
-      files,
-      activePhase,
-      timeSpentSeconds,
-      isSse,
-      res
-    });
-  } catch (err: any) {
-    if (res.writableEnded) {
-      return;
-    }
-    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-      console.warn(`⏳ Practice evaluation timed out or aborted: ${err.message}`);
-      if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({
-          error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
-        })}\n\n`);
-        res.end();
-      } else {
-        res.status(504).json({
-          error: 'Время ожидания ответа AI-рецензента истекло (Gateway Timeout). Пожалуйста, повторите попытку.'
-        });
-      }
-      return;
-    }
-    console.error('Error during practice evaluation:', err);
-    if (res.headersSent) {
-      res.write(`event: error\ndata: ${JSON.stringify({
-        error: err.message || 'Evaluation failed'
-      })}\n\n`);
-      res.end();
-    } else {
-      res.status(500).json({ error: err.message || 'Evaluation failed' });
-    }
-  }
-});
+// POST /api/practice/challenges/:id/evaluate & /api/practice/evaluate - SSE streaming evaluation transport adapter
+router.post('/challenges/:id/evaluate', requireAuth, handleEvaluationStream);
+router.post('/evaluate', requireAuth, handleEvaluationStream);
 
 // POST /api/practice/draft & /api/practice/save-draft - Auto-save workspace draft for active user
 const handleDraftSave = (req: any, res: any) => {
@@ -232,8 +173,8 @@ const handleDraftSave = (req: any, res: any) => {
   }
 };
 
-router.post('/draft', handleDraftSave);
-router.post('/save-draft', handleDraftSave);
+router.post('/draft', requireAuth, handleDraftSave);
+router.post('/save-draft', requireAuth, handleDraftSave);
 
 // POST /api/practice/transaction-lab/draft - Save Transaction Lab scenario draft
 router.post('/transaction-lab/draft', (req, res) => {

@@ -2,7 +2,7 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
 import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
-import { LiveToolCallExecutor } from './LiveToolCallExecutor';
+import { LiveToolEngine } from './LiveToolEngine';
 import { isNonRetryableUpstreamError, isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 
@@ -34,7 +34,7 @@ export interface StreamRouterOptions {
 
 /**
  * Headless Live Audio Stream Router (SOTA Late 2026).
- * Decomposed into LiveGreetingReplay, LiveTelemetryAccumulator, and LiveToolCallExecutor.
+ * Decomposed into LiveGreetingReplay, LiveTelemetryAccumulator, and LiveToolEngine.
  * Cognitive bounding limit: <= 350 lines.
  */
 export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
@@ -244,6 +244,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           const commitAnchor = session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastTurnCommitTime || session.lastToolCallTime || session.lastActivityAt || Date.now();
           session.lastActivityAt = Date.now();
           session.probesCount = (session.probesCount || 0) + 1;
+          if (session.watchdogs) {
+            session.watchdogs.heartbeat();
+          }
+          session.fsm?.transition('AI_SPEAKING');
           if (session.nudgeWatchdog) {
             clearTimeout(session.nudgeWatchdog);
             session.nudgeWatchdog = null;
@@ -298,13 +302,13 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
         // 3. Tool Call Cancellation
         if (parsed.toolCallCancellation?.ids) {
-          LiveToolCallExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
+          LiveToolEngine.handleCancellation(session, parsed.toolCallCancellation.ids);
         }
 
         // 4. Tool Calls Execution
         if (parsed.toolCall?.functionCalls) {
           isToolCallProcessed = true;
-          await LiveToolCallExecutor.executeFunctionCalls({
+          await LiveToolEngine.executeFunctionCalls({
             functionCalls: parsed.toolCall.functionCalls,
             clientSocket,
             geminiSocket,
@@ -324,6 +328,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (isUpstreamTurnComplete) {
           const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
           if (isInteractionIdle) {
+            if (session.watchdogs) {
+              session.watchdogs.disarmAll();
+            }
+            session.fsm?.transition('CANDIDATE_LISTENING');
             // SOTA Late 2026: Deduplicate terminal frame invocations
             // If turn has already concluded and current audio bytes are 0, ignore duplicate turnComplete/generationComplete
             if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {
