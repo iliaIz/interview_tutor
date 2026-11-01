@@ -115,9 +115,11 @@ export async function evaluateChallengeSubmission(req: EvaluationRequest): Promi
   }
 
   // Build candidate code blocks wrapped in untrusted sandbox container
+  const escapeXmlAttr = (str: string) => str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&apos;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let codeXml = '<candidate_workspace>\n';
   for (const f of preProcess.sanitizedFiles) {
-    codeXml += `  <file path="${f.path}">\n${wrapUntrustedContext('candidate_source_code', f.content)}\n  </file>\n`;
+    const safePath = escapeXmlAttr((f.path || 'unknown').slice(0, 256));
+    codeXml += `  <file path="${safePath}">\n${wrapUntrustedContext('candidate_source_code', f.content)}\n  </file>\n`;
   }
   codeXml += '</candidate_workspace>';
 
