@@ -224,4 +224,23 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - Every Gemini tool response MUST be serialized with `id`, `name`, `response: { result | error }`, and canonical `scheduling`.
   - Invariant 2.1 (Turn 0 Tool Lockdown) MUST be centrally enforced before delegating to gated tool handlers.
 
+---
+
+### 2.17 `SessionConfigurationResolver: Encapsulation of Procedural Query Parsing, Workspace Hydration & session_init Frame Merging (Ticket #9)`
+- **Location:** [`backend/src/services/live/SessionConfigurationResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/SessionConfigurationResolver.ts), [`backend/src/services/live/liveSessionConfigTypes.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveSessionConfigTypes.ts), [`backend/src/services/live/sessionConfigAuth.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionConfigAuth.ts), [`backend/src/services/live/sessionInitFrameMerger.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionInitFrameMerger.ts), [`backend/src/services/live/liveWsSessionParams.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsSessionParams.ts)
+- **What Was Done:**
+  1. **Unified Configuration Factory:** Created `SessionConfigurationResolver.resolve(req, rawInitFrame): Promise<LiveSessionResolvedConfig | null>` encapsulating URL query parsing, authentication, SQLite challenge hydration, vector gap discovery, and prompt defaults.
+  2. **Strongly Typed Domain Config:** Extracted `LiveSessionResolvedConfig`, `LiveSessionPromptConfig`, and `LiveSessionConfig` eliminating 45+ loose procedural arguments.
+  3. **Atomic Frame Merging:** Factored `sessionInitFrameMerger` to handle two-phase WebSocket handshake merging (`session_init` frame updates to workspace manifests, code snippets, persona, and batch questions).
+  4. **Deprecated Procedural Resolver:** Shrunk `liveWsSessionParams.ts` from 308 to 23 lines by delegating directly to `SessionConfigurationResolver.resolve(req)` for zero-regression backwards compatibility until Ticket #10.
+  5. **Cognitive Bounding Compliance:** `SessionConfigurationResolver.ts` strictly complies with the 150-line SLA (127 lines).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Procedural unpacking across loose parameter chains resulted in fragile initialization and duplicate manifest merging logic between connection start and frame handling.
+  - *Empirical Finding:* Encapsulating authentication, SQLite context resolution, and `session_init` control frames into a dedicated resolver provides a clean seam for the upcoming `LiveVoiceSession` aggregate (#10).
+- **Rationale & "Why":** Ports & Adapters boundary cleanly separates HTTP request transport parsing from the session state machine and aggregate lifecycle.
+- **Invariants:**
+  - `SessionConfigurationResolver.ts` MUST adhere to Cognitive Bounding <= 150 lines.
+  - All Live session startup parameters must be accessed through typed `LiveSessionResolvedConfig`.
+
+
 
