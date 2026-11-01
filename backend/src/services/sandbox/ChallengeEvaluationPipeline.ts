@@ -195,7 +195,13 @@ export class ChallengeEvaluationPipeline {
 
       yield {
         gate: 'PERSISTENCE', status: 'PASSED', progressPercent: 100,
-        payload: { testResults: testResultsPayload, astViolations: astViolations.length > 0 ? astViolations : undefined, mutationScore: mutationScorePayload, aiFeedback: aiFeedbackPayload },
+        payload: {
+          testResults: testResultsPayload,
+          astViolations: astViolations.length > 0 ? astViolations : undefined,
+          mutationScore: mutationScorePayload,
+          aiFeedback: aiFeedbackPayload,
+          evaluation: aiEvaluationResult
+        },
         timestamp: Date.now()
       };
     } catch (persistErr: any) {

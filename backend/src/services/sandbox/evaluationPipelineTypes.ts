@@ -47,6 +47,7 @@ export interface EvaluationPipelinePayload {
   astViolations?: EvaluationAstViolation[];
   mutationScore?: EvaluationMutationScorePayload;
   aiFeedback?: EvaluationAiFeedbackPayload;
+  evaluation?: any;
   error?: string;
 }
 

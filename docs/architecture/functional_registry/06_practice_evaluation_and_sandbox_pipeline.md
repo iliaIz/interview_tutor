@@ -2,7 +2,7 @@
 
 > **Location:** `docs/architecture/functional_registry/06_practice_evaluation_and_sandbox_pipeline.md`  
 > **Subsystem (Level 1):** Practice Evaluation Pipeline & Live Review Monitoring  
-> **Primary Files:** [`backend/src/services/challengeSubmissionService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/challengeSubmissionService.ts), [`backend/src/services/codeEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/codeEvaluator.ts), [`frontend/src/components/practice/useEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/useEvaluationPipeline.ts), [`frontend/src/components/practice/ReviewProgressConsole.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/ReviewProgressConsole.tsx)
+> **Primary Files:** [`backend/src/routes/practice.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practice.ts), [`backend/src/services/sandbox/ChallengeEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeEvaluationPipeline.ts), [`backend/src/services/codeEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/codeEvaluator.ts), [`frontend/src/components/practice/useEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/useEvaluationPipeline.ts), [`frontend/src/components/practice/ReviewProgressConsole.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/ReviewProgressConsole.tsx)
 
 ---
 
@@ -13,17 +13,18 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 
 ## 2. Touch List & Function Hierarchy (Level 2)
 
-### 2.1 `handleChallengeEvaluation()` (Backend SSE Dispatcher)
-- **Location:** [`backend/src/services/challengeSubmissionService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/challengeSubmissionService.ts)
+### 2.1 `handleEvaluationStream()` & `ChallengeEvaluationPipeline` (SSE Streaming Adapter & Pipeline)
+- **Location:** [`backend/src/routes/practice.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practice.ts), [`backend/src/services/sandbox/ChallengeEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeEvaluationPipeline.ts)
 - **What Was Done:**
-  - Migrated monolithic blocking evaluation into a granular event-driven SSE pipeline: `sandbox` $\rightarrow$ `sandbox_done` $\rightarrow$ `ast_analysis` $\rightarrow$ `ai_reasoning` $\rightarrow$ `heartbeat` (every 3s) $\rightarrow$ `complete`.
-  - Added structured error emission (`event: error` with `canRetryAiOnly: true`) upon AI evaluation failure, allowing downstream clients to recover without re-running the Java compilation sandbox.
-  - Implemented 3-second heartbeat ticks with elapsed execution time to prevent intermediary proxy disconnects.
+  - Safely purged legacy monolithic `challengeSubmissionService.ts` to uphold Ports & Adapters architecture.
+  - Rewired `routes/practice.ts` (POST `/challenges/:id/evaluate` and `/evaluate`) as a clean HTTP SSE transport adapter streaming domain events from `ChallengeEvaluationPipeline.evaluate()`.
+  - Configured SSE streaming response headers (`text/event-stream; charset=utf-8`, `no-cache, no-transform`, `keep-alive`, `X-Accel-Buffering: no`) with early header flushing.
+  - Bound client disconnect to `AbortController` via `res.on('close')`.
 - **Hypotheses & Intermediate Conclusions:**
-  - *Observation:* When LiteLLM timed out or failed, express headers had already been flushed by SSE, causing unhandled promise rejections that hung the client connection for 90s until client timeout.
-  - *Intermediate Conclusion:* Trapping errors inside the SSE stream and emitting `event: error` immediately unblocks the client with actionable diagnostic details.
-- **Rationale & "Why":** Adheres to SOTA 2026 progressive streaming standards for long-running reasoning LLM evaluations.
-- **Invariants:** Every SSE stream must be cleanly terminated (`res.end()`) on both success and error paths.
+  - *Observation:* Coupling Express `res` directly into domain logic in `challengeSubmissionService.ts` broke separation of concerns and prevented transport-agnostic pipeline reuse across WebSockets or background jobs.
+  - *Intermediate Conclusion:* Pure async generator `AsyncIterable<EvaluationPipelineEvent>` decoupled from Express allows the route to act strictly as a streaming transport adapter.
+- **Rationale & "Why":** Clean Architecture / Ports & Adapters separation and compliance with SPEC-004.
+- **Invariants:** Domain evaluation pipeline must have zero Express imports; SSE transport adapter must cleanly `res.end()` on completion or failure.
 
 ---
 
