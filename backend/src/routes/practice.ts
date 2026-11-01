@@ -4,8 +4,7 @@ import { CodingChallenge } from '../services/challengeSeedData';
 import { getAuthUserId, requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
-import { ChallengeEvaluationPipeline } from '../services/sandbox/ChallengeEvaluationPipeline';
-import { EvaluationPipelineEvent } from '../services/sandbox/evaluationPipelineTypes';
+import { handleEvaluationStream } from './practiceSseAdapter';
 import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../services/practiceTxCatalogService';
 
@@ -140,88 +139,6 @@ router.get('/challenges/:id', (req, res) => {
 });
 
 // POST /api/practice/challenges/:id/evaluate & /api/practice/evaluate - SSE streaming evaluation transport adapter
-const handleEvaluationStream = async (req: any, res: any) => {
-  try {
-    const userId = getAuthUserId(req);
-    const challengeId = req.params.id || req.body.challengeId;
-    const files = req.body.codeFiles || req.body.files;
-    const activePhase = Number(req.body.activePhase) || 1;
-    const timeSpentSeconds = Number(req.body.timeSpentSeconds) || 0;
-
-    if (!challengeId || !Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({ error: 'challengeId and non-empty files array are required' });
-    }
-
-    if (files.length > 15) {
-      return res.status(400).json({ error: 'Exceeded maximum allowable files limit (15 files max)' });
-    }
-
-    for (const f of files) {
-      if (typeof f.content === 'string' && f.content.length > 200_000) {
-        return res.status(400).json({ error: `File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)` });
-      }
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
-
-    const abortController = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) {
-        abortController.abort();
-      }
-    });
-
-    try {
-      for await (const event of ChallengeEvaluationPipeline.evaluate({
-        challengeId,
-        userId,
-        codeFiles: files,
-        activePhase,
-        timeSpentSeconds,
-        abortSignal: abortController.signal
-      })) {
-        if (res.writableEnded || res.destroyed) break;
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-        if (typeof res.flush === 'function') {
-          res.flush();
-        }
-      }
-    } catch (pipelineErr: any) {
-      console.error('Error during practice evaluation pipeline stream:', pipelineErr);
-      if (!res.writableEnded && !res.destroyed) {
-        const errorEvent: EvaluationPipelineEvent = {
-          gate: 'PERSISTENCE',
-          status: 'FAILED',
-          progressPercent: 100,
-          payload: { error: pipelineErr?.message || 'Evaluation pipeline error' },
-          timestamp: Date.now()
-        };
-        res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-        if (typeof res.flush === 'function') {
-          res.flush();
-        }
-      }
-    } finally {
-      if (!res.writableEnded) {
-        res.end();
-      }
-    }
-  } catch (err: any) {
-    console.error('Error initializing evaluation stream adapter:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Evaluation failed' });
-    } else if (!res.writableEnded) {
-      res.end();
-    }
-  }
-};
-
 router.post('/challenges/:id/evaluate', requireAuth, handleEvaluationStream);
 router.post('/evaluate', requireAuth, handleEvaluationStream);
 

@@ -175,6 +175,7 @@ export class ChallengeEvaluationPipeline {
     } catch (aiErr: any) {
       console.warn('⚠️ Gate 4 AI Evaluation error:', aiErr?.message);
       yield { gate: 'AI_EVALUATION', status: 'FAILED', progressPercent: 85, payload: { error: aiErr?.message || 'AI Evaluation error' }, timestamp: Date.now() };
+      return;
     }
 
     if (input.abortSignal?.aborted) return;
@@ -200,7 +201,14 @@ export class ChallengeEvaluationPipeline {
           astViolations: astViolations.length > 0 ? astViolations : undefined,
           mutationScore: mutationScorePayload,
           aiFeedback: aiFeedbackPayload,
-          evaluation: aiEvaluationResult
+          evaluation: {
+            ...aiEvaluationResult,
+            compilationStatus: aiEvaluationResult?.compilationStatus || { isCompilable: testsPassed, syntaxErrors: sandboxResult.syntaxErrors || [] },
+            scoreBreakdown: aiEvaluationResult?.scoreBreakdown || {
+              overallScore: finalScore,
+              summaryReview: aiFeedbackPayload?.critique || ''
+            }
+          }
         },
         timestamp: Date.now()
       };
