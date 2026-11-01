@@ -16,6 +16,9 @@ seedCodingChallenges();
 
 // Create test user and auth session
 const testUserId = 'test_user_sse_suite';
+try {
+  db.prepare(`INSERT OR IGNORE INTO users (id, name, role) VALUES (?, ?, ?)`).run(testUserId, 'SSE Test User', 'user');
+} catch {}
 const testSessionId = authService.createSession(testUserId, 'SSE-Test-Agent/1.0', '127.0.0.1');
 
 // Setup minimal test Express application
