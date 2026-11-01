@@ -83,13 +83,21 @@ export function useLiveAudioSession(options: UseLiveVoiceSessionOptions = {}): U
     finishManualTurn: session.handleInteraction,
     handleBargeIn: session.handleInteraction,
     handleCentralButtonClick: session.handleInteraction,
-    sendTextMessage: () => {},
-    sendCanvasDelta: () => {},
-    sendCustomFrame: () => {},
-    sendActionEventMessage: () => {},
+    sendTextMessage: (text: string, displayText?: string) => {
+      session.sendTextMessage?.(text, displayText);
+    },
+    sendCanvasDelta: (delta: any) => {
+      session.sendCustomFrame?.({ type: 'canvas_delta', payload: delta });
+    },
+    sendCustomFrame: (frame: any) => {
+      session.sendCustomFrame?.(frame);
+    },
+    sendActionEventMessage: (eventName: string, payload?: any) => {
+      session.sendCustomFrame?.({ type: 'action_event', eventName, payload });
+    },
     evaluation: session.activeScorecard,
     error: session.state === 'ERROR' ? session.statusMessage : null,
-    engineRef: { current: null as any },
+    engineRef: (session.engineRef || { current: null }) as any,
     playoutManagerRef: {
       current: {
         isPlaying: () => isAiSpeaking,

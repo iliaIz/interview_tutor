@@ -386,16 +386,13 @@ async function runLiveVoiceEngineTests() {
   const lastChunkMsg = JSON.parse(mockWs5.sentMessages[mockWs5.sentMessages.length - 1]);
   assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368, 'Continuous 512-sample clamped silence sent');
   console.log('  ✅ Test 13c Passed: Continuous clamped silence streamed during LISTENING');
-
   engine.disconnect();
   engine2.disconnect();
   engine3.disconnect();
   engine4.disconnect();
   engine5.disconnect();
-
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }
-
 runLiveVoiceEngineTests().catch((err) => {
   console.error('❌ Contract Test Failed:', err);
   process.exit(1);
