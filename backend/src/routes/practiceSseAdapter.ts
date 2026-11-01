@@ -28,13 +28,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
       }
     }
 
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
+    const isJsonMode = req.headers.accept === 'application/json' && req.query.stream !== 'true';
 
     const abortController = new AbortController();
     res.on('close', () => {
@@ -43,13 +37,25 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
       }
     });
 
+    if (!isJsonMode) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+    }
+
     const sendSseEvent = (eventName: string, data: any) => {
-      if (res.writableEnded || res.destroyed) return;
+      if (isJsonMode || res.writableEnded || res.destroyed) return;
       res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
       if (typeof res.flush === 'function') {
         res.flush();
       }
     };
+
+    let jsonResult: { success: boolean; isPassed: boolean; status: string; evaluation: any } | null = null;
 
     try {
       for await (const event of ChallengeEvaluationPipeline.evaluate({
@@ -70,6 +76,14 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               label: 'Компиляция Java 21 и прогон модульных тестов...'
             });
           } else if (event.status === 'FAILED') {
+            const evalPayload = {
+              compilationStatus: { isCompilable: false, syntaxErrors: [] },
+              scoreBreakdown: { overallScore: 0, summaryReview: event.payload?.error || 'Compilation failed' }
+            };
+            if (isJsonMode) {
+              jsonResult = { success: true, isPassed: false, status: 'FAILED', evaluation: evalPayload };
+              break;
+            }
             sendSseEvent('stage', {
               ...event,
               stage: 'sandbox_done',
@@ -85,10 +99,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               success: false,
               isPassed: false,
               status: 'FAILED',
-              evaluation: {
-                compilationStatus: { isCompilable: false, syntaxErrors: [] },
-                scoreBreakdown: { overallScore: 0, summaryReview: event.payload?.error || 'Compilation failed' }
-              }
+              evaluation: evalPayload
             });
           } else {
             sendSseEvent('stage', {
@@ -105,6 +116,18 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
           }
         } else if (event.gate === 'AST_INVARIANTS') {
           if (event.status === 'FAILED') {
+            const evalPayload = {
+              compilationStatus: { isCompilable: true, syntaxErrors: [] },
+              astViolations: event.payload?.astViolations || [],
+              scoreBreakdown: {
+                overallScore: 30,
+                summaryReview: event.payload?.error || 'Нарушены архитектурные AST-инварианты.'
+              }
+            };
+            if (isJsonMode) {
+              jsonResult = { success: true, isPassed: false, status: 'FAILED', evaluation: evalPayload };
+              break;
+            }
             sendSseEvent('stage', {
               ...event,
               stage: 'ast_analysis',
@@ -118,14 +141,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               success: false,
               isPassed: false,
               status: 'FAILED',
-              evaluation: {
-                compilationStatus: { isCompilable: true, syntaxErrors: [] },
-                astViolations: event.payload?.astViolations || [],
-                scoreBreakdown: {
-                  overallScore: 30,
-                  summaryReview: event.payload?.error || 'Нарушены архитектурные AST-инварианты.'
-                }
-              }
+              evaluation: evalPayload
             });
           } else {
             sendSseEvent('stage', {
@@ -179,6 +195,15 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
                 summaryReview: event.payload?.aiFeedback?.critique || ''
               }
             };
+            if (isJsonMode) {
+              jsonResult = {
+                success: true,
+                isPassed: true,
+                status: 'PASSED',
+                evaluation: normalizedEval
+              };
+              break;
+            }
             sendSseEvent('complete', {
               ...event,
               stage: 'complete',
@@ -188,6 +213,9 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               evaluation: normalizedEval
             });
           } else if (event.status === 'FAILED') {
+            if (isJsonMode) {
+              return res.status(500).json({ error: event.payload?.error || 'Persistence error' });
+            }
             sendSseEvent('error', {
               ...event,
               stage: 'failed',
@@ -197,8 +225,21 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
           }
         }
       }
+
+      if (isJsonMode) {
+        if (jsonResult) {
+          return res.status(200).json(jsonResult);
+        }
+        return res.status(500).json({ error: 'Evaluation did not produce a final verdict' });
+      }
     } catch (pipelineErr: any) {
       console.error('Error during practice evaluation pipeline stream:', pipelineErr);
+      if (isJsonMode) {
+        if (!res.headersSent) {
+          return res.status(500).json({ error: pipelineErr?.message || 'Evaluation pipeline error' });
+        }
+        return;
+      }
       if (!res.writableEnded && !res.destroyed) {
         sendSseEvent('error', {
           gate: 'PERSISTENCE',
@@ -210,7 +251,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
         });
       }
     } finally {
-      if (!res.writableEnded) {
+      if (!isJsonMode && !res.writableEnded) {
         res.end();
       }
     }

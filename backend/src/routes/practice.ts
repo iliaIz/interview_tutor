@@ -5,6 +5,7 @@ import { getAuthUserId, requireAuth, AuthenticatedRequest } from '../middleware/
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
 import { handleEvaluationStream } from './practiceSseAdapter';
+import { EvaluationPipelinePersistence } from '../services/sandbox/evaluationPipelinePersistence';
 import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../services/practiceTxCatalogService';
 
@@ -161,7 +162,8 @@ const handleDraftSave = (req: any, res: any) => {
       }
     }
 
-    const submissionId = `sub_${challengeId}_${userId}`;
+    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const submissionId = `sub_${canonicalChallengeId}_${userId}`;
     const stmt = db.prepare(`
       INSERT INTO coding_submissions (
         id, challenge_id, user_id, files_json, active_phase, time_spent_seconds, updated_at
@@ -175,7 +177,7 @@ const handleDraftSave = (req: any, res: any) => {
         updated_at = CURRENT_TIMESTAMP
     `);
 
-    stmt.run(submissionId, challengeId, userId, JSON.stringify(files), activePhase, timeSpentSeconds);
+    stmt.run(submissionId, canonicalChallengeId, userId, JSON.stringify(files), activePhase, timeSpentSeconds);
     res.json({ success: true, savedAt: new Date().toISOString() });
   } catch (err: any) {
     console.error('Error saving practice draft:', err);
@@ -243,9 +245,10 @@ router.get('/transaction-lab/draft/:scenarioId', requireAuth, (req, res) => {
 router.post('/reset/:challengeId', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const challengeId = req.params.challengeId;
-    const submissionId = `sub_${challengeId}_${userId}`;
-    db.prepare('DELETE FROM coding_submissions WHERE id = ?').run(submissionId);
+    const challengeId = String(req.params.challengeId);
+    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const submissionId = `sub_${canonicalChallengeId}_${userId}`;
+    db.prepare('DELETE FROM coding_submissions WHERE id = ? OR (challenge_id = ? AND user_id = ?)').run(submissionId, canonicalChallengeId, userId);
     res.json({ success: true, message: 'Challenge workspace reset to default.' });
   } catch (err: any) {
     console.error('Error resetting challenge:', err);
