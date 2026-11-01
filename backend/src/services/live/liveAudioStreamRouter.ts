@@ -162,6 +162,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     });
 
     geminiSocket.on('message', async (data: RawData) => {
+      if (session.isTerminated) return;
       const buffer = toRawBuffer(data);
       let str = buffer.toString('utf8');
       let isToolCallProcessed = false;

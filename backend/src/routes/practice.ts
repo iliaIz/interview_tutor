@@ -5,6 +5,7 @@ import { getAuthUserId, requireAuth, AuthenticatedRequest } from '../middleware/
 import { AstAuditService } from '../services/astAuditService';
 import { DynamicTaskGenerator } from '../services/dynamicTaskGenerator';
 import { handleEvaluationStream } from './practiceSseAdapter';
+import { EvaluationPipelinePersistence } from '../services/sandbox/evaluationPipelinePersistence';
 import { buildChallengeZipPackage } from '../services/mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../services/practiceTxCatalogService';
 
@@ -151,7 +152,18 @@ const handleDraftSave = (req: any, res: any) => {
       return res.status(400).json({ error: 'challengeId and files array are required' });
     }
 
-    const submissionId = `sub_${challengeId}_${userId}`;
+    if (files.length > 15) {
+      return res.status(400).json({ error: 'Exceeded maximum allowable files limit (15 files max)' });
+    }
+
+    for (const f of files) {
+      if (typeof f.content === 'string' && f.content.length > 200_000) {
+        return res.status(400).json({ error: `File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)` });
+      }
+    }
+
+    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const submissionId = `sub_${canonicalChallengeId}_${userId}`;
     const stmt = db.prepare(`
       INSERT INTO coding_submissions (
         id, challenge_id, user_id, files_json, active_phase, time_spent_seconds, updated_at
@@ -165,7 +177,7 @@ const handleDraftSave = (req: any, res: any) => {
         updated_at = CURRENT_TIMESTAMP
     `);
 
-    stmt.run(submissionId, challengeId, userId, JSON.stringify(files), activePhase, timeSpentSeconds);
+    stmt.run(submissionId, canonicalChallengeId, userId, JSON.stringify(files), activePhase, timeSpentSeconds);
     res.json({ success: true, savedAt: new Date().toISOString() });
   } catch (err: any) {
     console.error('Error saving practice draft:', err);
@@ -177,7 +189,7 @@ router.post('/draft', requireAuth, handleDraftSave);
 router.post('/save-draft', requireAuth, handleDraftSave);
 
 // POST /api/practice/transaction-lab/draft - Save Transaction Lab scenario draft
-router.post('/transaction-lab/draft', (req, res) => {
+router.post('/transaction-lab/draft', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const { scenarioId, userConfigs, threads = 1 } = req.body;
@@ -205,7 +217,7 @@ router.post('/transaction-lab/draft', (req, res) => {
 });
 
 // GET /api/practice/transaction-lab/draft/:scenarioId - Get Transaction Lab scenario draft
-router.get('/transaction-lab/draft/:scenarioId', (req, res) => {
+router.get('/transaction-lab/draft/:scenarioId', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const scenarioId = req.params.scenarioId;
@@ -230,12 +242,13 @@ router.get('/transaction-lab/draft/:scenarioId', (req, res) => {
 });
 
 // POST /api/practice/reset/:challengeId - Reset workspace draft to initial state for active user
-router.post('/reset/:challengeId', (req, res) => {
+router.post('/reset/:challengeId', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const challengeId = req.params.challengeId;
-    const submissionId = `sub_${challengeId}_${userId}`;
-    db.prepare('DELETE FROM coding_submissions WHERE id = ?').run(submissionId);
+    const challengeId = String(req.params.challengeId);
+    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const submissionId = `sub_${canonicalChallengeId}_${userId}`;
+    db.prepare('DELETE FROM coding_submissions WHERE id = ? OR (challenge_id = ? AND user_id = ?)').run(submissionId, canonicalChallengeId, userId);
     res.json({ success: true, message: 'Challenge workspace reset to default.' });
   } catch (err: any) {
     console.error('Error resetting challenge:', err);
@@ -279,7 +292,7 @@ router.post('/generate-task', async (req, res) => {
 });
 
 // GET /api/practice/:challengeId/export-zip - Download Maven project ZIP for IntelliJ IDEA
-router.get('/:challengeId/export-zip', (req, res) => {
+router.get('/:challengeId/export-zip', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const { challengeId } = req.params;

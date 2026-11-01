@@ -64,6 +64,7 @@ export class ChallengeEvaluationPipeline {
     const testsPassed = Boolean(sandboxResult.isCompilable && failedCount === 0 && sandboxResult.success);
 
     if (!testsPassed) {
+      if (input.abortSignal?.aborted) return;
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 0,
         evaluation: {
@@ -94,6 +95,7 @@ export class ChallengeEvaluationPipeline {
     }));
 
     if (!astResult.passed) {
+      if (input.abortSignal?.aborted) return;
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 30,
         evaluation: { astViolations, scoreBreakdown: { overallScore: 30, summaryReview: `Отклонено Gate 2 AST: ${astViolations[0]?.message || 'нарушение инвариантов'}` } },

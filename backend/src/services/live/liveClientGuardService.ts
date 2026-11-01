@@ -20,6 +20,7 @@ export class LiveClientGuardService {
     session.currentAiTurnText = '';
     session.lastBargeInEpoch = epoch;
 
+    session.watchdogs?.disarmAll();
     if (session.nudgeWatchdog) {
       clearTimeout(session.nudgeWatchdog);
       session.nudgeWatchdog = null;

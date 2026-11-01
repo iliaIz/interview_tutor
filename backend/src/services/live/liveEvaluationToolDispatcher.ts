@@ -193,6 +193,7 @@ export async function handleSubmitInterviewEvaluation(
   let decayResult: any = null;
   try {
     decayResult = await applyKnowledgeDecay({
+      userId: session.userId || 'anonymous',
       questionId: session.questionId,
       topic: session.topic || 'General',
       assistanceLevel,
@@ -206,6 +207,7 @@ export async function handleSubmitInterviewEvaluation(
   if (!isPassed && missingPoints.length > 0) {
     try {
       void recordNewErrorGap({
+        userId: session.userId || 'anonymous',
         questionId: session.questionId,
         topic: session.topic || 'General',
         errorConcept: missingPoints[0],

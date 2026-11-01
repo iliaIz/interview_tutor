@@ -385,7 +385,6 @@ export const BugHuntArena: React.FC = () => {
           </div>
         ) : null}
       </div>
-
       <MemoryRadarDrawer
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
@@ -397,5 +396,4 @@ export const BugHuntArena: React.FC = () => {
     </div>
   );
 };
-
 export default BugHuntArena;

@@ -1,5 +1,59 @@
 import { db } from '../db';
+import type { Statement } from 'better-sqlite3';
 import { matchWorkspaceFilePath } from './workspaceManifestStore';
+
+let codingChallengeStmt: Statement | null = null;
+let springTxChallengeStmt: Statement | null = null;
+let bugChallengeStmt: Statement | null = null;
+let questionStmt: Statement | null = null;
+
+function getCodingChallengeStmt(): Statement {
+  if (!codingChallengeStmt) {
+    codingChallengeStmt = db.prepare(`
+      SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown, manifest_json 
+      FROM coding_challenges 
+      WHERE id = ? OR slug = ?
+      LIMIT 1
+    `);
+  }
+  return codingChallengeStmt;
+}
+
+function getSpringTxChallengeStmt(): Statement {
+  if (!springTxChallengeStmt) {
+    springTxChallengeStmt = db.prepare(`
+      SELECT id, slug, title, domain, difficulty, badge, manifest_json 
+      FROM spring_transaction_challenges 
+      WHERE id = ? OR slug = ?
+      LIMIT 1
+    `);
+  }
+  return springTxChallengeStmt;
+}
+
+function getBugChallengeStmt(): Statement {
+  if (!bugChallengeStmt) {
+    bugChallengeStmt = db.prepare(`
+      SELECT id, title, subtopic, code_snippet, bug_explanation, fixed_code, hints_json 
+      FROM bug_challenges 
+      WHERE id = ?
+      LIMIT 1
+    `);
+  }
+  return bugChallengeStmt;
+}
+
+function getQuestionStmt(): Statement {
+  if (!questionStmt) {
+    questionStmt = db.prepare(`
+      SELECT topic, question, answer 
+      FROM questions 
+      WHERE id = ?
+      LIMIT 1
+    `);
+  }
+  return questionStmt;
+}
 
 export interface ChallengeResolutionInput {
   challengeId: string;
@@ -54,11 +108,7 @@ export function resolveLiveChallengeContext(input: ChallengeResolutionInput): Re
   // 1. Coding challenges (Machine Coding, Refactoring, Testing)
   if (challengeId) {
     try {
-      const cRow = db.prepare(`
-        SELECT id, slug, title, category, track, target_stack, short_description, instructions_markdown, manifest_json 
-        FROM coding_challenges 
-        WHERE id = ? OR slug = ?
-      `).get(challengeId, challengeId) as any;
+      const cRow = getCodingChallengeStmt().get(challengeId, challengeId) as any;
 
       if (cRow) {
         if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {
@@ -139,11 +189,7 @@ export function resolveLiveChallengeContext(input: ChallengeResolutionInput): Re
   // 2. Spring Transaction challenges (Transactions Lab)
   if (challengeId && (!challengeCategory || challengeCategory === 'spring_transactions')) {
     try {
-      const txRow = db.prepare(`
-        SELECT id, slug, title, domain, difficulty, badge, manifest_json 
-        FROM spring_transaction_challenges 
-        WHERE id = ? OR slug = ?
-      `).get(challengeId, challengeId) as any;
+      const txRow = getSpringTxChallengeStmt().get(challengeId, challengeId) as any;
 
       if (txRow) {
         challengeCategory = 'spring_transactions';
@@ -182,11 +228,7 @@ export function resolveLiveChallengeContext(input: ChallengeResolutionInput): Re
   // 3. Bug challenges (Bug Hunt Arena)
   if (challengeId && (!bugExplanation || !codeSnippet)) {
     try {
-      const bRow = db.prepare(`
-        SELECT id, title, subtopic, code_snippet, bug_explanation, fixed_code, hints_json 
-        FROM bug_challenges 
-        WHERE id = ?
-      `).get(challengeId) as any;
+      const bRow = getBugChallengeStmt().get(challengeId) as any;
 
       if (bRow) {
         if (!bugTitle) bugTitle = bRow.title;
@@ -205,11 +247,7 @@ export function resolveLiveChallengeContext(input: ChallengeResolutionInput): Re
   // 4. Theory questions (Questions Table)
   if (questionId && (!questionText || !referenceAnswer)) {
     try {
-      const qRow = db.prepare(`
-        SELECT topic, question, answer 
-        FROM questions 
-        WHERE id = ?
-      `).get(questionId) as any;
+      const qRow = getQuestionStmt().get(questionId) as any;
 
       if (qRow) {
         if (!topic || topic === 'Java & Spring Framework' || topic === 'Тема') {

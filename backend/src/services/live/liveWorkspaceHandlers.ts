@@ -139,6 +139,7 @@ export async function handleMarkBugSolved(
 
     try {
       decayResult = await applyKnowledgeDecay({
+        userId: session.userId || 'anonymous',
         questionId: session.questionId,
         topic: session.topic || 'General',
         assistanceLevel: isSolved ? (parsedHints.length > 0 ? 'assisted' : 'solo') : 'relapse',

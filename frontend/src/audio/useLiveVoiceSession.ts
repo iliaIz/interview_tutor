@@ -121,6 +121,10 @@ export interface UseLiveVoiceSessionReturn {
   toggleMic: () => void;
   // 8. Tactile interaction (barge-in if AI speaking; turn commit if candidate speaking)
   handleInteraction: () => void;
+  // 9. Delegation seams for text & custom frames
+  sendTextMessage?: (text: string, displayText?: string) => void;
+  sendCustomFrame?: (frame: any) => void;
+  engineRef?: React.MutableRefObject<NativeLiveVoiceEngine | null>;
 }
 
 export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): UseLiveVoiceSessionReturn {
@@ -273,6 +277,14 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     engineRef.current?.handleCentralButtonClick();
   }, []);
 
+  const sendTextMessage = useCallback((text: string, displayText?: string) => {
+    engineRef.current?.sendTextMessage(text, displayText);
+  }, []);
+
+  const sendCustomFrame = useCallback((frame: any) => {
+    engineRef.current?.sendCustomFrame(frame);
+  }, []);
+
   useEffect(() => {
     return () => {
       engineRef.current?.disconnect();
@@ -288,6 +300,9 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     connect,
     disconnect,
     toggleMic,
-    handleInteraction
+    handleInteraction,
+    sendTextMessage,
+    sendCustomFrame,
+    engineRef
   };
 }

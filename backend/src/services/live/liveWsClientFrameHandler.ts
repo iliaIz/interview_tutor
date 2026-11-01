@@ -180,6 +180,9 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || (parsed.type === 'barge_in' ? 'tactile' : 'acoustic'), parsed.epoch || Date.now());
         session.watchdogs?.disarmAll();
         session.fsm?.transition('CANDIDATE_LISTENING');
+        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+          session.geminiSocket.send(JSON.stringify({ realtimeInput: { interruption: true } }));
+        }
         if (!parsed.realtimeInput && !parsed.realtime_input) {
           return;
         }
@@ -339,26 +342,10 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
             lastRttMs: session.lastRttMs ?? null
           };
         }
-        const audioData =
-          parsed.realtime_input?.audio?.data ||
-          parsed.realtimeInput?.audio?.data ||
-          parsed.realtimeInput?.mediaChunks?.[0]?.data;
-        const mimeType =
-          parsed.realtime_input?.audio?.mimeType ||
-          parsed.realtimeInput?.audio?.mimeType ||
-          parsed.realtimeInput?.mediaChunks?.[0]?.mimeType ||
-          'audio/pcm;rate=16000';
-
+        const audioData = parsed.realtime_input?.audio?.data || parsed.realtimeInput?.audio?.data || parsed.realtimeInput?.mediaChunks?.[0]?.data;
+        const mimeType = parsed.realtime_input?.audio?.mimeType || parsed.realtimeInput?.audio?.mimeType || parsed.realtimeInput?.mediaChunks?.[0]?.mimeType || 'audio/pcm;rate=16000';
         if (audioData) {
-          const normalized = {
-            realtimeInput: {
-              audio: {
-                mimeType,
-                data: audioData
-              }
-            }
-          };
-          payloadBuffer = Buffer.from(JSON.stringify(normalized));
+          payloadBuffer = Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType, data: audioData } } }));
         }
       } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
         session.hasCandidateResponded = true;
