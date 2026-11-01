@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bug, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { useLiveAudioSession } from '../../hooks/useLiveAudioSession';
+import { useLiveVoiceSession } from '../../audio/useLiveVoiceSession';
 import { BugChallenge, BugChallengeCard } from '../BugChallengeCard';
 import { TaskRecoveryCard } from '../TaskRecoveryCard';
 import { MemoryRadarDrawer } from '../MemoryRadarDrawer';
@@ -69,23 +69,19 @@ export const BugHuntArena: React.FC = () => {
   }, [challenge, currentIndex, history]);
 
   const [inputText, setInputText] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
 
-  // Live Audio Hook
+  // Live Audio Hook (8-Property Seam)
   const {
-    isConnected,
-    isAiSpeaking,
-    isRecording,
-    isMuted,
-    isUserSpeaking,
-    isPauseHolding,
+    state: voiceState,
+    metrics: voiceMetrics,
+    statusMessage: voiceStatus,
     dialogueTurns,
-    startSession,
-    disconnectSession,
-    sendTextMessage,
-    sendActionEventMessage,
-    toggleMic,
-    toggleMute
-  } = useLiveAudioSession({
+    connect: startSession,
+    disconnect: disconnectSession,
+    toggleMic: toggleVoiceMic,
+    handleInteraction
+  } = useLiveVoiceSession({
     enableGlobalSelection: true,
     onBugSolved: () => {
       setIsSolved(true);
@@ -101,6 +97,17 @@ export const BugHuntArena: React.FC = () => {
       }
     }
   });
+
+  const isConnected = voiceState !== 'IDLE' && voiceState !== 'ERROR' && voiceState !== 'COMPLETED';
+  const isAiSpeaking = voiceState === 'AI_SPEAKING';
+  const isRecording = voiceState === 'LISTENING';
+  const isUserSpeaking = voiceMetrics.vadActive;
+  const isPauseHolding = voiceState === 'AI_THINKING' || voiceState === 'COMMITTING';
+  const toggleMic = () => {
+    setIsMuted((prev) => !prev);
+    toggleVoiceMic();
+  };
+  const toggleMute = toggleMic;
 
   // Timer loop for loader and trivia
   useEffect(() => {
@@ -270,8 +277,6 @@ export const BugHuntArena: React.FC = () => {
     if (!isConnected) {
       void startBugVoiceSession();
     }
-
-    sendTextMessage(text);
     setInputText('');
   };
 
@@ -352,10 +357,8 @@ export const BugHuntArena: React.FC = () => {
               onGenerateVariation={handleGenerateVariation}
               isGeneratingVariation={isLoadingVariation}
               variantNumber={currentVariantNumber}
-              onActionNotification={(actionText) => {
-                if (isConnected) {
-                  sendActionEventMessage(actionText);
-                }
+              onActionNotification={(_actionText) => {
+                // Handled in voice session via continuous audio stream
               }}
             />
 

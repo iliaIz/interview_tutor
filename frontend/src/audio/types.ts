@@ -8,6 +8,8 @@ export type VoiceEngineState =
   | 'CONNECTING'
   | 'AI_SPEAKING'
   | 'LISTENING'
+  | 'COMMITTING'
+  | 'AI_THINKING'
   | 'EVALUATING'
   | 'COMPLETED'
   | 'ERROR';

@@ -72,24 +72,25 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   const hasAutoStartedRef = useRef<boolean>(false);
   const isConnectingRef = useRef<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  const session = useLiveVoiceSession();
   const {
     state,
-    isMuted,
-    rmsDb,
-    isDraining,
-    isTransientFiltered,
+    metrics,
     statusMessage,
     dialogueTurns,
-    evaluation,
-    error,
+    activeScorecard,
     connect,
     disconnect,
-    toggleMute,
-    handleCentralButtonClick,
-    sendTextMessage
-  } = session;
+    toggleMic,
+    handleInteraction
+  } = useLiveVoiceSession();
+  const evaluation = activeScorecard as VoiceEvaluationResult | null;
+
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => !prev);
+    toggleMic();
+  }, [toggleMic]);
 
   const startSessionForIndex = useCallback(async (targetIndex: number, isRetryAttempt = false) => {
     if (isConnectingRef.current) return;
@@ -174,8 +175,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         });
       }
 
-      // Dual-Sided Handshake: if physical audio has already drained, switch immediately
-      if (!isDraining && state !== 'AI_SPEAKING') {
+      // Dual-Sided Handshake: if state transitioned away from AI_SPEAKING, switch immediately
+      if (state !== 'AI_SPEAKING') {
         setStage('verdict');
       }
     }
@@ -183,7 +184,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     evaluation,
     activeQuestionId,
     onEvaluationComplete,
-    isDraining,
     state,
     isBatchMode,
     questionsBatch,
@@ -194,14 +194,14 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     saveBatchSessionCheckpoint
   ]);
 
-  // When physical audio finishes draining, transition to verdict if evaluation was received
+  // When speech concludes, transition to verdict if evaluation was received
   useEffect(() => {
     if (pendingEvaluationRef.current && stage === 'active') {
-      if (!isDraining && state !== 'AI_SPEAKING') {
+      if (state !== 'AI_SPEAKING') {
         setStage('verdict');
       }
     }
-  }, [isDraining, state, stage]);
+  }, [state, stage]);
 
   const handleNextQuestion = useCallback(() => {
     if (isConnectingRef.current) return;
@@ -249,8 +249,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   const handleSendText = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!textInput.trim()) return;
-    sendTextMessage(textInput);
     setTextInput('');
   };
 
@@ -266,16 +264,16 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
       if (e.code === 'KeyC' && !e.repeat) {
         e.preventDefault();
-        toggleMute();
+        handleToggleMute();
       } else if (e.code === 'Space' && !e.repeat && state === 'LISTENING') {
         e.preventDefault();
-        handleCentralButtonClick();
+        handleInteraction();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, stage, state, toggleMute, handleCentralButtonClick]);
+  }, [isOpen, stage, state, handleToggleMute, handleInteraction]);
 
   if (!isOpen) return null;
 
@@ -332,13 +330,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
             onFinishTutor={handleFinishTutor}
             state={state}
             isMuted={isMuted}
-            rmsDb={rmsDb}
-            isDraining={isDraining}
-            isTransientFiltered={isTransientFiltered}
+            rmsDb={metrics.rmsDb}
+            isDraining={false}
+            isTransientFiltered={false}
             statusMessage={statusMessage}
             dialogueTurns={dialogueTurns}
-            onCentralButtonClick={handleCentralButtonClick}
-            onToggleMute={toggleMute}
+            onCentralButtonClick={handleInteraction}
+            onToggleMute={handleToggleMute}
             textInput={textInput}
             setTextInput={setTextInput}
             onSendText={handleSendText}
