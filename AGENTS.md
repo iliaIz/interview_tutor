@@ -4,6 +4,15 @@
 
 ---
 
+## Agent skills
+
+| Topic | Pointer |
+| :--- | :--- |
+| **Issue Tracker** | See `docs/agents/issue-tracker.md` (GitHub native sub-issues & blockers) |
+| **Domain Docs** | See `docs/agents/domain.md` (`GLOSSARY.md`, `docs/adr/`) |
+
+---
+
 ## 0. ENVIRONMENT INVARIANTS & DEPLOYMENT POLICY (CRITICAL)
 - **STRICT PROHIBITION: NO LOCAL DOCKER BUILDS ON VPS.**
   - NEVER execute `docker build`, `docker compose build`, or `docker compose up --build` on this VPS.
