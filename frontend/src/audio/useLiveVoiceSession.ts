@@ -2,26 +2,32 @@
  * useLiveVoiceSession.ts
  * Authoritative Unified React hook for NativeLiveVoiceEngine (SOTA Late 2026).
  * Single responsibility: reactive bridge between Headless LiveVoiceEngine and React components.
- * Bounded cognitive size: <= 250 lines.
+ * Bounded cognitive size: <= 350 lines (SPEC-002, Ticket #7).
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NativeLiveVoiceEngine } from './NativeLiveVoiceEngine';
 import { useAppStore } from '../store/useAppStore';
 import { useHrSimulatorStore } from '../store/useHrSimulatorStore';
-import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
   DialogueTurnItem,
-  VoiceEvaluationResult,
-  ILiveVoiceEngine
+  VoiceEvaluationResult
 } from './types';
+import { HrScorecard } from '@interview-prep/shared';
 
 export interface DialogueTurn {
   id?: string;
   role: 'ai' | 'user' | 'system';
   text: string;
+}
+
+export interface LiveAudioMetrics {
+  rmsDb: number;
+  vadActive: boolean;
+  rttMs: number | null;
+  audioChunksCount: number;
 }
 
 export interface LiveAudioSessionParams {
@@ -30,7 +36,7 @@ export interface LiveAudioSessionParams {
   topic?: string;
   questionText?: string;
   referenceAnswer?: string;
-  sessionType?: 'interview' | 'tutor' | 'system_design' | 'incident' | string;
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | string;
   tutorMode?: string;
   voice?: string;
   userGender?: string;
@@ -74,6 +80,9 @@ export interface LiveAudioSessionParams {
   jobId?: string;
   hrPersonaId?: string;
   questionMatrixId?: string;
+  questionIndex?: number;
+  totalQuestions?: number;
+  isRetry?: boolean;
 }
 
 export interface UseLiveVoiceSessionOptions {
@@ -92,44 +101,25 @@ export interface UseLiveVoiceSessionOptions {
   enableGlobalSelection?: boolean;
 }
 
-export type UseLiveAudioSessionOptions = UseLiveVoiceSessionOptions;
-
 export interface UseLiveVoiceSessionReturn {
+  // 1. Single discrete source of truth
   state: VoiceEngineState;
-  isConnected: boolean;
-  isAiSpeaking: boolean;
-  isListening: boolean;
-  isRecording: boolean;
-  isEvaluating: boolean;
-  isDraining: boolean;
-  isMuted: boolean;
-  isUserSpeaking: boolean;
-  isTransientFiltered: boolean;
-  isPauseHolding: boolean;
-  rmsDb: number;
+  // 2. Audio & network telemetry
+  metrics: LiveAudioMetrics;
+  // 3. Status prompt for UI rendering
   statusMessage: string;
-  aiTranscript: string;
+  // 4. Dialogue turns history
   dialogueTurns: DialogueTurnItem[];
-  evaluation: VoiceEvaluationResult | null;
-  error: string | null;
-  connect: (config: VoiceEngineConfig) => Promise<void>;
-  startSession: (params: LiveAudioSessionParams) => Promise<void>;
+  // 5. Active evaluation scorecard (if emitted)
+  activeScorecard: HrScorecard | VoiceEvaluationResult | null;
+  // 6. Primary session lifecycle controls
+  connect: (params: LiveAudioSessionParams) => Promise<void>;
   disconnect: () => void;
-  disconnectSession: () => void;
-  toggleMute: () => void;
+  // 7. Physical mic capture toggle (replaces toggleMute/toggleMic duplicates)
   toggleMic: () => void;
-  finishManualTurn: () => void;
-  handleBargeIn: () => void;
-  handleCentralButtonClick: () => void;
-  sendTextMessage: (text: string, displayText?: string) => void;
-  sendCanvasDelta: (delta: any) => void;
-  sendCustomFrame: (frame: any) => void;
-  sendActionEventMessage: (eventName: string, payload?: any) => void;
-  engineRef: React.MutableRefObject<ILiveVoiceEngine | null>;
-  playoutManagerRef: React.MutableRefObject<AudioPlayoutManager | null>;
+  // 8. Tactile interaction (barge-in if AI speaking; turn commit if candidate speaking)
+  handleInteraction: () => void;
 }
-
-export type UseLiveAudioSessionReturn = UseLiveVoiceSessionReturn;
 
 export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): UseLiveVoiceSessionReturn {
   const optionsRef = useRef(options);
@@ -138,19 +128,18 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   }, [options]);
 
   const [state, setState] = useState<VoiceEngineState>('IDLE');
-  const [isDraining, setIsDraining] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [rmsDb, setRmsDb] = useState<number>(-100);
+  const [metrics, setMetrics] = useState<LiveAudioMetrics>({
+    rmsDb: -100,
+    vadActive: false,
+    rttMs: null,
+    audioChunksCount: 0
+  });
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurnItem[]>([]);
-  const [aiTranscript, setAiTranscript] = useState<string>('');
-  const [evaluation, setEvaluation] = useState<VoiceEvaluationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isTransientFiltered, setIsTransientFiltered] = useState<boolean>(false);
-  const transientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeScorecard, setActiveScorecard] = useState<HrScorecard | VoiceEvaluationResult | null>(null);
 
-  const engineRef = useRef<ILiveVoiceEngine | null>(null);
-  const playoutManagerRef = useRef<AudioPlayoutManager | null>(null);
+  const engineRef = useRef<NativeLiveVoiceEngine | null>(null);
+  const isMutedRef = useRef<boolean>(false);
 
   if (!engineRef.current) {
     engineRef.current = new NativeLiveVoiceEngine({
@@ -160,23 +149,19 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
           optionsRef.current.onDisconnect?.();
         }
       },
-      onAudioLevel: (db) => setRmsDb(db),
-      onStatusMessage: (msg) => setStatusMessage(msg),
-      onDrainingStateChange: (draining) => setIsDraining(draining),
-      onTranscriptDelta: (role, text) => {
-        if (role === 'ai') setAiTranscript((prev) => prev + text);
+      onAudioLevel: (db) => {
+        setMetrics((prev) => ({
+          ...prev,
+          rmsDb: db,
+          vadActive: db > -45,
+          audioChunksCount: prev.audioChunksCount + 1
+        }));
       },
+      onStatusMessage: (msg) => setStatusMessage(msg),
       onDialogueTurnsUpdate: (turns) => setDialogueTurns(turns),
       onEvaluationReceived: (res) => {
-        setEvaluation(res);
+        setActiveScorecard(res);
         optionsRef.current.onEvaluationCompleted?.(res);
-      },
-      onTransientFiltered: () => {
-        setIsTransientFiltered(true);
-        if (transientTimerRef.current) clearTimeout(transientTimerRef.current);
-        transientTimerRef.current = setTimeout(() => {
-          setIsTransientFiltered(false);
-        }, 1200);
       },
       onWhiteboardUpdate: (payload) => {
         try {
@@ -198,6 +183,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
         }
       },
       onHrScorecardReady: (scorecard) => {
+        setActiveScorecard(scorecard);
         try {
           useHrSimulatorStore.getState().setScorecard(scorecard);
         } catch (e) {
@@ -212,24 +198,16 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
         }
       },
       onError: (err) => {
-        setError(err);
         optionsRef.current.onError?.(err);
       }
     });
-
-    playoutManagerRef.current = (engineRef.current as any)?.getPlayoutManager?.() ?? null;
   }
 
-  const connect = useCallback(async (config: VoiceEngineConfig) => {
-    setError(null);
-    setEvaluation(null);
+  const connect = useCallback(async (params: LiveAudioSessionParams) => {
+    setActiveScorecard(null);
     setDialogueTurns([]);
-    setAiTranscript('');
-    await engineRef.current?.connect(config);
-    optionsRef.current.onSetupComplete?.();
-  }, []);
+    setMetrics({ rmsDb: -100, vadActive: false, rttMs: null, audioChunksCount: 0 });
 
-  const startSession = useCallback(async (params: LiveAudioSessionParams) => {
     const config: VoiceEngineConfig = {
       sessionId: params.sessionId || `session_${Date.now()}`,
       questionId: params.questionId || 'default_question',
@@ -266,53 +244,31 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       academyStep: params.academyStep,
       academyBridgeContext: params.academyBridgeContext,
       seniorReview: params.seniorReview,
-      hrMode: params.hrMode as ('full_screening_simulation' | 'rapid_fire_micro_drill' | undefined),
+      hrMode: params.hrMode as any,
       dossierId: params.dossierId,
       jobId: params.jobId,
       hrPersonaId: params.hrPersonaId,
-      questionMatrixId: params.questionMatrixId
+      questionMatrixId: params.questionMatrixId,
+      questionIndex: params.questionIndex,
+      totalQuestions: params.totalQuestions,
+      isRetry: params.isRetry
     };
-    await connect(config);
-  }, [connect]);
+
+    await engineRef.current?.connect(config);
+    optionsRef.current.onSetupComplete?.();
+  }, []);
 
   const disconnect = useCallback(() => {
     engineRef.current?.disconnect();
   }, []);
 
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => {
-      const next = !prev;
-      engineRef.current?.setMuted(next);
-      return next;
-    });
+  const toggleMic = useCallback(() => {
+    isMutedRef.current = !isMutedRef.current;
+    engineRef.current?.setMuted(isMutedRef.current);
   }, []);
 
-  const finishManualTurn = useCallback(() => {
-    engineRef.current?.commitSpokenTurn();
-  }, []);
-
-  const handleBargeIn = useCallback(() => {
-    engineRef.current?.handleUserBargeIn();
-  }, []);
-
-  const handleCentralButtonClick = useCallback(() => {
+  const handleInteraction = useCallback(() => {
     engineRef.current?.handleCentralButtonClick();
-  }, []);
-
-  const sendTextMessage = useCallback((text: string, displayText?: string) => {
-    engineRef.current?.sendTextMessage(text, displayText);
-  }, []);
-
-  const sendCanvasDelta = useCallback((delta: any) => {
-    engineRef.current?.sendCustomFrame({ type: 'canvas_delta', delta });
-  }, []);
-
-  const sendCustomFrame = useCallback((frame: any) => {
-    engineRef.current?.sendCustomFrame(frame);
-  }, []);
-
-  const sendActionEventMessage = useCallback((eventName: string, payload?: any) => {
-    engineRef.current?.sendCustomFrame({ type: 'action_event', eventName, payload });
   }, []);
 
   useEffect(() => {
@@ -321,42 +277,15 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     };
   }, []);
 
-  const isConnected = state !== 'IDLE' && state !== 'ERROR';
-  const isAiSpeaking = state === 'AI_SPEAKING';
-  const isListening = state === 'LISTENING';
-
   return {
     state,
-    isConnected,
-    isAiSpeaking,
-    isListening,
-    isRecording: isListening,
-    isEvaluating: state === 'EVALUATING',
-    isDraining,
-    isMuted,
-    isUserSpeaking: isListening && rmsDb > -45,
-    isTransientFiltered,
-    isPauseHolding: false,
-    rmsDb,
+    metrics,
     statusMessage,
-    aiTranscript,
     dialogueTurns,
-    evaluation,
-    error,
+    activeScorecard,
     connect,
-    startSession,
     disconnect,
-    disconnectSession: disconnect,
-    toggleMute,
-    toggleMic: toggleMute,
-    finishManualTurn,
-    handleBargeIn,
-    handleCentralButtonClick,
-    sendTextMessage,
-    sendCanvasDelta,
-    sendCustomFrame,
-    sendActionEventMessage,
-    engineRef,
-    playoutManagerRef
+    toggleMic,
+    handleInteraction
   };
 }

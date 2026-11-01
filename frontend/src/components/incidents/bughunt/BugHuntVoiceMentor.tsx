@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Volume2, VolumeX, Mic, MicOff, Bug, MessageSquare, Send } from 'lucide-react';
 
-import { DialogueTurn } from '../../../hooks/useLiveAudioSession';
+import { DialogueTurn } from '../../../audio/useLiveVoiceSession';
 
 export type TutorRole = 'bug_hunt' | 'free_chat';
 

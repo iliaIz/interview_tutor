@@ -36,16 +36,19 @@ export const HrScreeningArena: React.FC = () => {
   const spotterRef = useRef<ClientKeywordSpotter | null>(null);
 
   const {
-    isConnected,
-    isAiSpeaking,
-    isRecording,
-    isUserSpeaking,
-    isPauseHolding,
+    state,
+    metrics,
     statusMessage,
-    startSession,
-    disconnectSession,
-    handleCentralButtonClick
+    connect,
+    disconnect,
+    handleInteraction
   } = useLiveVoiceSession();
+
+  const isConnected = state !== 'IDLE' && state !== 'ERROR' && state !== 'COMPLETED';
+  const isAiSpeaking = state === 'AI_SPEAKING';
+  const isRecording = state === 'LISTENING';
+  const isUserSpeaking = metrics.vadActive;
+  const isPauseHolding = state === 'AI_THINKING' || state === 'COMMITTING';
 
   // Load questions catalog on mount
   useEffect(() => {
@@ -82,7 +85,7 @@ export const HrScreeningArena: React.FC = () => {
     setActiveTab('voice');
     initializeSession(mode, personaId, questionToRun);
 
-    await startSession({
+    await connect({
       sessionType: mode === 'full_screening_simulation' ? 'hr_simulation' : 'hr_micro_drill',
       persona: personaId,
       hrMode: mode,
@@ -283,8 +286,8 @@ export const HrScreeningArena: React.FC = () => {
                   isUserSpeaking={isUserSpeaking}
                   isPauseHolding={isPauseHolding}
                   statusMessage={statusMessage}
-                  onCentralClick={handleCentralButtonClick}
-                  onDisconnect={disconnectSession}
+                  onCentralClick={handleInteraction}
+                  onDisconnect={disconnect}
                 />
               )}
             </div>
