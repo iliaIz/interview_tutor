@@ -1,6 +1,6 @@
 /**
  * types.ts
- * Canonical TypeScript types for Headless LiveVoiceEngine (SOTA Late 2026).
+ * Canonical TypeScript types for Headless NativeLiveVoiceEngine (SOTA Late 2026).
  */
 
 export type VoiceEngineState =
