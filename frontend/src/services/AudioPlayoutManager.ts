@@ -349,6 +349,22 @@ export class AudioPlayoutManager {
   }
 
   public handleInterruption(): void {
+    const { context, masterGain } = this.ensureContext();
+    if (masterGain && context && context.state !== 'closed') {
+      const now = context.currentTime;
+      try {
+        masterGain.gain.cancelScheduledValues?.(now);
+        masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime?.(0.0, now + 0.005);
+      } catch {}
+      setTimeout(() => {
+        if (masterGain && context && context.state !== 'closed') {
+          try {
+            masterGain.gain.setValueAtTime?.(1.5, context.currentTime);
+          } catch {}
+        }
+      }, 7);
+    }
     this.clearQueue();
   }
 

@@ -198,12 +198,12 @@ export interface ILiveVoiceEngine {
   setMuted(muted: boolean): void;
   handleCentralButtonClick(): void;
   handleBargeInInterruption(source?: 'tactile' | 'acoustic'): void;
+  handleUserBargeIn(): void;
   sendTextMessage(text: string, displayText?: string): void;
   commitSpokenTurn(): void;
   sendCustomFrame(frame: any): void;
   getState(): VoiceEngineState;
   getInternalState(): string;
   getDialogueTurns(): DialogueTurnItem[];
-  getPlayoutManager(): any;
 }
 
