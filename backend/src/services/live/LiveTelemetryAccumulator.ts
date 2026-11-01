@@ -174,6 +174,7 @@ export class LiveTelemetryAccumulator {
     session.firstAudioChunkTime = undefined;
     session.audioChunksCount = 0;
     session.isToolCallPending = false;
+    session.watchdogs?.disarmAll();
     if (session.deadAirWatchdog) {
       clearTimeout(session.deadAirWatchdog);
       session.deadAirWatchdog = null;

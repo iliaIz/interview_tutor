@@ -195,6 +195,7 @@ export class LiveToolEngine {
 
     session.isToolCallPending = true;
     session.lastActivityAt = Date.now();
+    session.watchdogs?.disarmAll();
     if (session.nudgeWatchdog) {
       clearTimeout(session.nudgeWatchdog);
       session.nudgeWatchdog = null;
