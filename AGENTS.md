@@ -178,3 +178,19 @@
   - Historical rationale must NEVER be deleted; only appended or explicitly refuted with empirical log/metric evidence.
 
 
+
+<!-- ================================================================= -->
+<!-- STRICT ARCHITECTURAL INVARIANT: ZERO-TRUST LOCAL EXECUTION        -->
+<!-- ================================================================= -->
+## ⚠️ STRICT ENVIRONMENT INVARIANT: NO LOCAL BUILDS OR TESTS (SOTA 2026)
+- **Local compilation, bundlers, and test suites are strictly prohibited and hardware-blocked on this node.**
+  - This node has strictly 1.8 GB RAM. Running `cargo build`, `npm run build`, `mvn`, `gradle`, `docker build`, or `pytest` causes OOM crashes and server freezes.
+  - All heavy toolchains are intercepted by `/usr/local/sbin/blocked-tool` (exit code 126).
+- **CANONICAL CI/CD WORKFLOW:**
+  1. Make your code changes cleanly.
+  2. Switch to a feature/ai branch: `git checkout -b feat/your-feature`
+  3. Commit and push: `git add . && git commit -m "..." && git push -u origin feat/your-feature`
+  4. Trigger remote verification via GitHub Actions: `remote-verify`
+  5. Inspect the concise remote logs returned by `remote-verify` to diagnose errors.
+<!-- ================================================================= -->
+
