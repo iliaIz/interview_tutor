@@ -173,7 +173,24 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(engine.getState(), 'LISTENING', 'Tactile click instantly unlocks LISTENING');
   const lastSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
   assert.strictEqual(lastSent.bargeIn, true, 'Barge-in frame sent with bargeIn: true');
+  assert.strictEqual(lastSent.clientContent?.interruption, true, 'clientContent.interruption is true');
   console.log('  ✅ Test 5 Passed: Tactile barge-in cuts AI speech and transitions to LISTENING');
+
+  // Test 5b: Direct handleUserBargeIn invocation
+  mockWs.onmessage?.({
+    data: JSON.stringify({
+      serverContent: {
+        modelTurn: { parts: [{ text: 'Еще одна реплика...' }] }
+      }
+    })
+  });
+  assert.strictEqual(engine.getState(), 'AI_SPEAKING', 'AI speaking for test 5b');
+  engine.handleUserBargeIn();
+  assert.strictEqual(engine.getState(), 'LISTENING', 'handleUserBargeIn transitions FSM to LISTENING');
+  const userBargeInSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
+  assert.strictEqual(userBargeInSent.bargeIn, true, 'bargeIn is true');
+  assert.strictEqual(userBargeInSent.clientContent?.interruption, true, 'clientContent.interruption is true');
+  console.log('  ✅ Test 5b Passed: Direct handleUserBargeIn encapsulates playoutManager and transitions to LISTENING');
 
   // Test 7: Gemini 3.8 Live interactionStatus: IN_PROGRESS (Cognitive filler / intermediate reasoning)
   let receivedEvaluation: any = null;

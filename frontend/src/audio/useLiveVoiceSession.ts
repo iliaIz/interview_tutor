@@ -217,7 +217,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       }
     });
 
-    playoutManagerRef.current = engineRef.current.getPlayoutManager();
+    playoutManagerRef.current = (engineRef.current as any)?.getPlayoutManager?.() ?? null;
   }
 
   const connect = useCallback(async (config: VoiceEngineConfig) => {
@@ -292,7 +292,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   }, []);
 
   const handleBargeIn = useCallback(() => {
-    engineRef.current?.handleBargeInInterruption('tactile');
+    engineRef.current?.handleUserBargeIn();
   }, []);
 
   const handleCentralButtonClick = useCallback(() => {
