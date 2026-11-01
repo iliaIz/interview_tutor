@@ -47,7 +47,7 @@ export class SessionFsm {
       case 'CANDIDATE_LISTENING':
         return to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING' || to === 'AI_SPEAKING';
       case 'CANDIDATE_SPEAKING':
-        return to === 'COMMITTING' || to === 'CANDIDATE_LISTENING';
+        return to === 'COMMITTING' || to === 'CANDIDATE_LISTENING' || to === 'AI_SPEAKING';
       case 'COMMITTING':
         // Trap-free: Must transition to AI_THINKING, or recover directly to CANDIDATE_LISTENING / AI_SPEAKING
         return to === 'AI_THINKING' || to === 'CANDIDATE_LISTENING' || to === 'AI_SPEAKING';
@@ -62,6 +62,10 @@ export class SessionFsm {
   }
 
   public transition(to: LiveSessionState): boolean {
+    if (this._state === 'TERMINATED') {
+      console.warn(`🛑 [SessionFsm] Transition rejected: session is TERMINATED, cannot transition to ${to}.`);
+      return false;
+    }
     if (this._state === to) return true;
     if (!this.canTransition(to)) {
       console.warn(`⚠️ [SessionFsm] Illegal state transition attempted: ${this._state} -> ${to}. Forcing transition for resilience.`);
