@@ -1,4 +1,4 @@
-export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation' | 'spring_transactions';
+export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation' | 'spring_transactions' | 'design_patterns';
 
 export interface MutantDefinition {
   id: string;
@@ -144,6 +144,7 @@ export interface CodingChallenge {
   smellsChecklist?: CodeSmellItem[];
   barRaiserQuestions?: BarRaiserQuestion[];
   structuralConstraints?: AstBytecodeConstraint;
+  designPatternContext?: DesignPatternContext;
   referenceSolutionFiles?: FileNode[];
   scoringWeights?: {
     functionalCorrectness: number;
@@ -289,5 +290,43 @@ export interface AstBytecodeConstraint {
   disallowedClassImports?: string[];
   disallowedFieldTypes?: string[];
   requiredInjections?: string[];
+  disallowedConstructs?: string[];
+  requiredKeywords?: string[];
+  maxMethodLines?: number;
+}
+
+export type PatternCategoryTier = 'modern_alternatives' | 'anti_patterns' | 'enterprise_gof';
+
+export type TargetPattern =
+  | 'STATE'
+  | 'ADAPTER'
+  | 'DECORATOR'
+  | 'PROXY'
+  | 'CHAIN_OF_RESPONSIBILITY'
+  | 'FACTORY_METHOD'
+  | 'BUILDER'
+  | 'SEALED_VISITOR_REPLACEMENT'
+  | 'FUNCTIONAL_STRATEGY';
+
+export interface AntiPatternSmell {
+  name: string;
+  description: string;
+  symptoms?: string[];
+  riskImpact?: string;
+}
+
+export interface SocraticTradeOffProbe {
+  id: string;
+  question: string;
+  expectedTradeOffConsideration?: string;
+}
+
+export interface DesignPatternContext {
+  targetPattern: TargetPattern;
+  categoryTier: PatternCategoryTier;
+  antiPatternSmell: AntiPatternSmell;
+  modernAlternativeTip?: string;
+  socraticProbes?: SocraticTradeOffProbe[];
+  structuralConstraints?: AstBytecodeConstraint;
 }
 
