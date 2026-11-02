@@ -112,6 +112,10 @@ jobs:
         working-directory: backend
         run: npm run test:practice:mutation-challenges
 
+      - name: Run Refactoring & Design Pattern AST Verifier Suite
+        working-directory: backend
+        run: npm run test:practice:ast-verifier
+
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
