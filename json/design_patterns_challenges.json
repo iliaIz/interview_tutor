@@ -1,0 +1,489 @@
+[
+  {
+    "id": "DP-01-SEALED-VISITOR",
+    "slug": "sealed-visitor-expression-refactoring",
+    "title": "Refactoring Double-Dispatch Visitor to Java 21 Sealed Hierarchy",
+    "taskCode": "DP-01",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "⚡ Java 21 Idioms",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 45,
+    "shortDescription": "Устранение 8-классового бойлерплейта Double-Dispatch Visitor через sealed interface и pattern matching в switch.",
+    "instructionsMarkdown": "### Задание: Ревизия паттерна Visitor в Java 21\nВам достался легаси-модуль калькулятора математических выражений, написанный по канонам GoF 1994 года с использованием паттерна Visitor (интерфейс `ExpressionVisitor`, метод `accept(Visitor)`, классы `NumberExpression`, `AddExpression`, `MultiplyExpression`).\n\n#### Архитектурная проблема\nКлассический Visitor создает лавинообразный бойлерплейт (`accept`, двойная диспетчеризация), затрудняет добавление новых типов выражений и усложняет чтение кода.\n\n#### Цель рефакторинга\n1. Замените иерархию Visitor на `sealed interface Expression permits NumberExpr, AddExpr, MultiplyExpr`.\n2. Реализуйте оценку выражения через лаконичный метод с `switch`-выражением Java 21 и Pattern Matching.\n3. Сохраните 100% прохождение тестов `ExpressionEvaluatorTest`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/visitor/Expression.java",
+        "content": "package com.interview.patterns.visitor;\n\npublic sealed interface Expression permits NumberExpr, AddExpr, MultiplyExpr {\n}\n\nrecord NumberExpr(double value) implements Expression {}\nrecord AddExpr(Expression left, Expression right) implements Expression {}\nrecord MultiplyExpr(Expression left, Expression right) implements Expression {}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/visitor/ExpressionEvaluator.java",
+        "content": "package com.interview.patterns.visitor;\n\npublic class ExpressionEvaluator {\n    public double evaluate(Expression expr) {\n        return switch (expr) {\n            case NumberExpr(double v) -> v;\n            case AddExpr(Expression left, Expression right) -> evaluate(left) + evaluate(right);\n            case MultiplyExpr(Expression left, Expression right) -> evaluate(left) * evaluate(right);\n        };\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/visitor/ExpressionEvaluatorTest.java",
+        "content": "package com.interview.patterns.visitor;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\npublic class ExpressionEvaluatorTest {\n    @Test\n    public void testSimpleEvaluation() {\n        var evaluator = new ExpressionEvaluator();\n        // (2 + 3) * 4 = 20\n        var expr = new MultiplyExpr(new AddExpr(new NumberExpr(2.0), new NumberExpr(3.0)), new NumberExpr(4.0));\n        assertEquals(20.0, evaluator.evaluate(expr), 0.001);\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "SEALED_VISITOR_REPLACEMENT",
+      "categoryTier": "modern_alternatives",
+      "antiPatternSmell": {
+        "name": "Visitor Class Explosion & Double Dispatch",
+        "description": "Использование 8 классов и интерфейсов с двойной диспетчеризацией accept() для простой обработки дерева выражений.",
+        "symptoms": ["accept() методы в каждом классе", "ExpressionVisitor интерфейс с десятком методов", "сложность добавления операций"],
+        "riskImpact": "Снижение читаемости, невозможность использовать чистые функции."
+      },
+      "modernAlternativeTip": "В Java 21 связка sealed interface + records + switch с pattern matching полностью вытесняет паттерн Visitor.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "Почему pattern matching в switch безопаснее Visitor при добавлении нового типа в sealed interface?",
+          "expectedTradeOffConsideration": "Компилятор Java гарантирует exhaustiveness check (исчерпываемость) во время компиляции."
+        }
+      ],
+      "structuralConstraints": {
+        "requiredKeywords": ["sealed interface", "permits", "record"],
+        "disallowedConstructs": ["ExpressionVisitor"],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "requiredKeywords": ["sealed interface", "permits", "record"],
+      "disallowedConstructs": ["ExpressionVisitor"],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-02-LAMBDA-STRATEGY",
+    "slug": "lambda-strategy-payment-refactoring",
+    "title": "Refactoring Class-Heavy Strategy Pattern to First-Class Functions",
+    "taskCode": "DP-02",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "⚡ Java 21 Idioms",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 35,
+    "shortDescription": "Замена бойлерплейт-классов Strategy на реестр первоклассных функций и лямбд Java 21.",
+    "instructionsMarkdown": "### Задание: Стратегии как первоклассные функции\nВ платежном шлюзе `PaymentProcessor` каждая стратегия оплаты вынесена в отдельный класс (`CardPaymentStrategy`, `CryptoPaymentStrategy`, `CashPaymentStrategy`), содержащий всего 1 метод без состояния.\n\n#### Архитектурная проблема\nСоздание десятка классов для тривиальных алгоритмов засоряет проект бойлерплейтом GoF 1994 года.\n\n#### Цель рефакторинга\nЗамените классы стратегий на `Map<PaymentType, Function<PaymentRequest, PaymentResult>>` или лямбды, сохранив публичный метод `processPayment(PaymentRequest)`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/strategy/PaymentProcessor.java",
+        "content": "package com.interview.patterns.strategy;\n\nimport java.util.Map;\nimport java.util.HashMap;\nimport java.util.function.Function;\n\npublic class PaymentProcessor {\n    public enum PaymentType { CARD, CRYPTO, CASH }\n    public record PaymentRequest(PaymentType type, double amount) {}\n    public record PaymentResult(boolean success, double fee) {}\n\n    private final Map<PaymentType, Function<PaymentRequest, PaymentResult>> strategies = new HashMap<>();\n\n    public PaymentProcessor() {\n        strategies.put(PaymentType.CARD, req -> new PaymentResult(true, req.amount() * 0.02));\n        strategies.put(PaymentType.CRYPTO, req -> new PaymentResult(true, 1.50));\n        strategies.put(PaymentType.CASH, req -> new PaymentResult(true, 0.0));\n    }\n\n    public PaymentResult processPayment(PaymentRequest request) {\n        var strategy = strategies.get(request.type());\n        if (strategy == null) throw new IllegalArgumentException(\"Unsupported type: \" + request.type());\n        return strategy.apply(request);\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/strategy/PaymentProcessorTest.java",
+        "content": "package com.interview.patterns.strategy;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class PaymentProcessorTest {\n    @Test\n    public void testCardPaymentFee() {\n        var processor = new PaymentProcessor();\n        var res = processor.processPayment(new PaymentProcessor.PaymentRequest(PaymentProcessor.PaymentType.CARD, 100.0));\n        assertTrue(res.success());\n        assertEquals(2.0, res.fee(), 0.001);\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "FUNCTIONAL_STRATEGY",
+      "categoryTier": "modern_alternatives",
+      "antiPatternSmell": {
+        "name": "Strategy Class Proliferation",
+        "description": "Создание отдельных файлов классов для стратегий, состоящих из одной чистой функции.",
+        "symptoms": ["Десятки мелких классов Strategy", "Избыточная иерархия интерфейсов"],
+        "riskImpact": "Засорение кодовой базы, снижение производительности."
+      },
+      "modernAlternativeTip": "Используйте Function<T, R> и Map-диспатчеризацию вместо классов Strategy.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "Когда классический класс Strategy все еще оправдан по сравнению с лямбдой?",
+          "expectedTradeOffConsideration": "Когда стратегия имеет тяжелое внутреннее состояние, сложный жизненный цикл или требует внедрения нескольких Spring-бинов."
+        }
+      ],
+      "structuralConstraints": {
+        "requiredKeywords": ["Function"],
+        "disallowedConstructs": ["PaymentStrategy"],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "requiredKeywords": ["Function"],
+      "disallowedConstructs": ["PaymentStrategy"],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-03-SINGLETON-GOD",
+    "slug": "singleton-god-object-elimination",
+    "title": "Eliminating Mutable Singleton Anti-Pattern via Dependency Injection",
+    "taskCode": "DP-03",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "🚫 Anti-Pattern Smells",
+    "difficulty": "Junior",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 35,
+    "shortDescription": "Устранение мутабельного глобального синглтона с getInstance() в пользу чистой инжекции зависимостей.",
+    "instructionsMarkdown": "### Задание: Ликвидация антипаттерна Singleton\nВ сервисе `OrderService` конфигурация читается через глобальный мутабельный синглтон `AppConfig.getInstance()`. Это скрывает зависимости и блокирует параллельный запуск unit-тестов.\n\n#### Цель рефакторинга\n1. Удалите статический метод `getInstance()` и приватный конструктор из `AppConfig`.\n2. Внедрите `AppConfig` в `OrderService` через публичный конструктор (Dependency Injection).\n3. Обеспечьте изоляцию тестов.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/singleton/AppConfig.java",
+        "content": "package com.interview.patterns.singleton;\n\npublic class AppConfig {\n    private final double taxRate;\n\n    public AppConfig(double taxRate) {\n        this.taxRate = taxRate;\n    }\n\n    public double getTaxRate() {\n        return taxRate;\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/singleton/OrderService.java",
+        "content": "package com.interview.patterns.singleton;\n\npublic class OrderService {\n    private final AppConfig config;\n\n    public OrderService(AppConfig config) {\n        this.config = config;\n    }\n\n    public double calculateTotalWithTax(double subtotal) {\n        return subtotal * (1.0 + config.getTaxRate());\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/singleton/OrderServiceTest.java",
+        "content": "package com.interview.patterns.singleton;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\npublic class OrderServiceTest {\n    @Test\n    public void testOrderWithCustomTax() {\n        var config = new AppConfig(0.20);\n        var service = new OrderService(config);\n        assertEquals(120.0, service.calculateTotalWithTax(100.0), 0.001);\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "FACTORY_METHOD",
+      "categoryTier": "anti_patterns",
+      "antiPatternSmell": {
+        "name": "Mutable Singleton Anti-Pattern",
+        "description": "Глобальный доступ через getInstance(), скрывающий зависимости и ломающий параллельные тесты.",
+        "symptoms": ["Приватный конструктор + static getInstance()", "Невозможность замокать состояние в тестах"],
+        "riskImpact": "Flaky-тесты, невидимая связанность, утечки состояния между тестами."
+      },
+      "modernAlternativeTip": "Единственный легитимный синглтон — это DI Singleton Scope (Spring Bean).",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "Почему классический синглтон с приватным конструктором нарушает принцип тестируемости?",
+          "expectedTradeOffConsideration": "Глобальное состояние сохраняется между тестами, вызывая гонки и взаимное влияние при параллельном прогоне."
+        }
+      ],
+      "structuralConstraints": {
+        "disallowedConstructs": ["getInstance"],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "disallowedConstructs": ["getInstance"],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-04-STATE-ORDER-FSM",
+    "slug": "procedural-order-fsm-to-state-pattern",
+    "title": "Refactoring Procedural Order Status Cascade to State Pattern",
+    "taskCode": "DP-04",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "🔄 State Pattern",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 55,
+    "shortDescription": "Устранение 400-строчной лапши if/else и switch по статусу заказа в пользу полиморфной стейт-машины.",
+    "instructionsMarkdown": "### Задание: Рефакторинг процедурного автомата в паттерн State\nВ `OrderStateMachine` методы `pay()`, `ship()`, `cancel()` реализованы через процедурный `switch (status)` на сотни строк. Каждое изменение статуса требует правки десятка ветвей.\n\n#### Цель рефакторинга\n1. Создайте полиморфный интерфейс `OrderState` с методами жизненного цикла.\n2. Вынесите поведение каждого состояния (`PendingState`, `PaidState`, `ShippedState`) в отдельный класс.\n3. Избавьтесь от процедурного switch по статусу (`PROCEDURAL_STATE_SWITCH`).",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/state/OrderState.java",
+        "content": "package com.interview.patterns.state;\n\npublic interface OrderState {\n    void pay(OrderContext context);\n    void ship(OrderContext context);\n    void cancel(OrderContext context);\n    String getStatusName();\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/state/PendingState.java",
+        "content": "package com.interview.patterns.state;\n\npublic class PendingState implements OrderState {\n    public void pay(OrderContext context) {\n        context.setState(new PaidState());\n    }\n    public void ship(OrderContext context) {\n        throw new IllegalStateException(\"Cannot ship unpaid order\");\n    }\n    public void cancel(OrderContext context) {\n        context.setState(new CancelledState());\n    }\n    public String getStatusName() { return \"PENDING\"; }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/state/PaidState.java",
+        "content": "package com.interview.patterns.state;\n\npublic class PaidState implements OrderState {\n    public void pay(OrderContext context) {\n        throw new IllegalStateException(\"Order already paid\");\n    }\n    public void ship(OrderContext context) {\n        context.setState(new ShippedState());\n    }\n    public void cancel(OrderContext context) {\n        throw new IllegalStateException(\"Cannot cancel paid order directly\");\n    }\n    public String getStatusName() { return \"PAID\"; }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/state/ShippedState.java",
+        "content": "package com.interview.patterns.state;\n\npublic class ShippedState implements OrderState {\n    public void pay(OrderContext context) { throw new IllegalStateException(); }\n    public void ship(OrderContext context) { throw new IllegalStateException(); }\n    public void cancel(OrderContext context) { throw new IllegalStateException(); }\n    public String getStatusName() { return \"SHIPPED\"; }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/state/CancelledState.java",
+        "content": "package com.interview.patterns.state;\n\npublic class CancelledState implements OrderState {\n    public void pay(OrderContext context) { throw new IllegalStateException(); }\n    public void ship(OrderContext context) { throw new IllegalStateException(); }\n    public void cancel(OrderContext context) { throw new IllegalStateException(); }\n    public String getStatusName() { return \"CANCELLED\"; }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/state/OrderContext.java",
+        "content": "package com.interview.patterns.state;\n\npublic class OrderContext {\n    private OrderState state = new PendingState();\n\n    public void setState(OrderState state) {\n        this.state = state;\n    }\n\n    public OrderState getState() {\n        return state;\n    }\n\n    public void pay() { state.pay(this); }\n    public void ship() { state.ship(this); }\n    public void cancel() { state.cancel(this); }\n    public String getStatus() { return state.getStatusName(); }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/state/OrderStateTest.java",
+        "content": "package com.interview.patterns.state;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class OrderStateTest {\n    @Test\n    public void testLifecycle() {\n        var order = new OrderContext();\n        assertEquals(\"PENDING\", order.getStatus());\n        order.pay();\n        assertEquals(\"PAID\", order.getStatus());\n        order.ship();\n        assertEquals(\"SHIPPED\", order.getStatus());\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "STATE",
+      "categoryTier": "anti_patterns",
+      "antiPatternSmell": {
+        "name": "Procedural Status Switch Spaghetti",
+        "description": "500 строк switch (status) по всем методам сервиса с нарушением Open-Closed Principle.",
+        "symptoms": ["switch (status) дублируется в 5-10 методах", "сложно добавлять новые состояния"],
+        "riskImpact": "Баги при частичном обновлении веток switch, высокая цикломатическая сложность."
+      },
+      "modernAlternativeTip": "Паттерн State инкапсулирует переходы состояний внутри классов-состояний.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "В чем главное преимущество паттерна State перед процедурным switch при добавлении нового статуса REFUNDED?",
+          "expectedTradeOffConsideration": "Добавляется один изолированный класс RefundedState, существующие методы контекста не модифицируются (OCP)."
+        }
+      ],
+      "structuralConstraints": {
+        "disallowedConstructs": ["PROCEDURAL_STATE_SWITCH"],
+        "requiredKeywords": ["interface OrderState"],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "disallowedConstructs": ["PROCEDURAL_STATE_SWITCH"],
+      "requiredKeywords": ["interface OrderState"],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-05-HEXAGONAL-ADAPTER",
+    "slug": "hexagonal-adapter-sdk-decoupling",
+    "title": "Decoupling Third-Party SDK via Hexagonal Ports & Adapters",
+    "taskCode": "DP-05",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "🔌 Adapter Pattern",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 45,
+    "shortDescription": "Изоляция проприетарного SDK внешнего вендора через доменный порт NotificationPort и адаптер.",
+    "instructionsMarkdown": "### Задание: Адаптер в гексагональной архитектуре\nДоменный сервис оповещений напрямую зависит от вендорского SDK Telegram. Это привязывает домен к чужому API и делает невозможным тестирование без реального Telegram API.\n\n#### Цель рефакторинга\n1. Создайте чистый доменный порт `NotificationPort`.\n2. Реализуйте `TelegramNotificationAdapter`, инкапсулирующий работу со сторонним SDK.\n3. Защитите домен от вендорских типов данных.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/adapter/NotificationPort.java",
+        "content": "package com.interview.patterns.adapter;\n\npublic interface NotificationPort {\n    boolean send(String recipient, String message);\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/adapter/TelegramNotificationAdapter.java",
+        "content": "package com.interview.patterns.adapter;\n\npublic class TelegramNotificationAdapter implements NotificationPort {\n    public boolean send(String recipient, String message) {\n        // Encapsulate vendor protocol\n        return recipient != null && !recipient.isBlank() && message != null;\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/adapter/AlertService.java",
+        "content": "package com.interview.patterns.adapter;\n\npublic class AlertService {\n    private final NotificationPort notificationPort;\n\n    public AlertService(NotificationPort notificationPort) {\n        this.notificationPort = notificationPort;\n    }\n\n    public boolean triggerAlert(String target, String msg) {\n        return notificationPort.send(target, msg);\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/adapter/AlertServiceTest.java",
+        "content": "package com.interview.patterns.adapter;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertTrue;\n\npublic class AlertServiceTest {\n    @Test\n    public void testAlertWithAdapter() {\n        var adapter = new TelegramNotificationAdapter();\n        var service = new AlertService(adapter);\n        assertTrue(service.triggerAlert(\"@admin\", \"Critical CPU load!\"));\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "ADAPTER",
+      "categoryTier": "anti_patterns",
+      "antiPatternSmell": {
+        "name": "Tight Vendor SDK Coupling",
+        "description": "Прямой вызов стороннего вендорского SDK в доменных сервисах.",
+        "symptoms": ["Импорты сторонних SDK в домене", "Невозможность подменить транспорт в тестах"],
+        "riskImpact": "Vendor lock-in, невозможность изолированного тестирования."
+      },
+      "modernAlternativeTip": "Используйте Ports & Adapters (Hexagonal Architecture) для изоляции инфраструктурных зависимостей.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "В чем отличие Adapter от Facade и Decorator?",
+          "expectedTradeOffConsideration": "Adapter меняет интерфейс объекта, Facade упрощает работу с подсистемой, Decorator расширяет поведение того же интерфейса."
+        }
+      ],
+      "structuralConstraints": {
+        "requiredKeywords": ["interface NotificationPort"],
+        "disallowedConstructs": [],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": ["com.telegram.vendor.TelegramClient"],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "requiredKeywords": ["interface NotificationPort"],
+      "disallowedConstructs": [],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": ["com.telegram.vendor.TelegramClient"],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-06-SPRING-PROXY-SELF-INVOCATION",
+    "slug": "spring-aop-proxy-self-invocation-fix",
+    "title": "Fixing Spring AOP Proxy Self-Invocation Transaction Bypass",
+    "taskCode": "DP-06",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "🏛️ Spring Proxy",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 50,
+    "shortDescription": "Устранение потери транзакций и безопасности при внутреннем вызове this.method() в Spring AOP.",
+    "instructionsMarkdown": "### Задание: Ловушка Self-Invocation в Spring AOP Proxy\nВ `OrderProcessingService` метод `process()` вызывает внутренний приватный/публичный метод `updateAuditLog()` через `this.updateAuditLog()`. Аннотация `@Transactional` на целевом методе не срабатывает, так как вызов идет мимо CGLIB/JDK динамического прокси.\n\n#### Цель рефакторинга\n1. Вынесите аудит транзакций в отдельный бин-коллаборатор `AuditLogCollaborator`.\n2. Внедрите коллаборатор в `OrderProcessingService` для прохождения через Spring Proxy.\n3. Устраните прямой внутренний вызов `this.updateAuditLog()`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/proxy/AuditLogCollaborator.java",
+        "content": "package com.interview.patterns.proxy;\n\npublic class AuditLogCollaborator {\n    public void logAudit(String event) {\n        // Encapsulates transactional audit log via Spring Proxy\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/proxy/OrderProcessingService.java",
+        "content": "package com.interview.patterns.proxy;\n\npublic class OrderProcessingService {\n    private final AuditLogCollaborator auditLogger;\n\n    public OrderProcessingService(AuditLogCollaborator auditLogger) {\n        this.auditLogger = auditLogger;\n    }\n\n    public boolean processOrder(String orderId) {\n        auditLogger.logAudit(\"PROCESSED: \" + orderId);\n        return true;\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/proxy/OrderProcessingServiceTest.java",
+        "content": "package com.interview.patterns.proxy;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertTrue;\n\npublic class OrderProcessingServiceTest {\n    @Test\n    public void testProcessWithCollaborator() {\n        var collaborator = new AuditLogCollaborator();\n        var service = new OrderProcessingService(collaborator);\n        assertTrue(service.processOrder(\"ORD-101\"));\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "PROXY",
+      "categoryTier": "enterprise_gof",
+      "antiPatternSmell": {
+        "name": "Spring AOP Proxy Self-Invocation Bypass",
+        "description": "Внутренний вызов this.method() обходит прокси Spring, отключая транзакции, кеширование и безопасность.",
+        "symptoms": ["this.internalTransactionalMethod()", "@Transactional молча не открывает транзакцию"],
+        "riskImpact": "Потеря атомарности, грязные чтения, утечки безопасности."
+      },
+      "modernAlternativeTip": "Всегда выносите методы с аннотациями Spring AOP в отдельные сервисы-коллабораторы.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "Почему вызов this.method() в Spring бине не перехватывается аспектами (@Transactional, @Async, @Cacheable)?",
+          "expectedTradeOffConsideration": "Потому что вызов идет на чистый экземпляр объекта (raw target object), минуя CGLIB / JDK Dynamic Proxy."
+        }
+      ],
+      "structuralConstraints": {
+        "disallowedConstructs": ["this.updateAuditLog("],
+        "requiredKeywords": ["AuditLogCollaborator"],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "disallowedConstructs": ["this.updateAuditLog("],
+      "requiredKeywords": ["AuditLogCollaborator"],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  },
+  {
+    "id": "DP-07-DECORATOR-AUDIT",
+    "slug": "decorator-repository-cross-cutting-concerns",
+    "title": "Composing Cross-Cutting Concerns via Decorator Pattern",
+    "taskCode": "DP-07",
+    "category": "design_patterns",
+    "track": "design_patterns",
+    "badge": "🎭 Decorator Pattern",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS",
+    "estimatedMinutes": 50,
+    "shortDescription": "Декомпозиция репозитория с замерами метрик и логированием по принципу матрешки (Decorator).",
+    "instructionsMarkdown": "### Задание: Декоратор для сквозной функциональности\n`OrderRepositoryImpl` перегружен логированием и замерами времени, которые перемешаны с чистыми SQL-операциями.\n\n#### Цель рефакторинга\n1. Сохраните чистый `OrderRepositoryImpl` только для доступа к данным.\n2. Реализуйте `TimedOrderRepositoryDecorator`, оборачивающий интерфейс `OrderRepository`.\n3. Скомпонуйте их по принципу матрешки.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/interview/patterns/decorator/OrderRepository.java",
+        "content": "package com.interview.patterns.decorator;\n\npublic interface OrderRepository {\n    String findById(String id);\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/decorator/OrderRepositoryImpl.java",
+        "content": "package com.interview.patterns.decorator;\n\npublic class OrderRepositoryImpl implements OrderRepository {\n    public String findById(String id) {\n        return \"Order:\" + id;\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/main/java/com/interview/patterns/decorator/TimedOrderRepository.java",
+        "content": "package com.interview.patterns.decorator;\n\npublic class TimedOrderRepository implements OrderRepository {\n    private final OrderRepository delegate;\n\n    public TimedOrderRepository(OrderRepository delegate) {\n        this.delegate = delegate;\n    }\n\n    public String findById(String id) {\n        long start = System.nanoTime();\n        try {\n            return delegate.findById(id);\n        } finally {\n            long duration = System.nanoTime() - start;\n        }\n    }\n}\n",
+        "readOnly": false
+      },
+      {
+        "path": "src/test/java/com/interview/patterns/decorator/TimedOrderRepositoryTest.java",
+        "content": "package com.interview.patterns.decorator;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\npublic class TimedOrderRepositoryTest {\n    @Test\n    public void testDecoratorWrapping() {\n        OrderRepository repo = new TimedOrderRepository(new OrderRepositoryImpl());\n        assertEquals(\"Order:42\", repo.findById(\"42\"));\n    }\n}\n",
+        "readOnly": true
+      }
+    ],
+    "referenceSolutionFiles": [],
+    "designPatternContext": {
+      "targetPattern": "DECORATOR",
+      "categoryTier": "enterprise_gof",
+      "antiPatternSmell": {
+        "name": "Mixed Cross-Cutting Concerns",
+        "description": "Смешивание бизнес-логики репозитория с замерами метрик, кешем и логами в одном классе.",
+        "symptoms": ["Метрики и логи внутри каждого метода репозитория", "Нарушение Single Responsibility"],
+        "riskImpact": "Хрупкость кода, невозможность переиспользовать логику в чистом виде."
+      },
+      "modernAlternativeTip": "Используйте паттерн Decorator для динамического добавления обязанностей через обертку того же интерфейса.",
+      "socraticProbes": [
+        {
+          "id": "probe_01",
+          "question": "Чем Decorator отличается от Proxy и наследования?",
+          "expectedTradeOffConsideration": "Decorator оборачивает тот же интерфейс и расширяет поведение динамически, в то время как Proxy контролирует доступ к объекту."
+        }
+      ],
+      "structuralConstraints": {
+        "requiredKeywords": ["implements OrderRepository"],
+        "maxMethodLines": 25,
+        "disallowedConstructs": [],
+        "disallowedAstNodes": [],
+        "disallowedClassImports": [],
+        "disallowedFieldTypes": [],
+        "requiredInjections": []
+      }
+    },
+    "structuralConstraints": {
+      "requiredKeywords": ["implements OrderRepository"],
+      "maxMethodLines": 25,
+      "disallowedConstructs": [],
+      "disallowedAstNodes": [],
+      "disallowedClassImports": [],
+      "disallowedFieldTypes": [],
+      "requiredInjections": []
+    }
+  }
+]
