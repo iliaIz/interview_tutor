@@ -289,6 +289,7 @@ interface AppState {
   setLatestTxEvaluation: (res: ScenarioEvaluationResult | null) => void;
 
   openPracticeChallenge: (challenge: CodingChallenge, draftFiles?: FileNode[]) => void;
+  setPracticeWorkspaceFiles: (files: FileNode[]) => void;
   closePracticeChallenge: () => void;
   updateWorkspaceFileContent: (index: number, content: string) => void;
   setActiveWorkspaceFileIndex: (index: number) => void;
@@ -822,24 +823,42 @@ export const useAppStore = create<AppState>()(
       setLatestTxEvaluation: (res) => set({ latestTxEvaluation: res }),
 
       openPracticeChallenge: (challenge, draftFiles) => {
-        let filesToUse = (draftFiles && draftFiles.length > 0) ? draftFiles : null;
+        const canonicalFiles = (challenge.workspaceFiles && challenge.workspaceFiles.length > 0)
+          ? challenge.workspaceFiles
+          : (challenge.phases?.[0]?.addedFiles || []);
+
+        let rawDraft = (draftFiles && draftFiles.length > 0) ? draftFiles : null;
         let activeIndex = 0;
         let activePhase = 1;
 
-        if (!filesToUse) {
+        if (!rawDraft) {
           const localDraft = getLocalDraft(challenge.id);
           if (localDraft && localDraft.files && localDraft.files.length > 0) {
-            filesToUse = localDraft.files;
+            rawDraft = localDraft.files;
             activeIndex = localDraft.activeWorkspaceFileIndex ?? 0;
             activePhase = localDraft.activePhase ?? 1;
           }
         }
 
-        if (!filesToUse) {
-          filesToUse = (challenge.workspaceFiles && challenge.workspaceFiles.length > 0)
-            ? challenge.workspaceFiles
-            : (challenge.phases?.[0]?.addedFiles || []);
-          const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
+        // Reconcile draft against canonical manifest by file path
+        let filesToUse = canonicalFiles.map(f => ({ ...f }));
+        if (rawDraft && rawDraft.length > 0) {
+          const draftMap = new Map(rawDraft.filter(df => df && df.path).map(df => [df.path, df]));
+          const matchCount = canonicalFiles.filter(cf => draftMap.has(cf.path)).length;
+          // Only apply draft if at least one path matches; otherwise draft is completely stale/divergent
+          if (matchCount > 0) {
+            filesToUse = canonicalFiles.map(cf => {
+              const df = draftMap.get(cf.path);
+              if (df && !cf.readOnly && typeof df.content === 'string') {
+                return { ...cf, content: df.content };
+              }
+              return { ...cf };
+            });
+          }
+        }
+
+        const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
+        if (activeIndex >= filesToUse.length) {
           activeIndex = mainIndex >= 0 ? mainIndex : 0;
         }
         
@@ -857,6 +876,11 @@ export const useAppStore = create<AppState>()(
           practiceElapsedSeconds: 0
         });
       },
+
+      setPracticeWorkspaceFiles: (files) => set({
+        practiceWorkspaceFiles: files.map(f => ({ ...f })),
+        activeWorkspaceFileIndex: 0
+      }),
 
 
       closePracticeChallenge: () => set({

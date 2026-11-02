@@ -24,7 +24,8 @@ export function useWorkspaceRunner() {
     toggleAcademyStepProgress,
     setLatestSandboxResult,
     setLatestMutationResult,
-    updateWorkspaceFileContent
+    updateWorkspaceFileContent,
+    setPracticeWorkspaceFiles
   } = useAppStore();
 
   const autosave = useWorkspaceAutosave({
@@ -139,10 +140,8 @@ export function useWorkspaceRunner() {
     try {
       removeLocalDraft(activePracticeChallenge.id);
       await fetch(`/api/practice/reset/${activePracticeChallenge.id}`, { method: 'POST' });
-      const initialFiles = activePracticeChallenge.workspaceFiles || activePracticeChallenge.phases?.[0]?.addedFiles || [];
-      initialFiles.forEach((file, idx) => {
-        updateWorkspaceFileContent(idx, file.content);
-      });
+      const initialFiles = (activePracticeChallenge.workspaceFiles || activePracticeChallenge.phases?.[0]?.addedFiles || []).map(f => ({ ...f }));
+      setPracticeWorkspaceFiles(initialFiles);
       autosave.markClean();
 
       showToast({
