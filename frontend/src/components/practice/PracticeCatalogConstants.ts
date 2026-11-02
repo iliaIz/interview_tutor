@@ -19,6 +19,7 @@ export const FlameIcon = Flame;
 
 export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
+  { id: 'design_patterns', name: 'Design Patterns', icon: Layers, badge: '7 Katas (SOTA 2026)' },
   { id: 'refactoring_kata', name: 'Refactoring Arena', icon: Shield, badge: '24 Katas (L0–L3)' },
   { id: 'spring_transactions', name: 'Spring Transactions Lab', icon: Database, badge: 'SOTA 2026' },
   { id: 'testing_mutation', name: 'Testing & Mutation', icon: Bug, badge: '42 Katas (L0–L3)' },
@@ -26,6 +27,13 @@ export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.Comp
   { id: 'lld_fintech', name: 'FinTech & Ledger', icon: Crown, badge: 'Т-Банк/Stripe' },
   { id: 'lld_concurrency', name: 'Concurrency Lab', icon: Zap, badge: 'Loom/Threads' },
   { id: 'java21_idioms', name: 'Java 21 Idioms', icon: Sparkles }
+];
+
+export const DESIGN_PATTERNS_ARCHETYPES = [
+  { id: 'all', name: 'Все (7 кат)', badge: '🏆 Все паттерны', icon: Sparkles, match: [] },
+  { id: 'modern_alternatives', name: '⚡ Java 21 Replacements (2)', badge: '⚡ Idiomatic 2026', icon: Zap, match: ['dp_01', 'dp_02', 'sealed_visitor', 'lambda_strategy'] },
+  { id: 'anti_patterns', name: '🚫 Anti-Pattern Smells (3)', badge: '🚫 Smells & Traps', icon: Shield, match: ['dp_03', 'dp_04', 'dp_05', 'singleton_god', 'order_fsm', 'hexagonal_adapter'] },
+  { id: 'enterprise_gof', name: '🏛️ Enterprise Spring GoF (2)', badge: '🏛️ Spring AOP & DI', icon: Layers, match: ['dp_06', 'dp_07', 'spring_proxy', 'decorator_audit'] }
 ];
 
 export const TESTING_ARCHETYPES = [
@@ -50,6 +58,7 @@ export const REFACTORING_ARCHETYPES = [
 
 export function isChallengeInCategory(c: { category?: string; track?: string }, category: ChallengeCategory): boolean {
   if (category === 'all') return true;
+  if (category === 'design_patterns') return c.category === 'design_patterns' || c.track === 'design_patterns';
   if (category === 'refactoring_kata') return c.category === 'refactoring_kata' || c.track === 'refactoring';
   if (category === 'spring_transactions') return c.category === 'spring_transactions';
   if (category === 'testing_mutation') return c.category === 'testing_mutation' || c.track === 'testing_mutation';
@@ -66,6 +75,13 @@ export function isChallengeInArchetype(
   archetypeId: string
 ): boolean {
   if (archetypeId === 'all') return true;
+
+  if (category === 'design_patterns') {
+    const arch = DESIGN_PATTERNS_ARCHETYPES.find((a) => a.id === archetypeId);
+    if (!arch || arch.match.length === 0) return true;
+    const target = `${c.id} ${c.slug || ''} ${c.taskCode || ''}`.toLowerCase().replace(/-/g, '_');
+    return arch.match.some((m) => target.includes(m.toLowerCase().replace(/-/g, '_')));
+  }
 
   if (category === 'refactoring_kata') {
     const cid = (c.id || '').toLowerCase();

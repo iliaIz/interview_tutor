@@ -4,6 +4,7 @@ import {
   CATEGORIES,
   TESTING_ARCHETYPES,
   REFACTORING_ARCHETYPES,
+  DESIGN_PATTERNS_ARCHETYPES,
   StatusFilter
 } from './PracticeCatalogConstants';
 import {
@@ -250,6 +251,30 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
                 onClick={() => onSelectArchetype(arch.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
                   isSelected ? 'bg-amber-600 text-white shadow-xs' : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
+                }`}
+              >
+                <span>{arch.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Design Pattern Archetypes */}
+      {selectedCategory === 'design_patterns' && (
+        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+          <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-indigo-500" />
+            Паттерны:
+          </span>
+          {DESIGN_PATTERNS_ARCHETYPES.map((arch) => {
+            const isSelected = selectedArchetype === arch.id;
+            return (
+              <button
+                key={arch.id}
+                onClick={() => onSelectArchetype(arch.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  isSelected ? 'bg-indigo-600 text-white shadow-xs' : 'bg-pastel-bg text-pastel-muted hover:text-pastel-text hover:bg-white border border-pastel-border/60'
                 }`}
               >
                 <span>{arch.name}</span>
