@@ -146,7 +146,7 @@ export class RefactoringAstVerifier {
               });
             }
           } else if (construct === 'PROCEDURAL_STATE_SWITCH') {
-            if (/\bswitch\s*\(\s*(?:status|state|orderState|orderStatus)\b/i.test(cleanCode)) {
+            if (/\bswitch\s*\([^)]*(?:status|state)\b/i.test(cleanCode)) {
               violations.push({
                 rule: 'DISALLOWED_PROCEDURAL_SWITCH',
                 file: file.path,
