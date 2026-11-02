@@ -140,6 +140,16 @@ ${sandboxResult.testResults.map(t => `    <test name="${t.testName}" status="${t
 </real_sandbox_execution_proof>
 NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, Concurrency, and whether AST structural violations were resolved.` : '';
 
+  const dpContext = (challenge as any).designPatternContext;
+  const patternDirective = dpContext ? `
+7. ДИРЕКТИВА OVERENGINEERING SENTINEL (ДЛЯ ПАТТЕРНОВ ПРОЕКТИРОВАНИЯ):
+   - Целевой паттерн задачи: ${dpContext.targetPattern}
+   - Устраняемый антипаттерн / code smell: ${dpContext.antiPatternSmell?.name || 'Anti-Pattern'} (${dpContext.antiPatternSmell?.description || ''})
+   - Оцени, избавился ли кандидат от исходного запаха кода (мутабельный Singleton, процедурный switch, жесткое связывание).
+   - ШТРАФ ЗА ИЗБЫТОЧНОСТЬ (OVERENGINEERING): Если кандидат написал избыточный бойлерплейт из десятка классов там, где в Java 21 достаточно sealed interface + pattern matching switch, или где Strategy элегантно заменяется на Function<T, R> / лямбду, снижай architectureScore и объясняй это в summaryReview.
+   - СОКРАТИЧЕСКИЕ ВОПРОСЫ ПО ТРЕЙД-ОФФАМ: ${dpContext.socraticProbes?.map((p: any) => p.question).join('; ') || ''}
+` : '';
+
   // System instruction for Gemini Evaluator
   const systemInstruction = `${LANGUAGE_LOCK_INVARIANT}
 
@@ -169,6 +179,7 @@ ${ANTI_SYCOPHANCY_DIRECTIVES}
 6. Веса и итоговый балл:
    - Вычисли под-баллы (0-100) для correctness, concurrency, architecture, idioms.
    - overallScore = (0.35 * correctness) + (0.25 * concurrency) + (0.25 * architecture) + (0.15 * idioms).
+${patternDirective}
 
 OUTPUT FORMAT:
 Generate ONLY valid JSON adhering strictly to this JSON format:
