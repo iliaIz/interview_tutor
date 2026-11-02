@@ -94,7 +94,7 @@ router.get('/challenges/:id', (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const challengeId = req.params.id;
-    let row = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
+    let row = db.prepare('SELECT manifest_json, updated_at FROM coding_challenges WHERE id = ? OR slug = ?').get(challengeId, challengeId) as any;
 
     if (!row) {
       const txData = fetchSpringTransactionManifest(challengeId, userId);
@@ -105,6 +105,7 @@ router.get('/challenges/:id', (req, res) => {
     }
 
     const manifest: CodingChallenge = JSON.parse(row.manifest_json);
+    (manifest as any).updated_at = row.updated_at;
 
     // Check if user has an active draft
     const draftRow = db.prepare('SELECT files_json, active_phase, status, score, evaluation_json, time_spent_seconds FROM coding_submissions WHERE challenge_id = ? AND user_id = ?')
@@ -131,7 +132,8 @@ router.get('/challenges/:id', (req, res) => {
       savedDraft: draftFiles,
       activePhase,
       lastEvaluation,
-      timeSpentSeconds
+      timeSpentSeconds,
+      updatedAt: row.updated_at
     });
   } catch (err: any) {
     console.error('Error fetching challenge by ID:', err);
