@@ -75,16 +75,27 @@ export class RefactoringAstVerifier {
           }
         }
 
-        // Check 2: Disallowed Class Imports (e.g. ThreadLocal or legacy javax.*)
+        // Check 2: Disallowed Class Imports (e.g. ThreadLocal or legacy javax.*, optionally file-scoped 'TargetFile:import.path')
         for (const disallowedImport of disallowedClassImports) {
-          const importPattern = new RegExp(`\\bimport\\s+${disallowedImport.replace('*', '.*')}`);
-          if (importPattern.test(cleanCode) || (disallowedImport === 'java.lang.ThreadLocal' && /\bThreadLocal\s*</.test(cleanCode))) {
+          let targetFileFilter: string | null = null;
+          let importName = disallowedImport;
+          if (disallowedImport.includes(':')) {
+            const parts = disallowedImport.split(':');
+            targetFileFilter = parts[0];
+            importName = parts[1];
+          }
+          if (targetFileFilter && !file.path.includes(targetFileFilter)) {
+            continue;
+          }
+
+          const importPattern = new RegExp(`\\bimport\\s+${importName.replace('*', '.*')}`);
+          if (importPattern.test(cleanCode) || (importName === 'java.lang.ThreadLocal' && /\bThreadLocal\s*</.test(cleanCode))) {
             violations.push({
               rule: 'DISALLOWED_IMPORT',
               file: file.path,
               lineNumber: lineNum,
               snippet: line.trim(),
-              message: `Использование ${disallowedImport} запрещено архитектурным контрактом задачи (миграция на ScopedValue / jakarta.*).`
+              message: `Использование ${importName} запрещено ${targetFileFilter ? `в ${targetFileFilter}` : ''} архитектурным контрактом задачи (миграция на ScopedValue / Hexagonal Port / jakarta.*).`
             });
           }
         }
@@ -153,6 +164,22 @@ export class RefactoringAstVerifier {
                 lineNumber: lineNum,
                 snippet: line.trim(),
                 message: 'Обнаружен процедурный switch по статусу/состоянию. Замените на полиморфный паттерн State (каждое состояние инкапсулирует свое поведение).'
+              });
+            }
+          } else {
+            // General construct / identifier / call pattern check (e.g. ExpressionVisitor, PaymentStrategy, this.updateAuditLog)
+            const isIdentifier = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(construct);
+            const pattern = isIdentifier
+              ? new RegExp(`\\b${construct}\\b`)
+              : new RegExp(construct.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+            if (pattern.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_CONSTRUCT',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: `Использование '${construct}' запрещено архитектурным контрактом задачи.`
               });
             }
           }

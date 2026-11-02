@@ -1,4 +1,6 @@
 import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
 import { RefactoringAstVerifier } from '../services/sandbox/RefactoringAstVerifier';
 
 console.log('========================================================================');
@@ -163,5 +165,86 @@ const res5 = RefactoringAstVerifier.verify(
 assert.strictEqual(res5.passed, true, 'Compliant modern code must pass');
 assert.strictEqual(res5.violations.length, 0, 'Must have zero violations');
 console.log('✅ Test 5 Passed: Compliant modern Java 21 code passes with 0 violations');
+
+// 6. Targeted File-Scoped Disallowed Import
+console.log('\n--- 6. Testing Targeted File-Scoped Disallowed Import ---');
+const serviceCode = `
+package com.example;
+import com.vendor.RawClient;
+public class AlertService {}
+`;
+const adapterCode = `
+package com.example;
+import com.vendor.RawClient;
+public class AlertAdapter {}
+`;
+const res6Service = RefactoringAstVerifier.verify(
+  [{ path: 'src/main/java/com/example/AlertService.java', content: serviceCode }],
+  {
+    disallowedClassImports: ['AlertService:com.vendor.RawClient'],
+    disallowedConstructs: [],
+    disallowedAstNodes: [],
+    disallowedFieldTypes: [],
+    requiredInjections: []
+  }
+);
+assert.strictEqual(res6Service.passed, false, 'AlertService importing RawClient must fail');
+
+const res6Adapter = RefactoringAstVerifier.verify(
+  [{ path: 'src/main/java/com/example/AlertAdapter.java', content: adapterCode }],
+  {
+    disallowedClassImports: ['AlertService:com.vendor.RawClient'],
+    disallowedConstructs: [],
+    disallowedAstNodes: [],
+    disallowedFieldTypes: [],
+    requiredInjections: []
+  }
+);
+assert.strictEqual(res6Adapter.passed, true, 'AlertAdapter importing RawClient must pass (targeted to AlertService)');
+console.log('✅ Test 6 Passed: File-scoped import restriction accurately isolates domain service from adapter');
+
+// 7. General Disallowed Construct Pattern
+console.log('\n--- 7. Testing General Disallowed Construct Pattern ---');
+const strategyCode = `
+package com.example;
+public interface PaymentStrategy { void pay(); }
+`;
+const res7 = RefactoringAstVerifier.verify(
+  [{ path: 'src/main/java/com/example/PaymentStrategy.java', content: strategyCode }],
+  {
+    disallowedConstructs: ['PaymentStrategy'],
+    disallowedAstNodes: [],
+    disallowedClassImports: [],
+    disallowedFieldTypes: [],
+    requiredInjections: []
+  }
+);
+assert.strictEqual(res7.passed, false, 'PaymentStrategy construct must be rejected');
+assert.ok(res7.violations.some(v => v.rule === 'DISALLOWED_CONSTRUCT'), 'Must flag DISALLOWED_CONSTRUCT');
+console.log('✅ Test 7 Passed: General construct pattern rejected properly');
+
+// 8. Full Design Pattern Catalog Verification
+console.log('\n--- 8. Verifying all Design Pattern Katas in Catalog ---');
+
+const catalogPath = path.resolve(__dirname, '../../../json/design_patterns_challenges.json');
+if (fs.existsSync(catalogPath)) {
+  const challenges = JSON.parse(fs.readFileSync(catalogPath, 'utf-8'));
+  for (const ch of challenges) {
+    const wsRes = RefactoringAstVerifier.verify(ch.workspaceFiles, ch.structuralConstraints);
+    assert.strictEqual(
+      wsRes.passed,
+      false,
+      `Kata ${ch.id} initial workspaceFiles MUST fail AST verification (must contain smells to refactor)`
+    );
+
+    const refRes = RefactoringAstVerifier.verify(ch.referenceSolutionFiles, ch.structuralConstraints);
+    assert.strictEqual(
+      refRes.passed,
+      true,
+      `Kata ${ch.id} referenceSolutionFiles MUST cleanly pass AST verification: ${JSON.stringify(refRes.violations)}`
+    );
+  }
+  console.log(`✅ Test 8 Passed: All ${challenges.length} Design Pattern Katas strictly enforce initial smells & clean reference solutions`);
+}
 
 console.log('\n🎉 ALL REFACTORING AST VERIFIER TESTS PASSED DETERMINISTICALLY!');
