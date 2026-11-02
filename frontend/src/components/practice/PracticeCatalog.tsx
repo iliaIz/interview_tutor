@@ -139,11 +139,14 @@ export const PracticeCatalog: React.FC = () => {
       const data = await res.json();
       const localDraft = getLocalDraft(challengeId);
       const serverDraft = data.savedDraft;
+      const serverEpoch = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
       let effectiveDraft = null;
       let isRestored = false;
 
-      if (localDraft && serverDraft && serverDraft.length > 0) {
-        const serverEpoch = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+      // Discard stale local draft if challenge was updated on server after local draft was created
+      if (localDraft && serverEpoch > 0 && localDraft.updatedAt < serverEpoch) {
+        removeLocalDraft(challengeId);
+      } else if (localDraft && serverDraft && serverDraft.length > 0) {
         effectiveDraft = localDraft.updatedAt >= serverEpoch ? localDraft.files : serverDraft;
         isRestored = true;
       } else if (localDraft?.files?.length) {

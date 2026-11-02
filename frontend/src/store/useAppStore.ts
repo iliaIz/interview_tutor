@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { CodingChallenge, FileNode, EvaluationResult, SandboxExecutionResponse, MutationExecutionResponse } from '../types/practice';
 import { ScenarioEvaluationResult } from '../types/transactionLab';
 import { SystemDesignScenario, ProductionIncident, RoadmapStep } from '../types/nextgen';
-import { getLocalDraft } from '../services/practiceDraftStorage';
+import { getLocalDraft, removeLocalDraft } from '../services/practiceDraftStorage';
 
 export interface Question {
   id: string;
@@ -833,10 +833,15 @@ export const useAppStore = create<AppState>()(
 
         if (!rawDraft) {
           const localDraft = getLocalDraft(challenge.id);
+          const challengeUpdatedEpoch = (challenge as any).updated_at ? new Date((challenge as any).updated_at).getTime() : 0;
           if (localDraft && localDraft.files && localDraft.files.length > 0) {
-            rawDraft = localDraft.files;
-            activeIndex = localDraft.activeWorkspaceFileIndex ?? 0;
-            activePhase = localDraft.activePhase ?? 1;
+            if (challengeUpdatedEpoch === 0 || localDraft.updatedAt >= challengeUpdatedEpoch) {
+              rawDraft = localDraft.files;
+              activeIndex = localDraft.activeWorkspaceFileIndex ?? 0;
+              activePhase = localDraft.activePhase ?? 1;
+            } else {
+              removeLocalDraft(challenge.id);
+            }
           }
         }
 
