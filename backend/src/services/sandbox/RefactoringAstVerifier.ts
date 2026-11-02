@@ -114,8 +114,19 @@ export class RefactoringAstVerifier {
           }
         }
 
-        // Check 4: Disallowed Constructs (e.g. getInstance singleton, procedural state switch, Thread.sleep)
-        for (const construct of disallowedConstructs) {
+        // Check 4: Disallowed Constructs (e.g. getInstance singleton, procedural state switch, Thread.sleep, optionally 'TargetFile:construct')
+        for (const rawConstruct of disallowedConstructs) {
+          let targetFileFilter: string | null = null;
+          let construct = rawConstruct;
+          if (rawConstruct.includes(':')) {
+            const parts = rawConstruct.split(':');
+            targetFileFilter = parts[0];
+            construct = parts[1];
+          }
+          if (targetFileFilter && !file.path.includes(targetFileFilter)) {
+            continue;
+          }
+
           if (construct === 'getInstance' || construct === 'SINGLETON_INSTANCE' || construct === 'getInstance()') {
             if (/\b(?:public\s+static\s+\w+\s+)?getInstance\s*\(/.test(cleanCode)) {
               violations.push({

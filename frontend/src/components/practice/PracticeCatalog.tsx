@@ -154,6 +154,14 @@ export const PracticeCatalog: React.FC = () => {
         isRestored = true;
       }
 
+      // Invalidate draft if file paths do not match current challenge manifest
+      const canonicalPaths = new Set(((data.challenge?.workspaceFiles) || []).map((f: any) => f.path));
+      if (effectiveDraft && !effectiveDraft.some((df: any) => canonicalPaths.has(df.path))) {
+        effectiveDraft = null;
+        isRestored = false;
+        removeLocalDraft(challengeId);
+      }
+
       openPracticeChallenge(data.challenge, effectiveDraft);
       if (isRestored) {
         showToast({ type: 'info', title: 'Черновик восстановлен', message: 'Восстановлен незавершенный код задачи.' });
