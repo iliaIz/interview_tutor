@@ -2,9 +2,10 @@ import { AstBytecodeConstraint } from '@interview-prep/shared';
 
 /**
  * RefactoringAstVerifier.ts
- * Gate 2: In-Memory AST Structural Verifier for Refactoring Katas.
+ * Gate 2: In-Memory AST Structural Verifier for Refactoring & Design Pattern Katas.
  * Validates that candidate didn't just 'make tests pass' but actually
- * eliminated architectural smells (e.g. synchronized in Loom, double in Money, ThreadLocal).
+ * eliminated architectural smells (e.g. synchronized in Loom, double in Money,
+ * mutable Singletons, procedural status switches, or missing sealed/record idioms).
  * Cognitive bounding limit: <= 350 lines (Rule 8).
  */
 
@@ -38,7 +39,10 @@ export class RefactoringAstVerifier {
       disallowedAstNodes = [],
       disallowedClassImports = [],
       disallowedFieldTypes = [],
-      requiredInjections = []
+      requiredInjections = [],
+      disallowedConstructs = [],
+      requiredKeywords = [],
+      maxMethodLines
     } = constraints;
 
     // Filter to main source files (ignore test files for structural domain rules)
@@ -98,9 +102,64 @@ export class RefactoringAstVerifier {
             });
           }
         }
+
+        // Check 4: Disallowed Constructs (e.g. getInstance singleton, procedural state switch, Thread.sleep)
+        for (const construct of disallowedConstructs) {
+          if (construct === 'getInstance' || construct === 'SINGLETON_INSTANCE' || construct === 'getInstance()') {
+            if (/\b(?:public\s+static\s+\w+\s+)?getInstance\s*\(/.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_SINGLETON_CONSTRUCT',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: 'Обнаружен метод/вызов getInstance(). Использование мутабельного Singleton является антипаттерном. Используйте внедрение зависимостей через Spring DI.'
+              });
+            }
+          } else if (construct === 'synchronized') {
+            if (/\bsynchronized\s*[\({]/.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_SYNCHRONIZED_CONSTRUCT',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: 'Использование synchronized запрещено. Применяйте ReentrantLock или Concurrent структуры данных.'
+              });
+            }
+          } else if (construct === 'Thread.sleep') {
+            if (/\bThread\.sleep\s*\(/.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_THREAD_SLEEP',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: 'Использование Thread.sleep запрещено в неблокирующей архитектуре.'
+              });
+            }
+          } else if (construct === 'System.currentTimeMillis') {
+            if (/\bSystem\.currentTimeMillis\s*\(/.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_SYSTEM_TIME',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: 'Прямой вызов System.currentTimeMillis() запрещен. Внедряйте java.time.Clock через конструктор.'
+              });
+            }
+          } else if (construct === 'PROCEDURAL_STATE_SWITCH') {
+            if (/\bswitch\s*\([^)]*(?:status|state)\b/i.test(cleanCode)) {
+              violations.push({
+                rule: 'DISALLOWED_PROCEDURAL_SWITCH',
+                file: file.path,
+                lineNumber: lineNum,
+                snippet: line.trim(),
+                message: 'Обнаружен процедурный switch по статусу/состоянию. Замените на полиморфный паттерн State (каждое состояние инкапсулирует свое поведение).'
+              });
+            }
+          }
+        }
       }
 
-      // Check 4: Required Injections (e.g. java.time.Clock injection into service)
+      // Check 5: Required Injections (e.g. java.time.Clock injection into service)
       for (const requiredType of requiredInjections) {
         const typeSimpleName = requiredType.split('.').pop() || requiredType;
         const hasInjection = new RegExp(`\\b${typeSimpleName}\\b`).test(file.content);
@@ -114,11 +173,75 @@ export class RefactoringAstVerifier {
           });
         }
       }
+
+      // Check 6: Max Method Lines
+      if (maxMethodLines && maxMethodLines > 0) {
+        this.checkMethodLengths(file, lines, maxMethodLines, violations);
+      }
+    }
+
+    // Check 7: Required Keywords (e.g. sealed interface, permits, record across all source files)
+    if (requiredKeywords && requiredKeywords.length > 0 && sourceFiles.length > 0) {
+      const allContent = sourceFiles.map(f => f.content).join('\n');
+      for (const kw of requiredKeywords) {
+        const pattern = new RegExp(`\\b${kw.replace(/\s+/g, '\\s+')}\\b`);
+        if (!pattern.test(allContent)) {
+          violations.push({
+            rule: 'MISSING_REQUIRED_KEYWORD',
+            file: sourceFiles[0].path,
+            lineNumber: 1,
+            snippet: kw,
+            message: `Решение обязано использовать идиому Java 21 '${kw}' согласно архитектурному контракту задачи.`
+          });
+        }
+      }
     }
 
     return {
       passed: violations.length === 0,
       violations
     };
+  }
+
+  private static checkMethodLengths(
+    file: { path: string },
+    lines: string[],
+    maxLines: number,
+    violations: AstViolation[]
+  ): void {
+    let currentMethodName: string | null = null;
+    let methodStartLine = 0;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const clean = line.replace(/\/\/.*$/, '').replace(/"(?:\\.|[^"\\])*"/g, '""');
+
+      const methodMatch = /(?:public|protected|private)\s+(?:static\s+)?(?:final\s+)?[\w<>[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\{/.exec(clean);
+      if (methodMatch && braceDepth === 1) {
+        currentMethodName = methodMatch[1];
+        methodStartLine = i + 1;
+      }
+
+      for (const char of clean) {
+        if (char === '{') braceDepth++;
+        else if (char === '}') {
+          braceDepth--;
+          if (braceDepth === 1 && currentMethodName) {
+            const length = (i + 1) - methodStartLine;
+            if (length > maxLines) {
+              violations.push({
+                rule: 'METHOD_LENGTH_EXCEEDED',
+                file: file.path,
+                lineNumber: methodStartLine,
+                snippet: `${currentMethodName}() [${length} lines]`,
+                message: `Метод '${currentMethodName}' превышает максимальный лимит в ${maxLines} строк (${length} строк). Декомпозируйте логику.`
+              });
+            }
+            currentMethodName = null;
+          }
+        }
+      }
+    }
   }
 }

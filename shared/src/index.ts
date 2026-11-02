@@ -1,5 +1,6 @@
 export * from './schemas/manifest';
 export * from './schemas/refactoringManifest';
+export * from './schemas/designPatternManifest';
 export * from './schemas/telemetry';
 export * from './schemas/voiceEvents';
 export * from './schemas/hrSimulator';

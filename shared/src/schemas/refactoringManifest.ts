@@ -71,7 +71,10 @@ export const AstBytecodeConstraintSchema = Type.Object({
   disallowedAstNodes: Type.Array(Type.String(), { default: [] }),
   disallowedClassImports: Type.Array(Type.String(), { default: [] }),
   disallowedFieldTypes: Type.Array(Type.String(), { default: [] }),
-  requiredInjections: Type.Array(Type.String(), { default: [] })
+  requiredInjections: Type.Array(Type.String(), { default: [] }),
+  disallowedConstructs: Type.Optional(Type.Array(Type.String(), { default: [] })),
+  requiredKeywords: Type.Optional(Type.Array(Type.String(), { default: [] })),
+  maxMethodLines: Type.Optional(Type.Integer({ minimum: 5 }))
 });
 export type AstBytecodeConstraint = Static<typeof AstBytecodeConstraintSchema>;
 

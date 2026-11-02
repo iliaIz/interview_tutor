@@ -25,6 +25,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **06** | **Machine Coding & LLD** | [`06_MACHINE_CODING_AND_LLD.md`](file:///d:/projects/interview_projects/spring/docs/architecture/specs/06_MACHINE_CODING_AND_LLD.md) | AST rules: `enforce-clock-injection`, `no-double-in-money`, deadlock-free lock order |
 | **07** | **Guided Academy Studio** | [`07_GUIDED_ACADEMY_AND_FSRS5.md`](file:///d:/projects/interview_projects/spring/docs/architecture/specs/07_GUIDED_ACADEMY_AND_FSRS5.md) | FSRS-5 17-weight memory model, 8-track curricular DAG (177 nodes), NBA scheduler |
 | **08** | **StudyDeck & Audio Podcasts** | [`08_STUDYDECK_AND_AUDIO_PODCASTS.md`](file:///d:/projects/interview_projects/spring/docs/architecture/specs/08_STUDYDECK_AND_AUDIO_PODCASTS.md) | Two-host dialogue generation, Gemini TTS multi-voice synthesis, lock-screen MediaSession |
+| **09** | **Design Patterns Practice Arena** | [`09_DESIGN_PATTERNS_PRACTICE_ARENA.md`](file:///home/djelu/projects/interview_tutor/docs/architecture/specs/09_DESIGN_PATTERNS_PRACTICE_ARENA.md) | SOTA 2026 GoF revision, Anti-pattern refactoring, AST structural invariants, Overengineering Sentinel |
 
 ---
 

@@ -275,6 +275,58 @@ export function seedNextGenCatalogs(db: Database.Database) {
       syncTx(txScenarios);
       console.log(`✅ Seeded ${txScenarios.length} Spring Transaction scenarios into SQLite`);
     }
+
+    // 5. Design Patterns Katas
+    const dpPath = resolveJsonPath('design_patterns_challenges.json');
+    if (dpPath) {
+      const dpChallenges = JSON.parse(fs.readFileSync(dpPath, 'utf-8'));
+      const upsertDp = db.prepare(`
+        INSERT INTO coding_challenges (
+          id, slug, title, category, track, badge, difficulty, target_stack,
+          time_limit_minutes, short_description, instructions_markdown, manifest_json, task_code, updated_at
+        ) VALUES (
+          @id, @slug, @title, @category, @track, @badge, @difficulty, @target_stack,
+          @time_limit_minutes, @short_description, @instructions_markdown, @manifest_json, @task_code, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          slug = excluded.slug,
+          title = excluded.title,
+          category = excluded.category,
+          track = excluded.track,
+          badge = excluded.badge,
+          difficulty = excluded.difficulty,
+          target_stack = excluded.target_stack,
+          time_limit_minutes = excluded.time_limit_minutes,
+          short_description = excluded.short_description,
+          instructions_markdown = excluded.instructions_markdown,
+          manifest_json = excluded.manifest_json,
+          task_code = excluded.task_code,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const syncDp = db.transaction((items: any[]) => {
+        let idx = 1;
+        for (const ch of items) {
+          const taskCode = ch.taskCode || `DP-${String(idx++).padStart(2, '0')}`;
+          upsertDp.run({
+            id: ch.id,
+            slug: ch.slug || ch.id,
+            title: ch.title,
+            category: 'design_patterns',
+            track: 'design_patterns',
+            badge: ch.badge || '🏛️ Design Patterns',
+            difficulty: ch.difficulty || 'Middle',
+            target_stack: ch.targetStack || 'Java 21 LTS',
+            time_limit_minutes: ch.estimatedMinutes || 45,
+            short_description: ch.shortDescription || ch.title,
+            instructions_markdown: ch.instructionsMarkdown || '',
+            manifest_json: JSON.stringify(ch),
+            task_code: taskCode
+          });
+        }
+      });
+      syncDp(dpChallenges);
+      console.log(`✅ Seeded ${dpChallenges.length} SOTA 2026 Design Pattern Katas into SQLite`);
+    }
   } catch (err) {
     console.error('Error seeding Next-Gen catalogs:', err);
   }

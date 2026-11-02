@@ -149,6 +149,29 @@ export const ChallengeSpecPanel: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs leading-relaxed custom-scrollbar">
         {activeTab === 'spec' && (
           <div className="space-y-4">
+            {challenge.designPatternContext && (
+              <div className="p-3.5 rounded-2xl bg-indigo-50/90 border border-indigo-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    Целевой паттерн: {challenge.designPatternContext.targetPattern}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    {challenge.designPatternContext.categoryTier === 'modern_alternatives' ? '⚡ Java 21' : challenge.designPatternContext.categoryTier === 'anti_patterns' ? '🚫 Anti-Pattern' : '🏛️ Spring GoF'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-indigo-950 font-medium">
+                  <span className="font-bold text-rose-700">Устраняемый запах: </span>
+                  {challenge.designPatternContext.antiPatternSmell.name} — {challenge.designPatternContext.antiPatternSmell.description}
+                </div>
+                {challenge.designPatternContext.modernAlternativeTip && (
+                  <div className="text-[11px] text-emerald-800 bg-emerald-50/90 p-2 rounded-xl border border-emerald-200/80">
+                    <span className="font-bold">💡 SOTA 2026 Идиома: </span>
+                    {challenge.designPatternContext.modernAlternativeTip}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="prose prose-xs max-w-none text-pastel-text prose-headings:text-pastel-text prose-strong:text-pastel-text prose-code:text-pastel-accentViolet prose-code:bg-pastel-bg prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
               <ReactMarkdown>{challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''}</ReactMarkdown>
             </div>

@@ -45,7 +45,7 @@ export class ChallengeEvaluationPipeline {
     // Gate 1: JVM_UNIT_TESTS
     yield { gate: 'JVM_UNIT_TESTS', status: 'RUNNING', progressPercent: 10, timestamp: Date.now() };
 
-    const isRefactoring = manifest?.category === 'refactoring_kata';
+    const isRefactoring = manifest?.category === 'refactoring_kata' || manifest?.category === 'design_patterns';
     let sandboxResult: SandboxExecutionResponse;
     try {
       sandboxResult = await JvmExecutionService.execute({ challengeId, files, activePhase, isRefactoring });
@@ -88,7 +88,7 @@ export class ChallengeEvaluationPipeline {
 
     // Gate 2: AST_INVARIANTS
     yield { gate: 'AST_INVARIANTS', status: 'RUNNING', progressPercent: 30, timestamp: Date.now() };
-    const constraints = (input as any).structuralConstraints || (manifest as any)?.structuralConstraints;
+    const constraints = (input as any).structuralConstraints || (manifest as any)?.structuralConstraints || (manifest as any)?.designPatternContext?.structuralConstraints;
     const astResult = RefactoringAstVerifier.verify(files, constraints);
     const astViolations: EvaluationAstViolation[] = (astResult.violations || []).map(v => ({
       rule: v.rule, line: v.lineNumber, message: `${v.message} (${v.file}:${v.lineNumber})`

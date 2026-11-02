@@ -17,6 +17,32 @@
 - **Time Virtualization Invariant:** Prohibition of `System.currentTimeMillis()`, `Instant.now()`, or `LocalDate.now()` in business logic, mandating constructor injection of `java.time.Clock`.
 - **Financial Precision Invariant:** Strict mandate of `java.math.BigDecimal` with explicit scale and `HALF_EVEN` rounding in financial domains, blocking `double` and `float`.
 
+### Software Design & Pattern Architecture
+
+### Design Pattern Kata
+A structured programming exercise focused on eliminating an architectural code smell or anti-pattern by applying an idiomatic design pattern (GoF classic or modern language-native replacement).
+- **Avoid**: Toy kata, theoretical quiz, boilerplate challenge
+- **Durable Owner**: `practice-service` (persisted in challenges catalog)
+- **Invariants**: Must start with a compiling baseline containing verified architectural smells; public behavioral contracts verified by unit tests must remain green across refactoring; must specify deterministic structural AST verification constraints.
+
+### Anti-Pattern Refactoring Seam
+A bounded coupling point in existing codebase logic (such as procedural branch cascades, tight vendor SDK coupling, or mutable global state) targeted for polymorphic decoupling without breaking public contracts.
+- **Avoid**: Greenfield rewrite, patch, quick fix
+- **Durable Owner**: `practice-service` (persisted in kata manifest)
+- **Invariants**: Must preserve external method signatures and return types; must eliminate targeted smell without introducing cascading contract breaks.
+
+### Structural AST Invariant
+A deterministic compile-time syntax rule asserting that candidate code adheres to a specific architectural shape (such as delegation over inheritance, sealed type matching, or port-adapter boundary) rather than mimicking behavior via procedural shortcuts.
+- **Avoid**: Heuristic lint, regex check, manual code inspection
+- **Durable Owner**: `sandbox-execution-service` (evaluated in Gate 2)
+- **Invariants**: Pure in-memory AST verification (<5ms execution); zero network calls; failure halts evaluation before LLM judging.
+
+### Overengineering Sentinel
+An evaluation check and Socratic AI prompt penalizing unnecessary pattern complexity where simpler language features provide superior readability and performance.
+- **Avoid**: Dogmatic pattern enforcement, pattern zealotry
+- **Durable Owner**: `ai-tutor-service` (prompt directives and rubric scorecards)
+- **Invariants**: Must reward language-native primitives (lambdas, records, pattern matching) over multi-class GoF hierarchies when functional requirements do not justify polymorphism.
+
 ### Live Session & Transport
 - **LiveSessionAggregate:** An encapsulated domain entity managing the lifecycle of a real-time multimodal session (watchdog timers, upstream Gemini WebSocket, downstream client WebSocket, state machine).
 - **Anemic Data Bag:** An anti-pattern where an object exposes 50+ mutable public fields without encapsulation or invariant protection (e.g., legacy `ProxySession`).
