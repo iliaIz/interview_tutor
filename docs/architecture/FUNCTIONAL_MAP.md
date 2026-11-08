@@ -82,7 +82,24 @@
   - Оформление постмортема с оценкой времени локализации (MTTM) и устранения (MTTR).
   - Triage Heuristic Compass (`TriageCompassSheet.tsx`, шорткат `Ctrl + /`).
 
-### 2.7. Сквозные Глобальные Сервисы
+### 2.7. Студия Целевой Подготовки в Компании (`currentStudioTab === 'companies'`)
+- **Где находится:** `frontend/src/components/companies/` и `frontend/src/components/sql/`
+- **Функции:**
+  - Профиль компании и досье (`CompanyDossierTab.tsx`): 9 блоков компетенций Product Engineer, Red/Green флаги, метрики (TTM, Pain Index).
+  - Сквозной пайплайн этапов найма (`CompanyPipelineTab.tsx`): отборочный тур, Live Coding, Code Review, SQL, System Design, Take-Home.
+  - Экспресс-ранбук 24ч (`CompanyRunbookTab.tsx`): 4-минутный STAR-питч, памятка по тесту Talent Q / SHL, матрица «Симптом vs Причина».
+  - In-Browser PostgreSQL 16 песочница (`SqlArena.tsx`): исполнение реальных SQL-запросов на WebAssembly PGlite с 0 MB нагрузки на сервер VPS.
+  - Калькулятор готовности кандидата к планке компании (Company Readiness Index — CRI).
+
+### 2.8. Сквозной AI-Напарник (Omnipresent Contextual Copilot)
+- **Где находится:** `frontend/src/components/practice/tutor/` (`TutorDrawer.tsx`), `store/usePracticeTutorStore.ts`
+- **Функции:**
+  - Единый сквозной AI-ассистент, динамически получающий контекст активного экрана (Практика, SQL Арена, Студия Компании, Триаж).
+  - Сократическая лестница подсказок (L1 Намёк $\to$ L2 Архитектурный каркас $\to$ L3 Глубокий разбор инварианта) без преждевременного слива решений.
+  - Динамические быстрые действия (Quick-Action Chips) под домен задачи (SQL ловушки, STAR-кейсы, дедлоки, разбор тестового задания).
+  - Потоковый стриминг SSE через LiteLLM Proxy с отменой по AbortController.
+
+### 2.9. Сквозные Глобальные Сервисы
 - **Голосовой AI-Интервьюер (`VoiceModal.tsx`):**
   - Подключение по WebSocket к `/ws/live` $\rightarrow$ `litellm-gateway:4000`.
   - Канонический протокол Gemini Live (двусторонний PCM, Auto-VAD, тактильный barge-in).
