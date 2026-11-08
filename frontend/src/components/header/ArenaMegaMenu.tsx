@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useAppStore, StudioTab } from '../../store/useAppStore';
-import { Layers, Code2, Bug, Terminal, Zap, ChevronDown, Check, ArrowRight, UserCheck } from 'lucide-react';
+import { Layers, Code2, Bug, Terminal, Zap, ChevronDown, Check, ArrowRight, UserCheck, Building2 } from 'lucide-react';
 
 interface ArenaItem {
   id: StudioTab;
@@ -104,6 +104,23 @@ const engineeringArenas: ArenaItem[] = [
       activeBorder: 'border-pink-400',
       activeBg: 'bg-pink-50/80',
       badgeStyle: 'bg-pink-100 text-pink-800 border-pink-200'
+    }
+  },
+  {
+    id: 'companies',
+    title: 'Целевая Подготовка (Компании)',
+    shortLabel: 'Компании',
+    description: 'Райффайзенбанк DGTL: Product Engineer, 5 ловушек PostgreSQL, финтех-инварианты',
+    badge: 'Райффайзен',
+    levelBadge: 'L4–L6',
+    icon: Building2,
+    theme: {
+      iconColor: 'text-amber-600',
+      bgIcon: 'bg-amber-100 text-amber-900',
+      borderHover: 'hover:border-amber-300 hover:bg-amber-50/50',
+      activeBorder: 'border-amber-400',
+      activeBg: 'bg-amber-50/80',
+      badgeStyle: 'bg-amber-100 text-amber-950 border-amber-300'
     }
   }
 ];

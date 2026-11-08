@@ -4,6 +4,8 @@ export * from './schemas/designPatternManifest';
 export * from './schemas/telemetry';
 export * from './schemas/voiceEvents';
 export * from './schemas/hrSimulator';
+export * from './schemas/sqlChallenge';
+export * from './schemas/companyProfile';
 export * from './validation/celEvaluator';
 export * from './validation/invariantEngine';
 export { evaluateCel } from './validation/celEvaluator';

@@ -27,6 +27,7 @@ const ProfileEditModal = lazy(() => import('./components/auth/ProfileEditModal')
 const AdminInvitesModal = lazy(() => import('./components/auth/AdminInvitesModal').then(m => ({ default: m.AdminInvitesModal })));
 const LiveVadDebugStudio = lazy(() => import('./components/debug/LiveVadDebugStudio').then(m => ({ default: m.LiveVadDebugStudio })));
 const HrScreeningArena = lazy(() => import('./components/practice/hr').then(m => ({ default: m.HrScreeningArena })));
+const CompanyPrepStudio = lazy(() => import('./components/companies/CompanyPrepStudio').then(m => ({ default: m.CompanyPrepStudio })));
 
 const StudioSuspenseLoader: React.FC = () => (
   <div className="flex-1 min-h-[400px] flex items-center justify-center p-8">
@@ -140,6 +141,8 @@ export const App: React.FC = () => {
             {currentStudioTab === 'hr_screening' && <HrScreeningArena />}
 
             {currentStudioTab === 'live_debug' && <LiveVadDebugStudio />}
+
+            {currentStudioTab === 'companies' && <CompanyPrepStudio />}
 
             {currentStudioTab === 'incidents' && (
               activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />

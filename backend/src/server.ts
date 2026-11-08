@@ -19,6 +19,8 @@ import { authRouter } from './routes/auth';
 import { sandboxRouter } from './routes/sandbox';
 import { voiceRouter } from './routes/voice';
 import { hrRouter } from './routes/hr';
+import companiesRouter from './routes/companies';
+import sqlChallengesRouter from './routes/sqlChallenges';
 import { requireAuth } from './middleware/auth';
 import { 
   seedQuestionsFromJSON, 
@@ -65,6 +67,8 @@ app.use('/api/triage', requireAuth, triageRouter);
 app.use('/api/roadmaps', requireAuth, roadmapsRouter);
 app.use('/api/voice', requireAuth, voiceRouter);
 app.use('/api/hr', requireAuth, hrRouter);
+app.use('/api/companies', requireAuth, companiesRouter);
+app.use('/api/sql-challenges', requireAuth, sqlChallengesRouter);
 
 
 

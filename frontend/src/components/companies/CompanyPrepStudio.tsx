@@ -1,0 +1,257 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAppStore } from '../../store/useAppStore';
+import { CompanyProfile, CompanyPipelineStage } from '@interview-prep/shared';
+import { CompanyPipelineTab } from './CompanyPipelineTab';
+import { CompanyDossierTab } from './CompanyDossierTab';
+import { CompanyRunbookTab } from './CompanyRunbookTab';
+import { SqlArena } from '../sql/SqlArena';
+import { VoiceModal } from '../VoiceModal';
+import { 
+  Building2, Sparkles, MapPin, ExternalLink, 
+  Layers, FileText, Zap, Database 
+} from 'lucide-react';
+
+export const CompanyPrepStudio: React.FC = () => {
+  const { setStudioTab } = useAppStore();
+
+  const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>('raiffeisen_dgtl');
+  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'dossier' | 'runbook' | 'sql_arena'>('pipeline');
+  const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [targetSqlChallengeId, setTargetSqlChallengeId] = useState<string | undefined>(undefined);
+
+  // Load profiles from backend
+  useEffect(() => {
+    fetch('/api/companies', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: CompanyProfile[]) => {
+        if (data.length > 0) {
+          setProfiles(data);
+          setSelectedProfileId(data[0].id);
+        }
+      })
+      .catch((err) => console.error('[CompanyPrepStudio] Failed to load profiles:', err));
+  }, []);
+
+  // Load completed stages from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`company_completed_stages_${selectedProfileId}`);
+      if (saved) {
+        setCompletedStageIds(new Set(JSON.parse(saved)));
+      }
+    } catch {}
+  }, [selectedProfileId]);
+
+  const profile = useMemo(() => {
+    return profiles.find((p) => p.id === selectedProfileId) || profiles[0];
+  }, [profiles, selectedProfileId]);
+
+  // Compute Company Readiness Index (CRI)
+  const readinessIndex = useMemo(() => {
+    if (!profile) return 0;
+    let score = 0;
+    for (const stage of profile.stages) {
+      if (completedStageIds.has(stage.id)) {
+        score += stage.weight * 100;
+      }
+    }
+    return Math.min(100, Math.round(score));
+  }, [profile, completedStageIds]);
+
+  const toggleStageComplete = (stageId: string) => {
+    const updated = new Set(completedStageIds);
+    if (updated.has(stageId)) {
+      updated.delete(stageId);
+    } else {
+      updated.add(stageId);
+    }
+    setCompletedStageIds(updated);
+    try {
+      localStorage.setItem(
+        `company_completed_stages_${selectedProfileId}`,
+        JSON.stringify([...updated])
+      );
+    } catch {}
+  };
+
+  // Stage Action Launcher
+  const handleLaunchStage = (stage: CompanyPipelineStage) => {
+    switch (stage.format) {
+      case 'voice_fit':
+        setIsVoiceOpen(true);
+        break;
+      case 'live_coding':
+        setStudioTab('practice');
+        break;
+      case 'code_review':
+        setStudioTab('incidents');
+        break;
+      case 'sql_arena':
+        setTargetSqlChallengeId(stage.targetEntityId);
+        setActiveSubTab('sql_arena');
+        break;
+      case 'system_design':
+        setStudioTab('system_design');
+        break;
+    }
+  };
+
+  const handleNavigateToTask = (taskId: string) => {
+    if (taskId.startsWith('sql-')) {
+      setTargetSqlChallengeId(taskId);
+      setActiveSubTab('sql_arena');
+    } else if (taskId.startsWith('case_')) {
+      setStudioTab('incidents');
+    } else if (taskId.startsWith('sd-')) {
+      setStudioTab('system_design');
+    } else {
+      setStudioTab('practice');
+    }
+  };
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 font-sans">
+        <div className="w-10 h-10 border-4 border-amber-400/40 border-t-amber-500 rounded-full animate-spin" />
+        <p className="text-sm text-pastel-muted font-medium">Загрузка профиля компании...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-24 font-sans">
+      {/* Brand Header Banner */}
+      <div className="bg-gradient-to-r from-amber-400/20 via-amber-200/10 to-white border border-amber-300/60 rounded-3xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-400 text-amber-950 shadow-xs flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" />
+                {profile.name}
+              </span>
+              <span className="text-xs text-slate-600 font-mono flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-pastel-muted" /> Raiffeisen DGTL Hub
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
+              Целевая Подготовка: Product Engineer (Java/Kotlin)
+            </h1>
+            <p className="text-xs text-slate-700 max-w-2xl leading-relaxed">
+              {profile.tagline}
+            </p>
+          </div>
+
+          {/* Quick Stats Pill */}
+          <div className="flex items-center gap-3 bg-white/90 p-3 rounded-2xl border border-amber-300/40 shadow-xs self-start md:self-auto font-mono text-xs">
+            <div>
+              <span className="block text-slate-500 text-[10px] uppercase font-bold">Степень готовности</span>
+              <span className="font-extrabold text-base text-slate-900">{readinessIndex}% CRI</span>
+            </div>
+            <div className="h-8 w-px bg-slate-200" />
+            <div>
+              <span className="block text-slate-500 text-[10px] uppercase font-bold">Этапов</span>
+              <span className="font-extrabold text-base text-amber-700">{profile.stages.length} раундов</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-2 border-b border-pastel-border/70 pb-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab('pipeline')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+            activeSubTab === 'pipeline'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Воронка отбора (Пайплайн)
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('dossier')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+            activeSubTab === 'dossier'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Инженерное досье & Флаги
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('runbook')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+            activeSubTab === 'runbook'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          Ранбук «Собеседование завтра»
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('sql_arena')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+            activeSubTab === 'sql_arena'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          PostgreSQL WASM Арена
+        </button>
+      </div>
+
+      {/* Tab Panels */}
+      {activeSubTab === 'pipeline' && (
+        <CompanyPipelineTab
+          stages={profile.stages}
+          completedStageIds={completedStageIds}
+          onToggleStageComplete={toggleStageComplete}
+          onLaunchStageAction={handleLaunchStage}
+          companyReadinessIndex={readinessIndex}
+        />
+      )}
+
+      {activeSubTab === 'dossier' && (
+        <CompanyDossierTab
+          culture={profile.culture}
+          companyName={profile.name}
+        />
+      )}
+
+      {activeSubTab === 'runbook' && (
+        <CompanyRunbookTab
+          runbook={profile.expressRunbook}
+          onNavigateToTask={handleNavigateToTask}
+        />
+      )}
+
+      {activeSubTab === 'sql_arena' && (
+        <SqlArena
+          initialChallengeId={targetSqlChallengeId}
+          onBackToCompanyTrack={() => setActiveSubTab('pipeline')}
+          companyContextName={profile.name}
+        />
+      )}
+
+      {/* Voice Modal with Raiffeisen DGTL Bar-Raiser Persona */}
+      {isVoiceOpen && (
+        <VoiceModal
+          isOpen={isVoiceOpen}
+          onClose={() => setIsVoiceOpen(false)}
+          topic="Raiffeisen DGTL: Product Engineer Fit Interview"
+          currentQuestionText="Привет! Я Product Engineer Lead Райффайзенбанка. Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (например, TTM или конверсию) и как предотвращаешь финансовые сбои на проде?"
+          customPromptOverride="РОЛЬ: Product Engineer Lead в Райффайзенбанке (Raiffeisen DGTL). Проведи Fit/Culture интервью по методике STAR. Задавай вопросы о реальных факапах на проде, метриках TTM и Pain Index, запрете double в деньгах и детерминированной сортировке блокировок min->max."
+        />
+      )}
+    </div>
+  );
+};

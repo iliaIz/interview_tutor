@@ -33,6 +33,7 @@ This registry maintains an explicit, traceable, and empirically verified record 
 | **07** | **Refactoring Arena & Voice Code Review** | Practice / AST Sandbox / Voice Review | `backend/src/services/sandbox/` & `backend/src/services/live/` | [`07_refactoring_arena_subsystem.md`](./07_refactoring_arena_subsystem.md) |
 | **08** | **Generic HR Voice Simulator Engine** | Voice HR Screening & Micro-Drill | `backend/src/services/live/` & `frontend/src/` | [`08_hr_voice_simulator_engine.md`](./08_hr_voice_simulator_engine.md) |
 | **09** | **Design Patterns Practice Arena** | Anti-Pattern AST & Overengineering Sentinel | `backend/src/services/sandbox/` & `frontend/src/` | [`09_design_patterns_arena.md`](./09_design_patterns_arena.md) |
+| **10** | **Company Prep Hub & SQL Arena** | PGlite WASM SQL & Curated Company Pipeline | `frontend/src/components/companies/` & `sql/` | [`10_company_prep_and_sql_arena.md`](./10_company_prep_and_sql_arena.md) |
 
 ---
 

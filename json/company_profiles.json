@@ -1,0 +1,104 @@
+[
+  {
+    "id": "raiffeisen_dgtl",
+    "name": "АО «Райффайзенбанк» (Raiffeisen DGTL)",
+    "brandColor": "#FFE600",
+    "logoBadge": "🏦",
+    "tagline": "Product Engineering, финтех-устойчивость, zero-floating-point и распределенные инварианты",
+    "culture": {
+      "engineeringParadigm": "Product Engineer (End-to-End Ownership: от продуктовой гипотезы и метрик до TDD тестов и продакшен-мониторинга)",
+      "metricsFocus": [
+        "TTM (Time to Market)",
+        "Pain Index",
+        "Conversion Lift%",
+        "Zero-Downtime Availability 99.99%"
+      ],
+      "redFlags": [
+        "Использование double или float для финансовых балансов (потеря точности IEEE 754)",
+        "Использование synchronized на методах перевода вместо пессимистических блокировок БД",
+        "Незнание трехзначной логики SQL (падение NOT IN при наличии хотя бы одного NULL)",
+        "Игнорирование сквозной идемпотентности (idempotencyKey) в платежных операциях",
+        "Самовызов @Transactional метода внутри одного Spring-бина (AOP Proxy bypass)"
+      ],
+      "greenFlags": [
+        "Детерминированная сортировка primary keys (min -> max) при блокировках для предотвращения дедлоков",
+        "Constructor injection экземпляра java.time.Clock для детерминированного тестирования времени",
+        "Понимание разницы DENSE_RANK vs RANK vs ROW_NUMBER при связках категорий расходов",
+        "Применение Transactional Outbox + Debezium CDC для гарантированной доставки событий",
+        "Shift-Left тестирование: написание воспроизводящих сбои тестов до генерации кода"
+      ]
+    },
+    "expressRunbook": {
+      "pitchScriptMarkdown": "Привет! Я Product Engineer с глубоким фокусом на надежность высоконагруженных финансовых микросервисов. За последние 2 года отвечал за полный цикл фичей от проработки бизнес-метрик до деплоя в k8s: внедрил паттерн Transactional Outbox, устранил дедлоки на уровне БД за счет детерминированной сортировки ID счетов, снизил TTM на 35% благодаря Shift-Left тестированию на Testcontainers и лично дежурю по своим сервисам.",
+      "mustReviewTaskIds": [
+        "sql-raiff-01",
+        "case_transfer_service",
+        "iban-validator",
+        "sd-realtime-fraud-detection"
+      ],
+      "checklist": [
+        "[ ] Отрепетирован 4-минутный питч с акцентом на Product Engineer метрики (TTM, Pain Index)",
+        "[ ] Повторен кейс TransferService: 7 скрытых багов (Deadlock, Lost Update, Fail-Fast, dirty checking)",
+        "[ ] Освежена трехзначная логика SQL: почему NOT IN (NULL) возвращает пустое множество",
+        "[ ] Проверены инварианты Java: запрет double в деньгах, Clock вместо System.currentTimeMillis()"
+      ]
+    },
+    "stages": [
+      {
+        "id": "stage-1-fit-and-culture",
+        "stageNumber": 1,
+        "title": "1. Product Engineer Fit & STAR Интервью",
+        "format": "voice_fit",
+        "estimatedMinutes": 30,
+        "description": "Устная проверка продуктового мышления, разбор просадки конверсии на 12%, устранение факапов и STAR-кейсы с AI-Баро-рейзером Райффайзена.",
+        "targetArena": "voice_modal",
+        "targetEntityId": "raiffeisen_dgtl_pe",
+        "weight": 0.15
+      },
+      {
+        "id": "stage-2-live-coding-algorithms",
+        "stageNumber": 2,
+        "title": "2. Live Coding: Алгоритмы и структуры данных",
+        "format": "live_coding",
+        "estimatedMinutes": 45,
+        "description": "Валидация номеров IBAN (ISO 13616, mod 97 без переполнения BigInteger) и высокопроизводительный SparseVector.",
+        "targetArena": "practice",
+        "targetEntityId": "iban-validator",
+        "weight": 0.20
+      },
+      {
+        "id": "stage-3-code-review-defect-hunting",
+        "stageNumber": 3,
+        "title": "3. Секция Code Review: Банковский перевод (TransferService)",
+        "format": "code_review",
+        "estimatedMinutes": 30,
+        "description": "Поиск 7 скрытых архитектурных дефектов в TransferService.java: Lost Update, Deadlock в БД, нарушение Fail-Fast, отсутствие идемпотентности.",
+        "targetArena": "incidents",
+        "targetEntityId": "case_transfer_service",
+        "weight": 0.25
+      },
+      {
+        "id": "stage-4-sql-and-relational-traps",
+        "stageNumber": 4,
+        "title": "4. Базы данных: 5 ловушек PostgreSQL",
+        "format": "sql_arena",
+        "estimatedMinutes": 30,
+        "description": "Интерактивное написание и выполнение запросов против in-browser PostgreSQL 16: спящие клиенты, 30-дневное окно, DENSE_RANK и гранулярность.",
+        "targetArena": "sql_arena",
+        "targetEntityId": "sql-raiff-01",
+        "weight": 0.20
+      },
+      {
+        "id": "stage-5-distributed-system-design",
+        "stageNumber": 5,
+        "title": "5. System Design: Антифрод реального времени & СБП",
+        "format": "system_design",
+        "estimatedMinutes": 45,
+        "description": "Проектирование распределенной антифрод-системы с жестким SLA < 100 мс, Flink, Redis Cluster, ScyllaDB и эвристическим Rule Engine.",
+        "targetArena": "system_design",
+        "targetEntityId": "sd-realtime-fraud-detection",
+        "weight": 0.20
+      }
+    ]
+  }
+]

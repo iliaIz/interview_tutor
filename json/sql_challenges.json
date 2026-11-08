@@ -1,0 +1,107 @@
+[
+  {
+    "id": "sql-raiff-01",
+    "slug": "sql-raiff-01-sleeping-clients-not-exists-vs-not-in",
+    "title": "Поиск спящих клиентов с активными картами (NOT EXISTS vs NOT IN)",
+    "category": "traps",
+    "difficulty": "senior",
+    "tags": ["PostgreSQL", "Three-Valued Logic", "NULL Trap", "Raiffeisen DGTL"],
+    "companyContext": {
+      "company": "raiffeisen",
+      "stage": "sql_and_databases",
+      "importance": "CRITICAL",
+      "interviewTrapDescription": "Ловушка трехзначной логики: конструкция NOT IN (SELECT ...) возвращает пустой набор данных, если в подзапросе оказывается хотя бы один NULL, так как сравнение val != NULL вычисляется в UNKNOWN."
+    },
+    "instructionsMarkdown": "### Задача собеседования в Райффайзенбанк\nБанку необходимо сформировать реестр «спящих» клиентов для маркетинговой реактивации: клиентов, имеющих хотя бы одну активную карту (`status = 'ACTIVE'`), но не совершивших ни одной транзакции за октябрь 2026 года (`2026-10-01` по `2026-11-01`).\n\n#### Требования:\n1. Вывести `id` и `name` клиента.\n2. Учесть только клиентов с активными картами.\n3. Исключить клиентов, совершивших транзакции в октябре 2026 г.\n4. **Особое условие:** Таблица транзакций содержит записи с `NULL` в поле `customer_id` (например, системные списания или сбои терминалов). Запрос не должен падать или возвращать пустую выборку из-за `NULL`!\n5. Отсортировать результат по `c.id` по возрастанию.",
+    "schemaSql": "CREATE TABLE customers (id INT PRIMARY KEY, name VARCHAR(100));\nCREATE TABLE cards (id INT PRIMARY KEY, customer_id INT, status VARCHAR(20));\nCREATE TABLE transactions (id INT PRIMARY KEY, card_id INT, customer_id INT, created_at TIMESTAMP, amount NUMERIC(18, 2));",
+    "seedSql": "INSERT INTO customers (id, name) VALUES (1, 'Иван Иванов'), (2, 'Петр Петров'), (3, 'Анна Сидорова'), (4, 'Елена Васильева');\nINSERT INTO cards (id, customer_id, status) VALUES (101, 1, 'ACTIVE'), (102, 2, 'ACTIVE'), (103, 3, 'BLOCKED'), (104, 4, 'ACTIVE');\nINSERT INTO transactions (id, card_id, customer_id, created_at, amount) VALUES (1001, 101, 1, '2026-10-15 14:30:00', 500.00);\nINSERT INTO transactions (id, card_id, customer_id, created_at, amount) VALUES (1002, 103, 3, '2026-10-10 10:00:00', 1200.00);\nINSERT INTO transactions (id, card_id, customer_id, created_at, amount) VALUES (1003, NULL, NULL, '2026-10-12 11:00:00', 99.00);",
+    "expectedQuery": "SELECT c.id, c.name\nFROM customers c\nJOIN cards cd ON cd.customer_id = c.id AND cd.status = 'ACTIVE'\nWHERE NOT EXISTS (\n    SELECT 1 FROM transactions t\n    WHERE t.card_id = cd.id\n      AND t.created_at >= '2026-10-01'\n      AND t.created_at < '2026-11-01'\n)\nORDER BY c.id;",
+    "initialEditorSql": "-- Напишите запрос, устойчивый к наличию NULL в подзапросах:\nSELECT c.id, c.name\nFROM customers c\n",
+    "orderMatters": true,
+    "explanationMarkdown": "В стандарте SQL действует трехзначная логика: `TRUE`, `FALSE`, `UNKNOWN`. Выражение `id NOT IN (1, 2, NULL)` эквивалентно `id != 1 AND id != 2 AND id != NULL`. Так как сравнение с `NULL` всегда дает `UNKNOWN`, всё логическое условие `AND` никогда не вычислится в `TRUE`. Решение: всегда использовать `NOT EXISTS` с коррелированным подзапросом или фильтровать `WHERE customer_id IS NOT NULL`."
+  },
+  {
+    "id": "sql-raiff-02",
+    "slug": "sql-raiff-02-repeat-transactions-30-day-window",
+    "title": "Повторные транзакции в скользящем окне 30 дней",
+    "category": "window_functions",
+    "difficulty": "middle",
+    "tags": ["PostgreSQL", "Interval", "CTE", "Raiffeisen DGTL"],
+    "companyContext": {
+      "company": "raiffeisen",
+      "stage": "sql_and_databases",
+      "importance": "HIGH",
+      "interviewTrapDescription": "Ловушка граничных условий: нестрогое неравенство t.created_at >= f.first_date ошибочно посчитает саму первую транзакцию клиента за повторную."
+    },
+    "instructionsMarkdown": "### Задача собеседования в Райффайзенбанк\nФинтех-аналитикам банка необходимо определить показатель удержания (Retention): совершает ли клиент повторную транзакцию в течение 30 календарных дней после своей самой первой операции.\n\n#### Требования:\n1. Определить дату первой транзакции `first_date` для каждого клиента.\n2. Проверить наличие хотя бы одной последующей транзакции в окне: `(first_date, first_date + 30 days]`.\n3. Вывести `customer_id`, `first_date` и булев флаг `has_repeat_tx` (`true`/`false`).\n4. Отсортировать результат по `customer_id` по возрастанию.",
+    "schemaSql": "CREATE TABLE transactions (id INT PRIMARY KEY, customer_id INT, created_at TIMESTAMP, amount NUMERIC(18, 2));",
+    "seedSql": "INSERT INTO transactions (id, customer_id, created_at, amount) VALUES (1, 1, '2026-09-01 10:00:00', 100.00);\nINSERT INTO transactions (id, customer_id, created_at, amount) VALUES (2, 1, '2026-09-20 12:00:00', 250.00);\nINSERT INTO transactions (id, customer_id, created_at, amount) VALUES (3, 2, '2026-08-01 09:00:00', 300.00);\nINSERT INTO transactions (id, customer_id, created_at, amount) VALUES (4, 2, '2026-09-15 18:00:00', 400.00);\nINSERT INTO transactions (id, customer_id, created_at, amount) VALUES (5, 3, '2026-09-10 15:30:00', 50.00);",
+    "expectedQuery": "WITH first_tx AS (\n    SELECT customer_id, MIN(created_at) AS first_date\n    FROM transactions\n    GROUP BY customer_id\n)\nSELECT f.customer_id, f.first_date,\n       EXISTS (\n           SELECT 1 FROM transactions t\n           WHERE t.customer_id = f.customer_id\n             AND t.created_at > f.first_date\n             AND t.created_at <= f.first_date + INTERVAL '30 days'\n       ) AS has_repeat_tx\nFROM first_tx f\nORDER BY f.customer_id;",
+    "initialEditorSql": "WITH first_tx AS (\n    -- Найдите дату первой транзакции\n)\nSELECT \n",
+    "orderMatters": true,
+    "explanationMarkdown": "Использование строгого оператора `t.created_at > f.first_date` гарантирует, что первая транзакция не будет ошибочно засчитана за повторную. Конструкция `+ INTERVAL '30 days'` в PostgreSQL точно вычисляет календарное окно."
+  },
+  {
+    "id": "sql-raiff-03",
+    "slug": "sql-raiff-03-granularity-trap-segment-average-balance",
+    "title": "Ловушка гранулярности: Средний совокупный баланс по сегментам",
+    "category": "aggregations",
+    "difficulty": "senior",
+    "tags": ["PostgreSQL", "Granularity Trap", "CTE", "Raiffeisen DGTL"],
+    "companyContext": {
+      "company": "raiffeisen",
+      "stage": "sql_and_databases",
+      "importance": "CRITICAL",
+      "interviewTrapDescription": "Ловушка гранулярности: прямой JOIN clients и accounts с вызовом AVG(a.balance) считает средний баланс на один банковский счет, а не на одного клиента, искажая метрику бизнеса из-за клиентов с множеством пустых счетов."
+    },
+    "instructionsMarkdown": "### Задача собеседования в Райффайзенбанк\nБизнес-подразделение Private Banking запросило расчет среднего совокупного остатка средств клиентов в разрезе сегментов обслуживания (`Standard`, `Premium`).\n\n#### Внимание, ловушка гранулярности:\nОдин клиент может иметь от 1 до нескольких десятков счетов (текущие, карточные, накопительные). Расчет среднего по строкам счетов исказит показатели сегмента.\n\n#### Требования:\n1. Предварительно рассчитать суммарный баланс всех счетов каждого клиента.\n2. На втором этапе рассчитать среднее по клиентам в разрезе `segment` с округлением до 2 знаков (`ROUND(..., 2)`).\n3. Вывести поля: `segment`, `avg_client_balance`.\n4. Отсортировать результат по `segment` по возрастанию.",
+    "schemaSql": "CREATE TABLE clients (id INT PRIMARY KEY, name VARCHAR(100), segment VARCHAR(50));\nCREATE TABLE accounts (id INT PRIMARY KEY, client_id INT, balance NUMERIC(18, 2));",
+    "seedSql": "INSERT INTO clients (id, name, segment) VALUES (1, 'Алексей', 'Standard'), (2, 'Дмитрий', 'Standard'), (3, 'Ольга', 'Premium');\nINSERT INTO accounts (id, client_id, balance) VALUES (101, 1, 1000.00);\nINSERT INTO accounts (id, client_id, balance) VALUES (102, 2, 0.00), (103, 2, 0.00), (104, 2, 0.00);\nINSERT INTO accounts (id, client_id, balance) VALUES (105, 3, 5000.00), (106, 3, 15000.00);",
+    "expectedQuery": "WITH client_totals AS (\n    SELECT c.id, c.segment, SUM(a.balance) AS total_balance\n    FROM clients c\n    JOIN accounts a ON a.client_id = c.id\n    GROUP BY c.id, c.segment\n)\nSELECT segment, ROUND(AVG(total_balance), 2) AS avg_client_balance\nFROM client_totals\nGROUP BY segment\nORDER BY segment;",
+    "initialEditorSql": "-- Реализуйте двухэтапную агрегацию через CTE:\nWITH client_totals AS (\n    SELECT \n)\nSELECT \n",
+    "orderMatters": true,
+    "explanationMarkdown": "Прямой `AVG(a.balance)` усредняет балансы счетов. Если в сегменте Standard один клиент имеет 1000 ₽ на 1 счете, а второй — 0 ₽ на 3 счетах, то среднее по счетам даст (1000 + 0 + 0 + 0) / 4 = 250 ₽, тогда как правильное среднее по клиентам составляет (1000 + 0) / 2 = 500 ₽!"
+  },
+  {
+    "id": "sql-raiff-04",
+    "slug": "sql-raiff-04-top-3-categories-dense-rank-tie-breaks",
+    "title": "Топ-3 категорий расходов клиента (DENSE_RANK vs RANK vs ROW_NUMBER)",
+    "category": "window_functions",
+    "difficulty": "senior",
+    "tags": ["PostgreSQL", "Window Functions", "DENSE_RANK", "Tie-Breaks", "Raiffeisen DGTL"],
+    "companyContext": {
+      "company": "raiffeisen",
+      "stage": "sql_and_databases",
+      "importance": "CRITICAL",
+      "interviewTrapDescription": "Ловушка ранжирования: при одинаковых тратах ROW_NUMBER отсекает категории случайно, а RANK пропускает порядковые позиции (1, 2, 2, 4), теряя третью категорию. Требуется DENSE_RANK."
+    },
+    "instructionsMarkdown": "### Задача собеседования в Райффайзенбанк\nДля сервиса персонального финансового учета (PFM) в мобильном приложении требуется вывести до 3 самых затратных категорий трат каждого клиента.\n\n#### Требования:\n1. Сгруппировать траты по `customer_id` и `category`.\n2. В случае одинаковой суммы расходов по нескольким категориям (Tie-Break) ранжирование не должно пропускать места (1, 1, 2, 3).\n3. Вывести строки с рангом `rnk <= 3`.\n4. Результирующие колонки: `customer_id`, `category`, `total_spent`, `rnk`.\n5. Отсортировать результат по `customer_id ASC, rnk ASC, category ASC`.",
+    "schemaSql": "CREATE TABLE transactions (id INT PRIMARY KEY, customer_id INT, category VARCHAR(100), amount NUMERIC(18, 2));",
+    "seedSql": "INSERT INTO transactions (id, customer_id, category, amount) VALUES (1, 1, 'Супермаркеты', 1000.00);\nINSERT INTO transactions (id, customer_id, category, amount) VALUES (2, 1, 'Рестораны', 1000.00);\nINSERT INTO transactions (id, customer_id, category, amount) VALUES (3, 1, 'Аптеки', 500.00);\nINSERT INTO transactions (id, customer_id, category, amount) VALUES (4, 1, 'Одежда', 200.00);\nINSERT INTO transactions (id, customer_id, category, amount) VALUES (5, 1, 'Такси', 100.00);",
+    "expectedQuery": "WITH category_spending AS (\n    SELECT customer_id, category, SUM(amount) AS total_spent,\n           DENSE_RANK() OVER (PARTITION BY customer_id ORDER BY SUM(amount) DESC) AS rnk\n    FROM transactions\n    GROUP BY customer_id, category\n)\nSELECT customer_id, category, total_spent, rnk\nFROM category_spending\nWHERE rnk <= 3\nORDER BY customer_id, rnk, category;",
+    "initialEditorSql": "WITH category_spending AS (\n    -- Используйте оконную функцию для ранжирования категорий\n)\nSELECT \n",
+    "orderMatters": true,
+    "explanationMarkdown": "Оконная функция `DENSE_RANK()` при совпадении значений присваивает одинаковый номер и продолжает нумерацию без пропусков (1, 1, 2, 3). Функция `RANK()` сделала бы (1, 1, 3, 4), что привело бы к выпадению категории со 2-м рангом."
+  },
+  {
+    "id": "sql-raiff-05",
+    "slug": "sql-raiff-05-ab-testing-lift-conversion-nullif",
+    "title": "A/B-тестирование: Расчет конверсии и Lift% с защитой от деления на 0",
+    "category": "financial_analytics",
+    "difficulty": "middle",
+    "tags": ["PostgreSQL", "A/B Testing", "NULLIF", "FILTER", "Zero Division", "Raiffeisen DGTL"],
+    "companyContext": {
+      "company": "raiffeisen",
+      "stage": "sql_and_databases",
+      "importance": "HIGH",
+      "interviewTrapDescription": "Ловушка деления на ноль и агрегации: падение запроса при пустых выборках в эксперименте устраняется с помощью NULLIF(count, 0)."
+    },
+    "instructionsMarkdown": "### Задача собеседования в Райффайзенбанк\nКоманда Product Engineering тестирует новую форму перевода по СБП в приложении. Требуется рассчитать базовые метрики A/B-эксперимента:\n- Количество участников контрольной группы A (`users_a`);\n- Количество участников тестовой группы B (`users_b`);\n- Конверсию группы A в процентах с округлением до 2 знаков (`cr_a`);\n- Конверсию группы B в процентах с округлением до 2 знаков (`cr_b`).\n\n#### Требования:\n1. Использовать конструкцию `COUNT(*) FILTER (WHERE ...)`.\n2. Предотвратить ошибку деления на 0 при помощи функции `NULLIF(..., 0)`.\n3. Умножение на `100.0` для перевода в вещественный тип перед делением.",
+    "schemaSql": "CREATE TABLE experiment_events (id INT PRIMARY KEY, user_id INT, group_name VARCHAR(10), converted BOOLEAN);",
+    "seedSql": "INSERT INTO experiment_events (id, user_id, group_name, converted) VALUES (1, 101, 'A', true), (2, 102, 'A', false), (3, 103, 'A', false), (4, 104, 'A', false);\nINSERT INTO experiment_events (id, user_id, group_name, converted) VALUES (5, 201, 'B', true), (6, 202, 'B', true), (7, 203, 'B', false), (8, 204, 'B', false);",
+    "expectedQuery": "SELECT\n    COUNT(*) FILTER (WHERE group_name = 'A') AS users_a,\n    COUNT(*) FILTER (WHERE group_name = 'B') AS users_b,\n    ROUND(100.0 * COUNT(*) FILTER (WHERE group_name = 'A' AND converted) / \n          NULLIF(COUNT(*) FILTER (WHERE group_name = 'A'), 0), 2) AS cr_a,\n    ROUND(100.0 * COUNT(*) FILTER (WHERE group_name = 'B' AND converted) / \n          NULLIF(COUNT(*) FILTER (WHERE group_name = 'B'), 0), 2) AS cr_b\nFROM experiment_events;",
+    "initialEditorSql": "SELECT\n    -- Посчитайте количество и конверсии через FILTER и NULLIF\nFROM experiment_events;\n",
+    "orderMatters": false,
+    "explanationMarkdown": "Конструкция `COUNT(*) FILTER (WHERE ...)` является стандартом ANSI SQL и диалекта PostgreSQL для условной агрегации. Функция `NULLIF(expression, 0)` возвращает `NULL`, если делитель равен нулю, поэтому результат деления становится `NULL` вместо падения с `division by zero`."
+  }
+]

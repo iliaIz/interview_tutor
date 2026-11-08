@@ -1,6 +1,6 @@
 import { HrPersonaId, isHrPersonaId } from '@interview-prep/shared';
 
-export type TechnicalPersonaId = 'mentor' | 'amazon_bar_raiser' | 'google_staff' | 'yandex_core';
+export type TechnicalPersonaId = 'mentor' | 'amazon_bar_raiser' | 'google_staff' | 'yandex_core' | 'raiffeisen_dgtl_pe';
 export type InterviewPersonaId = TechnicalPersonaId | HrPersonaId;
 
 export type TargetGrade = 'L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF';
@@ -164,6 +164,25 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
 - Хвали за точное понимание низкоуровневых оптимизаций HotSpot.`;
       break;
 
+    case 'raiffeisen_dgtl_pe':
+      personaTitle = 'Product Engineer Lead (Райффайзенбанк / Raiffeisen DGTL)';
+      roleDirective = `
+ТЫ — PRODUCT ENGINEER LEAD В РАЙФФАЙЗЕНБАНКЕ (RAIFFEISEN DGTL).
+ТВОЯ МИССИЯ: Оценить культуру Product Engineering, сквозную финансовую надежность и способность кандидата владеть фичой End-to-End:
+1. **End-to-End Ownership:** Инженер лично отвечает за продуктовую ценность, архитектуру, Shift-Left тестирование (Testcontainers) и дежурства по продакшену.
+2. **Финтех-инварианты и точность:** Запрет чисел с плавающей точкой в деньгах (только BigDecimal с Banker's Rounding), обязательная идемпотентность (idempotencyKey) и детерминированная сортировка первичных ключей при блокировках строк БД (min -> max).
+3. **Бизнес-метрики и факапы:** Как кандидат снижает TTM (Time to Market) и Pain Index пользователей, как расследует внезапную просадку конверсии платежей на 12%.
+
+МАНЕРА РЕЧИ:
+- Конструктивный, деловой, партнерский, но бескомпромиссный к финансовым рискам тон.
+- Фокусируйся на STAR: 'Расскажи о реальном сбое на проде: как локализовал, какая была просадка метрик и что изменил в тестах?'`;
+
+      evaluationRubricDirective = `
+ОСОБЕННОСТИ ОЦЕНКИ RAIFFEISEN DGTL:
+- RED FLAG (Мгновенный отказ): double в деньгах, незнание ловушки NOT IN с NULL, игнорирование идемпотентности, перекладывание ответственности на QA/DevOps.
+- GREEN FLAG (Высокий наем): детерминированная сортировка min->max, внедрение Clock, понимание DENSE_RANK, культура TDD и метрик TTM/Pain Index.`;
+      break;
+
     case 'mentor':
     default:
       personaTitle = 'Сократический ментор (Staff Lead)';
@@ -249,8 +268,8 @@ export function calculateFaangScorecard(params: {
   // 3. Dimension Scores calculation
   const domainScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'yandex_core' ? 1.05 : 0.98))));
   const archScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'google_staff' ? 1.05 : (persona === 'amazon_bar_raiser' ? 1.02 : 0.95)))));
-  const commScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'amazon_bar_raiser' ? 1.04 : 0.96))));
-  const opsScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'amazon_bar_raiser' ? 1.06 : 0.94))));
+  const commScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'amazon_bar_raiser' || persona === 'raiffeisen_dgtl_pe' ? 1.04 : 0.96))));
+  const opsScore = Math.min(100, Math.max(20, Math.round(score * (persona === 'amazon_bar_raiser' ? 1.06 : (persona === 'raiffeisen_dgtl_pe' ? 1.08 : 0.94)))));
 
   const strengths = positivePoints && positivePoints.length > 0
     ? positivePoints.slice(0, 3)
