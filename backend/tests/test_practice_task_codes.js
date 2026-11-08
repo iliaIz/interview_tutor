@@ -10,7 +10,7 @@ seedCodingChallenges();
 // 1. Check total count
 const totalCount = db.prepare('SELECT count(*) as count FROM coding_challenges').get().count;
 console.log(`Total coding challenges in DB: ${totalCount}`);
-assert.strictEqual(totalCount, 97, 'Expected 97 total challenges');
+assert.strictEqual(totalCount, 99, 'Expected 99 total challenges');
 
 // 2. Check task_code population
 const tstCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE task_code LIKE 'TST-%'").get().count;
@@ -19,7 +19,7 @@ assert.strictEqual(tstCount, 42, 'Expected 42 TST katas');
 
 const lldCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE task_code LIKE 'LLD-%'").get().count;
 console.log(`LLD Challenges with LLD-xx: ${lldCount}`);
-assert.strictEqual(lldCount, 55, 'Expected 55 LLD challenges');
+assert.strictEqual(lldCount, 57, 'Expected 57 LLD challenges');
 
 // 3. Check difficulties normalization
 const diffs = db.prepare('SELECT DISTINCT difficulty FROM coding_challenges ORDER BY difficulty').all().map(r => r.difficulty);
