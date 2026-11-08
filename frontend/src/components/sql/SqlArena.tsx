@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { luxuryPastelTheme } from '../practice/editorTheme';
-import { SqlChallenge, SqlExecutionResult } from '@interview-prep/shared';
+import { SqlChallenge, SqlExecutionResult, normalizeSqlArenaContext } from '@interview-prep/shared';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { executeSqlChallenge } from '../../services/sql/pgliteExecutionEngine';
 import { SqlArenaHeader } from './SqlArenaHeader';
 import { SqlDataGrid } from './SqlDataGrid';
@@ -10,7 +11,7 @@ import { SqlDiffViewer } from './SqlDiffViewer';
 import { SqlSchemaViewer } from './SqlSchemaViewer';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { 
-  Play, RotateCcw, Database, ShieldAlert, AlertCircle, Lightbulb, Check
+  Play, RotateCcw, Database, ShieldAlert, AlertCircle, Lightbulb, Check, Bot
 } from 'lucide-react';
 
 interface SqlArenaProps {
@@ -118,6 +119,42 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
     }
   };
 
+  const handleOpenCopilot = () => {
+    if (!activeChallenge) return;
+    const polyContext = normalizeSqlArenaContext({
+      challenge: activeChallenge,
+      currentSql: editorSql,
+      executionResult: result || undefined,
+      companyContextName
+    });
+    usePracticeTutorStore.getState().setActiveContext(polyContext);
+    usePracticeTutorStore.getState().toggleOpen(true);
+  };
+
+  useEffect(() => {
+    if (!activeChallenge) return;
+    const store = usePracticeTutorStore.getState();
+    if (store.activeContext?.arena === 'sql_arena') {
+      store.setActiveContext(
+        normalizeSqlArenaContext({
+          challenge: activeChallenge,
+          currentSql: editorSql,
+          executionResult: result || undefined,
+          companyContextName
+        })
+      );
+    }
+  }, [activeChallenge, editorSql, result, companyContextName]);
+
+  useEffect(() => {
+    return () => {
+      const store = usePracticeTutorStore.getState();
+      if (store.activeContext?.arena === 'sql_arena') {
+        store.setActiveContext(null);
+      }
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 font-sans">
@@ -202,8 +239,16 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
               </span>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleOpenCopilot}
+                  className="px-2.5 py-1 text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Открыть AI-Напарника с контекстом текущей SQL-задачи"
+                >
+                  <Bot className="w-3.5 h-3.5 text-amber-700" />
+                  <span>AI-Напарник</span>
+                </button>
+                <button
                   onClick={handleReset}
-                  className="px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors flex items-center gap-1"
+                  className="px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" /> Сброс
                 </button>

@@ -15,6 +15,7 @@ const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
   middle_scaffold: { name: 'Middle Peer-Programmer', badge: '🟡 L2: Коллега' },
   senior_socratic: { name: 'Senior Socratic', badge: '🟣 L3: Сократ' },
   faang_interviewer: { name: 'FAANG Staff Interviewer', badge: '🔴 L4: Архитектор' },
+  company_interviewer: { name: 'Raiffeisen Bar-Raiser', badge: '🏦 L5: Product Engineer Lead' },
 };
 
 export const PracticeTutorDrawer: React.FC = () => {
@@ -35,6 +36,7 @@ export const PracticeTutorDrawer: React.FC = () => {
     requestHint,
     abortGeneration,
     clearMessages,
+    activeContext,
   } = usePracticeTutorStore();
 
   const {
@@ -165,7 +167,7 @@ export const PracticeTutorDrawer: React.FC = () => {
     if (!inputVal.trim() || isLoading) return;
     const text = inputVal;
     setInputVal('');
-    sendMessage(text, currentContext);
+    sendMessage(text, activeContext || currentContext);
   };
 
   return (
@@ -178,12 +180,20 @@ export const PracticeTutorDrawer: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-xs text-slate-800">AI-Напарник (Co-Pilot)</span>
+              <span className="font-bold text-xs text-slate-800">
+                {activeContext ? activeContext.domain : 'AI-Напарник (Co-Pilot)'}
+              </span>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-pastel-accentRoseText border border-pastel-accentRose/20">
-                {PERSONA_LABELS[persona].badge}
+                {activeContext?.arena === 'sql_arena'
+                  ? '🐘 PostgreSQL 16'
+                  : activeContext?.arena === 'companies'
+                  ? '🏦 Product Engineer'
+                  : PERSONA_LABELS[persona].badge}
               </span>
             </div>
-            <p className="text-[10px] text-slate-500">Парное программирование & Socratic Tutor</p>
+            <p className="text-[10px] text-slate-500 truncate max-w-[240px]">
+              {activeContext ? activeContext.entityTitle : 'Парное программирование & Socratic Tutor'}
+            </p>
           </div>
         </div>
 
@@ -244,10 +254,13 @@ export const PracticeTutorDrawer: React.FC = () => {
 
       {/* Quick Action Chips Bar */}
       <div className="px-3 py-2 border-b border-pastel-border/40 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0 no-scrollbar">
-        <HintTiersDropdown domain={domain} onSelectTier={(tier) => requestHint(tier, currentContext)} />
+        {!activeContext && (
+          <HintTiersDropdown domain={domain} onSelectTier={(tier) => requestHint(tier, currentContext)} />
+        )}
         <TutorQuickActionChips
           domain={domain}
-          onSendMessage={(text) => sendMessage(text, currentContext)}
+          customChips={activeContext?.quickActionChips}
+          onSendMessage={(text) => sendMessage(text, activeContext || currentContext)}
           onOpenCompass={() => toggleCompass(true)}
         />
       </div>

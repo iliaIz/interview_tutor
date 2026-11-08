@@ -13,7 +13,8 @@ export const StageFormatEnum = Type.Union([
   Type.Literal('live_coding'),
   Type.Literal('code_review'),
   Type.Literal('sql_arena'),
-  Type.Literal('system_design')
+  Type.Literal('system_design'),
+  Type.Literal('take_home')
 ]);
 export type StageFormat = Static<typeof StageFormatEnum>;
 
@@ -22,7 +23,8 @@ export const TargetArenaEnum = Type.Union([
   Type.Literal('incidents'),
   Type.Literal('system_design'),
   Type.Literal('sql_arena'),
-  Type.Literal('voice_modal')
+  Type.Literal('voice_modal'),
+  Type.Literal('take_home')
 ]);
 export type TargetArena = Static<typeof TargetArenaEnum>;
 

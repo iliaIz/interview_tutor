@@ -3247,5 +3247,132 @@
       "Используйте неизменяемые record для доменных моделей.",
       "Избегайте прямого System.currentTimeMillis() и Instant.now()."
     ]
+  },
+  {
+    "id": "iban-validator",
+    "slug": "iban-validator-iso13616",
+    "title": "Валидация банковского счета IBAN (ISO 13616, mod 97)",
+    "track": "raiffeisen_livecoding",
+    "badge": "🏦 Raiffeisen Live Coding",
+    "difficulty": "Senior",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Валидация банковского счета IBAN (ISO 13616)\n\n## 🏢 Бизнес-контекст (Raiffeisen Switzerland / РФ)\nВ банковских шлюзах и платежных хабах ежедневно валидируются миллионы международных номеров счетов IBAN.\nНеобходимо реализовать потоковую валидацию IBAN без создания лишних объектов в Heap (запрет `BigInteger`).\n\n### 📋 Требования по ISO 13616:\n1. Проверить базовую длину (от 15 до 34 символов) и отсутствие пробелов/спецсимволов.\n2. Переместить первые 4 символа (код страны и 2 контрольные цифры) в конец строки.\n3. Заменить каждую букву на ее числовой эквивалент (A = 10, B = 11, ..., Z = 35).\n4. Вычислить остаток от деления полученного числа на 97. Если остаток равен 1, IBAN валиден.\n\n### 🛡️ Нефункциональные требования (Zero-Allocation):\n- Запрещено использовать `BigInteger` — создавайте посимвольный расчет остатка: `rem = (rem * 10 + digit) % 97`.\n- Для двузначных эквивалентов букв остаток рассчитывается поочередно для старшего разряда (div 10) и младшего (mod 10).",
+    "shortDescription": "Валидация номеров IBAN (ISO 13616, mod 97 без переполнения BigInteger) со стриминговым алгоритмом.",
+    "instructionsMarkdown": "Реализуйте метод `validate(String iban)` в классе `IbanValidator` с соблюдением требований стандарта ISO 13616 и нулевых аллокаций BigInteger.",
+    "techStack": "Java 21 LTS, Primitive Streaming Math",
+    "architecturePattern": "Streaming Modulo Arithmetic",
+    "timeLimitMinutes": 30,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/bank/iban/IbanValidator.java",
+        "content": "package com.bank.iban;\n\npublic class IbanValidator {\n\n    /**\n     * Validates an International Bank Account Number (IBAN) per ISO 13616.\n     * Must NOT use BigInteger to prevent Heap OOM on high-throughput gateways.\n     */\n    public boolean validate(String iban) {\n        if (iban == null) return false;\n        String clean = iban.replaceAll(\"\\\\s+\", \"\").toUpperCase();\n        if (clean.length() < 15 || clean.length() > 34) return false;\n        if (!clean.matches(\"^[A-Z0-9]+$\")) return false;\n\n        // Move first 4 characters to the end\n        String rearranged = clean.substring(4) + clean.substring(0, 4);\n\n        // Streaming modulo 97\n        int remainder = 0;\n        for (int i = 0; i < rearranged.length(); i++) {\n            char ch = rearranged.charAt(i);\n            if (Character.isDigit(ch)) {\n                remainder = (remainder * 10 + (ch - '0')) % 97;\n            } else if (Character.isUpperCase(ch)) {\n                int value = ch - 'A' + 10;\n                remainder = (remainder * 10 + (value / 10)) % 97;\n                remainder = (remainder * 10 + (value % 10)) % 97;\n            } else {\n                return false;\n            }\n        }\n\n        return remainder == 1;\n    }\n}\n",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/bank/iban/IbanValidatorTest.java",
+        "content": "package com.bank.iban;\n\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.ValueSource;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class IbanValidatorTest {\n    private IbanValidator validator;\n\n    @BeforeEach\n    void setUp() {\n        validator = new IbanValidator();\n    }\n\n    @ParameterizedTest\n    @ValueSource(strings = {\n        \"CH9300762011623852957\",\n        \"DE89370400440532013000\",\n        \"GB29NWBK60161331926819\",\n        \"FR1420041010050500013M02606\"\n    })\n    void shouldValidateValidIbans(String validIban) {\n        assertThat(validator.validate(validIban)).isTrue();\n    }\n\n    @ParameterizedTest\n    @ValueSource(strings = {\n        \"CH9300762011623852958\",\n        \"INVALID_IBAN\",\n        \"\",\n        \"DE00000000000000000000\"\n    })\n    void shouldRejectInvalidIbans(String invalidIban) {\n        assertThat(validator.validate(invalidIban)).isFalse();\n    }\n\n    @Test\n    void shouldHandleNullGracefully() {\n        assertThat(validator.validate(null)).isFalse();\n    }\n}\n",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Стриминговая валидация ISO 13616",
+        "descriptionMarkdown": "Реализуйте посимвольный расчет остатка деления на 97 без аллокаций BigInteger.",
+        "testCases": [
+          {
+            "id": "tc_iban_1",
+            "name": "Проверка валидных швейцарских и европейских счетов",
+            "phase": 1,
+            "weight": 50,
+            "timeoutMs": 1000,
+            "isHidden": false
+          },
+          {
+            "id": "tc_iban_2",
+            "name": "Отсечение невалидных сумм и граничных условий",
+            "phase": 1,
+            "weight": 50,
+            "timeoutMs": 1000,
+            "isHidden": false
+          }
+        ]
+      }
+    ],
+    "astRules": [
+      "carrier-thread-pinning"
+    ],
+    "hints": [
+      "Переставьте первые 4 символа (код страны и контрольные разряды) в конец строки.",
+      "Буквы заменяются на числа от 10 (A) до 35 (Z).",
+      "Рассчитывайте остаток потоково: rem = (rem * 10 + digit) % 97 без BigInteger."
+    ]
+  },
+  {
+    "id": "sparse-vector",
+    "slug": "sparse-vector-dot-product",
+    "title": "Разреженный вектор и скалярное произведение (SparseVector)",
+    "track": "raiffeisen_livecoding",
+    "badge": "🏦 Raiffeisen Live Coding",
+    "difficulty": "Senior",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Разреженный вектор (SparseVector & dotProduct)\n\n## 🏢 Бизнес-контекст (Raiffeisen FinTech)\nВ системах риск-менеджмента и кредитного скоринга клиентские профили представляются в виде разреженных векторов признаков огромной размерности (размерность 100 000+, где 99% значений равны 0).\nХранение таких векторов через `Map<Integer, Integer>` вызывает катастрофический оверхед по памяти и постоянные промахи процессорного кэша.\n\n### 📋 Требования к реализации:\n1. Хранить ненулевые элементы в виде двух синхронных примитивных массивов `int[] indices` и `int[] values`, отсортированных по возрастанию индексов.\n2. Реализовать скалярное произведение `dotProduct(SparseVector other)`.\n3. Алгоритмическая сложность должна составлять $O(\\min(L_1, L_2))$, где $L$ — количество ненулевых элементов.\n4. Вычисление должно использовать метод двух указателей с **0 аллокаций памяти** в рантайме.",
+    "shortDescription": "Разреженный вектор с методами хранения и dotProduct за O(min(L1, L2)) на примитивных массивах.",
+    "instructionsMarkdown": "Реализуйте класс `SparseVector` с эффективным хранением и методом `dotProduct` за один проход двух указателей.",
+    "techStack": "Java 21 LTS, Primitive Arrays, Two Pointers",
+    "architecturePattern": "Compressed Sparse Row (CSR) Primitive Storage",
+    "timeLimitMinutes": 30,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/bank/vector/SparseVector.java",
+        "content": "package com.bank.vector;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\npublic class SparseVector {\n    final int[] indices;\n    final int[] values;\n\n    public SparseVector(int[] nums) {\n        List<Integer> idxList = new ArrayList<>();\n        List<Integer> valList = new ArrayList<>();\n        for (int i = 0; i < nums.length; i++) {\n            if (nums[i] != 0) {\n                idxList.add(i);\n                valList.add(nums[i]);\n            }\n        }\n        indices = new int[idxList.size()];\n        values = new int[valList.size()];\n        for (int i = 0; i < indices.length; i++) {\n            indices[i] = idxList.get(i);\n            values[i] = valList.get(i);\n        }\n    }\n\n    public int dotProduct(SparseVector other) {\n        int p1 = 0;\n        int p2 = 0;\n        int result = 0;\n\n        while (p1 < this.indices.length && p2 < other.indices.length) {\n            if (this.indices[p1] == other.indices[p2]) {\n                result += this.values[p1] * other.values[p2];\n                p1++;\n                p2++;\n            } else if (this.indices[p1] < other.indices[p2]) {\n                p1++;\n            } else {\n                p2++;\n            }\n        }\n\n        return result;\n    }\n}\n",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/bank/vector/SparseVectorTest.java",
+        "content": "package com.bank.vector;\n\nimport org.junit.jupiter.api.Test;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class SparseVectorTest {\n\n    @Test\n    void shouldComputeDotProductCorrectly() {\n        int[] nums1 = new int[]{1, 0, 0, 2, 3};\n        int[] nums2 = new int[]{0, 3, 0, 4, 0};\n        SparseVector v1 = new SparseVector(nums1);\n        SparseVector v2 = new SparseVector(nums2);\n        // 1*0 + 0*3 + 0*0 + 2*4 + 3*0 = 8\n        assertThat(v1.dotProduct(v2)).isEqualTo(8);\n    }\n\n    @Test\n    void shouldReturnZeroForOrthogonalVectors() {\n        int[] nums1 = new int[]{0, 1, 0, 0};\n        int[] nums2 = new int[]{1, 0, 0, 0};\n        SparseVector v1 = new SparseVector(nums1);\n        SparseVector v2 = new SparseVector(nums2);\n        assertThat(v1.dotProduct(v2)).isEqualTo(0);\n    }\n\n    @Test\n    void shouldHandleEmptyAndZeroVectors() {\n        SparseVector v1 = new SparseVector(new int[]{0, 0, 0});\n        SparseVector v2 = new SparseVector(new int[]{0, 0, 0});\n        assertThat(v1.dotProduct(v2)).isEqualTo(0);\n    }\n}\n",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Сжатое хранение и метод двух указателей",
+        "descriptionMarkdown": "Реализуйте инициализацию массивов и скалярное произведение за O(min(L1, L2)).",
+        "testCases": [
+          {
+            "id": "tc_vec_1",
+            "name": "Проверка скалярного произведения",
+            "phase": 1,
+            "weight": 50,
+            "timeoutMs": 1000,
+            "isHidden": false
+          },
+          {
+            "id": "tc_vec_2",
+            "name": "Граничные ортогональные и нулевые векторы",
+            "phase": 1,
+            "weight": 50,
+            "timeoutMs": 1000,
+            "isHidden": false
+          }
+        ]
+      }
+    ],
+    "astRules": [
+      "carrier-thread-pinning"
+    ],
+    "hints": [
+      "Сохраняйте только ненулевые элементы в синхронных массивах indices[] и values[].",
+      "Так как индексы возрастают, скалярное произведение вычисляется двумя указателями за O(min(L1, L2))."
+    ]
   }
 ]

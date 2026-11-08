@@ -3224,5 +3224,67 @@
       "modernIdioms": 0.1,
       "oralDefense": 0.1
     }
+  },
+  {
+    "id": "case_transfer_service",
+    "slug": "case-transfer-service",
+    "title": "TransferService: Банковский перевод (7 архитектурных дефектов)",
+    "grade": "L2_SENIOR",
+    "archetype": "TransferService Banking Transaction Concurrency & Deadlock Defense",
+    "category": "refactoring_kata",
+    "track": "raiffeisen_code_review",
+    "badge": "🏦 Raiffeisen Code Review",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Spring Boot 3, PostgreSQL 16",
+    "estimatedMinutes": 30,
+    "companyContext": "Эталонная банковская задача на секцию Code Review в Райффайзенбанк (DGTL / Tech). Собеседующий проверяет умение кандидата находить скрытые дефекты параллельного выполнения, аномалии потерянных обновлений (Lost Update), взаимные блокировки строк в БД (Deadlock) и тонкости работы Spring TransactionInterceptor.",
+    "shortDescription": "Поиск и устранение 7 архитектурных дефектов в сервисе денежных переводов TransferService.",
+    "instructionsMarkdown": "### Задание\nПроведите детальное Code Review сервиса `TransferService.java` и устраните 7 критических дефектов:\n1. **Lost Update:** Сущности `from`/`to` принимаются в detached-состоянии — вычитывайте свежие строки в активной транзакции.\n2. **Deadlock в БД:** Сортируйте первичные ключи перед взятием блокировок: `min(id) -> max(id)`.\n3. **Fail-Fast:** Проверяйте баланс отправителя до начисления средств получателю.\n4. **Идемпотентность:** Требуйте `idempotencyKey` в сигнатуре метода.\n5. **Откат:** Добавьте `@Transactional(rollbackFor = Exception.class)`.\n6. **Dirty Checking:** Удалите избыточные `save()` вызовы внутри сессии JPA.\n7. **Граничные проверки:** Валидируйте положительность суммы, `null` и перевод самому себе.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/bank/transfer/TransferService.java",
+        "content": "package com.bank.transfer;\n\nimport java.math.BigDecimal;\nimport java.time.Instant;\nimport java.util.Objects;\nimport java.util.UUID;\n\npublic class TransferService {\n    private final AccountRepository accountRepo;\n    private final LedgerRepository ledgerRepo;\n\n    public TransferService(AccountRepository accountRepo, LedgerRepository ledgerRepo) {\n        this.accountRepo = Objects.requireNonNull(accountRepo);\n        this.ledgerRepo = Objects.requireNonNull(ledgerRepo);\n    }\n\n    /**\n     * Production-grade money transfer with deterministic deadlock prevention and idempotency.\n     */\n    public String transfer(long fromAccountId, long toAccountId, BigDecimal amount, String idempotencyKey) {\n        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {\n            throw new IllegalArgumentException(\"Amount must be positive\");\n        }\n        if (fromAccountId == toAccountId) {\n            throw new IllegalArgumentException(\"Cannot transfer to the same account\");\n        }\n        if (idempotencyKey == null || idempotencyKey.isBlank()) {\n            throw new IllegalArgumentException(\"Idempotency key is required\");\n        }\n\n        // Check idempotency\n        if (ledgerRepo.existsByIdempotencyKey(idempotencyKey)) {\n            return ledgerRepo.getTransactionId(idempotencyKey);\n        }\n\n        // Lock in deterministic ascending ID order: min(id) -> max(id) to prevent deadlocks\n        long firstId = Math.min(fromAccountId, toAccountId);\n        long secondId = Math.max(fromAccountId, toAccountId);\n\n        Account firstLocked = accountRepo.findForUpdate(firstId)\n                .orElseThrow(() -> new IllegalArgumentException(\"Account not found: \" + firstId));\n        Account secondLocked = accountRepo.findForUpdate(secondId)\n                .orElseThrow(() -> new IllegalArgumentException(\"Account not found: \" + secondId));\n\n        Account from = (firstId == fromAccountId) ? firstLocked : secondLocked;\n        Account to = (firstId == toAccountId) ? firstLocked : secondLocked;\n\n        // Fail-Fast: check sender balance\n        if (from.getBalance().compareTo(amount) < 0) {\n            throw new IllegalStateException(\"Insufficient funds on account: \" + fromAccountId);\n        }\n\n        from.setBalance(from.getBalance().subtract(amount));\n        to.setBalance(to.getBalance().add(amount));\n\n        String txId = UUID.randomUUID().toString();\n        ledgerRepo.saveTransaction(txId, idempotencyKey, fromAccountId, toAccountId, amount, Instant.now());\n        return txId;\n    }\n}\n",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/bank/transfer/TransferServiceTest.java",
+        "content": "package com.bank.transfer;\n\nimport org.junit.jupiter.api.Test;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.assertj.core.api.Assertions.assertThatThrownBy;\n\npublic class TransferServiceTest {\n\n    @Test\n    void shouldRejectNegativeOrZeroAmount() {\n        var accountRepo = new InMemoryAccountRepo();\n        var ledgerRepo = new InMemoryLedgerRepo();\n        var service = new TransferService(accountRepo, ledgerRepo);\n\n        assertThatThrownBy(() -> service.transfer(1L, 2L, BigDecimal.ZERO, \"k1\"))\n                .isInstanceOf(IllegalArgumentException.class)\n                .hasMessageContaining(\"positive\");\n    }\n}\n",
+        "readOnly": true,
+        "hidden": false
+      }
+    ]
+  },
+  {
+    "id": "case_account_collections",
+    "slug": "case-account-collections",
+    "title": "Account: Банковский счет и коллизия в TreeMap (Что выведет этот код?)",
+    "grade": "L2_SENIOR",
+    "archetype": "Account Collections Collision & IEEE 754 Float Hazards",
+    "category": "refactoring_kata",
+    "track": "raiffeisen_code_review",
+    "badge": "🏦 Raiffeisen Code Review",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Collections Framework",
+    "estimatedMinutes": 30,
+    "companyContext": "Секция «Что выведет этот код?» на собеседовании в Райффайзенбанк. Проверяет понимание разницы между equals() и compareTo() в красно-черном дереве TreeMap, потерю точности IEEE 754 и безопасность загрузчика классов JVM.",
+    "shortDescription": "Разбор 6 скрытых дефектов в классе Account (TreeMap Date коллизия, double в деньгах, имя пакета).",
+    "instructionsMarkdown": "### Задание\nПроанализируйте класс `Account.java` и найдите 6 скрытых дефектов:\n1. Запрещенное имя пакета `package java.snippet.account` $\\to$ SecurityException.\n2. Коллизия ключей в `TreeMap`: транзакции в одну миллисекунду затирают друг друга.\n3. Использование `double` вместо `BigDecimal`.\n4. Коллизия `id = System.currentTimeMillis()`.\n5. Использование Raw Types и конкатенация строк `+=` без StringBuilder.\n6. Публичные мутабельные поля.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/bank/account/Account.java",
+        "content": "package com.bank.account;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Objects;\n\npublic class Account {\n    private final String id;\n    private BigDecimal balance;\n    private final List<TransactionRecord> transactions;\n\n    public record TransactionRecord(long timestamp, BigDecimal amount, String type) {}\n\n    public Account(String id) {\n        this.id = Objects.requireNonNull(id);\n        this.balance = BigDecimal.ZERO;\n        this.transactions = new ArrayList<>();\n    }\n\n    public synchronized void deposit(BigDecimal amount) {\n        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {\n            throw new IllegalArgumentException(\"Amount must be positive\");\n        }\n        this.balance = this.balance.add(amount);\n        this.transactions.add(new TransactionRecord(System.currentTimeMillis(), amount, \"DEPOSIT\"));\n    }\n\n    public synchronized void withdraw(BigDecimal amount) {\n        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {\n            throw new IllegalArgumentException(\"Amount must be positive\");\n        }\n        if (this.balance.compareTo(amount) < 0) {\n            throw new IllegalStateException(\"Insufficient funds\");\n        }\n        this.balance = this.balance.subtract(amount);\n        this.transactions.add(new TransactionRecord(System.currentTimeMillis(), amount.negate(), \"WITHDRAW\"));\n    }\n\n    public synchronized BigDecimal getBalance() {\n        return balance;\n    }\n\n    public synchronized List<TransactionRecord> getTransactions() {\n        return Collections.unmodifiableList(new ArrayList<>(transactions));\n    }\n}\n",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/bank/account/AccountTest.java",
+        "content": "package com.bank.account;\n\nimport org.junit.jupiter.api.Test;\nimport java.math.BigDecimal;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class AccountTest {\n\n    @Test\n    void shouldRetainAllTransactionsEvenInSameMillisecond() {\n        Account acc = new Account(\"acc-1\");\n        acc.deposit(BigDecimal.valueOf(100));\n        acc.withdraw(BigDecimal.valueOf(70));\n        assertThat(acc.getTransactions()).hasSize(2);\n        assertThat(acc.getBalance()).isEqualByComparingTo(BigDecimal.valueOf(30));\n    }\n}\n",
+        "readOnly": true,
+        "hidden": false
+      }
+    ]
   }
 ]

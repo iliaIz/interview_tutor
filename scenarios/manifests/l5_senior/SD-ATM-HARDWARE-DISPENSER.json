@@ -1,0 +1,116 @@
+{
+  "canonical_id": "SD-ATM-HARDWARE-DISPENSER",
+  "legacy_aliases": [
+    "atm-hardware-cash-dispenser",
+    "atm-cash-dispenser",
+    "sd-atm-hardware-dispenser"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "HARDWARE_FINTECH_INTEGRATION",
+  "title": "ATM Hardware Cash Dispenser & Bounded Knapsack Allocation",
+  "subtitle": "Physical Paper Jam Compensation, Dynamic Programming Dispense & 2-Phase Ledger Hold",
+  "problem_statement": "Designing the cash dispensing subsystem of an Automated Teller Machine (ATM) with physical bill cassettes (5000₽, 2000₽, 1000₽, 500₽, 200₽, 100₽). Greedy allocation fails on denominations (e.g. dispensing 600₽ from 500₽ and 200₽ bills requires Bounded Knapsack), physical actuator motor has high mechanical latency and cannot be pulsed incrementally, and mechanical paper jams require automated ledger compensation.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/bank/atm/AtmDispenserService.java",
+        "content": "package com.bank.atm;\n\nimport java.math.BigDecimal;\nimport java.util.*;\n\npublic class AtmDispenserService {\n    private final HardwareHardwareDriver hardware;\n    private final CoreLedgerClient ledger;\n\n    public AtmDispenserService(HardwareHardwareDriver hardware, CoreLedgerClient ledger) {\n        this.hardware = hardware;\n        this.ledger = ledger;\n    }\n\n    public DispenseResult withdraw(long accountId, BigDecimal amount, Map<Integer, Integer> cassetteQuantities) {\n        // BUG: Greedy algorithm fails on 600 from (500, 200) bills\n        // BUG 2: Must hold funds in ledger before physical motor trigger and compensate on HardwareJamException\n        return null;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 15,
+      "description": "Greedy bill selection fails when smaller combinations can fulfill the request, and lack of 2-phase hold/clear leads to double-spending or money loss during paper jams.",
+      "bug_pattern": "GREEDY_FALLACY_AND_NON_ATOMIC_HARDWARE"
+    },
+    "correct_fix_diff": "+ // 1. Bounded Knapsack (Backtracking) to find optimal bill distribution in memory\n+ // 2. Hold amount in Core Banking Ledger (txId)\n+ // 3. try { hardware.giveBills(plan); ledger.commit(txId); } catch (HardwareFailureException e) { ledger.adjust(txId, e.getActuallyDispensed()); }",
+    "ast_rule_invariants": [
+      "no-greedy-in-bounded-knapsack",
+      "two-phase-hardware-ledger-coordination"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "atm_controller",
+          "type": "app_service",
+          "title": "ATM Embedded Controller",
+          "grid_position": { "col": 0, "row": 0 },
+          "params": { "bounded_knapsack_enabled": true }
+        },
+        {
+          "id": "hardware_dispenser",
+          "type": "worker_pool",
+          "title": "Physical Cassette Dispenser Driver",
+          "grid_position": { "col": 1, "row": 0 },
+          "params": { "jam_detection_sensor": true }
+        },
+        {
+          "id": "core_banking_ledger",
+          "type": "rdbms_primary",
+          "title": "Core Banking Ledger",
+          "grid_position": { "col": 1, "row": 1 },
+          "params": { "two_phase_hold_clear": true }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "atm_controller", "target": "hardware_dispenser", "protocol": "tcp_socket" },
+        { "id": "e2", "source": "atm_controller", "target": "core_banking_ledger", "protocol": "db_protocol" }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 3000.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 1200.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 5.0,
+      "inter_arrival_cv": 0.4,
+      "read_ratio": 0.1
+    },
+    "chaos_scenarios": [
+      {
+        "id": "paper_jam_event",
+        "name": "Hardware Dispenser Paper Jam",
+        "trigger_second": 5,
+        "duration_second": 3,
+        "fault_type": "HARDWARE_FAILURE",
+        "target_node_id": "hardware_dispenser",
+        "impact_multiplier": 5.0
+      }
+    ],
+    "invariants": [
+      {
+        "id": "inv_ledger_hardware_symmetry",
+        "description": "Customer account balance must be debited ONLY for the bills physically passed through the optical exit sensor.",
+        "severity": "ERROR",
+        "category": "FAULT_TOLERANCE",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.is_stable == True"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Why does a greedy banknote dispensing algorithm fail for an ATM? Give a concrete counter-example with Russian ruble denominations.",
+      "stage_2_tightening": "If the physical motor jams halfway through dispensing, how does the firmware know how many banknotes were actually dispensed before the jam?",
+      "stage_3_adversarial": "Suppose power is cut to the ATM after the bill shutter opens but before the network confirmation packet reaches the core ledger. How does reconciliation work?",
+      "stage_4_squeeze": "How do you optimize the Bounded Knapsack algorithm so it computes bill distribution in < 2ms on an embedded Intel Atom / ARM CPU inside the ATM?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "greedy algorithm",
+        "trigger_regex": "(?i)greedy.*always.*optimal",
+        "counter_question": "If you have 500₽ and 200₽ bills and the user requests 600₽, what does greedy output? How do you fix this?",
+        "expected_staff_answer": "Greedy picks 500₽, leaves 100₽, and fails because there are no 100₽ bills left. Dynamic programming (Bounded Knapsack) or backtracking finds the 3x200₽ solution."
+      }
+    ]
+  }
+}

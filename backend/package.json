@@ -33,6 +33,7 @@
     "test:practice:resilience": "node tests/test_practice_fault_injection.js",
     "test:practice:task-codes": "node tests/test_practice_task_codes.js && node tests/test_catalog_path_resolver.js",
     "test:catalog-paths": "node tests/test_catalog_path_resolver.js",
+    "test:tutor:normalizers": "node tests/test_polymorphic_tutor_normalizers.js",
     "test:practice:mutation-challenges": "node tests/verify_all_mutation_challenges.js",
     "test:practice:scanner": "ts-node src/scripts/testTestQualityScanner.ts",
     "test:practice:ast-verifier": "ts-node src/scripts/testRefactoringAstVerifier.ts",

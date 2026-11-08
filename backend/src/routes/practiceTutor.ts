@@ -13,6 +13,8 @@ import {
   HintTier,
   PracticeTutorContext
 } from '../prompts/practiceTutorPrompts';
+import { buildPolymorphicTutorSystemPrompt } from '../prompts/tutor/polymorphicPromptBuilder';
+import { callLiteLlm, streamTutorSse } from './practiceTutorStreaming';
 import { ALL_MUTATION_CHALLENGES } from '../services/mutationChallenges';
 import { db } from '../services/db';
 import { pruneTutorContext } from '../services/practiceContextPruner';
@@ -31,27 +33,6 @@ router.get('/lld-compass-rules', (_req: Request, res: Response) => res.json({ ru
 router.get('/transaction-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(TRANSACTION_COMPASS_RULES) }));
 router.get('/concurrency-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(CONCURRENCY_COMPASS_RULES) }));
 router.get('/refactoring-compass-rules', (_req: Request, res: Response) => res.json({ rules: Object.values(REFACTORING_COMPASS_RULES) }));
-
-// Helper for LiteLLM fetch with host.docker.internal -> localhost failover
-async function callLiteLlm(payload: any, abortSignal?: AbortSignal): Promise<globalThis.Response> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const init = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${envConfig.proxy.apiKey}` },
-    signal: abortSignal,
-    body: JSON.stringify(payload)
-  };
-  try {
-    return await fetch(endpointUrl, init);
-  } catch (err: any) {
-    if (endpointUrl.includes('host.docker.internal')) {
-      const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-      console.log(`🔄 Retrying LiteLLM Proxy with local URL: ${localUrl}`);
-      return await fetch(localUrl, init);
-    }
-    throw err;
-  }
-}
 
 // POST /api/practice-tutor/chat
 router.post('/chat', async (req: Request, res: Response): Promise<void> => {
@@ -84,22 +65,9 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       stream = true
     } = req.body;
 
-    let resolvedInstructions = (kataInstructions as string) || '';
-    let resolvedTitle = (kataTitle as string) || kataId || '';
-    let resolvedCategory = (kataCategory as string) || 'Testing & Mutation Katas';
-
-    if (kataId && (!resolvedInstructions || resolvedInstructions.trim().length < 20)) {
-      try {
-        const row = db.prepare('SELECT title, category, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(kataId, kataId) as any;
-        if (row) {
-          resolvedInstructions = row.instructions_markdown || row.short_description || '';
-          if (!resolvedTitle || resolvedTitle === kataId) resolvedTitle = row.title;
-          if (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas') resolvedCategory = row.category;
-        }
-      } catch (dbErr) {
-        console.warn('[practiceTutor] Failed to hydrate kata instructions from SQLite:', dbErr);
-      }
-    }
+    const isPolymorphic = Boolean(req.body.arena && req.body.arena !== 'practice');
+    let systemPrompt: string;
+    let targetSolutions: string[] = [];
 
     // Gate 04: Token Budgeting & Sliding Window Pruning
     const pruned = pruneTutorContext({
@@ -110,29 +78,51 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       academyBridgeContext
     });
 
-    const context: PracticeTutorContext = {
-      persona: persona as TutorPersona,
-      assistanceLevel: Number(assistanceLevel),
-      kataTitle: resolvedTitle,
-      kataCategory: resolvedCategory,
-      kataInstructions: resolvedInstructions,
-      activeFilePath: activeFilePath || 'src/test/java/ExampleTest.java',
-      activeFileContent: activeFileContent || '',
-      selectedCodeSnippet,
-      cursorLine,
-      cursorColumn,
-      survivingMutants,
-      compilerError,
-      testFailureMessage,
-      activeCompassRuleId,
-      activeWhiteboardSnippet,
-      workspaceManifest: pruned.prunedXmlManifest ? { xmlManifest: pruned.prunedXmlManifest } : workspaceManifest,
-      academyBridgeContext,
-      earlierTurnsSummary: pruned.earlierTurnsSummary
-    };
+    if (isPolymorphic) {
+      systemPrompt = buildPolymorphicTutorSystemPrompt(req.body);
+    } else {
+      let resolvedInstructions = (kataInstructions as string) || '';
+      let resolvedTitle = (kataTitle as string) || kataId || '';
+      let resolvedCategory = (kataCategory as string) || 'Testing & Mutation Katas';
 
-    const systemPrompt = buildPracticeTutorSystemPrompt(context);
-    const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
+      if (kataId && (!resolvedInstructions || resolvedInstructions.trim().length < 20)) {
+        try {
+          const row = db.prepare('SELECT title, category, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(kataId, kataId) as any;
+          if (row) {
+            resolvedInstructions = row.instructions_markdown || row.short_description || '';
+            if (!resolvedTitle || resolvedTitle === kataId) resolvedTitle = row.title;
+            if (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas') resolvedCategory = row.category;
+          }
+        } catch (dbErr) {
+          console.warn('[practiceTutor] Failed to hydrate kata instructions from SQLite:', dbErr);
+        }
+      }
+
+      const context: PracticeTutorContext = {
+        persona: persona as TutorPersona,
+        assistanceLevel: Number(assistanceLevel),
+        kataTitle: resolvedTitle,
+        kataCategory: resolvedCategory,
+        kataInstructions: resolvedInstructions,
+        activeFilePath: activeFilePath || 'src/test/java/ExampleTest.java',
+        activeFileContent: activeFileContent || '',
+        selectedCodeSnippet,
+        cursorLine,
+        cursorColumn,
+        survivingMutants,
+        compilerError,
+        testFailureMessage,
+        activeCompassRuleId,
+        activeWhiteboardSnippet,
+        workspaceManifest: pruned.prunedXmlManifest ? { xmlManifest: pruned.prunedXmlManifest } : workspaceManifest,
+        academyBridgeContext,
+        earlierTurnsSummary: pruned.earlierTurnsSummary
+      };
+
+      systemPrompt = buildPracticeTutorSystemPrompt(context);
+      targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
+    }
+
     const isSocratic = persona === 'senior_socratic' || persona === 'faang_interviewer' || assistanceLevel >= 3;
 
     const requestPayload = {
@@ -162,7 +152,6 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       const data: any = await upstreamRes.json();
       let rawText = data.choices?.[0]?.message?.content || '';
 
-      // AST Socratic Guard
       const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
         leakThreshold: 0.40,
         isSocraticEnforced: isSocratic
@@ -176,64 +165,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Streaming SSE Response
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no'
-    });
-    res.flushHeaders();
-
-    const reader = upstreamRes.body?.getReader();
-    if (!reader) {
-      res.write(`data: ${JSON.stringify({ error: 'No readable stream available' })}\n\n`);
-      res.end();
-      return;
-    }
-
-    const decoder = new TextDecoder('utf-8');
-    let accumulatedContent = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-        if (trimmed === 'data: [DONE]') continue;
-
-        try {
-          const json = JSON.parse(trimmed.slice(5).trim());
-          const delta = json.choices?.[0]?.delta?.content || '';
-          if (delta) {
-            accumulatedContent += delta;
-            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-            const resWithFlush = res as unknown as { flush?: () => void };
-            if (typeof resWithFlush.flush === 'function') resWithFlush.flush();
-          }
-        } catch {
-          // ignore chunk parse errors
-        }
-      }
-    }
-
-    // Final Post-Stream AST check on accumulated text
-    const finalGuard = TreeEditDistanceGuard.guardResponse(accumulatedContent, targetSolutions, {
-      leakThreshold: 0.40,
-      isSocraticEnforced: isSocratic
-    });
-
-    res.write(`data: ${JSON.stringify({
-      done: true,
-      leakDetected: finalGuard.leakDetected,
-      maxSimilarity: finalGuard.maxSimilarity
-    })}\n\n`);
-    res.end();
+    // Streaming SSE Response via practiceTutorStreaming
+    await streamTutorSse(upstreamRes, res, { targetSolutions, isSocratic });
 
   } catch (err: any) {
     if (err.name === 'AbortError') {

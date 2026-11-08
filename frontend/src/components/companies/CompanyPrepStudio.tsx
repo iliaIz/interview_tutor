@@ -5,18 +5,21 @@ import { CompanyPipelineTab } from './CompanyPipelineTab';
 import { CompanyDossierTab } from './CompanyDossierTab';
 import { CompanyRunbookTab } from './CompanyRunbookTab';
 import { SqlArena } from '../sql/SqlArena';
+import { CompanyTakeHomeLab } from './CompanyTakeHomeLab';
 import { VoiceModal } from '../VoiceModal';
 import { 
   Building2, Sparkles, MapPin, ExternalLink, 
-  Layers, FileText, Zap, Database, RotateCcw, AlertCircle
+  Layers, FileText, Zap, Database, RotateCcw, AlertCircle, PackageCheck, Bot
 } from 'lucide-react';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { normalizeCompanyContext } from '@interview-prep/shared';
 
 export const CompanyPrepStudio: React.FC = () => {
   const { setStudioTab } = useAppStore();
 
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>('raiffeisen_dgtl');
-  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'dossier' | 'runbook' | 'sql_arena'>('pipeline');
+  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
   const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [targetSqlChallengeId, setTargetSqlChallengeId] = useState<string | undefined>(undefined);
@@ -67,6 +70,29 @@ export const CompanyPrepStudio: React.FC = () => {
     return profiles.find((p) => p.id === selectedProfileId) || profiles[0];
   }, [profiles, selectedProfileId]);
 
+  const setActiveContext = usePracticeTutorStore((s) => s.setActiveContext);
+  const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
+
+  // Sync active company context to polymorphic AI Copilot
+  useEffect(() => {
+    if (profile && activeSubTab !== 'sql_arena') {
+      setActiveContext(
+        normalizeCompanyContext({
+          profile,
+          activeStage: profile.stages[0],
+          activeTaskTitle: `Целевая подготовка: ${profile.name} [${activeSubTab}]`
+        })
+      );
+    }
+  }, [profile, activeSubTab, setActiveContext]);
+
+  // Clean up tutor context on unmount
+  useEffect(() => {
+    return () => {
+      setActiveContext(null);
+    };
+  }, [setActiveContext]);
+
   // Compute Company Readiness Index (CRI)
   const readinessIndex = useMemo(() => {
     if (!profile) return 0;
@@ -114,6 +140,9 @@ export const CompanyPrepStudio: React.FC = () => {
       case 'system_design':
         setStudioTab('system_design');
         break;
+      case 'take_home':
+        setActiveSubTab('take_home');
+        break;
     }
   };
 
@@ -123,8 +152,10 @@ export const CompanyPrepStudio: React.FC = () => {
       setActiveSubTab('sql_arena');
     } else if (taskId.startsWith('case_')) {
       setStudioTab('incidents');
-    } else if (taskId.startsWith('sd-')) {
+    } else if (taskId.startsWith('sd-') || taskId.startsWith('SD-')) {
       setStudioTab('system_design');
+    } else if (taskId === 'cib-interns-test-task') {
+      setActiveSubTab('take_home');
     } else {
       setStudioTab('practice');
     }
@@ -183,16 +214,38 @@ export const CompanyPrepStudio: React.FC = () => {
             </p>
           </div>
 
-          {/* Quick Stats Pill */}
-          <div className="flex items-center gap-3 bg-white/90 p-3 rounded-2xl border border-amber-300/40 shadow-xs self-start md:self-auto font-mono text-xs">
-            <div>
-              <span className="block text-slate-500 text-[10px] uppercase font-bold">Степень готовности</span>
-              <span className="font-extrabold text-base text-slate-900">{readinessIndex}% CRI</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200" />
-            <div>
-              <span className="block text-slate-500 text-[10px] uppercase font-bold">Этапов</span>
-              <span className="font-extrabold text-base text-amber-700">{profile.stages.length} раундов</span>
+          {/* Quick Stats Pill & AI Copilot Action */}
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+            <button
+              onClick={() => {
+                if (profile) {
+                  setActiveContext(
+                    normalizeCompanyContext({
+                      profile,
+                      activeStage: profile.stages[0],
+                      activeTaskTitle: `Целевая подготовка: ${profile.name} (${activeSubTab})`
+                    })
+                  );
+                }
+                toggleOpen(true);
+              }}
+              className="px-3.5 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold text-xs shadow-xs flex items-center gap-2 transition-all cursor-pointer border border-amber-500/30"
+              title="Открыть диалог с AI-Напарником (Raiffeisen Bar-Raiser)"
+            >
+              <Bot className="w-4 h-4 text-slate-950" />
+              <span>AI-Напарник (Bar-Raiser)</span>
+            </button>
+
+            <div className="flex items-center gap-3 bg-white/90 p-3 rounded-2xl border border-amber-300/40 shadow-xs font-mono text-xs">
+              <div>
+                <span className="block text-slate-500 text-[10px] uppercase font-bold">Степень готовности</span>
+                <span className="font-extrabold text-base text-slate-900">{readinessIndex}% CRI</span>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div>
+                <span className="block text-slate-500 text-[10px] uppercase font-bold">Этапов</span>
+                <span className="font-extrabold text-base text-amber-700">{profile.stages.length} раундов</span>
+              </div>
             </div>
           </div>
         </div>
@@ -247,6 +300,18 @@ export const CompanyPrepStudio: React.FC = () => {
           <Database className="w-4 h-4" />
           PostgreSQL WASM Арена
         </button>
+
+        <button
+          onClick={() => setActiveSubTab('take_home')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+            activeSubTab === 'take_home'
+              ? 'bg-teal-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
+          }`}
+        >
+          <PackageCheck className="w-4 h-4" />
+          Тестовое задание (25 PRs)
+        </button>
       </div>
 
       {/* Tab Panels */}
@@ -279,6 +344,13 @@ export const CompanyPrepStudio: React.FC = () => {
           initialChallengeId={targetSqlChallengeId}
           onBackToCompanyTrack={() => setActiveSubTab('pipeline')}
           companyContextName={profile.name}
+        />
+      )}
+
+      {activeSubTab === 'take_home' && (
+        <CompanyTakeHomeLab
+          onBackToPipeline={() => setActiveSubTab('pipeline')}
+          companyName={profile.name}
         />
       )}
 
