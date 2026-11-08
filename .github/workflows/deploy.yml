@@ -292,6 +292,9 @@ jobs:
 
             cd /home/djelu/projects/interview_tutor
 
+            echo "[2/5] Synchronizing repository files on VPS host..."
+            git fetch origin main && git checkout -f "${GITHUB_SHA}" || true
+
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/projects/interview_tutor/docker-compose.prod.yml || true
 
             echo "[3/5] Exporting deployment metadata & Pulling images..."

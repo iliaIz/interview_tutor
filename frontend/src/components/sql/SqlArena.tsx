@@ -26,6 +26,7 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
 }) => {
   const [challenges, setChallenges] = useState<SqlChallenge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string>(initialChallengeId || '');
   const [editorSql, setEditorSql] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
@@ -34,20 +35,34 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
   const [solvedIds, setSolvedIds] = useState<Set<string>>(new Set());
 
   // Fetch SQL challenges from backend
-  useEffect(() => {
-    fetch('/api/sql-challenges', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: SqlChallenge[]) => {
+  const fetchChallenges = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/sql-challenges', { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error(`Ошибка сервера (${res.status}): не удалось получить SQL-задачи`);
+      }
+      const data: SqlChallenge[] = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
         setChallenges(data);
-        if (data.length > 0) {
-          const target = data.find((c) => c.id === initialChallengeId) || data[0];
-          setSelectedId(target.id);
-          setEditorSql(target.initialEditorSql);
-        }
-      })
-      .catch((err) => console.error('[SqlArena] Failed to load challenges:', err))
-      .finally(() => setLoading(false));
+        const target = data.find((c) => c.id === initialChallengeId) || data[0];
+        setSelectedId(target.id);
+        setEditorSql(target.initialEditorSql);
+      } else {
+        throw new Error('Задачи SQL не найдены');
+      }
+    } catch (err: any) {
+      console.error('[SqlArena] Failed to load challenges:', err);
+      setLoadError(err.message || 'Ошибка загрузки SQL-задач');
+    } finally {
+      setLoading(false);
+    }
   }, [initialChallengeId]);
+
+  useEffect(() => {
+    void fetchChallenges();
+  }, [fetchChallenges]);
 
   const activeChallenge = useMemo(() => {
     return challenges.find((c) => c.id === selectedId) || challenges[0];
@@ -112,10 +127,23 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
     );
   }
 
-  if (!activeChallenge) {
+  if (loadError || !activeChallenge) {
     return (
-      <div className="p-8 text-center text-pastel-muted">
-        <p>Задачи SQL не найдены.</p>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4 font-sans px-4 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <div className="space-y-1 max-w-md">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Не удалось загрузить задачи SQL</h3>
+          <p className="text-xs text-rose-500/90 font-mono">{loadError || 'Задачи SQL не найдены'}</p>
+        </div>
+        <button
+          onClick={() => void fetchChallenges()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-pastel-accentIndigo hover:bg-pastel-accentIndigo/90 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Повторить попытку
+        </button>
       </div>
     );
   }
@@ -215,49 +243,27 @@ export const SqlArena: React.FC<SqlArenaProps> = ({
           <div className="bg-white border border-pastel-border/80 rounded-2xl p-3.5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2">
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setActiveTab('result')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                    activeTab === 'result'
-                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Результат выборки
-                </button>
-                <button
-                  onClick={() => setActiveTab('diff')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
-                    activeTab === 'diff'
-                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Сравнение (Diff)
-                  {result && (
-                    <span className={`w-2 h-2 rounded-full ${result.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('schema')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                    activeTab === 'schema'
-                      ? 'bg-slate-100 text-slate-800 border border-slate-300'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Схема БД
-                </button>
-                <button
-                  onClick={() => setActiveTab('explanation')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                    activeTab === 'explanation'
-                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Разбор ловушки
-                </button>
+                {(
+                  [
+                    ['result', 'Результат выборки', 'bg-indigo-50 text-indigo-700 border-indigo-200'],
+                    ['diff', 'Сравнение (Diff)', 'bg-amber-50 text-amber-800 border-amber-200'],
+                    ['schema', 'Схема БД', 'bg-slate-100 text-slate-800 border-slate-300'],
+                    ['explanation', 'Разбор ловушки', 'bg-purple-50 text-purple-700 border-purple-200'],
+                  ] as const
+                ).map(([tabId, label, activeStyle]) => (
+                  <button
+                    key={tabId}
+                    onClick={() => setActiveTab(tabId)}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
+                      activeTab === tabId ? `${activeStyle} border` : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {label}
+                    {tabId === 'diff' && result && (
+                      <span className={`w-2 h-2 rounded-full ${result.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    )}
+                  </button>
+                ))}
               </div>
 
               {result?.success && (

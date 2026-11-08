@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { seedCanonicalManifests } from './scenarioLoader';
+import { resolveJsonCatalogPath } from '../utils/pathResolver';
 
 /**
  * Seeding utilities for coding challenges, system design, incident triage, and roadmaps.
@@ -9,17 +10,10 @@ import { seedCanonicalManifests } from './scenarioLoader';
  */
 
 export function seedQuestionsFromJSON(db: Database.Database) {
-  const possiblePaths = [
-    '/json/all_interview_questions.json',
-    path.join(__dirname, '../../../json/all_interview_questions.json'),
-    path.join(__dirname, '../../json/all_interview_questions.json'),
-    path.join(process.cwd(), 'json/all_interview_questions.json')
-  ];
+  const jsonPath = resolveJsonCatalogPath('all_interview_questions.json');
 
-  const jsonPath = possiblePaths.find(p => fs.existsSync(p));
-
-  if (!jsonPath) {
-    console.log('⚠️ JSON source file not found in paths:', possiblePaths);
+  if (!fs.existsSync(jsonPath)) {
+    console.log('⚠️ JSON source file not found at path:', jsonPath);
     return;
   }
 
@@ -161,12 +155,8 @@ export function seedCodingChallenges(db: Database.Database) {
 export function seedNextGenCatalogs(db: Database.Database) {
   try {
     const resolveJsonPath = (filename: string) => {
-      const paths = [
-        path.join(__dirname, `../../../json/${filename}`),
-        path.join(__dirname, `../../json/${filename}`),
-        path.join(process.cwd(), `json/${filename}`)
-      ];
-      return paths.find(p => fs.existsSync(p));
+      const p = resolveJsonCatalogPath(filename);
+      return fs.existsSync(p) ? p : undefined;
     };
 
     // 1. System Design: SSOT Canonical Manifests

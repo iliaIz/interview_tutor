@@ -44,3 +44,18 @@ This subsystem introduces company-targeted technical assessment pipelines (start
 ### 2.4. `raiffeisen_dgtl_pe` Voice Persona
 - **File:** `backend/src/prompts/personas.ts`
 - **What Was Done:** Added the `raiffeisen_dgtl_pe` persona directive to Gemini Live prompting, calibrating questions on STAR, TTM/Pain Index, `BigDecimal` invariants, and deterministic DB lock ordering (`min -> max`).
+
+### 2.5. Catalog Path Resolution & Production Volume Isolation
+- **Files:** `backend/src/utils/pathResolver.ts`, `backend/src/routes/companies.ts`, `backend/src/routes/sqlChallenges.ts`, `docker-compose.prod.yml`, `.github/workflows/deploy.yml`
+- **What Was Done:** 
+  1. Created unified `resolveJsonCatalogPath(filename)` checking multi-environment candidates (`process.cwd()/json`, `dist/../json`, `src/../../json`, `/app/json`).
+  2. Replaced fragile single `__dirname/../../../json` paths in `companies.ts` and `sqlChallenges.ts`.
+  3. Removed obsolete `./json:/app/json:ro` volume mount in `docker-compose.prod.yml` to prevent stale host mounts from masking Docker image builds.
+  4. Added `git fetch origin main && git checkout -f "${GITHUB_SHA}"` to `deploy.yml` on VPS.
+  5. Added explicit loading, error, and retry states (`RotateCcw`, `AlertCircle`) in `CompanyPrepStudio.tsx` and `SqlArena.tsx` to eliminate infinite hangs.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* `path.resolve(__dirname, '../../../json/...')` in compiled `dist/routes/` resolved to container root `/json/...` instead of `/app/json/...`, throwing `ENOENT` and returning empty lists.
+  - *Empirical Observation:* Confirmed via VPS container logs: `[CompaniesRoute] Failed to load company profiles: Error: ENOENT: no such file or directory, open '/json/company_profiles.json'`.
+- **Rationale & Why:** Hardcoded relative paths break across TS source vs. compiled dist. Multi-path fallback resolution combined with self-contained Docker images resolves the root cause.
+- **Failure Modes & Invariants:** Prevents `ENOENT` on missing files; prevents silent JSON catalog drift across environments; guarantees actionable UI recovery cards on fetch failures.
+

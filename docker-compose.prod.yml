@@ -48,7 +48,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./storage:/app/storage
-      - ./json:/app/json:ro
     networks:
       - app_internal_net
       - litellm_net

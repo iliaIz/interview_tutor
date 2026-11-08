@@ -1,17 +1,20 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
-import path from 'path';
 import { SqlChallenge } from '@interview-prep/shared';
+import { resolveJsonCatalogPath } from '../utils/pathResolver';
 
 const router = Router();
-const SQL_CHALLENGES_PATH = path.resolve(__dirname, '../../../json/sql_challenges.json');
-
 let cachedChallenges: SqlChallenge[] | null = null;
 
 function loadSqlChallenges(): SqlChallenge[] {
-  if (cachedChallenges) return cachedChallenges;
+  if (cachedChallenges && cachedChallenges.length > 0) return cachedChallenges;
   try {
-    const raw = fs.readFileSync(SQL_CHALLENGES_PATH, 'utf-8');
+    const challengesPath = resolveJsonCatalogPath('sql_challenges.json');
+    if (!fs.existsSync(challengesPath)) {
+      console.error(`[SqlChallengesRoute] sql_challenges.json not found at: ${challengesPath}`);
+      return [];
+    }
+    const raw = fs.readFileSync(challengesPath, 'utf-8');
     cachedChallenges = JSON.parse(raw);
     return cachedChallenges || [];
   } catch (err) {

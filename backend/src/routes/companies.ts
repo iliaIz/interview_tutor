@@ -1,17 +1,20 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
-import path from 'path';
 import { CompanyProfile } from '@interview-prep/shared';
+import { resolveJsonCatalogPath } from '../utils/pathResolver';
 
 const router = Router();
-const PROFILES_PATH = path.resolve(__dirname, '../../../json/company_profiles.json');
-
 let cachedProfiles: CompanyProfile[] | null = null;
 
 function loadProfiles(): CompanyProfile[] {
-  if (cachedProfiles) return cachedProfiles;
+  if (cachedProfiles && cachedProfiles.length > 0) return cachedProfiles;
   try {
-    const raw = fs.readFileSync(PROFILES_PATH, 'utf-8');
+    const profilesPath = resolveJsonCatalogPath('company_profiles.json');
+    if (!fs.existsSync(profilesPath)) {
+      console.error(`[CompaniesRoute] company_profiles.json not found at: ${profilesPath}`);
+      return [];
+    }
+    const raw = fs.readFileSync(profilesPath, 'utf-8');
     cachedProfiles = JSON.parse(raw);
     return cachedProfiles || [];
   } catch (err) {

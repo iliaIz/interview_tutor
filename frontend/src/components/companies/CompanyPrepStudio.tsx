@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CompanyProfile, CompanyPipelineStage } from '@interview-prep/shared';
 import { CompanyPipelineTab } from './CompanyPipelineTab';
@@ -8,7 +8,7 @@ import { SqlArena } from '../sql/SqlArena';
 import { VoiceModal } from '../VoiceModal';
 import { 
   Building2, Sparkles, MapPin, ExternalLink, 
-  Layers, FileText, Zap, Database 
+  Layers, FileText, Zap, Database, RotateCcw, AlertCircle
 } from 'lucide-react';
 
 export const CompanyPrepStudio: React.FC = () => {
@@ -20,19 +20,38 @@ export const CompanyPrepStudio: React.FC = () => {
   const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [targetSqlChallengeId, setTargetSqlChallengeId] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load profiles from backend
-  useEffect(() => {
-    fetch('/api/companies', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: CompanyProfile[]) => {
-        if (data.length > 0) {
-          setProfiles(data);
+  const fetchProfiles = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/companies', { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error(`Ошибка сервера (${res.status}): не удалось получить профили`);
+      }
+      const data: CompanyProfile[] = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setProfiles(data);
+        if (!data.some((p) => p.id === selectedProfileId)) {
           setSelectedProfileId(data[0].id);
         }
-      })
-      .catch((err) => console.error('[CompanyPrepStudio] Failed to load profiles:', err));
-  }, []);
+      } else {
+        throw new Error('Список профилей компаний пуст');
+      }
+    } catch (err: any) {
+      console.error('[CompanyPrepStudio] Failed to load profiles:', err);
+      setLoadError(err.message || 'Ошибка загрузки профиля компании');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedProfileId]);
+
+  useEffect(() => {
+    void fetchProfiles();
+  }, [fetchProfiles]);
 
   // Load completed stages from localStorage
   useEffect(() => {
@@ -111,11 +130,32 @@ export const CompanyPrepStudio: React.FC = () => {
     }
   };
 
-  if (!profile) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 font-sans">
         <div className="w-10 h-10 border-4 border-amber-400/40 border-t-amber-500 rounded-full animate-spin" />
         <p className="text-sm text-pastel-muted font-medium">Загрузка профиля компании...</p>
+      </div>
+    );
+  }
+
+  if (loadError || !profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 font-sans px-4 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <div className="space-y-1 max-w-md">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Не удалось загрузить профиль компании</h3>
+          <p className="text-xs text-rose-500/90 font-mono">{loadError || 'Профиль не найден'}</p>
+        </div>
+        <button
+          onClick={() => void fetchProfiles()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium text-xs transition-colors shadow-sm cursor-pointer"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Повторить попытку
+        </button>
       </div>
     );
   }
