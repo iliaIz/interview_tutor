@@ -92,11 +92,34 @@ const CHIPS: Record<TutorDomain, ChipDef[]> = {
 
 interface Props {
   domain: TutorDomain;
+  customChips?: Array<{ id: string; label: string; promptMessage: string; icon?: string }>;
   onSendMessage: (text: string) => void;
   onOpenCompass: () => void;
 }
 
-export const TutorQuickActionChips: React.FC<Props> = ({ domain, onSendMessage, onOpenCompass }) => {
+export const TutorQuickActionChips: React.FC<Props> = ({
+  domain,
+  customChips,
+  onSendMessage,
+  onOpenCompass
+}) => {
+  if (customChips && customChips.length > 0) {
+    return (
+      <>
+        {customChips.map((chip) => (
+          <button
+            key={chip.id}
+            onClick={() => onSendMessage(chip.promptMessage)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-amber-500" />
+            <span>{chip.label}</span>
+          </button>
+        ))}
+      </>
+    );
+  }
+
   const chips = CHIPS[domain];
 
   return (

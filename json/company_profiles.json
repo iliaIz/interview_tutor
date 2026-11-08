@@ -33,14 +33,19 @@
       "mustReviewTaskIds": [
         "sql-raiff-01",
         "case_transfer_service",
+        "case_account_collections",
         "iban-validator",
-        "sd-realtime-fraud-detection"
+        "sparse-vector",
+        "SD-ATM-HARDWARE-DISPENSER",
+        "cib-interns-test-task"
       ],
       "checklist": [
         "[ ] Отрепетирован 4-минутный питч с акцентом на Product Engineer метрики (TTM, Pain Index)",
         "[ ] Повторен кейс TransferService: 7 скрытых багов (Deadlock, Lost Update, Fail-Fast, dirty checking)",
+        "[ ] Разобран кейс Account.java: TreeMap Date коллизия в одну миллисекунду и запрет double в деньгах",
         "[ ] Освежена трехзначная логика SQL: почему NOT IN (NULL) возвращает пустое множество",
-        "[ ] Проверены инварианты Java: запрет double в деньгах, Clock вместо System.currentTimeMillis()"
+        "[ ] Разобран банкомат: почему жадный алгоритм не может выдать 600₽ купюрами 500₽ и 200₽ (Bounded Knapsack)",
+        "[ ] Изучена криминалистика склада носков: атомарный SQL update вместо вычитки баланса в Java"
       ]
     },
     "stages": [
@@ -69,13 +74,13 @@
       {
         "id": "stage-3-code-review-defect-hunting",
         "stageNumber": 3,
-        "title": "3. Секция Code Review: Банковский перевод (TransferService)",
+        "title": "3. Секция Code Review: Квадрига дефектов",
         "format": "code_review",
         "estimatedMinutes": 30,
-        "description": "Поиск 7 скрытых архитектурных дефектов в TransferService.java: Lost Update, Deadlock в БД, нарушение Fail-Fast, отсутствие идемпотентности.",
+        "description": "Поиск скрытых дефектов: TransferService (Deadlock, Lost Update), Account.java (TreeMap коллизия Date), Spring AOP PostConstruct.",
         "targetArena": "incidents",
         "targetEntityId": "case_transfer_service",
-        "weight": 0.25
+        "weight": 0.20
       },
       {
         "id": "stage-4-sql-and-relational-traps",
@@ -86,18 +91,29 @@
         "description": "Интерактивное написание и выполнение запросов против in-browser PostgreSQL 16: спящие клиенты, 30-дневное окно, DENSE_RANK и гранулярность.",
         "targetArena": "sql_arena",
         "targetEntityId": "sql-raiff-01",
-        "weight": 0.20
+        "weight": 0.15
       },
       {
         "id": "stage-5-distributed-system-design",
         "stageNumber": 5,
-        "title": "5. System Design: Антифрод реального времени & СБП",
+        "title": "5. System Design: Банкомат & Антифрод реального времени",
         "format": "system_design",
         "estimatedMinutes": 45,
-        "description": "Проектирование распределенной антифрод-системы с жестким SLA < 100 мс, Flink, Redis Cluster, ScyllaDB и эвристическим Rule Engine.",
+        "description": "Проектирование банкомата (ATM Hardware Dispenser, Bounded Knapsack) и антифрод-системы с жестким SLA < 100 мс (Flink, Redis, Drools).",
         "targetArena": "system_design",
-        "targetEntityId": "sd-realtime-fraud-detection",
-        "weight": 0.20
+        "targetEntityId": "SD-ATM-HARDWARE-DISPENSER",
+        "weight": 0.15
+      },
+      {
+        "id": "stage-6-take-home-socks-warehouse",
+        "stageNumber": 6,
+        "title": "6. Официальное тестовое задание (Take-Home Lab)",
+        "format": "take_home",
+        "estimatedMinutes": 45,
+        "description": "Разбор официального задания банка (cib-interns-test-task: склад носков) и криминалистика 25 реальных Pull Request кандидатов (почему отказывали).",
+        "targetArena": "take_home",
+        "targetEntityId": "cib-interns-test-task",
+        "weight": 0.15
       }
     ]
   }

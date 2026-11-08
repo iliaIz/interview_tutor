@@ -1,0 +1,97 @@
+import { Type, Static } from '@sinclair/typebox';
+
+/**
+ * tutorContext.ts
+ * SSOT TypeBox schema for Polymorphic TutorActiveContext (Pillar 11).
+ * Governs cross-arena AI Copilot context ingestion (Practice, SQL Arena, Companies, Incidents, System Design).
+ * File length limit: <= 350 lines (Rule 8).
+ */
+
+export const TutorArenaType = Type.Union([
+  Type.Literal('practice'),
+  Type.Literal('sql_arena'),
+  Type.Literal('companies'),
+  Type.Literal('incidents'),
+  Type.Literal('system_design')
+]);
+export type TutorArenaType = Static<typeof TutorArenaType>;
+
+export const TutorPersona = Type.Union([
+  Type.Literal('junior_explainer'),
+  Type.Literal('middle_scaffold'),
+  Type.Literal('senior_socratic'),
+  Type.Literal('faang_interviewer'),
+  Type.Literal('company_interviewer')
+]);
+export type TutorPersona = Static<typeof TutorPersona>;
+
+export const TutorQuickActionChipSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  label: Type.String({ minLength: 1 }),
+  promptMessage: Type.String({ minLength: 1 }),
+  icon: Type.Optional(Type.String())
+});
+export type TutorQuickActionChip = Static<typeof TutorQuickActionChipSchema>;
+
+export const TutorExecutionDiffSchema = Type.Object({
+  missingRowsCount: Type.Optional(Type.Number()),
+  unexpectedRowsCount: Type.Optional(Type.Number()),
+  mismatchSample: Type.Optional(Type.String())
+});
+export type TutorExecutionDiff = Static<typeof TutorExecutionDiffSchema>;
+
+export const TutorCompanyContextSchema = Type.Object({
+  companyId: Type.String({ minLength: 1 }),
+  companyName: Type.String({ minLength: 1 }),
+  stageTitle: Type.Optional(Type.String()),
+  cultureMetrics: Type.Optional(Type.Array(Type.String())),
+  redFlags: Type.Optional(Type.Array(Type.String())),
+  greenFlags: Type.Optional(Type.Array(Type.String())),
+  takeHomeContext: Type.Optional(
+    Type.Object({
+      title: Type.String(),
+      prAntiPatternsSummary: Type.Optional(Type.String())
+    })
+  )
+});
+export type TutorCompanyContext = Static<typeof TutorCompanyContextSchema>;
+
+export const TutorChatMessageSchema = Type.Object({
+  role: Type.Union([
+    Type.Literal('user'),
+    Type.Literal('assistant'),
+    Type.Literal('system')
+  ]),
+  content: Type.String()
+});
+export type TutorChatMessage = Static<typeof TutorChatMessageSchema>;
+
+export const TutorActiveContextSchema = Type.Object({
+  arena: TutorArenaType,
+  entityId: Type.String({ minLength: 1 }),
+  entityTitle: Type.String({ minLength: 1 }),
+  domain: Type.String({ minLength: 1 }),
+  persona: TutorPersona,
+  assistanceLevel: Type.Number({ minimum: 1, maximum: 4, default: 2 }),
+
+  // Code & Query Workspace Payload
+  activeCodeOrQuery: Type.Optional(Type.String()),
+  activeFilePath: Type.Optional(Type.String()),
+  schemaOrDdl: Type.Optional(Type.String()),
+  instructions: Type.Optional(Type.String()),
+
+  // Real-Time Execution Feedback
+  compilerError: Type.Optional(Type.String()),
+  runtimeError: Type.Optional(Type.String()),
+  executionDiff: Type.Optional(TutorExecutionDiffSchema),
+
+  // Company Culture Context
+  companyContext: Type.Optional(TutorCompanyContextSchema),
+
+  // Domain Quick Chips Configuration
+  quickActionChips: Type.Array(TutorQuickActionChipSchema, { default: [] }),
+
+  // Message History
+  messages: Type.Optional(Type.Array(TutorChatMessageSchema))
+});
+export type TutorActiveContext = Static<typeof TutorActiveContextSchema>;

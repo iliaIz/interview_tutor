@@ -1,0 +1,132 @@
+{
+  "canonical_id": "SD-REALTIME-FRAUD-DETECTION",
+  "legacy_aliases": [
+    "sd-realtime-fraud-detection",
+    "realtime-fraud-detection",
+    "fraud-detection-100ms"
+  ],
+  "version": "1.0.0",
+  "target_level": "L5_SENIOR",
+  "archetype": "STREAMING_HIGH_THROUGHPUT",
+  "title": "Real-Time Card Fraud Detection System (SLA < 100ms)",
+  "subtitle": "Apache Flink Streaming Windows, Redis Cluster Feature Store & Rule/ML Fallback",
+  "problem_statement": "Design a real-time anti-fraud payment scoring system processing 10,000 TPS under a strict hard deadline of < 100 milliseconds per transaction (payment network timeout is 200ms). The architecture must evaluate sliding window velocity counters (5m, 24h), user device fingerprint history, deterministic compliance rules (Drools), and machine learning risk scoring (LightGBM/ONNX) with zero downtime.",
+  "pedagogical_mode": "FADED_COMPLETION",
+  "studio_1_runtime": {
+    "language": "java21",
+    "source_files": [
+      {
+        "path": "src/main/java/com/bank/antifraud/FraudScoringService.java",
+        "content": "package com.bank.antifraud;\n\nimport java.util.concurrent.*;\n\npublic class FraudScoringService {\n    private final RuleEngine ruleEngine;\n    private final MlModelClient mlClient;\n    private final RedisFeatureStore redis;\n\n    public FraudScoringService(RuleEngine ruleEngine, MlModelClient mlClient, RedisFeatureStore redis) {\n        this.ruleEngine = ruleEngine;\n        this.mlClient = mlClient;\n        this.redis = redis;\n    }\n\n    public FraudDecision score(Transaction tx) {\n        // BUG: Synchronous sequential calls exceed 100ms SLA when ML model lags\n        // Must run rules + ML in parallel with CircuitBreaker and fallback to heuristic rules\n        return null;\n    }\n}",
+        "is_editable": true
+      }
+    ],
+    "faded_bug": {
+      "line_number": 15,
+      "description": "Sequential execution of ML inference without timeout or Circuit Breaker breaches the 100ms payment SLA during upstream traffic spikes.",
+      "bug_pattern": "SEQUENTIAL_BLOCKING_IN_REALTIME_SLA"
+    },
+    "correct_fix_diff": "+ CompletableFuture<RuleResult> ruleFuture = CompletableFuture.supplyAsync(() -> ruleEngine.evaluate(tx));\n+ CompletableFuture<MlResult> mlFuture = CompletableFuture.supplyAsync(() -> mlClient.predictWithTimeout(tx, 60, TimeUnit.MILLISECONDS));\n+ // Graceful fallback to rule engine if ML times out",
+    "ast_rule_invariants": [
+      "strict-timeout-on-external-ml",
+      "circuit-breaker-fallback-to-rules"
+    ]
+  },
+  "studio_2_simulation": {
+    "topology": {
+      "nodes": [
+        {
+          "id": "payment_ingress",
+          "type": "api_gateway",
+          "title": "Payment Ingress Gateway",
+          "grid_position": { "col": 0, "row": 0 },
+          "params": { "timeout_ms": 100 }
+        },
+        {
+          "id": "scoring_engine",
+          "type": "app_service",
+          "title": "Hybrid Scoring Engine",
+          "grid_position": { "col": 1, "row": 0 },
+          "params": { "parallel_execution": true }
+        },
+        {
+          "id": "redis_cluster",
+          "type": "redis_cache",
+          "title": "Redis Cluster (Feature Store)",
+          "grid_position": { "col": 2, "row": 0 },
+          "params": { "cluster_sharding": true, "ttl_5m": true }
+        },
+        {
+          "id": "flink_streaming",
+          "type": "ebpf_stream_ingest",
+          "title": "Apache Flink Windows",
+          "grid_position": { "col": 2, "row": 1 },
+          "params": { "sliding_window_aggregation": true }
+        },
+        {
+          "id": "ml_inference",
+          "type": "gpu_inference_node",
+          "title": "ONNX / LightGBM Service",
+          "grid_position": { "col": 1, "row": 1 },
+          "params": { "circuit_breaker_enabled": true }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "payment_ingress", "target": "scoring_engine", "protocol": "grpc" },
+        { "id": "e2", "source": "scoring_engine", "target": "redis_cluster", "protocol": "tcp_socket" },
+        { "id": "e3", "source": "scoring_engine", "target": "ml_inference", "protocol": "grpc" },
+        { "id": "e4", "source": "scoring_engine", "target": "flink_streaming", "protocol": "async_event" }
+      ]
+    },
+    "slos": {
+      "p99_latency_max_ms": 95.0,
+      "availability_target_nines": 99.99,
+      "monthly_budget_max_usd": 8500.0
+    },
+    "traffic_profile": {
+      "pattern": "POISSON",
+      "lambda_mean_rps": 10000.0,
+      "inter_arrival_cv": 0.5,
+      "read_ratio": 0.95
+    },
+    "chaos_scenarios": [
+      {
+        "id": "ml_latency_spike",
+        "name": "ML Inference Latency Spike (300ms)",
+        "trigger_second": 6,
+        "duration_second": 4,
+        "fault_type": "SERVICE_LATENCY_SPIKE",
+        "target_node_id": "ml_inference",
+        "impact_multiplier": 5.0
+      }
+    ],
+    "invariants": [
+      {
+        "id": "inv_hard_sla_100ms",
+        "description": "Scoring engine MUST respond within 95ms under all conditions; fallback to rules is triggered at 60ms.",
+        "severity": "ERROR",
+        "category": "PERFORMANCE_SLO",
+        "rule_type": "CEL_EXPRESSION",
+        "config": {
+          "expression": "simulation.p99_latency_ms <= manifest.studio_2_simulation.slos.p99_latency_max_ms"
+        }
+      }
+    ]
+  },
+  "studio_3_bar_raiser": {
+    "probing_ladder": {
+      "stage_1_validation": "Explain the architectural trade-off between deterministic rules (Drools) and ML models (LightGBM/ONNX) in financial fraud detection.",
+      "stage_2_tightening": "If the payment network timeout is 200ms and downstream bank systems require 100ms, how much budget do you allocate to the ML service? What happens at 61ms?",
+      "stage_3_adversarial": "A sophisticated fraudster splits transactions into 10 rapid payments of 999₽ across 10 cards in 3 seconds. How does Apache Flink update the Redis velocity counters in real time?",
+      "stage_4_squeeze": "How do you avoid hot-partitioning in Kafka when millions of transactions arrive with the same merchant ID?"
+    },
+    "counter_probes": [
+      {
+        "buzzword": "ml model always catches fraud",
+        "trigger_regex": "(?i)ml.*always.*superior",
+        "counter_question": "What happens if the ML service becomes unreachable or takes 500ms during Black Friday? Do you reject payments or let them through?",
+        "expected_staff_answer": "We enforce a Circuit Breaker with a 60ms hard timeout. If ML degrades, we execute Graceful Fallback to deterministic heuristic rules (whitelist, velocity thresholds) without blocking payments."
+      }
+    ]
+  }
+}

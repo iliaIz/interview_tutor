@@ -2,7 +2,7 @@ import React from 'react';
 import { CompanyPipelineStage } from '@interview-prep/shared';
 import { 
   Mic, Code2, Bug, Database, Layers, ArrowRight, 
-  CheckCircle2, Clock, Check, Sparkles 
+  CheckCircle2, Clock, Check, Sparkles, PackageCheck
 } from 'lucide-react';
 
 interface CompanyPipelineTabProps {
@@ -32,6 +32,8 @@ export const CompanyPipelineTab: React.FC<CompanyPipelineTabProps> = ({
         return <Database className="w-4 h-4 text-emerald-600" />;
       case 'system_design':
         return <Layers className="w-4 h-4 text-purple-600" />;
+      case 'take_home':
+        return <PackageCheck className="w-4 h-4 text-teal-600" />;
     }
   };
 
@@ -47,6 +49,8 @@ export const CompanyPipelineTab: React.FC<CompanyPipelineTabProps> = ({
         return { label: '💾 PostgreSQL WASM', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
       case 'system_design':
         return { label: '🏛️ System Design', bg: 'bg-purple-50 text-purple-700 border-purple-200' };
+      case 'take_home':
+        return { label: '🧦 Take-Home Lab', bg: 'bg-teal-50 text-teal-800 border-teal-200' };
     }
   };
 

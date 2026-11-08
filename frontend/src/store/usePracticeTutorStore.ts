@@ -1,9 +1,21 @@
 import { create } from 'zustand';
+import { TutorActiveContext } from '@interview-prep/shared';
 import { MutantDefinition } from '../types/practice';
 import { TutorDomain } from '../components/practice/tutor/TutorDomain';
 import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
+import {
+  TutorContextInput,
+  streamTutorChat,
+  fetchTutorHint,
+  fetchTutorRuleGrounding
+} from './tutorTransport';
 
-export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
+export type TutorPersona =
+  | 'junior_explainer'
+  | 'middle_scaffold'
+  | 'senior_socratic'
+  | 'faang_interviewer'
+  | 'company_interviewer';
 
 export interface TutorMessage {
   id: string;
@@ -43,7 +55,7 @@ export interface PracticeTutorContextPayload {
   };
 }
 
-interface PracticeTutorState {
+export interface PracticeTutorState {
   isOpen: boolean;
   isCompassOpen: boolean;
   activeCompassRuleId: string | null;
@@ -55,6 +67,9 @@ interface PracticeTutorState {
   currentStreamingText: string;
   abortController: AbortController | null;
 
+  // Polymorphic Active Context (Pillar 11 Hub-and-Spoke)
+  activeContext: TutorActiveContext | null;
+
   // Actions
   toggleOpen: (open?: boolean) => void;
   toggleCompass: (open?: boolean) => void;
@@ -62,13 +77,14 @@ interface PracticeTutorState {
   setModality: (modality: 'text' | 'voice') => void;
   setPersona: (persona: TutorPersona) => void;
   setAssistanceLevel: (level: number) => void;
+  setActiveContext: (context: TutorActiveContext | null) => void;
   clearMessages: () => void;
   initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => void;
   abortGeneration: () => void;
 
-  sendMessage: (text: string, context: PracticeTutorContextPayload) => Promise<void>;
-  requestHint: (hintTier: number, context: PracticeTutorContextPayload) => Promise<void>;
-  groundRule: (ruleId: string, context: PracticeTutorContextPayload) => Promise<void>;
+  sendMessage: (text: string, context?: TutorContextInput) => Promise<void>;
+  requestHint: (hintTier: number, context?: TutorContextInput) => Promise<void>;
+  groundRule: (ruleId: string, context?: TutorContextInput) => Promise<void>;
 }
 
 export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
@@ -89,12 +105,15 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
   isLoading: false,
   currentStreamingText: '',
   abortController: null,
+  activeContext: null,
 
   toggleOpen: (open) => set((state) => ({ isOpen: open !== undefined ? open : !state.isOpen })),
   toggleCompass: (open) => set((state) => ({ isCompassOpen: open !== undefined ? open : !state.isCompassOpen })),
   setActiveCompassRuleId: (ruleId) => set({ activeCompassRuleId: ruleId }),
   setModality: (modality) => set({ modality }),
   setPersona: (persona) => set({ persona }),
+  setActiveContext: (activeContext) => set({ activeContext }),
+
   setAssistanceLevel: (level) => {
     let persona: TutorPersona = 'middle_scaffold';
     if (level === 1) persona = 'junior_explainer';
@@ -103,6 +122,7 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     else if (level === 4) persona = 'faang_interviewer';
     set({ assistanceLevel: level, persona });
   },
+
   initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
     const welcome = getDomainWelcomeMessage(domain, challengeTitle);
     set({
@@ -118,16 +138,18 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
       isLoading: false
     });
   },
-  clearMessages: () => set({
-    messages: [
-      {
-        id: `welcome_${Date.now()}`,
-        role: 'assistant',
-        content: 'История очищена. Задай новый вопрос по коду или выбери быструю подсказку!',
-        timestamp: Date.now()
-      }
-    ]
-  }),
+
+  clearMessages: () =>
+    set({
+      messages: [
+        {
+          id: `welcome_${Date.now()}`,
+          role: 'assistant',
+          content: 'История очищена. Задай новый вопрос по коду или выбери быструю подсказку!',
+          timestamp: Date.now()
+        }
+      ]
+    }),
 
   abortGeneration: () => {
     const { abortController } = get();
@@ -137,10 +159,11 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }
   },
 
-  sendMessage: async (text: string, context: PracticeTutorContextPayload) => {
-    const { persona, assistanceLevel, messages, abortGeneration } = get();
+  sendMessage: async (text: string, context?: TutorContextInput) => {
+    const { persona, assistanceLevel, messages, activeContext, abortGeneration } = get();
     abortGeneration();
 
+    const targetContext = context || activeContext || undefined;
     const userMessage: TutorMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
@@ -160,66 +183,22 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     set({ abortController: controller });
 
     try {
-      const response = await fetch('/api/practice-tutor/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const result = await streamTutorChat({
+        persona,
+        assistanceLevel,
+        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        context: targetContext,
         signal: controller.signal,
-        body: JSON.stringify({
-          persona,
-          assistanceLevel,
-          ...context,
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          stream: true
-        })
+        onChunk: (delta) => set({ currentStreamingText: delta })
       });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({ error: 'Сетевая ошибка' }));
-        throw new Error(errJson.error || `HTTP ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Не удалось подключить поток данных');
-
-      const decoder = new TextDecoder('utf-8');
-      let fullAssistantText = '';
-      let leakDetected = false;
-      let similarity = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-          try {
-            const data = JSON.parse(trimmed.slice(5).trim());
-            if (data.delta) {
-              fullAssistantText += data.delta;
-              set({ currentStreamingText: fullAssistantText });
-            }
-            if (data.done) {
-              leakDetected = Boolean(data.leakDetected);
-              similarity = data.maxSimilarity || 0;
-            }
-          } catch {
-            // ignore JSON parse chunk errors
-          }
-        }
-      }
 
       const assistantMessage: TutorMessage = {
         id: `ast_${Date.now()}`,
         role: 'assistant',
-        content: fullAssistantText,
+        content: result.fullText,
         timestamp: Date.now(),
-        leakDetected,
-        similarity
+        leakDetected: result.leakDetected,
+        similarity: result.similarity
       };
 
       set((state) => ({
@@ -230,7 +209,7 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
       }));
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      console.error('Practice tutor send error:', err);
+      console.error('[TutorStore] Send error:', err);
       const errorMessage: TutorMessage = {
         id: `err_${Date.now()}`,
         role: 'system',
@@ -246,14 +225,15 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }
   },
 
-  requestHint: async (hintTier: number, context: PracticeTutorContextPayload) => {
-    const { abortGeneration } = get();
+  requestHint: async (hintTier: number, context?: TutorContextInput) => {
+    const { abortGeneration, activeContext } = get();
     abortGeneration();
 
+    const targetContext = context || activeContext || undefined;
     const userMessage: TutorMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
-      content: `💡 Запрос подсказки уровня ${hintTier} (RIPR Model)`,
+      content: `💡 Запрос подсказки уровня ${hintTier} (Socratic Scaffold)`,
       timestamp: Date.now()
     };
 
@@ -265,22 +245,7 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }));
 
     try {
-      const response = await fetch('/api/practice-tutor/hint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          hintTier,
-          ...context
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({ error: 'Сетевая ошибка' }));
-        throw new Error(errJson.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await fetchTutorHint(hintTier, targetContext);
       const assistantMessage: TutorMessage = {
         id: `ast_${Date.now()}`,
         role: 'assistant',
@@ -288,13 +253,12 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
         timestamp: Date.now(),
         leakDetected: data.leakDetected
       };
-
       set((state) => ({
         messages: [...state.messages, assistantMessage],
         isLoading: false
       }));
     } catch (err: any) {
-      console.error('Hint request error:', err);
+      console.error('[TutorStore] Hint error:', err);
       const errorMessage: TutorMessage = {
         id: `err_${Date.now()}`,
         role: 'system',
@@ -308,10 +272,11 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }
   },
 
-  groundRule: async (ruleId: string, context: PracticeTutorContextPayload) => {
-    const { abortGeneration } = get();
+  groundRule: async (ruleId: string, context?: TutorContextInput) => {
+    const { abortGeneration, activeContext } = get();
     abortGeneration();
 
+    const targetContext = context || activeContext || undefined;
     const userMessage: TutorMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
@@ -328,35 +293,19 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }));
 
     try {
-      const response = await fetch('/api/practice-tutor/rule-grounding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          ruleId,
-          ...context
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({ error: 'Сетевая ошибка' }));
-        throw new Error(errJson.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await fetchTutorRuleGrounding(ruleId, targetContext);
       const assistantMessage: TutorMessage = {
         id: `ast_${Date.now()}`,
         role: 'assistant',
         content: data.content,
         timestamp: Date.now()
       };
-
       set((state) => ({
         messages: [...state.messages, assistantMessage],
         isLoading: false
       }));
     } catch (err: any) {
-      console.error('Rule grounding error:', err);
+      console.error('[TutorStore] Rule grounding error:', err);
       const errorMessage: TutorMessage = {
         id: `err_${Date.now()}`,
         role: 'system',
@@ -370,3 +319,6 @@ export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
     }
   }
 }));
+
+// Pillar 11 SSOT alias for Omnipresent Copilot
+export const useTutorStore = usePracticeTutorStore;

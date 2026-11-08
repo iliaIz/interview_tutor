@@ -59,3 +59,39 @@ This subsystem introduces company-targeted technical assessment pipelines (start
 - **Rationale & Why:** Hardcoded relative paths break across TS source vs. compiled dist. Multi-path fallback resolution combined with self-contained Docker images resolves the root cause.
 - **Failure Modes & Invariants:** Prevents `ENOENT` on missing files; prevents silent JSON catalog drift across environments; guarantees actionable UI recovery cards on fetch failures.
 
+### 2.6. Polymorphic `TutorActiveContext` & Omnipresent AI Copilot
+- **Files:** `shared/src/schemas/tutorContext.ts`, `shared/src/schemas/tutorNormalizer.ts`, `backend/src/prompts/tutor/polymorphicPromptBuilder.ts`, `backend/src/routes/practiceTutorStreaming.ts`, `frontend/src/store/tutorTransport.ts`, `frontend/src/store/usePracticeTutorStore.ts`, `frontend/src/components/practice/tutor/PracticeTutorDrawer.tsx`, `frontend/src/components/practice/tutor/TutorQuickActionChips.tsx`.
+- **What Was Done:**
+  1. Built canonical `TutorActiveContext` schema and normalizers (`normalizeSqlArenaContext`, `normalizeCompanyContext`, `normalizePracticeContext`).
+  2. Single global root-mounted `<PracticeTutorDrawer />` in `App.tsx` shared across Practice, SQL Arena, and Company Prep Studio (Zero Parallel Reimplementation Invariant).
+  3. Polymorphic SSE streaming backend (`/api/practice-tutor/chat`) dynamically selecting Socratic personas (`sql_arena`, `company_interviewer`, `junior_explainer`, `middle_scaffold`, `senior_socratic`).
+  4. Decoupled transport module (`tutorTransport.ts`) keeping store under file hygiene limits.
+- **Hypotheses & Conclusions:** Unified drawer eliminates duplicate code, state sync bugs, and redundant streaming routes while dynamically adapting chips and instructions to candidate context.
+
+### 2.7. Take-Home Project Lab & 25 PR Flaw Forensics
+- **File:** `frontend/src/components/companies/CompanyTakeHomeLab.tsx`
+- **What Was Done:**
+  1. Built interactive lab mirroring official `Raiffeisen-DGTL/cib-interns-test-task` (`/income`, `/outcome`, `/socks`).
+  2. Implemented forensics on 5 real candidate PR rejections (PR #173 race condition in Java memory read, PR #169 missing composite UNIQUE, PR #174 double precision loss in cottonPart, PR #171 missing DDL constraint, PR #177 silent catch).
+  3. Interactive quiz with canonical atomic single-line SQL solution:
+     `UPDATE socks SET quantity = quantity - :quantity WHERE color = :color AND cotton_part = :cottonPart AND quantity >= :quantity;`.
+
+### 2.8. 9 PE Competencies, 8-Point Spec Review, 4 STAR Cases, Talent Q Guide
+- **Files:** `frontend/src/components/companies/dossier/CompanyCompetenciesRadar.tsx`, `frontend/src/components/companies/dossier/CompanySpecReviewChecklist.tsx`, `frontend/src/components/companies/dossier/CompanyStarScenarios.tsx`, `frontend/src/components/companies/dossier/CompanyTalentQGuide.tsx`, `frontend/src/components/companies/CompanyDossierTab.tsx`.
+- **What Was Done:**
+  1. 9 Product Engineer competencies radar with self-assessment filter and bar-raiser question prompts.
+  2. Interactive 8-point Spec Review checklist tracking readiness before defense.
+  3. 4 STAR situation cards (Compliance tokenization, Strangler Fig legacy migration, Blameless 12-min post-mortem, AI agent idempotency guards).
+  4. Talent Q 72-hour survival guide with live numerical $\Delta\%$ calculator and verbal logic decision rules.
+
+### 2.9. Canonical FinTech System Design & Machine Coding Challenges
+- **Files:** `scenarios/manifests/l5_senior/SD-ATM-HARDWARE-DISPENSER.json`, `scenarios/manifests/l5_senior/SD-REALTIME-FRAUD-DETECTION.json`, `json/machine_coding_challenges.json`, `json/refactoring_challenges.json`.
+- **What Was Done:**
+  1. Bankomat ATM Cash Dispenser manifest (Bounded Knapsack, 2-phase hold/clear ledger protocol, paper jam compensation).
+  2. Real-Time Card Fraud Scoring manifest (SLA < 100ms, Redis Cluster, Flink streaming, Drools/ML fallback).
+  3. `iban-validator` challenge (ISO 13616 streaming mod 97, zero BigInteger allocation).
+  4. `sparse-vector` challenge (Two-pointer CSR storage over primitive arrays $O(\min(L_1, L_2))$).
+  5. `case_transfer_service` (7 defects: Deadlock row lock ordering min->max, Lost Update, Fail-Fast, Idempotency, rollbackFor Exception, dirty checking redundant save, boundary validation).
+  6. `case_account_collections` (`Account.java`: package SecurityException, TreeMap Date millisecond collision, double precision loss, System.currentTimeMillis ID collision).
+
+
