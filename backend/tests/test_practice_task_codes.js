@@ -19,7 +19,7 @@ assert.strictEqual(tstCount, 42, 'Expected 42 TST katas');
 
 const lldCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE task_code LIKE 'LLD-%'").get().count;
 console.log(`LLD Challenges with LLD-xx: ${lldCount}`);
-assert.strictEqual(lldCount, 57, 'Expected 57 LLD challenges');
+assert.strictEqual(lldCount, 83, 'Expected 83 challenges with LLD-xx codes (57 Machine Coding + 26 Refactoring)');
 
 const refCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE category = 'refactoring_kata'").get().count;
 console.log(`Refactoring Katas: ${refCount}`);
