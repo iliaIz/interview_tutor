@@ -355,7 +355,9 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
             if (session.isCannedErrorTurn || isZeroAudioTurn) {
               session.isCannedErrorTurn = true;
-              session.cannedErrorType = session.hasCandidateResponded ? 'non_speech' : 'turn0_empty';
+              if (isZeroAudioTurn && !session.cannedErrorType) {
+                session.cannedErrorType = session.hasCandidateResponded ? 'non_speech' : 'turn0_empty';
+              }
               LiveCannedErrorRecovery.executeRecoveryNudge(session, geminiSocket);
               return;
             }
