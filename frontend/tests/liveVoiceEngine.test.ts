@@ -371,10 +371,14 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(transientFilteredCount, 1, 'onTransientFiltered invoked');
   console.log('  ✅ Test 13a Passed: Transient cough ignored during AI_SPEAKING');
 
+  // 13a2: Speaker bleed (-35 dBFS < -29 dBFS) during AI_SPEAKING must NOT barge-in
+  (engine5 as any).handleMicrophoneChunk('bleed_pcm_data', { isTransientSpike: false, rmsDb: -35 });
+  assert.strictEqual(engine5.getState(), 'AI_SPEAKING', 'Speaker bleed at -35 dBFS ignored');
+
   // 13b: Sustained speech requires 7 frames (224ms) to commit hard barge-in
   for (let f = 1; f <= 6; f++) {
     (engine5 as any).handleMicrophoneChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
-    assert.strictEqual(engine5.getState(), 'AI_SPEAKING', `Frame ${f}/7 keeps AI speaking with speculative ducking`);
+    assert.strictEqual(engine5.getState(), 'AI_SPEAKING', `Frame ${f}/7 keeps AI speaking without ducking`);
   }
   // 7th frame commits hard barge-in
   (engine5 as any).handleMicrophoneChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
@@ -386,16 +390,9 @@ async function runLiveVoiceEngineTests() {
   const lastChunkMsg = JSON.parse(mockWs5.sentMessages[mockWs5.sentMessages.length - 1]);
   assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368, 'Continuous 512-sample clamped silence sent');
   console.log('  ✅ Test 13c Passed: Continuous clamped silence streamed during LISTENING');
-  engine.disconnect();
-  engine2.disconnect();
-  engine3.disconnect();
-  engine4.disconnect();
-  engine5.disconnect();
+  [engine, engine2, engine3, engine4, engine5].forEach(e => e.disconnect());
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }
 runLiveVoiceEngineTests()
   .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('❌ Contract Test Failed:', err);
-    process.exit(1);
-  });
+  .catch((err) => { console.error('❌ Contract Test Failed:', err); process.exit(1); });

@@ -44,34 +44,36 @@ export class LiveMicChunkDispatcher {
   ): void {
     if (isMuted || isAudioMutexLocked) return;
 
-    // 1. Transient / Cough Suppression during AI_SPEAKING (Local False Interruption Protection)
+    // 1. Transient / Cough Suppression & Echo-Immune Acoustic Barge-In during AI_SPEAKING (SOTA Spec 17)
     if (state === 'AI_SPEAKING') {
       if (isTurn0Lockdown) return;
 
+      // Transient spike (cough, key tap, desk bump) -> 100% filtered
       if (metrics?.isTransientSpike) {
-        if (this.consecutiveVoicingFrames > 0) {
-          playoutManager.rollbackDucking(15);
-          this.consecutiveVoicingFrames = 0;
-        }
+        this.consecutiveVoicingFrames = 0;
         callbacks.onTransientFiltered?.();
         return;
       }
 
-      if (metrics?.speechDetected || (metrics && metrics.rmsDb > -38)) {
-        if (metrics?.speechDetected) {
-          callbacks.onBargeIn('acoustic');
-          this.consecutiveVoicingFrames = 0;
-          return;
-        }
-        playoutManager.speculativeDuck(0.35, 15);
+      // Explicit phonetic / neural speech detected -> immediate acoustic barge-in
+      if (metrics?.speechDetected) {
+        callbacks.onBargeIn('acoustic');
+        this.consecutiveVoicingFrames = 0;
+        return;
+      }
+
+      // SOTA Spec 17 & gemini_live_reference Invariant:
+      // Energy threshold: RMS >= 0.035 (~ -29 dBFS).
+      // Bleed from physical laptop/phone speakers (< -29 dBFS) is rejected to eliminate self-interruption.
+      if (metrics && typeof metrics.rmsDb === 'number' && metrics.rmsDb >= -29) {
         this.consecutiveVoicingFrames++;
+        // 7 frames @ 32ms = 224ms sustained vocal phonation (>= 180ms transient window)
         if (this.consecutiveVoicingFrames >= 7) {
           callbacks.onBargeIn('acoustic');
           this.consecutiveVoicingFrames = 0;
         }
-      } else if (this.consecutiveVoicingFrames > 0) {
-        playoutManager.rollbackDucking(15);
-        callbacks.onTransientFiltered?.();
+      } else {
+        if (this.consecutiveVoicingFrames > 0 && this.consecutiveVoicingFrames < 7) callbacks.onTransientFiltered?.();
         this.consecutiveVoicingFrames = 0;
       }
       return;

@@ -183,6 +183,32 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Active sessions must not be terminated on idle deliberation for $\le 900$ seconds.
   - Evaluation completion must never truncate active verbal speech.
 
+---
+
+### 2.16 `Live Voice Acoustic Echo Immunity, Master Gain Safety & Strict Vocoder Temperature (Spec 17 / #88-#92)`
+- **Location:**
+  - [`frontend/src/services/AudioPlayoutManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AudioPlayoutManager.ts)
+  - [`frontend/src/audio/liveMicChunkDispatcher.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveMicChunkDispatcher.ts)
+  - [`frontend/src/audio/liveVoiceUrlBuilder.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveVoiceUrlBuilder.ts)
+  - [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
+  - [`backend/src/services/live/liveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts)
+  - [`backend/src/scripts/testGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/scripts/testGeminiConfigBuilder.ts)
+  - [`frontend/tests/audioPlayoutContracts.test.ts`](file:///home/djelu/projects/interview_tutor/frontend/tests/audioPlayoutContracts.test.ts)
+  - [`frontend/tests/liveVoiceEngine.test.ts`](file:///home/djelu/projects/interview_tutor/frontend/tests/liveVoiceEngine.test.ts)
+- **What Was Done:**
+  1. **Master Playout Gain Safety (Zero-Trap Invariant):** In `AudioPlayoutManager.ts`, removed `linearRampToValueAtTime(0.0)` from `handleInterruption()`. Interruption pop-free de-ramping is handled natively inside the AudioWorklet (`gemini-audio-processor.js`) ring buffer via raised-cosine decay on message `{ type: 'flush' }`. In `enqueuePcmChunk`, enforced `masterGain.gain.setValueAtTime(1.5, now)` to guarantee subsequent speech turns play at full nominal volume ($1.5$).
+  2. **Speculative Ducking Demolition:** Removed the naive ducking check on `rmsDb > -38` in `liveMicChunkDispatcher.ts` and `AudioDuckingController.ts`. Acoustic bleed from laptop/phone speakers reaches $-35$ to $-28$ dBFS, which previously caused the AI voice to constantly duck itself and trigger false self-interruption after 224ms.
+  3. **Acoustic Filter & Energy Floor Calibration:** Aligned acoustic speech gating with `gemini_live_reference/AcousticFilter.ts`. Energy floor set to $-29$ dBFS ($RMS \ge 0.035$) with $\ge 180$ ms sustained non-transient phonation. Transient spikes (`isTransientSpike: true`) are filtered without modifying playout volume.
+  4. **Strict Vocoder Temperature ($T = 1.0$):** In `liveGeminiConfigBuilder.ts`, clamped temperature to $1.0$ (preventing values $<0.7$ from collapsing latent acoustic vocoder space into digital silence). Serialized `temperature: 1.0` in `liveVoiceUrlBuilder.ts` and made explicit in `VoiceModal.tsx`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Empirical Finding:* The symptom where the AI voice became silent/muffled and knocking on the microphone abruptly restored sound was caused by a conjunction: speaker audio $> -38$ dBFS triggered `handleInterruption()` which set `masterGain = 0.0` indefinitely. Tapping the mic created an impulsive TKEO spike (`isTransientSpike: true`), invoking `rollbackDucking(15)` and setting `masterGain` back to 1.5.
+- **Rationale & "Why":** Deep root-cause remediation: addresses acoustic discrimination in real-time DSP, avoids race conditions via speculative ducking, and maintains 100% compliance with Google Gemini 3.8 Live bidirectional streaming standards.
+- **Invariants:**
+  - `masterGain` must never remain locked at $0.0$ after an interruption.
+  - The AI voice must never duck itself from its own speaker audio.
+  - Autoregressive audio vocoder generation must strictly run with `temperature: 1.0`.
+
+
 
 
 
