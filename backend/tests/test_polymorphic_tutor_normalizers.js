@@ -50,6 +50,7 @@ console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
 
 // 2. Test Company Studio Context Normalizer
 {
+  // 2a. Specific company profile with custom chips and takeHomePrCases
   const mockCompanyPayload = {
     profile: {
       id: 'raiffeisen_dgtl',
@@ -60,7 +61,16 @@ console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
         metricsFocus: ['TTM', 'Pain Index'],
         redFlags: ['Использование double в деньгах'],
         greenFlags: ['Детерминированная сортировка PK min->max']
-      }
+      },
+      customQuickActionChips: [
+        { id: 'pitch_review', label: '🎙️ Отрепетируй 4-мин питч', promptMessage: 'Питч' },
+        { id: 'star_drill', label: '🚨 Каверзный вопрос по STAR', promptMessage: 'STAR' },
+        { id: 'socks_warehouse', label: '🧦 Ловушки «Склада носков»', promptMessage: 'Носки' },
+        { id: 'transferservice_defects', label: '🛡️ Дефекты TransferService', promptMessage: 'Transfer' }
+      ],
+      takeHomePrCases: [
+        { title: 'cib-interns-test-task (Склад носков)' }
+      ]
     },
     activeStage: {
       id: 'stage-3-code-review',
@@ -80,11 +90,35 @@ console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
   assert.ok(context.companyContext.redFlags.includes('Использование double в деньгах'));
   assert.strictEqual(context.quickActionChips.length, 4);
   assert.strictEqual(context.quickActionChips[0].id, 'pitch_review');
-  assert.strictEqual(context.quickActionChips[1].id, 'star_drill');
   assert.strictEqual(context.quickActionChips[2].id, 'socks_warehouse');
-  assert.strictEqual(context.quickActionChips[3].id, 'transferservice_defects');
+  assert.ok(context.companyContext.takeHomeContext);
+  assert.strictEqual(context.companyContext.takeHomeContext.title, 'Take-Home Lab (АО «Райффайзенбанк» (Raiffeisen DGTL))');
 
-  console.log('✅ normalizeCompanyContext: PASSED');
+  // 2b. Generic company without custom chips or takeHomePrCases (zero leaked domain constants)
+  const genericCompanyPayload = {
+    profile: {
+      id: 'acme_fintech',
+      name: 'Acme FinTech Global',
+      tagline: 'Highload Payments'
+    },
+    activeStage: {
+      id: 'fit-round',
+      title: 'Cultural Fit & Leadership'
+    }
+  };
+
+  const genericContext = normalizeCompanyContext(genericCompanyPayload);
+  assert.strictEqual(genericContext.entityId, 'acme_fintech');
+  assert.strictEqual(genericContext.companyContext.takeHomeContext, undefined, 'takeHomeContext must be undefined when no PR cases');
+  assert.strictEqual(genericContext.quickActionChips.length, 4);
+  const chipIds = genericContext.quickActionChips.map((c) => c.id);
+  assert.deepStrictEqual(chipIds, ['pitch_review', 'star_drill', 'culture_fit', 'architecture_defense']);
+  const serialized = JSON.stringify(genericContext);
+  assert.ok(!serialized.includes('cib-interns-test-task'), 'Must not leak cib-interns-test-task');
+  assert.ok(!serialized.includes('носков'), 'Must not leak socks');
+  assert.ok(!serialized.includes('TransferService'), 'Must not leak TransferService');
+
+  console.log('✅ normalizeCompanyContext: PASSED (both custom and generic agnostic profiles)');
 }
 
 // 3. Test Practice Context Normalizer

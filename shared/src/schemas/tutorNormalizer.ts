@@ -34,6 +34,29 @@ export interface SqlArenaSpokePayload {
   companyContextName?: string;
 }
 
+export const DEFAULT_SOCRATIC_COMPANY_CHIPS: TutorQuickActionChip[] = [
+  {
+    id: 'pitch_review',
+    label: '🎙️ Отрепетируй питч',
+    promptMessage: 'Послушай мой 4-минутный питч о себе как Product Engineer и оцени его по ключевым инженерным и продуктовым метрикам.'
+  },
+  {
+    id: 'star_drill',
+    label: '🚨 Каверзный вопрос по STAR',
+    promptMessage: 'Задай мне неожиданный каверзный вопрос по методике STAR на тему отказа в проде, комплаенса или сложных архитектурных компромиссов.'
+  },
+  {
+    id: 'culture_fit',
+    label: '🛡️ Проверка на Red/Green флаги',
+    promptMessage: 'Проверь мой подход к решению задач на соответствие культурным ценностям компании и маркерам сеньорности (Green Flags).'
+  },
+  {
+    id: 'architecture_defense',
+    label: '🏛️ Защита техдизайна',
+    promptMessage: 'Проведи экспресс-ревью архитектурного решения: какие узкие места и скрытые предположения в нем есть?'
+  }
+];
+
 export interface CompanyStudioSpokePayload {
   profile: {
     id: string;
@@ -45,6 +68,8 @@ export interface CompanyStudioSpokePayload {
       redFlags?: string[];
       greenFlags?: string[];
     };
+    customQuickActionChips?: TutorQuickActionChip[];
+    takeHomePrCases?: Array<{ title?: string; focus?: string; [k: string]: any }>;
   };
   activeStage?: {
     id: string;
@@ -134,28 +159,9 @@ export function normalizeSqlArenaContext(payload: SqlArenaSpokePayload): TutorAc
 export function normalizeCompanyContext(payload: CompanyStudioSpokePayload): TutorActiveContext {
   const { profile, activeStage, activeCodeSnippet, activeTaskTitle } = payload;
 
-  const quickActionChips: TutorQuickActionChip[] = [
-    {
-      id: 'pitch_review',
-      label: '🎙️ Отрепетируй 4-мин питч',
-      promptMessage: 'Послушай мой 4-минутный питч о себе как Product Engineer и оцени его по метрикам банка (TTM, Pain Index, Zero-Downtime, Shift-Left).'
-    },
-    {
-      id: 'star_drill',
-      label: '🚨 Каверзный вопрос по STAR',
-      promptMessage: 'Задай мне неожиданный каверзный вопрос по методике STAR на тему отказа в проде, комплаенса или распила легаси-монолита.'
-    },
-    {
-      id: 'socks_warehouse',
-      label: '🧦 Ловушки «Склада носков»',
-      promptMessage: 'Разбери частые антипаттерны и гонки данных в тестовом задании склада носков (cib-interns-test-task).'
-    },
-    {
-      id: 'transferservice_defects',
-      label: '🛡️ Дефекты TransferService',
-      promptMessage: 'Объясни скрытые баги в TransferService: почему возникает дедлок в БД и как работает детерминированная сортировка min(id)->max(id).'
-    }
-  ];
+  const quickActionChips = profile.customQuickActionChips && profile.customQuickActionChips.length > 0
+    ? profile.customQuickActionChips
+    : DEFAULT_SOCRATIC_COMPANY_CHIPS;
 
   return {
     arena: 'companies',
@@ -173,10 +179,16 @@ export function normalizeCompanyContext(payload: CompanyStudioSpokePayload): Tut
       cultureMetrics: profile.culture?.metricsFocus,
       redFlags: profile.culture?.redFlags,
       greenFlags: profile.culture?.greenFlags,
-      takeHomeContext: {
-        title: 'cib-interns-test-task (Склад носков)',
-        prAntiPatternsSummary: 'Гонка данных в Java balance read, отсутствие UNIQUE(color, cotton_part), использование double'
-      }
+      takeHomeContext: profile.takeHomePrCases && profile.takeHomePrCases.length > 0
+        ? {
+            title: `Take-Home Lab (${profile.name})`,
+            prAntiPatternsSummary: profile.takeHomePrCases
+              .map((c) => c.title || '')
+              .filter(Boolean)
+              .slice(0, 3)
+              .join(', ')
+          }
+        : undefined
     },
     quickActionChips
   };
