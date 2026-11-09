@@ -353,7 +353,7 @@ jobs:
             BACKEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}" \
             FRONTEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-frontend:${GITHUB_SHA}" \
             SANDBOX_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-sandbox:${GITHUB_SHA}" \
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --no-build --pull never --remove-orphans
 
             echo "[Clean] Housekeeping dangling image layers..."
             docker image prune -af || true

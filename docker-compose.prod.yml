@@ -3,9 +3,7 @@ name: interview_tutor
 services:
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/iliaiz/interview_tutor-frontend:latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
+    pull_policy: never
     container_name: interview-frontend
     restart: unless-stopped
     expose:
@@ -22,9 +20,7 @@ services:
 
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/iliaiz/interview_tutor-backend:latest}
-    build:
-      context: .
-      dockerfile: ./backend/Dockerfile
+    pull_policy: never
     container_name: interview-backend-api
     restart: unless-stopped
     expose:
@@ -65,9 +61,7 @@ services:
 
   sandbox:
     image: ${SANDBOX_IMAGE:-ghcr.io/iliaiz/interview_tutor-sandbox:latest}
-    build:
-      context: .
-      dockerfile: sandbox/Dockerfile
+    pull_policy: never
     container_name: interview-sandbox
     restart: unless-stopped
     expose:
