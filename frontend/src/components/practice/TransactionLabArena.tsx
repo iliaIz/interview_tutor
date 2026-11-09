@@ -294,7 +294,6 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
       />
 
       {/* Socratic AI Tutor & Whiteboard */}
-      <PracticeTutorDrawer />
       <WhiteboardDrawer
         isOpen={isWhiteboardOpen}
         onClose={() => setIsWhiteboardOpen(false)}

@@ -257,9 +257,6 @@ const PracticeArenaWorkspace: React.FC<{ activePracticeChallenge: CodingChalleng
         state={activeWhiteboardState}
       />
 
-      {/* Multimodal AI Pair-Programming Sidecar Drawer */}
-      <PracticeTutorDrawer />
-
       {/* Floating Ambient Voice Pill (when drawer is closed) */}
       <AmbientVoicePill />
     </div>
