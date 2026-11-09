@@ -153,6 +153,7 @@ public class TripService {
       {
         path: 'src/test/java/com/assessment/legacy/TripServiceTest.java',
         content: `package com.assessment.legacy;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -176,28 +177,15 @@ public class TripServiceTest {
     @Test
     @DisplayName("Should return trips when users are friends")
     public void shouldReturnTripsWhenFriends() {
-        User loggedUser = new User("LoggedUser");
-        User target = new User("TargetUser");
-        target.addFriend(loggedUser);
-
-        List<Trip> expectedTrips = List.of(new Trip("London"), new Trip("Paris"));
-        TestableTripService service = new TestableTripService(loggedUser, expectedTrips);
-
-        List<Trip> actualTrips = service.getTripsByUser(target);
-        assertEquals(2, actualTrips.size());
-        assertEquals("London", actualTrips.get(0).destination());
+        // TODO: Реализуйте проверки для метода shouldReturnTripsWhenFriends для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should return empty list when users are not friends")
     public void shouldReturnEmptyListWhenNotFriends() {
-        User loggedUser = new User("LoggedUser");
-        User target = new User("TargetUser");
-        target.addFriend(new User("Stranger"));
-
-        TestableTripService service = new TestableTripService(loggedUser, List.of(new Trip("Rome")));
-        List<Trip> trips = service.getTripsByUser(target);
-        assertTrue(trips.isEmpty());
+        // TODO: Реализуйте проверки для метода shouldReturnEmptyListWhenNotFriends для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     static class TestableTripService extends TripService {
@@ -461,6 +449,7 @@ public class GildedRose {
       {
         path: 'src/test/java/com/assessment/gildedrose/GildedRoseTest.java',
         content: `package com.assessment.gildedrose;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -482,41 +471,29 @@ public class GildedRoseTest {
     @Test
     @DisplayName("Aged Brie quality should never exceed 50")
     public void testAgedBrieQualityLimit() {
-        Item[] items = new Item[] { new Item("Aged Brie", 5, 50) };
-        GildedRose app = new GildedRose(items);
-        app.updateQuality();
-
-        assertEquals(50, items[0].quality);
+        // TODO: Реализуйте проверки для метода testAgedBrieQualityLimit для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Sulfuras should never degrade in quality")
     public void testSulfurasQualityFixed() {
-        Item[] items = new Item[] { new Item("Sulfuras, Hand of Ragnaros", 0, 80) };
-        GildedRose app = new GildedRose(items);
-        app.updateQuality();
-
-        assertEquals(80, items[0].quality);
+        // TODO: Реализуйте проверки для метода testSulfurasQualityFixed для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Backstage passes quality drops to 0 after concert")
     public void testBackstagePassesDropToZero() {
-        Item[] items = new Item[] { new Item("Backstage passes to a TAFKAL80ETC concert", 0, 30) };
-        GildedRose app = new GildedRose(items);
-        app.updateQuality();
-
-        assertEquals(0, items[0].quality);
+        // TODO: Реализуйте проверки для метода testBackstagePassesDropToZero для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Quality should never become negative")
     public void testQualityNeverNegative() {
-        Item[] items = new Item[] { new Item("Standard Item", 0, 0) };
-        GildedRose app = new GildedRose(items);
-        app.updateQuality();
-
-        assertEquals(0, items[0].quality);
+        // TODO: Реализуйте проверки для метода testQualityNeverNegative для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -668,6 +645,7 @@ public class SubscriptionExpiryCalculator {
       {
         path: 'src/test/java/com/assessment/subscription/SubscriptionExpiryCalculatorTest.java',
         content: `package com.assessment.subscription;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -690,21 +668,15 @@ public class SubscriptionExpiryCalculatorTest {
     @Test
     @DisplayName("Should reject zero duration")
     public void testZeroDuration() {
-        SubscriptionExpiryCalculator calc = new SubscriptionExpiryCalculator();
-        assertThrows(IllegalArgumentException.class, () -> {
-            calc.calculateExpiry(0);
-        });
+        // TODO: Реализуйте проверки для метода testZeroDuration для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should use injected clock and calculate exact expiry")
     public void testInjectedClockExpiry() {
-        Instant fixedNow = Instant.parse("2026-03-30T12:00:00Z");
-        Clock fixedClock = Clock.fixed(fixedNow, ZoneOffset.UTC);
-        SubscriptionExpiryCalculator calc = new SubscriptionExpiryCalculator(fixedClock);
-
-        Instant expiry = calc.calculateExpiry(30);
-        assertEquals(Instant.parse("2026-04-29T12:00:00Z"), expiry);
+        // TODO: Реализуйте проверки для метода testInjectedClockExpiry для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1006,40 +978,22 @@ class LegacyInvoiceProcessorTest {
     @Test
     @DisplayName("Boundary: Exactly 5000.00 remains standard value (Kills M1)")
     void exactlyFiveThousandStandardRate() {
-        TestAuditLogger audit = new TestAuditLogger();
-        UserPrincipal user = new UserPrincipal("alice", "STAFF", false);
-        LegacyInvoiceProcessor processor = new LegacyInvoiceProcessor(() -> user, audit, FIXED_CLOCK);
-
-        Invoice inv = new Invoice("INV-2", "CUST-1", new BigDecimal("5000.00"), false);
-        InvoiceResult res = processor.process(inv);
-
-        assertThat(res.taxAmount()).isEqualByComparingTo("500.00");
+        // TODO: Реализуйте проверки для метода exactlyFiveThousandStandardRate для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("High value above 5000 rejects non-elevated user (Kills M3)")
     void highValueRejectsNonElevated() {
-        TestAuditLogger audit = new TestAuditLogger();
-        UserPrincipal user = new UserPrincipal("alice", "STAFF", false);
-        LegacyInvoiceProcessor processor = new LegacyInvoiceProcessor(() -> user, audit, FIXED_CLOCK);
-
-        Invoice inv = new Invoice("INV-3", "CUST-1", new BigDecimal("5000.01"), false);
-        assertThatThrownBy(() -> processor.process(inv))
-            .isInstanceOf(SecurityException.class);
+        // TODO: Реализуйте проверки для метода highValueRejectsNonElevated для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Tax exempt customers incur 0.00 tax (Kills M4, M5)")
     void taxExemptZeroTax() {
-        TestAuditLogger audit = new TestAuditLogger();
-        UserPrincipal user = new UserPrincipal("alice", "STAFF", false);
-        LegacyInvoiceProcessor processor = new LegacyInvoiceProcessor(() -> user, audit, FIXED_CLOCK);
-
-        Invoice inv = new Invoice("INV-4", "CUST-1", new BigDecimal("2000.00"), true);
-        InvoiceResult res = processor.process(inv);
-
-        assertThat(res.taxAmount()).isEqualByComparingTo("0.00");
-        assertThat(res.netAmount()).isEqualByComparingTo("2000.00");
+        // TODO: Реализуйте проверки для метода taxExemptZeroTax для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1476,40 +1430,29 @@ class LegacyTaxEngineTest {
     @Test
     @DisplayName("Should correctly calculate luxury compounding for 150,000 USD (Kills KM2)")
     void testLuxuryCompounding() {
-        LegacyTaxEngine engine = new LegacyTaxEngine(new Random(SEED));
-        var res = engine.calculate(new BigDecimal("150000.00"), "USD", "RETAIL", false);
-
-        assertThat(res.taxAmount()).isEqualByComparingTo("33250.00");
+        // TODO: Реализуйте проверки для метода testLuxuryCompounding для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should maintain decimal precision for foreign currency EUR (Kills KM3)")
     void testEurPrecision() {
-        LegacyTaxEngine engine = new LegacyTaxEngine(new Random(SEED));
-        var res = engine.calculate(new BigDecimal("10000.00"), "EUR", "RETAIL", false);
-
-        assertThat(res.taxAmount()).isEqualByComparingTo("556.00");
+        // TODO: Реализуйте проверки для метода testEurPrecision для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Zero dollar invoice should incur zero tax and zero fee (Kills KM4)")
     void testZeroDollarNoFee() {
-        LegacyTaxEngine engine = new LegacyTaxEngine(new Random(SEED));
-        var res = engine.calculate(new BigDecimal("0.00"), "USD", "RETAIL", false);
-
-        assertThat(res.feeAmount()).isEqualByComparingTo("0.00");
-        assertThat(res.taxAmount()).isEqualByComparingTo("0.00");
+        // TODO: Реализуйте проверки для метода testZeroDollarNoFee для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Wholesale customer receives seasonal discount (Kills KM5)")
     void testWholesaleSeasonalDiscount() {
-        // Seed chosen so random.nextDouble() < 0.20
-        LegacyTaxEngine engine = new LegacyTaxEngine(new Random(4096L));
-        var res = engine.calculate(new BigDecimal("1000.00"), "USD", "WHOLESALE", true);
-
-        // 8% wholesale + 5% seasonal = 13% = 130.00
-        assertThat(res.discountAmount()).isEqualByComparingTo("130.00");
+        // TODO: Реализуйте проверки для метода testWholesaleSeasonalDiscount для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

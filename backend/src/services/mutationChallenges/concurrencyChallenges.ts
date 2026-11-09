@@ -114,16 +114,8 @@ class PaymentAggregationServiceTest {
     @Test
     @DisplayName("Should verify state stability during post-settlement window (Kills M3, M5)")
     void shouldVerifyStabilityDuringWindow() {
-        service = new PaymentAggregationService("batch-102");
-        service.addPayment(new BigDecimal("100.00"));
-        service.triggerAsyncSettlement(20);
-
-        await().atMost(Duration.ofMillis(500))
-               .until(() -> service.getState().status() == BatchStatus.SETTLED);
-
-        // Verify state remains stable and does not regress
-        await().during(Duration.ofMillis(50))
-               .until(() -> service.getState().status() == BatchStatus.SETTLED);
+        // TODO: Реализуйте проверки для метода shouldVerifyStabilityDuringWindow для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -383,13 +375,9 @@ class LedgerTransferServiceTest {
         assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
         executor.shutdown();
 
-        // Strict conservation law: sum(initial) == sum(final)
-        long totalInitial = initialFrom + initialTo;
-        long totalFinal = from.getBalanceCents() + to.getBalanceCents();
-
-        assertThat(totalFinal).isEqualTo(totalInitial);
+        // TODO: Добавьте строгие утверждения для сохранения баланса ACC-FROM и ACC-TO и исключения Double-Spending (Kills M1-M5)
         assertThat(from.getBalanceCents()).isGreaterThanOrEqualTo(0L);
-        assertThat(to.getBalanceCents()).isEqualTo(successCount.get() * transferAmount);
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -643,6 +631,9 @@ class InterBankSettlementServiceTest {
         BankParticipant bankA = new BankParticipant("DE-SAME", 1000L);
         assertThatThrownBy(() -> service.settle(bankA, bankA, 50L))
             .isInstanceOf(IllegalArgumentException.class);
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -836,7 +827,9 @@ class ProductAggregatorGatewayTest {
             assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
         }
 
-        assertThat(gateway.getCacheSize()).isEqualTo(20);
+        // TODO: Добавьте проверку отсутствия Carrier Thread Pinning и корректного размера кэша (Kills M1-M5)
+        assertThat(gateway.getCacheSize()).isGreaterThanOrEqualTo(0);
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1053,12 +1046,8 @@ class AtomicRingBufferTest {
     @Test
     @DisplayName("Should return null when polling empty buffer (Kills M2)")
     void shouldReturnNullOnEmptyBuffer() {
-        AtomicRingBuffer<String> buffer = new AtomicRingBuffer<>(5);
-        assertThat(buffer.poll()).isNull();
-
-        buffer.offer("ITEM");
-        assertThat(buffer.poll()).isEqualTo("ITEM");
-        assertThat(buffer.poll()).isNull();
+        // TODO: Реализуйте проверки для метода shouldReturnNullOnEmptyBuffer для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test

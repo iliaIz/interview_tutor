@@ -62,8 +62,8 @@ public class AccountActivationTest {
 
         // Слабый оракул (Line Hitter): покрывает строку, но не проверяет статус!
         assertThat(account).isNotNull();
-        // Убивающее утверждение
-        assertThat(account.status()).isEqualTo("ACTIVE");
+        // TODO: Добавьте убивающее утверждение для проверки account.status(), устранив псевдо-оракул
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -150,9 +150,8 @@ public class CreditServiceTest {
     @Test
     @DisplayName("Should allow withdrawal to exact zero balance")
     public void shouldAllowExactZeroBalance() {
-        // Убивает мутацию < на <= при нулевом остатке
-        boolean allowed = creditService.canWithdraw(new BigDecimal("100.00"), new BigDecimal("100.00"));
-        assertThat(allowed).isTrue();
+        // TODO: Реализуйте проверки для метода shouldAllowExactZeroBalance для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -258,6 +257,9 @@ public class InvoiceServiceTest {
 
         // 100.00 + 20.00 = 120.00
         assertThat(total).isEqualByComparingTo(new BigDecimal("120.00"));
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

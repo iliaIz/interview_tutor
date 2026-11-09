@@ -72,6 +72,9 @@ public class TieredFeeCalculatorTest {
     public void shouldEnforceExactTierThreshold(String inputAmount, String expectedFee) {
         BigDecimal actual = calculator.calculateFee(new BigDecimal(inputAmount));
         assertThat(actual).isEqualByComparingTo(new BigDecimal(expectedFee));
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -194,6 +197,7 @@ public class RegistrationService {
       {
         path: 'src/test/java/com/curriculum/primitives/RegistrationServiceTest.java',
         content: `package com.curriculum.primitives;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -229,11 +233,8 @@ public class RegistrationServiceTest {
     @Test
     @DisplayName("Should NOT send welcome email when email is invalid")
     public void shouldNotSendEmailOnInvalidInput() {
-        assertThatThrownBy(() -> registrationService.registerUser("invalid-email"))
-            .isInstanceOf(IllegalArgumentException.class);
-
-        // Доказательство отсутствия побочного эффекта
-        verify(notificationClient, never()).sendWelcomeEmail(anyString());
+        // TODO: Реализуйте проверки для метода shouldNotSendEmailOnInvalidInput для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
