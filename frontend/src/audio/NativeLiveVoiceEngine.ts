@@ -292,7 +292,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       }
     }
 
-    if (parsed.hasAudio && parsed.audioChunks.length > 0) {
+    if ((parsed.hasAudio && parsed.audioChunks.length > 0) || parsed.hasModelTurn) {
       this.isSessionReady = true;
       this.isServerTurnComplete = false;
       this.clearClientSafetyTimer();

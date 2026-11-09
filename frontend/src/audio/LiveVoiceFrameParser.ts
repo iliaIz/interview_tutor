@@ -14,6 +14,7 @@ import { VoiceEvaluationResult } from './types';
 
 export interface ParsedLiveFrameResult {
   type?: string;
+  hasModelTurn: boolean;
   hasAudio: boolean;
   audioChunks: string[];
   hasText: boolean;
@@ -44,6 +45,7 @@ export class LiveVoiceFrameParser {
 
       const result: ParsedLiveFrameResult = {
         type: data.type,
+        hasModelTurn: Boolean(data.serverContent?.modelTurn),
         hasAudio: false,
         audioChunks: [],
         hasText: false,
