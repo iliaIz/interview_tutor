@@ -28,6 +28,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **09** | **Design Patterns Practice Arena** | [`09_DESIGN_PATTERNS_PRACTICE_ARENA.md`](file:///home/djelu/projects/interview_tutor/docs/architecture/specs/09_DESIGN_PATTERNS_PRACTICE_ARENA.md) | SOTA 2026 GoF revision, Anti-pattern refactoring, AST structural invariants, Overengineering Sentinel |
 | **10** | **Company Targeted Prep & SQL Arena** | [`10_COMPANY_TARGETED_PREPARATION_AND_SQL_ARENA.md`](10_COMPANY_TARGETED_PREPARATION_AND_SQL_ARENA.md) | PGlite WASM SQL engine, Curated Company Pipeline DAG, Company Readiness Index (CRI), Zero-VPS-Load |
 | **11** | **Omnipresent AI Copilot Architecture** | [`11_OMNIPRESENT_AI_COPILOT_ARCHITECTURE.md`](11_OMNIPRESENT_AI_COPILOT_ARCHITECTURE.md) | Single headless copilot engine, polymorphic context normalizer, Socratic ladder, anti-solution leak AST guard |
+| **12** | **Company Prep Studio Deepening & ArenaNavigator** | [`12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md`](12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md) | Deep Domain Manifest SSOT, ArenaNavigator cross-arena seam, zero vendor leakage in copilot normalizer |
 
 ---
 

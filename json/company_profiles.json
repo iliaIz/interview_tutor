@@ -39,6 +39,50 @@
         "SD-ATM-HARDWARE-DISPENSER",
         "cib-interns-test-task"
       ],
+      "mustReviewTasks": [
+        {
+          "taskId": "iban-validator",
+          "title": "IBAN Валидатор (ISO 13616, mod 97)",
+          "targetArena": "practice",
+          "badge": "Live Coding"
+        },
+        {
+          "taskId": "case_transfer_service",
+          "title": "TransferService: 7 дефектов (Deadlock, Lost Update)",
+          "targetArena": "practice",
+          "badge": "Code Review"
+        },
+        {
+          "taskId": "case_account_collections",
+          "title": "Account.java: TreeMap коллизия Date и IEEE 754",
+          "targetArena": "practice",
+          "badge": "Code Review"
+        },
+        {
+          "taskId": "sql-raiff-01",
+          "title": "Ловушка NOT IN с NULL: Спящие клиенты",
+          "targetArena": "sql_arena",
+          "badge": "PostgreSQL"
+        },
+        {
+          "taskId": "sparse-vector",
+          "title": "SparseVector: Скалярное произведение O(min(L1, L2))",
+          "targetArena": "practice",
+          "badge": "Live Coding"
+        },
+        {
+          "taskId": "SD-ATM-HARDWARE-DISPENSER",
+          "title": "Банкомат: Выдача наличных и Bounded Knapsack",
+          "targetArena": "system_design",
+          "badge": "System Design"
+        },
+        {
+          "taskId": "cib-interns-test-task",
+          "title": "Склад носков: 25 PR криминалистика",
+          "targetArena": "take_home",
+          "badge": "Take-Home Lab"
+        }
+      ],
       "checklist": [
         "[ ] Отрепетирован 4-минутный питч с акцентом на Product Engineer метрики (TTM, Pain Index)",
         "[ ] Повторен кейс TransferService: 7 скрытых багов (Deadlock, Lost Update, Fail-Fast, dirty checking)",
@@ -78,7 +122,7 @@
         "format": "code_review",
         "estimatedMinutes": 30,
         "description": "Поиск скрытых дефектов: TransferService (Deadlock, Lost Update), Account.java (TreeMap коллизия Date), Spring AOP PostConstruct.",
-        "targetArena": "incidents",
+        "targetArena": "practice",
         "targetEntityId": "case_transfer_service",
         "weight": 0.20
       },
@@ -114,6 +158,378 @@
         "targetArena": "take_home",
         "targetEntityId": "cib-interns-test-task",
         "weight": 0.15
+      }
+    ],
+    "competencies": [
+      {
+        "id": 1,
+        "title": "Разработка бэкенда",
+        "category": "engineering",
+        "categoryLabel": "Инженерия",
+        "iconName": "Code2",
+        "techStack": "Java 21, Kotlin, Spring Boot 3, PostgreSQL, Apache Kafka, Redis",
+        "description": "Глубокое понимание физики платформы: Virtual Threads, AOP-прокси, блокировки на уровне СУБД, стриминг и CDC.",
+        "interviewQuestion": "«Почему synchronized на методе перевода в кластере — это фикция и как обеспечить детерминированную блокировку строк?»",
+        "barRaiserExpectation": "Умеет сортировать ID счетов (min -> max) для предотвращения дедлоков; знает про запрет double в деньгах и транзакционные гарантии Outbox."
+      },
+      {
+        "id": 2,
+        "title": "Discovery и работа с пользователями",
+        "category": "product",
+        "categoryLabel": "Продукт & Бизнес",
+        "iconName": "Users",
+        "techStack": "Event Storming, CustDev, User Journey Map, Domain-Driven Design",
+        "description": "Самостоятельное погружение в предметную область без аналитика-посредника. Общение со стейкхолдерами и выявление скрытых ограничений.",
+        "interviewQuestion": "«Вам принесли запрос от бизнеса: \"сделайте экспорт отчетов в Excel\". Ваши первые действия?»",
+        "barRaiserExpectation": "Не начинает кодить сразу: выясняет конечную цель пользователя (X-Y Problem), альтернативы (дашборд, вебхук) и объем данных."
+      },
+      {
+        "id": 3,
+        "title": "Продуктовые решения",
+        "category": "product",
+        "categoryLabel": "Продукт & Бизнес",
+        "iconName": "Lightbulb",
+        "techStack": "MVP, Cost-of-Delay, декомпозиция гипотез, Feature Flags",
+        "description": "Умение балансировать между идеальной архитектурой и быстрой валидацией ценности на реальных пользователях.",
+        "interviewQuestion": "«Как проверить гипотезу о новом типе накопительного счета за 2 дня без доработки ядра АБС?»",
+        "barRaiserExpectation": "Предлагает фасадное решение (Wizard/Landing) с ручной обработкой первых заявок для замера конверсии до капиталоемкой разработки."
+      },
+      {
+        "id": 4,
+        "title": "UX и прототипирование",
+        "category": "product",
+        "categoryLabel": "Продукт & Бизнес",
+        "iconName": "Layers",
+        "techStack": "API-First, OpenAPI/Swagger, ViennaUI design tokens, Microfrontends",
+        "description": "Сквозное проектирование пользовательского опыта: консистентные ошибки API, оптимистичный UI и бесшовные флоу.",
+        "interviewQuestion": "«Как оформить ошибку валидации поля суммы, чтобы мобильный клиент показал понятное сообщение без повторного запроса?»",
+        "barRaiserExpectation": "Использует RFC 7807 (Problem Details), передает локализованные ключи ошибок и machine-readable payload с лимитами."
+      },
+      {
+        "id": 5,
+        "title": "Измерения и продуктовая аналитика",
+        "category": "product",
+        "categoryLabel": "Продукт & Бизнес",
+        "iconName": "BarChart3",
+        "techStack": "DORA метрики, Prometheus, Grafana, A/B платформы, ClickHouse",
+        "description": "Управление фичей через цифры: TTM, Pain Index, воронка конверсии, частота откатов и latency 99-го перцентиля.",
+        "interviewQuestion": "«Как вы докажете, что ваш рефакторинг сервиса авторизации принес пользу бизнесу, а не только разработчикам?»",
+        "barRaiserExpectation": "Оперирует метриками конверсии входа, снижением количества звонков в поддержку (Pain Index) и ростом DORA Throughput."
+      },
+      {
+        "id": 6,
+        "title": "Эксплуатация и наблюдаемость",
+        "category": "engineering",
+        "categoryLabel": "Инженерия",
+        "iconName": "Server",
+        "techStack": "Kubernetes, Helm, GitLab CI, Grafana, OpenTelemetry, PagerDuty/On-call",
+        "description": "You build it, you run it. Полное владение жизненным циклом в рантайме: деплой, трассировка спанов, алерты и дежурства.",
+        "interviewQuestion": "«В 3 часа ночи сработал алерт p99 latency > 2s на сервисе платежей. Каков ваш алгоритм траблшутинга?»",
+        "barRaiserExpectation": "Смотрит метрики насыщения ресурсов (USE/RED), трассы в Jaeger, пул коннектов HikariCP и статус очередей Kafka до перезагрузки подов."
+      },
+      {
+        "id": 7,
+        "title": "Тестирование и инварианты",
+        "category": "quality_ai",
+        "categoryLabel": "Качество & Надежность",
+        "iconName": "ShieldCheck",
+        "techStack": "Testcontainers, Spring Boot Test, WireMock, Gatling, Contract Testing",
+        "description": "QA как отдельная роль упразднена! Разработчик сам проектирует пирамиду тестирования с упором на компонентные тесты с реальной БД.",
+        "interviewQuestion": "«Почему юнит-тесты со 100% покрытием моками опасны в финансовом микросервисе?»",
+        "barRaiserExpectation": "Объясняет, что моки скрывают дефекты транзакций, синтаксис SQL, дедлоки и поведение триггеров; поднимает реальный PostgreSQL в контейнере."
+      },
+      {
+        "id": 8,
+        "title": "Документация и архитектура",
+        "category": "engineering",
+        "categoryLabel": "Инженерия",
+        "iconName": "FileText",
+        "techStack": "Architecture Decision Records (ADR), C4 Model, Spec Review, OpenAPI",
+        "description": "Фиксация архитектурных развилок, границ сервисов и защита технического дизайна перед комитетом до написания кода.",
+        "interviewQuestion": "«Зачем писать ADR, если код сам по себе является самодокументируемым?»",
+        "barRaiserExpectation": "ADR фиксирует контекст, отвергнутые альтернативы и компромиссы; предотвращает повторное наступление на старые грабли через полгода."
+      },
+      {
+        "id": 9,
+        "title": "Агентная разработка и контроль ИИ",
+        "category": "quality_ai",
+        "categoryLabel": "Качество & Надежность",
+        "iconName": "Bot",
+        "techStack": "AI Coding Agents, LLM Orchestration, Prompt Boundary Invariants, Static Analysis",
+        "description": "Осознанное использование ИИ-ассистентов: проверка на утечки ресурсов, гонки данных, галлюцинации и сохранение чистоты архитектуры.",
+        "interviewQuestion": "«С какими опасными ошибками кодинг-агентов вы сталкивались лично и как предотвращаете их попадание в прод?»",
+        "barRaiserExpectation": "Называет слепые ретраи без Idempotency-Key, вызовы double в BigDecimal, утерю @Transactional и ставит жесткие тесты инвариантов."
+      }
+    ],
+    "specReviewChecklist": [
+      {
+        "id": 1,
+        "title": "Проблема пользователя & Value (Problem Statement)",
+        "tag": "Discovery",
+        "question": "Какую реальную боль клиента или финансовую метрику (Pain Index, конверсия) мы улучшаем? Не путаем ли мы решение (X) с исходной проблемой (Y)?",
+        "deliverable": "1 абзац на понятном бизнесу языке + целевая продуктовая метрика с ожидаемым % прироста.",
+        "dangerIfMissing": "Разработка никому не нужного сложного бэкенда («быстрый ватерфолл»)."
+      },
+      {
+        "id": 2,
+        "title": "Границы скоупа & Non-Goals",
+        "tag": "Скоуп",
+        "question": "Что мы сознательно исключаем из текущей итерации, чтобы сократить TTM (Time to Market)?",
+        "deliverable": "Список Non-Goals: «В v1 НЕ поддерживаем мультивалютность и пакетные выгрузки».",
+        "dangerIfMissing": "Бесконечный спринт и размывание ответственности микроюнита."
+      },
+      {
+        "id": 3,
+        "title": "Владельцы систем & Контракты API",
+        "tag": "Интеграции",
+        "question": "С какими смежными командами взаимодействуем? Согласованы ли контракты (OpenAPI/AsyncAPI) и SLA смежников?",
+        "deliverable": "Спецификация OpenAPI с примерами запросов/ответов, подтвержденная владельцами систем.",
+        "dangerIfMissing": "Блокировка релиза за день до выкатки из-за несовместимости схемы."
+      },
+      {
+        "id": 4,
+        "title": "Безопасность, 152-ФЗ & Банковская тайна (Shift-Left)",
+        "tag": "Комплаенс",
+        "question": "Согласованы ли права на чтение ПДн и банковской тайны (ст. 26 395-1 ФЗ) со службой ИБ ДО написания кода?",
+        "deliverable": "Карточка оценки рисков ИБ + архитектурный паттерн (токенизация, маскирование логов, mTLS).",
+        "dangerIfMissing": "Запрет вывода сервиса в продакшен службой безопасности после месяца разработки."
+      },
+      {
+        "id": 5,
+        "title": "Инварианты данных & Транзакционные правила",
+        "tag": "Архитектура",
+        "question": "Исключены ли типы с плавающей точкой (double/float) для денег? Как гарантируется идемпотентность и исключаются дедлоки?",
+        "deliverable": "DDL-схема, тип BigDecimal(scale=2), Idempotency-Key, сортировка ID (min -> max) при блокировках.",
+        "dangerIfMissing": "Финансовые расхождения в копейках, фантомные списания и дедлоки под нагрузкой."
+      },
+      {
+        "id": 6,
+        "title": "Пирамида тестирования & Интеграции",
+        "tag": "Качество",
+        "question": "Как проверяется поведение на реальной СУБД? Исключены ли моки базы данных?",
+        "deliverable": "Набор компонентных тестов Spring Boot + Testcontainers (Postgres), тест эмуляции сбоев сети.",
+        "dangerIfMissing": "Ложное чувство безопасности от 100% покрытия моками и падение на реальных SQL-запросах."
+      },
+      {
+        "id": 7,
+        "title": "Эксплуатация, Телеметрия & SLO",
+        "tag": "Наблюдаемость",
+        "question": "Как дежурный инженер в 3 часа ночи поймет, что сервис деградирует? Какие алерты настроены?",
+        "deliverable": "Prometheus-метрики (p99 latency, rate ошибок), Grafana-дашборд и Runbook траблшутинга.",
+        "dangerIfMissing": "Узнавание об аварии от разгневанных клиентов и техподдержки."
+      },
+      {
+        "id": 8,
+        "title": "План отката (Rollback) & Миграция БД",
+        "tag": "Релиз",
+        "question": "Как безопасно откатить сервис при аварии без повреждения базы данных?",
+        "deliverable": "Паттерн Expand/Contract (двухфазные миграции Liquibase/Flyway) + feature flag отключения.",
+        "dangerIfMissing": "Невозможность отката новой версии из-за несовместимости схемы базы данных."
+      }
+    ],
+    "starScenarios": [
+      {
+        "id": 1,
+        "title": "Преодоление барьеров комплаенса и безопасности",
+        "tagline": "Согласование внешнего канала уведомлений без утечки банковской тайны",
+        "badge": "🔒 Безопасность & 395-1 ФЗ",
+        "interviewQuestion": "«В банке действует консервативный риск-аппетит. Опишите ситуацию, когда ваше техническое предложение было отклонено ИБ или комплаенс. Как вы итерировали решение, чтобы снять риски и доставить ценность?»",
+        "situation": "Разрабатывали сервис мгновенных уведомлений о статусе переводов через стороннего мессенджер-бота для юридических лиц.",
+        "task": "Служба информационной безопасности заблокировала передачу прямых данных о платеже (ФИО, номер счета, точная сумма) во внешний канал из-за риска утечки банковской тайны (ст. 26 395-1 ФЗ).",
+        "action": [
+          "Вместо бесплодных споров с безопасниками предложил архитектурный компромисс через токенизацию.",
+          "Во внешний канал отправляется обезличенный push с криптографическим одноразовым токеном (TTL 5 минут).",
+          "При клике клиент бесшовно переходит в защищенный веб-контур банка с авторизацией по mTLS / OAuth2, где данные подтягиваются из защищенного периметра.",
+          "Лично подготовил карточку рисков и защитил матрицу доступов на совместном комитете."
+        ],
+        "result": "Решение согласовано ИБ за 3 рабочих дня без срыва релиза. Клиенты получили быстрые уведомления, а банк не нарушил регуляторные нормы.",
+        "strongHireTakeaway": "Демонстрирует партнерский подход к ИБ: вместо позиции «безопасники мешают работать» инженер предлагает безопасную архитектурную альтернативу.",
+        "redFlagToAvoid": "«Безопасники у нас душные, пришлось пойти к директору, чтобы он продавил их». (Отказ за незрелость и конфликтность)."
+      },
+      {
+        "id": 2,
+        "title": "Работа со сложным легаси и миграция монолита",
+        "tagline": "Безопасный распил финансовой отчетности через Strangler Fig и Shadow Traffic",
+        "badge": "🏛️ Strangler Fig & Zero-Diff",
+        "interviewQuestion": "«Расскажите о случае, когда вам пришлось модернизировать неподдерживаемый легаси-код. Каков был ваш подход и итог?»",
+        "situation": "Участвовал в распиле монолитной системы финансовой отчетности (Java 8 + IBM DB2) с хранимыми процедурами на 2 000 строк с неявной логикой расчета регуляторных рисков.",
+        "task": "Перевести расчет рисков на современный микросервисный стек (Java 21, Spring Boot 3, PostgreSQL, Kafka) с абсолютным нулевым расхождением в расчетах.",
+        "action": [
+          "Применил паттерн Strangler Fig (Душитель): отказался от рискованной попытки переписать всё с нуля.",
+          "Написал набор Golden Master / Characterization тестов, зафиксировавших историческое поведение монолита на тысячах срезов данных.",
+          "Развернул теневой режим (Shadow Traffic): монолит и новый микросервис параллельно считали риски, а компонент-компаратор алертил о любом расхождении в копейках.",
+          "После 2 недель 100% совпадения результатов плавно переключил основной трафик через фича-флаг."
+        ],
+        "result": "Время ночного расчета регуляторных рисков сократилось с 4.5 часов до 22 минут. Легаси-монолит успешно выведен из эксплуатации без единого сбоя.",
+        "strongHireTakeaway": "Показывает инженерную зрелость: управление рисками через Characterization-тесты и Shadow Traffic вместо наивной слепой переписки.",
+        "redFlagToAvoid": "«Мы просто выкинули старый код и переписали за спринт, потом месяц ловили баги в проде». (Отказ за безответственность)."
+      },
+      {
+        "id": 3,
+        "title": "Разбор собственной ошибки в проде (Blameless Post-Mortem)",
+        "tagline": "Локализация аварии за 12 минут, анализ «5 Почему» и добавление регрессионных тестов",
+        "badge": "🚨 Blameless & 5 Whys",
+        "interviewQuestion": "«Опишите ситуацию, когда вы совершили ошибку. Что расстроило вас больше всего и как вы поступили бы сейчас?»",
+        "situation": "При оптимизации запроса выгрузки истории транзакций добавил составной индекс и изменил порядок фильтрации в SQL.",
+        "task": "Ускорить отклик сервиса истории операций в утренние часы пиковой клиентской активности.",
+        "action": [
+          "В тестовой среде с малым объемом данных запрос работал мгновенно. Однако в проде из-за неравномерного распределения планировщик PostgreSQL выбрал Seq Scan.",
+          "Это привело к 100% утилизации CPU на мастере БД и росту латентности смежных микросервисов.",
+          "Немедленно откатил изменение по заранее заготовленному плану Rollback (git revert + передеплой). Инцидент купирован за 12 минут.",
+          "Инициировал Blameless Post-Mortem по методу «5 Почему» и внедрил в CI/CD автоматическую проверку планов запросов (EXPLAIN ANALYZE) на тестовой базе с репрезентативным объемом данных."
+        ],
+        "result": "Культура команды укрепилась, выработан системный guardrail в пайплайне, исключивший повторение подобных просадок производительности СУБД.",
+        "strongHireTakeaway": "Способность открыто признавать ошибки, действовать хладнокровно по протоколу отката и устранять системную причину, а не искать виноватых.",
+        "redFlagToAvoid": "«Я никогда не ошибался в проде, у меня всегда идеальный код». Либо перекладывание вины на релиз-инженера или тестировщика."
+      },
+      {
+        "id": 4,
+        "title": "Отлов ошибок и галлюцинаций ИИ-агента",
+        "tagline": "Выявление двойного списания при retry и потери точности в BigDecimal(double)",
+        "badge": "🤖 AI Safeguards & Invariants",
+        "interviewQuestion": "«Приведите пример, когда кодинг-агент ошибся в логике или архитектуре, и как именно вы это поймали. Что вы изменили в тестах и правилах?»",
+        "situation": "При генерации сервиса интеграции с платежным шлюзом ИИ-агент сгенерировал клиент на WebClient с механизмом повторных попыток.",
+        "task": "Обеспечить отказоустойчивое взаимодействие со сторонним финансовым шлюзом при нестабильной сети.",
+        "action": [
+          "На Code Review заметил, что агент повесил безусловный @Retryable на ReadTimeoutException без передачи Idempotency-Key в запрос.",
+          "При обрыве ответа после успешного списания повторный запрос привел бы к катастрофическому двойному списанию денег у клиента.",
+          "Также агент использовал new BigDecimal(double) в конвертере валют, создавая незаметную потерю точности IEEE 754.",
+          "Написал компонентный тест с WireMock, эмулирующий тайм-аут, который наглядно воспроизвел дублирование списания.",
+          "Зафиксировал жесткие архитектурные инварианты в промпт-системе и настроил AST-правило линтера."
+        ],
+        "result": "Потенциальный финансовый инцидент остановлен до попадания в ветку. В проекте появилось автоматизированное правило контроля финансовых вызовов.",
+        "strongHireTakeaway": "Показывает глубокое понимание рисков AI-кодинга в 2026 году: фокус на инвариантах, идемпотентности и доказательном тестировании.",
+        "redFlagToAvoid": "«Я полностью доверяю ИИ, он пишет лучше людей, код даже не смотрю». (Мгновенный No Hire в Райффайзенбанке)."
+      }
+    ],
+    "talentQGuide": {
+      "deadlineHours": 72,
+      "warningTitle": "Психометрический тест Talent Q Elements / SHL",
+      "warningMarkdown": "Ссылка на онлайн-тест высылается рекрутером сразу после первичного отклика. Ровно через **72 часа** ссылка деактивируется. Если кандидат не успел завершить тест — система фиксирует авто-отказ без возможности апелляции или пересдачи в течение 6 месяцев!",
+      "formulaMarkdown": "Δ% = ((X₂ - X₁) / X₁) × 100%",
+      "verbalRules": [
+        {
+          "outcome": "true",
+          "label": "«Истинно» (True)",
+          "description": "Утверждение логически и прямо следует из фактов, однозначно приведенных в тексте.",
+          "badgeColor": "emerald"
+        },
+        {
+          "outcome": "false",
+          "label": "«Ложно» (False)",
+          "description": "Утверждение прямо противоречит фактам, изложенным в тексте.",
+          "badgeColor": "rose"
+        },
+        {
+          "outcome": "cannot_tell",
+          "label": "«Нельзя сказать» (Cannot Tell — Главная ловушка!)",
+          "description": "На основе текста невозможно сделать вывод. Не привносите внешние знания или допущения здравого смысла!",
+          "badgeColor": "amber"
+        }
+      ],
+      "strategyTips": [
+        "В числовом тесте округляйте значения до целых/сотых и исключайте абсурдные варианты ответа для экономии секунд.",
+        "В вербальном тесте никогда не используйте свой жизненный опыт: опирайтесь строго на текст.",
+        "Если застряли на вопросе более 60 секунд — выбирайте наиболее вероятный ответ и двигайтесь дальше (штрафа за ошибки нет)."
+      ]
+    },
+    "takeHomePrCases": [
+      {
+        "id": "pr-race-condition",
+        "prNumber": "#173",
+        "author": "Candidate-A",
+        "title": "Service outcome with Java-level balance check",
+        "flawCategory": "Race Condition & Lost Update",
+        "codeSnippet": "@Transactional\npublic void outcomeSocks(SockDto dto) {\n    Sock sock = sockRepo.findByColorAndCottonPart(dto.getColor(), dto.getCottonPart())\n        .orElseThrow(() -> new NotFoundException(\"Товар не найден\"));\n\n    if (sock.getQuantity() < dto.getQuantity()) {\n        throw new BadRequestException(\"Недостаточно товара\");\n    }\n\n    sock.setQuantity(sock.getQuantity() - dto.getQuantity());\n    sockRepo.save(sock);\n}",
+        "options": [
+          {
+            "id": "opt1",
+            "label": "Нет проверки на null у dto.getColor()",
+            "isCorrect": false,
+            "explanation": "Это вторично по сравнению с конкурентным списанием остатков."
+          },
+          {
+            "id": "opt2",
+            "label": "Race condition: при параллельных запросах остаток на складе уходит в минус",
+            "isCorrect": true,
+            "explanation": "Бин вычитывает остаток в память Java без блокировки; два параллельных запроса уводят складской баланс в минус."
+          },
+          {
+            "id": "opt3",
+            "label": "Нельзя бросать BadRequestException внутри транзакции",
+            "isCorrect": false,
+            "explanation": "Непроверяемые исключения штатно откатывают транзакцию в Spring."
+          }
+        ],
+        "canonicalFixSql": "UPDATE socks\nSET quantity = quantity - :quantity\nWHERE color = :color AND cotton_part = :cottonPart AND quantity >= :quantity;"
+      },
+      {
+        "id": "pr-unique-constraint",
+        "prNumber": "#169",
+        "author": "Candidate-B",
+        "title": "Income logic without composite DB constraint",
+        "flawCategory": "Data Integrity & Duplicate Rows",
+        "codeSnippet": "@Transactional\npublic void incomeSocks(SockDto dto) {\n    var opt = sockRepo.findByColorAndCottonPart(dto.getColor(), dto.getCottonPart());\n    if (opt.isPresent()) {\n        Sock sock = opt.get();\n        sock.setQuantity(sock.getQuantity() + dto.getQuantity());\n    } else {\n        sockRepo.save(new Sock(dto.getColor(), dto.getCottonPart(), dto.getQuantity()));\n    }\n}",
+        "options": [
+          {
+            "id": "opt1",
+            "label": "Отсутствие UNIQUE(color, cotton_part) в БД плодит дубликаты партий",
+            "isCorrect": true,
+            "explanation": "Без уникального индекса два одновременных вызова income не найдут запись и оба сделают INSERT."
+          },
+          {
+            "id": "opt2",
+            "label": "Необходимо использовать Optional.ifPresentOrElse",
+            "isCorrect": false,
+            "explanation": "Это стилистический синтаксический сахар, не защищающий от дубликатов в БД."
+          }
+        ],
+        "canonicalFixSql": "ALTER TABLE socks ADD CONSTRAINT uq_socks_color_cotton UNIQUE (color, cotton_part);"
+      },
+      {
+        "id": "pr-float-trap",
+        "prNumber": "#174",
+        "author": "Candidate-C",
+        "title": "Filtering cotton percentage using double precision",
+        "flawCategory": "IEEE 754 Floating-Point Inaccuracy",
+        "codeSnippet": "@GetMapping(\"/socks\")\npublic ResponseEntity<Long> getSocks(\n    @RequestParam String color,\n    @RequestParam String operation,\n    @RequestParam double cottonPart\n) {\n    if (\"equal\".equals(operation)) {\n        return ResponseEntity.ok(sockRepo.sumByEqual(color, cottonPart)); // WHERE cotton_part = 89.9999999\n    }\n    return ResponseEntity.ok(0L);\n}",
+        "options": [
+          {
+            "id": "opt1",
+            "label": "Использование типа double для процентов ведет к потере записей в условии equal",
+            "isCorrect": true,
+            "explanation": "Числа с плавающей точкой IEEE 754 не обладают точным двоичным представлением; процент хлопка строго целочисленный [0..100]."
+          },
+          {
+            "id": "opt2",
+            "label": "Метод контроллера обязан возвращать List, а не ResponseEntity<Long>",
+            "isCorrect": false,
+            "explanation": "ТЗ прямо требует возвращать строковое или числовое представление общего количества."
+          }
+        ],
+        "canonicalFixSql": "ALTER TABLE socks ALTER COLUMN cotton_part TYPE INT; -- Строго целое число [0..100]"
+      }
+    ],
+    "customQuickActionChips": [
+      {
+        "id": "pitch_review",
+        "label": "🎙️ Отрепетируй 4-мин питч",
+        "promptMessage": "Послушай мой 4-минутный питч о себе как Product Engineer и оцени его по метрикам банка (TTM, Pain Index, Zero-Downtime, Shift-Left)."
+      },
+      {
+        "id": "star_drill",
+        "label": "🚨 Каверзный вопрос по STAR",
+        "promptMessage": "Задай мне неожиданный каверзный вопрос по методике STAR на тему отказа в проде, комплаенса или распила легаси-монолита."
+      },
+      {
+        "id": "socks_warehouse",
+        "label": "🧦 Ловушки «Склада носков»",
+        "promptMessage": "Разбери частые антипаттерны и гонки данных в тестовом задании склада носков (cib-interns-test-task)."
+      },
+      {
+        "id": "transferservice_defects",
+        "label": "🛡️ Дефекты TransferService",
+        "promptMessage": "Объясни скрытые баги в TransferService: почему возникает дедлок в БД и как работает детерминированная сортировка min(id)->max(id)."
       }
     ]
   }
