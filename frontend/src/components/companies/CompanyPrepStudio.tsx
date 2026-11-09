@@ -340,7 +340,7 @@ export const CompanyPrepStudio: React.FC = () => {
           onClose={() => setIsVoiceOpen(false)}
           topic={`${profile.name}: Product Engineer Fit Interview`}
           currentQuestionText={`Привет! Я Product Engineer Lead в ${profile.name}. Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`}
-          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}. Метрики: ${profile.culture.metricsFocus.join(', ')}.`}
+          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. ТЕМЫ К ОБСУЖДЕНИЮ: 1) 5-шаговый поиск причин просадки конверсии; 2) Метрики TTM, Customer Pain Index, SRM в A/B, Conversion Lift%; 3) STAR-опыт решения факапов; 4) Финтех-инварианты: BigDecimal, сортировка блокировок min->max, Transactional Outbox. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Если кандидат начинает ответ с разбора любого из этих пунктов — сразу тепло поддерживай продуктовый диалог без лишних вводных. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`}
         />
       )}
     </div>
