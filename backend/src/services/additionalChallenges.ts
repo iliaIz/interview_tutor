@@ -26,135 +26,45 @@ export const ADDITIONAL_LLD_CHALLENGES: CodingChallenge[] = [
       {
         path: 'src/main/java/com/assessment/cache/Cache.java',
         content: `package com.assessment.cache;
-import java.util.Optional;
-
-public interface Cache<K, V> {
-    Optional<V> get(K key);
-    void put(K key, V value, long ttlMs);
-    boolean remove(K key);
-    int size();
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/cache/LruCache.java',
-        content: `package com.assessment.cache;
 
 import java.time.Clock;
-import java.util.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.Optional;
 
 public class LruCache<K, V> implements Cache<K, V> {
     private final int capacity;
     private final Clock clock;
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    private final Map<K, Node<K, V>> map = new HashMap<>();
-    private final Node<K, V> head = new Node<>(null, null, 0);
-    private final Node<K, V> tail = new Node<>(null, null, 0);
-
-    static class Node<K, V> {
-        K key;
-        V value;
-        long expiresAt;
-        Node<K, V> prev, next;
-        Node(K key, V value, long expiresAt) {
-            this.key = key;
-            this.value = value;
-            this.expiresAt = expiresAt;
-        }
-    }
 
     public LruCache(int capacity, Clock clock) {
         this.capacity = capacity;
         this.clock = clock;
-        head.next = tail;
-        tail.prev = head;
+    }
+
+    public LruCache(int capacity) {
+        this(capacity, Clock.systemUTC());
     }
 
     @Override
     public Optional<V> get(K key) {
-        lock.writeLock().lock();
-        try {
-            Node<K, V> node = map.get(key);
-            if (node == null) return Optional.empty();
-            if (node.expiresAt <= clock.millis()) {
-                removeNode(node);
-                map.remove(key);
-                return Optional.empty();
-            }
-            moveToHead(node);
-            return Optional.of(node.value);
-        } finally {
-            lock.writeLock().unlock();
-        }
+        // TODO: Реализуйте потокобезопасное чтение с обновлением LRU позиции и проверкой TTL
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
     public void put(K key, V value, long ttlMs) {
-        lock.writeLock().lock();
-        try {
-            long expiresAt = clock.millis() + ttlMs;
-            Node<K, V> node = map.get(key);
-            if (node != null) {
-                node.value = value;
-                node.expiresAt = expiresAt;
-                moveToHead(node);
-            } else {
-                if (map.size() >= capacity) {
-                    Node<K, V> lru = tail.prev;
-                    removeNode(lru);
-                    map.remove(lru.key);
-                }
-                Node<K, V> newNode = new Node<>(key, value, expiresAt);
-                addNode(newNode);
-                map.put(key, newNode);
-            }
-        } finally {
-            lock.writeLock().unlock();
-        }
+        // TODO: Реализуйте запись с LRU вытеснением за O(1) и фиксацией времени истечения по clock
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
     public boolean remove(K key) {
-        lock.writeLock().lock();
-        try {
-            Node<K, V> node = map.remove(key);
-            if (node != null) {
-                removeNode(node);
-                return true;
-            }
-            return false;
-        } finally {
-            lock.writeLock().unlock();
-        }
+        // TODO: Реализуйте удаление элемента за O(1)
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
     public int size() {
-        lock.readLock().lock();
-        try {
-            return map.size();
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    private void addNode(Node<K, V> node) {
-        node.next = head.next;
-        node.prev = head;
-        head.next.prev = node;
-        head.next = node;
-    }
-
-    private void removeNode(Node<K, V> node) {
-        node.prev.next = node.next;
-        node.next.prev = node.prev;
-    }
-
-    private void moveToHead(Node<K, V> node) {
-        removeNode(node);
-        addNode(node);
+        // TODO: Верните текущее количество неистекших элементов в кэше
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -244,16 +154,6 @@ public class LruCacheTest {
       {
         path: 'src/main/java/com/assessment/discount/Order.java',
         content: `package com.assessment.discount;
-import java.math.BigDecimal;
-import java.util.List;
-
-public record Order(String orderId, BigDecimal basePrice, List<String> promoCodes) {}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/discount/DiscountEngine.java',
-        content: `package com.assessment.discount;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -262,21 +162,8 @@ public class DiscountEngine {
     public static final RoundingMode FINANCIAL_ROUNDING = RoundingMode.HALF_EVEN;
 
     public BigDecimal calculateFinalPrice(Order order) {
-        BigDecimal price = order.basePrice().setScale(2, FINANCIAL_ROUNDING);
-
-        for (String code : order.promoCodes()) {
-            if ("SALE10".equalsIgnoreCase(code)) {
-                BigDecimal discount = price.multiply(new BigDecimal("0.10")).setScale(2, FINANCIAL_ROUNDING);
-                price = price.subtract(discount);
-            } else if ("FIXED50".equalsIgnoreCase(code)) {
-                price = price.subtract(new BigDecimal("50.00"));
-            }
-        }
-
-        if (price.compareTo(BigDecimal.ZERO) < 0) {
-            return BigDecimal.ZERO.setScale(2, FINANCIAL_ROUNDING);
-        }
-        return price.setScale(2, FINANCIAL_ROUNDING);
+        // TODO: Реализуйте расчет скидок (SALE10: 10%, FIXED50: 50.00) с финансовым округлением HALF_EVEN
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -349,17 +236,14 @@ public class DiscountEngineTest {
         path: 'src/main/java/com/assessment/resilience/CircuitBreaker.java',
         content: `package com.assessment.resilience;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class CircuitBreaker {
     public enum State { CLOSED, OPEN, HALF_OPEN }
 
-    private final AtomicReference<State> state = new AtomicReference<>(State.CLOSED);
     private final int slidingWindowSize;
     private final double failureRateThreshold;
     private final long waitDurationInOpenMs;
-    private volatile long lastStateChangeTime = System.currentTimeMillis();
 
     public CircuitBreaker(int slidingWindowSize, double failureRateThreshold, long waitDurationInOpenMs) {
         this.slidingWindowSize = slidingWindowSize;
@@ -368,43 +252,13 @@ public class CircuitBreaker {
     }
 
     public <T> T execute(Supplier<T> action) {
-        checkState();
-        if (state.get() == State.OPEN) {
-            throw new RuntimeException("CircuitBreaker is OPEN");
-        }
-        try {
-            T result = action.get();
-            onSuccess();
-            return result;
-        } catch (Exception e) {
-            onError();
-            throw e;
-        }
-    }
-
-    private void checkState() {
-        if (state.get() == State.OPEN) {
-            if (System.currentTimeMillis() - lastStateChangeTime >= waitDurationInOpenMs) {
-                state.compareAndSet(State.OPEN, State.HALF_OPEN);
-            }
-        }
-    }
-
-    private void onSuccess() {
-        if (state.get() == State.HALF_OPEN) {
-            state.set(State.CLOSED);
-            lastStateChangeTime = System.currentTimeMillis();
-        }
-    }
-
-    private void onError() {
-        state.set(State.OPEN);
-        lastStateChangeTime = System.currentTimeMillis();
+        // TODO: Реализуйте защиту от каскадных сбоев, учет ошибок и переключение состояний CLOSED -> OPEN -> HALF_OPEN
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public State getState() {
-        checkState();
-        return state.get();
+        // TODO: Верните текущее состояние CircuitBreaker
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -471,54 +325,23 @@ public class CircuitBreakerTest {
         path: 'src/main/java/com/assessment/inventory/InventoryManager.java',
         content: `package com.assessment.inventory;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.List;
 
 public class InventoryManager {
-    private final Map<String, Integer> stock = new ConcurrentHashMap<>();
-    private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
     public void addStock(String productId, int quantity) {
-        stock.merge(productId, quantity, Integer::sum);
-        locks.putIfAbsent(productId, new ReentrantLock());
+        // TODO: Потокобезопасно добавьте остатки товара на склад
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public boolean reserveCart(List<String> productIds, int quantity) {
-        // Strict global lock ordering: sort IDs to eliminate deadlock cycle!
-        List<String> sortedIds = new ArrayList<>(productIds);
-        Collections.sort(sortedIds);
-
-        List<ReentrantLock> acquired = new ArrayList<>();
-        try {
-            for (String id : sortedIds) {
-                ReentrantLock l = locks.computeIfAbsent(id, k -> new ReentrantLock());
-                l.lock();
-                acquired.add(l);
-            }
-
-            // Check all stock availability
-            for (String id : sortedIds) {
-                if (stock.getOrDefault(id, 0) < quantity) {
-                    return false;
-                }
-            }
-
-            // Deduct
-            for (String id : sortedIds) {
-                stock.put(id, stock.get(id) - quantity);
-            }
-            return true;
-
-        } finally {
-            for (int i = acquired.size() - 1; i >= 0; i--) {
-                acquired.get(i).unlock();
-            }
-        }
+        // TODO: Реализуйте атомарное бронирование корзины с детерминированным порядком блокировок для предотвращения Deadlock
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public int getStock(String productId) {
-        return stock.getOrDefault(productId, 0);
+        // TODO: Верните текущий остаток товара на складе
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -586,35 +409,23 @@ public class InventoryManagerTest {
         path: 'src/main/java/com/assessment/pubsub/EventBus.java',
         content: `package com.assessment.pubsub;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class EventBus {
-    private final Map<String, List<Consumer<String>>> subscribers = new ConcurrentHashMap<>();
 
-    public void subscribe(String topic, Consumer<String> listener) {
-        subscribers.computeIfAbsent(topic, k -> new CopyOnWriteArrayList<>()).add(listener);
+    public void subscribe(String topic, Consumer<String> subscriber) {
+        // TODO: Потокобезопасно подпишите обработчик на топик
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public void publish(String topic, String event) {
-        List<Consumer<String>> listeners = subscribers.get(topic);
-        if (listeners == null) return;
-
-        for (Consumer<String> listener : listeners) {
-            try {
-                listener.accept(event);
-            } catch (Throwable ignored) {
-                // Isolate subscriber error from cascading
-            }
-        }
+    public void publish(String topic, String message) {
+        // TODO: Опубликуйте сообщение всем подписчикам топика без блокировки всей шины
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public int getSubscriberCount(String topic) {
-        List<Consumer<String>> listeners = subscribers.get(topic);
-        return listeners != null ? listeners.size() : 0;
+        // TODO: Верните количество активных подписчиков на топик
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -684,66 +495,25 @@ public class EventBusTest {
         path: 'src/main/java/com/assessment/notification/Notification.java',
         content: `package com.assessment.notification;
 
-public record Notification(String id, String userId, String channel, String content, long timestamp) {}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/notification/NotificationFilter.java',
-        content: `package com.assessment.notification;
-
-public interface NotificationFilter {
-    boolean shouldDeliver(Notification notification);
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/notification/NotificationPipeline.java',
-        content: `package com.assessment.notification;
-
 import java.time.Clock;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class NotificationPipeline {
-    private final List<NotificationFilter> filters = new CopyOnWriteArrayList<>();
+    private final long dedupWindowMs;
+    private final Clock clock;
 
-    public void addFilter(NotificationFilter filter) {
-        filters.add(filter);
+    public NotificationPipeline(long dedupWindowMs, Clock clock) {
+        this.dedupWindowMs = dedupWindowMs;
+        this.clock = clock;
+    }
+
+    public void registerFilter(NotificationFilter filter) {
+        // TODO: Зарегистрируйте фильтр в цепочке обработки
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public boolean process(Notification notification) {
-        for (NotificationFilter filter : filters) {
-            if (!filter.shouldDeliver(notification)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public static class DeduplicationFilter implements NotificationFilter {
-        private final long windowMillis;
-        private final Clock clock;
-        private final Map<String, Long> lastSeen = new ConcurrentHashMap<>();
-
-        public DeduplicationFilter(long windowMillis, Clock clock) {
-            this.windowMillis = windowMillis;
-            this.clock = clock;
-        }
-
-        @Override
-        public boolean shouldDeliver(Notification notification) {
-            String key = notification.userId() + ":" + notification.channel() + ":" + notification.content();
-            long now = clock.millis();
-            Long prev = lastSeen.put(key, now);
-            if (prev != null && (now - prev) < windowMillis) {
-                return false;
-            }
-            return true;
-        }
+        // TODO: Выполните дедупликацию уведомлений в скользящем окне и прогон через зарегистрированные фильтры
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -816,60 +586,21 @@ public class NotificationPipelineTest {
         path: 'src/main/java/com/assessment/scheduler/ScheduledTask.java',
         content: `package com.assessment.scheduler;
 
-public record ScheduledTask(String taskId, int priority, long executeAtMillis, Runnable action) 
-    implements Comparable<ScheduledTask> {
-    @Override
-    public int compareTo(ScheduledTask other) {
-        if (this.priority != other.priority) {
-            return Integer.compare(other.priority, this.priority);
-        }
-        return Long.compare(this.executeAtMillis, other.executeAtMillis);
-    }
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/scheduler/TaskScheduler.java',
-        content: `package com.assessment.scheduler;
-
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.PriorityBlockingQueue;
-
 public class TaskScheduler {
-    private final PriorityBlockingQueue<ScheduledTask> queue = new PriorityBlockingQueue<>();
-    private final Clock clock;
-
-    public TaskScheduler(Clock clock) {
-        this.clock = clock;
-    }
 
     public void schedule(ScheduledTask task) {
-        queue.put(task);
+        // TODO: Потокобезопасно добавьте задачу в очередь с приоритетом
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public List<String> executeDueTasks() {
-        List<String> executed = new ArrayList<>();
-        long now = clock.millis();
-        while (!queue.isEmpty()) {
-            ScheduledTask task = queue.peek();
-            if (task != null && task.executeAtMillis() <= now) {
-                ScheduledTask due = queue.poll();
-                if (due != null) {
-                    due.action().run();
-                    executed.add(due.taskId());
-                }
-            } else {
-                break;
-            }
-        }
-        return executed;
+    public ScheduledTask pollNext() {
+        // TODO: Извлеките задачу с наивысшим приоритетом, готовой к выполнению
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public int getPendingCount() {
-        return queue.size();
+    public int pendingTasksCount() {
+        // TODO: Верните количество задач, ожидающих выполнения
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -946,114 +677,28 @@ public class TaskSchedulerTest {
         path: 'src/main/java/com/assessment/parking/VehicleType.java',
         content: `package com.assessment.parking;
 
-public enum VehicleType { MOTORCYCLE, COMPACT, LARGE }`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/parking/ParkingSpot.java',
-        content: `package com.assessment.parking;
-
-public class ParkingSpot {
-    private final int floor;
-    private final int spotNumber;
-    private final VehicleType type;
-    private volatile boolean occupied;
-    private volatile String vehicleId;
-
-    public ParkingSpot(int floor, int spotNumber, VehicleType type) {
-        this.floor = floor;
-        this.spotNumber = spotNumber;
-        this.type = type;
-        this.occupied = false;
-    }
-
-    public int getFloor() { return floor; }
-    public int getSpotNumber() { return spotNumber; }
-    public VehicleType getType() { return type; }
-    public boolean isOccupied() { return occupied; }
-
-    public synchronized boolean occupy(String vehicleId) {
-        if (occupied) return false;
-        this.occupied = true;
-        this.vehicleId = vehicleId;
-        return true;
-    }
-
-    public synchronized boolean vacate() {
-        if (!occupied) return false;
-        this.occupied = false;
-        this.vehicleId = null;
-        return true;
-    }
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/parking/ParkingLotManager.java',
-        content: `package com.assessment.parking;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.Map;
+import java.util.Optional;
 
 public class ParkingLotManager {
-    private final int floors;
-    private final Map<Integer, List<ParkingSpot>> spotsPerFloor = new ConcurrentHashMap<>();
-    private final Map<Integer, ReentrantLock> floorLocks = new ConcurrentHashMap<>();
-    private final Map<String, ParkingSpot> vehicleToSpot = new ConcurrentHashMap<>();
 
-    public ParkingLotManager(int floors, int spotsPerFloorCount) {
-        this.floors = floors;
-        for (int f = 1; f <= floors; f++) {
-            floorLocks.put(f, new ReentrantLock());
-            List<ParkingSpot> list = new ArrayList<>();
-            for (int s = 1; s <= spotsPerFloorCount; s++) {
-                list.add(new ParkingSpot(f, s, VehicleType.COMPACT));
-            }
-            spotsPerFloor.put(f, list);
-        }
+    public ParkingLotManager(Map<VehicleType, Integer> capacityConfig) {
+        // TODO: Инициализируйте парковочные места по типам транспорта
     }
 
-    public Optional<ParkingSpot> park(String vehicleId, VehicleType type) {
-        for (int f = 1; f <= floors; f++) {
-            ReentrantLock lock = floorLocks.get(f);
-            lock.lock();
-            try {
-                for (ParkingSpot spot : spotsPerFloor.get(f)) {
-                    if (!spot.isOccupied() && spot.occupy(vehicleId)) {
-                        vehicleToSpot.put(vehicleId, spot);
-                        return Optional.of(spot);
-                    }
-                }
-            } finally {
-                lock.unlock();
-            }
-        }
-        return Optional.empty();
+    public Optional<String> park(VehicleType type, String licensePlate) {
+        // TODO: Припаркуйте автомобиль на подходящее место и верните ID парковочного талона
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public boolean leave(String vehicleId) {
-        ParkingSpot spot = vehicleToSpot.remove(vehicleId);
-        if (spot == null) return false;
-        ReentrantLock lock = floorLocks.get(spot.getFloor());
-        lock.lock();
-        try {
-            return spot.vacate();
-        } finally {
-            lock.unlock();
-        }
+    public boolean leave(String ticketId) {
+        // TODO: Освободите парковочное место по талону
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public int getAvailableSpots(int floor) {
-        List<ParkingSpot> spots = spotsPerFloor.get(floor);
-        if (spots == null) return 0;
-        int count = 0;
-        for (ParkingSpot s : spots) {
-            if (!s.isOccupied()) count++;
-        }
-        return count;
+    public int getAvailableSpots(VehicleType type) {
+        // TODO: Верните количество свободных мест для указанного типа транспорта
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -1121,51 +766,25 @@ public class ParkingLotManagerTest {
         path: 'src/main/java/com/assessment/order/OrderState.java',
         content: `package com.assessment.order;
 
-public enum OrderState {
-    CREATED, PAYMENT_PENDING, PAID, SHIPPED, DELIVERED, CANCELLED;
-
-    public boolean canTransitionTo(OrderState next) {
-        return switch (this) {
-            case CREATED -> next == PAYMENT_PENDING || next == CANCELLED;
-            case PAYMENT_PENDING -> next == PAID || next == CANCELLED;
-            case PAID -> next == SHIPPED || next == CANCELLED;
-            case SHIPPED -> next == DELIVERED;
-            case DELIVERED, CANCELLED -> false;
-        };
-    }
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/order/OrderStateMachine.java',
-        content: `package com.assessment.order;
-
-import java.util.concurrent.atomic.AtomicReference;
-
 public class OrderStateMachine {
     private final String orderId;
-    private final AtomicReference<OrderState> state;
 
     public OrderStateMachine(String orderId) {
         this.orderId = orderId;
-        this.state = new AtomicReference<>(OrderState.CREATED);
     }
 
-    public OrderState getState() {
-        return state.get();
+    public boolean transition(OrderState nextState) {
+        // TODO: Потокобезопасно выполните валидированный переход в следующее состояние заказа
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public boolean transitionTo(OrderState target) {
-        while (true) {
-            OrderState current = state.get();
-            if (!current.canTransitionTo(target)) {
-                return false;
-            }
-            if (state.compareAndSet(current, target)) {
-                return true;
-            }
-        }
+    public OrderState getCurrentState() {
+        // TODO: Верните текущее состояние заказа
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    public String getOrderId() {
+        return orderId;
     }
 }`,
         readOnly: false,
@@ -1228,47 +847,10 @@ public class OrderStateMachineTest {
         path: 'src/main/java/com/assessment/urlshortener/Base62.java',
         content: `package com.assessment.urlshortener;
 
-public class Base62 {
-    private static final String ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    public static String encode(long num) {
-        if (num == 0) return "0";
-        StringBuilder sb = new StringBuilder();
-        while (num > 0) {
-            sb.append(ALPHABET.charAt((int) (num % 62)));
-            num /= 62;
-        }
-        return sb.reverse().toString();
-    }
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/urlshortener/UrlShortener.java',
-        content: `package com.assessment.urlshortener;
-
 import java.time.Clock;
 import java.util.Optional;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 
 public class UrlShortener {
-    static class Mapping {
-        final String originalUrl;
-        final long expiresAt;
-        final LongAdder clickCount = new LongAdder();
-
-        Mapping(String originalUrl, long expiresAt) {
-            this.originalUrl = originalUrl;
-            this.expiresAt = expiresAt;
-        }
-    }
-
-    private final AtomicLong counter = new AtomicLong(100000L);
-    private final Map<String, Mapping> storage = new ConcurrentHashMap<>();
     private final Clock clock;
 
     public UrlShortener(Clock clock) {
@@ -1276,27 +858,18 @@ public class UrlShortener {
     }
 
     public String shorten(String url, long ttlMs) {
-        long id = counter.incrementAndGet();
-        String code = Base62.encode(id);
-        long expires = ttlMs > 0 ? clock.millis() + ttlMs : Long.MAX_VALUE;
-        storage.put(code, new Mapping(url, expires));
-        return code;
+        // TODO: Сгенерируйте Base62 короткий код для URL с учетом TTL по Clock
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public Optional<String> resolve(String code) {
-        Mapping m = storage.get(code);
-        if (m == null) return Optional.empty();
-        if (m.expiresAt <= clock.millis()) {
-            storage.remove(code);
-            return Optional.empty();
-        }
-        m.clickCount.increment();
-        return Optional.of(m.originalUrl);
+        // TODO: Разрешите короткий код в оригинальный URL с проверкой истечения срока и инкрементом счетчика переходов
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public long getClicks(String code) {
-        Mapping m = storage.get(code);
-        return m != null ? m.clickCount.sum() : 0;
+        // TODO: Верните статистику переходов по короткому коду
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -1373,40 +946,16 @@ public class UrlShortenerTest {
 
 import java.util.Map;
 
-public record MetricSample(String name, Map<String, String> tags, double value, long timestampMs) {}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/metrics/MetricAggregator.java',
-        content: `package com.assessment.metrics;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-
 public class MetricAggregator {
-    private final Map<String, List<Double>> series = new ConcurrentHashMap<>();
 
     public void record(MetricSample sample) {
-        String key = buildKey(sample.name(), sample.tags());
-        series.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(sample.value());
+        // TODO: Потокобезопасно запишите метрику с учетом тегов
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public double getPercentile(String name, Map<String, String> tags, double percentile) {
-        String key = buildKey(name, tags);
-        List<Double> values = series.get(key);
-        if (values == null || values.isEmpty()) return 0.0;
-
-        List<Double> sorted = new ArrayList<>(values);
-        Collections.sort(sorted);
-        int index = (int) Math.ceil((percentile / 100.0) * sorted.size()) - 1;
-        return sorted.get(Math.max(0, Math.min(index, sorted.size() - 1)));
-    }
-
-    private String buildKey(String name, Map<String, String> tags) {
-        if (tags == null || tags.isEmpty()) return name;
-        return name + ":" + new TreeMap<>(tags);
+        // TODO: Рассчитайте заданный перцентиль (например, p95, p99) для метрики с фильтрацией по тегам
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -1477,54 +1026,23 @@ public class MetricAggregatorTest {
         path: 'src/main/java/com/assessment/leaderboard/Leaderboard.java',
         content: `package com.assessment.leaderboard;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.List;
 
 public class Leaderboard {
-    private final Map<String, Long> playerScores = new ConcurrentHashMap<>();
-    private final ConcurrentSkipListMap<Long, Set<String>> scoreToPlayers = new ConcurrentSkipListMap<>(Collections.reverseOrder());
 
     public synchronized void updateScore(String playerId, long scoreDelta) {
-        Long current = playerScores.getOrDefault(playerId, 0L);
-        long newScore = current + scoreDelta;
-
-        if (playerScores.containsKey(playerId)) {
-            Set<String> set = scoreToPlayers.get(current);
-            if (set != null) {
-                set.remove(playerId);
-                if (set.isEmpty()) scoreToPlayers.remove(current);
-            }
-        }
-
-        playerScores.put(playerId, newScore);
-        scoreToPlayers.computeIfAbsent(newScore, k -> Collections.newSetFromMap(new ConcurrentHashMap<>())).add(playerId);
+        // TODO: Потокобезопасно обновите счет игрока на scoreDelta
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public synchronized int getRank(String playerId) {
-        Long score = playerScores.get(playerId);
-        if (score == null) return -1;
-
-        int rank = 1;
-        for (Map.Entry<Long, Set<String>> entry : scoreToPlayers.entrySet()) {
-            if (entry.getKey() > score) {
-                rank += entry.getValue().size();
-            } else if (entry.getKey().equals(score)) {
-                break;
-            }
-        }
-        return rank;
+        // TODO: Верните текущий ранг игрока (1-based)
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public List<String> getTopPlayers(int limit) {
-        List<String> result = new ArrayList<>();
-        for (Set<String> players : scoreToPlayers.values()) {
-            for (String p : players) {
-                result.add(p);
-                if (result.size() >= limit) return result;
-            }
-        }
-        return result;
+        // TODO: Верните список топ N игроков по очкам
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
@@ -1597,70 +1115,6 @@ public class LeaderboardTest {
         path: 'src/main/java/com/assessment/elevator/Direction.java',
         content: `package com.assessment.elevator;
 
-public enum Direction { UP, DOWN, IDLE }`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/elevator/ElevatorCar.java',
-        content: `package com.assessment.elevator;
-
-import java.util.TreeSet;
-
-public class ElevatorCar {
-    private final int id;
-    private int currentFloor = 1;
-    private Direction direction = Direction.IDLE;
-    private final TreeSet<Integer> targets = new TreeSet<>();
-
-    public ElevatorCar(int id) {
-        this.id = id;
-    }
-
-    public synchronized int getCurrentFloor() { return currentFloor; }
-    public synchronized Direction getDirection() { return direction; }
-
-    public synchronized void requestFloor(int floor) {
-        targets.add(floor);
-        if (direction == Direction.IDLE) {
-            direction = floor >= currentFloor ? Direction.UP : Direction.DOWN;
-        }
-    }
-
-    public synchronized void step() {
-        if (targets.isEmpty()) {
-            direction = Direction.IDLE;
-            return;
-        }
-
-        if (direction == Direction.UP) {
-            Integer next = targets.ceiling(currentFloor);
-            if (next != null) {
-                currentFloor = next;
-                targets.remove(next);
-            } else {
-                direction = Direction.DOWN;
-                step();
-            }
-        } else if (direction == Direction.DOWN) {
-            Integer prev = targets.floor(currentFloor);
-            if (prev != null) {
-                currentFloor = prev;
-                targets.remove(prev);
-            } else {
-                direction = Direction.UP;
-                step();
-            }
-        }
-    }
-}`,
-        readOnly: true,
-        hidden: false
-      },
-      {
-        path: 'src/main/java/com/assessment/elevator/ElevatorDispatcher.java',
-        content: `package com.assessment.elevator;
-
 import java.util.List;
 
 public class ElevatorDispatcher {
@@ -1671,17 +1125,8 @@ public class ElevatorDispatcher {
     }
 
     public ElevatorCar dispatch(int floor) {
-        ElevatorCar best = cars.get(0);
-        int minDistance = Integer.MAX_VALUE;
-        for (ElevatorCar car : cars) {
-            int dist = Math.abs(car.getCurrentFloor() - floor);
-            if (dist < minDistance) {
-                minDistance = dist;
-                best = car;
-            }
-        }
-        best.requestFloor(floor);
-        return best;
+        // TODO: Выберите оптимальный лифт по алгоритму SCAN / LOOK и направьте на вызов
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }`,
         readOnly: false,
