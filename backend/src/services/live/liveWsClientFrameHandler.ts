@@ -180,9 +180,6 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || (parsed.type === 'barge_in' ? 'tactile' : 'acoustic'), parsed.epoch || Date.now());
         session.watchdogs?.disarmAll();
         session.fsm?.transition('CANDIDATE_LISTENING');
-        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-          session.geminiSocket.send(JSON.stringify({ realtimeInput: { interruption: true } }));
-        }
         if (!parsed.realtimeInput && !parsed.realtime_input) {
           return;
         }
@@ -349,8 +346,8 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         }
       } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
         session.hasCandidateResponded = true;
-        // SOTA Late 2026: Suppress synthetic audioStreamEnd to upstream to prevent 1011 vocoder crash
-        return;
+        // SOTA Late 2026: Fast-Handoff VAD signaling upstream Gemini Live to endpoint speech and synthesize
+        payloadBuffer = Buffer.from(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
       } else if (parsed.clientContent) {
         payloadBuffer = Buffer.from(JSON.stringify({ clientContent: parsed.clientContent }));
       }
