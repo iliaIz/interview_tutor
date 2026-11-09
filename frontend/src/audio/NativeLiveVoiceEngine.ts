@@ -23,11 +23,8 @@ import { dispatchDomainEvents } from './liveVoiceDomainEvents';
 import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
 import { LiveHeartbeatController } from './LiveHeartbeatController';
 import {
-  VoiceEngineState,
-  VoiceEngineConfig,
-  VoiceEngineCallbacks,
-  DialogueTurnItem,
-  ILiveVoiceEngine
+  VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
+  DialogueTurnItem, ILiveVoiceEngine, VoiceEvaluationResult
 } from './types';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
