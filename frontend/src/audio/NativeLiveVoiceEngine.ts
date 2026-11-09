@@ -273,9 +273,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         this.turnManager.updateLastAiTurn(this.currentAiTurnAccumulator);
       }
 
+      this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
+      this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
       if (parsed.hasAudio) {
-        this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
-        this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
         for (const pcm of parsed.audioChunks) {
           this.playoutManager.enqueuePcmChunk(pcm);
         }
