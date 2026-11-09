@@ -70,7 +70,9 @@ public class DiscountCalculatorTest {
         // Assert: 100.00 - 10.00 = 90.00
         assertThat(result)
             .isNotNull()
-            .isEqualByComparingTo(new BigDecimal("90.00"));
+            ;
+        // TODO: Добавьте проверку точного значения (90.00), чтобы уничтожить MathMutator и ReturnValsMutator
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -170,6 +172,7 @@ public class UserValidator {
       {
         path: 'src/test/java/com/curriculum/primitives/UserValidatorTest.java',
         content: `package com.curriculum.primitives;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -190,9 +193,8 @@ public class UserValidatorTest {
     @Test
     @DisplayName("Should reject username shorter than 3 characters")
     public void shouldRejectTooShortUsername() {
-        assertThatThrownBy(() -> validator.validateUsername("ab"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Username is too short (min 3 chars)");
+        // TODO: Реализуйте проверки для метода shouldRejectTooShortUsername для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

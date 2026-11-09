@@ -89,6 +89,7 @@ public class PaymentProcessingService {
       {
         path: 'src/test/java/com/assessment/audit/PaymentProcessingServiceTest.java',
         content: `package com.assessment.audit;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -117,19 +118,8 @@ public class PaymentProcessingServiceTest {
     @Test
     @DisplayName("Should not execute audit or notification if debit fails (Kills M3)")
     public void shouldAbortOnDebitFailure() {
-        List<String> calls = new ArrayList<>();
-
-        LedgerPort failingLedger = (u, a) -> { throw new RuntimeException("DB Connection Refused"); };
-        AuditLoggerPort mockAudit = (u, action, a) -> calls.add("AUDIT");
-        NotificationPort mockNotification = (u, m) -> calls.add("SMS");
-
-        PaymentProcessingService service = new PaymentProcessingService(failingLedger, mockAudit, mockNotification);
-
-        assertThrows(RuntimeException.class, () -> {
-            service.processPayment("user-1", new BigDecimal("100.00"));
-        });
-
-        assertTrue(calls.isEmpty(), "Neither audit nor notification should execute on debit failure");
+        // TODO: Реализуйте проверки для метода shouldAbortOnDebitFailure для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -338,31 +328,15 @@ class PaymentNotificationOrchestratorTest {
     @Test
     @DisplayName("Should generate UUID correlationId when missing or blank (Kills M2)")
     void shouldGenerateFallbackCorrelationId() {
-        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(true));
-        PaymentNotificationOrchestrator orchestrator = new PaymentNotificationOrchestrator(publisher);
-
-        var fin = new FinancialDetails(1000L, "USD", "4111222233334444", "123", "key");
-        var event = new PaymentEvent("PAY-2", "REC-2", "TENANT-1", "   ", fin);
-
-        orchestrator.orchestrate(event);
-
-        verify(publisher).publish(captor.capture());
-        assertThat(captor.getValue().metadata().correlationId()).isNotBlank().isNotEqualTo("   ");
+        // TODO: Реализуйте проверки для метода shouldGenerateFallbackCorrelationId для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should correctly mask 10-char boundary card number (Kills M5)")
     void shouldMaskTenCharCardNumber() {
-        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(true));
-        PaymentNotificationOrchestrator orchestrator = new PaymentNotificationOrchestrator(publisher);
-
-        var fin = new FinancialDetails(1000L, "USD", "1234567890", "111", "key");
-        var event = new PaymentEvent("PAY-3", "REC-3", "TENANT-1", "c-3", fin);
-
-        orchestrator.orchestrate(event);
-
-        verify(publisher).publish(captor.capture());
-        assertThat(captor.getValue().payload().summary().maskedPan()).isEqualTo("****-****-****-7890");
+        // TODO: Реализуйте проверки для метода shouldMaskTenCharCardNumber для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -592,19 +566,15 @@ class RiskValuationEngineTest {
     @Test
     @DisplayName("Should reject negative or zero exposure (Kills M3)")
     void shouldRejectInvalidExposure() {
-        doReturn("VALID").when(engine).validateHardwareEntitlement(anyString());
-
-        assertThatThrownBy(() -> engine.calculateValueAtRisk(0.0, 0.02, 10, "lic-99"))
-            .isInstanceOf(IllegalArgumentException.class);
+        // TODO: Реализуйте проверки для метода shouldRejectInvalidExposure для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should fail when HSM token validation fails (Kills M2)")
     void shouldFailOnEmptyHsmToken() {
-        doReturn("").when(engine).validateHardwareEntitlement(anyString());
-
-        assertThatThrownBy(() -> engine.calculateValueAtRisk(100_000.0, 0.02, 10, "lic-99"))
-            .isInstanceOf(SecurityException.class);
+        // TODO: Реализуйте проверки для метода shouldFailOnEmptyHsmToken для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -818,15 +788,8 @@ class ResilientSettlementClientTest {
     @Test
     @DisplayName("Should call fallback when all attempts are exhausted (Kills M3)")
     void shouldCallFallbackOnExhaustion() {
-        when(gateway.settle("TX-2")).thenThrow(new RuntimeException("Crash"));
-        when(fallback.fallback(eq("TX-2"), any())).thenReturn("FALLBACK-QUEUED");
-
-        ResilientSettlementClient client = new ResilientSettlementClient(gateway, sleeper, fallback);
-        String res = client.executeWithRetry("TX-2");
-
-        assertThat(res).isEqualTo("FALLBACK-QUEUED");
-        verify(gateway, times(3)).settle("TX-2");
-        verify(fallback).fallback(eq("TX-2"), any());
+        // TODO: Реализуйте проверки для метода shouldCallFallbackOnExhaustion для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1065,6 +1028,9 @@ class LegacyComplianceTokenServiceTest {
 
         // Verify clean isolation outside try-with-resources
         assertThat(UUID.randomUUID()).isNotEqualTo(fixedUuid);
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

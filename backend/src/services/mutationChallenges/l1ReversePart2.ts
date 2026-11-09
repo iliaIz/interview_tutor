@@ -66,6 +66,9 @@ public class AsyncWorkerTest {
             .atMost(Duration.ofSeconds(1))
             .pollInterval(Duration.ofMillis(5))
             .untilAsserted(() -> assertThat(worker.isReady()).isTrue());
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -151,6 +154,7 @@ public class SecurityManager {
       {
         path: 'src/test/java/com/curriculum/reverse/SecurityManagerTest.java',
         content: `package com.curriculum.reverse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -179,6 +183,9 @@ public class SecurityManagerTest {
         securityManager.lockAccount("ACC-99", "SUSPICIOUS_LOGIN");
 
         verify(auditService).logSecurityEvent("ACC-99", "ACCOUNT_LOCKED: SUSPICIOUS_LOGIN");
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -248,6 +255,7 @@ public class ShippingService {
       {
         path: 'src/test/java/com/curriculum/modular/ArchitectureRulesTest.java',
         content: `package com.curriculum.modular;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -267,6 +275,9 @@ public class ArchitectureRulesTest {
             .should()
             .beFreeOfCycles()
             .check(classes);
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

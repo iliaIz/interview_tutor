@@ -80,6 +80,7 @@ public class OrderStateMachine {
       {
         path: 'src/test/java/com/assessment/statemachine/OrderStateMachineTest.java',
         content: `package com.assessment.statemachine;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -99,28 +100,22 @@ public class OrderStateMachineTest {
     @Test
     @DisplayName("Should forbid cancellation after SHIPPED (Kills M1)")
     public void testForbidCancelAfterShipped() {
-        OrderStateMachine sm = new OrderStateMachine();
-        sm.transitionTo(OrderStatus.PAID);
-        sm.transitionTo(OrderStatus.SHIPPED);
-        assertThrows(IllegalStateException.class, () -> sm.transitionTo(OrderStatus.CANCELLED));
+        // TODO: Реализуйте проверки для метода testForbidCancelAfterShipped для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should forbid backwards transition from PAID to CREATED (Kills M2)")
     public void testForbidBackwardsToCreated() {
-        OrderStateMachine sm = new OrderStateMachine();
-        sm.transitionTo(OrderStatus.PAID);
-        assertThrows(IllegalStateException.class, () -> sm.transitionTo(OrderStatus.CREATED));
+        // TODO: Реализуйте проверки для метода testForbidBackwardsToCreated для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should forbid any transition from DELIVERED (Kills M3)")
     public void testForbidTransitionFromDelivered() {
-        OrderStateMachine sm = new OrderStateMachine();
-        sm.transitionTo(OrderStatus.PAID);
-        sm.transitionTo(OrderStatus.SHIPPED);
-        sm.transitionTo(OrderStatus.DELIVERED);
-        assertThrows(IllegalStateException.class, () -> sm.transitionTo(OrderStatus.CANCELLED));
+        // TODO: Реализуйте проверки для метода testForbidTransitionFromDelivered для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -287,6 +282,7 @@ public class IdempotentAccountService {
       {
         path: 'src/test/java/com/assessment/idempotent/IdempotentAccountServiceTest.java',
         content: `package com.assessment.idempotent;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -308,42 +304,29 @@ public class IdempotentAccountServiceTest {
     @Test
     @DisplayName("Should return cached response without second debit on repeated key (Kills M1)")
     public void shouldReturnCachedResponseOnDuplicateKey() {
-        IdempotentAccountService service = new IdempotentAccountService(new BigDecimal("100.00"));
-        AccountResponse res1 = service.debit("key-dup", new BigDecimal("40.00"));
-        AccountResponse res2 = service.debit("key-dup", new BigDecimal("40.00"));
-
-        assertSame(res1, res2);
-        assertEquals(0, new BigDecimal("60.00").compareTo(service.getBalance()));
+        // TODO: Реализуйте проверки для метода shouldReturnCachedResponseOnDuplicateKey для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should not store key if transaction failed due to insufficient funds (Kills M2)")
     public void shouldNotSaveFailedKey() {
-        IdempotentAccountService service = new IdempotentAccountService(new BigDecimal("10.00"));
-        AccountResponse resFailed = service.debit("key-fail", new BigDecimal("50.00"));
-        assertFalse(resFailed.success());
-
-        // Top up and retry with same key
-        service.debit("dummy", new BigDecimal("0.00"));
-        AccountResponse resRetry = service.debit("key-fail", new BigDecimal("5.00"));
-        assertTrue(resRetry.success());
+        // TODO: Реализуйте проверки для метода shouldNotSaveFailedKey для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should subtract exact amount without doubling (Kills M3)")
     public void shouldSubtractExactAmount() {
-        IdempotentAccountService service = new IdempotentAccountService(new BigDecimal("100.00"));
-        AccountResponse res = service.debit("key-exact", new BigDecimal("30.00"));
-        assertEquals(0, new BigDecimal("70.00").compareTo(res.newBalance()));
+        // TODO: Реализуйте проверки для метода shouldSubtractExactAmount для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject debit if amount exceeds balance (Kills M4)")
     public void shouldRejectOverdraft() {
-        IdempotentAccountService service = new IdempotentAccountService(new BigDecimal("100.00"));
-        AccountResponse res = service.debit("key-overdraft", new BigDecimal("100.01"));
-        assertFalse(res.success());
-        assertEquals(0, new BigDecimal("100.00").compareTo(service.getBalance()));
+        // TODO: Реализуйте проверки для метода shouldRejectOverdraft для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -566,6 +549,7 @@ public class SimpleCircuitBreaker {
       {
         path: 'src/test/java/com/assessment/resilience/SimpleCircuitBreakerTest.java',
         content: `package com.assessment.resilience;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -584,35 +568,22 @@ public class SimpleCircuitBreakerTest {
     @Test
     @DisplayName("Should trip to OPEN when failure count exceeds threshold (Kills M1)")
     public void shouldTripToOpenOnSixFailures() {
-        SimpleCircuitBreaker cb = new SimpleCircuitBreaker();
-        for (int i = 0; i < 5; i++) cb.recordFailure();
-        assertEquals(CircuitState.CLOSED, cb.getState());
-
-        cb.recordFailure(); // 6th failure > 5
-        assertEquals(CircuitState.OPEN, cb.getState());
+        // TODO: Реализуйте проверки для метода shouldTripToOpenOnSixFailures для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject execution when state is OPEN (Kills M2)")
     public void shouldRejectExecutionWhenOpen() {
-        SimpleCircuitBreaker cb = new SimpleCircuitBreaker();
-        for (int i = 0; i < 6; i++) cb.recordFailure();
-
-        assertEquals(CircuitState.OPEN, cb.getState());
-        assertFalse(cb.allowExecution());
+        // TODO: Реализуйте проверки для метода shouldRejectExecutionWhenOpen для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reset from HALF_OPEN to CLOSED on success (Kills M3)")
     public void shouldResetToClosedOnHalfOpenSuccess() {
-        SimpleCircuitBreaker cb = new SimpleCircuitBreaker();
-        for (int i = 0; i < 6; i++) cb.recordFailure();
-        cb.transitionToHalfOpen();
-        assertEquals(CircuitState.HALF_OPEN, cb.getState());
-
-        cb.recordSuccess();
-        assertEquals(CircuitState.CLOSED, cb.getState());
-        assertTrue(cb.allowExecution());
+        // TODO: Реализуйте проверки для метода shouldResetToClosedOnHalfOpenSuccess для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -897,58 +868,29 @@ class SlidingWindowRateLimiterTest {
     @Test
     @DisplayName("Should enter burst buffer and transition to ThrottledState (Kills M2)")
     void shouldEnterBurstBuffer() {
-        var limiter = new SlidingWindowRateLimiter(BASE_QUOTA, BURST_CAPACITY, WINDOW, BASE_BACKOFF, T0);
-        for (int i = 0; i < BASE_QUOTA; i++) limiter.evaluate(T0.plusMillis(10 * i));
-
-        // Request 4 (first burst)
-        RateLimiterState s4 = limiter.evaluate(T0.plusMillis(100));
-        assertThat(s4).isInstanceOf(ThrottledState.class);
-        assertThat(((ThrottledState) s4).burstRemaining()).isEqualTo(1);
-
-        // Request 5 (final burst boundary)
-        RateLimiterState s5 = limiter.evaluate(T0.plusMillis(150));
-        assertThat(s5).isInstanceOf(ThrottledState.class);
-        assertThat(((ThrottledState) s5).burstRemaining()).isZero();
+        // TODO: Реализуйте проверки для метода shouldEnterBurstBuffer для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject and increment counter on burst exhaustion (Kills M3)")
     void shouldRejectOnBurstExhaustion() {
-        var limiter = new SlidingWindowRateLimiter(BASE_QUOTA, BURST_CAPACITY, WINDOW, BASE_BACKOFF, T0);
-        for (int i = 0; i < BASE_QUOTA + BURST_CAPACITY; i++) limiter.evaluate(T0.plusMillis(10 * i));
-
-        // Request 6: Rejected
-        RateLimiterState s6 = limiter.evaluate(T0.plusMillis(500));
-        assertThat(s6).isInstanceOf(RejectedState.class);
-        assertThat(s6.currentCount()).isEqualTo(6);
-
-        // Request 7: Rejected counter incremented
-        RateLimiterState s7 = limiter.evaluate(T0.plusMillis(550));
-        assertThat(s7.currentCount()).isEqualTo(7);
+        // TODO: Реализуйте проверки для метода shouldRejectOnBurstExhaustion для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reset quota on exact window duration millisecond boundary (Kills M1)")
     void shouldResetAtExactWindowBoundary() {
-        var limiter = new SlidingWindowRateLimiter(BASE_QUOTA, BURST_CAPACITY, WINDOW, BASE_BACKOFF, T0);
-        for (int i = 0; i < BASE_QUOTA + BURST_CAPACITY + 1; i++) limiter.evaluate(T0.plusMillis(10 * i));
-
-        Instant exactBoundary = T0.plus(WINDOW);
-        RateLimiterState reset = limiter.evaluate(exactBoundary);
-
-        assertThat(reset).isInstanceOf(AllowedState.class);
-        assertThat(reset.currentCount()).isEqualTo(1);
+        // TODO: Реализуйте проверки для метода shouldResetAtExactWindowBoundary для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should enforce monotonic clock progression (Kills M4)")
     void shouldEnforceMonotonicClock() {
-        var limiter = new SlidingWindowRateLimiter(BASE_QUOTA, BURST_CAPACITY, WINDOW, BASE_BACKOFF, T0);
-        limiter.evaluate(T0.plusMillis(200));
-
-        assertThatThrownBy(() -> limiter.evaluate(T0.plusMillis(100)))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Monotonic clock violation");
+        // TODO: Реализуйте проверки для метода shouldEnforceMonotonicClock для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1263,52 +1205,22 @@ class OrderSagaOrchestratorTest {
     @Test
     @DisplayName("Should compensate payment when inventory fails (Kills M2)")
     void shouldCompensatePaymentWhenInventoryFails() {
-        when(paymentService.authorize(anyString(), any())).thenReturn(new PaymentAuth("tx-2"));
-        when(inventoryService.reserve(anyString(), any())).thenThrow(new RuntimeException("Out of stock"));
-
-        var orchestrator = new OrderSagaOrchestrator(paymentService, inventoryService, shipmentService);
-        var ctx = new OrderContext("ord-2", new BigDecimal("50.00"), List.of(), "Addr");
-
-        SagaState res = orchestrator.execute(ctx);
-        assertThat(res).isInstanceOf(CancelledWithCompensation.class);
-        verify(paymentService, times(1)).refund(eq("ord-2"), eq("tx-2"), anyString());
-        verifyNoInteractions(shipmentService);
+        // TODO: Реализуйте проверки для метода shouldCompensatePaymentWhenInventoryFails для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should enforce idempotent compensation execution across retries (Kills M3)")
     void shouldEnforceIdempotency() {
-        var orchestrator = new OrderSagaOrchestrator(paymentService, inventoryService, shipmentService);
-        var ctx = new OrderContext("ord-3", new BigDecimal("50.00"), List.of(), "Addr");
-
-        Deque<CompensationStep> stack1 = new ArrayDeque<>();
-        stack1.push(new CompensationStep("ord-3:compensate:payment", () -> paymentService.refund("ord-3", "t3", "ord-3:compensate:payment")));
-        orchestrator.runCompensations(ctx, stack1, "Err");
-
-        Deque<CompensationStep> stack2 = new ArrayDeque<>();
-        stack2.push(new CompensationStep("ord-3:compensate:payment", () -> paymentService.refund("ord-3", "t3", "ord-3:compensate:payment")));
-        orchestrator.runCompensations(ctx, stack2, "Err");
-
-        verify(paymentService, times(1)).refund(anyString(), anyString(), anyString());
+        // TODO: Реализуйте проверки для метода shouldEnforceIdempotency для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should not abandon remaining compensations when one step fails (Kills M4)")
     void shouldNotAbandonCompensationsOnError() {
-        doThrow(new RuntimeException("Inventory release failed")).when(inventoryService).release(anyString(), anyString(), anyString());
-
-        var orchestrator = new OrderSagaOrchestrator(paymentService, inventoryService, shipmentService);
-        var ctx = new OrderContext("ord-4", new BigDecimal("10.00"), List.of(), "Addr");
-
-        Deque<CompensationStep> stack = new ArrayDeque<>();
-        stack.push(new CompensationStep("ord-4:compensate:payment", () -> paymentService.refund("ord-4", "t4", "k-pay")));
-        stack.push(new CompensationStep("ord-4:compensate:inventory", () -> inventoryService.release("ord-4", "r4", "k-inv")));
-
-        SagaState res = orchestrator.runCompensations(ctx, stack, "Failure");
-        assertThat(res).isInstanceOf(CompensationFailedState.class);
-
-        // Payment refund must have been executed even though inventory release threw an exception!
-        verify(paymentService, times(1)).refund(anyString(), anyString(), anyString());
+        // TODO: Реализуйте проверки для метода shouldNotAbandonCompensationsOnError для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

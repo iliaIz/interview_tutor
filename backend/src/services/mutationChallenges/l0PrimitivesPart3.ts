@@ -107,6 +107,9 @@ public class OrderDispatcherTest {
         assertThat(captured.orderId()).isEqualTo("ORD-123");
         assertThat(captured.amount()).isEqualByComparingTo(new BigDecimal("450.00"));
         assertThat(captured.routingKey()).isEqualTo("orders.finance");
+    
+        // TODO: Добавьте проверки граничных условий для уничтожения мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -238,10 +241,8 @@ public class SessionTokenServiceTest {
     @Test
     @DisplayName("Token should be expired after 15 minutes TTL")
     public void shouldBeExpiredAfterTTL() {
-        Clock clock = Clock.fixed(baseTime.plusSeconds(960), ZoneOffset.UTC);
-        SessionTokenService service = new SessionTokenService(clock);
-
-        assertThat(service.isTokenExpired(baseTime)).isTrue();
+        // TODO: Реализуйте проверки для метода shouldBeExpiredAfterTTL для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,

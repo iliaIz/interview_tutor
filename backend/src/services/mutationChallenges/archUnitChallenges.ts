@@ -182,6 +182,7 @@ public class OrderController {
       {
         path: 'src/test/java/com/enterprise/order/ArchitectureLayerIsolationTest.java',
         content: `package com.enterprise.order;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -237,9 +238,10 @@ public class ArchitectureLayerIsolationTest {
     void testArchitectureRules() {
         JavaClasses importedClasses = new ClassFileImporter().importPackages("com.enterprise.order");
         layered_architecture_must_be_respected.check(importedClasses);
-        controllers_must_not_depend_on_repositories.check(importedClasses);
-        services_must_not_depend_on_controllers.check(importedClasses);
-        packages_must_be_free_of_cycles.check(importedClasses);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // controllers_must_not_depend_on_repositories.check(importedClasses);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // services_must_not_depend_on_controllers.check(importedClasses);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // packages_must_be_free_of_cycles.check(importedClasses);
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -433,6 +435,7 @@ public class AuditingProcessingService {
       {
         path: 'src/test/java/com/enterprise/governance/EnterpriseApiGovernanceArchTest.java',
         content: `package com.enterprise.governance;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -483,9 +486,10 @@ public class EnterpriseApiGovernanceArchTest {
     void testGovernanceRules() {
         JavaClasses classes = new ClassFileImporter().importPackages("com.enterprise.governance");
         no_legacy_date_time_apis.check(classes);
-        no_direct_system_time_calls.check(classes);
-        no_system_exit_or_runtime_halt.check(classes);
-        no_manual_thread_instantiation.check(classes);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // no_direct_system_time_calls.check(classes);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // no_system_exit_or_runtime_halt.check(classes);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // no_manual_thread_instantiation.check(classes);
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -727,6 +731,7 @@ public class FinancialLedgerService {
       {
         path: 'src/test/java/com/enterprise/finance/TransactionalIntegrityArchTest.java',
         content: `package com.enterprise.finance;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -813,8 +818,9 @@ public class TransactionalIntegrityArchTest {
     void testTransactionalCompliance() {
         JavaClasses classes = new ClassFileImporter().importPackages("com.enterprise.finance");
         transactional_methods_must_be_public.check(classes);
-        transactional_methods_must_specify_rollback_for.check(classes);
-        class_level_transactional_must_specify_rollback_for.check(classes);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // transactional_methods_must_specify_rollback_for.check(classes);
+        // TODO: Раскомментируйте проверку правила для обнаружения мутантов: // class_level_transactional_must_specify_rollback_for.check(classes);
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -1104,6 +1110,7 @@ public class CustomerController {
       {
         path: 'src/test/java/com/enterprise/web/controller/CustomerControllerWebMvcTest.java',
         content: `package com.enterprise.web.controller;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.enterprise.web.dto.CustomerRegistrationRequest;
 import com.enterprise.web.dto.CustomerResponse;
@@ -1166,71 +1173,22 @@ class CustomerControllerWebMvcTest {
     @Test
     @DisplayName("POST /api/v1/customers - 400 Bad Request и валидный RFC 7807 при ошибках валидации")
     void registerCustomer_InvalidPayload_ReturnsProblemDetail400() throws Exception {
-        String invalidJsonRequest = """
-                {
-                    "name": "",
-                    "email": "invalid-email-address",
-                    "tier": null
-                }
-                """;
-
-        mockMvc.perform(post("/api/v1/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(invalidJsonRequest))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.type").value("https://api.enterprise.com/errors/bad-request"))
-                .andExpect(jsonPath("$.title").value("Bad Request"))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.detail").value("Request validation failed"))
-                .andExpect(jsonPath("$.timestamp").exists())
-                .andExpect(jsonPath("$.invalidParams.name").exists())
-                .andExpect(jsonPath("$.invalidParams.email").value("Email must be well-formed"))
-                .andExpect(jsonPath("$.invalidParams.tier").value("Tier must not be null"));
+        // TODO: Реализуйте проверку RFC 7807 ProblemDetail при невалидном payload (400)
+        assertThat(mockMvc).isNotNull();
     }
 
     @Test
-    @DisplayName("GET /api/v1/customers/{id} - 404 Not Found и RFC 7807 при отсутствии ресурса")
+    @DisplayName("GET /api/v1/customers/{id} -> 404 Not Found")
     void getCustomer_NotFound_ReturnsProblemDetail404() throws Exception {
-        UUID nonExistentId = UUID.fromString("00000000-0000-0000-0000-000000000000");
-        when(customerService.getCustomerById(nonExistentId))
-                .thenThrow(new ResourceNotFoundException("Customer with ID not found: " + nonExistentId));
-
-        mockMvc.perform(get("/api/v1/customers/{id}", nonExistentId)
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.type").value("https://api.enterprise.com/errors/not-found"))
-                .andExpect(jsonPath("$.title").value("Resource Not Found"))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.detail").value("Customer with ID not found: " + nonExistentId))
-                .andExpect(jsonPath("$.timestamp").exists());
+        // TODO: Реализуйте проверку RFC 7807 ProblemDetail при отсутствии ресурса (404)
+        assertThat(mockMvc).isNotNull();
     }
 
     @Test
-    @DisplayName("POST /api/v1/customers - 409 Conflict и RFC 7807 при коллизии уникального email")
+    @DisplayName("POST /api/v1/customers -> 409 Conflict")
     void registerCustomer_ConflictEmail_ReturnsProblemDetail409() throws Exception {
-        when(customerService.registerCustomer(any(CustomerRegistrationRequest.class)))
-                .thenThrow(new ResourceConflictException("Email already registered in system"));
-
-        String jsonRequest = """
-                {
-                    "name": "Jane Doe",
-                    "email": "jane.doe@enterprise.com",
-                    "tier": "SILVER"
-                }
-                """;
-
-        mockMvc.perform(post("/api/v1/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonRequest))
-                .andExpect(status().isConflict())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.type").value("https://api.enterprise.com/errors/conflict"))
-                .andExpect(jsonPath("$.title").value("Resource Conflict"))
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.detail").value("Email already registered in system"))
-                .andExpect(jsonPath("$.timestamp").exists());
+        // TODO: Реализуйте проверку RFC 7807 ProblemDetail при конфликте email (409)
+        assertThat(mockMvc).isNotNull();
     }
 }`,
         readOnly: false,
@@ -1510,42 +1468,15 @@ class PaymentTransactionDtoJsonTest {
     @Test
     @DisplayName("Сериализация PAN: строгое маскирование номера карты по стандарту PCI-DSS (6+mask+4)")
     void shouldMaskPrimaryAccountNumberAccordingToPciDss() throws IOException {
-        UUID txId = UUID.fromString("11111111-2222-3333-4444-555555555555");
-
-        PaymentTransactionDto tx16 = new PaymentTransactionDto(
-                txId, new BigDecimal("100.00"), "USD", "4532751234567890", "M-100");
-        assertThat(jsonTester.write(tx16))
-                .extractingJsonPathStringValue("$.primaryAccountNumber")
-                .isEqualTo("453275******7890");
-
-        PaymentTransactionDto txAmex = new PaymentTransactionDto(
-                txId, new BigDecimal("100.00"), "USD", "378282246310005", "M-100");
-        assertThat(jsonTester.write(txAmex))
-                .extractingJsonPathStringValue("$.primaryAccountNumber")
-                .isEqualTo("378282*****0005");
-
-        PaymentTransactionDto txDelimiters = new PaymentTransactionDto(
-                txId, new BigDecimal("100.00"), "USD", "4532-7512-3456-7890", "M-100");
-        assertThat(jsonTester.write(txDelimiters))
-                .extractingJsonPathStringValue("$.primaryAccountNumber")
-                .isEqualTo("453275******7890");
+        // TODO: Реализуйте проверку маскирования PAN по стандарту PCI-DSS (6+mask+4) для 16-значных карт и AMEX
+        assertThat(jsonTester).isNotNull();
     }
 
     @Test
     @DisplayName("Сериализация граничных и некорректных значений PAN")
     void shouldHandleInvalidOrNullPanValues() throws IOException {
-        UUID txId = UUID.fromString("11111111-2222-3333-4444-555555555555");
-
-        PaymentTransactionDto txInvalidPan = new PaymentTransactionDto(
-                txId, new BigDecimal("50.00"), "USD", "12345", "M-100");
-        assertThat(jsonTester.write(txInvalidPan))
-                .extractingJsonPathStringValue("$.primaryAccountNumber")
-                .isEqualTo("INVALID_PAN");
-
-        PaymentTransactionDto txNullPan = new PaymentTransactionDto(
-                txId, new BigDecimal("50.00"), "USD", null, "M-100");
-        assertThat(jsonTester.write(txNullPan))
-                .hasEmptyJsonPathValue("$.primaryAccountNumber");
+        // TODO: Реализуйте проверку обработки некорректных и null значений PAN
+        assertThat(jsonTester).isNotNull();
     }
 }`,
         readOnly: false,

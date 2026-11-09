@@ -81,6 +81,7 @@ public class TransactionValidator {
       {
         path: 'src/test/java/com/assessment/fintech/TransactionValidatorTest.java',
         content: `package com.assessment.fintech;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -101,38 +102,36 @@ public class TransactionValidatorTest {
     @Test
     @DisplayName("Should reject zero and negative amounts (Kills M1)")
     public void shouldRejectZeroAmount() {
-        ValidationResult resZero = validator.validate(new BigDecimal("0.00"), "RUB", new BigDecimal("500.00"));
-        assertFalse(resZero.isValid());
+        // TODO: Реализуйте проверки для метода shouldRejectZeroAmount для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should allow exact 10000.00 limit (Kills M2)")
     public void shouldAllowExactMaxLimit() {
-        // 10000 + 100 fee = 10100 required
-        ValidationResult res = validator.validate(new BigDecimal("10000.00"), "USD", new BigDecimal("10100.00"));
-        assertTrue(res.isValid());
+        // TODO: Реализуйте проверки для метода shouldAllowExactMaxLimit для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should correctly calculate 1% fee (Kills M3)")
     public void shouldVerifyExactFeeMath() {
-        // 100 + 1 fee = 101 required. If balance is 102 -> OK. If fee was 5% -> required 105 -> fail!
-        ValidationResult res = validator.validate(new BigDecimal("100.00"), "EUR", new BigDecimal("102.00"));
-        assertTrue(res.isValid());
+        // TODO: Реализуйте проверки для метода shouldVerifyExactFeeMath для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject unsupported currency (Kills M4)")
     public void shouldRejectUnsupportedCurrency() {
-        ValidationResult res = validator.validate(new BigDecimal("50.00"), "GBP", new BigDecimal("500.00"));
-        assertFalse(res.isValid());
+        // TODO: Реализуйте проверки для метода shouldRejectUnsupportedCurrency для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject when balance is insufficient for amount + fee (Kills M5)")
     public void shouldRejectInsufficientBalance() {
-        ValidationResult res = validator.validate(new BigDecimal("100.00"), "RUB", new BigDecimal("100.50"));
-        assertFalse(res.isValid());
+        // TODO: Реализуйте проверки для метода shouldRejectInsufficientBalance для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -464,45 +463,29 @@ class PricingServiceTest {
     @Test
     @DisplayName("Should validate coupon temporal window boundaries (Kills M2)")
     void shouldRejectExpiredCoupon() {
-        Money threshold = Money.of("10.00", "USD");
-        var discount = new PricingService.FixedAmountDiscount(Money.of("5.00", "USD"), threshold, T0, T0.plusSeconds(3600));
-        var items = List.of(new CartItem("SKU-1", Money.of("20.00", "USD"), 1));
-
-        assertThatThrownBy(() -> service.calculateTotal(items, List.of(discount), T0.plusSeconds(7200)))
-            .isInstanceOf(InvalidCouponException.class);
+        // TODO: Реализуйте проверки для метода shouldRejectExpiredCoupon для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should accept coupon when subtotal equals exact threshold (Kills M3)")
     void shouldAllowExactThreshold() {
-        Money threshold = Money.of("100.00", "USD");
-        var discount = new PricingService.FixedAmountDiscount(Money.of("10.00", "USD"), threshold, T0, T0.plusSeconds(3600));
-        var items = List.of(new CartItem("SKU-1", Money.of("100.00", "USD"), 1));
-
-        Money total = service.calculateTotal(items, List.of(discount), T0.plusSeconds(100));
-        assertThat(total.amount()).isEqualByComparingTo("90.00");
+        // TODO: Реализуйте проверки для метода shouldAllowExactThreshold для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should reject mixed currencies in cart items (Kills M4)")
     void shouldRejectMixedCurrencies() {
-        var items = List.of(
-            new CartItem("SKU-1", Money.of("10.00", "USD"), 1),
-            new CartItem("SKU-2", Money.of("10.00", "EUR"), 1)
-        );
-        assertThatThrownBy(() -> service.calculateTotal(items, List.of(), T0))
-            .isInstanceOf(CurrencyMismatchException.class);
+        // TODO: Реализуйте проверки для метода shouldRejectMixedCurrencies для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should clamp total to zero when discount exceeds subtotal (Kills M5)")
     void shouldClampNegativeTotalToZero() {
-        Money threshold = Money.of("10.00", "USD");
-        var discount = new PricingService.FixedAmountDiscount(Money.of("100.00", "USD"), threshold, T0, T0.plusSeconds(3600));
-        var items = List.of(new CartItem("SKU-1", Money.of("20.00", "USD"), 1));
-
-        Money total = service.calculateTotal(items, List.of(discount), T0.plusSeconds(100));
-        assertThat(total.amount()).isEqualByComparingTo("0.00");
+        // TODO: Реализуйте проверки для метода shouldClampNegativeTotalToZero для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
@@ -756,25 +739,9 @@ class RbacPolicyEngineTest {
                             AccessDecision decision = engine.evaluate(req);
                             if (role == Role.ADMIN) {
                                 assertThat(decision.isAllowed()).isTrue();
-                            } else if (role == Role.AUDITOR) {
-                                if (op == Operation.READ) assertThat(decision.isAllowed()).isTrue();
-                                else assertThat(decision.isAllowed()).isFalse();
-                            } else if (role == Role.SUPPORT) {
-                                if (resource == Resource.SENSITIVE_PII || op == Operation.DELETE) {
-                                    assertThat(decision.isAllowed()).isFalse();
-                                } else {
-                                    assertThat(decision.isAllowed()).isTrue();
-                                }
-                            } else if (role == Role.BUYER) {
-                                if (!owner) {
-                                    assertThat(decision.isAllowed()).isFalse();
-                                } else if (resource == Resource.REFUNDS && op == Operation.DELETE) {
-                                    assertThat(decision.isAllowed()).isFalse();
-                                } else if (resource == Resource.SENSITIVE_PII && op == Operation.WRITE) {
-                                    assertThat(decision.isAllowed()).isFalse();
-                                } else {
-                                    assertThat(decision.isAllowed()).isTrue();
-                                }
+                            } else {
+                                // TODO: Реализуйте проверки матрицы доступа для ролей AUDITOR, SUPPORT, BUYER для уничтожения мутантов
+                                assertThat(decision).isNotNull();
                             }
                         });
                     })
@@ -1057,22 +1024,16 @@ class AccountLifecycleServiceTest {
         @Test
         @DisplayName("Should reject withdrawal exceeding available balance (Kills M2)")
         void shouldRejectOverdraft() {
-            AccountState state = service.verifyKyc(service.create("ACC-2"));
-            AccountState funded = service.deposit(state, new BigDecimal("50.00"));
-
-            assertThatThrownBy(() -> service.withdraw(funded, new BigDecimal("50.01")))
-                .isInstanceOf(IllegalStateException.class);
-        }
+        // TODO: Реализуйте проверки для метода shouldRejectOverdraft для уничтожения целевых мутантов
+        assertThat(true).isTrue();
+    }
 
         @Test
         @DisplayName("Should reject closure when balance is non-zero (Kills M4)")
         void shouldRejectClosureWithNonZeroBalance() {
-            AccountState state = service.verifyKyc(service.create("ACC-3"));
-            AccountState funded = service.deposit(state, new BigDecimal("10.00"));
-
-            assertThatThrownBy(() -> service.close(funded))
-                .isInstanceOf(IllegalStateException.class);
-        }
+        // TODO: Реализуйте проверки для метода shouldRejectClosureWithNonZeroBalance для уничтожения целевых мутантов
+        assertThat(true).isTrue();
+    }
     }
 
     @Nested
@@ -1081,13 +1042,9 @@ class AccountLifecycleServiceTest {
         @Test
         @DisplayName("Should reject withdrawals when frozen (Kills M3)")
         void shouldRejectWithdrawalWhenFrozen() {
-            AccountState state = service.verifyKyc(service.create("ACC-4"));
-            AccountState funded = service.deposit(state, new BigDecimal("100.00"));
-            AccountState frozen = service.freeze(funded);
-
-            assertThatThrownBy(() -> service.withdraw(frozen, new BigDecimal("10.00")))
-                .isInstanceOf(IllegalStateException.class);
-        }
+        // TODO: Реализуйте проверки для метода shouldRejectWithdrawalWhenFrozen для уничтожения целевых мутантов
+        assertThat(true).isTrue();
+    }
     }
 
     @Nested
@@ -1096,12 +1053,9 @@ class AccountLifecycleServiceTest {
         @Test
         @DisplayName("Should reject any operations in terminal Closed state (Kills M5)")
         void shouldRejectOperationsOnClosed() {
-            AccountState state = service.verifyKyc(service.create("ACC-5"));
-            AccountState closed = service.close(state);
-
-            assertThatThrownBy(() -> service.deposit(closed, new BigDecimal("10.00")))
-                .isInstanceOf(IllegalStateException.class);
-        }
+        // TODO: Реализуйте проверки для метода shouldRejectOperationsOnClosed для уничтожения целевых мутантов
+        assertThat(true).isTrue();
+    }
     }
 }`,
         readOnly: false,
@@ -1360,22 +1314,15 @@ class SecurityContextExtensionTest {
     @Test
     @DisplayName("Should detect and fail if ThreadLocal leaks (Kills M3)")
     void shouldDetectStateLeak() {
-        extension.onBeforeEach("alice", "STAFF", null);
-        // Test finishes without cleaning ThreadLocal
-        assertThatThrownBy(() -> extension.onAfterEach(true))
-            .isInstanceOf(AssertionError.class)
-            .hasMessageContaining("ThreadLocal state leaked");
+        // TODO: Реализуйте проверки для метода shouldDetectStateLeak для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 
     @Test
     @DisplayName("Should purge context in afterEach to protect downstream tests (Kills M1, M2)")
     void shouldPurgeContextInAfterEach() {
-        extension.onBeforeEach("charlie", "ADMIN", "trace-999");
-        extension.onAfterEach(false);
-
-        assertThat(SecurityContext.getPrincipal()).isNull();
-        assertThat(SecurityContext.getTraceId()).isNull();
-        assertThat(SecurityContext.hasLeakedState()).isFalse();
+        // TODO: Реализуйте проверки для метода shouldPurgeContextInAfterEach для уничтожения целевых мутантов
+        assertThat(true).isTrue();
     }
 }`,
         readOnly: false,
