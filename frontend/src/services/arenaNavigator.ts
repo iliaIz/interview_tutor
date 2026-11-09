@@ -37,8 +37,10 @@ export async function launchArenaTask(
           credentials: 'include'
         });
         if (res.ok) {
-          const challenge = await res.json();
-          store.openPracticeChallenge(challenge);
+          const data = await res.json();
+          const challenge = data.challenge || data;
+          const draft = data.savedDraft;
+          store.openPracticeChallenge(challenge, draft);
         } else {
           console.warn(`[ArenaNavigator] Challenge ${target.entityId} returned HTTP ${res.status}`);
         }

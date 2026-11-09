@@ -1,4 +1,4 @@
-export type ChallengeCategory = 'all' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation' | 'spring_transactions' | 'design_patterns';
+export type ChallengeCategory = 'all' | 'raiffeisen' | 'machine_coding' | 'lld_bigtech' | 'lld_fintech' | 'lld_concurrency' | 'refactoring_kata' | 'concurrency_lab' | 'java21_idioms' | 'testing_mutation' | 'spring_transactions' | 'design_patterns';
 
 export interface MutantDefinition {
   id: string;
