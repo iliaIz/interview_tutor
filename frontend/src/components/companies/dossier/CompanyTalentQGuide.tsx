@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TalentQGuide } from '@interview-prep/shared';
 import {
   Calculator,
   BookOpen,
@@ -9,7 +10,11 @@ import {
   HelpCircle
 } from 'lucide-react';
 
-export const CompanyTalentQGuide: React.FC = () => {
+interface CompanyTalentQGuideProps {
+  guide?: TalentQGuide;
+}
+
+export const CompanyTalentQGuide: React.FC<CompanyTalentQGuideProps> = ({ guide }) => {
   const [val1, setVal1] = useState<string>('1250');
   const [val2, setVal2] = useState<string>('1475');
 
@@ -21,9 +26,68 @@ export const CompanyTalentQGuide: React.FC = () => {
   const deltaPercent = isValid ? ((x2 - x1) / Math.abs(x1)) * 100 : 0;
   const ratio = isValid ? x2 / x1 : 0;
 
+  const deadlineHours = guide?.deadlineHours ?? 72;
+  const warningTitle = guide?.warningTitle || 'Психометрический тест Talent Q Elements / SHL';
+  const warningMarkdown = guide?.warningMarkdown ||
+    'Ссылка на онлайн-тест высылается рекрутером сразу после первичного отклика. Ровно через 72 часа ссылка деактивируется. Если кандидат не успел завершить тест — система фиксирует авто-отказ без возможности апелляции или пересдачи в течение 6 месяцев!';
+  const formulaMarkdown = guide?.formulaMarkdown || 'Δ% = ((X₂ - X₁) / X₁) × 100%';
+
+  const verbalRules = guide?.verbalRules && guide.verbalRules.length > 0
+    ? guide.verbalRules
+    : [
+        {
+          outcome: 'true',
+          label: '«Истинно» (True)',
+          description: 'Утверждение логически и прямо следует из фактов, однозначно приведенных в тексте.'
+        },
+        {
+          outcome: 'false',
+          label: '«Ложно» (False)',
+          description: 'Утверждение прямо противоречит фактам, изложенным в тексте.'
+        },
+        {
+          outcome: 'cannot_tell',
+          label: '«Нельзя сказать» (Cannot Tell — Главная ловушка!)',
+          description: 'В тексте недостаточно информации, чтобы сделать однозначный вывод. Даже если вы знаете, что это так в реальном мире — если в тексте об этом не сказано, ответ только «Нельзя сказать».'
+        }
+      ];
+
+  const getRuleIcon = (outcome: string) => {
+    switch (outcome.toLowerCase()) {
+      case 'true':
+        return <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />;
+      case 'false':
+        return <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />;
+      default:
+        return <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />;
+    }
+  };
+
+  const getRuleBg = (outcome: string) => {
+    switch (outcome.toLowerCase()) {
+      case 'true':
+        return 'bg-emerald-50/70 border-emerald-200/80';
+      case 'false':
+        return 'bg-rose-50/70 border-rose-200/80';
+      default:
+        return 'bg-amber-50/70 border-amber-200/80';
+    }
+  };
+
+  const getRuleTextColor = (outcome: string) => {
+    switch (outcome.toLowerCase()) {
+      case 'true':
+        return 'text-emerald-900';
+      case 'false':
+        return 'text-rose-900';
+      default:
+        return 'text-amber-900';
+    }
+  };
+
   return (
     <div className="space-y-4 font-sans">
-      {/* 72h Critical Warning Banner */}
+      {/* Critical Warning Banner */}
       <div className="p-4 rounded-3xl bg-rose-50 border-2 border-rose-300/80 shadow-xs flex items-start gap-3.5">
         <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
           <Clock className="w-5 h-5 animate-pulse" />
@@ -31,15 +95,14 @@ export const CompanyTalentQGuide: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-extrabold uppercase font-mono tracking-wider px-2 py-0.5 rounded-md bg-rose-200/80 text-rose-900">
-              Hard Deadline: строго 72 часа
+              Hard Deadline: строго {deadlineHours} часа
             </span>
           </div>
           <h4 className="text-sm sm:text-base font-extrabold text-rose-950">
-            Психометрический тест Talent Q Elements / SHL
+            {warningTitle}
           </h4>
           <p className="text-xs text-rose-900/90 leading-relaxed max-w-3xl">
-            Ссылка на онлайн-тест высылается рекрутером сразу после первичного отклика. Ровно через <strong>72 часа</strong> ссылка деактивируется.
-            Если кандидат не успел завершить тест — система фиксирует авто-отказ без возможности апелляции или пересдачи в течение 6 месяцев!
+            {warningMarkdown}
           </p>
         </div>
       </div>
@@ -67,7 +130,7 @@ export const CompanyTalentQGuide: React.FC = () => {
 
           {/* Formula Display */}
           <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-center font-mono text-xs text-amber-950">
-            <span className="font-bold">Δ% = ((X₂ - X₁) / X₁) × 100%</span>
+            <span className="font-bold">{formulaMarkdown}</span>
           </div>
 
           {/* Interactive Calculator */}
@@ -149,40 +212,22 @@ export const CompanyTalentQGuide: React.FC = () => {
           </p>
 
           <div className="space-y-2 text-xs">
-            {/* True */}
-            <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-extrabold text-emerald-900 block">«Истинно» (True)</span>
-                <p className="text-slate-800 leading-relaxed">
-                  Утверждение логически и прямо следует из фактов, однозначно приведенных в тексте.
-                </p>
+            {verbalRules.map((rule, idx) => (
+              <div
+                key={idx}
+                className={`p-3 rounded-2xl border flex items-start gap-2.5 ${getRuleBg(rule.outcome)}`}
+              >
+                {getRuleIcon(rule.outcome)}
+                <div>
+                  <span className={`font-extrabold block ${getRuleTextColor(rule.outcome)}`}>
+                    {rule.label}
+                  </span>
+                  <p className="text-slate-800 leading-relaxed">
+                    {rule.description}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            {/* False */}
-            <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex items-start gap-2.5">
-              <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-extrabold text-rose-900 block">«Ложно» (False)</span>
-                <p className="text-slate-800 leading-relaxed">
-                  Утверждение прямо противоречит фактам, изложенным в тексте.
-                </p>
-              </div>
-            </div>
-
-            {/* Cannot Tell */}
-            <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2.5">
-              <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-extrabold text-amber-900 block">
-                  «Нельзя сказать» (Cannot Tell — Главная ловушка!)
-                </span>
-                <p className="text-slate-800 leading-relaxed">
-                  В тексте недостаточно информации, чтобы сделать однозначный вывод. Даже если вы знаете, что это так в реальном мире — если в тексте об этом не сказано, ответ только «Нельзя сказать».
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>

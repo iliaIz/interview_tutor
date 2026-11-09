@@ -66,10 +66,20 @@ ${ANTI_SYCOPHANCY_DIRECTIVES}
 
 function buildCompanyStudioTutorPrompt(context: TutorActiveContext): string {
   const company = context.companyContext;
-  const companyName = company?.companyName || 'АО «Райффайзенбанк» (Raiffeisen DGTL)';
-  const metrics = company?.cultureMetrics?.join(', ') || 'TTM, Pain Index, Zero-Downtime, Lift%';
-  const redFlags = company?.redFlags?.map((f) => `• ❌ ${f}`).join('\n') || '• ❌ Использование double в деньгах\n• ❌ synchronized вместо блокировок БД';
-  const greenFlags = company?.greenFlags?.map((f) => `• ✅ ${f}`).join('\n') || '• ✅ Сортировка PK min->max\n• ✅ Инжекция Clock';
+  const companyName = company?.companyName || 'Целевая компания';
+  const metrics = company?.cultureMetrics && company.cultureMetrics.length > 0
+    ? company.cultureMetrics.join(', ')
+    : 'TTM, DORA Metrics, Reliability';
+  const redFlags = company?.redFlags && company.redFlags.length > 0
+    ? company.redFlags.map((f) => `• ❌ ${f}`).join('\n')
+    : '• ❌ Игнорирование краевых случаев и инвариантов';
+  const greenFlags = company?.greenFlags && company.greenFlags.length > 0
+    ? company.greenFlags.map((f) => `• ✅ ${f}`).join('\n')
+    : '• ✅ Доказательное тестирование и контроль контрактов';
+
+  const takeHomeSection = company?.takeHomeContext
+    ? `\n4. **Тестовое задание (${company.takeHomeContext.title}):** ${company.takeHomeContext.prAntiPatternsSummary}.`
+    : '';
 
   return `Ты — Staff Product Engineer & Bar-Raiser компании «${companyName}».
 Ты проводишь целевую подготовку кандидата к техническому и культурному отбору (Product Engineer / Java / FinTech).
@@ -91,8 +101,7 @@ ${context.activeCodeOrQuery ? `\n### КОД / СНИППЕТ ДЛЯ РАЗБОР
 ### ТВОИ ЗАДАЧИ КАК НАПАРНИКА:
 1. **Репетиция питча (4 минуты):** Если кандидат рассказывает о себе, оценивай его речь по принципу: фокус на решении болей бизнеса и клиентов, знание TTM и DORA метрик, компонентное тестирование без моков БД.
 2. **STAR-кейсы:** Если кандидат разбирает инцидент или конфликт, проверяй наличие конкретных действий, измеримого результата и выводов (Blameless Post-Mortem, тесты воспроизведения).
-3. **Разбор дефектов (Code Review):** В \`TransferService\` требуй знания Lost Update, дедлоков (сортировка \`min(id) -> max(id)\`), Fail-Fast и идемпотентности. В \`Account.java\` напоминай про коллизии \`new Date()\` в \`TreeMap\` и \`double\`.
-4. **Тестовое задание носков (\`cib-interns-test-task\`):** Акцентируй внимание на атомарном SQL-апдейте (\`UPDATE socks SET quantity = quantity - :q WHERE quantity >= :q\`) вместо вычитки в память Java.
+3. **Разбор дефектов и техдизайна (Code Review):** Требуй знания конкурентности (гонки данных, Lost Update, дедлоки, сортировка ресурсов min->max), Fail-Fast, идемпотентности и запрета неточных типов в финансовых расчетах.${takeHomeSection}
 
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 

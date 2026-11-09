@@ -1,29 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { ExpressRunbook, normalizeCompanyContext } from '@interview-prep/shared';
+import { ExpressRunbook, TargetArena } from '@interview-prep/shared';
 import { Clock, Copy, Check, CheckSquare, Square, Zap, Flame, ArrowRight, Bot } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 
 interface CompanyRunbookTabProps {
   runbook: ExpressRunbook;
-  onNavigateToTask: (taskId: string) => void;
+  onNavigateToTask: (taskId: string, targetArena?: TargetArena) => void;
+  companyId?: string;
 }
 
-export const CompanyRunbookTab: React.FC<CompanyRunbookTabProps> = ({ runbook, onNavigateToTask }) => {
+export const CompanyRunbookTab: React.FC<CompanyRunbookTabProps> = ({
+  runbook,
+  onNavigateToTask,
+  companyId = 'raiffeisen_dgtl'
+}) => {
   const [copied, setCopied] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('company_runbook_checklist_raiff');
+      const saved = localStorage.getItem(`company_runbook_checklist_${companyId}`);
       if (saved) setCheckedItems(JSON.parse(saved));
     } catch {}
-  }, []);
+  }, [companyId]);
 
   const toggleCheck = (idx: number) => {
     const updated = { ...checkedItems, [idx]: !checkedItems[idx] };
     setCheckedItems(updated);
     try {
-      localStorage.setItem('company_runbook_checklist_raiff', JSON.stringify(updated));
+      localStorage.setItem(`company_runbook_checklist_${companyId}`, JSON.stringify(updated));
     } catch {}
   };
 
@@ -103,21 +108,42 @@ export const CompanyRunbookTab: React.FC<CompanyRunbookTabProps> = ({ runbook, o
           </h4>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {runbook.mustReviewTaskIds.map((taskId, i) => (
-            <button
-              key={taskId}
-              onClick={() => onNavigateToTask(taskId)}
-              className="p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/60 border border-pastel-border/80 hover:border-indigo-200 text-left transition-all shadow-xs group flex flex-col justify-between space-y-2 cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                  Задача {i + 1}
-                </span>
-                <ArrowRight className="w-3.5 h-3.5 text-pastel-muted group-hover:text-indigo-600 transition-transform group-hover:translate-x-0.5" />
-              </div>
-              <span className="text-xs font-bold text-slate-800 font-mono">{taskId}</span>
-            </button>
-          ))}
+          {runbook.mustReviewTasks && runbook.mustReviewTasks.length > 0 ? (
+            runbook.mustReviewTasks.map((task, i) => (
+              <button
+                key={task.taskId}
+                onClick={() => onNavigateToTask(task.taskId, task.targetArena)}
+                className="p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/60 border border-pastel-border/80 hover:border-indigo-200 text-left transition-all shadow-xs group flex flex-col justify-between space-y-2 cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                    {task.badge || `Задача ${i + 1}`}
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5 text-pastel-muted group-hover:text-indigo-600 transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-slate-900 block leading-snug">{task.title}</span>
+                  <span className="text-[10px] text-slate-700 font-mono block">{task.taskId}</span>
+                </div>
+              </button>
+            ))
+          ) : (
+            runbook.mustReviewTaskIds.map((taskId, i) => (
+              <button
+                key={taskId}
+                onClick={() => onNavigateToTask(taskId)}
+                className="p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/60 border border-pastel-border/80 hover:border-indigo-200 text-left transition-all shadow-xs group flex flex-col justify-between space-y-2 cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                    Задача {i + 1}
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5 text-pastel-muted group-hover:text-indigo-600 transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <span className="text-xs font-bold text-slate-800 font-mono">{taskId}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
 

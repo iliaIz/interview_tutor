@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CompanyCulture } from '@interview-prep/shared';
+import { CompanyCulture, CompanyProfile } from '@interview-prep/shared';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -19,11 +19,12 @@ import { CompanyTalentQGuide } from './dossier/CompanyTalentQGuide';
 interface CompanyDossierTabProps {
   culture: CompanyCulture;
   companyName: string;
+  profile?: CompanyProfile;
 }
 
 type DossierSection = 'culture' | 'competencies' | 'spec_review' | 'star_cases' | 'talent_q';
 
-export const CompanyDossierTab: React.FC<CompanyDossierTabProps> = ({ culture, companyName }) => {
+export const CompanyDossierTab: React.FC<CompanyDossierTabProps> = ({ culture, companyName, profile }) => {
   const [activeSection, setActiveSection] = useState<DossierSection>('culture');
 
   return (
@@ -33,10 +34,10 @@ export const CompanyDossierTab: React.FC<CompanyDossierTabProps> = ({ culture, c
         {(
           [
             { id: 'culture', label: 'Парадигма & Флаги', icon: Cpu },
-            { id: 'competencies', label: '9 Компетенций PE', icon: Compass },
-            { id: 'spec_review', label: '8-Point Spec Review', icon: ClipboardCheck },
-            { id: 'star_cases', label: 'STAR Сценарии (4)', icon: Sparkles },
-            { id: 'talent_q', label: 'Тест Talent Q (72ч)', icon: Calculator }
+            { id: 'competencies', label: `${profile?.competencies?.length || 9} Компетенций PE`, icon: Compass },
+            { id: 'spec_review', label: `${profile?.specReviewChecklist?.length || 8}-Point Spec Review`, icon: ClipboardCheck },
+            { id: 'star_cases', label: `STAR Сценарии (${profile?.starScenarios?.length || 4})`, icon: Sparkles },
+            { id: 'talent_q', label: `Тест Talent Q (${profile?.talentQGuide?.deadlineHours || 72}ч)`, icon: Calculator }
           ] as const
         ).map((sec) => {
           const Icon = sec.icon;
@@ -157,31 +158,34 @@ export const CompanyDossierTab: React.FC<CompanyDossierTabProps> = ({ culture, c
         </div>
       )}
 
-      {/* 2. 9 Competencies Radar */}
+      {/* 2. Competencies Radar */}
       {activeSection === 'competencies' && (
         <div className="animate-in fade-in duration-150">
-          <CompanyCompetenciesRadar />
+          <CompanyCompetenciesRadar
+            competencies={profile?.competencies}
+            companyName={companyName}
+          />
         </div>
       )}
 
-      {/* 3. 8-Point Spec Review Checklist */}
+      {/* 3. Spec Review Checklist */}
       {activeSection === 'spec_review' && (
         <div className="animate-in fade-in duration-150">
-          <CompanySpecReviewChecklist />
+          <CompanySpecReviewChecklist items={profile?.specReviewChecklist} />
         </div>
       )}
 
       {/* 4. STAR Scenarios */}
       {activeSection === 'star_cases' && (
         <div className="animate-in fade-in duration-150">
-          <CompanyStarScenarios />
+          <CompanyStarScenarios scenarios={profile?.starScenarios} />
         </div>
       )}
 
-      {/* 5. Talent Q 72h Guide */}
+      {/* 5. Talent Q Guide */}
       {activeSection === 'talent_q' && (
         <div className="animate-in fade-in duration-150">
-          <CompanyTalentQGuide />
+          <CompanyTalentQGuide guide={profile?.talentQGuide} />
         </div>
       )}
     </div>

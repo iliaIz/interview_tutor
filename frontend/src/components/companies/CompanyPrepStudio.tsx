@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { CompanyProfile, CompanyPipelineStage } from '@interview-prep/shared';
+import { CompanyProfile, CompanyPipelineStage, TargetArena } from '@interview-prep/shared';
 import { CompanyPipelineTab } from './CompanyPipelineTab';
 import { CompanyDossierTab } from './CompanyDossierTab';
 import { CompanyRunbookTab } from './CompanyRunbookTab';
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { normalizeCompanyContext } from '@interview-prep/shared';
+import { launchArenaTask, resolveStageTarget, resolveRunbookTaskTarget } from '../../services/arenaNavigator';
 
 export const CompanyPrepStudio: React.FC = () => {
   const { setStudioTab } = useAppStore();
@@ -123,42 +124,21 @@ export const CompanyPrepStudio: React.FC = () => {
 
   // Stage Action Launcher
   const handleLaunchStage = (stage: CompanyPipelineStage) => {
-    switch (stage.format) {
-      case 'voice_fit':
-        setIsVoiceOpen(true);
-        break;
-      case 'live_coding':
-        setStudioTab('practice');
-        break;
-      case 'code_review':
-        setStudioTab('incidents');
-        break;
-      case 'sql_arena':
-        setTargetSqlChallengeId(stage.targetEntityId);
-        setActiveSubTab('sql_arena');
-        break;
-      case 'system_design':
-        setStudioTab('system_design');
-        break;
-      case 'take_home':
-        setActiveSubTab('take_home');
-        break;
-    }
+    const target = resolveStageTarget(stage);
+    void launchArenaTask(target, {
+      setActiveSubTab,
+      setTargetSqlChallengeId,
+      setIsVoiceOpen
+    });
   };
 
-  const handleNavigateToTask = (taskId: string) => {
-    if (taskId.startsWith('sql-')) {
-      setTargetSqlChallengeId(taskId);
-      setActiveSubTab('sql_arena');
-    } else if (taskId.startsWith('case_')) {
-      setStudioTab('incidents');
-    } else if (taskId.startsWith('sd-') || taskId.startsWith('SD-')) {
-      setStudioTab('system_design');
-    } else if (taskId === 'cib-interns-test-task') {
-      setActiveSubTab('take_home');
-    } else {
-      setStudioTab('practice');
-    }
+  const handleNavigateToTask = (taskId: string, explicitArena?: TargetArena) => {
+    const target = resolveRunbookTaskTarget(taskId, profile, explicitArena);
+    void launchArenaTask(target, {
+      setActiveSubTab,
+      setTargetSqlChallengeId,
+      setIsVoiceOpen
+    });
   };
 
   if (isLoading) {
@@ -326,16 +306,14 @@ export const CompanyPrepStudio: React.FC = () => {
       )}
 
       {activeSubTab === 'dossier' && (
-        <CompanyDossierTab
-          culture={profile.culture}
-          companyName={profile.name}
-        />
+        <CompanyDossierTab culture={profile.culture} companyName={profile.name} profile={profile} />
       )}
 
       {activeSubTab === 'runbook' && (
         <CompanyRunbookTab
           runbook={profile.expressRunbook}
           onNavigateToTask={handleNavigateToTask}
+          companyId={profile.id}
         />
       )}
 
@@ -351,17 +329,18 @@ export const CompanyPrepStudio: React.FC = () => {
         <CompanyTakeHomeLab
           onBackToPipeline={() => setActiveSubTab('pipeline')}
           companyName={profile.name}
+          prCases={profile.takeHomePrCases}
         />
       )}
 
-      {/* Voice Modal with Raiffeisen DGTL Bar-Raiser Persona */}
+      {/* Voice Modal with Dynamic Bar-Raiser Persona */}
       {isVoiceOpen && (
         <VoiceModal
           isOpen={isVoiceOpen}
           onClose={() => setIsVoiceOpen(false)}
-          topic="Raiffeisen DGTL: Product Engineer Fit Interview"
-          currentQuestionText="Привет! Я Product Engineer Lead Райффайзенбанка. Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (например, TTM или конверсию) и как предотвращаешь финансовые сбои на проде?"
-          customPromptOverride="РОЛЬ: Product Engineer Lead в Райффайзенбанке (Raiffeisen DGTL). Проведи Fit/Culture интервью по методике STAR. Задавай вопросы о реальных факапах на проде, метриках TTM и Pain Index, запрете double в деньгах и детерминированной сортировке блокировок min->max."
+          topic={`${profile.name}: Product Engineer Fit Interview`}
+          currentQuestionText={`Привет! Я Product Engineer Lead в ${profile.name}. Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`}
+          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}. Метрики: ${profile.culture.metricsFocus.join(', ')}.`}
         />
       )}
     </div>

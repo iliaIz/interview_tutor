@@ -42,6 +42,7 @@ console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
 
 // 2. Test Company Studio prompt generation
 {
+  // 2a. Specific company profile with takeHomePrCases
   const mockCompanyPayload = {
     profile: {
       id: 'raiffeisen_dgtl',
@@ -52,7 +53,10 @@ console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
         metricsFocus: ['TTM', 'Pain Index'],
         redFlags: ['Использование double в деньгах'],
         greenFlags: ['Детерминированная сортировка PK min->max']
-      }
+      },
+      takeHomePrCases: [
+        { title: 'cib-interns-test-task (Склад носков)' }
+      ]
     },
     activeStage: {
       id: 'stage-3-code-review',
@@ -69,10 +73,30 @@ console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
   assert.ok(prompt.includes('АО «Райффайзенбанк» (Raiffeisen DGTL)'), 'Prompt must have company name');
   assert.ok(prompt.includes('TTM, Pain Index'), 'Prompt must have metrics focus');
   assert.ok(prompt.includes('Использование double в деньгах'), 'Prompt must have red flag');
-  assert.ok(prompt.includes('TransferService'), 'Prompt must include transfer service');
-  assert.ok(prompt.includes('cib-interns-test-task'), 'Prompt must mention socks warehouse take-home');
+  assert.ok(prompt.includes('Разбор дефектов и техдизайна'), 'Prompt must mention defect review');
+  assert.ok(prompt.includes('cib-interns-test-task'), 'Prompt must mention takeHomeContext when present');
 
-  console.log('✅ buildCompanyStudioTutorPrompt: PASSED');
+  // 2b. Generic company without takeHomePrCases (zero leaked domain constants)
+  const genericCompanyPayload = {
+    profile: {
+      id: 'acme_global',
+      name: 'Acme Global FinTech',
+      tagline: 'Global Clearing Hub'
+    },
+    activeStage: {
+      id: 'system-design',
+      title: 'Ledger Architecture'
+    }
+  };
+
+  const genericContext = normalizeCompanyContext(genericCompanyPayload);
+  const genericPrompt = buildPolymorphicTutorSystemPrompt(genericContext);
+
+  assert.ok(genericPrompt.includes('Acme Global FinTech'), 'Prompt must render generic company name');
+  assert.ok(!genericPrompt.includes('cib-interns-test-task'), 'Must not leak cib-interns-test-task');
+  assert.ok(!genericPrompt.includes('носков'), 'Must not leak socks');
+
+  console.log('✅ buildCompanyStudioTutorPrompt: PASSED (both custom and agnostic profiles)');
 }
 
 console.log('🎉 All Polymorphic Prompt Builder tests passed deterministically in 0ms!');
