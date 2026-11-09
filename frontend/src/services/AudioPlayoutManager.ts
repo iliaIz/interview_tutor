@@ -193,7 +193,7 @@ export class AudioPlayoutManager {
     const float32Samples = decodeBase64PcmToFloat32(base64Payload);
     if (!float32Samples) return;
 
-    const { context } = this.ensureContext();
+    const { context, masterGain } = this.ensureContext();
 
     if (this.isExplicitlyPaused) {
       this.pendingSamples.push(float32Samples);
@@ -204,6 +204,16 @@ export class AudioPlayoutManager {
       this.pendingSamples.push(float32Samples);
       void this.resume();
       return;
+    }
+
+    if (masterGain && context.state !== 'closed' && !this.isMuted) {
+      if (Math.abs(masterGain.gain.value - 1.5) > 0.05) {
+        const now = context.currentTime;
+        try {
+          masterGain.gain.cancelScheduledValues?.(now);
+          masterGain.gain.setValueAtTime?.(1.5, now);
+        } catch {}
+      }
     }
 
     if (!this.workletNode) {
@@ -330,42 +340,36 @@ export class AudioPlayoutManager {
     stopAllActiveSources(this.activeSources);
   }
 
-  public speculativeDuck(targetGain = 0.35, rampMs = 15): void {
+  public speculativeDuck(_targetGain = 0.35, _rampMs = 15): void {
+    // SOTA Spec 17: Demolished. No-op to eliminate false ducking during speaker audio.
+  }
+
+  public rollbackDucking(_rampMs = 15): void {
     if (this.isMuted) return;
-    const { context, masterGain } = this.ensureContext();
-    this.duckingController.speculativeDuck(context, masterGain, targetGain, rampMs);
-  }
-
-  public rollbackDucking(rampMs = 15): void {
-    if (this.isMuted) return;
-    const { context, masterGain } = this.ensureContext();
-    this.duckingController.rollbackDucking(context, masterGain, 1.5, rampMs);
-  }
-
-  public commitBargeIn(deClickMs = 5): void {
-    const { context, masterGain } = this.ensureContext();
-    this.duckingController.commitBargeIn(
-      context,
-      masterGain,
-      () => {
-        this.clearQueue();
-      },
-      1.5,
-      deClickMs
-    );
-  }
-
-  public handleInterruption(): void {
     const { context, masterGain } = this.ensureContext();
     if (masterGain && context && context.state !== 'closed') {
       const now = context.currentTime;
       try {
         masterGain.gain.cancelScheduledValues?.(now);
-        masterGain.gain.setValueAtTime?.(masterGain.gain.value, now);
-        masterGain.gain.linearRampToValueAtTime?.(0.0, now + 0.005);
+        masterGain.gain.setValueAtTime?.(1.5, now);
       } catch {}
     }
+  }
+
+  public commitBargeIn(_deClickMs = 5): void {
+    this.handleInterruption();
+  }
+
+  public handleInterruption(): void {
     this.clearQueue();
+    const { context, masterGain } = this.ensureContext();
+    if (masterGain && context && context.state !== 'closed' && !this.isMuted) {
+      const now = context.currentTime;
+      try {
+        masterGain.gain.cancelScheduledValues?.(now);
+        masterGain.gain.setValueAtTime?.(1.5, now);
+      } catch {}
+    }
   }
 
   public async teardown(): Promise<void> {

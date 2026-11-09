@@ -37,7 +37,7 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
   // Canonical Gemini Live Standard (SOTA Late 2026):
   // Audio vocoder autoregressive synthesis requires temperature 1.0 (Google default).
   // Lower temperatures (<0.7) collapse latent acoustic space into 14-50s digital silence stalls.
-  const effectiveTemperature = typeof opts.temperature === 'number'
+  const effectiveTemperature = typeof opts.temperature === 'number' && opts.temperature >= 0.7
     ? opts.temperature
     : 1.0;
 

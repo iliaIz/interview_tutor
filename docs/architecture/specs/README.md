@@ -33,6 +33,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **14** | **Gemini Live Protocol Alignment & Voice Modal Stabilization** | [`14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md`](14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md) | Canonical Gemini Live audioStreamEnd, Zero-Audio Circuit Breaker, AudioContext warmup, Defensive Header Flexbox & Close button |
 | **15** | **Practice Catalog Starter Workspace & TDD Remediation** | [`15_PRACTICE_CATALOG_STARTER_WORKSPACE_AND_TDD_REMEDIATION.md`](15_PRACTICE_CATALOG_STARTER_WORKSPACE_AND_TDD_REMEDIATION.md) | Zero-Stillborn Starter Invariant, 61 kata starter remediation, TDD Red stubs, mutation test cleanup, Raiffeisen starter fix |
 | **16** | **Live Voice Modality Separation & Keepalive Resilience** | [`16_LIVE_VOICE_MODALITY_SEPARATION_AND_KEEPALIVE_RESILIENCE.md`](16_LIVE_VOICE_MODALITY_SEPARATION_AND_KEEPALIVE_RESILIENCE.md) | Strict PCM Audio Gating, Symmetrical Keepalive Ping/Pong, Dual-Sided Verdict Drain, High-Contrast Sticky UI |
+| **17** | **Live Voice Acoustic Echo Immunity & Gain Safety** | [`17_LIVE_VOICE_ACOUSTIC_ECHO_IMMUNITY_AND_GAIN_SAFETY.md`](17_LIVE_VOICE_ACOUSTIC_ECHO_IMMUNITY_AND_GAIN_SAFETY.md) | Non-Zero Master Playout Gain Invariant, Speculative Ducking Demolition, Acoustic Filter Calibration (-29 dBFS), Strict Vocoder Temperature (1.0) |
 
 ---
 

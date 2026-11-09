@@ -312,21 +312,32 @@ async function testTactileBargeInInterruption(): Promise<void> {
     sentWorkletMessages.some((m) => m.type === 'flush'),
     'handleInterruption() flushed worklet buffer to silence DAC'
   );
+  assert(
+    (playout as any).masterGain?.gain?.value === 1.5,
+    'handleInterruption() preserved nominal masterGain (1.5) without zero-muting DAC'
+  );
 
   await playout.teardown();
 }
 
 async function testSpeculativeDucking(): Promise<void> {
-  console.log('\nContract 5: Speculative Ducking & Instant Rollback');
+  console.log('\nContract 5: Speculative Ducking Demolition & Master Gain Safety');
   const playout = new AudioPlayoutManager();
   await playout.resume();
 
   playout.speculativeDuck(0.35, 15);
+  assert(
+    (playout as any).masterGain?.gain?.value === 1.5,
+    'speculativeDuck is dismantled: masterGain remains nominal at 1.5'
+  );
   playout.rollbackDucking(15);
   playout.commitBargeIn(5);
   await sleep(20);
 
-  assert(true, 'speculativeDuck, rollbackDucking, and commitBargeIn execute cleanly');
+  assert(
+    (playout as any).masterGain?.gain?.value === 1.5,
+    'commitBargeIn preserves nominal masterGain (1.5)'
+  );
   await playout.teardown();
 }
 

@@ -99,5 +99,17 @@ const fallbackSetup = buildGeminiLiveSetupMessage({
 
 assert(fallbackSetup.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Puck', 'Invalid voice safely falls back to Puck');
 
+// Test 6: Low temperature clamp for vocoder stability (Spec 17)
+const clampedSetup = buildGeminiLiveSetupMessage({
+  liveModel: 'gemini-live-v3',
+  voiceName: 'Puck',
+  systemPromptText: 'Prompt',
+  sessionType: 'interview',
+  strategy: 'adaptive_probing',
+  temperature: 0.2,
+  normalizedTools: []
+});
+assert(clampedSetup.setup.generationConfig.temperature === 1.0, 'Low temperature < 0.7 clamped to 1.0 for vocoder stability');
+
 console.log(`\n📊 GeminiConfigBuilder Results: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

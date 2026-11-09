@@ -118,6 +118,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         voice: interviewConfig.voice || 'Kore',
         turnMode: interviewConfig.turnMode || 'auto',
         liveModel: interviewConfig.liveModel || 'gemini-live-v3',
+        temperature: 1.0,
         vadPauseMs: vadPauseMs ?? interviewConfig.vadPauseMs ?? 800,
         enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
         persona: interviewConfig.persona || 'mentor',

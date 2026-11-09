@@ -20,7 +20,8 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     voice: cfg.voice || 'Kore',
     turnMode: cfg.turnMode || 'auto',
     liveModel: cfg.liveModel || 'gemini-live-v3',
-    vadPauseMs: String(cfg.vadPauseMs || 1800)
+    vadPauseMs: String(cfg.vadPauseMs || 800),
+    temperature: String(cfg.temperature ?? 1.0)
   });
 
   if (cfg.questionId) {
