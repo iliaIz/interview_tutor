@@ -231,3 +231,96 @@ export function normalizePracticeContext(payload: PracticeSpokePayload): TutorAc
     quickActionChips
   };
 }
+
+export interface SystemDesignSpokePayload {
+  scenarioId: string;
+  scenarioTitle: string;
+  targetLevel?: string;
+  activeStudioTab: 'spec' | 'math_coach' | 'architecture' | 'staff_ai' | 'runtime' | 'topology' | 'defense';
+  activeCodeSnippet?: string;
+  activeFilePath?: string;
+  fadedBug?: {
+    lineNumber?: number;
+    description?: string;
+    bugPattern?: string;
+  };
+  topologySummary?: string;
+  capacityMathSummary?: string;
+  companyContextName?: string;
+}
+
+/**
+ * Normalizes System Design Workspace into canonical TutorActiveContext.
+ * Token-budget ceiling <= 15000 tokens (SPEC-13 §4.2.1).
+ */
+export function normalizeSystemDesignContext(payload: SystemDesignSpokePayload): TutorActiveContext {
+  const quickActionChips: TutorQuickActionChip[] = [
+    {
+      id: 'hld_tradeoffs',
+      label: '⚖️ Архитектурные компромиссы',
+      promptMessage: 'Какие фундаментальные компромиссы (CAP, консистентность, задержка vs пропускная способность) критичны для этого сценария?'
+    },
+    {
+      id: 'hld_bottlenecks',
+      label: '🚨 Узкие места и точки отказа',
+      promptMessage: 'Где в текущей архитектуре находятся потенциальные Single Point of Failure (SPOF) и ботлнеки масштабирования?'
+    },
+    {
+      id: 'hld_runtime_bug',
+      label: '🐛 Поиск рантайм-дефекта',
+      promptMessage: 'Дай Socratic-подсказку на дефект в Студии 1 (Runtime), не раскрывая готовый код исправления.'
+    },
+    {
+      id: 'hld_math_verify',
+      label: '🔢 Верификация расчетов RPS/Storage',
+      promptMessage: 'Помоги проверить порядок величин для объема хранилища и сетевой полосы (Capacity Planning).'
+    }
+  ];
+
+  // Token-budget protection: clamp activeCodeSnippet to 4000 chars, summaries to 2000 chars
+  const codeSnippet = payload.activeCodeSnippet
+    ? (payload.activeCodeSnippet.length > 4000 ? payload.activeCodeSnippet.slice(0, 4000) + '\n// ... [truncated for context budget]' : payload.activeCodeSnippet)
+    : undefined;
+
+  const topSummary = payload.topologySummary
+    ? (payload.topologySummary.length > 2000 ? payload.topologySummary.slice(0, 2000) + '...' : payload.topologySummary)
+    : undefined;
+
+  const mathSummary = payload.capacityMathSummary
+    ? (payload.capacityMathSummary.length > 2000 ? payload.capacityMathSummary.slice(0, 2000) + '...' : payload.capacityMathSummary)
+    : undefined;
+
+  let instructionsText = `[АКТИВНАЯ ВКЛАДКА / РЕЖИМ]: ${payload.activeStudioTab.toUpperCase()}`;
+  if (payload.targetLevel) {
+    instructionsText += `\n[ЦЕЛЕВОЙ ГРЕЙД]: ${payload.targetLevel}`;
+  }
+  if (payload.fadedBug) {
+    instructionsText += `\n[ДЕФЕКТ СТУДИИ 1]: ${payload.fadedBug.lineNumber ? `Строка ${payload.fadedBug.lineNumber} — ` : ''}${payload.fadedBug.description || ''} (${payload.fadedBug.bugPattern || ''})`;
+  }
+  if (mathSummary) {
+    instructionsText += `\n[РАСЧЕТЫ CAPACITY]: ${mathSummary}`;
+  }
+  if (topSummary) {
+    instructionsText += `\n[ТОПОЛОГИЯ УЗЛОВ]: ${topSummary}`;
+  }
+
+  return {
+    arena: 'system_design',
+    entityId: payload.scenarioId,
+    entityTitle: payload.scenarioTitle,
+    domain: 'Distributed System Design & High-Load Architecture',
+    persona: 'faang_interviewer',
+    assistanceLevel: 3,
+    activeFilePath: payload.activeFilePath || 'src/main/java/Service.java',
+    activeCodeOrQuery: codeSnippet,
+    instructions: instructionsText,
+    companyContext: payload.companyContextName
+      ? {
+          companyId: 'company_hld_context',
+          companyName: payload.companyContextName,
+          stageTitle: payload.scenarioTitle
+        }
+      : undefined,
+    quickActionChips
+  };
+}

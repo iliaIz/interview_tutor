@@ -26,7 +26,6 @@ import { WhiteboardDrawer } from '../WhiteboardDrawer';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
 import { usePracticeVoice } from './tutor/PracticeVoiceContext';
-import { AmbientVoicePill } from './tutor/AmbientVoicePill';
 
 interface TransactionLabArenaProps {
   initialScenarioId?: string;
@@ -299,7 +298,6 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         onClose={() => setIsWhiteboardOpen(false)}
         state={activeWhiteboardState}
       />
-      <AmbientVoicePill />
     </div>
   );
 };

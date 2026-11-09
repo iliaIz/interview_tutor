@@ -12,7 +12,6 @@ import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { PracticeCompassSheet } from './compass/PracticeCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { PracticeVoiceProvider, usePracticeVoice } from './tutor/PracticeVoiceContext';
-import { AmbientVoicePill } from './tutor/AmbientVoicePill';
 import { StudioErrorBoundary } from '../StudioErrorBoundary';
 
 import { VoiceModal } from '../VoiceModal';
@@ -256,9 +255,6 @@ const PracticeArenaWorkspace: React.FC<{ activePracticeChallenge: CodingChalleng
         onClose={() => setIsWhiteboardOpen(false)}
         state={activeWhiteboardState}
       />
-
-      {/* Floating Ambient Voice Pill (when drawer is closed) */}
-      <AmbientVoicePill />
     </div>
   );
 };

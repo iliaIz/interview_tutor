@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Wrench, Layers, Radio, ArrowLeft, ShieldCheck, 
-  Sparkles, Award, Cpu, BookOpen, ChevronRight 
+  Sparkles, Award, Cpu, BookOpen, ChevronRight, Bot
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { normalizeSystemDesignContext } from '@interview-prep/shared';
 import { ForensicCodeEditor } from './studio_1_runtime/ForensicCodeEditor';
 import { HikariPoolVisualizer } from './studio_1_runtime/HikariPoolVisualizer';
 import { VirtualThreadPinningLab } from './studio_1_runtime/VirtualThreadPinningLab';
@@ -47,6 +49,40 @@ export const MultiScaleCanvasHub: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [activeTriStudioMode]);
+
+  // Dynamic Omnipresent Copilot Context Streaming (SPEC-13 §4.2.1)
+  useEffect(() => {
+    if (!scenario) return;
+
+    const payload = normalizeSystemDesignContext({
+      scenarioId: scenario.canonical_id || scenario.id,
+      scenarioTitle: scenario.title,
+      targetLevel: scenario.target_level,
+      activeStudioTab: activeTriStudioMode === 'runtime' ? 'runtime' : activeTriStudioMode === 'topology' ? 'topology' : 'defense',
+      activeCodeSnippet: runtimeSpec?.source_files?.[0]?.content,
+      activeFilePath: runtimeSpec?.source_files?.[0]?.path,
+      fadedBug: runtimeSpec?.faded_bug ? {
+        lineNumber: runtimeSpec.faded_bug.line_number,
+        description: runtimeSpec.faded_bug.description,
+        bugPattern: runtimeSpec.faded_bug.bug_pattern
+      } : undefined,
+      topologySummary: scenario.studio_2_simulation?.topology?.nodes
+        ? scenario.studio_2_simulation.topology.nodes.map(n => n.title || n.id).join(' -> ')
+        : undefined,
+      companyContextName: 'Raiffeisen DGTL Product Engineer'
+    });
+
+    usePracticeTutorStore.getState().setActiveContext(payload);
+  }, [scenario, activeTriStudioMode, studio1SubTab, runtimeSpec]);
+
+  useEffect(() => {
+    return () => {
+      const store = usePracticeTutorStore.getState();
+      if (store.activeContext?.arena === 'system_design') {
+        store.setActiveContext(null);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] w-full bg-slate-950 text-slate-100 relative overflow-hidden font-sans select-none">
@@ -119,6 +155,18 @@ export const MultiScaleCanvasHub: React.FC = () => {
             <Radio className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
             <span className="hidden sm:inline">Студия 3: Defense</span>
             <span className="sm:hidden">Defense</span>
+          </button>
+        </div>
+
+        {/* Right: Omnipresent AI-Copilot Trigger */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => usePracticeTutorStore.getState().toggleOpen()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-pastel-accentRose/20 hover:bg-pastel-accentRose/30 text-rose-200 border border-pastel-accentRose/40 transition cursor-pointer shadow-sm active:scale-95"
+            title="Открыть AI-Напарника (Текст / Голос Gemini Live)"
+          >
+            <Bot className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">AI-Напарник</span>
           </button>
         </div>
       </header>
