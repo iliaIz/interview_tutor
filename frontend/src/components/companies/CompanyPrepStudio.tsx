@@ -306,10 +306,7 @@ export const CompanyPrepStudio: React.FC = () => {
       )}
 
       {activeSubTab === 'dossier' && (
-        <CompanyDossierTab
-          culture={profile.culture}
-          companyName={profile.name}
-        />
+        <CompanyDossierTab culture={profile.culture} companyName={profile.name} profile={profile} />
       )}
 
       {activeSubTab === 'runbook' && (

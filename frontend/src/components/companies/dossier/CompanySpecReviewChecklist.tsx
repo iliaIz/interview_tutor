@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SpecReviewItem } from '@interview-prep/shared';
 import {
   ClipboardCheck,
   ShieldCheck,
@@ -8,84 +9,22 @@ import {
   Sparkles
 } from 'lucide-react';
 
-interface SpecReviewItem {
-  id: number;
-  title: string;
-  tag: string;
-  question: string;
-  deliverable: string;
-  dangerIfMissing: string;
+interface CompanySpecReviewChecklistProps {
+  items?: SpecReviewItem[];
 }
 
-const SPEC_ITEMS: SpecReviewItem[] = [
-  {
-    id: 1,
-    title: 'Проблема пользователя & Value (Problem Statement)',
-    tag: 'Discovery',
-    question: 'Какую реальную боль клиента или финансовую метрику (Pain Index, конверсия) мы улучшаем? Не путаем ли мы решение (X) с исходной проблемой (Y)?',
-    deliverable: '1 абзац на понятном бизнесу языке + целевая продуктовая метрика с ожидаемым % прироста.',
-    dangerIfMissing: 'Разработка никому не нужного сложного бэкенда («быстрый ватерфолл»).'
-  },
-  {
-    id: 2,
-    title: 'Границы скоупа & Non-Goals',
-    tag: 'Скоуп',
-    question: 'Что мы сознательно исключаем из текущей итерации, чтобы сократить TTM (Time to Market)?',
-    deliverable: 'Список Non-Goals: «В v1 НЕ поддерживаем мультивалютность и пакетные выгрузки».',
-    dangerIfMissing: 'Бесконечный спринт и размывание ответственности микроюнита.'
-  },
-  {
-    id: 3,
-    title: 'Владельцы систем & Контракты API',
-    tag: 'Интеграции',
-    question: 'С какими смежными командами взаимодействуем? Согласованы ли контракты (OpenAPI/AsyncAPI) и SLA смежников?',
-    deliverable: 'Спецификация OpenAPI с примерами запросов/ответов, подтвержденная владельцами систем.',
-    dangerIfMissing: 'Блокировка релиза за день до выкатки из-за несовместимости схемы.'
-  },
-  {
-    id: 4,
-    title: 'Безопасность, 152-ФЗ & Банковская тайна (Shift-Left)',
-    tag: 'Комплаенс',
-    question: 'Согласованы ли права на чтение ПДн и банковской тайны (ст. 26 395-1 ФЗ) со службой ИБ ДО написания кода?',
-    deliverable: 'Карточка оценки рисков ИБ + архитектурный паттерн (токенизация, маскирование логов, mTLS).',
-    dangerIfMissing: 'Запрет вывода сервиса в продакшен службой безопасности после месяца разработки.'
-  },
-  {
-    id: 5,
-    title: 'Инварианты данных & Транзакционные правила',
-    tag: 'Архитектура',
-    question: 'Исключены ли типы с плавающей точкой (double/float) для денег? Как гарантируется идемпотентность и исключаются дедлоки?',
-    deliverable: 'DDL-схема, тип BigDecimal(scale=2), Idempotency-Key, сортировка ID (min -> max) при блокировках.',
-    dangerIfMissing: 'Финансовые расхождения в копейках, фантомные списания и дедлоки под нагрузкой.'
-  },
-  {
-    id: 6,
-    title: 'Пирамида тестирования & Интеграции',
-    tag: 'Качество',
-    question: 'Как проверяется поведение на реальной СУБД? Исключены ли моки базы данных?',
-    deliverable: 'Набор компонентных тестов Spring Boot + Testcontainers (Postgres), тест эмуляции сбоев сети.',
-    dangerIfMissing: 'Ложное чувство безопасности от 100% покрытия моками и падение на реальных SQL-запросах.'
-  },
-  {
-    id: 7,
-    title: 'Эксплуатация, Телеметрия & SLO',
-    tag: 'Наблюдаемость',
-    question: 'Как дежурный инженер в 3 часа ночи поймет, что сервис деградирует? Какие алерты настроены?',
-    deliverable: 'Prometheus-метрики (p99 latency, rate ошибок), Grafana-дашборд и Runbook траблшутинга.',
-    dangerIfMissing: 'Узнавание об аварии от разгневанных клиентов и техподдержки.'
-  },
-  {
-    id: 8,
-    title: 'План отката (Rollback) & Миграция БД',
-    tag: 'Релиз',
-    question: 'Как безопасно откатить сервис при аварии без повреждения базы данных?',
-    deliverable: 'Паттерн Expand/Contract (двухфазные миграции Liquibase/Flyway) + feature flag отключения.',
-    dangerIfMissing: 'Невозможность отката новой версии из-за несовместимости схемы базы данных.'
-  }
-];
-
-export const CompanySpecReviewChecklist: React.FC = () => {
+export const CompanySpecReviewChecklist: React.FC<CompanySpecReviewChecklistProps> = ({
+  items = []
+}) => {
   const [checkedIds, setCheckedIds] = useState<number[]>([1, 2, 5]);
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center text-xs text-slate-500">
+        Чеклист защиты архитектурного решения для данной компании формируется.
+      </div>
+    );
+  }
 
   const toggleCheck = (id: number) => {
     setCheckedIds((prev) =>
@@ -93,10 +32,10 @@ export const CompanySpecReviewChecklist: React.FC = () => {
     );
   };
 
-  const checkAll = () => setCheckedIds(SPEC_ITEMS.map((item) => item.id));
+  const checkAll = () => setCheckedIds(items.map((item) => item.id));
   const resetAll = () => setCheckedIds([]);
 
-  const progressPercent = Math.round((checkedIds.length / SPEC_ITEMS.length) * 100);
+  const progressPercent = Math.round((checkedIds.length / items.length) * 100);
 
   return (
     <div className="space-y-4">
@@ -109,7 +48,7 @@ export const CompanySpecReviewChecklist: React.FC = () => {
             </div>
             <div>
               <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
-                8-Point Spec Review Checklist
+                {items.length}-Point Spec Review Checklist
               </h4>
               <p className="text-xs text-slate-700">
                 Чеклист защиты архитектурного решения перед командой и Bar-Raiser до написания кода
@@ -120,14 +59,14 @@ export const CompanySpecReviewChecklist: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
             <button
               onClick={resetAll}
-              className="px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+              className="px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
               Сброс
             </button>
             <button
               onClick={checkAll}
-              className="px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-800 flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/60 transition-colors"
+              className="px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-800 flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/60 transition-colors cursor-pointer"
             >
               <CheckCircle2 className="w-3 h-3" />
               Отметить все
@@ -140,7 +79,7 @@ export const CompanySpecReviewChecklist: React.FC = () => {
           <div className="flex items-center justify-between text-xs font-mono">
             <span className="text-slate-700 font-bold">Готовность спецификации к защите:</span>
             <span className="font-extrabold text-indigo-700">
-              {checkedIds.length} из {SPEC_ITEMS.length} ({progressPercent}%)
+              {checkedIds.length} из {items.length} ({progressPercent}%)
             </span>
           </div>
           <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -160,7 +99,7 @@ export const CompanySpecReviewChecklist: React.FC = () => {
 
       {/* Checklist Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {SPEC_ITEMS.map((item) => {
+        {items.map((item) => {
           const isChecked = checkedIds.includes(item.id);
 
           return (
