@@ -67,7 +67,7 @@ export const MultiScaleCanvasHub: React.FC = () => {
         bugPattern: runtimeSpec.faded_bug.bug_pattern
       } : undefined,
       topologySummary: scenario.studio_2_simulation?.topology?.nodes
-        ? scenario.studio_2_simulation.topology.nodes.map(n => n.title || n.id).join(' -> ')
+        ? scenario.studio_2_simulation.topology.nodes.map((n: { title?: string; id?: string }) => n.title || n.id || '').join(' -> ')
         : undefined,
       companyContextName: 'Raiffeisen DGTL Product Engineer'
     });
