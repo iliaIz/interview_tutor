@@ -21,12 +21,10 @@ import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
 import { dispatchDomainEvents } from './liveVoiceDomainEvents';
 import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
+import { LiveHeartbeatController } from './LiveHeartbeatController';
 import {
-  VoiceEngineState,
-  VoiceEngineConfig,
-  VoiceEngineCallbacks,
-  DialogueTurnItem,
-  ILiveVoiceEngine
+  VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
+  DialogueTurnItem, ILiveVoiceEngine, VoiceEvaluationResult
 } from './types';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
@@ -38,6 +36,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
   private micDispatcher = new LiveMicChunkDispatcher();
+  private heartbeat = new LiveHeartbeatController(() => this.ws);
 
   private isServerTurnComplete = false;
   private isAudioMutexLocked = false;
@@ -46,6 +45,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isSessionReady = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingEvaluation: VoiceEvaluationResult | null = null;
+  private hasPendingEvaluationDrain = false;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
@@ -81,6 +82,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.ws = ws;
 
       ws.onopen = () => {
+        this.heartbeat.start();
         this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
         sendLiveSessionInit(ws, config);
       };
@@ -88,6 +90,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       ws.onmessage = (event) => this.handleServerFrame(event.data);
       ws.onerror = (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err);
       ws.onclose = (event: CloseEvent) => {
+        this.heartbeat.stop();
         this.isSessionReady = false;
         if (this.getState() !== 'COMPLETED' && this.getState() !== 'IDLE') {
           this.fsm.transition({ type: 'DISCONNECT' });
@@ -105,6 +108,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   public disconnect(): void {
     this.wakeLock.release();
     this.clearClientSafetyTimer();
+    this.heartbeat.stop();
+    this.pendingEvaluation = null;
+    this.hasPendingEvaluationDrain = false;
     this.isSessionReady = false;
     this.isAudioMutexLocked = false;
 
@@ -225,6 +231,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
 
+    // Symmetrical Heartbeat Ping/Pong (Spec 16)
+    if (parsed.type === 'ping' || parsed.rawParsed?.type === 'ping') {
+      this.heartbeat.handleIncomingPing(parsed.rawParsed?.timestamp);
+      return;
+    }
+
     // 1. Tool Call Execution & Audio Mutex
     if (parsed.rawParsed?.type === 'tool_executing' || parsed.rawParsed?.toolCall || parsed.type === 'tool_call') {
       this.isAudioMutexLocked = true;
@@ -254,31 +266,38 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     if (parsed.evaluation) {
       this.clearClientSafetyTimer();
-      this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
-      this.callbacks.onEvaluationReceived?.(parsed.evaluation);
+      this.pendingEvaluation = parsed.evaluation;
+      if (!this.playoutManager.isPlaying() && this.isServerTurnComplete) {
+        this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
+        this.callbacks.onEvaluationReceived?.(parsed.evaluation);
+        this.pendingEvaluation = null;
+        this.hasPendingEvaluationDrain = false;
+      } else {
+        this.hasPendingEvaluationDrain = true;
+      }
       return;
     }
 
     dispatchDomainEvents(this.callbacks, parsed);
 
     // 2. Incoming Model Speech / Audio (SOTA Late 2026: Modality Separation)
-    if (parsed.hasAudio || parsed.hasText) {
-      this.isSessionReady = true;
-      this.isServerTurnComplete = false;
-      this.clearClientSafetyTimer();
-
+    if (parsed.hasText) {
       for (const textChunk of parsed.textDeltas) {
         this.currentAiTurnAccumulator += textChunk;
         this.callbacks.onTranscriptDelta?.('ai', textChunk);
         this.turnManager.updateLastAiTurn(this.currentAiTurnAccumulator);
       }
+    }
+
+    if ((parsed.hasAudio && parsed.audioChunks.length > 0) || parsed.hasModelTurn) {
+      this.isSessionReady = true;
+      this.isServerTurnComplete = false;
+      this.clearClientSafetyTimer();
 
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
-      if (parsed.hasAudio) {
-        for (const pcm of parsed.audioChunks) {
-          this.playoutManager.enqueuePcmChunk(pcm);
-        }
+      for (const pcm of parsed.audioChunks) {
+        this.playoutManager.enqueuePcmChunk(pcm);
       }
     }
 
@@ -298,6 +317,15 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.playoutManager.notifyTurnComplete();
       this.currentAiTurnAccumulator = '';
 
+      if (this.hasPendingEvaluationDrain && this.pendingEvaluation && !this.playoutManager.isPlaying()) {
+        const evaluation = this.pendingEvaluation;
+        this.pendingEvaluation = null;
+        this.hasPendingEvaluationDrain = false;
+        this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
+        this.callbacks.onEvaluationReceived?.(evaluation);
+        return;
+      }
+
       if (!this.playoutManager.isPlaying()) {
         this.unlockCandidateTurn();
       } else {
@@ -307,6 +335,14 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleAudioPlayoutFinished(): void {
+    if (this.hasPendingEvaluationDrain && this.pendingEvaluation) {
+      const evaluation = this.pendingEvaluation;
+      this.pendingEvaluation = null;
+      this.hasPendingEvaluationDrain = false;
+      this.fsm.transition({ type: 'EVALUATION_COMPLETED' });
+      this.callbacks.onEvaluationReceived?.(evaluation);
+      return;
+    }
     if (this.isServerTurnComplete) {
       this.unlockCandidateTurn();
     }

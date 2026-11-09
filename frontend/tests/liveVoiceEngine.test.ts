@@ -393,7 +393,9 @@ async function runLiveVoiceEngineTests() {
   engine5.disconnect();
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }
-runLiveVoiceEngineTests().catch((err) => {
-  console.error('❌ Contract Test Failed:', err);
-  process.exit(1);
-});
+runLiveVoiceEngineTests()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('❌ Contract Test Failed:', err);
+    process.exit(1);
+  });

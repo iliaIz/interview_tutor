@@ -26,7 +26,7 @@ export const VoiceSubtitles: React.FC<VoiceSubtitlesProps> = ({
   }, [turns, statusMessage]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-[160px] bg-slate-50/60 rounded-2xl border border-slate-200/80 p-4 overflow-hidden backdrop-blur-sm">
+    <div className="flex flex-col flex-1 min-h-[120px] max-h-[220px] sm:max-h-[280px] bg-slate-50/60 rounded-2xl border border-slate-200/80 p-3 sm:p-4 overflow-hidden backdrop-blur-sm">
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto space-y-3 pr-2 scroll-smooth"

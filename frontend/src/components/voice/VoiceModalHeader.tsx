@@ -36,7 +36,7 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
     <div className="flex items-center justify-between gap-3 pb-3 border-b border-rose-100/60 shrink-0">
       <div className="flex-1 min-w-0 flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping shrink-0" />
-        <h2 className="font-bold text-slate-800 text-sm sm:text-base tracking-tight truncate" title={activeTopic}>
+        <h2 className="font-bold text-slate-800 text-sm sm:text-base tracking-tight truncate max-w-[160px] sm:max-w-[280px] md:max-w-[380px]" title={activeTopic}>
           {activeTopic}
         </h2>
         {isBatchMode && (
@@ -78,9 +78,9 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
         <button
           onClick={onClose}
           aria-label="Закрыть окно диалога"
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-slate-700 bg-white/95 border border-slate-200/90 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 shadow-xs transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 stroke-[2.2]" />
         </button>
       </div>
     </div>

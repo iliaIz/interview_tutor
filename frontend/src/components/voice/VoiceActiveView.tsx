@@ -57,14 +57,14 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
   onSendText
 }) => {
   return (
-    <div className="flex flex-col flex-1 min-h-0 py-2">
-      <p className="text-xs sm:text-sm text-slate-600 font-medium mb-2 line-clamp-2 px-1">
+    <div className="flex flex-col flex-1 min-h-0 py-1 overflow-hidden">
+      <p className="text-xs sm:text-sm text-slate-600 font-medium mb-2 line-clamp-2 px-1 shrink-0">
         {activeQuestionText}
       </p>
 
       {/* Dual-Sided Handshake Evaluation Drain Notice */}
       {isPendingEvaluation && (
-        <div className="flex items-center justify-center gap-2 py-1.5 px-3 mb-2 rounded-xl bg-purple-100/90 text-purple-900 text-xs font-semibold animate-pulse shadow-xs">
+        <div className="shrink-0 flex items-center justify-center gap-2 py-1.5 px-3 mb-2 rounded-xl bg-purple-100/90 text-purple-900 text-xs font-semibold animate-pulse shadow-xs">
           <Sparkles className="w-4 h-4 text-purple-600 animate-spin" />
           <span>🎙️ ИИ подводит итоги ответа... Дослушайте вердикт</span>
         </div>
@@ -72,7 +72,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
 
       {/* Socratic Tutor Toolbar */}
       {initialSessionType === 'tutor' && (
-        <div className="flex items-center justify-between gap-2 py-1.5 px-3 mb-2 rounded-xl bg-rose-50/80 border border-rose-100/80 text-rose-800 text-xs shadow-xs">
+        <div className="shrink-0 flex items-center justify-between gap-2 py-1.5 px-3 mb-2 rounded-xl bg-rose-50/80 border border-rose-100/80 text-rose-800 text-xs shadow-xs">
           <div className="flex items-center gap-1.5 font-medium">
             <Sparkles className="w-3.5 h-3.5 text-rose-500" />
             <span className="hidden sm:inline">Сократовский тьютор</span>
@@ -100,26 +100,32 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
         </div>
       )}
 
-      <VoiceVisualizer
-        rmsDb={rmsDb}
-        isActive={state === 'AI_SPEAKING' || state === 'LISTENING'}
-        color={state === 'AI_SPEAKING' ? 'rose' : 'emerald'}
-      />
+      <div className="shrink-0">
+        <VoiceVisualizer
+          rmsDb={rmsDb}
+          isActive={state === 'AI_SPEAKING' || state === 'LISTENING'}
+          color={state === 'AI_SPEAKING' ? 'rose' : 'emerald'}
+        />
+      </div>
 
-      <VoiceSubtitles turns={dialogueTurns} statusMessage={statusMessage} />
+      <div className="flex-1 min-h-0 my-1 overflow-hidden flex flex-col">
+        <VoiceSubtitles turns={dialogueTurns} statusMessage={statusMessage} />
+      </div>
 
-      <VoiceMicButton
-        state={state}
-        isMuted={isMuted}
-        rmsDb={rmsDb}
-        isDraining={isDraining}
-        isTransientFiltered={isTransientFiltered}
-        onClick={onCentralButtonClick}
-        onToggleMute={onToggleMute}
-      />
+      <div className="shrink-0">
+        <VoiceMicButton
+          state={state}
+          isMuted={isMuted}
+          rmsDb={rmsDb}
+          isDraining={isDraining}
+          isTransientFiltered={isTransientFiltered}
+          onClick={onCentralButtonClick}
+          onToggleMute={onToggleMute}
+        />
+      </div>
 
       {/* Candidate Text Fallback */}
-      <form onSubmit={onSendText} className="flex gap-2 pt-2 border-t border-slate-100">
+      <form onSubmit={onSendText} className="shrink-0 flex gap-2 pt-2 border-t border-slate-100">
         <input
           type="text"
           value={textInput}
