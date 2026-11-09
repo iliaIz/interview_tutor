@@ -44,11 +44,15 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
 - **Invariants**: Must reward language-native primitives (lambdas, records, pattern matching) over multi-class GoF hierarchies when functional requirements do not justify polymorphism.
 
 ### Live Session & Transport
+- **Fast-Handoff VAD:** A hybrid speech boundary signaling mechanism (`{ realtimeInput: { audioStreamEnd: true } }`) dispatched upon candidate speech cessation to eliminate Gemini Live silence accumulation stalls without corrupting WebSocket frames.
 - **LiveSessionAggregate:** An encapsulated domain entity managing the lifecycle of a real-time multimodal session (watchdog timers, upstream Gemini WebSocket, downstream client WebSocket, state machine).
 - **Anemic Data Bag:** An anti-pattern where an object exposes 50+ mutable public fields without encapsulation or invariant protection (e.g., legacy `ProxySession`).
 - **Turn 0 Lockdown:** Architectural invariant preventing AI evaluators from submitting grading verdicts before the candidate has spoken during the greeting phase.
 
 ### Company Preparation & Relational Data Engines
+- **Arena Pre-Hydration Envelope:** A typed normalization layer in `arenaNavigator.ts` unwrapping backend manifest envelopes (`{ challenge, savedDraft }`) before passing them to arena stores, preventing blank workspaces.
+- **Curated Company Practice Track:** A company-specific view in the Practice Catalog filtering challenges by hiring pipeline relevance (`raiffeisen_code_review`, `machine_coding`).
+- **Omnipresent Arena Copilot Provider:** Root-level lifecycle encapsulation (`PracticeVoiceProvider` at application root) guaranteeing zero "Voice Temporarily Unavailable" crashes across all six pipeline stages.
 - **Curated Company Pipeline:** A company-specific Directed Acyclic Graph (DAG) projection over canonical assessment entities (Questions, Katas, Bug Hunts, System Design, Voice Mock) mapping directly to the company's hiring pipeline stages.
 - **PGlite WASM SQL Sandbox:** An in-browser WebAssembly instance of PostgreSQL 16 (`@electric-sql/pglite`) executing SQL challenges client-side with 0 MB server RAM overhead and 100% PostgreSQL SQL dialect fidelity.
 - **Company Readiness Index (CRI):** A telemetry-backed weighted score ($CRI \in [0\%, 100\%]$) computing candidate readiness for a specific employer's technical bar across cultural fit, live coding, code review, SQL, and system design.
