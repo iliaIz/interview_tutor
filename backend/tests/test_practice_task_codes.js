@@ -23,7 +23,7 @@ assert.strictEqual(lldCount, 83, 'Expected 83 challenges with LLD-xx codes (57 M
 
 const refCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE category = 'refactoring_kata'").get().count;
 console.log(`Refactoring Katas: ${refCount}`);
-assert.strictEqual(refCount, 26, 'Expected 26 Refactoring Katas');
+assert.strictEqual(refCount, 28, 'Expected 28 Refactoring Katas');
 
 // 3. Check difficulties normalization
 const diffs = db.prepare('SELECT DISTINCT difficulty FROM coding_challenges ORDER BY difficulty').all().map(r => r.difficulty);
