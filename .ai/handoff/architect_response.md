@@ -1,8 +1,8 @@
-# Архитектурная реорганизация движка инструментов Gemini Live
+# Архитектурная спецификация SPEC\-12 Company Prep Studio
 
-**Date**: November 1, 2026 at 02:33 AM
+**Date**: November 9, 2026 at 09:40 AM
 **Turns**: 1
-**Source**: [Gemini Chat](https://gemini.google.com/app/e7c66f73a896c55b)
+**Source**: [Gemini Chat](https://gemini.google.com/app/43bf9447347cdf7a)
 
 ---
 
@@ -10,1472 +10,824 @@
 
 ### 🤖 ИИ Ассистент
 
-# Архитектурная спецификация: Унификация пайплайна инструментов Gemini Live (`LiveToolEngine` & `workspaceManifestStore`)
+# ARCHITECTURAL SPECIFICATION: SPEC-12 — Company Prep Studio Deepening & ArenaNavigator Seam Architecture
 
 ## 1. Root Cause & Architecture Decision
 
-### Фундаментальная причина проблемы (Root Cause)
-Текущая реализация обработки вызовов инструментов (`toolCall.functionCalls`) страдает от антипаттерна **Shallow Pass-Through Module Chain** в сочетании с **Protocol Leakage**:
+### 1.1. Диагностика первопричин (Root Causes)
 
-1. **Размытая ответственность слоев:** Вызов инструмента проходит через цепочку `liveAudioStreamRouter` → `LiveToolCallExecutor` → `liveToolDispatcher` → `live*ToolDispatcher`. При этом ни один из промежуточных слоев не инкапсулирует сериализацию протокола Gemini Live Bidi.
-2. **Утечка сокетного транспорта в доменную логику:** Каждый из 5 файлов диспетчеров принимает сырые экземпляры `WebSocket` (`geminiSocket`, `clientSocket`) и вручную конструирует JSON-ответы `toolResponse.functionResponses`. Это привело к расхождению схем:
-  - `liveRefactoringToolDispatcher.ts` пропускает обязательное поле `name`, использует нестандартный ключ `response.output` вместо `response.result`, не задает `scheduling` и отправляет фрейм без проверки `geminiSocket.readyState === WebSocket.OPEN`, что вызывает разрыв апстрим-соединения Gemini Live с кодами `1008` (Policy Violation) и `1011` (Internal Error).
-  - `read_file` дублирует полезную нагрузку одновременно в `response.output` и `response.result`.
-3. **Фрагментация инвариантов безопасности и идемпотентности:**
-  - **Инвариант 2.1 (Turn 0 Tool Lockdown)** продублирован вручную в `liveEvaluationToolDispatcher.ts` и `liveSystemDesignToolDispatcher.ts` (причем в обоих случаях в ответе об ошибке пропущено поле `name` и `scheduling`), но полностью забыт в `liveHrToolDispatcher.ts` (`submit_hr_evaluation`, `emit_hr_round_evaluation`).
-  - **Окно идемпотентности (Deduplication Window)** захардкожено условным оператором `if (call.name === 'update_whiteboard')` внутри `LiveToolCallExecutor.ts`.
-4. **Нарушение связности (Low Cohesion) в `liveToolDispatcher.ts`:** Модуль диспетчеризации инструментов хранит функции управления состоянием файлов рабочей области (`matchWorkspaceFilePath`, `applyWorkspaceFileUpdate`, `mergeWorkspaceManifests`), заставляя транспортные обработчики клиентских фреймов (`liveWsClientFrameHandler.ts`, `liveWsChallengeResolver.ts`) зависеть от диспетчера инструментов.
+1. **Anemic Domain Schema & UI-Embedded Knowledge Fracture:** Схема `CompanyProfileSchema` в `shared/src/schemas/companyProfile.ts` описывает только поверхностные метаданные (`culture`, `expressRunbook`, `stages`). В результате более 920 строк структурированных доменных знаний (матрица компетенций Product Engineer, чеклист Spec Review, сценарии STAR с весами/ловушками, тренажер Talent Q и форензика PR-кейсов Take-Home) оказались зашиты в виде локальных констант внутри TSX-компонентов (`CompanyCompetenciesRadar.tsx`, `CompanySpecReviewChecklist.tsx`, `CompanyStarScenarios.tsx`, `CompanyTalentQGuide.tsx`, `CompanyTakeHomeLab.tsx`). Это лишает бэкенд и AI-копилота доступа к доменному контексту и блокирует масштабирование платформы на новые компании.
+2. **Severed Cross-Arena Navigation Seam:** В `CompanyPrepStudio.tsx` диспетчеризация этапов (`handleLaunchStage`) и задач ранбука (`handleNavigateToTask`) переключает глобальную вкладку (`setStudioTab('practice' | 'incidents' | 'system_design')`), но теряет `targetEntityId` для всех арен, кроме `sql_arena`. Дополнительно `handleNavigateToTask` опирается на хрупкую эвристику строковых префиксов (`startsWith('sql-')`, `startsWith('case_')`), нарушая инвариант детерминированной маршрутизации.
+3. **Copilot Core Domain Leakage:** В универсальный нормализатор `shared/src/schemas/tutorNormalizer.ts` (`normalizeCompanyContext`) и промпт-билдер `backend/src/prompts/tutor/polymorphicPromptBuilder.ts` жестко зашиты артефакты Райффайзена (`cib-interns-test-task`, «Склад носков», `TransferService`, метрики TTM/Pain Index). При открытии профиля любой другой компании AI-интервьюер галлюцинирует банковским контекстом Райффайзена.
+4. **Take-Home Minigame Isolation:**`CompanyTakeHomeLab.tsx` хранит массив `PR_CASES` непосредственно внутри UI-компонента, смешивая каталог данных, бизнес-логику проверки вердиктов и представление (325 строк на грани лимита Rule 8).
 
-### Архитектурное решение
+### 1.2. Архитектурное решение (Target Architecture)
 
-1. **Глубокий модуль `LiveToolEngine` (`backend/src/services/live/LiveToolEngine.ts`):** Заменяет связку `LiveToolCallExecutor` + `liveToolDispatcher`. Движок полностью берет на себя:
-  - Управление жизненным циклом выполнения (`session.isToolCallPending`, `toolCallSafetyTimeout`, сброс `nudgeWatchdog`, клиентские уведомления `tool_executing` / `tool_execution_complete`, обработка `toolCallCancellation`).
-  - Декларативную проверку инвариантов до вызова обработчика: **Turn 0 Lockdown** (`isGatedOnTurn0`) и **Idempotency Window** (`dedupWindowMs`).
-  - Единообразную сериализацию ответа в канонический формат Gemini Live Bidi (`id`, `name`, `response: { result }` или `response: { error }`, `scheduling: 'WHEN_IDLE' | 'SILENT'`) и отправку клиентских событий в `clientSocket`.
-2. **Чистый шов обработчиков (`Pure Tool Handlers`):** Обработчики инструментов не имеют доступа к `WebSocket` и не импортируют пакет `ws`. Их контракт чист: `(args, ctx) => Promise<ToolExecutionResult> | ToolExecutionResult`.
-3. **Изоляция манифеста рабочей области (`backend/src/services/live/workspaceManifestStore.ts`):** Все операции сопоставления путей, обновления файлов в памяти сессии и слияния манифестов выносятся в независимый модуль без зависимостей от сокетов, БД или инструментов.
+1. **SSOT Domain Schema Deepening (#55):** Расширение `CompanyProfileSchema` в `@interview-prep/shared` полными контрактами `CompanyDossierSchema` (компетенции, Spec Review, STAR-сценарии, Talent Q), `CompanyTakeHomeLabSchema` (форензика PR-диффов и антипаттернов), `ExpressRunbookItemSchema` (типизированные ссылки `targetArena` + `targetEntityId` вместо сырых ID) и `customQuickActionChips`. Перенос всех данных Райффайзена в `json/company_profiles.json` с валидацией через TypeBox на уровне `backend/src/routes/companies.ts`.
+2. **Deterministic ArenaNavigator Seam (#56):** Введение единого контракта `ArenaLaunchIntent` (`targetArena`, `targetEntityId`, `companyId`, `stageId`) в `useAppStore.ts` и чистой функции/хука диспетчеризации, которая атомарно устанавливает как активную арену (`studioTab` / `activeSubTab`), так и целевой `entityId` в соответствующем слайсе стора без префиксного угадывания.
+3. **Props-Driven Dossier & Take-Home View Adapters (#57, #59):** Трансформация `CompanyCompetenciesRadar`, `CompanySpecReviewChecklist`, `CompanyStarScenarios`, `CompanyTalentQGuide` и `CompanyTakeHomeLab` в чистые презентационные адаптеры с полным сохранением интерактивности (ARIA, модальные окна, калькулятор Talent Q, выбор дефектов PR), получающие данные исключительно через пропсы из `CompanyProfile` без фантомных фолбэков.
+4. **Zero-Leakage Polymorphic Copilot (#58):** Очистка `tutorNormalizer.ts` и `polymorphicPromptBuilder.ts` от констант Райффайзена. Быстрые чипсы (`quickActionChips`), резюме Take-Home и фокус-метрики динамически синтезируются из переданного `CompanyProfile`.
 
-## 2. Assumptions & Blind Spots (Чек-лист верификации перед стартом)
-Перед внесением изменений CLI-агент обязан проверить следующие допущения в локальной файловой системе:
+## 2. Assumptions & Blind Spots (Обязательный Pre-Flight Audit для CLI-агента)
+Перед внесением изменений CLI-агент **обязан** выполнить локальную ревизию следующих файлов (чтение через `cat`/`sed`/`rg`, **без** запуска сборки):
 
-1. **Точки импорта в `liveWsChallengeResolver.ts` и `geminiLiveProxy.ts`:**
-  - В промпте отсутствуют полные тела `backend/src/services/live/liveWsChallengeResolver.ts` и `backend/src/services/geminiLiveProxy.ts`.
-  - *Действие:* Выполнить `grep -rn "liveToolDispatcher\|LiveToolCallExecutor\|liveRefactoringToolDispatcher" backend/src/` и убедиться, что все реэкспорты и импорты учтены.
-2. **Существующие unit/integration тесты:**
-  - В `backend/src/` или `backend/tests/` могут находиться тесты, импортирующие `LiveToolCallExecutor`, `handleLiveToolCall` или функции манифеста из `./liveToolDispatcher`.
-  - *Действие:* Найти такие тесты через `grep -rn "liveToolDispatcher\|LiveToolCallExecutor" backend/` и обновить пути импорта на `LiveToolEngine` и `workspaceManifestStore`.
-3. **Схемы деклараций инструментов (`liveToolDeclarations.ts`):**
-  - Предполагается, что `liveToolDeclarations.ts` (366 строк) содержит только JSON-схемы для Gemini setup-сообщения и не импортирует диспетчеры.
-  - *Действие:* Проверить импорты в `backend/src/services/live/liveToolDeclarations.ts`.
+1. **`frontend/src/store/useAppStore.ts`:**
+  - **Допущение:** Стор управляет `studioTab`, `targetSqlChallengeId` и (возможно) активными ID задач для арен `practice`, `incidents`, `system_design`, либо соответствующие сеттеры находятся в `useAppStore` / `usePracticeTutorStore`.
+  - **Действие агента:** Прочитать `frontend/src/store/useAppStore.ts` и `frontend/src/store/usePracticeTutorStore.ts`. Выявить точные имена полей для выбора активной задачи в `practice` (например, `activeProblemId` / `selectedTaskId`), `incidents` (`activeIncidentId` / `selectedCaseId`) и `system_design` (`activeScenarioId` / `selectedSystemDesignId`). Если в `useAppStore` отсутствуют целевые указатели для кросс-аренного перехода, добавить типизированные поля `targetPracticeTaskId`, `targetIncidentId`, `targetSystemDesignId` (или единый `pendingArenaIntent: ArenaLaunchIntent | null`).
+2. **`shared/src/schemas/tutorContext.ts` и `shared/src/index.ts`:**
+  - **Допущение:** `TutorActiveContext` содержит поле `companyContext`, а `shared/src/index.ts` реэкспортирует схемы из `shared/src/schemas/companyProfile.ts`.
+  - **Действие агента:** Проверить точное определение `TutorActiveContext` в `shared/src/schemas/tutorContext.ts` и экспорты в `shared/src/index.ts`, чтобы новые типы (`CompanyDossier`, `CompanyTakeHomeLabConfig`, `ArenaLaunchIntent` и др.) корректно экспортировались из пакета `@interview-prep/shared`.
+3. **Файлы досье и лаборатории (`frontend/src/components/companies/dossier/*.tsx`, `CompanyDossierTab.tsx`, `CompanyTakeHomeLab.tsx`, `CompanyRunbookTab.tsx`):**
+  - **Допущение:** Внутри 4 файлов `dossier/*.tsx` и `CompanyTakeHomeLab.tsx` находятся захардкоженные массивы данных Райффайзена, а также интерактивный стейт (калькулятор долей/процентов в `CompanyTalentQGuide.tsx`, чекбоксы в `CompanySpecReviewChecklist.tsx`, раскрытие карточек/модалок в `CompanyStarScenarios.tsx` и `CompanyCompetenciesRadar.tsx`, проверка PR в `CompanyTakeHomeLab.tsx`).
+  - **Действие агента:** Перед миграцией (#55, #57, #59) извлечь **100% текста и чисел** из этих 5 файлов дословно в `json/company_profiles.json`, чтобы не потерять ни одного сценария, вопроса или PR-кейса.
+4. **`backend/src/prompts/tutor/polymorphicPromptBuilder.ts` и `backend/src/prompts/personas.ts`:**
+  - **Допущение:** Содержат строковые литералы Райффайзена (`TransferService`, `cib-interns-test-task`, `Склад носков`) и покрыты тестами `backend/tests/test_polymorphic_tutor_normalizers.js` и `backend/tests/test_polymorphic_prompt_builder.js`.
+  - **Действие агента:** Прочитать оба файла промптов и оба тестовых файла перед выполнением шага #58, чтобы синхронизировать ассерты в тестах с динамическим контрактом.
+5. **Спецификация `docs/architecture/specs/12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md`:**
+  - **Действие агента:** Сверить имена полей в `docs/architecture/specs/12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md` перед редактированием `companyProfile.ts`. При любых расхождениях в именах мелких свойств приоритет имеет существующий файл спецификации `SPEC-12` в репозитории.
 
 ## 3. Data Contracts & Interfaces
 
-### 3.1. Контракты движка инструментов (`backend/src/services/live/LiveToolEngine.ts`)
+### 3.1. Расширенная доменная схема (`shared/src/schemas/companyProfile.ts`)
+Схема декомпозируется на логические блоки (строго $\le 350$ строк в файле) с использованием `@sinclair/typebox`:
 
 ```typescript
-import { WebSocket } from 'ws';
-import { ProxySession } from './liveSessionTypes';
+import { Type, Static } from '@sinclair/typebox';
 
-export type ToolScheduling = 'WHEN_IDLE' | 'SILENT';
+export const StageFormatEnum = Type.Union([
+  Type.Literal('voice_fit'),
+  Type.Literal('live_coding'),
+  Type.Literal('code_review'),
+  Type.Literal('sql_arena'),
+  Type.Literal('system_design'),
+  Type.Literal('take_home')
+]);
+export type StageFormat = Static<typeof StageFormatEnum>;
 
-export interface GeminiFunctionCall {
-  id: string;
-  name: string;
-  args?: Record<string, any>;
-}
+export const TargetArenaEnum = Type.Union([
+  Type.Literal('practice'),
+  Type.Literal('incidents'),
+  Type.Literal('system_design'),
+  Type.Literal('sql_arena'),
+  Type.Literal('voice_modal'),
+  Type.Literal('take_home')
+]);
+export type TargetArena = Static<typeof TargetArenaEnum>;
 
-/**
- * Контекст, передаваемый в чистый обработчик инструмента.
- * Обработчик НЕ имеет доступа к WebSocket-инстансам.
- */
-export interface ToolExecutionContext {
-  callId: string;
-  toolName: string;
-  session: ProxySession;
-  parsedHints: string[];
-  liveCoaching: boolean;
-}
+export const ArenaLaunchIntentSchema = Type.Object({
+  targetArena: TargetArenaEnum,
+  targetEntityId: Type.String({ minLength: 1 }),
+  companyId: Type.Optional(Type.String()),
+  stageId: Type.Optional(Type.String())
+});
+export type ArenaLaunchIntent = Static<typeof ArenaLaunchIntentSchema>;
 
-/**
- * Произвольное событие для отправки в браузер кандидата через clientSocket.
- * Сохраняет 100% обратную совместимость как с событиями с полем `payload`,
- * так и с плоскими событиями (`smell_discovered`, `hiring_committee_verdict`, `evaluation_completed`).
- */
-export interface ClientWsEvent {
-  type: string;
-  payload?: any;
-  [key: string]: any;
-}
+export const CompanyPipelineStageSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  stageNumber: Type.Number({ minimum: 1 }),
+  title: Type.String({ minLength: 1 }),
+  format: StageFormatEnum,
+  estimatedMinutes: Type.Number({ minimum: 5 }),
+  description: Type.String({ minLength: 1 }),
+  targetArena: TargetArenaEnum,
+  targetEntityId: Type.String({ minLength: 1 }),
+  weight: Type.Number({ minimum: 0, maximum: 1 })
+});
+export type CompanyPipelineStage = Static<typeof CompanyPipelineStageSchema>;
 
-/**
- * Возвращаемое значение чистого обработчика инструмента.
- */
-export interface ToolExecutionResult {
-  result?: Record<string, any>;
-  error?: string;
-  clientEvent?: ClientWsEvent;
-  scheduling?: ToolScheduling;
-}
+export const CompanyCultureSchema = Type.Object({
+  engineeringParadigm: Type.String({ minLength: 1 }),
+  metricsFocus: Type.Array(Type.String(), { default: [] }),
+  redFlags: Type.Array(Type.String(), { default: [] }),
+  greenFlags: Type.Array(Type.String(), { default: [] })
+});
+export type CompanyCulture = Static<typeof CompanyCultureSchema>;
 
-export type PureToolHandler = (
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-) => Promise<ToolExecutionResult> | ToolExecutionResult;
+export const ExpressRunbookTaskLinkSchema = Type.Object({
+  taskId: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  targetArena: TargetArenaEnum,
+  badge: Type.Optional(Type.String())
+});
+export type ExpressRunbookTaskLink = Static<typeof ExpressRunbookTaskLinkSchema>;
 
-/**
- * Декларативное описание инструмента в реестре LiveToolEngine.
- */
-export interface LiveToolDefinition {
-  name: string;
-  handler: PureToolHandler;
-  scheduling: ToolScheduling;
-  /** Если true, вызов блокируется при !session.hasCandidateResponded (Invariant 2.1) */
-  isGatedOnTurn0?: boolean;
-  /** Кастомный текст ошибки для модели при нарушении Turn 0 Lockdown */
-  turn0ErrorMessage?: string;
-  /** Окно дедупликации идентичных вызовов (в мс) */
-  dedupWindowMs?: number;
-  /** Результат, возвращаемый модели при срабатывании дедупликации */
-  dedupResponseResult?: Record<string, any>;
-}
+export const ExpressRunbookSchema = Type.Object({
+  pitchScriptMarkdown: Type.String({ minLength: 1 }),
+  mustReviewTaskIds: Type.Array(Type.String(), { default: [] }),
+  mustReviewTasks: Type.Optional(Type.Array(ExpressRunbookTaskLinkSchema, { default: [] })),
+  checklist: Type.Array(Type.String(), { default: [] })
+});
+export type ExpressRunbook = Static<typeof ExpressRunbookSchema>;
 
-export interface ToolExecutorOptions {
-  functionCalls: GeminiFunctionCall[];
-  clientSocket: WebSocket;
-  geminiSocket: WebSocket;
-  session: ProxySession;
-  parsedHints: string[];
-  liveCoaching: boolean;
+// --- Dossier Sub-Schemas ---
+
+export const CompetencyItemSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  category: Type.String({ minLength: 1 }),
+  weight: Type.Number({ minimum: 0, maximum: 100 }),
+  expectation: Type.String({ minLength: 1 }),
+  seniorSignal: Type.String({ minLength: 1 }),
+  rejectionTrigger: Type.String({ minLength: 1 }),
+  verificationQuestions: Type.Optional(Type.Array(Type.String(), { default: [] }))
+});
+export type CompetencyItem = Static<typeof CompetencyItemSchema>;
+
+export const SpecReviewCheckItemSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  category: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  riskDescription: Type.String({ minLength: 1 }),
+  requiredAction: Type.String({ minLength: 1 }),
+  severity: Type.Union([
+    Type.Literal('blocker'),
+    Type.Literal('critical'),
+    Type.Literal('major')
+  ])
+});
+export type SpecReviewCheckItem = Static<typeof SpecReviewCheckItemSchema>;
+
+export const StarScenarioItemSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  competencyFocus: Type.String({ minLength: 1 }),
+  promptQuestion: Type.String({ minLength: 1 }),
+  situation: Type.String({ minLength: 1 }),
+  task: Type.String({ minLength: 1 }),
+  action: Type.String({ minLength: 1 }),
+  result: Type.String({ minLength: 1 }),
+  followUpTraps: Type.Array(Type.String(), { default: [] }),
+  metricsUsed: Type.Optional(Type.Array(Type.String(), { default: [] }))
+});
+export type StarScenarioItem = Static<typeof StarScenarioItemSchema>;
+
+export const TalentQRuleItemSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  formulaOrRule: Type.String({ minLength: 1 }),
+  trapWarning: Type.String({ minLength: 1 }),
+  exampleSnippet: Type.Optional(Type.String())
+});
+export type TalentQRuleItem = Static<typeof TalentQRuleItemSchema>;
+
+export const TalentQGuideSchema = Type.Object({
+  timePerQuestionSeconds: Type.Number({ minimum: 10 }),
+  totalQuestions: Type.Number({ minimum: 1 }),
+  passingPercentile: Type.Number({ minimum: 1, maximum: 100 }),
+  numericalRules: Type.Array(TalentQRuleItemSchema, { default: [] }),
+  verbalRules: Type.Array(TalentQRuleItemSchema, { default: [] }),
+  strategyTips: Type.Array(Type.String(), { default: [] })
+});
+export type TalentQGuide = Static<typeof TalentQGuideSchema>;
+
+export const CompanyDossierSchema = Type.Object({
+  competencies: Type.Array(CompetencyItemSchema, { default: [] }),
+  specReviewChecklist: Type.Array(SpecReviewCheckItemSchema, { default: [] }),
+  starScenarios: Type.Array(StarScenarioItemSchema, { default: [] }),
+  talentQGuide: Type.Optional(TalentQGuideSchema)
+});
+export type CompanyDossier = Static<typeof CompanyDossierSchema>;
+
+// --- Take-Home PR Forensics Sub-Schemas ---
+
+export const TakeHomePrCaseSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  authorPersona: Type.String({ minLength: 1 }),
+  summary: Type.String({ minLength: 1 }),
+  codeSnippet: Type.String({ minLength: 1 }),
+  expectedVerdict: Type.Union([
+    Type.Literal('reject'),
+    Type.Literal('request_changes'),
+    Type.Literal('approve')
+  ]),
+  defectOptions: Type.Array(
+    Type.Object({
+      id: Type.String({ minLength: 1 }),
+      label: Type.String({ minLength: 1 }),
+      isActualDefect: Type.Boolean(),
+      explanation: Type.String({ minLength: 1 })
+    }),
+    { minItems: 1 }
+  ),
+  architecturalFix: Type.String({ minLength: 1 })
+});
+export type TakeHomePrCase = Static<typeof TakeHomePrCaseSchema>;
+
+export const CompanyTakeHomeLabSchema = Type.Object({
+  taskId: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  repoSlug: Type.String({ minLength: 1 }),
+  briefMarkdown: Type.String({ minLength: 1 }),
+  antiPatternsSummary: Type.String({ minLength: 1 }),
+  goldenStandardChecklist: Type.Array(Type.String(), { default: [] }),
+  prCases: Type.Array(TakeHomePrCaseSchema, { default: [] })
+});
+export type CompanyTakeHomeLab = Static<typeof CompanyTakeHomeLabSchema>;
+
+export const CompanyQuickActionChipSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  label: Type.String({ minLength: 1 }),
+  promptMessage: Type.String({ minLength: 1 })
+});
+export type CompanyQuickActionChip = Static<typeof CompanyQuickActionChipSchema>;
+
+export const CompanyProfileSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  name: Type.String({ minLength: 1 }),
+  brandColor: Type.String({ default: '#FFE600' }),
+  logoBadge: Type.String({ default: '🏦' }),
+  tagline: Type.String({ minLength: 1 }),
+  culture: CompanyCultureSchema,
+  expressRunbook: ExpressRunbookSchema,
+  stages: Type.Array(CompanyPipelineStageSchema, { minItems: 1 }),
+  dossier: Type.Optional(CompanyDossierSchema),
+  takeHomeLab: Type.Optional(CompanyTakeHomeLabSchema),
+  quickActionChips: Type.Optional(Type.Array(CompanyQuickActionChipSchema, { default: [] }))
+});
+export type CompanyProfile = Static<typeof CompanyProfileSchema>;
+
+```
+
+### 3.2. Контракт `CompanyStudioSpokePayload` (`shared/src/schemas/tutorNormalizer.ts`)
+Универсальный контракт для нормализации контекста любой компании без захардкоженных строк Райффайзена:
+
+```typescript
+export interface CompanyStudioSpokePayload {
+  profile: {
+    id: string;
+    name: string;
+    tagline?: string;
+    culture?: {
+      engineeringParadigm?: string;
+      metricsFocus?: string[];
+      redFlags?: string[];
+      greenFlags?: string[];
+    };
+    takeHomeLab?: {
+      title: string;
+      repoSlug?: string;
+      antiPatternsSummary: string;
+    };
+    quickActionChips?: TutorQuickActionChip[];
+  };
+  activeStage?: {
+    id: string;
+    title: string;
+    description?: string;
+    format?: string;
+  };
+  activeCodeSnippet?: string;
+  activeTaskTitle?: string;
 }
 
 ```
 
-### 3.2. Расширение состояния сессии (`backend/src/services/live/liveSessionTypes.ts`)
-В интерфейс `ProxySession` добавляется типизированный кэш дедупликации (с сохранением `lastToolCallHash` и `lastToolCallTime` для обратной совместимости):
+### 3.3. Контракт диспетчера `ArenaNavigator` (`frontend/src/components/companies/arenaNavigator.ts`)
+Выделенный модуль для атомарной маршрутизации между `CompanyPrepStudio` и аренами платформы:
 
 ```typescript
-  lastToolCallHash?: string;
-  lastToolCallTime?: number;
-  toolDedupCache?: Record<string, { hash: string; timestamp: number }>;
+import { ArenaLaunchIntent, CompanyPipelineStage, CompanyProfile } from '@interview-prep/shared';
+
+export interface ArenaNavigationCallbacks {
+  setStudioTab: (tab: 'practice' | 'incidents' | 'system_design' | 'companies') => void;
+  setActiveSubTab: (subTab: 'pipeline' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home') => void;
+  setIsVoiceOpen: (open: boolean) => void;
+  setTargetSqlChallengeId: (id: string) => void;
+  setTargetPracticeTaskId: (id: string) => void;
+  setTargetIncidentId: (id: string) => void;
+  setTargetSystemDesignId: (id: string) => void;
+}
+
+export function executeArenaLaunchIntent(
+  intent: ArenaLaunchIntent,
+  callbacks: ArenaNavigationCallbacks
+): void;
+
+export function resolveRunbookTaskIntent(
+  taskId: string,
+  profile: CompanyProfile
+): ArenaLaunchIntent | null;
 
 ```
 
 ## 4. Atomic Execution Plan
-Выполняй шаги строго последовательно. После каждого шага проверяй лимит строк (`wc -l`) и на финальном шаге — полную компиляцию TypeScript.
 
-### Шаг 1: Предварительная разведка импортов
-**Действие:** Проверить все вхождения старых модулей в кодовой базе.**Команда верификации:**
+> **КРИТИЧЕСКИЙ ИНВАРИАНТ (INVARIANT 0):**
+> Локальный запуск компиляторов (`tsc`, `npm run build`, `vite build`) и тестовых раннеров (`npm test`, `node --test`) на VPS **СТРОГО ЗАПРЕЩЕН** из-за лимита 1.8 GB RAM.
+>
+> - На каждом шаге выполняются только легковесные команды проверки синтаксиса/размера (`wc -l`, `node -e "JSON.parse(...)"`, `rg`).
+> - Полная проверка типов и тестов запускается через `remote-verify` (GitHub Actions) в конце каждого логического узла Ticket DAG.
 
-```bash
-grep -rnE "liveToolDispatcher|LiveToolCallExecutor|liveRefactoringToolDispatcher|liveEvaluationToolDispatcher|liveHrToolDispatcher|liveSystemDesignToolDispatcher" backend/src/
+### УЗЕЛ 1: Sub-Issue #55 — `[Prefactor] Deepen CompanyProfileSchema & Ingest Rich Dossier Manifest into SSOT`
 
-```
+#### Шаг 1.1: Аудит существующих TSX-компонентов досье и спецификации SPEC-12
 
-### Шаг 2: Выделение доменного модуля манифеста рабочей области
-**Целевой файл:** `backend/src/services/live/workspaceManifestStore.ts`**Действие:** `CREATE` (~135 строк, лимит ≤ 350 строк)
+- **Целевые файлы (Read-Only):**
+  - `docs/architecture/specs/12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md`
+  - `frontend/src/components/companies/dossier/CompanyCompetenciesRadar.tsx`
+  - `frontend/src/components/companies/dossier/CompanySpecReviewChecklist.tsx`
+  - `frontend/src/components/companies/dossier/CompanyStarScenarios.tsx`
+  - `frontend/src/components/companies/dossier/CompanyTalentQGuide.tsx`
+  - `frontend/src/components/companies/CompanyTakeHomeLab.tsx`
+- **Действие:** Прочитать файлы, зафиксировать точные структуры локальных констант (`COMPETENCIES`, `SPEC_ITEMS`, `STAR_SCENARIOS`, `TALENT_Q_RULES`, `PR_CASES`), чтобы согласовать имена полей со схемой `shared/src/schemas/companyProfile.ts`.
 
-```typescript
-import { ProxySession } from './liveSessionTypes';
+#### Шаг 1.2: Расширение `shared/src/schemas/companyProfile.ts`
 
-/**
- * workspaceManifestStore.ts
- * Чистые функции управления состоянием файлов рабочей области в памяти сессии.
- * Не содержит зависимостей от WebSocket, БД или диспетчеров инструментов.
- */
+- **Целевой файл:** `shared/src/schemas/companyProfile.ts`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Добавить схемы `ArenaLaunchIntentSchema`, `ExpressRunbookTaskLinkSchema`, `CompetencyItemSchema`, `SpecReviewCheckItemSchema`, `StarScenarioItemSchema`, `TalentQRuleItemSchema`, `TalentQGuideSchema`, `CompanyDossierSchema`, `TakeHomePrCaseSchema`, `CompanyTakeHomeLabSchema`, `CompanyQuickActionChipSchema` согласно Разделу 3.1 (с учетом точных имен полей из `SPEC-12` и прочитанных в Шаге 1.1 компонентов).
+  2. Расширить `CompanyProfileSchema` полями `dossier`, `takeHomeLab`, `quickActionChips`.
+  3. Убедиться, что все новые типы и схемы реэкспортируются через `shared/src/index.ts`.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l shared/src/schemas/companyProfile.ts
+  # Должно быть <= 350 строк (Rule 8)
+  
+  ```
 
-export function matchWorkspaceFilePath(candidatePath: string | undefined, targetPath: string): boolean {
-  if (!candidatePath || !targetPath) return false;
-  const c = candidatePath.replace(/\\/g, '/').trim();
-  const t = targetPath.replace(/\\/g, '/').trim();
-  if (c === t) return true;
-  const cSimple = c.split('/').pop() || c;
-  const tSimple = t.split('/').pop() || t;
-  return cSimple === tSimple || c.endsWith(`/${tSimple}`) || t.endsWith(`/${cSimple}`);
-}
+#### Шаг 1.3: Миграция доменных знаний Райффайзена в `json/company_profiles.json`
 
-export function applyWorkspaceFileUpdate(session: ProxySession, rawPath: string, content: string): void {
-  const trimmedPath = (rawPath || '').trim();
-  if (!trimmedPath || typeof content !== 'string') return;
+- **Целевой файл:** `json/company_profiles.json`
+- **Действие:** `MODIFY`
+- **Реализация:** Перенести в профиль `raiffeisen` (без сокращений и потери данных):
+  1. `expressRunbook.mustReviewTasks`: типизированный массив ссылок с явным `targetArena` и `taskId`:
+    - `iban-validator` $\rightarrow$ `targetArena: "practice"`
+    - `case_transfer_service` $\rightarrow$ `targetArena: "incidents"`
+    - `sql-raif-cib-2026` (или актуальный ID из `stages`) $\rightarrow$ `targetArena: "sql_arena"`
+    - `SD-ATM-HARDWARE-DISPENSER` $\rightarrow$ `targetArena: "system_design"`
+    - `cib-interns-test-task` $\rightarrow$ `targetArena: "take_home"`
+  2. `dossier.competencies`: все 9 компетенций Product Engineer из `CompanyCompetenciesRadar.tsx`.
+  3. `dossier.specReviewChecklist`: все 8 пунктов проверки ТЗ из `CompanySpecReviewChecklist.tsx`.
+  4. `dossier.starScenarios`: все 4 кейса STAR из `CompanyStarScenarios.tsx`.
+  5. `dossier.talentQGuide`: все правила, тайминги и примеры из `CompanyTalentQGuide.tsx`.
+  6. `takeHomeLab`: полное описание задачи склада носков (`cib-interns-test-task`) и массив `prCases` из `CompanyTakeHomeLab.tsx`.
+  7. `quickActionChips`: 4 специфичных для Райффайзена чипса (`pitch_review`, `star_drill`, `socks_warehouse`, `transferservice_defects`).
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  node -e "
+    const fs = require('fs');
+    const data = JSON.parse(fs.readFileSync('json/company_profiles.json', 'utf8'));
+    const raif = data.find(p => p.id === 'raiffeisen') || data[0];
+    if (!raif.dossier || raif.dossier.competencies.length < 9) throw new Error('Missing competencies');
+    if (raif.dossier.specReviewChecklist.length < 8) throw new Error('Missing specReviewChecklist');
+    if (raif.dossier.starScenarios.length < 4) throw new Error('Missing starScenarios');
+    if (!raif.takeHomeLab || !raif.takeHomeLab.prCases.length) throw new Error('Missing takeHomeLab');
+    console.log('JSON SSOT validation passed:', raif.id);
+  "
+  
+  ```
 
-  if (!session.workspaceManifest) {
-    session.workspaceManifest = { files: [], secondaryFiles: [], projectTree: [] };
+#### Шаг 1.4: Валидация схемы на уровне `backend/src/routes/companies.ts`
+
+- **Целевой файл:** `backend/src/routes/companies.ts`
+- **Действие:** `MODIFY`
+- **Реализация:** Добавить проверку загружаемых профилей через `Value.Check(CompanyProfileSchema, profile)` из `@sinclair/typebox/value` при чтении `company_profiles.json` и функцию `resetCompanyProfilesCache()` для тестовой среды.
+  ```typescript
+  import { Router, Request, Response } from 'express';
+  import fs from 'fs';
+  import { Value } from '@sinclair/typebox/value';
+  import { CompanyProfile, CompanyProfileSchema } from '@interview-prep/shared';
+  import { resolveJsonCatalogPath } from '../utils/pathResolver';
+  
+  const router = Router();
+  let cachedProfiles: CompanyProfile[] | null = null;
+  
+  export function resetCompanyProfilesCache(): void {
+    cachedProfiles = null;
   }
-  if (!Array.isArray(session.workspaceManifest.files)) {
-    session.workspaceManifest.files = [];
-  }
-  if (!Array.isArray(session.workspaceManifest.secondaryFiles)) {
-    session.workspaceManifest.secondaryFiles = [];
-  }
-  if (!Array.isArray(session.workspaceManifest.projectTree)) {
-    session.workspaceManifest.projectTree = [];
-  }
-
-  // 1. Update in files array
-  const existingFile = session.workspaceManifest.files.find((f: any) => matchWorkspaceFilePath(f.path, trimmedPath));
-  if (existingFile) {
-    existingFile.content = content;
-  } else {
-    session.workspaceManifest.files.push({ path: trimmedPath, content, isReadOnly: false });
-  }
-
-  // 2. Update in secondaryFiles array if present
-  const secFile = session.workspaceManifest.secondaryFiles.find((f: any) => matchWorkspaceFilePath(f.path, trimmedPath));
-  if (secFile) {
-    secFile.content = content;
-  }
-
-  // 3. Update activeFile if it matches or if none set
-  const isActive =
-    matchWorkspaceFilePath(session.workspaceManifest.activeFile?.path, trimmedPath) ||
-    !session.workspaceManifest.activeFile;
-  if (isActive) {
-    session.workspaceManifest.activeFile = {
-      path: session.workspaceManifest.activeFile?.path || trimmedPath,
-      content,
-      isReadOnly: false
-    };
-    session.codeSnippet = content;
-    session.activeFilePath = session.workspaceManifest.activeFile.path;
-  }
-
-  // 4. Ensure projectTree has the path
-  if (!session.workspaceManifest.projectTree.some((p: string) => matchWorkspaceFilePath(p, trimmedPath))) {
-    session.workspaceManifest.projectTree.push(trimmedPath);
-  }
-
-  console.log(`📝 [WORKSPACE_FILE_UPDATE] Updated in-memory file "${trimmedPath}" (${content.length} chars, active: ${isActive})`);
-}
-
-export function mergeWorkspaceManifests(baseManifest: any, incomingManifest: any): any {
-  if (!baseManifest && !incomingManifest) {
-    return { files: [], secondaryFiles: [], projectTree: [] };
-  }
-  if (!baseManifest) return incomingManifest;
-  if (!incomingManifest) return baseManifest;
-
-  const result = { ...baseManifest };
-  const fileMap = new Map<string, any>();
-
-  // Ingest base files
-  if (Array.isArray(baseManifest.files)) {
-    for (const f of baseManifest.files) {
-      if (f?.path) fileMap.set(f.path, { ...f });
-    }
-  }
-  if (baseManifest.activeFile?.path) {
-    fileMap.set(baseManifest.activeFile.path, { ...baseManifest.activeFile });
-  }
-  if (Array.isArray(baseManifest.secondaryFiles)) {
-    for (const f of baseManifest.secondaryFiles) {
-      if (f?.path && !fileMap.has(f.path)) fileMap.set(f.path, { ...f });
-    }
-  }
-
-  // Ingest incoming files (authoritative overrides for content)
-  if (Array.isArray(incomingManifest.files)) {
-    for (const f of incomingManifest.files) {
-      if (f?.path) {
-        const existingKey = Array.from(fileMap.keys()).find((k) => matchWorkspaceFilePath(k, f.path));
-        fileMap.set(existingKey || f.path, { ...f });
-      }
-    }
-  }
-  if (incomingManifest.activeFile?.path) {
-    const act = incomingManifest.activeFile;
-    const existingKey = Array.from(fileMap.keys()).find((k) => matchWorkspaceFilePath(k, act.path));
-    fileMap.set(existingKey || act.path, { ...act });
-    result.activeFile = { ...(fileMap.get(existingKey || act.path) || act) };
-  }
-  if (Array.isArray(incomingManifest.secondaryFiles)) {
-    for (const f of incomingManifest.secondaryFiles) {
-      if (f?.path) {
-        const existingKey = Array.from(fileMap.keys()).find((k) => matchWorkspaceFilePath(k, f.path));
-        fileMap.set(existingKey || f.path, { ...f });
-      }
-    }
-  }
-
-  const allFiles = Array.from(fileMap.values());
-  result.files = allFiles;
-  result.fileCount = allFiles.length;
-  result.projectTree = allFiles.map((f) => f.path);
-  result.secondaryFiles = allFiles.filter(
-    (f) => !matchWorkspaceFilePath(f.path, result.activeFile?.path)
-  );
-
-  return result;
-}
-
-```
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/workspaceManifestStore.ts
-
-```
-
-### Шаг 3: Обновление типов сессии в `liveSessionTypes.ts`
-**Целевой файл:** `backend/src/services/live/liveSessionTypes.ts`**Действие:** `MODIFY` (~111 строк, лимит ≤ 400 строк). Добавить поле `toolDedupCache?: Record<string, { hash: string; timestamp: number }>;` в `ProxySession` рядом с `lastToolCallTime?: number;`.
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/liveSessionTypes.ts
-
-```
-
-### Шаг 4: Создание чистых обработчиков базовых инструментов рабочей области и рефакторинга
-**Целевой файл:** `backend/src/services/live/liveWorkspaceHandlers.ts`**Действие:** `CREATE` (~165 строк, лимит ≤ 350 строк). Инкапсулирует чистые обработчики для `update_whiteboard`, `read_file`, `mark_bug_solved` и `report_identified_smell` без единого импорта `ws`.
-
-```typescript
-import { db } from '../db';
-import { updateBugChallengeStatus } from '../tutorService';
-import { applyKnowledgeDecay } from '../vectorMemoryService';
-import { applyWorkspaceFileUpdate, matchWorkspaceFilePath } from './workspaceManifestStore';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
-
-/**
- * liveWorkspaceHandlers.ts
- * Чистые обработчики инструментов доски, чтения файлов, баг-хантинга и код-ревью.
- * Без прямого доступа к WebSocket.
- */
-
-export function handleUpdateWhiteboard(
-  args: Record<string, any>
-): ToolExecutionResult {
-  const action = args.action || 'write';
-  const title = args.title || (action === 'clear' ? 'Доска очищена' : 'Демонстрация кода');
-  const language = args.language || 'java';
-  const code = args.code || '';
-  const highlightLines = Array.isArray(args.highlightLines) ? args.highlightLines : [];
-  const explanation = args.explanation || '';
-
-  console.log(`🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length})`);
-
-  return {
-    result: {
-      status: 'SUCCESS',
-      message: 'Интерактивная доска обновлена на экране кандидата.',
-      directive:
-        'Кратко объясни кандидату суть показанного фрагмента и ответь на его вопрос. Не произноси сервисных фраз вроде "я вывела код на доску" — сразу обсуждай логику и ключевые детали решения.'
-    },
-    clientEvent: {
-      type: 'whiteboard_update',
-      payload: {
-        action,
-        title,
-        language,
-        code,
-        highlightLines,
-        explanation,
-        updatedAt: Date.now()
-      }
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-export function handleReadFile(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): ToolExecutionResult {
-  const { session } = ctx;
-  const rawPath = (args.filePath || '').trim();
-  const manifest = session.workspaceManifest;
-  let foundContent: string | null = null;
-
-  if (manifest) {
-    if (manifest.activeFile?.path && matchWorkspaceFilePath(manifest.activeFile.path, rawPath)) {
-      foundContent = manifest.activeFile.content;
-    }
-    if (!foundContent && Array.isArray(manifest.secondaryFiles)) {
-      const sec = manifest.secondaryFiles.find((f: any) => matchWorkspaceFilePath(f.path, rawPath));
-      if (sec) foundContent = sec.content;
-    }
-    if (!foundContent && Array.isArray(manifest.files)) {
-      const f = manifest.files.find((file: any) => matchWorkspaceFilePath(file.path, rawPath));
-      if (f) foundContent = f.content;
-    }
-  }
-
-  if (!foundContent && session.questionId) {
+  
+  function loadProfiles(): CompanyProfile[] {
+    if (cachedProfiles && cachedProfiles.length > 0) return cachedProfiles;
     try {
-      const cRow = db
-        .prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?')
-        .get(session.questionId, session.questionId) as any;
-      if (cRow?.manifest_json) {
-        const parsed = JSON.parse(cRow.manifest_json);
-        if (Array.isArray(parsed.workspaceFiles)) {
-          const match = parsed.workspaceFiles.find((f: any) => matchWorkspaceFilePath(f.path, rawPath));
-          if (match) {
-            foundContent = match.content;
-            applyWorkspaceFileUpdate(session, match.path, match.content);
-          }
+      const profilesPath = resolveJsonCatalogPath('company_profiles.json');
+      if (!fs.existsSync(profilesPath)) {
+        console.error(`[CompaniesRoute] company_profiles.json not found at: ${profilesPath}`);
+        return [];
+      }
+      const raw = fs.readFileSync(profilesPath, 'utf-8');
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        console.error('[CompaniesRoute] company_profiles.json root must be an array');
+        return [];
+      }
+      const validProfiles: CompanyProfile[] = [];
+      for (const item of parsed) {
+        if (Value.Check(CompanyProfileSchema, item)) {
+          validProfiles.push(item);
+        } else {
+          const errors = [...Value.Errors(CompanyProfileSchema, item)];
+          console.error('[CompaniesRoute] Schema validation error for profile:', errors[0]);
         }
       }
+      cachedProfiles = validProfiles;
+      return cachedProfiles;
     } catch (err) {
-      console.warn(`[READ_FILE] Could not fallback to SQLite for "${rawPath}":`, err);
+      console.error('[CompaniesRoute] Failed to load company profiles:', err);
+      return [];
     }
   }
+  
+  ```
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l backend/src/routes/companies.ts
+  
+  ```
 
-  if (!foundContent && session.codeSnippet) {
-    const activePath = manifest?.activeFile?.path || session.activeFilePath || 'Solution.java';
-    if (matchWorkspaceFilePath(activePath, rawPath)) {
-      foundContent = session.codeSnippet;
-    }
+### УЗЕЛ 2: Sub-Issue #56 — `[Tracer-Bullet] Build ArenaNavigator Seam & Wire Deterministic Cross-Arena Execution`
+
+#### Шаг 2.1: Расширение кросс-аренных указателей в `frontend/src/store/useAppStore.ts`
+
+- **Целевой файл:** `frontend/src/store/useAppStore.ts`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Проверить текущие поля стора в `useAppStore.ts` и `usePracticeTutorStore.ts`.
+  2. Обеспечить наличие детерминированных целевых ID для всех арен (если часть уже есть — переиспользовать их; недостающие добавить в `AppState`):
+    - `targetSqlChallengeId: string | null` + `setTargetSqlChallengeId: (id: string | null) => void`
+    - `targetPracticeTaskId: string | null` + `setTargetPracticeTaskId: (id: string | null) => void`
+    - `targetIncidentId: string | null` + `setTargetIncidentId: (id: string | null) => void`
+    - `targetSystemDesignId: string | null` + `setTargetSystemDesignId: (id: string | null) => void`
+  3. Проверить, как компоненты арен (`Practice` / `Incidents` / `SystemDesign`) инициализируют выбранную задачу при монтировании. Если они читают из `useAppStore` или `usePracticeTutorStore`, связать потребление `targetPracticeTaskId` / `targetIncidentId` / `targetSystemDesignId` при входе на вкладку, чтобы открывалась именно задача `targetEntityId`.
+  4. Проверить длину `useAppStore.ts` (Rule 8: $\le 350$ строк).
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/store/useAppStore.ts
+  
+  ```
+
+#### Шаг 2.2: Создание детерминированного навигатора `frontend/src/components/companies/arenaNavigator.ts`
+
+- **Целевой файл:** `frontend/src/components/companies/arenaNavigator.ts`
+- **Действие:** `CREATE`
+- **Реализация:**
+  ```typescript
+  import {
+    ArenaLaunchIntent,
+    CompanyPipelineStage,
+    CompanyProfile,
+    TargetArena
+  } from '@interview-prep/shared';
+  
+  export type CompanyStudioSubTab =
+    | 'pipeline'
+    | 'dossier'
+    | 'runbook'
+    | 'sql_arena'
+    | 'take_home';
+  
+  export interface ArenaNavigationCallbacks {
+    setStudioTab: (tab: any) => void;
+    setActiveSubTab: (subTab: CompanyStudioSubTab) => void;
+    setIsVoiceOpen: (open: boolean) => void;
+    setTargetSqlChallengeId: (id: string) => void;
+    setTargetPracticeTaskId?: (id: string) => void;
+    setTargetIncidentId?: (id: string) => void;
+    setTargetSystemDesignId?: (id: string) => void;
   }
-
-  const resolved = Boolean(foundContent);
-  const availableFiles = manifest?.projectTree?.join(', ') || 'нет файлов';
-  const fileContent =
-    foundContent || `Файл "${rawPath}" не найден в структуре проекта. Доступные файлы:\n${availableFiles}`;
-  console.log(`📂 [READ_FILE] Gemini Live requested: "${rawPath}" (resolved: ${resolved}, len: ${fileContent.length})`);
-
-  return {
-    result: {
-      filePath: rawPath,
-      content: fileContent,
-      success: resolved,
-      ...(resolved ? {} : { error: 'FILE_NOT_FOUND' })
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-export async function handleMarkBugSolved(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): Promise<ToolExecutionResult> {
-  const { session, parsedHints } = ctx;
-  const isSolved = args.isSolved ?? true;
-  const feedback = args.feedback || 'Отлично! Ошибка найдена верно.';
-  const keyInsight = args.keyInsight || '';
-
-  console.log(`🎯 Bug challenge marked as solved: ${feedback}`);
-
-  let decayResult: any = null;
-  if (session.questionId) {
-    try {
-      updateBugChallengeStatus({
-        challengeId: session.questionId,
-        isSolved: Boolean(isSolved),
-        score: isSolved ? 10 : 5,
-        feedback,
-        keyTakeaways: keyInsight ? [keyInsight] : undefined
-      });
-    } catch (e) {
-      console.warn('Could not update bug challenge status in db:', e);
-    }
-
-    try {
-      decayResult = await applyKnowledgeDecay({
-        questionId: session.questionId,
-        topic: session.topic || 'General',
-        assistanceLevel: isSolved ? (parsedHints.length > 0 ? 'assisted' : 'solo') : 'relapse',
-        resolvedGapIds: session.relevantGapIds
-      });
-      console.log(`🧠 Bug challenge decay applied:`, decayResult);
-    } catch (decayErr) {
-      console.warn('Bug challenge decay error:', decayErr);
-    }
+  
+  export function createIntentFromStage(
+    stage: CompanyPipelineStage,
+    companyId: string
+  ): ArenaLaunchIntent {
+    return {
+      targetArena: stage.targetArena,
+      targetEntityId: stage.targetEntityId,
+      companyId,
+      stageId: stage.id
+    };
   }
-
-  return {
-    result: {
-      status: 'SUCCESS',
-      message: 'Баг подтвержден как решенный.'
-    },
-    clientEvent: {
-      type: 'bug_solved',
-      payload: {
-        isSolved,
-        feedback,
-        keyInsight,
-        knowledgeUpdate: decayResult
-      }
-    },
-    scheduling: 'SILENT'
-  };
-}
-
-export function handleReportIdentifiedSmell(
-  args: Record<string, any>
-): ToolExecutionResult {
-  const smellId = args.smellId || 'unknown_smell';
-  const justification = args.justification || '';
-
-  return {
-    result: {
-      success: true,
-      message: `Запах '${smellId}' успешно зафиксирован в скоркорде ревью. Продолжай сократическое интервью.`
-    },
-    clientEvent: {
-      type: 'smell_discovered',
-      smellId,
-      justification,
-      timestamp: Date.now()
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-```
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/liveWorkspaceHandlers.ts
-
-```
-
-### Шаг 5: Перевод `liveEvaluationToolDispatcher.ts` на чистый контракт без WebSocket
-**Целевой файл:** `backend/src/services/live/liveEvaluationToolDispatcher.ts`**Действие:** `MODIFY` (~235 строк, лимит ≤ 400 строк). Удалить импорт `ws`, ручную проверку `!session.hasCandidateResponded` (перенесена в `LiveToolEngine`) и прямые вызовы `geminiSocket.send` / `clientSocket.send`.
-
-```typescript
-import { db } from '../db';
-import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
-import { recordEvaluationAndSyncProgress } from '../progressService';
-import { calculateFaangScorecard } from '../../prompts/personas';
-import { buildWeightedRubric } from './livePromptBuilder';
-import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
-
-export async function handleSubmitInterviewEvaluation(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): Promise<ToolExecutionResult> {
-  const { session, liveCoaching } = ctx;
-
-  const score = typeof args.score === 'number' ? Math.max(0, Math.min(100, Math.round(args.score))) : 70;
-  const isPassed = typeof args.isPassed === 'boolean' ? args.isPassed : score >= 70;
-  const positivePoints = Array.isArray(args.positivePoints) ? args.positivePoints : [];
-  const missingPoints = Array.isArray(args.missingPoints) ? [...args.missingPoints] : [];
-  const feedback = typeof args.spokenFeedback === 'string' ? args.spokenFeedback : 'Ответ принят.';
-  const questionType = args.questionType || 'definitional';
-  const speechCoaching = args.speechCoaching || null;
-
-  const rawCriteriaBreakdown = Array.isArray(args.criteriaBreakdown) ? args.criteriaBreakdown : [];
-  const rawDeductions = Array.isArray(args.deductions) ? args.deductions : [];
-  const upgradeSnippet = typeof args.upgradeSnippet === 'string' ? args.upgradeSnippet : '';
-
-  let criteriaBreakdown = rawCriteriaBreakdown;
-  if (criteriaBreakdown.length === 0) {
-    const defaultRubric = buildWeightedRubric(session.referenceAnswer || '', session.questionText || '');
-    let remainingScore = score;
-    criteriaBreakdown = defaultRubric.map((r, idx) => {
-      let earned = 0;
-      if (remainingScore >= r.weight) {
-        earned = r.weight;
-        remainingScore -= r.weight;
-      } else {
-        earned = remainingScore;
-        remainingScore = 0;
-      }
-      const isFull = earned === r.weight;
-      const isZero = earned === 0;
-      return {
-        id: r.id,
-        title: r.title,
-        maxPoints: r.weight,
-        earnedPoints: earned,
-        status: isFull ? 'covered' : (isZero ? 'missed' : 'partial'),
-        probeAssisted: (session.probesCount || 0) > 0 && !isFull && earned > 0,
-        evidence: isFull ? 'Критерий раскрыт в ответе' : undefined,
-        gap: isFull ? undefined : (missingPoints[idx] || `Недостаточно полно раскрыты ${r.title.toLowerCase()}`)
-      };
-    });
-  }
-
-  const totalLostPoints = Math.max(0, 100 - score);
-  let deductions = rawDeductions;
-  if (totalLostPoints > 0 && deductions.length === 0) {
-    const gapCriteria = criteriaBreakdown.filter((c: any) => (c.maxPoints - c.earnedPoints) > 0);
-    if (gapCriteria.length > 0) {
-      deductions = gapCriteria.map((c: any) => ({
-        penalty: c.maxPoints - c.earnedPoints,
-        criteria: c.title,
-        reason: c.gap || `Неполный ответ по критерию «${c.title}»`
-      }));
-    } else if (missingPoints.length > 0) {
-      const perPoint = Math.max(1, Math.round(totalLostPoints / missingPoints.length));
-      deductions = missingPoints.map((mp: string, i: number) => ({
-        penalty: i === missingPoints.length - 1 ? (totalLostPoints - perPoint * (missingPoints.length - 1)) : perPoint,
-        criteria: 'Зоны роста',
-        reason: mp
-      }));
-    } else {
-      deductions = [{
-        penalty: totalLostPoints,
-        criteria: 'Подводные камни и глубина раскрытия',
-        reason: 'Ответ не содержит разбора подводных камней, граничных условий или production best practices.'
-      }];
-    }
-  }
-
-  if (missingPoints.length === 0 && deductions.length > 0) {
-    missingPoints.push(...deductions.map((d: any) => `${d.criteria}: ${d.reason} (-${d.penalty} б.)`));
-  }
-
-  const calculatedScorecard = calculateFaangScorecard({
-    score,
-    persona: (session.persona as any) || 'mentor',
-    targetGrade: session.targetGrade || 'L5_SENIOR',
-    positivePoints,
-    missingPoints,
-    questionType
-  });
-
-  const faangScorecard = args.faangScorecard
-    ? {
-        ...calculatedScorecard,
-        ...args.faangScorecard,
-        dimensionScores: {
-          ...calculatedScorecard.dimensionScores,
-          ...(args.faangScorecard.dimensionScores || {})
-        }
-      }
-    : calculatedScorecard;
-
-  let savedEvalId = '';
-  if (session.questionId) {
-    try {
-      const mem = session.sessionId ? getOrCreateSessionMemory(session.sessionId, session.questionId || '') : null;
-      const dialogueTranscript =
-        mem && mem.turns && mem.turns.length > 0
-          ? mem.turns.map((t) => `${t.role === 'user' ? 'Кандидат' : 'Интервьюер'}: ${t.text}`).join('\n\n')
-          : session.turnTelemetryHistory && session.turnTelemetryHistory.length > 0
-            ? session.turnTelemetryHistory.map((t) => `Turn ${t.turnIndex} (${t.speaker}): duration ${t.speechDurationMs}ms`).join('\n')
-            : 'Устный диалог в Gemini Live';
-
-      const syncResult = recordEvaluationAndSyncProgress({
-        userId: session.userId || 'default_user',
-        questionId: session.questionId,
-        topic: session.topic || 'General',
-        mode: 'voice',
-        score,
-        isPassed,
-        positivePoints,
-        missingPoints,
-        feedback,
-        speechCoaching: {
-          ...(speechCoaching || {}),
-          questionType,
-          faangScorecard,
-          criteriaBreakdown,
-          deductions,
-          upgradeSnippet
-        },
-        turnTelemetry: session.turnTelemetryHistory || [],
-        transcript: dialogueTranscript,
-        userAnswer: dialogueTranscript
-      });
-      savedEvalId = syncResult.evalId;
-      console.log(`💾 Live evaluation saved & progress synced to DB: ${savedEvalId} (Score: ${score}, Topic: ${syncResult.progress.topic}, Percentage: ${syncResult.progress.percentage}%)`);
-    } catch (dbErr) {
-      console.error('Error saving Live evaluation to DB:', dbErr);
-    }
-
-    try {
-      const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(session.questionId) as any;
-      const canonicalId = aliasRow ? aliasRow.canonical_id : session.questionId;
-      const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId) as any;
-      if (manifestRow) {
-        const ledgerId = `prog_live_${canonicalId}_${session.userId || 'default_user'}_${Date.now()}`;
-        const status = isPassed ? 'PASSED' : 'FAILED';
-        db.prepare(`
-          INSERT INTO user_progress_ledger (
-            id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
-          ledgerId,
-          session.userId || 'default_user',
-          canonicalId,
-          'STUDIO_3_DEFENSE',
-          status,
-          score,
-          JSON.stringify({
-            savedEvalId,
-            feedback,
-            positivePoints,
-            missingPoints,
-            faangScorecard,
-            criteriaBreakdown,
-            deductions
-          })
-        );
-        console.log(`📊 [Ledger] Live evaluation persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
-      }
-    } catch (ledgerErr) {
-      console.warn('⚠️ [Ledger] Could not persist live evaluation to user_progress_ledger:', ledgerErr);
-    }
-  }
-
-  const probes = session.probesCount || 0;
-  let assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse' = 'solo';
-  if (session.isRetry) {
-    assistanceLevel = isPassed ? 'assisted' : 'relapse';
-  } else if (score >= 80 && probes <= 2 && !liveCoaching) {
-    assistanceLevel = 'solo';
-  } else if (score >= 70) {
-    assistanceLevel = 'guided';
-  } else if (liveCoaching || (score >= 60 && score < 70)) {
-    assistanceLevel = isPassed ? 'assisted' : 'relapse';
-  } else {
-    assistanceLevel = 'relapse';
-  }
-
-  let decayResult: any = null;
-  try {
-    decayResult = await applyKnowledgeDecay({
-      questionId: session.questionId,
-      topic: session.topic || 'General',
-      assistanceLevel,
-      resolvedGapIds: session.relevantGapIds
-    });
-    console.log(`🧠 Knowledge decay applied (${assistanceLevel}):`, JSON.stringify(decayResult));
-  } catch (decayErr) {
-    console.error('Error applying knowledge decay:', decayErr);
-  }
-
-  if (!isPassed && missingPoints.length > 0) {
-    try {
-      void recordNewErrorGap({
-        questionId: session.questionId,
-        topic: session.topic || 'General',
-        errorConcept: missingPoints[0],
-        initialDeficit: 1.0
-      });
-    } catch (recErr) {
-      console.warn('Could not record new gap:', recErr);
-    }
-  }
-
-  const evaluationPayload = {
-    id: savedEvalId,
-    questionId: session.questionId,
-    score,
-    isPassed,
-    positivePoints,
-    missingPoints,
-    feedback,
-    spokenFeedback: feedback,
-    questionType,
-    speechCoaching,
-    faangScorecard,
-    criteriaBreakdown,
-    deductions,
-    upgradeSnippet,
-    assistanceLevel,
-    knowledgeUpdate: decayResult
-  };
-
-  console.log('✅ Evaluation prepared for delivery to client. Keeping session lifeline open for Q&A and transition.');
-
-  return {
-    result: {
-      success: true,
-      saved: true,
-      score,
-      isPassed,
-      evaluationId: savedEvalId,
-      message: 'Оценка сохранена в ведомость.',
-      directive: 'Кратко подведи итог (1-2 предложения), поблагодари за ответ и назови вердикт. Не молчи.'
-    },
-    clientEvent: {
-      type: 'evaluation_completed',
-      evaluation: evaluationPayload,
-      payload: evaluationPayload
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-```
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/liveEvaluationToolDispatcher.ts
-
-```
-
-### Шаг 6: Перевод `liveSystemDesignToolDispatcher.ts` на чистый контракт без WebSocket
-**Целевой файл:** `backend/src/services/live/liveSystemDesignToolDispatcher.ts`**Действие:** `MODIFY` (~105 строк, лимит ≤ 400 строк). Удалить импорт `ws`, ручной Turn 0 Guard и вызовы сокетов. Экспортировать три чистых обработчика.
-
-```typescript
-import { db } from '../db';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
-
-export function handleInjectChaosFailure(
-  args: Record<string, any>
-): ToolExecutionResult {
-  const failureType = args.failure_type || 'ASYMMETRIC_NETWORK_PARTITION';
-  const targetId = args.target_component_id || 'primary_db';
-  const context = args.technical_context || 'Инъекция аппаратного или сетевого сбоя на узле.';
-
-  console.log(`💥 Chaos Injected by Gemini Live: [${failureType}] on "${targetId}": ${context}`);
-
-  return {
-    result: {
-      status: 'INJECTED',
-      failureType,
-      targetComponentId: targetId,
-      message: `Сбой [${failureType}] успешно активирован на компоненте ${targetId}.`
-    },
-    clientEvent: {
-      type: 'chaos_injected',
-      payload: {
-        failureType,
-        targetComponentId: targetId,
-        technicalContext: context,
-        timestamp: Date.now()
-      }
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-export function handleRecordCandidateObservation(
-  args: Record<string, any>
-): ToolExecutionResult {
-  console.log(`👁️ Candidate Observation Recorded: [${args.signal}] ${args.dimension} -> ${args.demonstrated_level}`);
-
-  return {
-    result: {
-      status: 'RECORDED',
-      message: 'Наблюдение зафиксировано в протоколе комитета найма.'
-    },
-    clientEvent: {
-      type: 'candidate_observation_recorded',
-      observation: args,
-      timestamp: Date.now()
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-export function handleSubmitHiringCommitteeVerdict(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): ToolExecutionResult {
-  const { session } = ctx;
-  const targetLevel = args.target_level || 'L6';
-  const calibratedLevel = args.calibrated_level || 'L5';
-  const verdict = args.verdict || 'NO_HIRE';
-  const scores = args.scores || {
-    exploration: 3.0,
-    architecture: 3.0,
-    deep_dives: 2.5,
-    operational_excellence: 2.8
-  };
-  const defense = args.calibration_defense || 'Калибровочное заключение комитета по найму.';
-
-  console.log(`⚖️ Hiring Committee Verdict Submitted: [${verdict}] Target: ${targetLevel} -> Calibrated: ${calibratedLevel}`);
-
-  const submissionId = `sd_hc_${session.sessionId || Date.now()}`;
-  const packet = {
-    candidate_id: session.userId || 'candidate',
-    interview_timestamp: new Date().toISOString(),
-    target_level: targetLevel,
-    calibrated_level: calibratedLevel,
-    hiring_recommendation: verdict,
-    scores,
-    leveling_justification: defense
-  };
-
-  if (session.questionId) {
-    try {
-      db.prepare(`
-        INSERT INTO system_design_submissions (id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
-        submissionId,
-        session.questionId,
-        session.userId || 'default_user',
-        session.currentArchitectureMermaid || '',
-        defense,
-        JSON.stringify(packet)
-      );
-      console.log(`💾 Persisted Hiring Committee submission ${submissionId} for scenario ${session.questionId}`);
-    } catch (dbErr) {
-      console.warn('Could not persist hiring committee submission to db:', dbErr);
-    }
-  }
-
-  return {
-    result: {
-      status: 'COMMITTED',
-      verdict,
-      calibratedLevel,
-      message: 'Вердикт калибровочного комитета официально зарегистрирован.'
-    },
-    clientEvent: {
-      type: 'hiring_committee_verdict',
-      submissionId,
-      packet,
-      timestamp: Date.now()
-    },
-    scheduling: 'WHEN_IDLE'
-  };
-}
-
-```
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/liveSystemDesignToolDispatcher.ts
-
-```
-
-### Шаг 7: Перевод `liveHrToolDispatcher.ts` на чистый контракт без WebSocket
-**Целевой файл:** `backend/src/services/live/liveHrToolDispatcher.ts`**Действие:** `MODIFY` (~125 строк, лимит ≤ 400 строк). Удалить импорт `ws` и вызовы сокетов. Экспортировать три чистых обработчика (`handleAdvanceHrPhase`, `handleEmitHrRoundEvaluation`, `handleSubmitHrEvaluation`).
-
-```typescript
-import { HR_VOICE_EVENTS, HrScorecard } from '@interview-prep/shared';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
-
-export function handleAdvanceHrPhase(
-  args: Record<string, any>
-): ToolExecutionResult {
-  const fromPhase = args.fromPhase || 'unknown';
-  const toPhase = args.toPhase || 'next_phase';
-  const phaseSummary = args.phaseSummary || 'Фаза завершена.';
-
-  console.log(`🧭 [HR_FSM] Phase transition requested: "${fromPhase}" -> "${toPhase}" (Summary: ${phaseSummary.slice(0, 80)}...)`);
-
-  return {
-    result: {
-      status: 'SUCCESS',
-      message: `Фаза успешно переключена на ${toPhase}.`,
-      directive: `Ты перешла к фазе ${toPhase}. Задай следующий вопрос кандидату естественным речевым потоком согласно твоей роли рекрутера.`
-    },
-    clientEvent: {
-      type: HR_VOICE_EVENTS.HR_PHASE_TRANSITION,
-      payload: {
-        fromPhase,
-        toPhase,
-        phaseSummary,
-        timestamp: Date.now()
-      }
-    },
-    scheduling: 'SILENT'
-  };
-}
-
-export function handleEmitHrRoundEvaluation(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): ToolExecutionResult {
-  const { session } = ctx;
-  const questionId = args.questionId || session.questionId || 'hr_q0_elevator_pitch';
-  const passed = Boolean(args.passed ?? ((args.overallScore || 0) >= 85));
-  const overallScore = Math.max(0, Math.min(100, Math.round(Number(args.overallScore) || 75)));
-  const substanceMatch = Math.max(0, Math.min(100, Math.round(Number(args.substanceMatch) || 75)));
-  const lexicalDensity = Math.max(0, Math.min(100, Math.round(Number(args.lexicalDensity) || 75)));
-  const pacingScore = Math.max(0, Math.min(100, Math.round(Number(args.pacingScore) || 75)));
-  const deliveryConfidence = Math.max(0, Math.min(100, Math.round(Number(args.deliveryConfidence) || 75)));
-  const missedAnchors = Array.isArray(args.missedAnchors) ? args.missedAnchors.map(String) : [];
-  const actionableCritique = args.actionableCritique || 'Хороший ответ, продолжайте отработку.';
-  const nextAction = args.nextAction === 'advance_next_question' ? 'advance_next_question' : 'repeat_drill';
-
-  console.log(`🎯 [HR_DRILL_EVAL] Question: ${questionId} | Score: ${overallScore} | Passed: ${passed} | Next: ${nextAction}`);
-
-  const scorecard: HrScorecard = {
-    sessionId: session.sessionId || 'hr_session',
-    turnId: `turn_${Date.now()}`,
-    questionId,
-    mode: 'rapid_fire_micro_drill',
-    overallScore,
-    passed,
-    metrics: {
-      substanceMatch,
-      lexicalDensity,
-      pacingScore,
-      deliveryConfidence
-    },
-    turnDurationSec: 75,
-    averageWpm: 125,
-    fillerWordsSpotted: [],
-    anchorsHit: [],
-    anchorsMissed: missedAnchors,
-    actionableCritique,
-    nextAction
-  };
-
-  return {
-    result: {
-      status: 'SUCCESS',
-      message: 'Оценка зафиксирована в системе.',
-      directive:
-        'Озвучь кандидату краткий вердикт голосом (СТРОГО НЕ БОЛЕЕ 15-20 СЕКУНД!). Сфокусируйся на 1-2 главных ошибках или похвали за точность, если балл >= 85. Предложи повторить дубль или перейти дальше.'
-    },
-    clientEvent: {
-      type: HR_VOICE_EVENTS.HR_SCORECARD_READY,
-      payload: scorecard
-    },
-    scheduling: 'SILENT'
-  };
-}
-
-export function handleSubmitHrEvaluation(
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-): ToolExecutionResult {
-  const { session } = ctx;
-  const overallScore = Math.max(0, Math.min(100, Math.round(Number(args.overallScore) || 80)));
-  const passed = overallScore >= 85;
-  const substanceMatch = Math.max(0, Math.min(100, Math.round(Number(args.substanceMatch) || overallScore)));
-  const lexicalDensity = Math.max(0, Math.min(100, Math.round(Number(args.lexicalDensity) || overallScore)));
-  const pacingScore = Math.max(0, Math.min(100, Math.round(Number(args.pacingScore) || overallScore)));
-  const deliveryConfidence = Math.max(0, Math.min(100, Math.round(Number(args.deliveryConfidence) || overallScore)));
-  const spokenFeedback = args.spokenFeedback || 'Скрининг завершен.';
-  const redFlags = Array.isArray(args.redFlags) ? args.redFlags.map(String) : [];
-  const strengths = Array.isArray(args.strengths) ? args.strengths.map(String) : [];
-
-  console.log(`📋 [HR_SIMULATION_SUMMARY] Full screening evaluated: ${overallScore}/100 (Passed: ${passed})`);
-
-  const scorecard: HrScorecard = {
-    sessionId: session.sessionId || 'hr_sim_session',
-    turnId: `sim_turn_${Date.now()}`,
-    questionId: 'full_screening_evaluation',
-    mode: 'full_screening_simulation',
-    overallScore,
-    passed,
-    metrics: {
-      substanceMatch,
-      lexicalDensity,
-      pacingScore,
-      deliveryConfidence
-    },
-    turnDurationSec: 900,
-    averageWpm: 122,
-    fillerWordsSpotted: [],
-    anchorsHit: strengths,
-    anchorsMissed: redFlags,
-    actionableCritique: spokenFeedback,
-    nextAction: 'session_completed'
-  };
-
-  return {
-    result: {
-      status: 'SUCCESS',
-      message: 'Сводный отчет по скринингу сформирован.',
-      directive: 'Поблагодари кандидата за созвон, озвучь итоговое впечатление в 1-2 предложениях и попрощайся.'
-    },
-    clientEvent: {
-      type: HR_VOICE_EVENTS.HR_SCORECARD_READY,
-      payload: scorecard
-    },
-    scheduling: 'SILENT'
-  };
-}
-
-```
-**Команда локальной верификации:**
-
-```bash
-wc -l backend/src/services/live/liveHrToolDispatcher.ts
-
-```
-
-### Шаг 8: Создание глубокого модуля `LiveToolEngine.ts`
-**Целевой файл:** `backend/src/services/live/LiveToolEngine.ts`**Действие:** `CREATE` (~245 строк, лимит ≤ 350 строк). Централизует реестр всех 11 инструментов с декларативными метаданными, Turn 0 Lockdown, идемпотентность, сериализацию протокола Gemini Live Bidi и отправку клиентских событий.
-
-```typescript
-import { WebSocket } from 'ws';
-import { ProxySession } from './liveSessionTypes';
-import {
-  handleUpdateWhiteboard,
-  handleReadFile,
-  handleMarkBugSolved,
-  handleReportIdentifiedSmell
-} from './liveWorkspaceHandlers';
-import { handleSubmitInterviewEvaluation } from './liveEvaluationToolDispatcher';
-import {
-  handleInjectChaosFailure,
-  handleRecordCandidateObservation,
-  handleSubmitHiringCommitteeVerdict
-} from './liveSystemDesignToolDispatcher';
-import {
-  handleAdvanceHrPhase,
-  handleEmitHrRoundEvaluation,
-  handleSubmitHrEvaluation
-} from './liveHrToolDispatcher';
-
-export type ToolScheduling = 'WHEN_IDLE' | 'SILENT';
-
-export interface GeminiFunctionCall {
-  id: string;
-  name: string;
-  args?: Record<string, any>;
-}
-
-export interface ToolExecutionContext {
-  callId: string;
-  toolName: string;
-  session: ProxySession;
-  parsedHints: string[];
-  liveCoaching: boolean;
-}
-
-export interface ClientWsEvent {
-  type: string;
-  payload?: any;
-  [key: string]: any;
-}
-
-export interface ToolExecutionResult {
-  result?: Record<string, any>;
-  error?: string;
-  clientEvent?: ClientWsEvent;
-  scheduling?: ToolScheduling;
-}
-
-export type PureToolHandler = (
-  args: Record<string, any>,
-  ctx: ToolExecutionContext
-) => Promise<ToolExecutionResult> | ToolExecutionResult;
-
-export interface LiveToolDefinition {
-  name: string;
-  handler: PureToolHandler;
-  scheduling: ToolScheduling;
-  isGatedOnTurn0?: boolean;
-  turn0ErrorMessage?: string;
-  dedupWindowMs?: number;
-  dedupResponseResult?: Record<string, any>;
-}
-
-export interface ToolExecutorOptions {
-  functionCalls: GeminiFunctionCall[];
-  clientSocket: WebSocket;
-  geminiSocket: WebSocket;
-  session: ProxySession;
-  parsedHints: string[];
-  liveCoaching: boolean;
-}
-
-const DEFAULT_TURN0_ERROR =
-  'Кандидат еще не отвечал на вопрос. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку на этапе первого приветствия. Пожалуйста, поприветствуйте кандидата голосом, четко зачитайте вопрос и передайте слово.';
-
-const SD_TURN0_ERROR =
-  'Кандидат еще не защищал архитектуру. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выносить вердикт на этапе первого хода. Пожалуйста, поприветствуйте кандидата голосом, сформулируйте задачу и пригласите обсудить функциональные требования.';
-
-const TOOL_DEFINITIONS: LiveToolDefinition[] = [
-  {
-    name: 'update_whiteboard',
-    handler: handleUpdateWhiteboard,
-    scheduling: 'WHEN_IDLE',
-    dedupWindowMs: 3000,
-    dedupResponseResult: {
-      status: 'SUCCESS',
-      message: 'Интерактивная доска уже обновлена.',
-      directive:
-        'Кратко (в 1-2 предложениях) поясни кандидату голосом показанный фрагмент. Не вызывай повторных инструментов.'
-    }
-  },
-  {
-    name: 'read_file',
-    handler: handleReadFile,
-    scheduling: 'WHEN_IDLE'
-  },
-  {
-    name: 'mark_bug_solved',
-    handler: handleMarkBugSolved,
-    scheduling: 'SILENT'
-  },
-  {
-    name: 'report_identified_smell',
-    handler: handleReportIdentifiedSmell,
-    scheduling: 'WHEN_IDLE'
-  },
-  {
-    name: 'submit_interview_evaluation',
-    handler: handleSubmitInterviewEvaluation,
-    scheduling: 'WHEN_IDLE',
-    isGatedOnTurn0: true,
-    turn0ErrorMessage: DEFAULT_TURN0_ERROR
-  },
-  {
-    name: 'inject_chaos_failure',
-    handler: handleInjectChaosFailure,
-    scheduling: 'WHEN_IDLE'
-  },
-  {
-    name: 'record_candidate_observation',
-    handler: handleRecordCandidateObservation,
-    scheduling: 'WHEN_IDLE'
-  },
-  {
-    name: 'submit_hiring_committee_verdict',
-    handler: handleSubmitHiringCommitteeVerdict,
-    scheduling: 'WHEN_IDLE',
-    isGatedOnTurn0: true,
-    turn0ErrorMessage: SD_TURN0_ERROR
-  },
-  {
-    name: 'advance_hr_phase',
-    handler: handleAdvanceHrPhase,
-    scheduling: 'SILENT'
-  },
-  {
-    name: 'emit_hr_round_evaluation',
-    handler: handleEmitHrRoundEvaluation,
-    scheduling: 'SILENT',
-    isGatedOnTurn0: true,
-    turn0ErrorMessage: DEFAULT_TURN0_ERROR
-  },
-  {
-    name: 'submit_hr_evaluation',
-    handler: handleSubmitHrEvaluation,
-    scheduling: 'SILENT',
-    isGatedOnTurn0: true,
-    turn0ErrorMessage: DEFAULT_TURN0_ERROR
-  }
-];
-
-export const LIVE_TOOL_REGISTRY: ReadonlyMap<string, LiveToolDefinition> = new Map(
-  TOOL_DEFINITIONS.map((def) => [def.name, def])
-);
-
-export class LiveToolEngine {
-  private static sendGeminiToolResponse(
-    geminiSocket: WebSocket,
-    callId: string,
-    toolName: string,
-    payload: { result?: Record<string, any>; error?: string },
-    scheduling: ToolScheduling = 'WHEN_IDLE'
-  ): void {
-    if (geminiSocket.readyState !== WebSocket.OPEN) return;
-
-    const responseBody = payload.error
-      ? { error: payload.error }
-      : { result: payload.result ?? { status: 'SUCCESS' } };
-
-    geminiSocket.send(
-      JSON.stringify({
-        toolResponse: {
-          functionResponses: [
-            {
-              id: callId,
-              name: toolName,
-              response: responseBody,
-              scheduling
-            }
-          ]
-        }
-      })
+  
+  export function resolveRunbookTaskIntent(
+    taskId: string,
+    profile: CompanyProfile
+  ): ArenaLaunchIntent | null {
+    // 1. Детерминированный поиск в типизированных ссылках ранбука
+    const explicitTask = profile.expressRunbook.mustReviewTasks?.find(
+      (t) => t.taskId === taskId
     );
+    if (explicitTask) {
+      return {
+        targetArena: explicitTask.targetArena,
+        targetEntityId: explicitTask.taskId,
+        companyId: profile.id
+      };
+    }
+  
+    // 2. Детерминированный поиск по этапам пайплайна компании
+    const matchingStage = profile.stages.find(
+      (s) => s.targetEntityId === taskId || s.id === taskId
+    );
+    if (matchingStage) {
+      return createIntentFromStage(matchingStage, profile.id);
+    }
+  
+    // 3. Детерминированный поиск по Take-Home Lab
+    if (profile.takeHomeLab?.taskId === taskId || profile.takeHomeLab?.repoSlug === taskId) {
+      return {
+        targetArena: 'take_home',
+        targetEntityId: taskId,
+        companyId: profile.id
+      };
+    }
+  
+    return null;
   }
-
-  private static sendClientEvent(clientSocket: WebSocket, event: ClientWsEvent): void {
-    if (clientSocket.readyState === WebSocket.OPEN) {
-      clientSocket.send(JSON.stringify(event));
+  
+  export function executeArenaLaunchIntent(
+    intent: ArenaLaunchIntent,
+    callbacks: ArenaNavigationCallbacks
+  ): void {
+    const { targetArena, targetEntityId } = intent;
+  
+    switch (targetArena) {
+      case 'voice_modal':
+        callbacks.setIsVoiceOpen(true);
+        break;
+      case 'practice':
+        callbacks.setTargetPracticeTaskId?.(targetEntityId);
+        callbacks.setStudioTab('practice');
+        break;
+      case 'incidents':
+        callbacks.setTargetIncidentId?.(targetEntityId);
+        callbacks.setStudioTab('incidents');
+        break;
+      case 'sql_arena':
+        callbacks.setTargetSqlChallengeId(targetEntityId);
+        callbacks.setActiveSubTab('sql_arena');
+        break;
+      case 'system_design':
+        callbacks.setTargetSystemDesignId?.(targetEntityId);
+        callbacks.setStudioTab('system_design');
+        break;
+      case 'take_home':
+        callbacks.setActiveSubTab('take_home');
+        break;
     }
   }
+  
+  ```
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/arenaNavigator.ts
+  
+  ```
 
-  public static async executeFunctionCalls(options: ToolExecutorOptions): Promise<void> {
-    const { functionCalls, clientSocket, geminiSocket, session, parsedHints, liveCoaching } = options;
+#### Шаг 2.3: Подключение `arenaNavigator` в `CompanyPrepStudio.tsx` и `CompanyRunbookTab.tsx`
 
-    session.isToolCallPending = true;
-    session.lastActivityAt = Date.now();
-    if (session.nudgeWatchdog) {
-      clearTimeout(session.nudgeWatchdog);
-      session.nudgeWatchdog = null;
-    }
-    console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(functionCalls));
+- **Целевые файлы:**
+  - `frontend/src/components/companies/CompanyPrepStudio.tsx`
+  - `frontend/src/components/companies/CompanyRunbookTab.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. В `CompanyPrepStudio.tsx` заменить старые `handleLaunchStage` и `handleNavigateToTask` (содержавшие `startsWith('sql-')`, `startsWith('case_')` и потерю `targetEntityId`) на вызовы `createIntentFromStage`, `resolveRunbookTaskIntent` и `executeArenaLaunchIntent`.
+  2. В `CompanyRunbookTab.tsx` рендерить список задач для повторения из `profile.expressRunbook.mustReviewTasks` (или сопоставлять `mustReviewTaskIds` с этапами профиля), отображая точный бейдж целевой арены и вызывая `onNavigateToTask(taskId)`.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  rg "startsWith\('(sql-|case_|sd-)" frontend/src/components/companies/
+  # Должно вернуть 0 совпадений
+  wc -l frontend/src/components/companies/CompanyPrepStudio.tsx frontend/src/components/companies/CompanyRunbookTab.tsx
+  
+  ```
 
-    if (session.toolCallSafetyTimeout) clearTimeout(session.toolCallSafetyTimeout);
-    session.toolCallSafetyTimeout = setTimeout(() => {
-      if (session.isToolCallPending) {
-        console.warn('⚠️ Tool call safety timeout (10s) reached: releasing audio gate');
-        session.isToolCallPending = false;
+### УЗЕЛ 3: Sub-Issue #57 — `[Migrate-Batch] Refactor Dossier Subcomponents into Generic View Adapters`
+
+> **Инвариант UI Deletion Test Exception:**
+> Все 4 подкомпонента досье сохраняют свою интерактивность (раскрытие секций, ARIA-атрибуты, чекбоксы Spec Review, интерактивный калькулятор долей и таймер в Talent Q), но полностью очищаются от захардкоженных массивов Райффайзена и принимают данные через типизированные пропсы из `CompanyDossier`.
+
+#### Шаг 3.1: Перевод `CompanyCompetenciesRadar.tsx` на пропсы
+
+- **Целевой файл:** `frontend/src/components/companies/dossier/CompanyCompetenciesRadar.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Удалить захардкоженный массив компетенций Райффайзена из файла.
+  2. Принимать пропсы `{ competencies: CompetencyItem[]; companyName?: string }`.
+  3. Если `competencies.length === 0`, рендерить явное пустое состояние (`EmptyState`: «Матрица компетенций для данного профиля еще не заполнена») — без подстановки фантомных фолбэков.
+  4. Сохранить интерактивный выбор/фильтрацию компетенций и ARIA-разметку.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/dossier/CompanyCompetenciesRadar.tsx
+  
+  ```
+
+#### Шаг 3.2: Перевод `CompanySpecReviewChecklist.tsx` на пропсы
+
+- **Целевой файл:** `frontend/src/components/companies/dossier/CompanySpecReviewChecklist.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Удалить локальный массив пунктов Spec Review.
+  2. Принимать пропсы `{ items: SpecReviewCheckItem[] }`.
+  3. Сохранить интерактивное состояние отмеченных чекбоксов (`checkedIds`), прогресс-бар готовности ТЗ и фильтрацию по критичности.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/dossier/CompanySpecReviewChecklist.tsx
+  
+  ```
+
+#### Шаг 3.3: Перевод `CompanyStarScenarios.tsx` на пропсы
+
+- **Целевой файл:** `frontend/src/components/companies/dossier/CompanyStarScenarios.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Удалить захардкоженный массив из 4 STAR-кейсов Райффайзена.
+  2. Принимать пропсы `{ scenarios: StarScenarioItem[]; onPracticeWithTutor?: (scenario: StarScenarioItem) => void }`.
+  3. Сохранить аккордеоны/карточки декомпозиции `Situation -> Task -> Action -> Result` и блок каверзных follow-up ловушек.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/dossier/CompanyStarScenarios.tsx
+  
+  ```
+
+#### Шаг 3.4: Перевод `CompanyTalentQGuide.tsx` на пропсы
+
+- **Целевой файл:** `frontend/src/components/companies/dossier/CompanyTalentQGuide.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Удалить захардкоженные правила и тексты Райффайзена.
+  2. Принимать пропсы `{ guide?: TalentQGuide }`.
+  3. **Сохранить интерактивный мини-калькулятор Talent Q** (расчет процентов, изменения год-к-году, долей) и таймер симуляции, питая справочные карточки и лимиты времени из `guide`.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/dossier/CompanyTalentQGuide.tsx
+  
+  ```
+
+#### Шаг 3.5: Проброс `profile.dossier` через `CompanyDossierTab.tsx`
+
+- **Целевой файл:** `frontend/src/components/companies/CompanyDossierTab.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:** Передать `profile.dossier?.competencies ?? []`, `profile.dossier?.specReviewChecklist ?? []`, `profile.dossier?.starScenarios ?? []` и `profile.dossier?.talentQGuide` в дочерние компоненты.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/CompanyDossierTab.tsx
+  
+  ```
+
+### УЗЕЛ 4: Sub-Issue #58 — `[Tracer-Bullet] Purge Leaked Domain Constants from Polymorphic Copilot Core`
+
+#### Шаг 4.1: Очистка `shared/src/schemas/tutorNormalizer.ts` от констант Райффайзена
+
+- **Целевой файл:** `shared/src/schemas/tutorNormalizer.ts`
+- **Действие:** `MODIFY`
+- **Реализация:** Заменить захардкоженные чипсы («Склад носков», `TransferService`, `cib-interns-test-task`) на динамическое формирование из `payload.profile`:
+  ```typescript
+  export function normalizeCompanyContext(payload: CompanyStudioSpokePayload): TutorActiveContext {
+    const { profile, activeStage, activeCodeSnippet, activeTaskTitle } = payload;
+  
+    const metricsList = profile.culture?.metricsFocus?.length
+      ? profile.culture.metricsFocus.join(', ')
+      : 'ключевым инженерным метрикам компании';
+  
+    const defaultChips: TutorQuickActionChip[] = [
+      {
+        id: 'pitch_review',
+        label: '🎙️ Отрепетируй питч',
+        promptMessage: `Послушай мой питч о себе для компании ${profile.name} и оцени его по фокусу культуры (${metricsList}).`
+      },
+      {
+        id: 'star_drill',
+        label: '🚨 Каверзный вопрос по STAR',
+        promptMessage: `Задай мне каверзный поведенческий вопрос по методике STAR с учетом red flags компании ${profile.name}.`
       }
-    }, 10000);
-
-    this.sendClientEvent(clientSocket, {
-      type: 'tool_executing',
-      tools: functionCalls.map((fc) => fc.name)
-    });
-
-    for (const call of functionCalls) {
-      const definition = LIVE_TOOL_REGISTRY.get(call.name);
-
-      if (!definition) {
-        console.warn(`⚠️ Unhandled or unsupported tool call [${call.name}]. Emitting graceful negative toolResponse.`);
-        this.sendGeminiToolResponse(
-          geminiSocket,
-          call.id,
-          call.name,
-          {
-            result: {
-              error: `Tool '${call.name}' is not supported in this session. Please explain verbally or use update_whiteboard.`
+    ];
+  
+    if (profile.takeHomeLab?.title) {
+      defaultChips.push({
+        id: 'take_home_traps',
+        label: `🧪 Ловушки Take-Home (${profile.takeHomeLab.title})`,
+        promptMessage: `Разбери частые антипаттерны и архитектурные дефекты в задании ${profile.takeHomeLab.title}: ${profile.takeHomeLab.antiPatternsSummary}.`
+      });
+    }
+  
+    const quickActionChips: TutorQuickActionChip[] =
+      profile.quickActionChips && profile.quickActionChips.length > 0
+        ? profile.quickActionChips
+        : defaultChips;
+  
+    return {
+      arena: 'companies',
+      entityId: profile.id,
+      entityTitle: activeTaskTitle || activeStage?.title || profile.name,
+      domain: profile.culture?.engineeringParadigm || 'Product Engineering & Enterprise Invariants',
+      persona: 'company_interviewer',
+      assistanceLevel: 3,
+      activeCodeOrQuery: activeCodeSnippet,
+      instructions: activeStage?.description || profile.tagline || '',
+      companyContext: {
+        companyId: profile.id,
+        companyName: profile.name,
+        stageTitle: activeStage?.title,
+        cultureMetrics: profile.culture?.metricsFocus,
+        redFlags: profile.culture?.redFlags,
+        greenFlags: profile.culture?.greenFlags,
+        takeHomeContext: profile.takeHomeLab
+          ? {
+              title: profile.takeHomeLab.title,
+              prAntiPatternsSummary: profile.takeHomeLab.antiPatternsSummary
             }
-          },
-          'WHEN_IDLE'
-        );
-        continue;
-      }
-
-      // 1. Central Invariant 2.1: Turn 0 Tool Lockdown
-      if (definition.isGatedOnTurn0 && !session.hasCandidateResponded) {
-        console.warn(`🛡️ [First-Turn Guard] Blocked premature ${call.name} before candidate spoke.`);
-        this.sendGeminiToolResponse(
-          geminiSocket,
-          call.id,
-          call.name,
-          { error: definition.turn0ErrorMessage || DEFAULT_TURN0_ERROR },
-          'WHEN_IDLE'
-        );
-        continue;
-      }
-
-      // 2. Central Declarative Deduplication Window
-      if (definition.dedupWindowMs && definition.dedupWindowMs > 0) {
-        const callKey = JSON.stringify(call.args || {});
-        const now = Date.now();
-        if (!session.toolDedupCache) session.toolDedupCache = {};
-        const cached = session.toolDedupCache[call.name];
-        const isDuplicate =
-          (cached && cached.hash === callKey && now - cached.timestamp < definition.dedupWindowMs) ||
-          (call.name === 'update_whiteboard' &&
-            session.lastToolCallHash === callKey &&
-            now - (session.lastToolCallTime || 0) < definition.dedupWindowMs);
-
-        if (isDuplicate) {
-          console.log(`🔄 Suppressing duplicate ${call.name} call within ${definition.dedupWindowMs}ms`);
-          this.sendGeminiToolResponse(
-            geminiSocket,
-            call.id,
-            call.name,
-            { result: definition.dedupResponseResult || { status: 'SUCCESS', deduplicated: true } },
-            definition.scheduling
-          );
-          continue;
-        }
-
-        session.toolDedupCache[call.name] = { hash: callKey, timestamp: now };
-        session.lastToolCallHash = callKey;
-        session.lastToolCallTime = now;
-      }
-
-      // 3. Execute Pure Domain Handler
-      try {
-        const outcome = await definition.handler(call.args || {}, {
-          callId: call.id,
-          toolName: call.name,
-          session,
-          parsedHints,
-          liveCoaching
-        });
-
-        const scheduling = outcome.scheduling || definition.scheduling || 'WHEN_IDLE';
-        this.sendGeminiToolResponse(
-          geminiSocket,
-          call.id,
-          call.name,
-          { result: outcome.result, error: outcome.error },
-          scheduling
-        );
-
-        if (outcome.clientEvent) {
-          this.sendClientEvent(clientSocket, outcome.clientEvent);
-        }
-      } catch (toolErr) {
-        const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
-        console.error(`❌ Error executing tool ${call.name}:`, toolErr);
-        this.sendGeminiToolResponse(
-          geminiSocket,
-          call.id,
-          call.name,
-          { result: { error: `Tool execution failed: ${errorMessage}` } },
-          'WHEN_IDLE'
-        );
-      }
-    }
-
-    session.isToolCallPending = false;
-    if (session.toolCallSafetyTimeout) {
-      clearTimeout(session.toolCallSafetyTimeout);
-      session.toolCallSafetyTimeout = null;
-    }
-    this.sendClientEvent(clientSocket, {
-      type: 'tool_execution_complete',
-      tools: functionCalls.map((fc) => fc.name)
-    });
+          : undefined
+      },
+      quickActionChips
+    };
   }
+  
+  ```
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  rg "Склад носков|cib-interns-test-task|TransferService" shared/src/schemas/tutorNormalizer.ts
+  # Должно вернуть 0 совпадений
+  wc -l shared/src/schemas/tutorNormalizer.ts
+  
+  ```
 
-  public static handleCancellation(session: ProxySession, ids: string[]): void {
-    console.log('🚫 [TOOL_CALL_CANCELLED] Upstream Gemini cancelled tool calls:', ids);
-    session.isToolCallPending = false;
-    if (session.toolCallSafetyTimeout) {
-      clearTimeout(session.toolCallSafetyTimeout);
-      session.toolCallSafetyTimeout = null;
-    }
-  }
-}
+#### Шаг 4.2: Очистка `polymorphicPromptBuilder.ts` и `personas.ts` от констант Райффайзена
 
-```
-**Команда локальной верификации:**
+- **Целевые файлы:**
+  - `backend/src/prompts/tutor/polymorphicPromptBuilder.ts`
+  - `backend/src/prompts/personas.ts`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Проверить оба файла через `rg "Райффайзен|Raiffeisen|Склад носков|TransferService|cib-interns-test-task"`.
+  2. В `polymorphicPromptBuilder.ts` заменить любые захардкоженные упоминания банка или тестового задания на интерполяцию полей из `context.companyContext` (`companyName`, `cultureMetrics`, `redFlags`, `greenFlags`, `takeHomeContext.title`, `takeHomeContext.prAntiPatternsSummary`). Если `takeHomeContext` не задан в профиле компании, секция Take-Home в системный промпт не рендерится.
+  3. В `personas.ts` убедиться, что персона `company_interviewer` описана как универсальный Staff/Principal Bar Raiser целевой компании из контекста, без привязки к одному банку.
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  rg "Склад носков|cib-interns-test-task|TransferService" backend/src/prompts/
+  # Должно вернуть 0 совпадений
+  
+  ```
 
-```bash
-wc -l backend/src/services/live/LiveToolEngine.ts
+#### Шаг 4.3: Обновление модульных тестов нормализатора и промпт-билдера
 
-```
+- **Целевые файлы:**
+  - `backend/tests/test_polymorphic_tutor_normalizers.js`
+  - `backend/tests/test_polymorphic_prompt_builder.js`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Добавить тестовый кейс с второй синтетической компанией (например, `id: 'acme-fintech'`, без `takeHomeLab` и без носков), проверяющий, что `normalizeCompanyContext` и `buildPolymorphicSystemPrompt` не содержат строк `cib-interns-test-task`, `Склад носков` или `TransferService`.
+  2. Обновить существующие тесты для профиля Райффайзена так, чтобы они передавали `takeHomeLab` и `quickActionChips` из структуры профиля.
 
-### Шаг 9: Переключение точек вызова (`liveAudioStreamRouter.ts`, `liveWsClientFrameHandler.ts`, `liveWsChallengeResolver.ts`, `geminiLiveProxy.ts`)
-**Действие:** `MODIFY`
+### УЗЕЛ 5: Sub-Issue #59 — `[Contract] Decompose Take-Home PR Forensics into Manifest-Driven Architecture`
 
-1. **`backend/src/services/live/liveAudioStreamRouter.ts` (373 строки):**
-  - Заменить импорт `import { LiveToolCallExecutor } from './LiveToolCallExecutor';` на:
-    ```typescript
-    import { LiveToolEngine } from './LiveToolEngine';
-    
-    ```
-  - В блоках `3. Tool Call Cancellation` и `4. Tool Calls Execution` (строки ~300–316) заменить `LiveToolCallExecutor.handleCancellation` и `LiveToolCallExecutor.executeFunctionCalls` на `LiveToolEngine.handleCancellation` и `LiveToolEngine.executeFunctionCalls`.
-2. **`backend/src/services/live/liveWsClientFrameHandler.ts` (395 строк):**
-  - Заменить импорт:
-    ```typescript
-    import { applyWorkspaceFileUpdate, matchWorkspaceFilePath, mergeWorkspaceManifests } from './workspaceManifestStore';
-    
-    ```
-3. **`backend/src/services/live/liveWsChallengeResolver.ts` (244 строки):**
-  - Заменить импорт функций манифеста (`applyWorkspaceFileUpdate`, `matchWorkspaceFilePath`, `mergeWorkspaceManifests`) с `./liveToolDispatcher` на `./workspaceManifestStore`.
-4. **`backend/src/services/geminiLiveProxy.ts` (56 строк):**
-  - Проверить реэкспорты: если файл реэкспортировал символы из `./live/liveToolDispatcher` или `./live/LiveToolCallExecutor`, перенаправить их на `./live/workspaceManifestStore` и `./live/LiveToolEngine`.
-**Команда локальной верификации:**
+#### Шаг 5.1: Декомпозиция `CompanyTakeHomeLab.tsx` на манифест-ориентированный компонент
 
-```bash
-wc -l backend/src/services/live/liveAudioStreamRouter.ts backend/src/services/live/liveWsClientFrameHandler.ts backend/src/services/live/liveWsChallengeResolver.ts
+- **Целевой файл:** `frontend/src/components/companies/CompanyTakeHomeLab.tsx`
+- **Действие:** `MODIFY`
+- **Реализация:**
+  1. Удалить из тела `CompanyTakeHomeLab.tsx` захардкоженный массив `PR_CASES` и статическое описание `cib-interns-test-task` (они уже перенесены в `json/company_profiles.json` на Шаге 1.3).
+  2. Принимать пропсы:
+     ```typescript
+     interface CompanyTakeHomeLabProps {
+       lab?: CompanyTakeHomeLab;
+       onAskTutorWithSnippet?: (snippet: string, caseTitle: string) => void;
+     }
+     
+     ```
+  3. Если `!lab` или `lab.prCases.length === 0`, рендерить чистый `EmptyState` без фантомных фолбэков.
+  4. Сохранить всю интерактивную механику PR Forensics (переключение между PR-кейсами, выбор чекбоксов дефектов из `prCase.defectOptions`, выбор вердикта `reject | request_changes | approve`, вычисление точности ревью, показ `architecturalFix` и кнопку отправки кода в AI-Напарника).
+  5. Убедиться, что размер файла после удаления встроенного каталога стал $< 220$ строк (при необходимости вынести карточку отдельного PR-диффа в `frontend/src/components/companies/TakeHomePrCaseCard.tsx`).
+- **Локальная верификация (Zero-RAM):**
+  ```bash
+  wc -l frontend/src/components/companies/CompanyTakeHomeLab.tsx
+  # Должно быть строго <= 350 строк
+  
+  ```
 
-```
+#### Шаг 5.2: Финальный Pre-Push Hygiene Audit & Remote Verification
 
-### Шаг 10: Удаление устаревших транзитных модулей (Invariant 8 — Zero Parallel Reimplementations)
-**Целевые файлы:**
-
-- `backend/src/services/live/liveRefactoringToolDispatcher.ts` — `DELETE`
-- `backend/src/services/live/liveToolDispatcher.ts` — `DELETE`
-- `backend/src/services/live/LiveToolCallExecutor.ts` — `DELETE`
-*(Примечание для CLI-агента: если на Шаге 1 обнаружены тестовые файлы в `backend/`, импортирующие `LiveToolCallExecutor` или `liveToolDispatcher`, обнови импорты в этих тестах на `LiveToolEngine` и `workspaceManifestStore` перед удалением файлов).*
-**Команда выполнения и верификации отсутствия битых ссылок:**
-
-```bash
-rm -f backend/src/services/live/liveRefactoringToolDispatcher.ts \
-      backend/src/services/live/liveToolDispatcher.ts \
-      backend/src/services/live/LiveToolCallExecutor.ts
-grep -rnE "liveToolDispatcher|LiveToolCallExecutor|liveRefactoringToolDispatcher" backend/src/ || echo "Clean: zero stale references"
-
-```
-
-### Шаг 11: Финальная верификация инвариантов, лимитов строк и сборки TypeScript
-**Действие:** Проверить отсутствие импортов `ws` в обработчиках инструментов, соблюдение Rule 8 (новые файлы ≤ 350 строк, измененные ≤ 400 строк) и чистую компиляцию проекта.
-**Команды финальной верификации:**
-
-```bash
-# 1. Проверка отсутствия импортов ws в чистых обработчиках и сторе манифеста
-grep -rn "from 'ws'" \
-  backend/src/services/live/workspaceManifestStore.ts \
-  backend/src/services/live/liveWorkspaceHandlers.ts \
-  backend/src/services/live/liveEvaluationToolDispatcher.ts \
-  backend/src/services/live/liveSystemDesignToolDispatcher.ts \
-  backend/src/services/live/liveHrToolDispatcher.ts || echo "Seam check PASSED: zero ws imports in handlers"
-
-# 2. Проверка Cognitive Bounding Limit (Rule 8)
-wc -l \
-  backend/src/services/live/workspaceManifestStore.ts \
-  backend/src/services/live/LiveToolEngine.ts \
-  backend/src/services/live/liveWorkspaceHandlers.ts \
-  backend/src/services/live/liveEvaluationToolDispatcher.ts \
-  backend/src/services/live/liveSystemDesignToolDispatcher.ts \
-  backend/src/services/live/liveHrToolDispatcher.ts \
-  backend/src/services/live/liveSessionTypes.ts \
-  backend/src/services/live/liveAudioStreamRouter.ts \
-  backend/src/services/live/liveWsClientFrameHandler.ts \
-  backend/src/services/live/liveWsChallengeResolver.ts
-
-# 3. Проверка компиляции TypeScript без сборки Docker
-cd backend && npm run build
-
-```
+- **Действие:** Проверить соблюдение всех инвариантов перед коммитом и запуском `remote-verify`:
+  1. Проверка лимита строк (Rule 8 $\le 350$ строк для всех измененных и новых исходных файлов):
+     ```bash
+     wc -l \
+       shared/src/schemas/companyProfile.ts \
+       shared/src/schemas/tutorNormalizer.ts \
+       backend/src/routes/companies.ts \
+       backend/src/prompts/tutor/polymorphicPromptBuilder.ts \
+       frontend/src/components/companies/arenaNavigator.ts \
+       frontend/src/components/companies/CompanyPrepStudio.tsx \
+       frontend/src/components/companies/CompanyRunbookTab.tsx \
+       frontend/src/components/companies/CompanyDossierTab.tsx \
+       frontend/src/components/companies/CompanyTakeHomeLab.tsx \
+       frontend/src/components/companies/dossier/CompanyCompetenciesRadar.tsx \
+       frontend/src/components/companies/dossier/CompanySpecReviewChecklist.tsx \
+       frontend/src/components/companies/dossier/CompanyStarScenarios.tsx \
+       frontend/src/components/companies/dossier/CompanyTalentQGuide.tsx
+     
+     ```
+  2. Проверка отсутствия утечек домена Райффайзена вне `json/company_profiles.json` и тестов:
+     ```bash
+     rg "Склад носков|cib-interns-test-task" shared/ backend/src/ frontend/src/
+     # Должно вернуть 0 совпадений
+     
+     ```
+  3. Запуск удаленной верификации в GitHub Actions (Invariant 0 — **без** локального запуска `tsc` или `npm test`):
+     ```bash
+     remote-verify
+     
+     ```
 
 ---
 
 *Exported from [Voyager](https://github.com/voyager-crew/voyager)*  
-*Generated on November 1, 2026 at 02:33 AM*
+*Generated on November 9, 2026 at 09:40 AM*
