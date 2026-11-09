@@ -55,14 +55,17 @@ export class LiveMicChunkDispatcher {
         return;
       }
 
+      // Explicit phonetic / neural speech detected -> immediate acoustic barge-in
+      if (metrics?.speechDetected) {
+        callbacks.onBargeIn('acoustic');
+        this.consecutiveVoicingFrames = 0;
+        return;
+      }
+
       // SOTA Spec 17 & gemini_live_reference Invariant:
       // Energy threshold: RMS >= 0.035 (~ -29 dBFS).
       // Bleed from physical laptop/phone speakers (< -29 dBFS) is rejected to eliminate self-interruption.
-      const isConfirmedVocalEnergy = Boolean(
-        metrics?.speechDetected || (metrics && typeof metrics.rmsDb === 'number' && metrics.rmsDb >= -29)
-      );
-
-      if (isConfirmedVocalEnergy) {
+      if (metrics && typeof metrics.rmsDb === 'number' && metrics.rmsDb >= -29) {
         this.consecutiveVoicingFrames++;
         // 7 frames @ 32ms = 224ms sustained vocal phonation (>= 180ms transient window)
         if (this.consecutiveVoicingFrames >= 7) {
@@ -70,9 +73,7 @@ export class LiveMicChunkDispatcher {
           this.consecutiveVoicingFrames = 0;
         }
       } else {
-        if (this.consecutiveVoicingFrames > 0 && this.consecutiveVoicingFrames < 7) {
-          callbacks.onTransientFiltered?.();
-        }
+        if (this.consecutiveVoicingFrames > 0 && this.consecutiveVoicingFrames < 7) callbacks.onTransientFiltered?.();
         this.consecutiveVoicingFrames = 0;
       }
       return;
