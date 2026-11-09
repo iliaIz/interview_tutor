@@ -20,6 +20,7 @@ import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlB
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
 import { dispatchDomainEvents } from './liveVoiceDomainEvents';
+import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
@@ -27,8 +28,6 @@ import {
   DialogueTurnItem,
   ILiveVoiceEngine
 } from './types';
-
-const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private fsm: LiveVoiceStateMachine;
@@ -38,6 +37,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private micCapture: MicrophoneCapture;
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
+  private micDispatcher = new LiveMicChunkDispatcher();
 
   private isServerTurnComplete = false;
   private isAudioMutexLocked = false;
@@ -46,9 +46,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isSessionReady = false;
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
-  private consecutiveVoicingFrames = 0;
-  private candidateVoicingFramesInTurn = 0;
-  private candidateSilenceFramesAfterVoicing = 0;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
@@ -125,14 +122,14 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public commitSpokenTurn(): void {
-    this.candidateVoicingFramesInTurn = 0;
-    this.candidateSilenceFramesAfterVoicing = 0;
+    this.micDispatcher.resetCounters();
     this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
+      // SOTA Late 2026 Invariant 1.5 & Rule 2.6: Strict Channel Separation (No Interleaving)
+      // Fast-handoff streams strictly audioStreamEnd without empty clientContent
       this.ws.send(JSON.stringify({
-        realtimeInput: { audioStreamEnd: true },
-        clientContent: { turnComplete: true }
+        realtimeInput: { audioStreamEnd: true }
       }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
@@ -205,77 +202,23 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    if (this.isMuted || this.isAudioMutexLocked) return;
-
-    // 1. Transient / Cough Suppression during AI_SPEAKING (Local False Interruption Protection)
-    if (this.getState() === 'AI_SPEAKING') {
-      if (this.isTurn0Lockdown) return;
-
-      if (metrics?.isTransientSpike) {
-        if (this.consecutiveVoicingFrames > 0) {
-          this.playoutManager.rollbackDucking(15);
-          this.consecutiveVoicingFrames = 0;
-        }
-        this.callbacks.onTransientFiltered?.();
-        return;
+    this.micDispatcher.dispatchChunk(
+      base64Pcm,
+      metrics,
+      this.getState(),
+      this.isMuted,
+      this.isAudioMutexLocked,
+      this.isTurn0Lockdown,
+      this.isSessionReady,
+      this.config?.turnMode,
+      this.playoutManager,
+      this.ws,
+      {
+        onTransientFiltered: () => this.callbacks.onTransientFiltered?.(),
+        onBargeIn: (source) => this.handleBargeInInterruption(source),
+        onCommitSpokenTurn: () => this.commitSpokenTurn(),
       }
-
-      if (metrics?.speechDetected || (metrics && metrics.rmsDb > -38)) {
-        if (metrics?.speechDetected) {
-          this.handleBargeInInterruption('acoustic');
-          this.consecutiveVoicingFrames = 0;
-          return;
-        }
-        this.playoutManager.speculativeDuck(0.35, 15);
-        this.consecutiveVoicingFrames++;
-        if (this.consecutiveVoicingFrames >= 7) {
-          this.handleBargeInInterruption('acoustic');
-          this.consecutiveVoicingFrames = 0;
-        }
-      } else if (this.consecutiveVoicingFrames > 0) {
-        this.playoutManager.rollbackDucking(15);
-        this.callbacks.onTransientFiltered?.();
-        this.consecutiveVoicingFrames = 0;
-      }
-      return;
-    }
-
-    if (!this.isSessionReady || this.getState() !== 'LISTENING') {
-      this.candidateVoicingFramesInTurn = 0;
-      this.candidateSilenceFramesAfterVoicing = 0;
-      return;
-    }
-
-    // Auto-VAD Speech Cessation Detection (Fast-Handoff)
-    const isVoicing = Boolean(metrics?.speechDetected || (metrics && metrics.rmsDb > -42));
-    if (isVoicing) {
-      this.candidateVoicingFramesInTurn++;
-      this.candidateSilenceFramesAfterVoicing = 0;
-    } else if (this.candidateVoicingFramesInTurn >= 4) {
-      // Candidate spoke for >= 80ms, now silent
-      this.candidateSilenceFramesAfterVoicing++;
-      // ~500ms trailing silence (25 frames at 20ms) triggers fast-handoff in auto mode
-      if (this.config?.turnMode !== 'manual' && this.candidateSilenceFramesAfterVoicing >= 25) {
-        this.candidateVoicingFramesInTurn = 0;
-        this.candidateSilenceFramesAfterVoicing = 0;
-        this.commitSpokenTurn();
-        return;
-      }
-    }
-
-    // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      if (metrics?.isTransientSpike) {
-        this.callbacks.onTransientFiltered?.();
-        this.ws.send(JSON.stringify({
-          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: STATIC_SILENCE_BASE64 } }
-        }));
-      } else {
-        this.ws.send(JSON.stringify({
-          realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
-        }));
-      }
-    }
+    );
   }
 
   private handleServerFrame(rawData: any): void {
@@ -318,13 +261,11 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     dispatchDomainEvents(this.callbacks, parsed);
 
-    // 2. Incoming Model Speech / Audio
+    // 2. Incoming Model Speech / Audio (SOTA Late 2026: Modality Separation)
     if (parsed.hasAudio || parsed.hasText) {
       this.isSessionReady = true;
       this.isServerTurnComplete = false;
       this.clearClientSafetyTimer();
-      this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
-      this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
 
       for (const textChunk of parsed.textDeltas) {
         this.currentAiTurnAccumulator += textChunk;
@@ -332,8 +273,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         this.turnManager.updateLastAiTurn(this.currentAiTurnAccumulator);
       }
 
-      for (const pcm of parsed.audioChunks) {
-        this.playoutManager.enqueuePcmChunk(pcm);
+      if (parsed.hasAudio) {
+        this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
+        this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
+        for (const pcm of parsed.audioChunks) {
+          this.playoutManager.enqueuePcmChunk(pcm);
+        }
       }
     }
 

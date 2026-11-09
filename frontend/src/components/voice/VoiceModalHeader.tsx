@@ -33,24 +33,24 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
   onClose
 }) => {
   return (
-    <div className="flex items-center justify-between pb-3 border-b border-rose-100/60 shrink-0">
-      <div className="flex items-center gap-2">
-        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping" />
-        <h2 className="font-bold text-slate-800 text-sm sm:text-base tracking-tight truncate max-w-[260px] sm:max-w-md">
+    <div className="flex items-center justify-between gap-3 pb-3 border-b border-rose-100/60 shrink-0">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping shrink-0" />
+        <h2 className="font-bold text-slate-800 text-sm sm:text-base tracking-tight truncate" title={activeTopic}>
           {activeTopic}
         </h2>
         {isBatchMode && (
-          <span className="px-2 py-0.5 rounded-full bg-rose-100/80 text-rose-700 text-xs font-semibold">
+          <span className="px-2 py-0.5 rounded-full bg-rose-100/80 text-rose-700 text-xs font-semibold shrink-0">
             {activeBatchIndex + 1} / {totalQuestions}
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="shrink-0 flex items-center gap-2">
         {onToggleCribSheet && (
           <button
             onClick={onToggleCribSheet}
             title="Шпаргалка и бриф к собеседованию"
-            className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+            className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer shrink-0 ${
               isCribSheetOpen
                 ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
                 : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300'
@@ -63,7 +63,7 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
         <button
           onClick={onToggleWhiteboard}
           title="Интерактивная доска кода"
-          className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+          className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer shrink-0 ${
             isWhiteboardOpen || activeWhiteboardState
               ? 'bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-200'
               : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-rose-50/70 hover:text-rose-600 hover:border-rose-200'
@@ -77,7 +77,8 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
         </button>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Закрыть окно диалога"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>

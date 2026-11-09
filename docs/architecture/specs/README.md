@@ -30,6 +30,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **11** | **Omnipresent AI Copilot Architecture** | [`11_OMNIPRESENT_AI_COPILOT_ARCHITECTURE.md`](11_OMNIPRESENT_AI_COPILOT_ARCHITECTURE.md) | Single headless copilot engine, polymorphic context normalizer, Socratic ladder, anti-solution leak AST guard |
 | **12** | **Company Prep Studio Deepening & ArenaNavigator** | [`12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md`](12_COMPANY_PREP_STUDIO_DEEPENING_AND_ARENA_NAVIGATOR.md) | Deep Domain Manifest SSOT, ArenaNavigator cross-arena seam, zero vendor leakage in copilot normalizer |
 | **13** | **Gemini Live Protocol & Omnipresent Copilot Enrichment** | [`13_GEMINI_LIVE_PROTOCOL_AND_OMNIPRESENT_COPILOT_ENRICHMENT.md`](13_GEMINI_LIVE_PROTOCOL_AND_OMNIPRESENT_COPILOT_ENRICHMENT.md) | Gemini 3.8 Live audioStreamEnd fast-handoff, global VoiceProvider, dynamic HLD context, Studio 1 fix |
+| **14** | **Gemini Live Protocol Alignment & Voice Modal Stabilization** | [`14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md`](14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md) | Canonical Gemini Live audioStreamEnd, Zero-Audio Circuit Breaker, AudioContext warmup, Defensive Header Flexbox & Close button |
 
 ---
 
