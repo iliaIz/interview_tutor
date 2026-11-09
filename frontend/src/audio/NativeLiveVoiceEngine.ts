@@ -47,6 +47,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private currentAiTurnAccumulator = '';
   private clientSafetyTimer: ReturnType<typeof setTimeout> | null = null;
   private consecutiveVoicingFrames = 0;
+  private candidateVoicingFramesInTurn = 0;
+  private candidateSilenceFramesAfterVoicing = 0;
 
   constructor(private callbacks: VoiceEngineCallbacks = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
@@ -123,10 +125,15 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public commitSpokenTurn(): void {
+    this.candidateVoicingFramesInTurn = 0;
+    this.candidateSilenceFramesAfterVoicing = 0;
     this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+      this.ws.send(JSON.stringify({
+        realtimeInput: { audioStreamEnd: true },
+        clientContent: { turnComplete: true }
+      }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
     this.armClientSafetyTimer();
@@ -144,8 +151,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         type: 'barge_in',
         bargeIn: true,
         bargeInType: source,
-        source,
-        clientContent: { interruption: true }
+        source
       }));
     }
     this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
@@ -234,7 +240,28 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    if (!this.isSessionReady || this.getState() !== 'LISTENING') return;
+    if (!this.isSessionReady || this.getState() !== 'LISTENING') {
+      this.candidateVoicingFramesInTurn = 0;
+      this.candidateSilenceFramesAfterVoicing = 0;
+      return;
+    }
+
+    // Auto-VAD Speech Cessation Detection (Fast-Handoff)
+    const isVoicing = Boolean(metrics?.speechDetected || (metrics && metrics.rmsDb > -42));
+    if (isVoicing) {
+      this.candidateVoicingFramesInTurn++;
+      this.candidateSilenceFramesAfterVoicing = 0;
+    } else if (this.candidateVoicingFramesInTurn >= 4) {
+      // Candidate spoke for >= 80ms, now silent
+      this.candidateSilenceFramesAfterVoicing++;
+      // ~500ms trailing silence (25 frames at 20ms) triggers fast-handoff in auto mode
+      if (this.config?.turnMode !== 'manual' && this.candidateSilenceFramesAfterVoicing >= 25) {
+        this.candidateVoicingFramesInTurn = 0;
+        this.candidateSilenceFramesAfterVoicing = 0;
+        this.commitSpokenTurn();
+        return;
+      }
+    }
 
     // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {

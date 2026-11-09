@@ -4,6 +4,7 @@ import {
   Mic, Code2, Bug, Database, Layers, ArrowRight, 
   CheckCircle2, Clock, Check, Sparkles, PackageCheck
 } from 'lucide-react';
+import { CompanyPreFlightBriefing } from './dossier/CompanyPreFlightBriefing';
 
 interface CompanyPipelineTabProps {
   stages: CompanyPipelineStage[];
@@ -140,6 +141,9 @@ export const CompanyPipelineTab: React.FC<CompanyPipelineTabProps> = ({
                   <p className="text-xs text-slate-600 leading-relaxed">
                     {stage.description}
                   </p>
+                  {stage.format === 'voice_fit' && (
+                    <CompanyPreFlightBriefing />
+                  )}
                 </div>
               </div>
 

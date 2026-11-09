@@ -19,6 +19,7 @@ export const FlameIcon = Flame;
 
 export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
+  { id: 'raiffeisen', name: '🏦 Райффайзенбанк', icon: Crown, badge: 'FinTech Track' },
   { id: 'design_patterns', name: 'Design Patterns', icon: Layers, badge: '7 Katas (SOTA 2026)' },
   { id: 'refactoring_kata', name: 'Refactoring Arena', icon: Shield, badge: '24 Katas (L0–L3)' },
   { id: 'spring_transactions', name: 'Spring Transactions Lab', icon: Database, badge: 'SOTA 2026' },
@@ -56,8 +57,12 @@ export const REFACTORING_ARCHETYPES = [
   { id: 'l3_staff', name: '🟣 Staff L3 (8)', badge: '🟣 BigTech Architecture', icon: Crown, match: ['l3-ref'] }
 ];
 
-export function isChallengeInCategory(c: { category?: string; track?: string }, category: ChallengeCategory): boolean {
+export function isChallengeInCategory(c: { id?: string; category?: string; track?: string }, category: ChallengeCategory): boolean {
   if (category === 'all') return true;
+  if (category === 'raiffeisen') {
+    const rIds = ['iban-validator', 'sparse-vector', 'case_transfer_service', 'case_account_collections'];
+    return rIds.includes(c.id || '') || c.track === 'raiffeisen_code_review';
+  }
   if (category === 'design_patterns') return c.category === 'design_patterns' || c.track === 'design_patterns';
   if (category === 'refactoring_kata') return c.category === 'refactoring_kata' || c.track === 'refactoring';
   if (category === 'spring_transactions') return c.category === 'spring_transactions';

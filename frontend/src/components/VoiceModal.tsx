@@ -18,6 +18,7 @@ import { VoiceVerdictView } from './voice/VoiceVerdictView';
 import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceModalHeader } from './voice/VoiceModalHeader';
 import { QuestionItem, VoiceModalProps } from './voice/voiceModalTypes';
+import { VoiceCribSheetDrawer } from './voice/VoiceCribSheetDrawer';
 
 export type { QuestionItem, VoiceModalProps };
 
@@ -47,6 +48,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   const [batchResults, setBatchResults] = useState<Record<string, VoiceEvaluationResult>>({});
   const [textInput, setTextInput] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isCribSheetOpen, setIsCribSheetOpen] = useState<boolean>(false);
 
   // Sync internal activeBatchIndex when parent updates initialQuestionIndex
   useEffect(() => {
@@ -288,6 +290,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           isWhiteboardOpen={isWhiteboardOpen}
           activeWhiteboardState={activeWhiteboardState}
           onToggleWhiteboard={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
+          isCribSheetOpen={isCribSheetOpen}
+          onToggleCribSheet={() => setIsCribSheetOpen(!isCribSheetOpen)}
           onClose={handleClose}
         />
 
@@ -384,6 +388,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           isOpen={isWhiteboardOpen}
           onClose={() => setIsWhiteboardOpen(false)}
           state={activeWhiteboardState}
+        />
+
+        <VoiceCribSheetDrawer
+          isOpen={isCribSheetOpen}
+          onClose={() => setIsCribSheetOpen(false)}
         />
       </div>
     </div>

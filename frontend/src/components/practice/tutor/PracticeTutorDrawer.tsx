@@ -174,16 +174,16 @@ export const PracticeTutorDrawer: React.FC = () => {
     <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[420px] bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
       {/* Drawer Header */}
       <div className="px-4 py-3 border-b border-pastel-border/70 bg-gradient-to-r from-[#FFF0F5] via-white to-pastel-lavender/30 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-pastel-accentRose/10 border border-pastel-accentRose/30 flex items-center justify-center">
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+          <div className="w-8 h-8 rounded-xl bg-pastel-accentRose/10 border border-pastel-accentRose/30 flex items-center justify-center shrink-0">
             <Bot className="w-4 h-4 text-pastel-accentRose" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-xs text-slate-800">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-xs text-slate-800 truncate">
                 {activeContext ? activeContext.domain : 'AI-Напарник (Co-Pilot)'}
               </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-pastel-accentRoseText border border-pastel-accentRose/20">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-pastel-accentRoseText border border-pastel-accentRose/20 shrink-0">
                 {activeContext?.arena === 'sql_arena'
                   ? '🐘 PostgreSQL 16'
                   : activeContext?.arena === 'companies'
@@ -191,14 +191,14 @@ export const PracticeTutorDrawer: React.FC = () => {
                   : PERSONA_LABELS[persona].badge}
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 truncate max-w-[240px]">
+            <p className="text-[10px] text-slate-500 truncate">
               {activeContext ? activeContext.entityTitle : 'Парное программирование & Socratic Tutor'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
             <button
               onClick={() => setModality('text')}
               className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold transition cursor-pointer ${
@@ -222,7 +222,8 @@ export const PracticeTutorDrawer: React.FC = () => {
           </div>
           <button
             onClick={() => toggleOpen(false)}
-            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer"
+            className="w-7 h-7 shrink-0 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer"
+            title="Закрыть шторку"
           >
             <X className="w-4 h-4" />
           </button>

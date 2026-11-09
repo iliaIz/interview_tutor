@@ -16,14 +16,10 @@ import { SystemDesignEvaluationModal } from './arena/SystemDesignEvaluationModal
 import { useSystemDesignVoiceDefense } from './arena/useSystemDesignVoiceDefense';
 import { useSystemDesignDraft } from './arena/useSystemDesignDraft';
 import { buildSystemDesignVoicePrompt } from './arena/systemDesignVoicePrompt';
+import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
+import { normalizeSystemDesignContext } from '@interview-prep/shared';
 
-const INITIAL_MERMAID = `graph TD
-  Client[🌐 Web / Mobile Client] -->|HTTPS / TLS| LB[⚖️ Load Balancer]
-  LB --> Gateway[🚪 API Gateway]
-  Gateway --> ServiceA[⚙️ Core Service]
-  ServiceA --> DB[(🗄️ Primary PostgreSQL)]
-  ServiceA --> Cache[(⚡ Redis Cache)]
-  ServiceA --> Kafka[/📨 Kafka Event Bus/]`;
+const INITIAL_MERMAID = 'graph TD\n  Client[🌐 Client] --> LB[⚖️ LB] --> Gateway[🚪 Gateway] --> ServiceA[⚙️ Core Service] --> DB[(🗄️ Primary DB)]';
 
 export const SystemDesignArena: React.FC = () => {
   const { 
@@ -145,6 +141,32 @@ export const SystemDesignArena: React.FC = () => {
   }, [activeSystemDesignScenario, currentTopology, candidateNotes]);
 
   useBodyScrollLock(Boolean(evaluationResult));
+
+  // Dynamic Omnipresent Copilot Context Streaming (SPEC-13 §4.2.1)
+  useEffect(() => {
+    if (!activeSystemDesignScenario) return;
+
+    const payload = normalizeSystemDesignContext({
+      scenarioId: activeSystemDesignScenario.id,
+      scenarioTitle: activeSystemDesignScenario.title,
+      targetLevel: activeSystemDesignScenario.target_level,
+      activeStudioTab: activeTab,
+      topologySummary: currentTopology,
+      capacityMathSummary: candidateNotes,
+      companyContextName: 'System Design Track'
+    });
+
+    usePracticeTutorStore.getState().setActiveContext(payload);
+  }, [activeSystemDesignScenario, activeTab, currentTopology, candidateNotes]);
+
+  useEffect(() => {
+    return () => {
+      const store = usePracticeTutorStore.getState();
+      if (store.activeContext?.arena === 'system_design') {
+        store.setActiveContext(null);
+      }
+    };
+  }, []);
 
   if (!activeSystemDesignScenario) return null;
 

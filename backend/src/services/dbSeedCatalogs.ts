@@ -125,6 +125,19 @@ export function seedCodingChallenges(db: Database.Database) {
       console.log(`✅ Seeded ${lldChallenges.length} SOTA Machine Coding & LLD challenges from JSON`);
     }
 
+    // Also load and sync Enterprise Refactoring Katas from refactoring_challenges.json (SPEC-13)
+    const refactorJsonPaths = [
+      path.join(__dirname, '../../../json/refactoring_challenges.json'),
+      path.join(__dirname, '../../json/refactoring_challenges.json'),
+      path.join(process.cwd(), 'json/refactoring_challenges.json')
+    ];
+    const refactorPath = refactorJsonPaths.find(p => fs.existsSync(p));
+    if (refactorPath) {
+      const refactorChallenges = JSON.parse(fs.readFileSync(refactorPath, 'utf-8'));
+      syncAll(refactorChallenges);
+      console.log(`✅ Seeded ${refactorChallenges.length} Enterprise Refactoring Katas from JSON`);
+    }
+
     // Assign deterministic task codes: TST-01..TST-42 and LLD-01..LLD-55
     const diffOrder: Record<string, number> = { Junior: 0, Middle: 1, Senior: 2, Lead: 3 };
     const updateCodeStmt = db.prepare('UPDATE coding_challenges SET task_code = ? WHERE id = ?');

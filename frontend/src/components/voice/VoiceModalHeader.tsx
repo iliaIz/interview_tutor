@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { X, Code2 } from 'lucide-react';
+import { X, Code2, BookOpen } from 'lucide-react';
 
 export interface VoiceModalHeaderProps {
   activeTopic: string;
@@ -15,6 +15,8 @@ export interface VoiceModalHeaderProps {
   isWhiteboardOpen: boolean;
   activeWhiteboardState: any;
   onToggleWhiteboard: () => void;
+  isCribSheetOpen?: boolean;
+  onToggleCribSheet?: () => void;
   onClose: () => void;
 }
 
@@ -26,6 +28,8 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
   isWhiteboardOpen,
   activeWhiteboardState,
   onToggleWhiteboard,
+  isCribSheetOpen = false,
+  onToggleCribSheet,
   onClose
 }) => {
   return (
@@ -42,6 +46,20 @@ export const VoiceModalHeader: React.FC<VoiceModalHeaderProps> = ({
         )}
       </div>
       <div className="flex items-center gap-2">
+        {onToggleCribSheet && (
+          <button
+            onClick={onToggleCribSheet}
+            title="Шпаргалка и бриф к собеседованию"
+            className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+              isCribSheetOpen
+                ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-amber-600" />
+            <span className="hidden sm:inline">Шпаргалка</span>
+          </button>
+        )}
         <button
           onClick={onToggleWhiteboard}
           title="Интерактивная доска кода"

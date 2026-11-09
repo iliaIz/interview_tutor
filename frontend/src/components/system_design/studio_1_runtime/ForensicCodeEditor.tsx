@@ -46,9 +46,21 @@ export const ForensicCodeEditor: React.FC<ForensicCodeEditorProps> = ({
   const [isDiffExpanded, setIsDiffExpanded] = useState(false);
 
   const checkIsFixed = (currentCode: string): boolean => {
-    if (!fadedBug) return true;
-    if (!fadedBug.bug_pattern) return true;
-    return !currentCode.includes(fadedBug.bug_pattern);
+    if (!fadedBug) return false;
+    // 1. Initial unmodified baseline code is NEVER considered fixed
+    if (currentCode.trim() === defaultFile.content.trim()) {
+      return false;
+    }
+    // 2. Unimplemented placeholders or bug markers disqualify the fix
+    if (currentCode.includes('// BUG:') || currentCode.includes('// BUG 2:') || currentCode.includes('return null;')) {
+      return false;
+    }
+    // 3. If bug_pattern exists in code as a literal string or symbol, ensure it was eliminated
+    if (fadedBug.bug_pattern && currentCode.includes(fadedBug.bug_pattern)) {
+      return false;
+    }
+    // 4. Candidate must have added substantive logic beyond the original template
+    return currentCode.trim().length > 100;
   };
 
   const [isBugFixed, setIsBugFixed] = useState(() => checkIsFixed(defaultFile.content));

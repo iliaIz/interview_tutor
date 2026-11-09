@@ -8,8 +8,10 @@ import {
   Compass,
   Radio,
   Award,
-  Loader2
+  Loader2,
+  Bot
 } from 'lucide-react';
+import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 
 interface SystemDesignTopBarProps {
   title: string;
@@ -129,6 +131,15 @@ export const SystemDesignTopBar: React.FC<SystemDesignTopBarProps> = ({
 
       {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={() => usePracticeTutorStore.getState().toggleOpen()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-pastel-accentRose/15 hover:bg-pastel-accentRose/25 text-pastel-accentRose border border-pastel-accentRose/30 transition cursor-pointer shadow-2xs"
+          title="Открыть AI-Напарника (Текст / Голос Gemini Live)"
+        >
+          <Bot className="w-3.5 h-3.5 text-pastel-accentRose" />
+          <span className="hidden sm:inline">AI-Напарник</span>
+        </button>
+
         <button
           onClick={onOpenCompass}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition cursor-pointer shadow-2xs"
