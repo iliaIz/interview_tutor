@@ -348,13 +348,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
 
             const audioBytes = session.currentTurnAudioBytes || 0;
             const text = (session.currentAiTurnText || '').trim();
-            // SOTA Late 2026 Invariant 2.9 (Acoustic Non-Zero Audio SLA):
-            // Every spoken response MUST contain >= 1200 bytes audio. If audio < 200 bytes,
-            // intercept vocoder stall or non-speech token unconditionally and dispatch recovery nudge.
-            const isZeroAudioTurn = !isToolCallTurn && audioBytes < 200;
+            const isZeroAudioTurn = !isToolCallTurn && audioBytes < 200 && (text.length < 5 || isNonSpeechUtterance(text, audioBytes));
+            const allowSilenceClarification = Boolean(session.enableSilenceClarification);
 
-            if (session.isCannedErrorTurn || isZeroAudioTurn) {
-              session.isCannedErrorTurn = true;
+            if (session.isCannedErrorTurn || (isZeroAudioTurn && allowSilenceClarification)) {
               if (isZeroAudioTurn && !session.cannedErrorType) {
                 session.cannedErrorType = session.hasCandidateResponded ? 'non_speech' : 'turn0_empty';
               }
