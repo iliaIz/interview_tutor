@@ -62,9 +62,10 @@ function runTests() {
   assert.ok(chipIds.includes('hld_runtime_bug'));
   assert.ok(chipIds.includes('hld_math_verify'));
 
-  assert.ok(sampleContext.instructions.includes('[АКТИВНАЯ ВКЛАДКА / РЕЖИМ]: RUNTIME'));
-  assert.ok(sampleContext.instructions.includes('GREEDY_FALLACY_AND_NON_ATOMIC_HARDWARE'));
-  assert.ok(sampleContext.instructions.includes('atm_controller -> hardware_dispenser'));
+  const instructions = sampleContext.instructions || '';
+  assert.ok(instructions.includes('[АКТИВНАЯ ВКЛАДКА / РЕЖИМ]: RUNTIME'));
+  assert.ok(instructions.includes('GREEDY_FALLACY_AND_NON_ATOMIC_HARDWARE'));
+  assert.ok(instructions.includes('atm_controller -> hardware_dispenser'));
 
   console.log('✓ normalizeSystemDesignContext contract passed.');
 
