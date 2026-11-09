@@ -7,10 +7,10 @@ console.log('Testing coding_challenges schema and data integrity...');
 // Ensure challenges and task codes are seeded in test DB
 seedCodingChallenges();
 
-// 1. Check total count
+// 1. Check total count (99 Machine Coding + 26 Enterprise Refactoring Katas)
 const totalCount = db.prepare('SELECT count(*) as count FROM coding_challenges').get().count;
 console.log(`Total coding challenges in DB: ${totalCount}`);
-assert.strictEqual(totalCount, 99, 'Expected 99 total challenges');
+assert.strictEqual(totalCount, 125, 'Expected 125 total challenges');
 
 // 2. Check task_code population
 const tstCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE task_code LIKE 'TST-%'").get().count;
@@ -20,6 +20,10 @@ assert.strictEqual(tstCount, 42, 'Expected 42 TST katas');
 const lldCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE task_code LIKE 'LLD-%'").get().count;
 console.log(`LLD Challenges with LLD-xx: ${lldCount}`);
 assert.strictEqual(lldCount, 57, 'Expected 57 LLD challenges');
+
+const refCount = db.prepare("SELECT count(*) as count FROM coding_challenges WHERE category = 'refactoring_kata'").get().count;
+console.log(`Refactoring Katas: ${refCount}`);
+assert.strictEqual(refCount, 26, 'Expected 26 Refactoring Katas');
 
 // 3. Check difficulties normalization
 const diffs = db.prepare('SELECT DISTINCT difficulty FROM coding_challenges ORDER BY difficulty').all().map(r => r.difficulty);
