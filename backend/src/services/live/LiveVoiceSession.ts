@@ -133,6 +133,7 @@ export class LiveVoiceSession {
         terminate('KeepaliveTimeout');
       }
     }, 15000);
+    (session.heartbeatInterval as any)?.unref?.();
 
     const systemPromptText = buildSystemPrompt({
       topic: config.topic,

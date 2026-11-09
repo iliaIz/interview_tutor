@@ -19,6 +19,9 @@ export class LiveHeartbeatController {
         } catch {}
       }
     }, 20000);
+    if (this.interval && typeof (this.interval as any).unref === 'function') {
+      (this.interval as any).unref();
+    }
   }
 
   public stop(): void {
