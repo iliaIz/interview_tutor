@@ -32,6 +32,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **13** | **Gemini Live Protocol & Omnipresent Copilot Enrichment** | [`13_GEMINI_LIVE_PROTOCOL_AND_OMNIPRESENT_COPILOT_ENRICHMENT.md`](13_GEMINI_LIVE_PROTOCOL_AND_OMNIPRESENT_COPILOT_ENRICHMENT.md) | Gemini 3.8 Live audioStreamEnd fast-handoff, global VoiceProvider, dynamic HLD context, Studio 1 fix |
 | **14** | **Gemini Live Protocol Alignment & Voice Modal Stabilization** | [`14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md`](14_GEMINI_LIVE_CANONICAL_PROTOCOL_AND_VOICE_MODAL_STABILIZATION.md) | Canonical Gemini Live audioStreamEnd, Zero-Audio Circuit Breaker, AudioContext warmup, Defensive Header Flexbox & Close button |
 | **15** | **Practice Catalog Starter Workspace & TDD Remediation** | [`15_PRACTICE_CATALOG_STARTER_WORKSPACE_AND_TDD_REMEDIATION.md`](15_PRACTICE_CATALOG_STARTER_WORKSPACE_AND_TDD_REMEDIATION.md) | Zero-Stillborn Starter Invariant, 61 kata starter remediation, TDD Red stubs, mutation test cleanup, Raiffeisen starter fix |
+| **16** | **Live Voice Modality Separation & Keepalive Resilience** | [`16_LIVE_VOICE_MODALITY_SEPARATION_AND_KEEPALIVE_RESILIENCE.md`](16_LIVE_VOICE_MODALITY_SEPARATION_AND_KEEPALIVE_RESILIENCE.md) | Strict PCM Audio Gating, Symmetrical Keepalive Ping/Pong, Dual-Sided Verdict Drain, High-Contrast Sticky UI |
 
 ---
 

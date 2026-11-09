@@ -127,7 +127,7 @@ export class LiveVoiceSession {
       if (clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
       }
-      const inactivityLimitMs = (session.isOnHold || config.turnMode === 'manual') ? 1800000 : 180000;
+      const inactivityLimitMs = (session.isOnHold || config.turnMode === 'manual') ? 1800000 : 900000;
       if (Date.now() - session.lastActivityAt > inactivityLimitMs) {
         console.warn(`⚠️ Session inactive for >${inactivityLimitMs / 1000}s. Terminating keepalive expired socket.`);
         terminate('KeepaliveTimeout');

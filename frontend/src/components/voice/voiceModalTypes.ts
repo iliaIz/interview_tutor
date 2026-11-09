@@ -26,6 +26,7 @@ export interface VoiceModalProps {
   initialSessionType?: 'interview' | 'tutor';
   initialTutorMode?: string;
   customPromptOverride?: string;
+  vadPauseMs?: number;
   onIndexChange?: (newIndex: number) => void;
   onBatchComplete?: (batchResults: Record<string, VoiceEvaluationResult>) => void;
   onEvaluationComplete?: (evaluation: VoiceEvaluationResult) => void;

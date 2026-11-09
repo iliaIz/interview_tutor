@@ -34,6 +34,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   initialSessionType = 'interview',
   initialTutorMode = 'deep_dive',
   customPromptOverride,
+  vadPauseMs,
   onIndexChange,
   onBatchComplete,
   onEvaluationComplete,
@@ -117,7 +118,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         voice: interviewConfig.voice || 'Kore',
         turnMode: interviewConfig.turnMode || 'auto',
         liveModel: interviewConfig.liveModel || 'gemini-live-v3',
-        vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
+        vadPauseMs: vadPauseMs ?? interviewConfig.vadPauseMs ?? 800,
         enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
         persona: interviewConfig.persona || 'mentor',
         targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
@@ -142,6 +143,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     initialTutorMode,
     interviewConfig,
     customPromptOverride,
+    vadPauseMs,
     totalQuestions,
     connect
   ]);
@@ -160,7 +162,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   const pendingEvaluationRef = useRef<VoiceEvaluationResult | null>(null);
 
-  // Handle incoming evaluation: save result and wait for physical audio to drain
+  // Handle incoming evaluation: save result and transition to verdict once audio drains
   useEffect(() => {
     if (evaluation) {
       pendingEvaluationRef.current = evaluation;
@@ -176,17 +178,11 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
           isComplete: activeBatchIndex + 1 >= totalQuestions
         });
       }
-
-      // Dual-Sided Handshake: if state transitioned away from AI_SPEAKING, switch immediately
-      if (state !== 'AI_SPEAKING') {
-        setStage('verdict');
-      }
     }
   }, [
     evaluation,
     activeQuestionId,
     onEvaluationComplete,
-    state,
     isBatchMode,
     questionsBatch,
     activeTopic,
@@ -198,12 +194,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 
   // When speech concludes, transition to verdict if evaluation was received
   useEffect(() => {
-    if (pendingEvaluationRef.current && stage === 'active') {
-      if (state !== 'AI_SPEAKING') {
-        setStage('verdict');
-      }
+    if (pendingEvaluationRef.current && stage === 'active' && state !== 'AI_SPEAKING') {
+      setStage('verdict');
     }
-  }, [state, stage]);
+  }, [state, stage, evaluation]);
 
   const handleNextQuestion = useCallback(() => {
     if (isConnectingRef.current) return;

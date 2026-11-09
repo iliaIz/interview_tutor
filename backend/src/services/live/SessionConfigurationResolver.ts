@@ -121,7 +121,7 @@ export class SessionConfigurationResolver {
       userProfile: getUserProfile(authenticatedUser.id || 'default_user'),
       liveModel,
       upstreamWsUrl,
-      vadPauseMs: Number(query.vadPauseMs) || 1800,
+      vadPauseMs: Number(query.vadPauseMs) || 800,
       enableSilenceClarification: query.enableSilenceClarification === 'true',
       debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined,
       academyCourse: (query.academyCourse as string) || undefined,

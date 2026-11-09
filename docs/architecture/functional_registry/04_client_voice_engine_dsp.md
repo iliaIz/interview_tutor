@@ -161,30 +161,28 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 
 ---
 
-### 2.14 `Canonical Gemini Live Protocol Realignment & Voice Modal Stabilization (Spec 14 / #69, #70, #71, #72)`
+### 2.15 `Live Voice Modality Separation, Symmetrical Keepalive, & Defensive Dialog Layout (Spec 16 / #81-#86)`
 - **Location:**
   - [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts)
-  - [`frontend/src/audio/liveMicChunkDispatcher.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveMicChunkDispatcher.ts)
-  - [`frontend/src/services/AudioPlayoutManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AudioPlayoutManager.ts)
+  - [`frontend/src/audio/LiveHeartbeatController.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveHeartbeatController.ts)
+  - [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
   - [`frontend/src/components/voice/VoiceModalHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceModalHeader.tsx)
+  - [`frontend/src/components/voice/VoiceActiveView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceActiveView.tsx)
   - [`frontend/src/components/voice/VoiceSubtitles.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceSubtitles.tsx)
   - [`frontend/src/components/companies/CompanyPrepStudio.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/companies/CompanyPrepStudio.tsx)
+  - [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts)
+  - [`backend/src/services/live/SessionConfigurationResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/SessionConfigurationResolver.ts)
 - **What Was Done:**
-  1. **Strict Channel Separation (No Interleaving):** In `NativeLiveVoiceEngine.commitSpokenTurn()`, stripped illegal bundled `{ clientContent: { turnComplete: true } }`, sending strictly `{ realtimeInput: { audioStreamEnd: true } }` in compliance with Google Gemini Live reference architecture.
-  2. **Cognitive Decomposition of Mic Dispatcher:** Extracted `LiveMicChunkDispatcher` (`liveMicChunkDispatcher.ts`, 117 lines <= 120 SLA), shrinking `NativeLiveVoiceEngine.ts` to 359 lines (<= 400 SLA).
-  3. **Modality Decoupling in FSM:** In `NativeLiveVoiceEngine.ts`, decoupled text streaming from audio state. `fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' })` is strictly triggered by `parsed.hasAudio === true`, preventing silent text turns from entering `AI_SPEAKING` without physical audio.
-  4. **DAC Drain Worklet Cleanup:** In `AudioPlayoutManager.ts`, safely post `{ type: 'drain' }` on `notifyTurnComplete()` whenever `workletNode` exists, ensuring audio queue drains completely.
-  5. **Modal Geometry & Close Button Fix:** In `VoiceModalHeader.tsx`, applied `flex-1 min-w-0` and `truncate` to the topic header, marked buttons with `shrink-0`, and styled the close button with a dedicated `shrink-0 w-8 h-8 flex items-center justify-center` hit target, preventing header overflow and restoring close button visibility. Locked `VoiceSubtitles.tsx` to flex sizing to prevent vertical modal expansion.
-- **Hypotheses & Intermediate Conclusions:**
-  - *Hypothesis 1:* Bundling `clientContent` with `audioStreamEnd` violated Google Live WebSocket frame contracts, leading backend guards to drop the frame or hang turn synchronization.
-  - *Empirical Finding 1:* Verified. Clean `{ realtimeInput: { audioStreamEnd: true } }` initiates immediate fast-handoff and model synthesis.
-  - *Hypothesis 2:* Long question titles (70+ chars) in Stage 1 exceeded flexbox bounds without `min-w-0`, pushing the `[X]` button out of view.
-  - *Empirical Finding 2:* Verified. Adding `min-w-0` and explicit `shrink-0` bounds completely cures header blowout.
-- **Rationale & "Why":** Deep root-cause alignment eliminates protocol collisions, preserves cognitive bounding, and guarantees rock-solid UI geometry.
+  1. **Strict Modality Separation:** In `NativeLiveVoiceEngine.ts`, isolated text ingestion from audio state. `fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' })` and status `🔊 ИИ говорит...` trigger ONLY when `parsed.hasAudio && parsed.audioChunks.length > 0`. Text-only frames update subtitles and accumulator without activating zero-byte audio playout.
+  2. **Symmetrical Keepalive Protocol (1006 Elimination):** Extracted `LiveHeartbeatController.ts` (39 lines). Frontend replies with `{ type: 'pong' }` upon receiving server `ping` and broadcasts periodic `ping` every 20s. Backend `LiveVoiceSession.ts` inactivity limit extended from 180s (3m) to 900s (15m).
+  3. **Dual-Sided Handshake Evaluation Drain:** When `submit_interview_evaluation` arrives (`evaluation_completed`), deferred `fsm.transition('EVALUATION_COMPLETED')` and stage transition until `AudioPlayoutManager` finishes physical DAC playback (`onPlaybackFinished`), preventing premature audio truncation.
+  4. **VAD Pause Alignment (800ms):** Synchronized default VAD pause in `SessionConfigurationResolver.ts` and `CompanyPrepStudio.tsx` to 800ms, matching Step 6 of VAD Lab.
+  5. **Defensive Layout & Contrast:** Upgraded close button ('X') in `VoiceModalHeader.tsx` to high-contrast `text-slate-700 bg-white/95 border border-slate-200/90 shadow-xs`. Fixed topic max width with truncation. Enforced `shrink-0` on controls and `overflow-hidden` with internal scrolling in `VoiceActiveView.tsx`.
 - **Invariants:**
-  - Client must never bundle `clientContent` into `audioStreamEnd` fast-handoff signals.
-  - FSM must never enter `AI_SPEAKING` on text tokens alone without audio bytes.
-  - Modal header elements must enforce defensive flexbox shrink boundaries.
+  - Transition to `AI_SPEAKING` strictly requires physical PCM audio chunks (`parsed.hasAudio === true && audioChunks.length > 0`).
+  - Active sessions must not be terminated on idle deliberation for $\le 900$ seconds.
+  - Evaluation completion must never truncate active verbal speech.
+
 
 
 
