@@ -37,7 +37,7 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
   const glowScale = isListening ? 1 + normalizedLevel * 0.35 : 1;
 
   return (
-    <div className="relative flex flex-col items-center justify-center my-6">
+    <div className="relative flex flex-col items-center justify-center my-3 sm:my-4">
       {/* State B: Transient Ignored Reassurance Badge */}
       {isTransientFiltered && (
         <div className="absolute -top-3 z-20 px-2.5 py-0.5 rounded-full bg-purple-100/95 border border-purple-300 text-purple-800 text-[10px] font-semibold flex items-center gap-1 shadow-xs animate-in fade-in zoom-in duration-200">

@@ -1,5 +1,6 @@
 import { useAppStore } from '../store/useAppStore';
 import { TargetArena, CompanyPipelineStage, CompanyProfile } from '@interview-prep/shared';
+import { AudioPlayoutManager } from './AudioPlayoutManager';
 
 export interface ArenaNavigationTarget {
   arena: TargetArena;
@@ -73,6 +74,7 @@ export async function launchArenaTask(
     }
 
     case 'voice_modal': {
+      AudioPlayoutManager.warmup();
       callbacks?.setIsVoiceOpen(true);
       break;
     }

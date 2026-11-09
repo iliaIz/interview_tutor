@@ -2,7 +2,7 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { handleTurnCommit } from './liveWsTurnCommitHandler';
+import { handleTurnCommit, armTurnWatchdogs } from './liveWsTurnCommitHandler';
 import { applyWorkspaceFileUpdate, matchWorkspaceFilePath, mergeWorkspaceManifests } from './workspaceManifestStore';
 
 export interface ClientFrameHandlerOptions {
@@ -346,6 +346,9 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         }
       } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
         session.hasCandidateResponded = true;
+        session.isAiGenerating = true;
+        session.lastTurnCommitTime = Date.now();
+        armTurnWatchdogs(session, clientSocket);
         // SOTA Late 2026: Fast-Handoff VAD signaling upstream Gemini Live to endpoint speech and synthesize
         payloadBuffer = Buffer.from(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
       } else if (parsed.clientContent) {

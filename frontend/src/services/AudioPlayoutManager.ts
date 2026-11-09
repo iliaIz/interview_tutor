@@ -252,7 +252,7 @@ export class AudioPlayoutManager {
       clearTimeout(this.autoDrainTimer);
       this.autoDrainTimer = null;
     }
-    if (this.workletNode && this.isWorkletPlaying) {
+    if (this.workletNode) {
       this.workletNode.port.postMessage({ type: 'drain' });
     }
   }

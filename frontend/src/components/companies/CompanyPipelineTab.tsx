@@ -5,6 +5,7 @@ import {
   CheckCircle2, Clock, Check, Sparkles, PackageCheck
 } from 'lucide-react';
 import { CompanyPreFlightBriefing } from './dossier/CompanyPreFlightBriefing';
+import { AudioPlayoutManager } from '../../services/AudioPlayoutManager';
 
 interface CompanyPipelineTabProps {
   stages: CompanyPipelineStage[];
@@ -163,7 +164,10 @@ export const CompanyPipelineTab: React.FC<CompanyPipelineTabProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onLaunchStageAction(stage)}
+                  onClick={() => {
+                    AudioPlayoutManager.warmup();
+                    onLaunchStageAction(stage);
+                  }}
                   className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-indigo-600 transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
                 >
                   <span>Начать этап</span>
