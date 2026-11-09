@@ -45,7 +45,7 @@ const firstFiveLld = db.prepare("SELECT task_code, difficulty, title FROM coding
 console.log('\nFirst 5 LLD challenges:');
 firstFiveLld.forEach(r => console.log(`  ${r.task_code} [${r.difficulty}] ${r.title}`));
 assert.strictEqual(firstFiveLld[0].task_code, 'LLD-01');
-assert.strictEqual(firstFiveLld[0].difficulty, 'Middle');
+assert.strictEqual(firstFiveLld[0].difficulty, 'Junior');
 
 console.log('\nAll assertions passed successfully! Database and catalog integrity verified.');
 db.close();
