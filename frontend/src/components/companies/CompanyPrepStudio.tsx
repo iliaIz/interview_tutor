@@ -329,6 +329,7 @@ export const CompanyPrepStudio: React.FC = () => {
         <CompanyTakeHomeLab
           onBackToPipeline={() => setActiveSubTab('pipeline')}
           companyName={profile.name}
+          prCases={profile.takeHomePrCases}
         />
       )}
 
