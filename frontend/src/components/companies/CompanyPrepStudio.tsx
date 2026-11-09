@@ -342,7 +342,7 @@ export const CompanyPrepStudio: React.FC = () => {
           onClose={() => setIsVoiceOpen(false)}
           topic={`${profile.name}: Product Engineer Fit Interview`}
           currentQuestionText={`Привет! Я Product Engineer Lead в ${profile.name}. Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`}
-          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. Фокус на ценностях: ${profile.culture.coreValues.join(', ')}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}. Метрики: ${profile.culture.metricsFocus.join(', ')}.`}
+          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}. Метрики: ${profile.culture.metricsFocus.join(', ')}.`}
         />
       )}
     </div>

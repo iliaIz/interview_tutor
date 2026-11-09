@@ -76,10 +76,7 @@ export async function launchArenaTask(
     }
 
     case 'incidents': {
-      store.setActiveTopicBugHunt({
-        topicId: target.entityId,
-        topicName: target.contextTitle || target.entityId
-      });
+      store.openTopicBugHunt(target.entityId, target.contextTitle || target.entityId);
       store.setStudioTab('incidents');
       break;
     }
