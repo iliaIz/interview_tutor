@@ -244,22 +244,21 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 
 ---
 
-### 2.18 `LiveVoiceSession: Encapsulation of Session Aggregate Root, SessionFsm & Watchdog Lifeline (Ticket #10)`
-- **Location:** [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts), [`backend/src/services/live/liveWsConnectionHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsConnectionHandler.ts), [`backend/src/services/live/sessionFsm.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionFsm.ts), [`backend/src/services/live/sessionStartupHelper.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionStartupHelper.ts)
+### 2.19 `Fast-Handoff Protocol Alignment & Unconditional Zero-Audio Interception (Spec 14 / #69, #70, #71)`
+- **Location:** [`backend/src/services/live/liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`backend/src/services/live/liveWsClientFrameHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts)
 - **What Was Done:**
-  1. **Aggregate Root Creation:** Created `LiveVoiceSession` (275 lines <= 300 SLA) encapsulating `SessionFsm`, `WatchdogManager`, and `LiveAudioStreamRouter`.
-  2. **Anemic Data Bag Elimination:** Replaced 45 loose public session mutations with private aggregate state and explicit control methods `start()`, `handleClientFrame()`, and `terminate()`.
-  3. **Thin HTTP Adapter:** Shrunk `liveWsConnectionHandler.ts` from 298 lines to 23 lines (<= 60 SLA), delegating directly to `LiveVoiceSession.start(...)`.
-  4. **Trap-Free FSM Enforcement:** Implemented `SessionFsm` (55 lines) ensuring clean transitions between `INIT`, `CANDIDATE_LISTENING`, `CANDIDATE_SPEAKING`, `COMMITTING`, `AI_THINKING`, and `AI_SPEAKING`, strictly preventing stuck commit/thinking states (Invariant 2.8).
-  5. **Watchdog Lifeline Integration:** Connected `WatchdogManager` with Two-Phase SLA (5s/8s nudge and 22s/25s dead-air recovery) into the turn commit pipeline and aggregate lifecycle.
+  1. **Unconditional Zero-Audio Recovery Nudge:** In `liveAudioStreamRouter.ts`, removed restrictive conditional gating (`allowSilenceClarification` and `text.length < 5`) for zero-audio turns. If `!isToolCallTurn && audioBytes < 200`, `LiveCannedErrorRecovery.executeRecoveryNudge` fires unconditionally, enforcing SOTA Invariant 2.9 (Acoustic Non-Zero Audio SLA >= 1200 bytes).
+  2. **Watchdog Arming on Fast-Handoff:** In `liveWsClientFrameHandler.ts`, when client sends `{ realtimeInput: { audioStreamEnd: true } }`, backend marks `session.hasCandidateResponded = true`, `session.isAiGenerating = true`, records `lastTurnCommitTime = Date.now()`, and explicitly arms turn watchdogs (`armTurnWatchdogs`).
 - **Hypotheses & Intermediate Conclusions:**
-  - *Hypothesis:* Monolithic connection handler and loose `ProxySession` mutations allowed timers and state flags to desync during reconnects or abnormal closures.
-  - *Empirical Finding:* Encapsulating the session inside `LiveVoiceSession` ensures symmetrical lifecycle cleanup and guarantees that all watchdogs, sockets, and memory buffers are disposed in one atomic call.
-- **Rationale & "Why":** Establishes an aggregate boundary around real-time streaming sessions, protecting domain invariants from transport-level WebSocket anomalies.
+  - *Hypothesis 1 (Zero-Audio Subtitle Bug):* When Gemini generated text subtitles but vocoder stalled (audioBytes === 0), `text.length >= 5` bypassed `isZeroAudioTurn`, leaving candidate in awkward silence.
+  - *Empirical Finding 1:* Verified. Unconditional interception ensures any turn with text but zero audio is recovered with an active verbal clarification rather than silent text leakage.
+  - *Hypothesis 2 (Dialogue Hang After Candidate Speech):* Sending fast-handoff `audioStreamEnd` did not initialize backend generation watchdogs, leaving backend blind to upstream stalls if no `clientContent` was present.
+  - *Empirical Finding 2:* Verified. Arming watchdogs on `audioStreamEnd` guarantees server watchdog lifelines (5s nudge, 22s recovery) remain active during fast-handoff turns.
+- **Rationale & "Why":** Deep root-cause protocol alignment strictly conforming to Google Gemini Live bidirectional streaming specifications.
 - **Invariants:**
-  - `LiveVoiceSession.ts` MUST NOT exceed 300 lines.
-  - `liveWsConnectionHandler.ts` MUST NOT exceed 60 lines.
-  - Committing and thinking states MUST always transition cleanly to `CANDIDATE_LISTENING` on dead-air recovery or barge-in (Invariant 2.8).
+  - Every spoken AI response following candidate speech MUST contain >= 1200 bytes audio (Invariant 2.9).
+  - Backend generation state and watchdogs MUST be armed upon receiving `audioStreamEnd`.
+
 
 
 
