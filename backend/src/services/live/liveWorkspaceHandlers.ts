@@ -95,6 +95,22 @@ export function handleReadFile(
     }
   }
 
+  // Fallback for Whiteboard queries: "Whiteboard.java", "whiteboard", "доска"
+  if (!foundContent) {
+    const isWbQuery =
+      rawPath.toLowerCase().includes('whiteboard') ||
+      rawPath.toLowerCase().includes('доск');
+    if (isWbQuery && manifest) {
+      const allFiles = [...(manifest.files || []), ...(manifest.secondaryFiles || [])];
+      const wbFile = allFiles.find((f: any) =>
+        (f?.path || '').toLowerCase().includes('whiteboard')
+      );
+      if (wbFile) {
+        foundContent = wbFile.content;
+      }
+    }
+  }
+
   const resolved = Boolean(foundContent);
   const availableFiles = manifest?.projectTree?.join(', ') || 'нет файлов';
   const fileContent =

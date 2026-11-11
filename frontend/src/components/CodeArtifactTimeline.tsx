@@ -118,6 +118,22 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
     if (onSelectRevision) {
       onSelectRevision(rev);
     }
+    // WYSIWYG Grounding: broadcast active whiteboard revision to live voice session
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('workspace_file_updated', {
+            detail: {
+              path: 'Whiteboard.java',
+              content: rev.code,
+              language: rev.language || 'java'
+            }
+          })
+        );
+      }
+    } catch {
+      // Non-critical if no active voice session
+    }
   };
 
   const handleCopy = () => {
