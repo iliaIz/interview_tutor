@@ -11,13 +11,16 @@ import {
   Check,
   Copy,
   Info,
-  RotateCcw
+  RotateCcw,
+  Laptop
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
 import { CodeArtifactTimeline } from './CodeArtifactTimeline';
-import { WhiteboardState, useAppStore, selectActiveWhiteboardArtifact } from '../store/useAppStore';
+import { WhiteboardState, useAppStore, selectActiveWhiteboardArtifact, CodeArtifactRevision } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { usePracticeTutorStore } from '../store/usePracticeTutorStore';
+import { useWhiteboardIdeBridge } from '../hooks/useWhiteboardIdeBridge';
+import { WhiteboardIdeModal } from './WhiteboardIdeModal';
 
 export interface WhiteboardDrawerProps {
   isOpen: boolean;
@@ -62,6 +65,32 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
     ? state.highlightLines
     : [];
   const activeAction = activeArtifact?.action || state?.action || 'write';
+
+  const checkoutRevisionToIde = useAppStore((s) => s.checkoutRevisionToIde);
+
+  const {
+    status: ideStatus,
+    workspaceDir: ideWorkspaceDir,
+    lastSyncTime: ideLastSyncTime,
+    isModalOpen: isIdeModalOpen,
+    setIsModalOpen: setIsIdeModalOpen,
+    isDownloading: isIdeDownloading,
+    checkoutCode,
+    downloadWhiteboardZip
+  } = useWhiteboardIdeBridge();
+
+  const handleCheckoutToIde = React.useCallback(
+    (rev: CodeArtifactRevision) => {
+      checkoutCode(rev.code);
+      checkoutRevisionToIde(rev.id);
+      showToast({
+        type: 'success',
+        title: 'Загружено в IDE',
+        message: `Версия v${rev.index} успешно записана в Whiteboard.java`
+      });
+    },
+    [checkoutCode, checkoutRevisionToIde, showToast]
+  );
 
   const { toggleOpen: toggleTutorDrawer } = usePracticeTutorStore();
 
@@ -152,6 +181,28 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsIdeModalOpen(true)}
+                className={`p-1.5 px-2.5 rounded-lg transition cursor-pointer border text-xs font-semibold flex items-center gap-1.5 ${
+                  ideStatus === 'connected' || ideStatus === 'syncing'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+                    : ideStatus === 'connecting'
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-[#1E1A2E] hover:bg-[#2A243E] text-slate-300 hover:text-white border-[#2A243E]'
+                }`}
+                title="Подключить IntelliJ IDEA к доске (ws://127.0.0.1:41790)"
+              >
+                <Laptop className="w-3.5 h-3.5 text-pastel-accentRose" />
+                <span className="hidden sm:inline text-[11px]">
+                  {ideStatus === 'connected'
+                    ? 'IDE: Подключена'
+                    : ideStatus === 'syncing'
+                    ? 'Синхронизация...'
+                    : 'В IntelliJ'}
+                </span>
+              </button>
+
               {hasCode && practiceWorkspaceFiles.length > 0 && (
                 <button
                   type="button"
@@ -214,7 +265,11 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           {/* Code Artifact History & Viewer Body */}
           <div className="flex-1 overflow-y-auto p-2.5 sm:p-3.5 custom-scrollbar space-y-3">
             {hasRevisions ? (
-              <CodeArtifactTimeline showDiffToggle={true} />
+              <CodeArtifactTimeline
+                showDiffToggle={true}
+                onCheckoutToIde={handleCheckoutToIde}
+                isIdeConnected={ideStatus === 'connected'}
+              />
             ) : hasCode ? (
               <CodeViewer code={activeCode} language={activeLanguage} />
             ) : (
@@ -263,6 +318,16 @@ export const WhiteboardDrawer: React.FC<WhiteboardDrawerProps> = ({
           </div>
         </motion.div>
       )}
+
+      <WhiteboardIdeModal
+        isOpen={isIdeModalOpen}
+        onClose={() => setIsIdeModalOpen(false)}
+        status={ideStatus}
+        workspaceDir={ideWorkspaceDir}
+        lastSyncTime={ideLastSyncTime}
+        isDownloading={isIdeDownloading}
+        onDownloadZip={downloadWhiteboardZip}
+      />
     </AnimatePresence>
   );
 };

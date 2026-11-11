@@ -19,6 +19,7 @@ import { VoiceGrandFinaleView } from './voice/VoiceGrandFinaleView';
 import { VoiceModalHeader } from './voice/VoiceModalHeader';
 import { QuestionItem, VoiceModalProps } from './voice/voiceModalTypes';
 import { VoiceCribSheetDrawer } from './voice/VoiceCribSheetDrawer';
+import { useVoiceModalShortcuts } from './voice/useVoiceModalShortcuts';
 
 export type { QuestionItem, VoiceModalProps };
 
@@ -86,7 +87,8 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     connect,
     disconnect,
     toggleMic,
-    handleInteraction
+    handleInteraction,
+    sendCustomFrame
   } = useLiveVoiceSession();
   const evaluation = activeScorecard as VoiceEvaluationResult | null;
 
@@ -101,18 +103,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     try {
       setStage('active');
       const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
-      const qId = targetQ?.id || questionId || 'Q_DEFAULT';
-      const qTopic = targetQ?.topic || topic;
-      const qText = targetQ?.question || currentQuestionText;
-      const qAnswer = targetQ?.answer || referenceAnswer;
 
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const config: VoiceEngineConfig = {
-        sessionId,
-        questionId: qId,
-        topic: qTopic,
-        questionText: qText,
-        referenceAnswer: qAnswer,
+        sessionId: `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        questionId: targetQ?.id || questionId || 'Q_DEFAULT',
+        topic: targetQ?.topic || topic,
+        questionText: targetQ?.question || currentQuestionText,
+        referenceAnswer: targetQ?.answer || referenceAnswer,
         sessionType: initialSessionType,
         tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
         voice: interviewConfig.voice || 'Kore',
@@ -160,6 +157,27 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       isConnectingRef.current = false;
     }
   }, [isOpen, initialSessionType, activeBatchIndex, startSessionForIndex]);
+
+  // Synchronize external workspace & whiteboard file updates into live voice session
+  useEffect(() => {
+    if (!sendCustomFrame || !isOpen) return;
+    const handleWorkspaceFileUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ path: string; content: string; language?: string }>;
+      if (customEvent.detail) {
+        const { path, content, language = 'java' } = customEvent.detail;
+        sendCustomFrame({
+          type: 'workspace_file_update',
+          path: path || 'Whiteboard.java',
+          content,
+          language
+        });
+      }
+    };
+    window.addEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
+    return () => {
+      window.removeEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
+    };
+  }, [sendCustomFrame, isOpen]);
 
   const pendingEvaluationRef = useRef<VoiceEvaluationResult | null>(null);
 
@@ -225,24 +243,23 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     onBatchComplete?.(batchResults);
   }, [batchResults, onBatchComplete, clearBatchSession]);
 
-  const handleFinishTutor = useCallback(() => {
+  const resetAndClose = useCallback((onBeforeClose?: () => void) => {
     disconnect();
     pendingEvaluationRef.current = null;
     hasAutoStartedRef.current = false;
     isConnectingRef.current = false;
-    onTutorComplete?.(activeTopic, activeQuestionId);
+    onBeforeClose?.();
     setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
     onClose();
-  }, [disconnect, onTutorComplete, activeTopic, activeQuestionId, initialSessionType, onClose]);
+  }, [disconnect, initialSessionType, onClose]);
 
-  const handleClose = () => {
-    disconnect();
-    pendingEvaluationRef.current = null;
-    hasAutoStartedRef.current = false;
-    isConnectingRef.current = false;
-    setStage(initialSessionType === 'tutor' ? 'active' : 'lobby');
-    onClose();
-  };
+  const handleFinishTutor = useCallback(() => {
+    resetAndClose(() => onTutorComplete?.(activeTopic, activeQuestionId));
+  }, [resetAndClose, onTutorComplete, activeTopic, activeQuestionId]);
+
+  const handleClose = useCallback(() => {
+    resetAndClose();
+  }, [resetAndClose]);
 
   const handleSendText = (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,27 +267,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   };
 
   // Ergonomic Shortcuts: Spacebar (PTT / Central Click) and 'C' (Cough Mute)
-  useEffect(() => {
-    if (!isOpen || stage !== 'active') return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
-        return;
-      }
-
-      if (e.code === 'KeyC' && !e.repeat) {
-        e.preventDefault();
-        handleToggleMute();
-      } else if (e.code === 'Space' && !e.repeat && state === 'LISTENING') {
-        e.preventDefault();
-        handleInteraction();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, stage, state, handleToggleMute, handleInteraction]);
+  useVoiceModalShortcuts({
+    isOpen,
+    stage,
+    state,
+    onToggleMute: handleToggleMute,
+    onInteraction: handleInteraction
+  });
 
   if (!isOpen) return null;
 
