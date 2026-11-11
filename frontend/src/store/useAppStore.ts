@@ -114,6 +114,28 @@ export interface CodeArtifactRevision {
   diffFromPrev?: string;
   explanation?: string;
   highlightLines?: number[];
+  isPinned?: boolean;
+  isIdeTracked?: boolean;
+}
+
+/**
+ * SOTA Late 2026 Non-Eviction Garbage Collector for Whiteboard Revisions.
+ * Retains ALL pinned revisions (isPinned === true or activeIdeRevisionId) plus
+ * the most recent 10 unpinned revisions, sorted by chronological index.
+ */
+export function pruneCodeRevisionsWithNonEviction(
+  allRevs: CodeArtifactRevision[],
+  activeIdeRevisionId?: string | null
+): CodeArtifactRevision[] {
+  if (!Array.isArray(allRevs) || allRevs.length <= 10) return allRevs || [];
+  const isProtected = (r: CodeArtifactRevision) =>
+    Boolean(r.isPinned || (activeIdeRevisionId && r.id === activeIdeRevisionId));
+
+  const pinned = allRevs.filter(isProtected);
+  const unpinned = allRevs.filter((r) => !isProtected(r));
+  const retainedUnpinned = unpinned.slice(-10);
+
+  return [...pinned, ...retainedUnpinned].sort((a, b) => a.index - b.index);
 }
 
 export interface ActiveWhiteboardArtifact {
@@ -259,15 +281,19 @@ interface AppState {
   saveBatchSessionCheckpoint: (sessionId: string, patch: Partial<ActiveBatchSession>) => void;
   clearBatchSession: () => void;
 
-  // AI Live Whiteboard State & Revision History (10-slot Ring Buffer)
+  // AI Live Whiteboard State & Revision History (10-slot Ring Buffer with Non-Eviction GC)
   activeWhiteboardState: WhiteboardState | null;
   isWhiteboardOpen: boolean;
   codeRevisions: CodeArtifactRevision[];
   activeRevisionId: string | null;
+  activeIdeRevisionId: string | null;
   setWhiteboardState: (wb: WhiteboardState | null) => void;
   setIsWhiteboardOpen: (open: boolean) => void;
   addCodeRevision: (rev: { title: string; language?: string; code: string; author?: 'ai' | 'user' }) => void;
   setActiveRevision: (id: string) => void;
+  setActiveIdeRevisionId: (id: string | null) => void;
+  updateIdeTrackedContent: (content: string) => void;
+  checkoutRevisionToIde: (revisionId: string) => void;
   clearCodeRevisions: () => void;
 
   // Practice Arena / Live-Coding State
@@ -708,11 +734,12 @@ export const useAppStore = create<AppState>()(
       }),
       clearBatchSession: () => set({ activeBatchSession: null }),
 
-      // AI Live Whiteboard State & Revision History (10-slot Ring Buffer)
+      // AI Live Whiteboard State & Revision History (10-slot Ring Buffer with Non-Eviction GC)
       activeWhiteboardState: null,
       isWhiteboardOpen: false,
       codeRevisions: [],
       activeRevisionId: null,
+      activeIdeRevisionId: null,
 
       setWhiteboardState: (wb) => {
         set((state) => {
@@ -731,7 +758,7 @@ export const useAppStore = create<AppState>()(
               const newRev: CodeArtifactRevision = {
                 id: revId,
                 index: nextIndex,
-                title: wb.title || `Версия ${nextIndex}`,
+                title: wb.title || `v${nextIndex}`,
                 language: wb.language || 'java',
                 code: wb.code,
                 explanation: wb.explanation,
@@ -739,7 +766,7 @@ export const useAppStore = create<AppState>()(
                 timestamp: Date.now(),
                 author: 'ai'
               };
-              const updatedRevs = [...currentRevs, newRev].slice(-10); // Keep last 10
+              const updatedRevs = pruneCodeRevisionsWithNonEviction([...currentRevs, newRev], state.activeIdeRevisionId);
               return {
                 ...newState,
                 codeRevisions: updatedRevs,
@@ -765,13 +792,13 @@ export const useAppStore = create<AppState>()(
           const newRev: CodeArtifactRevision = {
             id: revId,
             index: nextIndex,
-            title: title || `Версия ${nextIndex}`,
+            title: title || `v${nextIndex}`,
             language,
             code,
             timestamp: Date.now(),
             author
           };
-          const updatedRevs = [...currentRevs, newRev].slice(-10);
+          const updatedRevs = pruneCodeRevisionsWithNonEviction([...currentRevs, newRev], state.activeIdeRevisionId);
           return {
             codeRevisions: updatedRevs,
             activeRevisionId: revId
@@ -802,7 +829,106 @@ export const useAppStore = create<AppState>()(
           };
         });
       },
-      clearCodeRevisions: () => set({ codeRevisions: [], activeRevisionId: null, activeWhiteboardState: null }),
+
+      setActiveIdeRevisionId: (id) => set({ activeIdeRevisionId: id }),
+
+      updateIdeTrackedContent: (content) => {
+        if (typeof content !== 'string') return;
+        set((state) => {
+          const currentRevs = state.codeRevisions || [];
+          const trackedId = state.activeIdeRevisionId;
+          const existingIdx = trackedId ? currentRevs.findIndex((r) => r.id === trackedId) : -1;
+
+          if (existingIdx !== -1) {
+            const existing = currentRevs[existingIdx];
+            if (existing.code === content) return state;
+
+            const updated = [...currentRevs];
+            updated[existingIdx] = {
+              ...existing,
+              code: content,
+              timestamp: Date.now(),
+              author: 'user',
+              isPinned: true,
+              isIdeTracked: true
+            };
+
+            const updatedWb: WhiteboardState | null = state.activeRevisionId === trackedId
+              ? {
+                  action: 'write',
+                  title: existing.title || `v${existing.index}`,
+                  language: existing.language || 'java',
+                  code: content,
+                  updatedAt: Date.now()
+                }
+              : state.activeWhiteboardState;
+
+            return {
+              codeRevisions: updated,
+              activeWhiteboardState: updatedWb
+            };
+          } else {
+            // Create new user tracked revision
+            const lastRev = currentRevs[currentRevs.length - 1];
+            const nextIndex = (lastRev ? lastRev.index : 0) + 1;
+            const revId = `rev_${Date.now().toString(36)}_${nextIndex}`;
+            const newRev: CodeArtifactRevision = {
+              id: revId,
+              index: nextIndex,
+              title: `v${nextIndex}`,
+              language: 'java',
+              code: content,
+              timestamp: Date.now(),
+              author: 'user',
+              isPinned: true,
+              isIdeTracked: true
+            };
+
+            const allRevs = pruneCodeRevisionsWithNonEviction([...currentRevs, newRev], revId);
+            const updatedWb: WhiteboardState = {
+              action: 'write',
+              title: `v${nextIndex}`,
+              language: 'java',
+              code: content,
+              updatedAt: Date.now()
+            };
+
+            return {
+              codeRevisions: allRevs,
+              activeRevisionId: revId,
+              activeIdeRevisionId: revId,
+              activeWhiteboardState: updatedWb
+            };
+          }
+        });
+      },
+
+      checkoutRevisionToIde: (revisionId) => {
+        set((state) => {
+          const revs = state.codeRevisions || [];
+          const target = revs.find((r) => r.id === revisionId);
+          if (!target) return state;
+
+          const updated = revs.map((r) => ({
+            ...r,
+            isIdeTracked: r.id === revisionId,
+            isPinned: r.id === revisionId ? true : r.isPinned
+          }));
+
+          return {
+            codeRevisions: updated,
+            activeIdeRevisionId: revisionId,
+            activeRevisionId: revisionId
+          };
+        });
+      },
+
+      clearCodeRevisions: () => set({
+        codeRevisions: [],
+        activeRevisionId: null,
+        activeIdeRevisionId: null,
+        activeWhiteboardState: null
+      }),
 
       // Practice Arena State
       activePracticeChallenge: null,
