@@ -79,6 +79,18 @@ for (const d of domains) {
       prompt.includes('<active_file_code>'),
       `Tutor prompt for [${d.category} - ${p}] wraps active code in XML sandbox tag`
     );
+    assert(
+      prompt.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+      `Tutor prompt for [${d.category} - ${p}] contains EPISTEMIC BENEVOLENCE AXIOM`
+    );
+    assert(
+      prompt.includes('MANDATORY TRUTH DEMARCATION'),
+      `Tutor prompt for [${d.category} - ${p}] contains MANDATORY TRUTH DEMARCATION`
+    );
+    assert(
+      prompt.includes('ФИНАЛЬНЫЙ ЭПИСТЕМИЧЕСКИЙ ЗАМОК'),
+      `Tutor prompt for [${d.category} - ${p}] contains Final Epistemic Recency Lock`
+    );
   }
 }
 
@@ -90,12 +102,25 @@ const livePairPrompt = PromptRegistry.buildLivePairPrompt({
   userGender: 'female',
   bugTitle: 'Rate Limiter',
   questionText: 'How to design Rate Limiter without Thread.sleep?',
-  codeSnippet: 'class RateLimiter {}'
+  codeSnippet: 'class RateLimiter {}',
+  seniorReview: {
+    overallScore: 85,
+    summaryReview: 'Good effort but needs work on concurrency',
+    findings: []
+  }
 });
 
 assert(
   livePairPrompt.includes('VOICE ANTI-SYCOPHANCY'),
   'Live pair prompt contains VOICE ANTI-SYCOPHANCY directive'
+);
+assert(
+  !livePairPrompt.includes('похвали и предложи'),
+  'Live pair prompt does NOT contain sycophantic "похвали и предложи" directive'
+);
+assert(
+  livePairPrompt.includes('ТРИАЖ ГИПОТЕЗ КАНДИДАТА (БЕЗ ПУСТОЙ ПОХВАЛЫ)'),
+  'Live pair prompt contains hypothesis triage without flattery directive'
 );
 assert(
   livePairPrompt.includes('МУЛЬТИМОДАЛЬНЫЙ СИМБИОЗ') || livePairPrompt.includes('MULTIMODAL SYMBIOSIS'),

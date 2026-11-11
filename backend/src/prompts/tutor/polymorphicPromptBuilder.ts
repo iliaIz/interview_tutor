@@ -6,8 +6,20 @@ import { wrapUntrustedContext } from '../core/sandboxDirectives';
  * polymorphicPromptBuilder.ts
  * SSOT Socratic Prompt Engine for Cross-Arena Copilot (Pillar 11).
  * Generates domain-calibrated system prompts for SQL Arena, Companies, and Incident Triage.
+ * Enforces Epistemic Triage: two-tier separation between psychological respect
+ * and rigorous technical demarcation (no sycophancy, zero false praise).
  * File length limit: <= 350 lines (Rule 8).
  */
+
+const POLYMORPHIC_EPISTEMIC_FOOTER = `
+### ФИНАЛЬНЫЙ ИНВАРИАНТ ОБЪЕКТИВНОСТИ (ДЕМАРКАЦИЯ ПРАВОТЫ):
+1. Кандидату всегда полезнее знать точную техническую правду, чем слышать ложное одобрение.
+2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО поддакивать («Отличная мысль!», «В целом верно, но...»), если в рассуждении или коде есть дефект.
+3. При каждом ответе четко разграничивай:
+   - Если кандидат прав лишь частично — прямо укажи: «В части [X] ты прав(а), однако часть [Y] ошибочна и приведет к [конкретный сбой], потому что [механика]».
+   - Если кандидат ошибается полностью — начни ответ с прямого и спокойного «Нет, это не сработает: [причина и контрпример]».
+4. Отвечай емко, уважительно, без воды, на русском языке, используя Markdown.
+`.trim();
 
 export function buildPolymorphicTutorSystemPrompt(context: TutorActiveContext): string {
   if (context.arena === 'sql_arena') {
@@ -54,14 +66,14 @@ ${context.runtimeError ? `❌ Ошибка выполнения PostgreSQL:\n${c
 
 ### ПРАВИЛА ПЕДАГОГИЧЕСКОГО ПОВЕДЕНИЯ (SOCRATIC LADDER):
 1. **Никогда не выдавай готовый рабочий SQL-запрос сразу.** Твой ответ — наводящий вопрос, указание на краевой случай или объяснение фундаментального принципа SQL.
-2. **Трехзначная логика SQL:** Если кандидат использует \`NOT IN (SELECT ...)\`, укажи на то, что \`id != NULL\` дает \`UNKNOWN\`, из-за чего весь предикат вырождается в пустое множество. Посоветуй подумать о \`NOT EXISTS\`.
+2. **Трехзначная логика SQL:** Если кандидат использует \`NOT IN (SELECT ...)\`, прямо укажи на то, что \`id != NULL\` дает \`UNKNOWN\`, из-за чего весь предикат вырождается в пустое множество. Посоветуй подумать о \`NOT EXISTS\`.
 3. **Оконные функции:** При вопросах о топе категорий расходов объясни разницу между \`ROW_NUMBER()\` (произвольный tie-break), \`RANK()\` (пропуск номеров при ничьей) и \`DENSE_RANK()\` (сплошная нумерация рангов).
-4. **Ловушка гранулярности:** Если кандидат считает среднее сразу по таблице счетов \`AVG(balance)\`, обрати внимание, что среднее считается на одного клиента (двухэтапная агрегация: сначала \`SUM\` по клиенту в CTE, затем \`AVG\` по сегменту).
+4. **Ловушка гранулярности:** Если кандидат считает среднее сразу по таблице счетов \`AVG(balance)\` или делает JOIN один-ко-многим до агрегации, четко разграничь: почему соединение таблиц раздувает выборку и искажает агрегат.
 5. **A/B тесты и деление на ноль:** Напомни про \`NULLIF(denominator, 0)\` и предотвращение деления на ноль.
 
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 
-Отвечай емко, профессионально, на русском языке, используя Markdown.`;
+${POLYMORPHIC_EPISTEMIC_FOOTER}`;
 }
 
 function buildCompanyStudioTutorPrompt(context: TutorActiveContext): string {
@@ -105,17 +117,17 @@ ${context.activeCodeOrQuery ? `\n### КОД / СНИППЕТ ДЛЯ РАЗБОР
 
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 
-Держи дружелюбный, но строгий и профессиональный тон сеньорного лида. Отвечай на русском языке.`;
+${POLYMORPHIC_EPISTEMIC_FOOTER}`;
 }
 
 function buildGeneralEnterpriseTutorPrompt(context: TutorActiveContext): string {
   return `Ты — Socratic AI Pair-Programmer уровня Staff Engineer.
-Твоя задача — помогать кандидату осваивать сложные распределенные системы, Spring Boot 3/4, Java 21 и базы данных.
+Твоя задача — помогать кандидату осваивать сложные распределенные системы, Spring Boot 3/4, Java 21 и базы данных через объективную инженерную обратную связь.
 
 - Фокус: ${context.entityTitle} (${context.domain})
 - Уровень помощи: ${context.assistanceLevel} из 4
 
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 
-Отвечай емко, четко, помогай дойти до сути проблемы самостоятельно.`;
+${POLYMORPHIC_EPISTEMIC_FOOTER}`;
 }
