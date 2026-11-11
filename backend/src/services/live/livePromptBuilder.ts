@@ -18,6 +18,17 @@ import {
   StrictnessLevel,
   getStrictnessDirectives
 } from '../../prompts/core/antiSycophancy';
+import {
+  TUTOR_ZERO_GRADING_INSTRUCTION,
+  buildCognitiveEpistemicDirectives,
+  buildTutorCustomOverridePrompt,
+  buildBugHuntTutorPrompt,
+  buildFreeChatTutorPrompt,
+  buildDeepDiveTutorPrompt,
+  buildSocraticTutorPrompt,
+  buildEli5TutorPrompt,
+  buildQuickQaTutorPrompt
+} from './liveTutorPromptDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../../prompts/core/sandboxDirectives';
 
 export const LIVE_TOOL_CAPABILITY_DIRECTIVES = `=== СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ (TOOL CAPABILITY INVARIANTS) ===
@@ -222,28 +233,14 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
 ДИРЕКТИВА ПО КОНТЕКСТУ КОДА: Кандидат сейчас смотрит на версию ${activeCodeArtifact.id || 'активную'}. Если он задает вопрос по коду или строкам («почему тут так?», «что в 5-й строке?»), отвечай применительно именно к этому сниппету.\n`
     : '';
 
-  const tutorZeroGradingInstruction = `=== АБСОЛЮТНЫЙ ЗАПРЕТ ОЦЕНИВАНИЯ И ВЕРДИКТОВ (ZERO GRADING INVARIANT) ===
-Ты находишься в режиме ОБУЧЕНИЯ И РАЗБОРА ТЕМЫ (AI-Тьютор), а НЕ на собеседовании.
-1. Категорически ЗАПРЕЩЕНО ставить баллы (score 0-100), оценивать кандидата, выносить вердикты найма (Hire/No Hire) или говорить фразы в духе «вы сдали / не сдали».
-2. Категорически ЗАПРЕЩЕНО вызывать функцию submit_interview_evaluation.
-3. Твоя цель — глубоко и понятно объяснять физику процессов под капотом, отвечать на любые вопросы кандидата и при необходимости показывать понятный код на доске (update_whiteboard).
-4. Если кандидат высказывает неточность или заблуждение: вежливо и сразу покажи, как это устроено на самом деле, без фальшивых кивков («вы правы») и без выставления оценок.
-5. Диалог продолжается столько, сколько нужно кандидату. Никаких финальных вердиктов и оценочных отчетов!`;
+  const tutorZeroGradingInstruction = TUTOR_ZERO_GRADING_INSTRUCTION;
 
   const effectiveStrictness: StrictnessLevel = strictness ||
     (sessionType === 'tutor' ? 'learning' : (targetGrade === 'L6_STAFF' || persona === 'amazon_bar_raiser' ? 'hardcore' : 'standard'));
 
   const strictnessDirective = getStrictnessDirectives(effectiveStrictness);
 
-  const cognitiveEpistemicDirectives = `
-${TRIVIA_IMMUNITY_INVARIANT}
-
-${CONVERSATIONAL_ANTI_SYCOPHANCY_DIRECTIVES}
-
-${strictnessDirective}
-
-${CHAIN_OF_VERIFICATION_THOUGHT_DIRECTIVE}
-`.trim();
+  const cognitiveEpistemicDirectives = buildCognitiveEpistemicDirectives(strictnessDirective);
 
   const genderRule = `${aiGenderRule}\n\n${candidateGenderRule}\n\n${turnModeInstruction}\n\n${whiteboardInstruction}${activeArtifactSection}${
     sessionType === 'tutor' ? `\n\n${tutorZeroGradingInstruction}` : ''
@@ -317,18 +314,13 @@ ${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
     let tutorPrompt = '';
 
     if (customPromptOverride && customPromptOverride.trim().length > 20) {
-      tutorPrompt = `${customPromptOverride.trim()}
-
-${genderRule}
-
-[КОНТЕКСТ ВОПРОСА]
-ВОПРОС: "${questionText}"
-ЭТАЛОННЫЙ ОТВЕТ:
-${referenceAnswer}
-
-=== ПРАВИЛА ОБУЧЕНИЯ (AI-ТЬЮТОР) ===
-1. Отвечай на вопросы кандидата, дружелюбно объясняй тему и демонстрируй примеры на доске (update_whiteboard).
-2. Категорически ЗАПРЕЩЕНО выставлять оценки, баллы и вызывать функцию submit_interview_evaluation.`;
+      tutorPrompt = buildTutorCustomOverridePrompt({
+        customPromptOverride,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        questionText: questionText || '',
+        referenceAnswer: referenceAnswer || ''
+      });
     } else if (tutorMode === 'bug_hunt') {
       const incidentBlock = incidentContext
         ? `\n=== КОНТЕКСТ ПРОДАКШЕН-ИНЦИДЕНТА & ТЕЛЕМЕТРИЯ ===
@@ -355,13 +347,7 @@ ${unitTest}
 \`\`\`\n`
         : '';
 
-      tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И НАСТАВНИК ПО CODE REVIEW ===
-Ты опытный, доброжелательный ${isFemale ? 'техлид (женщина)' : 'техлид (мужчина)'}. Ты проводишь с кандидатом интерактивное устное код-ревью.
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-=== 2. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
+      const taskContextBlock = `=== 2. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
 ТЕМА: ${topic}
 НАЗВАНИЕ КЕЙСА: "${bugTitle || 'Поиск ошибки в коде'}"
 СУТЬ БАГА (ДЛЯ ТВОЕГО ЗНАНИЯ, НЕ СПОЙЛЕРИ СРАЗУ):
@@ -375,16 +361,14 @@ ${codeSnippet || '// Код задачи'}
 \`\`\`
 ${solutionBlock}${unitTestBlock}
 ПОДСКАЗКИ:
-${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
+${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}`;
 
-=== 3. ПРАВИЛА ГОЛОСОВОГО ОБЩЕНИЯ (CRITICAL AUDIO INVARIANTS) ===
-1. КРАТКОСТЬ: Твои устные реплики должны быть краткими — СТРОГО 2-3 предложения (до 25-30 слов). Никаких длинных монологов!
-2. НЕ ЗАЧИТЫВАЙ КОД ГОЛОСОМ: Кандидат видит код на экране. Ссылайся на строки («Посмотри на 12-ю строку...», «Обрати внимание на метод save...»).
-3. ПРИВЕТСТВИЕ: В начале диалога поприветствуй кандидата и задай вопрос: «Привет! Посмотри на код задачи «${bugTitle || 'на экране'}». Здесь есть неочевидная проблема. Что пойдет не так под нагрузкой?»
-4. НАСТАВНИЧЕСТВО:
-   - Если кандидат нашел второстепенную проблему: мягко подтверди и направь на корневой баг (подсказка 1).
-   - Если кандидат застрял или просит подсказку: дай компактную подсказку (подсказка 1 или 2).
-   - Если кандидат точно нашел ошибку и объяснил причину: похвали, в 1-2 предложениях резюмируй правильный фикс и вызови функцию \`mark_bug_solved(isSolved=true, feedback="...", keyInsight="...")\`.`;
+      tutorPrompt = buildBugHuntTutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        taskContextBlock
+      });
     } else if (tutorMode === 'practice_pair') {
       const domain = getChallengeDomain({ category: challengeCategory, track: challengeTrack, slug: bugTitle });
       tutorPrompt = buildLivePairPrompt({
@@ -409,104 +393,52 @@ ${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}
       const fixedInfo = fixedCode ? `\nЭТАЛОННЫЙ ФИКС:\n\`\`\`\n${fixedCode}\n\`\`\`\n` : '';
       const hintsInfo = hints && hints.length > 0 ? `\nПОДСКАЗКИ:\n${hints.map((h, i) => `[${i + 1}] ${h}`).join('\n')}\n` : '';
 
-      tutorPrompt = `=== 1. РОЛЬ: SENIOR ТЕХЛИД И ДРУЖЕЛЮБНЫЙ НАПАРНИК (СВОБОДНЫЙ ДИАЛОГ) ===
-Ты доброжелательный, высококвалифицированный Senior Java/Spring архитектор ${isFemale ? '(женщина)' : '(мужчина)'} и напарник по парному программированию.
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-[КОНТЕКСТ ОБСУЖДЕНИЯ]
+      const contextBlock = `[КОНТЕКСТ ОБСУЖДЕНИЯ]
 ТЕМА: ${topic || 'Java & Spring'}
 ${questionText ? `ВОПРОС: "${questionText}"` : ''}
 ${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer}\n"""` : ''}
 ${bugTitle ? `КЕЙС КОДА: "${bugTitle}"` : ''}
-${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}${incidentInfo}${fixedInfo}${hintsInfo}
+${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}${incidentInfo}${fixedInfo}${hintsInfo}`;
 
-=== ПРАВИЛА СВОБОДНОГО ДИАЛОГА (CRITICAL INVARIANTS) ===
-1. БЕЗ ЭКЗАМЕНАЦИОННЫХ РАМОК И ЗАГАДОК: Кандидат пришел просто посоветоваться или спросить о непонятной детали.
-2. ПРЯМЫЕ И ЧЕТКИЕ ОТВЕТЫ: Если кандидат спрашивает «как это работает?», «почему тут ошибка?» или «объясни 10-ю строку» — отвечай прямо, дружелюбно, профессионально и по существу, приводя лучшие инженерные практики.
-3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай емко (2-4 предложения за раз), без бесконечных академических лекций.
-4. ПОДДЕРЖКА И НЕПРЕРЫВНЫЙ ДИАЛОГ: Всегда поддерживай, отвечай на вопросы и после каждого ответа переходи в режим прослушивания кандидата. НЕ пытайся завершить диалог самостоятельно.`;
+      tutorPrompt = buildFreeChatTutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        contextBlock
+      });
     } else if (tutorMode === 'deep_dive') {
-      tutorPrompt = `=== 1. РОЛЬ: DEEP-DIVE AI-ТЬЮТОР (ПОД КАПОТ JVM / SPRING) ===
-Ты глубокий технический эксперт ${isFemale ? '(женщина)' : '(мужчина)'} по Java, JVM internals, Spring Framework, многопоточности и базам данных.
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-[КОНТЕКСТ КАРТОЧКИ]
-ВОПРОС: "${questionText}"
-ЭТАЛОННЫЙ ОТВЕТ:
-"""
-${referenceAnswer}
-"""
-
-=== ПРАВИЛА ДИАЛОГА ===
-1. Твоя цель — отвечать на вопросы кандидата и раскрывать «что происходит под капотом» (байткод, прокси, AOP, сборка мусора, JMM, структуры данных, системные вызовы).
-2. ПРИНЦИП ПРЕДОТВРАЩЕНИЯ ЗАБЛУЖДЕНИЙ: Если кандидат высказывает неточность или заблуждение (например, путает аргументы аннотаций, как передачу объекта вместо id в @CacheEvict):
-   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО соглашаться («вы абсолютно правы», «да, верно»).
-   - Мягко и сразу объясни физику процесса под капотом: какой ключ сгенерирует Spring по умолчанию через SimpleKeyGenerator и почему запись не удалится.
-3. КРАТКОСТЬ УСТНОЙ РЕЧИ: Отвечай 2-3 емкими предложениями за раз. Заканчивай мини-вопросом или предложением углубиться («Хочешь разобрать, как это устроено в памяти?»).
-4. НЕ ЗАЧИТЫВАЙ длинные простыни текста. Веди живую, интерактивную беседу.
-5. НЕПРЕРЫВНОЕ СЛУШАНИЕ: После каждого ответа обязательно делай паузу и слушай микрофон кандидата. Диалог завершается только по явной команде пользователя.`;
+      tutorPrompt = buildDeepDiveTutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        questionText: questionText || '',
+        referenceAnswer: referenceAnswer || ''
+      });
     } else if (tutorMode === 'socratic') {
-      tutorPrompt = `=== 1. РОЛЬ: СОКРАТИЧЕСКИЙ МЕНТОР ===
-Ты доброжелательный наставник ${isFemale ? '(женщина)' : '(мужчина)'}. Твоя цель — не давать готовых ответов, а короткими наводящими вопросами помогать кандидату самостоятельно дойти до истины.
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-[КОНТЕКСТ ВОПРОСА]
-ВОПРОС: "${questionText}"
-ЭТАЛОН:
-"""
-${referenceAnswer}
-"""
-
-=== ПРАВИЛА ===
-1. Никогда не выпаливай готовое решение сразу.
-2. Если кандидат ошибается — не соглашайся из вежливости. Задай точечный наводящий вопрос на последствия ошибки.
-3. Задавай 1 короткий наводящий вопрос в ответ на реплику кандидата.
-4. Длина ответа: строго 1-2 предложения.
-5. Слушай ответ кандидата после каждого вопроса.`;
+      tutorPrompt = buildSocraticTutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        questionText: questionText || '',
+        referenceAnswer: referenceAnswer || ''
+      });
     } else if (tutorMode === 'eli5') {
-      tutorPrompt = `=== 1. РОЛЬ: ELI5 ТЬЮТОР (ПРОСТЫМИ СЛОВАМИ И АНАЛОГИЯМИ) ===
-Ты умеешь объяснять сложнейшие концепции архитектуры, многопоточности и баз данных на простых жизненных аналогиях (как библиотекарь, кассир в банке, почтальон).
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-[КОНТЕКСТ]
-ВОПРОС: "${questionText}"
-ЭТАЛОН:
-"""
-${referenceAnswer}
-"""
-
-=== ПРАВИЛА ===
-1. Используй яркую и понятную бытовую аналогию.
-2. Без заумного академизма и перегруженного синтаксиса (помни о TRIVIA IMMUNITY).
-3. Длина: 2-3 коротких предложения.
-4. После аналогии спроси: «Понятна ли аналогия или разобрать на другом примере?» и слушай ответ.`;
+      tutorPrompt = buildEli5TutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        questionText: questionText || '',
+        referenceAnswer: referenceAnswer || ''
+      });
     } else {
       // Default tutor mode: quick_qa
-      tutorPrompt = `=== 1. РОЛЬ: ЭКСПРЕСС-КОНСУЛЬТАНТ (QUICK Q&A) ===
-Ты лаконичный и точный технический консультант ${isFemale ? '(женщина)' : '(мужчина)'}.
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-[КОНТЕКСТ]
-ВОПРОС: "${questionText}"
-ЭТАЛОН:
-"""
-${referenceAnswer}
-"""
-
-=== ПРАВИЛА ===
-1. Отвечай прямо, точно и без лишней «воды».
-2. Длина ответа: строго 2 предложения.
-3. Слушай дальнейшие вопросы кандидата.`;
+      tutorPrompt = buildQuickQaTutorPrompt({
+        isFemale,
+        genderRule,
+        cognitiveEpistemicDirectives,
+        questionText: questionText || '',
+        referenceAnswer: referenceAnswer || ''
+      });
     }
 
     const finalTutorPrompt = tutorPrompt.startsWith(LANGUAGE_LOCK_INVARIANT)
@@ -572,6 +504,8 @@ ${customPromptOverride.trim()}
 
 ${genderRule}
 
+${cognitiveEpistemicDirectives}
+
 ${firstTurnLockdownInstruction}
 
 ${ZERO_UNPROBED_DEDUCTIONS_INVARIANT}
@@ -590,8 +524,9 @@ ${referenceAnswer}
 ЧЕК-ЛИСТ КРИТЕРИЕВ:
 ${anchors.map((a, i) => `[${i + 1}] ${a}`).join('\n')}
 
-[ФИНАЛИЗАЦИЯ]
-По окончании собеседования обязательно скажи краткое устное резюме и вызови функцию submit_interview_evaluation.`;
+[ФИНАЛИЗАЦИЯ И ЭПИСТЕМИЧЕСКИЙ ЗАМОК]
+По окончании собеседования обязательно скажи краткое устное резюме и вызови функцию submit_interview_evaluation.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО завышать оценку или соглашаться с ошибочными ответами кандидата из вежливости!`;
   }
 
   const personaDirectives = getPersonaPromptDirectives({

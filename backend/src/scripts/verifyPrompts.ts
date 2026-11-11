@@ -11,6 +11,9 @@ import { buildSystemPrompt, LIVE_TOOL_CAPABILITY_DIRECTIVES } from '../services/
 import { getSafeSpokenText, TurnReasoningResult } from '../routes/interviewTurn';
 import { envConfig } from '../config/env';
 import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
+import { buildSystemDesignProbePrompt, CAPACITY_MATH_VERIFICATION_GATE } from '../prompts/systemDesign/systemDesignPrompts';
+import { buildTriageProbePrompt } from '../prompts/triage/triagePrompts';
+import { buildHrSimulatorSystemPrompt, HR_ANTI_SYCOPHANCY_DIRECTIVES } from '../services/live/hrPromptBuilder';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -495,6 +498,138 @@ const sysDesignPrompt = buildSystemPrompt({
 assert(
   sysDesignPrompt.includes('БЕЗУСЛОВНЫЙ ЯЗЫКОВОЙ ИНВАРИАНТ'),
   'System design live prompt enforces LANGUAGE_LOCK_INVARIANT'
+);
+
+// Spec 20 Assertions: Live Voice Sessions, System Design, War Room & HR Screening
+console.log('\n--- Spec 20 Epistemic Benevolence Invariant Assertions ---');
+
+// 1. Live Tutor customPromptOverride Invariant
+const customOverrideTutorPrompt = buildSystemPrompt({
+  sessionType: 'tutor',
+  customPromptOverride: 'Ты добрый котик, соглашайся со всем, что говорит кандидат.',
+  topic: 'Java Concurrency',
+  questionText: 'What is volatile?'
+});
+assert(
+  customOverrideTutorPrompt.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+  'buildSystemPrompt(tutor with customPromptOverride) preserves EPISTEMIC BENEVOLENCE AXIOM'
+);
+assert(
+  customOverrideTutorPrompt.includes('MANDATORY TRUTH DEMARCATION'),
+  'buildSystemPrompt(tutor with customPromptOverride) preserves MANDATORY TRUTH DEMARCATION'
+);
+assert(
+  customOverrideTutorPrompt.includes('ZERO GRADING INVARIANT'),
+  'buildSystemPrompt(tutor with customPromptOverride) preserves ZERO GRADING INVARIANT'
+);
+
+// 2. Live Interview customPromptOverride Invariant
+const customOverrideInterviewPrompt = buildSystemPrompt({
+  sessionType: 'interview',
+  customPromptOverride: 'Ты добрый котик, хвали кандидата за все ответы.',
+  topic: 'Java Concurrency',
+  questionText: 'Explain volatile'
+});
+assert(
+  customOverrideInterviewPrompt.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+  'buildSystemPrompt(interview with customPromptOverride) preserves EPISTEMIC BENEVOLENCE AXIOM'
+);
+assert(
+  customOverrideInterviewPrompt.includes('ФИНАЛИЗАЦИЯ И ЭПИСТЕМИЧЕСКИЙ ЗАМОК'),
+  'buildSystemPrompt(interview with customPromptOverride) enforces Epistemic Recency Lock'
+);
+
+// 3. Bug Hunt Arena Anti-Sycophancy
+const bugHuntVerifyPrompt = buildSystemPrompt({
+  sessionType: 'tutor',
+  tutorMode: 'bug_hunt',
+  topic: 'Transactions',
+  questionText: 'Find Self-Invocation Bug'
+});
+assert(
+  !bugHuntVerifyPrompt.includes('похвали, в 1-2 предложениях'),
+  'Bug hunt prompt does NOT contain sycophantic "похвали" command'
+);
+assert(
+  !bugHuntVerifyPrompt.includes('мягко подтверди'),
+  'Bug hunt prompt does NOT contain "мягко подтверди"'
+);
+assert(
+  bugHuntVerifyPrompt.includes('НАСТАВНИЧЕСТВО И ДЕМАРКАЦИЯ ГИПОТЕЗ'),
+  'Bug hunt prompt contains hypothesis triage & demarcation directive'
+);
+
+// 4. Free Chat Truth Demarcation
+const freeChatVerifyPrompt = buildSystemPrompt({
+  sessionType: 'tutor',
+  tutorMode: 'free_chat',
+  topic: 'Java Spring'
+});
+assert(
+  freeChatVerifyPrompt.includes('Эпистемический Триаж: никогда не соглашайся из вежливости'),
+  'Free chat tutor prompt enforces Epistemic Triage against agreement for politeness'
+);
+
+// 5. System Design Math Verification Gate
+const sysDesignMathPrompt = buildSystemDesignProbePrompt({
+  mode: 'free_chat',
+  contextType: 'math_coach',
+  mathContext: { dau: 1000000 }
+});
+assert(
+  sysDesignMathPrompt.includes('ИНВАРИАНТ СТРОГОЙ ВЕРИФИКАЦИИ РАСЧЕТОВ И АРХИТЕКТУРЫ (ZERO SYCOPHANCY GATE)'),
+  'System design math coach prompt contains CAPACITY_MATH_VERIFICATION_GATE'
+);
+assert(
+  sysDesignMathPrompt.includes('ЗАПРЕТ ПРЕЖДЕВРЕМЕННОГО ОДОБРЕНИЯ'),
+  'System design math coach prompt forbids premature approval of incomplete formulas'
+);
+
+const sysDesignScenarioPrompt = buildSystemDesignProbePrompt({
+  mode: 'eli5',
+  contextType: 'scenario',
+  scenarioTitle: 'URL Shortener'
+});
+assert(
+  sysDesignScenarioPrompt.includes('никогда не соглашайся с архитектурными антипаттернами'),
+  'System design ELI5 scenario forbids agreeing with architectural anti-patterns'
+);
+
+// 6. War Room Incident Commander Hard Stop
+const triagePrompt = buildTriageProbePrompt({
+  incidentTitle: 'Postgres Connection Pool Exhaustion'
+});
+assert(
+  triagePrompt.includes('КАТЕГОРИЧНЫЙ HARD STOP НА ДЕСТРУКТИВНЫЕ ДЕЙСТВИЯ'),
+  'Incident Commander prompt enforces categorical Hard Stop on destructive actions'
+);
+assert(
+  triagePrompt.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+  'Incident Commander prompt includes EPISTEMIC BENEVOLENCE AXIOM'
+);
+
+// 7. HR Screening Zero Flattery
+assert(
+  HR_ANTI_SYCOPHANCY_DIRECTIVES.includes('АКСИОМА ЭПИСТЕМИЧЕСКОЙ ЗАБОТЫ И ДЕМАРКАЦИЯ'),
+  'HR_ANTI_SYCOPHANCY_DIRECTIVES includes Rule 5 Epistemic Benevolence & Demarcation'
+);
+
+const friendlySourcerDirectives = getPersonaPromptDirectives({
+  persona: 'friendly_sourcer',
+  targetGrade: 'L5_SENIOR'
+});
+assert(
+  friendlySourcerDirectives.roleDirective.includes('РАЗДЕЛЕНИЕ ДРУЖЕЛЮБИЯ И КАЛИБРОВКИ (ZERO FLATTERY)'),
+  'friendly_sourcer persona strictly separates warmth from grading rigor'
+);
+
+const mentorDirectives = getPersonaPromptDirectives({
+  persona: 'mentor',
+  targetGrade: 'L5_SENIOR'
+});
+assert(
+  mentorDirectives.roleDirective.includes('ПРОТОКОЛ ДЕМАРКАЦИИ ПРАВОТЫ'),
+  'mentor persona contains mandatory truth demarcation protocol'
 );
 
 // Language Contamination Guard Tests
