@@ -21,6 +21,7 @@ import { voiceRouter } from './routes/voice';
 import { hrRouter } from './routes/hr';
 import companiesRouter from './routes/companies';
 import sqlChallengesRouter from './routes/sqlChallenges';
+import whiteboardRouter from './routes/whiteboard';
 import { requireAuth } from './middleware/auth';
 import { 
   seedQuestionsFromJSON, 
@@ -69,6 +70,7 @@ app.use('/api/voice', requireAuth, voiceRouter);
 app.use('/api/hr', requireAuth, hrRouter);
 app.use('/api/companies', requireAuth, companiesRouter);
 app.use('/api/sql-challenges', requireAuth, sqlChallengesRouter);
+app.use('/api/whiteboard', requireAuth, whiteboardRouter);
 
 
 
