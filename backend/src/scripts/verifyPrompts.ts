@@ -563,7 +563,8 @@ assert(
 const freeChatVerifyPrompt = buildSystemPrompt({
   sessionType: 'tutor',
   tutorMode: 'free_chat',
-  topic: 'Java Spring'
+  topic: 'Java Spring',
+  questionText: 'Explain Spring beans lifecycle'
 });
 assert(
   freeChatVerifyPrompt.includes('Эпистемический Триаж: никогда не соглашайся из вежливости'),
@@ -616,19 +617,21 @@ assert(
 
 const friendlySourcerDirectives = getPersonaPromptDirectives({
   persona: 'friendly_sourcer',
-  targetGrade: 'L5_SENIOR'
+  targetGrade: 'L5_SENIOR',
+  topic: 'HR Screening'
 });
 assert(
   friendlySourcerDirectives.roleDirective.includes('РАЗДЕЛЕНИЕ ДРУЖЕЛЮБИЯ И КАЛИБРОВКИ (ZERO FLATTERY)'),
   'friendly_sourcer persona strictly separates warmth from grading rigor'
 );
 
-const mentorDirectives = getPersonaPromptDirectives({
+const mentorDemarcationDirectives = getPersonaPromptDirectives({
   persona: 'mentor',
-  targetGrade: 'L5_SENIOR'
+  targetGrade: 'L5_SENIOR',
+  topic: 'System Architecture'
 });
 assert(
-  mentorDirectives.roleDirective.includes('ПРОТОКОЛ ДЕМАРКАЦИИ ПРАВОТЫ'),
+  mentorDemarcationDirectives.roleDirective.includes('ПРОТОКОЛ ДЕМАРКАЦИИ ПРАВОТЫ'),
   'mentor persona contains mandatory truth demarcation protocol'
 );
 
