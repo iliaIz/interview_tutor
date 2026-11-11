@@ -10,24 +10,47 @@ import {
   User,
   Eye,
   FileCode,
-  Layers
+  Layers,
+  Laptop,
+  Download
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
+
+export type VersionVisualRole = 'active_and_synced' | 'active_only' | 'synced_background' | 'neutral';
+
+export function getVersionVisualRole(
+  revId: string,
+  activeId: string | null | undefined,
+  syncedId: string | null | undefined
+): VersionVisualRole {
+  const isActive = Boolean(activeId && revId === activeId);
+  const isSynced = Boolean(syncedId && revId === syncedId);
+
+  if (isActive && isSynced) return 'active_and_synced';
+  if (isActive) return 'active_only';
+  if (isSynced) return 'synced_background';
+  return 'neutral';
+}
 
 export interface CodeArtifactTimelineProps {
   className?: string;
   onSelectRevision?: (rev: CodeArtifactRevision) => void;
   showDiffToggle?: boolean;
+  onCheckoutToIde?: (rev: CodeArtifactRevision) => void;
+  isIdeConnected?: boolean;
 }
 
 export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
   className = '',
   onSelectRevision,
-  showDiffToggle = true
+  showDiffToggle = true,
+  onCheckoutToIde,
+  isIdeConnected = false
 }) => {
   const {
     codeRevisions,
     activeRevisionId,
+    activeIdeRevisionId,
     setActiveRevision
   } = useAppStore();
 
@@ -116,34 +139,57 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
           </span>
 
           {codeRevisions.map((rev) => {
-            const isActive = activeRev?.id === rev.id;
+            const role = getVersionVisualRole(rev.id, activeRev?.id, activeIdeRevisionId);
+            const isSynced = rev.id === activeIdeRevisionId || Boolean(rev.isIdeTracked);
+            const isActive = role === 'active_and_synced' || role === 'active_only';
+
+            const roleClass =
+              role === 'active_and_synced'
+                ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold shadow-sm ring-2 ring-emerald-400'
+                : role === 'active_only'
+                ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold shadow-sm ring-1 ring-white/30'
+                : role === 'synced_background'
+                ? 'bg-emerald-950/60 text-emerald-300 border-2 border-emerald-500/80 shadow-xs font-semibold'
+                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60';
+
             return (
               <button
                 key={rev.id}
                 onClick={() => handleSelect(rev)}
-                className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] transition-all cursor-pointer shrink-0 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-pastel-accentRose to-pastel-accentViolet text-white font-bold shadow-sm ring-1 ring-white/30'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title={`Версия ${rev.index}: ${rev.title}`}
+                className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] transition-all cursor-pointer shrink-0 ${roleClass}`}
+                title={`Версия ${rev.index}: ${rev.title}${isSynced ? ' (Синхронизировано с IDE)' : ''}`}
               >
                 <span>v{rev.index}</span>
-                {rev.author === 'ai' ? (
+                {isSynced ? (
+                  <Laptop className={`w-3 h-3 ${isActive ? 'text-emerald-200' : 'text-emerald-400'}`} />
+                ) : rev.author === 'ai' ? (
                   <Sparkles className={`w-3 h-3 ${isActive ? 'text-amber-200' : 'text-amber-400'}`} />
                 ) : (
                   <User className={`w-3 h-3 ${isActive ? 'text-cyan-200' : 'text-cyan-400'}`} />
                 )}
-                {isActive && (
+                {isActive ? (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                )}
+                ) : role === 'synced_background' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80" />
+                ) : null}
               </button>
             );
           })}
         </div>
 
-        {/* Right: Actions (Diff View & Copy) */}
+        {/* Right: Actions (Checkout to IDE, Diff View & Copy) */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {activeRev && onCheckoutToIde && isIdeConnected && activeRev.id !== activeIdeRevisionId && (
+            <button
+              type="button"
+              onClick={() => onCheckoutToIde(activeRev)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition cursor-pointer"
+              title="Загрузить эту версию в локальную IntelliJ IDEA (Whiteboard.java)"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">В IDE</span>
+            </button>
+          )}
           {showDiffToggle && prevRev && (
             <button
               onClick={() => setViewMode((prev) => (prev === 'code' ? 'diff' : 'code'))}
