@@ -22,6 +22,8 @@ import {
 import {
   TRIVIA_IMMUNITY_INVARIANT,
   CONVERSATIONAL_ANTI_SYCOPHANCY_DIRECTIVES,
+  EPISTEMIC_BENEVOLENCE_AXIOM,
+  EPISTEMIC_TRIAGE_DIRECTIVE,
   StrictnessLevel,
   getStrictnessDirectives
 } from '../prompts/core/antiSycophancy';
@@ -316,11 +318,11 @@ router.post('/turn', async (req: Request, res: Response) => {
 
     const decisionRules = isTutorMode
       ? `РЕЖИМ: ОБУЧАЮЩИЙ ТЬЮТОР (TUTOR MODE).
-Ты доброжелательный Senior наставник по теме «${topic}».
+Ты объективный и доброжелательный Senior наставник по теме «${topic}».
 Кандидат задает вопросы, разбирается в тонкостях темы или просит подсказку.
 КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выставлять оценку или завершать сессию (action: "evaluate").
-ВСЕГДА выбирай action: "probe" и давай прямой, емкий, полезный ответ или наводящую подсказку кандидату голосом (2-3 предложения).
-Если кандидат ошибся — не соглашайся из вежливости («вы правы»), а мягко покажи физику процесса под капотом.`
+ВСЕГДА выбирай action: "probe" и давай прямой, емкий ответ или наводящую подсказку голосом (строго 2-3 предложения, до 25-35 слов).
+ПРОТОКОЛ ДЕМАРКАЦИИ: Если кандидат ошибся или прав лишь отчасти — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО соглашаться из вежливости («вы правы») или сглаживать углы. В первой же фразе четко разграничь верную и ошибочную части его тезиса согласно Аксиоме Эпистемической Заботы и прямо объясни реальную физику процесса под капотом.`
       : `ПРАВИЛА ПРИНЯТИЯ РЕШЕНИЯ (СОБЕСЕДОВАНИЕ):
 1. Если кандидат сдается («не знаю», «сдаюсь», «объясни») ИЛИ если текущий раунд ${turnCount} >= ${maxProbes} ИЛИ ответ кандидата уже достаточно полон:
    -> Выбери action: "evaluate".
@@ -331,6 +333,10 @@ router.post('/turn', async (req: Request, res: Response) => {
 
     const systemPrompt = `Ты ${personaDirectives.personaTitle} по теме «${topic}».
 ${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+
+${EPISTEMIC_BENEVOLENCE_AXIOM}
+
+${EPISTEMIC_TRIAGE_DIRECTIVE}
 
 ${TRIVIA_IMMUNITY_INVARIANT}
 

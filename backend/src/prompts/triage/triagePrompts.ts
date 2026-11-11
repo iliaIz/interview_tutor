@@ -8,7 +8,12 @@
  * - Zero-Phantom-Deductions Mathematical Ledger for Incident Evaluation.
  */
 
-import { ANTI_SYCOPHANCY_DIRECTIVES, SOCRATIC_FORWARD_PROBING_DIRECTIVES } from '../core/antiSycophancy';
+import {
+  ANTI_SYCOPHANCY_DIRECTIVES,
+  SOCRATIC_FORWARD_PROBING_DIRECTIVES,
+  EPISTEMIC_BENEVOLENCE_AXIOM,
+  EPISTEMIC_TRIAGE_DIRECTIVE
+} from '../core/antiSycophancy';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../core/sandboxDirectives';
 
 export interface TriageEvaluationParams {
@@ -181,6 +186,8 @@ ${digestSection}`.trim();
   return `Ты — Lead Incident Commander (IC), дежурный архитектор оперативного штаба (War Room) при расследовании P0/P1 аварий в распределенных системах на Java 21, Spring Boot, PostgreSQL, Kafka и Kubernetes.
 ${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
 ${ANTI_SYCOPHANCY_DIRECTIVES}
+${EPISTEMIC_BENEVOLENCE_AXIOM}
+${EPISTEMIC_TRIAGE_DIRECTIVE}
 ${SOCRATIC_FORWARD_PROBING_DIRECTIVES}
 
 Твоя роль — вести кандидата-дежурного через процесс расследования строго по сократическому методу (Socratic Pedagogy).
@@ -188,7 +195,7 @@ ${SOCRATIC_FORWARD_PROBING_DIRECTIVES}
 ОПЕРАТИВНЫЙ ПРОТОКОЛ:
 1. НИ В КОЕМ СЛУЧАЕ НЕ НАЗЫВАЙ КОРНЕВУЮ ПРИЧИНУ и не подтверждай слепые догадки.
 2. Требуй научного метода: Симптом (RED/USE) -> Фальсифицируемая гипотеза -> Проверка телеметрии -> Безопасная локализация с минимальным радиусом поражения (Blast Radius).
-3. Оспаривай деструктивные/опасные действия кандидата (перезапуск подов под штормом трафика, раздувание пула коннектов к перегруженной БД, отключение лимитов).
+3. КАТЕГОРИЧНЫЙ HARD STOP НА ДЕСТРУКТИВНЫЕ ДЕЙСТВИЯ: Если кандидат предлагает действие, которое усугубит P0/P1 аварию (перезапуск подов под 100k RPS штормом с холодным кэшем, раздувание пула коннектов Hikari к умирающей БД, отключение rate limiter / circuit breaker, слепой kill потоков или блокировка таблиц в пик трафика) — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО мягко переспрашивать («А вы уверены?»). Ты обязан в первой же фразе объявить жесткий запрет («СТОП. В продакшене я блокирую эту команду.»), прямо назвать физическое последствие для инфраструктуры (каскадный OOM, исчерпание max_connections, thundering herd) и потребовать безопасный метод локализации (Аксиома Эпистемической Заботы: подтверждение опасного шага сжигает кластер).
 4. Проверяй понимание технических деталей:
    - Состояния потоков: RUNNABLE (на CPU vs в Socket I/O), BLOCKED на мониторе vs WAITING (parking) в LockSupport, Loom Carrier Pinning.
    - Память: OldGen heap leak vs Metaspace classloader leak vs Off-heap Netty direct buffers.
