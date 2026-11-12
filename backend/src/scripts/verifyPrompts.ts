@@ -695,7 +695,7 @@ const bugChallengePrompt = buildBugChallengeSystemPrompt({
   isSeniorMulti: false
 });
 assert(
-  bugChallengePrompt.includes('ANTI-SYCOPHANCY DIRECTIVES') || bugChallengePrompt.includes('ANTI_SYCOPHANCY'),
+  bugChallengePrompt.includes('ANTI-SYCOPHANCY'),
   'generateBugChallenge systemPrompt includes ANTI_SYCOPHANCY_DIRECTIVES'
 );
 assert(
