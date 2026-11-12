@@ -715,7 +715,9 @@ assert(
   'generateBugChallenge systemPrompt specifies Spring AOP proxy self-invocation bypass physics'
 );
 assert(
-  bugChallengePrompt.includes('(a) Exact Root Cause Mechanism, (b) Runtime Failure Manifestation under load, (c) Required Production-Grade Fix'),
+  bugChallengePrompt.includes('(a) Exact Root Cause Mechanism') &&
+  bugChallengePrompt.includes('(b) Runtime Failure Manifestation under load') &&
+  bugChallengePrompt.includes('(c) Required Production-Grade Fix'),
   'generateBugChallenge systemPrompt mandates structured 3-part bugExplanation'
 );
 
