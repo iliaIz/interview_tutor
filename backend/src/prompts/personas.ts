@@ -161,7 +161,7 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
 ОСОБЕННОСТИ ОЦЕНКИ YANDEX CORE:
 - Высший приоритет — точность технических формулировок и отсутствие «магического мышления».
 - За ошибки в многопоточности и базовой структуре памяти JVM немедленно выставляй Red Flag (Strong No Hire / Leaning No Hire).
-- Хвали за точное понимание низкоуровневых оптимизаций HotSpot.`;
+- Отмечай как безусловный плюс точное понимание низкоуровневых оптимизаций HotSpot.`;
       break;
 
     case 'raiffeisen_dgtl_pe':
