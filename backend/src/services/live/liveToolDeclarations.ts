@@ -201,7 +201,7 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
         type: 'OBJECT',
         properties: {
           isSolved: { type: 'BOOLEAN', description: 'true если баг найден и объяснен' },
-          feedback: { type: 'STRING', description: 'Краткая похвала и подтверждение' },
+          feedback: { type: 'STRING', description: 'Краткое объективное подтверждение решения и физики фикса' },
           keyInsight: { type: 'STRING', description: 'Ключевая мысль фикса' }
         },
         required: ['isSolved', 'feedback']

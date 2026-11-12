@@ -28,7 +28,7 @@ export function seedDefaultProfiles(db: Database.Database) {
         id: 'preset_soft_mentor',
         name: 'Мягкий наставник (Поддерживающий)',
         badge: '🌸 Сократ',
-        description: 'Теплая атмосфера: похвала за верные мысли, мягкие подсказки и живые аналогии при застревании.',
+        description: 'Теплая атмосфера: наглядные аналогии, терпеливый разбор физики процессов и мягкие наводящие подсказки при застревании.',
         is_preset: 1,
         strategy: 'socratic_tutoring',
         voice: 'Kore',
