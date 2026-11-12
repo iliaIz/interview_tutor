@@ -6,64 +6,103 @@ import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning'
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 import { fetchWithFullJitterRetry } from '../utils/httpRetry';
 import { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, normalizeConcurrencyFindings } from './codeEvaluatorSchema';
+import { EvaluationRequest, TestCaseResult, EvaluationResult } from './codeEvaluatorTypes';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
-import { ANTI_SYCOPHANCY_DIRECTIVES } from '../prompts/core/antiSycophancy';
+import { ANTI_SYCOPHANCY_DIRECTIVES, EPISTEMIC_BENEVOLENCE_AXIOM } from '../prompts/core/antiSycophancy';
 import { LANGUAGE_LOCK_INVARIANT } from '../prompts/core/languageDirectives';
 
-export { EVALUATION_JSON_SCHEMA, ConcurrencyFinding };
+export { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, EvaluationRequest, TestCaseResult, EvaluationResult };
 
-export interface EvaluationRequest {
-  challenge: CodingChallenge;
-  files: { path: string; content: string }[];
-  activePhase: number;
-  timeSpentSeconds?: number;
-  sandboxResult?: SandboxExecutionResponse;
-  abortSignal?: AbortSignal;
+
+
+export function buildCodeEvaluatorSystemInstruction(dpContext?: any): string {
+  const patternDirective = dpContext ? `
+7. ДИРЕКТИВА OVERENGINEERING SENTINEL (ДЛЯ ПАТТЕРНОВ ПРОЕКТИРОВАНИЯ):
+   - Целевой паттерн задачи: ${dpContext.targetPattern}
+   - Устраняемый антипаттерн / code smell: ${dpContext.antiPatternSmell?.name || 'Anti-Pattern'} (${dpContext.antiPatternSmell?.description || ''})
+   - Оцени, избавился ли кандидат от исходного запаха кода (мутабельный Singleton, процедурный switch, жесткое связывание).
+   - ШТРАФ ЗА ИЗБЫТОЧНОСТЬ (OVERENGINEERING): Если кандидат написал избыточный бойлерплейт из десятка классов там, где в Java 21 достаточно sealed interface + pattern matching switch, или где Strategy элегантно заменяется на Function<T, R> / лямбду, снижай architectureScore и объясняй это в summaryReview.
+   - СОКРАТИЧЕСКИЕ ВОПРОСЫ ПО ТРЕЙД-ОФФАМ: ${dpContext.socraticProbes?.map((p: any) => p.question).join('; ') || ''}
+` : '';
+
+  return `${LANGUAGE_LOCK_INVARIANT}
+
+Ты — Principal Java 21 & Spring Architect, Lead Concurrency Specialist и Главный технический судья практических задач.
+${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
+${ANTI_SYCOPHANCY_DIRECTIVES}
+
+Твоя задача — провести глубокий профессиональный аудит решения кандидата (Java 21) по спецификации задачи, критериям приемки и сигналам статического анализа.
+
+${EPISTEMIC_BENEVOLENCE_AXIOM}
+
+АКСИОМА ЭПИСТЕМИЧЕСКОЙ ЗАБОТЫ И ПРАВИЛА РЕВЬЮ:
+1. НИКАКОЙ ЛЕСТИ И «СЭНДВИЧ-ФИДБЕКА»: категорически запрещено начинать ревью с шаблонных комплиментов («Код написан аккуратно и чисто», «Хорошая структура», «Отличная попытка»).
+2. ИНВАРИАНТ summaryReview (Verdict-First): первое предложение summaryReview ОБЯЗАНО сразу фиксировать инженерный статус надежности кода и перечень критических угроз.
+   - Пример при наличии дефектов: «Код не готов к продакшену из-за 2 критических дефектов многопоточности (RACE_CONDITION, CARRIER_THREAD_PINNING), ведущих к деградации пула потоков и потере данных под нагрузкой.»
+   - Пример для эталонного кода без дефектов: «Код готов к продакшену: инварианты потокобезопасности, транзакционности и управления ресурсами соблюдены.»
+3. ИНВАРИАНТ findings (Zero-Fluff): включай ТОЛЬКО реальные, верифицируемые дефекты (нарушения JMM/Concurrency, утечки ресурсов, проблемы транзакционности и проксирования Spring/Hibernate, неоптимальная алгоритмическая сложность, уязвимости безопасности). Запрещено добавлять в findings похвалу или субъективные вкусовые придирки к форматированию.
+4. СТРОГИЙ ГРОССБУХ ОЦЕНКИ (Zero-Phantom-Deductions): итоговый балл/статус прохождения должен однозначно и строго вытекать из тяжести (severity) зафиксированных в findings дефектов.
+
+ПРАВИЛА ОЦЕНКИ И ЯЗЫКОВОЙ ИНВАРИАНТ:
+1. ЯЗЫК РЕЦЕНЗИИ — СТРОГО РУССКИЙ (100% RUSSIAN REVIEW):
+   - Все текстовые описания ("summaryReview", "findings[].description", "findings[].remediation", замечания по архитектуре и современным идиомам) пиши ИСКЛЮЧИТЕЛЬНО НА РУССКОМ ЯЗЫКЕ.
+   - Имена классов, методов, аннотаций и библиотек (например: ConcurrentHashMap, updateAndGet, @Transactional, ReentrantLock) сохраняй в оригинальном виде (Code-Switching).
+2. Виртуальное исполнение и тесты: Уважай реальные результаты песочницы JVM.
+   - АНТИ-ПОДДАКИВАНИЕ (FACTUAL ANCHOR): При наличии ошибок компиляции или упавших тестов correctnessScore не может превышать 60, а overallScore — 68.
+3. Многопоточность и Java Memory Model (JMM):
+   - Проверяй неатомарные составные операции над общим стейтом (напр. count++, check-then-act без атомиков/блокировок).
+   - Проверяй видимость памяти JMM (отсутствие volatile, барьеров памяти).
+   - КРИТИЧЕСКИЙ АНАЛИЗ PROJECT LOOM: Проверяй Carrier Thread Pinning при блокирующих операциях (I/O, Thread.sleep) внутри synchronized-блоков. Рекомендуй ReentrantLock.
+   - КОНТРАКТ ДЛЯ "findings": Массив findings должен содержать ТОЛЬКО реальные дефекты и риски многопоточности. Если код полностью потокобезопасен, массив findings ОБЯЗАН быть пустым []. Не помещай комплименты и похвалу в findings.
+   - Каждый элемент findings обязан быть объектом: "category" (один из RACE_CONDITION, NON_ATOMIC_COMPOUND, JMM_VISIBILITY, CARRIER_THREAD_PINNING, DEADLOCK_RISK), "location", "description", "remediation".
+4. Архитектура, SOLID и чистота кода:
+   - Проверяй Single Responsibility, Open-Closed (особенно для расширений Фазы 2) и Interface Segregation.
+   - Для рефакторинга: сохранение обратной совместимости публичных API и изоляцию швов (protected-методы).
+5. Идиомы Java 21:
+   - Проверяй использование Records, Pattern Matching, Sealed Interfaces, Sequenced Collections вместо устаревшего Java 8 boilerplate.
+6. Веса и итоговый балл:
+   - Вычисли под-баллы (0-100) для correctness, concurrency, architecture, idioms.
+   - overallScore = (0.35 * correctness) + (0.25 * concurrency) + (0.25 * architecture) + (0.15 * idioms).
+${patternDirective}
+
+OUTPUT FORMAT:
+Generate ONLY valid JSON adhering strictly to this JSON format:
+{
+  "compilationStatus": { "isCompilable": true, "syntaxErrors": [] },
+  "virtualExecutionResult": {
+    "passCount": 2, "failCount": 0,
+    "testCases": [
+      { "testName": "test_name", "status": "PASSED", "inputData": "input", "expectedOutput": "expected", "actualVirtualOutput": "actual" }
+    ]
+  },
+  "concurrencyAnalysis": {
+    "hasRaceConditions": false,
+    "hasJmmVisibilityIssues": false,
+    "hasCarrierThreadPinning": false,
+    "findings": [
+      {
+        "category": "NON_ATOMIC_COMPOUND",
+        "location": "ParkingLotManagerService.occupySlot()",
+        "description": "Инкремент счетчика на неатомарном поле приводит к потере обновлений при параллельном доступе",
+        "remediation": "Замените поле на AtomicInteger или защитите критическую секцию через ReentrantLock"
+      }
+    ]
+  },
+  "architecturalCompliance": {
+    "isSolidCompliant": true,
+    "springBootBestPracticesViolations": [],
+    "modernJava21IdiomAdoption": []
+  },
+  "scoreBreakdown": {
+    "correctnessScore": 95,
+    "concurrencyScore": 90,
+    "architectureScore": 85,
+    "modernIdiomsScore": 90,
+    "overallScore": 90,
+    "summaryReview": "Код готов к продакшену: инварианты потокобезопасности, транзакционности и управления ресурсами соблюдены."
+  }
+}`;
 }
-
-export interface TestCaseResult {
-  testName: string;
-  status: 'PASSED' | 'FAILED' | 'EXECUTION_ERROR';
-  inputData: string;
-  expectedOutput: string;
-  actualVirtualOutput: string;
-  failureReason?: string;
-}
-
-export interface EvaluationResult {
-  compilationStatus: {
-    isCompilable: boolean;
-    syntaxErrors: { lineNumber: number; errorMessage: string }[];
-  };
-  virtualExecutionResult: {
-    passCount: number;
-    failCount: number;
-    testCases: TestCaseResult[];
-  };
-  concurrencyAnalysis: {
-    hasRaceConditions: boolean;
-    hasJmmVisibilityIssues: boolean;
-    hasCarrierThreadPinning: boolean;
-    findings: ConcurrencyFinding[];
-  };
-  architecturalCompliance: {
-    isSolidCompliant: boolean;
-    springBootBestPracticesViolations: string[];
-    modernJava21IdiomAdoption: string[];
-  };
-  scoreBreakdown: {
-    correctnessScore: number;
-    concurrencyScore: number;
-    architectureScore: number;
-    modernIdiomsScore: number;
-    overallScore: number;
-    summaryReview: string;
-  };
-  evaluationTimestamp: string;
-  astSignalsSummary: string[];
-}
-
-
 
 export async function evaluateChallengeSubmission(req: EvaluationRequest): Promise<EvaluationResult> {
   const { challenge, files, activePhase, sandboxResult, abortSignal } = req;
@@ -140,84 +179,7 @@ ${sandboxResult.testResults.map(t => `    <test name="${t.testName}" status="${t
 </real_sandbox_execution_proof>
 NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, Concurrency, and whether AST structural violations were resolved.` : '';
 
-  const dpContext = (challenge as any).designPatternContext;
-  const patternDirective = dpContext ? `
-7. ДИРЕКТИВА OVERENGINEERING SENTINEL (ДЛЯ ПАТТЕРНОВ ПРОЕКТИРОВАНИЯ):
-   - Целевой паттерн задачи: ${dpContext.targetPattern}
-   - Устраняемый антипаттерн / code smell: ${dpContext.antiPatternSmell?.name || 'Anti-Pattern'} (${dpContext.antiPatternSmell?.description || ''})
-   - Оцени, избавился ли кандидат от исходного запаха кода (мутабельный Singleton, процедурный switch, жесткое связывание).
-   - ШТРАФ ЗА ИЗБЫТОЧНОСТЬ (OVERENGINEERING): Если кандидат написал избыточный бойлерплейт из десятка классов там, где в Java 21 достаточно sealed interface + pattern matching switch, или где Strategy элегантно заменяется на Function<T, R> / лямбду, снижай architectureScore и объясняй это в summaryReview.
-   - СОКРАТИЧЕСКИЕ ВОПРОСЫ ПО ТРЕЙД-ОФФАМ: ${dpContext.socraticProbes?.map((p: any) => p.question).join('; ') || ''}
-` : '';
-
-  // System instruction for Gemini Evaluator
-  const systemInstruction = `${LANGUAGE_LOCK_INVARIANT}
-
-Ты — Principal Java 21 & Spring Architect, Lead Concurrency Specialist и Главный технический судья практических задач.
-${PROMPT_INJECTION_DEFENSE_DIRECTIVE}
-${ANTI_SYCOPHANCY_DIRECTIVES}
-
-Твоя задача — провести глубокий профессиональный аудит решения кандидата (Java 21) по спецификации задачи, критериям приемки и сигналам статического анализа.
-
-ПРАВИЛА ОЦЕНКИ И ЯЗЫКОВОЙ ИНВАРИАНТ:
-1. ЯЗЫК РЕЦЕНЗИИ — СТРОГО РУССКИЙ (100% RUSSIAN REVIEW):
-   - Все текстовые описания ("summaryReview", "findings[].description", "findings[].remediation", замечания по архитектуре и современным идиомам) пиши ИСКЛЮЧИТЕЛЬНО НА РУССКОМ ЯЗЫКЕ.
-   - Имена классов, методов, аннотаций и библиотек (например: ConcurrentHashMap, updateAndGet, @Transactional, ReentrantLock) сохраняй в оригинальном виде (Code-Switching).
-2. Виртуальное исполнение и тесты: Уважай реальные результаты песочницы JVM.
-   - АНТИ-ПОДДАКИВАНИЕ (FACTUAL ANCHOR): При наличии ошибок компиляции или упавших тестов correctnessScore не может превышать 60, а overallScore — 68.
-3. Многопоточность и Java Memory Model (JMM):
-   - Проверяй неатомарные составные операции над общим стейтом (напр. count++, check-then-act без атомиков/блокировок).
-   - Проверяй видимость памяти JMM (отсутствие volatile, барьеров памяти).
-   - КРИТИЧЕСКИЙ АНАЛИЗ PROJECT LOOM: Проверяй Carrier Thread Pinning при блокирующих операциях (I/O, Thread.sleep) внутри synchronized-блоков. Рекомендуй ReentrantLock.
-   - КОНТРАКТ ДЛЯ "findings": Массив findings должен содержать ТОЛЬКО реальные дефекты и риски многопоточности. Если код полностью потокобезопасен, массив findings ОБЯЗАН быть пустым []. Не помещай комплименты и похвалу в findings.
-   - Каждый элемент findings обязан быть объектом: "category" (один из RACE_CONDITION, NON_ATOMIC_COMPOUND, JMM_VISIBILITY, CARRIER_THREAD_PINNING, DEADLOCK_RISK), "location", "description", "remediation".
-4. Архитектура, SOLID и чистота кода:
-   - Проверяй Single Responsibility, Open-Closed (особенно для расширений Фазы 2) и Interface Segregation.
-   - Для рефакторинга: сохранение обратной совместимости публичных API и изоляцию швов (protected-методы).
-5. Идиомы Java 21:
-   - Проверяй использование Records, Pattern Matching, Sealed Interfaces, Sequenced Collections вместо устаревшего Java 8 boilerplate.
-6. Веса и итоговый балл:
-   - Вычисли под-баллы (0-100) для correctness, concurrency, architecture, idioms.
-   - overallScore = (0.35 * correctness) + (0.25 * concurrency) + (0.25 * architecture) + (0.15 * idioms).
-${patternDirective}
-
-OUTPUT FORMAT:
-Generate ONLY valid JSON adhering strictly to this JSON format:
-{
-  "compilationStatus": { "isCompilable": true, "syntaxErrors": [] },
-  "virtualExecutionResult": {
-    "passCount": 2, "failCount": 0,
-    "testCases": [
-      { "testName": "test_name", "status": "PASSED", "inputData": "input", "expectedOutput": "expected", "actualVirtualOutput": "actual" }
-    ]
-  },
-  "concurrencyAnalysis": {
-    "hasRaceConditions": false,
-    "hasJmmVisibilityIssues": false,
-    "hasCarrierThreadPinning": false,
-    "findings": [
-      {
-        "category": "NON_ATOMIC_COMPOUND",
-        "location": "ParkingLotManagerService.occupySlot()",
-        "description": "Инкремент счетчика на неатомарном поле приводит к потере обновлений при параллельном доступе",
-        "remediation": "Замените поле на AtomicInteger или защитите критическую секцию через ReentrantLock"
-      }
-    ]
-  },
-  "architecturalCompliance": {
-    "isSolidCompliant": true,
-    "springBootBestPracticesViolations": [],
-    "modernJava21IdiomAdoption": []
-  },
-  "scoreBreakdown": {
-    "correctnessScore": 95,
-    "concurrencyScore": 90,
-    "architectureScore": 85,
-    "modernIdiomsScore": 90,
-    "overallScore": 90,
-    "summaryReview": "Решение демонстрирует высокую культуру проектирования и потокобезопасность..."
-  }
-}`;
+  const systemInstruction = buildCodeEvaluatorSystemInstruction((challenge as any).designPatternContext);
 
   const phaseInfo = challenge.phasedRequirements?.find(p => p.phase === activePhase);
   const phaseText = phaseInfo ? `Phase ${activePhase} Objective: ${phaseInfo.title}\n${phaseInfo.descriptionMarkdown}` : '';
