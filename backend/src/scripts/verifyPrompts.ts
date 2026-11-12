@@ -14,6 +14,9 @@ import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
 import { buildSystemDesignProbePrompt, CAPACITY_MATH_VERIFICATION_GATE } from '../prompts/systemDesign/systemDesignPrompts';
 import { buildTriageProbePrompt } from '../prompts/triage/triagePrompts';
 import { buildHrSimulatorSystemPrompt, HR_ANTI_SYCOPHANCY_DIRECTIVES } from '../services/live/hrPromptBuilder';
+import { buildEvaluateAnswerSystemPrompt } from '../services/geminiText';
+import { buildCodeEvaluatorSystemInstruction } from '../services/codeEvaluator';
+import { buildBugChallengeSystemPrompt } from '../services/tutorService';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -633,6 +636,87 @@ const mentorDemarcationDirectives = getPersonaPromptDirectives({
 assert(
   mentorDemarcationDirectives.roleDirective.includes('ПРОТОКОЛ ДЕМАРКАЦИИ ПРАВОТЫ'),
   'mentor persona contains mandatory truth demarcation protocol'
+);
+
+// Spec 21 Assertions: Evaluators, Code Review & Bug Challenge Generation Anti-Sycophancy
+console.log('\n--- Spec 21 Evaluators & Challenge Gen Invariant Assertions ---');
+
+// 1. Conceptual Q&A Evaluator Zero-Phantom Deductions Ledger
+const evalAnswerPromptFemale = buildEvaluateAnswerSystemPrompt('female');
+assert(
+  evalAnswerPromptFemale.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+  'evaluateAnswer systemPrompt includes EPISTEMIC BENEVOLENCE AXIOM'
+);
+assert(
+  evalAnswerPromptFemale.includes('ПРАВИЛА ОЦЕНКИ И ПРОТОКОЛ ZERO-PHANTOM-DEDUCTIONS'),
+  'evaluateAnswer systemPrompt enforces ZERO-PHANTOM-DEDUCTIONS protocol'
+);
+assert(
+  evalAnswerPromptFemale.includes('[-X баллов]'),
+  'evaluateAnswer systemPrompt mandates [-X баллов] penalty formatting'
+);
+assert(
+  !evalAnswerPromptFemale.includes('ободряющее'),
+  'evaluateAnswer systemPrompt strictly omits flattering "ободряющее" descriptor'
+);
+assert(
+  evalAnswerPromptFemale.includes('score = 100 - sum(deductions)') || evalAnswerPromptFemale.includes('100 минус сумма штрафов'),
+  'evaluateAnswer systemPrompt enforces score = 100 - sum(deductions) mathematical ledger'
+);
+
+// 2. Practice Code Evaluator Verdict-First & Zero-Fluff Review
+const codeEvaluatorInstruction = buildCodeEvaluatorSystemInstruction();
+assert(
+  codeEvaluatorInstruction.includes('EPISTEMIC BENEVOLENCE AXIOM'),
+  'codeEvaluator systemInstruction includes EPISTEMIC BENEVOLENCE AXIOM'
+);
+assert(
+  codeEvaluatorInstruction.includes('НИКАКОЙ ЛЕСТИ И «СЭНДВИЧ-ФИДБЕКА»'),
+  'codeEvaluator systemInstruction bans flattering sandwich feedback'
+);
+assert(
+  codeEvaluatorInstruction.includes('ИНВАРИАНТ summaryReview (Verdict-First)'),
+  'codeEvaluator systemInstruction enforces Verdict-First summaryReview'
+);
+assert(
+  codeEvaluatorInstruction.includes('ИНВАРИАНТ findings (Zero-Fluff)'),
+  'codeEvaluator systemInstruction enforces Zero-Fluff findings'
+);
+assert(
+  !codeEvaluatorInstruction.includes('«Код написан аккуратно и чисто»') || codeEvaluatorInstruction.includes('запрещено начинать ревью с шаблонных комплиментов («Код написан аккуратно и чисто»'),
+  'codeEvaluator systemInstruction explicitly forbids "Код написан аккуратно и чисто" flattery'
+);
+
+// 3. Bug Challenge Synthesis Ground Truth Invariant
+const bugChallengePrompt = buildBugChallengeSystemPrompt({
+  targetTechStackPrompt: 'Java 21 LTS, Spring Boot 3.4.x',
+  bugCountInstruction: 'Сгенерируй код с РОВНО 1 фундаментальной ошибкой',
+  defectFocusInstruction: 'ФОКУС: Concurrency & JMM',
+  isSeniorMulti: false
+});
+assert(
+  bugChallengePrompt.includes('ANTI-SYCOPHANCY DIRECTIVES') || bugChallengePrompt.includes('ANTI_SYCOPHANCY'),
+  'generateBugChallenge systemPrompt includes ANTI_SYCOPHANCY_DIRECTIVES'
+);
+assert(
+  bugChallengePrompt.includes('EPISTEMIC RIGOR & GROUND TRUTH INVARIANT'),
+  'generateBugChallenge systemPrompt enforces EPISTEMIC RIGOR & GROUND TRUTH INVARIANT'
+);
+assert(
+  bugChallengePrompt.includes('Java Memory Model (JMM) missing happens-before edge'),
+  'generateBugChallenge systemPrompt specifies JMM happens-before physics'
+);
+assert(
+  bugChallengePrompt.includes('Virtual Thread carrier thread pinning'),
+  'generateBugChallenge systemPrompt specifies Virtual Thread carrier pinning physics'
+);
+assert(
+  bugChallengePrompt.includes('Spring AOP proxy self-invocation bypassing @Transactional/@Cacheable'),
+  'generateBugChallenge systemPrompt specifies Spring AOP proxy self-invocation bypass physics'
+);
+assert(
+  bugChallengePrompt.includes('(a) Exact Root Cause Mechanism, (b) Runtime Failure Manifestation under load, (c) Required Production-Grade Fix'),
+  'generateBugChallenge systemPrompt mandates structured 3-part bugExplanation'
 );
 
 // Language Contamination Guard Tests
