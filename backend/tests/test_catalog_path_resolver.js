@@ -45,7 +45,7 @@ const sqlPath = resolveJsonCatalogPath('sql_challenges.json');
 assert.ok(fs.existsSync(sqlPath), `sql_challenges.json must be found at ${sqlPath}`);
 const challenges = JSON.parse(fs.readFileSync(sqlPath, 'utf-8'));
 assert.ok(Array.isArray(challenges), 'sql_challenges.json must be an array');
-assert.strictEqual(challenges.length, 5, 'Must contain exactly 5 PostgreSQL challenges');
+assert.strictEqual(challenges.length, 10, 'Must contain exactly 10 PostgreSQL challenges');
 
 // 3. Simulate dist/routes directory structure
 const repoRoot = path.resolve(__dirname, '..');
