@@ -154,7 +154,7 @@ ${contextInfo}
 Сгенерируй реалистичную задачу на поиск бага (Production Incident Code Review Challenge) в строгом JSON-формате.`;
 
   try {
-    console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Model: ${modelName}, Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
+    console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
     
     const parsed = await LlmExecutionEngine.executeJson<any>({
       systemPrompt,
