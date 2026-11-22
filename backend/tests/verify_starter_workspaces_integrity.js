@@ -72,6 +72,39 @@ if (!filterArg || filterArg === 'raiffeisen') {
   }
 }
 
+// 1.1 Audit Alfa Digital Track
+if (!filterArg || filterArg === 'alfa') {
+  console.log('--- 1.1 Alfa Digital Track Katas ---');
+  if (fs.existsSync(MC_JSON_PATH)) {
+    const mc = JSON.parse(fs.readFileSync(MC_JSON_PATH, 'utf-8'));
+    for (const c of mc) {
+      if (c.id.startsWith('lc-alfa-')) {
+        const editable = c.workspaceFiles?.filter(f => !f.isReadOnly && !f.readOnly) || [];
+        const hasStub = editable.some(f => (f.content || '').includes('UnsupportedOperationException'));
+        recordCheck(c.id, hasStub, 'Live coding starter code must throw UnsupportedOperationException (Zero-Stillborn)');
+      }
+    }
+  }
+
+  if (fs.existsSync(REF_JSON_PATH)) {
+    const ref = JSON.parse(fs.readFileSync(REF_JSON_PATH, 'utf-8'));
+    for (const c of ref) {
+      if (c.id === 'cr-alfa-01') {
+        const editable = c.workspaceFiles?.find(f => !f.isReadOnly && !f.readOnly);
+        const content = editable?.content || '';
+        const hasBugs = content.includes('double amount') && content.includes('static Map');
+        recordCheck(c.id, hasBugs, 'Starter code must preserve PaymentController defects');
+      }
+      if (c.id === 'cr-alfa-05') {
+        const editable = c.workspaceFiles?.find(f => !f.isReadOnly && !f.readOnly);
+        const content = editable?.content || '';
+        const hasEagerBug = content.includes('FetchType.EAGER');
+        recordCheck(c.id, hasEagerBug, 'Starter code must preserve Hibernate EAGER defect');
+      }
+    }
+  }
+}
+
 // 2. Audit Legacy Machine Coding (mc_*)
 if (!filterArg || filterArg === 'mc') {
   console.log('\n--- 2. Legacy Machine Coding Katas (mc_*) ---');
