@@ -3374,5 +3374,181 @@
       "Сохраняйте только ненулевые элементы в синхронных массивах indices[] и values[].",
       "Так как индексы возрастают, скалярное произведение вычисляется двумя указателями за O(min(L1, L2))."
     ]
+  },
+  {
+    "id": "lc-alfa-01",
+    "slug": "lc-alfa-01",
+    "title": "SegmentedConcurrentHashMap: Сегментная блокировка и volatile-чтение",
+    "track": "alfa_livecoding",
+    "badge": "⚡ Concurrency",
+    "difficulty": "Senior",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Практическое задание: Live Coding LC-01\n## Потокобезопасная `HashMap` с сегментной блокировкой (аналог `ConcurrentHashMap`)\n\n### 1. Паспорт карточки\n- **Категория:** Concurrency / Data Structures / Live Coding.\n- **Целевой грейд:** Senior (длительность: 40 минут).\n- **Контекст:** Проверяется спосо...",
+    "shortDescription": "Практическая лайв-кодинг задача уровня Альфа-Банк (Senior, 40 мин).",
+    "instructionsMarkdown": "# Практическое задание: Live Coding LC-01\n## Потокобезопасная `HashMap` с сегментной блокировкой (аналог `ConcurrentHashMap`)\n\n### 1. Паспорт карточки\n- **Категория:** Concurrency / Data Structures / Live Coding.\n- **Целевой грейд:** Senior (длительность: 40 минут).\n- **Контекст:** Проверяется способность спроектировать высоконагруженную структуру данных с минимальным уровнем конкуренции за блокировки (Lock Contention).\n\n---\n\n### 2. Условие задачи\n\n*«Реализовать упрощённую потокобезопасную `HashMap` с сегментной блокировкой (Segmented Locking). Запрещено использовать `ConcurrentHashMap` или `Collections.synchronizedMap` из JDK. Структура должна поддерживать методы `get(K key)` и `put(K key, V value)` и обеспечивать параллельную запись в разные сегменты без взаимных блокировок»*.\n\n---\n\n### 3. Работа с причиной, а не симптомами (Root Cause Analysis)\n\n1. **Почему `Collections.synchronizedMap` и общий `synchronized` не подходят:**\n   - Обёртка над обычной `HashMap` синхронизирует все вызовы на одном общем мониторе (`mutex`).\n   - При 100 параллельных потоках они выстраиваются в очередь за одним локом. Время отклика деградирует с $O(1)$ до $O(N)$ по задержкам из-за переключения контекстов ОС (Context Switching).\n2. **Принцип сегментной блокировки (Striped / Segmented Locking):**\n   - Таблица делится на $S$ независимых сегментов (обычно степень двойки, например, 16).\n   - Каждый сегмент представляет собой миниатюрную хэш-таблицу со своим собственным объектом блокировки (`ReentrantLock`).\n   - Операция `put(key, val)` сначала вычисляет хэш ключа, определяет индекс сегмента и блокирует **только этот конкретный сегмент**. Запись по ключам из других сегментов выполняется параллельно без задержек.\n3. **Неблокирующее чтение (`Lock-Free Read`):**\n   - Для операции `get(key)` захватывать блокировку избыточно. Используя модификатор `volatile` для полей узла (`value` и `next`), мы гарантируем видимость последних изменений по модели памяти Java (JMM) без накладных расходов на локи.\n\n---\n\n### 4. Эталонная реализация на Java (SOTA Clean Code)\n\n```java\nimport java.util.concurrent.locks.ReentrantLock;\n\npublic class SegmentedConcurrentHashMap<K, V> {\n\n    private static final int DEFAULT_SEGMENTS = 16;\n    private final Segment<K, V>[] segments;\n    private final int segmentShift;\n    private final int segmentMask;\n\n    @SuppressWarnings(\"unchecked\")\n    public SegmentedConcurrentHashMap(int concurrencyLevel) {\n        int s = 1;\n        while (s < concurrencyLevel) {\n            s <<= 1;\n        }\n        this.segments = new Segment[s];\n        this.segmentMask = s - 1;\n        this.segmentShift = Integer.numberOfLeadingZeros(segmentMask);\n\n        for (int i = 0; i < segments.length; i++) {\n            segments[i] = new Segment<>(16);\n        }\n    }\n\n    public SegmentedConcurrentHashMap() {\n        this(DEFAULT_SEGMENTS);\n    }\n\n    private int hash(Object key) {\n        if (key == null) return 0;\n        int h = key.hashCode();\n        return h ^ (h >>> 16); // Дополнительное перемешивание бит\n    }\n\n    private Segment<K, V> segmentFor(int hash) {\n        int segmentIndex = (hash >>> segmentShift) & segmentMask;\n        return segments[segmentIndex];\n    }\n\n    public V put(K key, V value) {\n        if (key == null || value == null) throw new NullPointerException();\n        int h = hash(key);\n        return segmentFor(h).put(key, h, value);\n    }\n\n    public V get(K key) {\n        if (key == null) throw new NullPointerException();\n        int h = hash(key);\n        return segmentFor(h).get(key, h);\n    }\n\n    // =========================================================================\n    // Внутренний сегмент\n    // =========================================================================\n    static final class Segment<K, V> extends ReentrantLock {\n        private volatile Node<K, V>[] table;\n        private int count;\n\n        @SuppressWarnings(\"unchecked\")\n        Segment(int initialCapacity) {\n            this.table = new Node[initialCapacity];\n        }\n\n        V put(K key, int hash, V value) {\n            lock(); // Блокируем только этот сегмент\n            try {\n                Node<K, V>[] tab = table;\n                int index = hash & (tab.length - 1);\n                Node<K, V> first = tab[index];\n\n                for (Node<K, V> e = first; e != null; e = e.next) {\n                    if (e.hash == hash && key.equals(e.key)) {\n                        V oldValue = e.value;\n                        e.value = value;\n                        return oldValue;\n                    }\n                }\n\n                // Добавление нового узла в начало связного списка (бакета)\n                tab[index] = new Node<>(hash, key, value, first);\n                count++;\n                return null;\n            } finally {\n                unlock();\n            }\n        }\n\n        V get(K key, int hash) {\n            // Чтение БЕЗ захвата локов благодаря volatile-полям узла\n            Node<K, V>[] tab = table;\n            int index = hash & (tab.length - 1);\n            for (Node<K, V> e = tab[index]; e != null; e = e.next) {\n                if (e.hash == hash && key.equals(e.key)) {\n                    return e.value;\n                }\n            }\n            return null;\n        }\n    }\n\n    // =========================================================================\n    // Узел связного списка\n    // =========================================================================\n    static final class Node<K, V> {\n        final int hash;\n        final K key;\n        volatile V value;          // volatile для немедленной видимости чтения\n        final Node<K, V> next;     // иммутабельная ссылка на следующий узел\n\n        Node(int hash, K key, V value, Node<K, V> next) {\n            this.hash = hash;\n            this.key = key;\n            this.value = value;\n            this.next = next;\n        }\n    }\n}\n```\n\n---\n\n### 5. Контрольные вопросы интервьюера (Senior Check)\n\n1. **Вопрос:** *«Как изменилась реализация `ConcurrentHashMap` в Java 8 по сравнению с сегментами Java 7?»*\n   - **Ответ кандидата:** В Java 8 разработчики отказались от массива `Segment` в пользу массива бакетов `Node<K, V>[]` с гранулярными блокировками. Для вставки первого узла в пустой бакет используется неблокирующий `CAS` (`compareAndSet`). Если бакет уже занят, захватывается `synchronized` на головном узле бакета. При коллизиях более 8 узлов список трансформируется в красно-чёрное дерево (`TreeNode`). Это снизило накладные расходы по памяти и увеличило параллелизм до числа бакетов.\n2. **Вопрос:** *«Почему `ConcurrentHashMap` не разрешает `null` в качестве ключа или значения?»*\n   - **Ответ кандидата:** Из-за невозможности разрешить двусмысленность в многопоточной среде. Если `map.get(key)` возвращает `null`, в обычной однопоточной мапе можно вызвать `map.containsKey(key)` и узнать, нет ли ключа или значение реально `null`. В конкурентной среде между вызовами `get` и `containsKey` другой поток мог удалить или добавить элемент, сделав проверку невалидной.\n",
+    "techStack": "Java 21 LTS / Concurrency / Spring Boot 3.3",
+    "architecturePattern": "Segmented Locking Pattern",
+    "timeLimitMinutes": 40,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/alfa/interview/lc_alfa_01/SegmentedConcurrentHashMap.java",
+        "content": "import java.util.concurrent.locks.ReentrantLock;\n\npublic class SegmentedConcurrentHashMap<K, V> {\n\n    private static final int DEFAULT_SEGMENTS = 16;\n    private final Segment<K, V>[] segments;\n    private final int segmentShift;\n    private final int segmentMask;\n\n    @SuppressWarnings(\"unchecked\")\n    public SegmentedConcurrentHashMap(int concurrencyLevel) {\n        int s = 1;\n        while (s < concurrencyLevel) {\n            s <<= 1;\n        }\n        this.segments = new Segment[s];\n        this.segmentMask = s - 1;\n        this.segmentShift = Integer.numberOfLeadingZeros(segmentMask);\n\n        for (int i = 0; i < segments.length; i++) {\n            segments[i] = new Segment<>(16);\n        }\n    }\n\n    public SegmentedConcurrentHashMap() {\n        this(DEFAULT_SEGMENTS);\n    }\n\n    private int hash(Object key) {\n        if (key == null) return 0;\n        int h = key.hashCode();\n        return h ^ (h >>> 16); // Дополнительное перемешивание бит\n    }\n\n    private Segment<K, V> segmentFor(int hash) {\n        int segmentIndex = (hash >>> segmentShift) & segmentMask;\n        return segments[segmentIndex];\n    }\n\n    public V put(K key, V value) {\n        if (key == null || value == null) throw new NullPointerException();\n        int h = hash(key);\n        return segmentFor(h).put(key, h, value);\n    }\n\n    public V get(K key) {\n        if (key == null) throw new NullPointerException();\n        int h = hash(key);\n        return segmentFor(h).get(key, h);\n    }\n\n    // =========================================================================\n    // Внутренний сегмент\n    // =========================================================================\n    static final class Segment<K, V> extends ReentrantLock {\n        private volatile Node<K, V>[] table;\n        private int count;\n\n        @SuppressWarnings(\"unchecked\")\n        Segment(int initialCapacity) {\n            this.table = new Node[initialCapacity];\n        }\n\n        V put(K key, int hash, V value) {\n            lock(); // Блокируем только этот сегмент\n            try {\n                Node<K, V>[] tab = table;\n                int index = hash & (tab.length - 1);\n                Node<K, V> first = tab[index];\n\n                for (Node<K, V> e = first; e != null; e = e.next) {\n                    if (e.hash == hash && key.equals(e.key)) {\n                        V oldValue = e.value;\n                        e.value = value;\n                        return oldValue;\n                    }\n                }\n\n                // Добавление нового узла в начало связного списка (бакета)\n                tab[index] = new Node<>(hash, key, value, first);\n                count++;\n                return null;\n            } finally {\n                unlock();\n            }\n        }\n\n        V get(K key, int hash) {\n            // Чтение БЕЗ захвата локов благодаря volatile-полям узла\n            Node<K, V>[] tab = table;\n            int index = hash & (tab.length - 1);\n            for (Node<K, V> e = tab[index]; e != null; e = e.next) {\n                if (e.hash == hash && key.equals(e.key)) {\n                    return e.value;\n                }\n            }\n            return null;\n        }\n    }\n\n    // =========================================================================\n    // Узел связного списка\n    // =========================================================================\n    static final class Node<K, V> {\n        final int hash;\n        final K key;\n        volatile V value;          // volatile для немедленной видимости чтения\n        final Node<K, V> next;     // иммутабельная ссылка на следующий узел\n\n        Node(int hash, K key, V value, Node<K, V> next) {\n            this.hash = hash;\n            this.key = key;\n            this.value = value;\n            this.next = next;\n        }\n    }\n}",
+        "isReadOnly": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Базовая реализация контракта",
+        "descriptionMarkdown": "Реализуйте базовую логику в соответствии с требованиями карточки."
+      },
+      {
+        "phase": 2,
+        "unlockTimeMinutes": 15,
+        "title": "Фаза 2: Потокобезопасность и краевые случаи",
+        "descriptionMarkdown": "Проверьте граничные условия, гонки и производительность под нагрузкой."
+      }
+    ],
+    "astRules": [
+      "no-double-in-money"
+    ],
+    "hints": [
+      "Внимательно проверьте инварианты многопоточности и отсутствие гонок.",
+      "Для финансовых расчетов используйте строго BigDecimal с RoundingMode.HALF_EVEN.",
+      "Обратите внимание на защитное копирование мутабельных коллекций."
+    ]
+  },
+  {
+    "id": "lc-alfa-02",
+    "slug": "lc-alfa-02",
+    "title": "BankingStreamProcessor: Агрегация транзакций на Stream API и BigDecimal",
+    "track": "alfa_livecoding",
+    "badge": "💳 FinTech",
+    "difficulty": "Middle+",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Практическое задание: Live Coding LC-02\n## Прикладная обработка банковских операций на коллекциях и Stream API\n\n### 1. Паспорт карточки\n- **Категория:** Live Coding / Stream API / Financial Domain.\n- **Целевой грейд:** Middle / Middle+ / Senior.\n- **Контекст:** Проверяет владение идиоматичным функ...",
+    "shortDescription": "Практическая лайв-кодинг задача уровня Альфа-Банк (Middle+, 30 мин).",
+    "instructionsMarkdown": "# Практическое задание: Live Coding LC-02\n## Прикладная обработка банковских операций на коллекциях и Stream API\n\n### 1. Паспорт карточки\n- **Категория:** Live Coding / Stream API / Financial Domain.\n- **Целевой грейд:** Middle / Middle+ / Senior.\n- **Контекст:** Проверяет владение идиоматичным функциональным стилем Java 17+, корректную работу с финансами (`BigDecimal`) и знание подводных камней параллельных стримов.\n\n---\n\n### 2. Условие задачи\n\nВам предоставлен поток банковских транзакций:\n```java\npublic record Transaction(\n    UUID id,\n    String accountId,\n    BigDecimal amount,\n    Currency currency,\n    Instant timestamp,\n    TransactionType type, // DEBIT, CREDIT\n    boolean isFraud\n) {}\n```\n\nНеобходимо реализовать три аналитические функции:\n1. `calculateTotalBalanceByAccount(List<Transaction> txs)`: вернуть `Map<String, BigDecimal>` с суммарным балансом по каждому счёту (CREDIT увеличивает баланс, DEBIT уменьшает).\n2. `findTopNTransactionsByAmount(List<Transaction> txs, int n)`: вернуть $N$ самых крупных транзакций с учётом валютной фильтрации.\n3. `extractSuspiciousAccounts(List<Transaction> txs)`: вернуть отсортированный по алфавиту список уникальных счетов, у которых зафиксировано более двух мошеннических транзакций (`isFraud == true`).\n\n---\n\n### 3. Работа с причиной, а не симптомами (Root Cause Analysis)\n\n1. **Грубейшая ошибка: `reduce(BigDecimal.ZERO, BigDecimal::add)` без аккумулятора:**\n   - В Java `BigDecimal` — иммутабельный объект. Каждое сложение создаёт новый объект в куче.\n   - Использование `parallelStream()` с неправильным `combiner` в редьюсерах ломает ассоциативность операций.\n2. **Ошибки боксинга и аллокации:**\n   - Нельзя конвертировать `BigDecimal` в `double` ради `mapToDouble()` и `.sum()`, так как возникнут погрешности округления.\n3. **Ловушка `parallelStream()`:**\n   - Использование `.parallelStream()` в бэкенд-сервисе (например, под управлением Tomcat или WebFlux) разделяет глобальный `ForkJoinPool.commonPool()`.\n   - Если один HTTP-поток запустит тяжёлую обработку стрима, он монополизирует ядра CPU, вызвав зависание остальных сетевых обработчиков приложения.\n\n---\n\n### 4. Эталонное решение (Java 17+)\n\n```java\nimport java.math.BigDecimal;\nimport java.util.*;\nimport java.util.stream.Collectors;\n\npublic class BankingAnalyticsService {\n\n    /**\n     * 1. Подсчёт суммарного баланса по аккаунтам\n     */\n    public Map<String, BigDecimal> calculateTotalBalanceByAccount(List<Transaction> transactions) {\n        if (transactions == null) return Collections.emptyMap();\n\n        return transactions.stream()\n            .filter(t -> !t.isFraud()) // исключаем фрод из баланса\n            .collect(Collectors.groupingBy(\n                Transaction::accountId,\n                Collectors.reducing(\n                    BigDecimal.ZERO,\n                    t -> t.type() == TransactionType.CREDIT ? t.amount() : t.amount().negate(),\n                    BigDecimal::add\n                )\n            ));\n    }\n\n    /**\n     * 2. Топ N крупнейших транзакций\n     */\n    public List<Transaction> findTopNTransactionsByAmount(List<Transaction> transactions, int n) {\n        if (transactions == null || n <= 0) return Collections.emptyList();\n\n        return transactions.stream()\n            .sorted(Comparator.comparing(Transaction::amount, Comparator.reverseOrder()))\n            .limit(n)\n            .toList();\n    }\n\n    /**\n     * 3. Счета с более чем 2 мошенническими операциями\n     */\n    public List<String> extractSuspiciousAccounts(List<Transaction> transactions) {\n        if (transactions == null) return Collections.emptyList();\n\n        return transactions.stream()\n            .filter(Transaction::isFraud)\n            .collect(Collectors.groupingBy(\n                Transaction::accountId,\n                Collectors.counting()\n            ))\n            .entrySet().stream()\n            .filter(entry -> entry.getValue() > 2)\n            .map(Map.Entry::getKey)\n            .sorted()\n            .toList();\n    }\n}\n```\n",
+    "techStack": "Java 21 LTS / Concurrency / Spring Boot 3.3",
+    "architecturePattern": "Functional Stream Pipeline",
+    "timeLimitMinutes": 30,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/alfa/interview/lc_alfa_02/BankingStreamProcessor.java",
+        "content": "public record Transaction(\n    UUID id,\n    String accountId,\n    BigDecimal amount,\n    Currency currency,\n    Instant timestamp,\n    TransactionType type, // DEBIT, CREDIT\n    boolean isFraud\n) {}",
+        "isReadOnly": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Базовая реализация контракта",
+        "descriptionMarkdown": "Реализуйте базовую логику в соответствии с требованиями карточки."
+      },
+      {
+        "phase": 2,
+        "unlockTimeMinutes": 15,
+        "title": "Фаза 2: Потокобезопасность и краевые случаи",
+        "descriptionMarkdown": "Проверьте граничные условия, гонки и производительность под нагрузкой."
+      }
+    ],
+    "astRules": [
+      "no-double-in-money"
+    ],
+    "hints": [
+      "Внимательно проверьте инварианты многопоточности и отсутствие гонок.",
+      "Для финансовых расчетов используйте строго BigDecimal с RoundingMode.HALF_EVEN.",
+      "Обратите внимание на защитное копирование мутабельных коллекций."
+    ]
+  },
+  {
+    "id": "lc-alfa-04",
+    "slug": "lc-alfa-04",
+    "title": "ImmutableAccount & HashCode: Защитное копирование и контракт equals/hashCode",
+    "track": "alfa_livecoding",
+    "badge": "🏛️ Core Java",
+    "difficulty": "Middle",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Практическое задание: Live Coding LC-04\n## Проектирование иммутабельного класса и контракт `equals`/`hashCode`\n\n### 1. Паспорт карточки\n- **Категория:** Core Java / Object Oriented Design.\n- **Целевой грейд:** Middle / Middle+.\n- **Контекст:** Проверяет глубокое понимание принципов иммутабельности...",
+    "shortDescription": "Практическая лайв-кодинг задача уровня Альфа-Банк (Middle, 25 мин).",
+    "instructionsMarkdown": "# Практическое задание: Live Coding LC-04\n## Проектирование иммутабельного класса и контракт `equals`/`hashCode`\n\n### 1. Паспорт карточки\n- **Категория:** Core Java / Object Oriented Design.\n- **Целевой грейд:** Middle / Middle+.\n- **Контекст:** Проверяет глубокое понимание принципов иммутабельности и катастрофических последствий нарушения контракта `equals`/`hashCode` в коллекциях.\n\n---\n\n### 2. Условие задачи\n\nСпроектировать полностью иммутабельный класс `MoneyTransfer`, содержащий поля: `UUID id`, `String sender`, `String receiver`, `BigDecimal amount`, `Date timestamp`, `List<String> tags`. Реализовать корректный контракт `equals()` и `hashCode()`.\n\n---\n\n### 3. Работа с причиной, а не симптомами (Root Cause Analysis)\n\n1. **Утечки мутабельного состояния (Defensive Copying):**\n   - Просто объявить класс и поля `final` недостаточно!\n   - Если в конструктор передаётся мутабельный объект (например, `Date` или `ArrayList`), и мы сохраняем ссылку напрямую `this.tags = tags;`, внешний код может изменить переданный список, нарушив иммутабельность класса извне!\n   - Аналогично, геттер `getTags()` не может возвращать прямую ссылку — нужно отдавать `Collections.unmodifiableList()` или копию.\n2. **Нарушение контракта `equals`/`hashCode`:**\n   - Если два объекта равны по `equals`, их `hashCode` **обязаны быть равны**. Если это правило нарушено, объект в `HashSet` или `HashMap` попадёт не в тот бакет, и метод `map.get(key)` вернёт `null`.\n   - Если объект мутирует после добавления в `HashMap`, его `hashCode` изменится, и найти его в мапе станет невозможно (утечка памяти).\n\n---\n\n### 4. Эталонная реализация на Java\n\n```java\nimport java.math.BigDecimal;\nimport java.util.*;\n\npublic final class MoneyTransfer {\n\n    private final UUID id;\n    private final String sender;\n    private final String receiver;\n    private final BigDecimal amount;\n    private final Date timestamp;\n    private final List<String> tags;\n\n    public MoneyTransfer(UUID id, String sender, String receiver,\n                         BigDecimal amount, Date timestamp, List<String> tags) {\n        this.id = Objects.requireNonNull(id, \"id required\");\n        this.sender = Objects.requireNonNull(sender, \"sender required\");\n        this.receiver = Objects.requireNonNull(receiver, \"receiver required\");\n        this.amount = Objects.requireNonNull(amount, \"amount required\");\n        \n        // Защитное копирование мутабельного объекта даты\n        this.timestamp = timestamp != null ? new Date(timestamp.getTime()) : new Date();\n\n        // Защитное копирование мутабельного списка и упаковка в unmodifiable\n        this.tags = tags != null ? List.copyOf(tags) : List.of();\n    }\n\n    public UUID getId() { return id; }\n    public String getSender() { return sender; }\n    public String getReceiver() { return receiver; }\n    public BigDecimal getAmount() { return amount; }\n\n    public Date getTimestamp() {\n        return new Date(timestamp.getTime()); // Защитное копирование на выход\n    }\n\n    public List<String> getTags() {\n        return tags; // Безопасно, так как List.copyOf гарантирует иммутабельность\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (this == o) return true;\n        if (o == null || getClass() != o.getClass()) return false;\n        MoneyTransfer that = (MoneyTransfer) o;\n        // Для BigDecimal обязательно использовать compareTo или учитывать scale\n        return Objects.equals(id, that.id) &&\n               Objects.equals(sender, that.sender) &&\n               Objects.equals(receiver, that.receiver) &&\n               amount.compareTo(that.amount) == 0 &&\n               Objects.equals(timestamp, that.timestamp) &&\n               Objects.equals(tags, that.tags);\n    }\n\n    @Override\n    public int hashCode() {\n        // Учитываем нормализованный amount, чтобы scale не ломал хэш (1.0 vs 1.00)\n        return Objects.hash(id, sender, receiver, amount.stripTrailingZeros(), timestamp, tags);\n    }\n}\n```\n\n> **Совет для Java 17+:** В современном коде вместо `Date` используется `Instant`, а сам класс сводится к лаконичному `public record MoneyTransfer(...)`. Однако в `record` всё равно нужно выполнять защитное копирование коллекций в компактном конструкторе (`this.tags = List.copyOf(tags)`).\n",
+    "techStack": "Java 21 LTS / Concurrency / Spring Boot 3.3",
+    "architecturePattern": "Defensive Copying & Value Object",
+    "timeLimitMinutes": 25,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/alfa/interview/lc_alfa_04/AccountSnapshot.java",
+        "content": "import java.math.BigDecimal;\nimport java.util.*;\n\npublic final class MoneyTransfer {\n\n    private final UUID id;\n    private final String sender;\n    private final String receiver;\n    private final BigDecimal amount;\n    private final Date timestamp;\n    private final List<String> tags;\n\n    public MoneyTransfer(UUID id, String sender, String receiver,\n                         BigDecimal amount, Date timestamp, List<String> tags) {\n        this.id = Objects.requireNonNull(id, \"id required\");\n        this.sender = Objects.requireNonNull(sender, \"sender required\");\n        this.receiver = Objects.requireNonNull(receiver, \"receiver required\");\n        this.amount = Objects.requireNonNull(amount, \"amount required\");\n        \n        // Защитное копирование мутабельного объекта даты\n        this.timestamp = timestamp != null ? new Date(timestamp.getTime()) : new Date();\n\n        // Защитное копирование мутабельного списка и упаковка в unmodifiable\n        this.tags = tags != null ? List.copyOf(tags) : List.of();\n    }\n\n    public UUID getId() { return id; }\n    public String getSender() { return sender; }\n    public String getReceiver() { return receiver; }\n    public BigDecimal getAmount() { return amount; }\n\n    public Date getTimestamp() {\n        return new Date(timestamp.getTime()); // Защитное копирование на выход\n    }\n\n    public List<String> getTags() {\n        return tags; // Безопасно, так как List.copyOf гарантирует иммутабельность\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (this == o) return true;\n        if (o == null || getClass() != o.getClass()) return false;\n        MoneyTransfer that = (MoneyTransfer) o;\n        // Для BigDecimal обязательно использовать compareTo или учитывать scale\n        return Objects.equals(id, that.id) &&\n               Objects.equals(sender, that.sender) &&\n               Objects.equals(receiver, that.receiver) &&\n               amount.compareTo(that.amount) == 0 &&\n               Objects.equals(timestamp, that.timestamp) &&\n               Objects.equals(tags, that.tags);\n    }\n\n    @Override\n    public int hashCode() {\n        // Учитываем нормализованный amount, чтобы scale не ломал хэш (1.0 vs 1.00)\n        return Objects.hash(id, sender, receiver, amount.stripTrailingZeros(), timestamp, tags);\n    }\n}",
+        "isReadOnly": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Базовая реализация контракта",
+        "descriptionMarkdown": "Реализуйте базовую логику в соответствии с требованиями карточки."
+      },
+      {
+        "phase": 2,
+        "unlockTimeMinutes": 15,
+        "title": "Фаза 2: Потокобезопасность и краевые случаи",
+        "descriptionMarkdown": "Проверьте граничные условия, гонки и производительность под нагрузкой."
+      }
+    ],
+    "astRules": [
+      "no-double-in-money"
+    ],
+    "hints": [
+      "Внимательно проверьте инварианты многопоточности и отсутствие гонок.",
+      "Для финансовых расчетов используйте строго BigDecimal с RoundingMode.HALF_EVEN.",
+      "Обратите внимание на защитное копирование мутабельных коллекций."
+    ]
+  },
+  {
+    "id": "lc-alfa-05",
+    "slug": "lc-alfa-05",
+    "title": "PaymentRestController: Jakarta Bean Validation и Mockito ArgumentCaptor",
+    "track": "alfa_livecoding",
+    "badge": "🧪 Testing & Spring",
+    "difficulty": "Middle",
+    "category": "machine_coding",
+    "scenarioMarkdown": "# Практическое задание: Live Coding LC-05\n## REST-контроллер с валидацией и Unit-тест (Mockito + AssertJ)\n\n### 1. Паспорт карточки\n- **Категория:** Spring Web / Bean Validation / Unit Testing.\n- **Целевой грейд:** Middle / Middle+.\n- **Контекст:** Проверяет культуру написания чистого API с валидацие...",
+    "shortDescription": "Практическая лайв-кодинг задача уровня Альфа-Банк (Middle, 35 мин).",
+    "instructionsMarkdown": "# Практическое задание: Live Coding LC-05\n## REST-контроллер с валидацией и Unit-тест (Mockito + AssertJ)\n\n### 1. Паспорт карточки\n- **Категория:** Spring Web / Bean Validation / Unit Testing.\n- **Целевой грейд:** Middle / Middle+.\n- **Контекст:** Проверяет культуру написания чистого API с валидацией и навык тестирования бизнес-логики через моки с проверкой захваченных аргументов (`ArgumentCaptor`).\n\n---\n\n### 2. Условие задачи\n\n1. Написать Spring REST-контроллер для создания банковской заявки: `POST /api/v1/applications`.\n2. DTO должно содержать валидацию:\n   - `clientPhone`: обязательный, формат РФ (`+7XXXXXXXXXX`).\n   - `requestedAmount`: обязательный, от 10 000 до 5 000 000 руб.\n   - `termMonths`: от 3 до 60 месяцев.\n3. Написать Unit-тест на сервисный слой с использованием JUnit 5, Mockito (`@Mock`, `@InjectMocks`, `ArgumentCaptor`) и AssertJ.\n\n---\n\n### 3. Эталонная реализация\n\n#### DTO с валидацией\n```java\npublic record LoanApplicationRequest(\n    @NotBlank(message = \"Phone number is mandatory\")\n    @Pattern(regexp = \"^\\\\+7[0-9]{10}$\", message = \"Phone must match +7XXXXXXXXXX\")\n    String clientPhone,\n\n    @NotNull(message = \"Requested amount is mandatory\")\n    @DecimalMin(value = \"10000.00\", message = \"Min amount is 10 000\")\n    @DecimalMax(value = \"5000000.00\", message = \"Max amount is 5 000 000\")\n    BigDecimal requestedAmount,\n\n    @NotNull(message = \"Term is mandatory\")\n    @Min(value = 3, message = \"Min term is 3 months\")\n    @Max(value = 60, message = \"Max term is 60 months\")\n    Integer termMonths\n) {}\n```\n\n#### Контроллер\n```java\n@RestController\n@RequestMapping(\"/api/v1/applications\")\n@RequiredArgsConstructor\npublic class LoanApplicationController {\n\n    private final LoanApplicationService service;\n\n    @PostMapping\n    public ResponseEntity<ApplicationResponse> create(@Valid @RequestBody LoanApplicationRequest request) {\n        ApplicationResponse response = service.createApplication(request);\n        return ResponseEntity.status(HttpStatus.CREATED).body(response);\n    }\n}\n```\n\n#### Unit-тест сервиса с ArgumentCaptor и AssertJ\n```java\n@ExtendWith(MockitoExtension.class)\nclass LoanApplicationServiceTest {\n\n    @Mock\n    private LoanApplicationRepository repository;\n    @Mock\n    private ScoringServiceClient scoringClient;\n\n    @InjectMocks\n    private LoanApplicationService service;\n\n    @Captor\n    private ArgumentCaptor<LoanApplication> applicationCaptor;\n\n    @Test\n    @DisplayName(\"Успешное создание заявки: верификация сохранения в репозиторий\")\n    void shouldCreateApplicationSuccessfully() {\n        // Given\n        var request = new LoanApplicationRequest(\"+79991234567\", new BigDecimal(\"150000.00\"), 12);\n        when(scoringClient.isEligible(anyString())).thenReturn(true);\n\n        // When\n        ApplicationResponse response = service.createApplication(request);\n\n        // Then\n        verify(repository, times(1)).save(applicationCaptor.capture());\n        LoanApplication savedEntity = applicationCaptor.getValue();\n\n        org.assertj.core.api.Assertions.assertThat(savedEntity)\n            .isNotNull()\n            .extracting(\n                LoanApplication::getClientPhone,\n                LoanApplication::getAmount,\n                LoanApplication::getStatus\n            )\n            .containsExactly(\"+79991234567\", new BigDecimal(\"150000.00\"), ApplicationStatus.APPROVED);\n\n        org.assertj.core.api.Assertions.assertThat(response.applicationId()).isNotNull();\n    }\n}\n```\n",
+    "techStack": "Java 21 LTS / Concurrency / Spring Boot 3.3",
+    "architecturePattern": "TDD & Bean Validation",
+    "timeLimitMinutes": 35,
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/alfa/interview/lc_alfa_05/PaymentController.java",
+        "content": "public record LoanApplicationRequest(\n    @NotBlank(message = \"Phone number is mandatory\")\n    @Pattern(regexp = \"^\\\\+7[0-9]{10}$\", message = \"Phone must match +7XXXXXXXXXX\")\n    String clientPhone,\n\n    @NotNull(message = \"Requested amount is mandatory\")\n    @DecimalMin(value = \"10000.00\", message = \"Min amount is 10 000\")\n    @DecimalMax(value = \"5000000.00\", message = \"Max amount is 5 000 000\")\n    BigDecimal requestedAmount,\n\n    @NotNull(message = \"Term is mandatory\")\n    @Min(value = 3, message = \"Min term is 3 months\")\n    @Max(value = 60, message = \"Max term is 60 months\")\n    Integer termMonths\n) {}",
+        "isReadOnly": false
+      }
+    ],
+    "phases": [
+      {
+        "phase": 1,
+        "unlockTimeMinutes": 0,
+        "title": "Фаза 1: Базовая реализация контракта",
+        "descriptionMarkdown": "Реализуйте базовую логику в соответствии с требованиями карточки."
+      },
+      {
+        "phase": 2,
+        "unlockTimeMinutes": 15,
+        "title": "Фаза 2: Потокобезопасность и краевые случаи",
+        "descriptionMarkdown": "Проверьте граничные условия, гонки и производительность под нагрузкой."
+      }
+    ],
+    "astRules": [
+      "no-double-in-money"
+    ],
+    "hints": [
+      "Внимательно проверьте инварианты многопоточности и отсутствие гонок.",
+      "Для финансовых расчетов используйте строго BigDecimal с RoundingMode.HALF_EVEN.",
+      "Обратите внимание на защитное копирование мутабельных коллекций."
+    ]
   }
 ]
