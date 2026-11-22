@@ -240,15 +240,14 @@ export class ChallengeEvaluationSession {
       try {
         const requiredScore = manifest?.requiredMutationScore ?? 75;
         const mutResult = await JvmMutationEngine.execute({ challengeId, files, mutants, requiredScore });
-        mutationPassed = mutResult.passed;
+        mutationPassed = mutResult.passedThreshold;
         mutationScorePayload = {
           killedMutants: mutResult.killedCount,
-          totalMutants: mutResult.totalCount,
-          percentage: mutResult.mutationScore,
-          passed: mutResult.passed
+          totalMutants: mutResult.totalMutants,
+          percentage: mutResult.mutationScore
         };
 
-        if (!mutResult.passed) {
+        if (!mutResult.passedThreshold) {
           yield {
             gate: 'MUTATION_TESTS', status: 'FAILED', progressPercent: 60,
             payload: { mutationScore: mutationScorePayload, error: `Мутационное тестирование не пройдено (${mutResult.mutationScore}% < ${requiredScore}%)` },
