@@ -5,12 +5,13 @@ import { CompanyPipelineTab } from './CompanyPipelineTab';
 import { CompanyDossierTab } from './CompanyDossierTab';
 import { CompanyRunbookTab } from './CompanyRunbookTab';
 import { CompanyTheoryDeckTab } from './CompanyTheoryDeckTab';
+import { CompanyChallengesTab } from './CompanyChallengesTab';
 import { CompanyBrandBanner } from './CompanyBrandBanner';
 import { SqlArena } from '../sql/SqlArena';
 import { CompanyTakeHomeLab } from './CompanyTakeHomeLab';
 import { VoiceModal } from '../VoiceModal';
 import { 
-  Building2, Sparkles, MapPin, ExternalLink, BookOpen,
+  Building2, Sparkles, MapPin, ExternalLink, BookOpen, Code2,
   Layers, FileText, Zap, Database, RotateCcw, AlertCircle, PackageCheck, Bot
 } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
@@ -22,7 +23,7 @@ export const CompanyPrepStudio: React.FC = () => {
 
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>('raiffeisen_dgtl');
-  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'theory' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
+  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'theory' | 'challenges' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
   const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
   const [readinessData, setReadinessData] = useState<any>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
@@ -236,6 +237,18 @@ export const CompanyPrepStudio: React.FC = () => {
           </button>
         )}
 
+        {isAlfa && (
+          <button
+            onClick={() => setActiveSubTab('challenges')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+              activeSubTab === 'challenges' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-amber-50 hover:text-amber-800'
+            }`}
+          >
+            <Code2 className="w-4 h-4" />
+            Задачи & Code Review (11)
+          </button>
+        )}
+
         <button
           onClick={() => setActiveSubTab('dossier')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
@@ -295,6 +308,13 @@ export const CompanyPrepStudio: React.FC = () => {
           companyId={profile.id}
           companyName={profile.name}
           onMasteryUpdated={fetchReadiness}
+        />
+      )}
+
+      {activeSubTab === 'challenges' && (
+        <CompanyChallengesTab
+          companyName={profile.name}
+          onNavigateToTask={handleNavigateToTask}
         />
       )}
 

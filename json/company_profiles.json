@@ -641,26 +641,54 @@
     },
     "stages": [
       {
-        "id": "alfa-stage-1-screening",
-        "stageNumber": 1,
-        "title": "1. Технический скрининг (1 час)",
+        "id": "alfa-stage-1-theory",
+        "title": "1. Скрининг: Теория, JMM & Физика JVM",
+        "description": "Устный блиц с Lead-инженером: JMM happens-before, память JVM (Metaspace vs Off-Heap), G1 vs ZGC, MVCC PostgreSQL и семантика Kafka EOS.",
+        "estimatedMinutes": 25,
+        "weight": 0.2,
         "format": "voice_fit",
-        "estimatedMinutes": 60,
-        "description": "Теоретический блиц по 27 ключевым Senior-вопросам, экспресс-ревью платёжного контроллера (CR-01), лайв-кодинг сегментированной ConcurrentHashMap (LC-01) и 5 SQL-задач в PGlite.",
         "targetArena": "voice_modal",
-        "targetEntityId": "alfa_screening_deck",
-        "weight": 0.4
+        "targetEntityId": "alfa_screening_deck"
       },
       {
-        "id": "alfa-stage-2-system-design",
-        "stageNumber": 2,
-        "title": "2. Глубокий тех и System Design (1.5 часа)",
+        "id": "alfa-stage-2-code-review",
+        "title": "2. Секция Code Review: 6 банковских кейсов",
+        "description": "Поиск скрытых дефектов за 15-20 минут: PaymentController (8 багов), @Transactional ретраи, Dual Write Outbox, String.intern(), Hibernate N+1.",
+        "estimatedMinutes": 30,
+        "weight": 0.2,
+        "format": "code_review",
+        "targetArena": "practice",
+        "targetEntityId": "cr-alfa-01"
+      },
+      {
+        "id": "alfa-stage-3-live-coding",
+        "title": "3. Секция Live Coding & Concurrency",
+        "description": "Написание чистого и потокобезопасного кода в IDE: SegmentedConcurrentHashMap, стримы с BigDecimal, Key-Value Cache с TTL и защита от race conditions.",
+        "estimatedMinutes": 40,
+        "weight": 0.2,
+        "format": "live_coding",
+        "targetArena": "practice",
+        "targetEntityId": "lc-alfa-01"
+      },
+      {
+        "id": "alfa-stage-4-sql",
+        "title": "4. Реляционный SQL: Аналитика & Ловушки PostgreSQL",
+        "description": "Решение практических задач в браузере (PGlite WASM): совместные покупки, расчет конверсии воронки, оконные функции и диагностика блокировок.",
+        "estimatedMinutes": 25,
+        "weight": 0.15,
+        "format": "sql_arena",
+        "targetArena": "sql_arena",
+        "targetEntityId": "sql-alfa-01"
+      },
+      {
+        "id": "alfa-stage-5-system-design",
+        "title": "5. Глубокий тех & System Design: ЦФА «А-Токен»",
+        "description": "Проектирование высоконагруженных финтех-систем: архитектура криптошлюза ЦФА (Waves Enterprise, СКЗИ ГОСТ, SOAP в АБС) и отказоустойчивый Transactional Outbox.",
+        "estimatedMinutes": 60,
+        "weight": 0.25,
         "format": "system_design",
-        "estimatedMinutes": 90,
-        "description": "Калибровка пулов HikariCP по закону Литтла (SD-01), топология Kafka EOS и Cooperative Sticky (SD-02), Transactional Outbox + Debezium (SD-03), расследование деградации БД (SD-04) и архитектура ЦФА «А-Токен» (Waves Enterprise + SOAP АБС).",
         "targetArena": "system_design",
-        "targetEntityId": "L4-DIST-IDEMPOTENT-OUTBOX",
-        "weight": 0.6
+        "targetEntityId": "L4-DIST-IDEMPOTENT-OUTBOX"
       }
     ],
     "competencies": [
