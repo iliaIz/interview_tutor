@@ -98,7 +98,10 @@ export function seedCodingChallenges(db: Database.Database) {
 
     const normalizeDifficulty = (raw: string): string => {
       const lower = (raw || 'middle').toLowerCase();
-      return lower.charAt(0).toUpperCase() + lower.slice(1);
+      if (lower.startsWith('lead')) return 'Lead';
+      if (lower.startsWith('senior')) return 'Senior';
+      if (lower.startsWith('junior')) return 'Junior';
+      return 'Middle';
     };
 
     const syncAll = db.transaction((challenges: any[]) => {

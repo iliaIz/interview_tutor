@@ -3425,7 +3425,7 @@
     "title": "BankingStreamProcessor: Агрегация транзакций на Stream API и BigDecimal",
     "track": "alfa_livecoding",
     "badge": "💳 FinTech",
-    "difficulty": "Middle+",
+    "difficulty": "Middle",
     "category": "machine_coding",
     "scenarioMarkdown": "# Практическое задание: Live Coding LC-02\n## Прикладная обработка банковских операций на коллекциях и Stream API\n\n### 1. Паспорт карточки\n- **Категория:** Live Coding / Stream API / Financial Domain.\n- **Целевой грейд:** Middle / Middle+ / Senior.\n- **Контекст:** Проверяет владение идиоматичным функ...",
     "shortDescription": "Практическая лайв-кодинг задача уровня Альфа-Банк (Middle+, 30 мин).",
