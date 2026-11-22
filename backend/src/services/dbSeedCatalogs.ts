@@ -49,6 +49,18 @@ export function seedQuestionsFromJSON(db: Database.Database) {
 
   syncAll(questions);
   console.log(`✅ Database synced with ${questions.length} questions from enhorse/java-interview!`);
+
+  const alfaPath = resolveJsonCatalogPath('alfa_interview_questions.json');
+  if (fs.existsSync(alfaPath)) {
+    try {
+      const rawAlfa = fs.readFileSync(alfaPath, 'utf-8');
+      const alfaQuestions = JSON.parse(rawAlfa);
+      syncAll(alfaQuestions);
+      console.log(`✅ Seeded ${alfaQuestions.length} curated Alfa Digital questions into questions table`);
+    } catch (err) {
+      console.error('Failed to seed alfa_interview_questions:', err);
+    }
+  }
 }
 
 export function seedCodingChallenges(db: Database.Database) {

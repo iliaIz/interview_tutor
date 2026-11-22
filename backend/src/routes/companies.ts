@@ -67,6 +67,71 @@ router.get('/:id/readiness', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/companies/:id/questions - Retrieve curated questions for company
+router.get('/:id/questions', (req: Request, res: Response) => {
+  const companyId = req.params.id;
+  const userId = (req.query.user_id as string) || 'default_user';
+
+  if (companyId === 'alfa_digital') {
+    const jsonPath = resolveJsonCatalogPath('alfa_interview_questions.json');
+    if (!fs.existsSync(jsonPath)) {
+      return res.status(404).json({ error: 'Alfa Digital questions catalog not found' });
+    }
+
+    try {
+      const raw = fs.readFileSync(jsonPath, 'utf-8');
+      const questions = JSON.parse(raw);
+
+      // Annotate with mastery status from SQLite
+      const masteryRows = db.prepare(
+        'SELECT question_id, is_mastered, score FROM company_question_mastery WHERE user_id = ? AND company_id = ?'
+      ).all(userId, companyId) as Array<{ question_id: string; is_mastered: number; score: number }>;
+
+      const masteryMap = new Map(masteryRows.map((r) => [r.question_id, r]));
+
+      const enriched = questions.map((q: any) => {
+        const mastery = masteryMap.get(q.id);
+        return {
+          ...q,
+          isMastered: mastery ? Boolean(mastery.is_mastered) : false,
+          userScore: mastery ? mastery.score : 0
+        };
+      });
+
+      return res.json(enriched);
+    } catch (err: any) {
+      console.error('[CompaniesRoute] Failed to load company questions:', err);
+      return res.status(500).json({ error: 'Failed to load company questions' });
+    }
+  }
+
+  res.json([]);
+});
+
+// POST /api/companies/:id/questions/:questionId/mastery - Toggle mastery for question
+router.post('/:id/questions/:questionId/mastery', (req: Request, res: Response) => {
+  const { id: companyId, questionId } = req.params;
+  const userId = (req.body.user_id as string) || 'default_user';
+  const isMastered = req.body.isMastered !== undefined ? (req.body.isMastered ? 1 : 0) : 1;
+  const score = Number(req.body.score) || 100;
+
+  try {
+    db.prepare(`
+      INSERT INTO company_question_mastery (user_id, company_id, question_id, is_mastered, score, last_evaluated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id, company_id, question_id) DO UPDATE SET
+        is_mastered = excluded.is_mastered,
+        score = excluded.score,
+        last_evaluated_at = CURRENT_TIMESTAMP
+    `).run(userId, companyId, questionId, isMastered, score);
+
+    res.json({ success: true, companyId, questionId, isMastered: Boolean(isMastered), score });
+  } catch (err: any) {
+    console.error('[CompaniesRoute] Failed to update mastery:', err);
+    res.status(500).json({ error: 'Failed to record question mastery' });
+  }
+});
+
 // GET /api/companies/:id - Retrieve specific company profile
 router.get('/:id', (req: Request, res: Response) => {
   const profiles = loadProfiles();
