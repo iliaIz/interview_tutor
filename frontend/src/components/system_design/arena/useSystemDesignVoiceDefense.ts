@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useLiveAudioSession } from '../../../hooks/useLiveAudioSession';
+import { useLiveVoiceSession } from '../../../audio/useLiveVoiceSession';
 import { fastHashCode } from '../../../services/DeicticGroundingManager';
 import { HiringCommitteePacket } from '../defense/HiringCommitteeVerdictModal';
 import { ArchitectureGraphPayload } from '../../../types/systemDesignCanvas';
@@ -40,7 +40,7 @@ export function useSystemDesignVoiceDefense({
     finishManualTurn,
     sendCanvasDelta,
     playoutManagerRef
-  } = useLiveAudioSession({
+  } = useLiveVoiceSession({
     getActiveCode: () => {
       return architectureMode === 'canvas'
         ? (canvasPayload?.architectureMermaid || mermaidCode)

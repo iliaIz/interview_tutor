@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { CodeViewer } from '../CodeViewer';
 import { MarkdownRenderer } from '../MarkdownRenderer';
-import { DialogueTurn } from '../../hooks/useLiveAudioSession';
+import { DialogueTurn } from '../../audio/useLiveVoiceSession';
 import { useSelectionFocusStore } from '../../store/useSelectionFocusStore';
 import { InterviewConfig } from '../../types/interviewConfig';
 

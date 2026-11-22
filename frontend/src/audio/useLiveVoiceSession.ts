@@ -125,6 +125,23 @@ export interface UseLiveVoiceSessionReturn {
   sendTextMessage?: (text: string, displayText?: string) => void;
   sendCustomFrame?: (frame: any) => void;
   engineRef?: React.MutableRefObject<NativeLiveVoiceEngine | null>;
+
+  // Direct boolean & metric projections (eliminates shallow wrapper layer)
+  isConnected: boolean;
+  isAiSpeaking: boolean;
+  isListening: boolean;
+  isRecording: boolean;
+  isMuted: boolean;
+  isUserSpeaking: boolean;
+  isPauseHolding: boolean;
+  rmsDb: number;
+  aiTranscript: string;
+  startSession: (params: LiveAudioSessionParams) => Promise<void>;
+  disconnectSession: () => void;
+  finishManualTurn: () => void;
+  handleCentralButtonClick: () => void;
+  sendCanvasDelta?: (delta: any) => void;
+  playoutManagerRef: { current: any };
 }
 
 export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): UseLiveVoiceSessionReturn {
@@ -291,6 +308,21 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     };
   }, []);
 
+  const isConnected = state !== 'IDLE' && state !== 'ERROR' && state !== 'COMPLETED';
+  const isAiSpeaking = state === 'AI_SPEAKING';
+  const isListening = state === 'LISTENING';
+  const isRecording = isListening;
+  const isUserSpeaking = metrics.vadActive;
+  const isPauseHolding = state === 'AI_THINKING' || state === 'COMMITTING';
+  const rmsDb = metrics.rmsDb;
+
+  const sendCanvasDelta = useCallback((delta: any) => {
+    engineRef.current?.sendCustomFrame({ type: 'canvas_delta', payload: delta });
+  }, []);
+
+  const playoutManagerRef = useRef<any>(null);
+  playoutManagerRef.current = engineRef.current?.playoutManager || null;
+
   return {
     state,
     metrics,
@@ -303,6 +335,23 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     handleInteraction,
     sendTextMessage,
     sendCustomFrame,
-    engineRef
+    engineRef,
+
+    // Direct projections
+    isConnected,
+    isAiSpeaking,
+    isListening,
+    isRecording,
+    isMuted: isMutedRef.current,
+    isUserSpeaking,
+    isPauseHolding,
+    rmsDb,
+    aiTranscript: '',
+    startSession: connect,
+    disconnectSession: disconnect,
+    finishManualTurn: handleInteraction,
+    handleCentralButtonClick: handleInteraction,
+    sendCanvasDelta,
+    playoutManagerRef
   };
 }

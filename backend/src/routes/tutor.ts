@@ -3,7 +3,7 @@ import {
   generateBugChallenge,
   getSavedBugChallenges,
   updateBugChallengeStatus
-} from '../services/tutorService';
+} from '../services/BugChallengeGeneratorService';
 
 const router = Router();
 

@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import dotenv from 'dotenv';
-import { handleLiveClientConnection } from './live/liveWsConnectionHandler';
+import { LiveVoiceSession } from './live/LiveVoiceSession';
 
 import {
   LiveTurn,
@@ -46,7 +46,7 @@ export function setupLiveWebSocketProxy(server: http.Server) {
     };
 
     try {
-      await handleLiveClientConnection(clientSocket, req, earlyQueue, cleanupEarlyCapture);
+      await LiveVoiceSession.start({ clientSocket, req, earlyQueue, cleanupEarlyCapture });
     } catch (err) {
       cleanupEarlyCapture();
       console.error('Unhandled error in Live WebSocket connection handler:', err);

@@ -65,19 +65,24 @@ export class ChallengeEvaluationPipeline {
 
     if (!testsPassed) {
       if (input.abortSignal?.aborted) return;
+      const failEval = {
+        compilationStatus: { isCompilable: sandboxResult.isCompilable, syntaxErrors: sandboxResult.syntaxErrors || [] },
+        virtualExecutionResult: { passCount: passedCount, failCount: failedCount, testCases: sandboxResult.testResults || [] },
+        scoreBreakdown: { overallScore: 0, summaryReview: sandboxResult.error || 'Решение не прошло тесты в JVM песочнице.' }
+      };
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 0,
-        evaluation: {
-          compilationStatus: { isCompilable: sandboxResult.isCompilable, syntaxErrors: sandboxResult.syntaxErrors || [] },
-          virtualExecutionResult: { passCount: passedCount, failCount: failedCount, testCases: sandboxResult.testResults || [] },
-          scoreBreakdown: { overallScore: 0, summaryReview: sandboxResult.error || 'Решение не прошло тесты в JVM песочнице.' }
-        },
+        evaluation: failEval,
         timeSpentSeconds
       });
 
       yield {
         gate: 'JVM_UNIT_TESTS', status: 'FAILED', progressPercent: 20,
-        payload: { testResults: testResultsPayload, error: sandboxResult.error || (sandboxResult.isCompilable ? `${failedCount} test(s) failed` : 'Compilation failed') },
+        payload: {
+          testResults: testResultsPayload,
+          evaluation: failEval,
+          error: sandboxResult.error || (sandboxResult.isCompilable ? `${failedCount} test(s) failed` : 'Compilation failed')
+        },
         timestamp: Date.now()
       };
       return;
@@ -96,15 +101,27 @@ export class ChallengeEvaluationPipeline {
 
     if (!astResult.passed) {
       if (input.abortSignal?.aborted) return;
+      const astEval = {
+        compilationStatus: { isCompilable: true, syntaxErrors: [] },
+        astViolations,
+        scoreBreakdown: {
+          overallScore: 30,
+          summaryReview: `Отклонено Gate 2 AST: ${astViolations[0]?.message || 'нарушение инвариантов'}`
+        }
+      };
       EvaluationPipelinePersistence.persistRecord({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 30,
-        evaluation: { astViolations, scoreBreakdown: { overallScore: 30, summaryReview: `Отклонено Gate 2 AST: ${astViolations[0]?.message || 'нарушение инвариантов'}` } },
+        evaluation: astEval,
         timeSpentSeconds
       });
 
       yield {
         gate: 'AST_INVARIANTS', status: 'FAILED', progressPercent: 40,
-        payload: { astViolations, error: `Нарушены архитектурные AST-инварианты (${astViolations.length} нарушений).` },
+        payload: {
+          astViolations,
+          evaluation: astEval,
+          error: `Нарушены архитектурные AST-инварианты (${astViolations.length} нарушений).`
+        },
         timestamp: Date.now()
       };
       return;

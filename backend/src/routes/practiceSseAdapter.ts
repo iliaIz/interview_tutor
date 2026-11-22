@@ -1,8 +1,12 @@
-import { Response } from 'express';
 import { getAuthUserId } from '../middleware/auth';
 import { ChallengeEvaluationPipeline } from '../services/sandbox/ChallengeEvaluationPipeline';
-import { EvaluationPipelineEvent } from '../services/sandbox/evaluationPipelineTypes';
 
+/**
+ * practiceSseAdapter.ts
+ * Stream bridge for Practice Challenge Evaluation (SPEC-23).
+ * Decoupled from evaluation business logic: strictly translates pipeline events
+ * to SSE events (or JSON response when requested).
+ */
 export async function handleEvaluationStream(req: any, res: any): Promise<void> {
   try {
     const userId = getAuthUserId(req);
@@ -68,22 +72,21 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
       })) {
         if (res.writableEnded || res.destroyed) break;
 
+        // Terminal early bailout capture for JSON mode
+        if (event.payload?.evaluation && (event.status === 'FAILED' || event.status === 'PASSED')) {
+          jsonResult = {
+            success: true,
+            isPassed: event.status === 'PASSED',
+            status: event.status,
+            evaluation: event.payload.evaluation
+          };
+        }
+
         if (event.gate === 'JVM_UNIT_TESTS') {
           if (event.status === 'RUNNING') {
-            sendSseEvent('stage', {
-              ...event,
-              stage: 'sandbox',
-              label: 'Компиляция Java 21 и прогон модульных тестов...'
-            });
+            sendSseEvent('stage', { ...event, stage: 'sandbox', label: 'Компиляция Java 21 и прогон модульных тестов...' });
           } else if (event.status === 'FAILED') {
-            const evalPayload = {
-              compilationStatus: { isCompilable: false, syntaxErrors: [] },
-              scoreBreakdown: { overallScore: 0, summaryReview: event.payload?.error || 'Compilation failed' }
-            };
-            if (isJsonMode) {
-              jsonResult = { success: true, isPassed: false, status: 'FAILED', evaluation: evalPayload };
-              break;
-            }
+            if (isJsonMode) break;
             sendSseEvent('stage', {
               ...event,
               stage: 'sandbox_done',
@@ -91,7 +94,6 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               isCompilable: false,
               details: { isCompilable: false, passedCount: 0, failedCount: 1 }
             });
-            // Complete event for fast-path uncompilable failure
             sendSseEvent('complete', {
               ...event,
               gate: 'PERSISTENCE',
@@ -99,7 +101,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               success: false,
               isPassed: false,
               status: 'FAILED',
-              evaluation: evalPayload
+              evaluation: event.payload?.evaluation
             });
           } else {
             sendSseEvent('stage', {
@@ -116,24 +118,12 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
           }
         } else if (event.gate === 'AST_INVARIANTS') {
           if (event.status === 'FAILED') {
-            const evalPayload = {
-              compilationStatus: { isCompilable: true, syntaxErrors: [] },
-              astViolations: event.payload?.astViolations || [],
-              scoreBreakdown: {
-                overallScore: 30,
-                summaryReview: event.payload?.error || 'Нарушены архитектурные AST-инварианты.'
-              }
-            };
-            if (isJsonMode) {
-              jsonResult = { success: true, isPassed: false, status: 'FAILED', evaluation: evalPayload };
-              break;
-            }
+            if (isJsonMode) break;
             sendSseEvent('stage', {
               ...event,
               stage: 'ast_analysis',
               label: event.payload?.error || 'Gate 2 AST-анализ: обнаружены неисправленные запахи кода'
             });
-            // Complete event for fast-path AST invariants failure
             sendSseEvent('complete', {
               ...event,
               gate: 'PERSISTENCE',
@@ -141,7 +131,7 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               success: false,
               isPassed: false,
               status: 'FAILED',
-              evaluation: evalPayload
+              evaluation: event.payload?.evaluation
             });
           } else {
             sendSseEvent('stage', {
@@ -186,31 +176,14 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
           }
         } else if (event.gate === 'PERSISTENCE') {
           if (event.status === 'PASSED') {
-            const rawEval = event.payload?.evaluation;
-            const normalizedEval = {
-              ...rawEval,
-              compilationStatus: rawEval?.compilationStatus || { isCompilable: true, syntaxErrors: [] },
-              scoreBreakdown: rawEval?.scoreBreakdown || {
-                overallScore: event.payload?.aiFeedback?.score ?? 75,
-                summaryReview: event.payload?.aiFeedback?.critique || ''
-              }
-            };
-            if (isJsonMode) {
-              jsonResult = {
-                success: true,
-                isPassed: true,
-                status: 'PASSED',
-                evaluation: normalizedEval
-              };
-              break;
-            }
+            if (isJsonMode) break;
             sendSseEvent('complete', {
               ...event,
               stage: 'complete',
               success: true,
               isPassed: true,
               status: 'PASSED',
-              evaluation: normalizedEval
+              evaluation: event.payload?.evaluation
             });
           } else if (event.status === 'FAILED') {
             if (isJsonMode) {

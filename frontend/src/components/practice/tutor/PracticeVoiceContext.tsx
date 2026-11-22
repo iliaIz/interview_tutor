@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
-import { useLiveAudioSession, LiveAudioSessionParams } from '../../../hooks/useLiveAudioSession';
+import { useLiveVoiceSession, LiveAudioSessionParams } from '../../../audio/useLiveVoiceSession';
 import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
@@ -43,7 +43,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   const { config: interviewConfig } = useInterviewConfig();
   const { persona: tutorPersona, setModality } = usePracticeTutorStore();
 
-  const session = useLiveAudioSession({
+  const session = useLiveVoiceSession({
     onError: (err) => console.error('Practice voice error:', err),
     onWhiteboardUpdate: (payload) => {
       useAppStore.getState().setWhiteboardState(payload);
