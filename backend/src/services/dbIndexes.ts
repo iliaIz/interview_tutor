@@ -36,6 +36,7 @@ export const COMPOSITE_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_fsrs_state ON fsrs_card_states(user_id, state);
   CREATE INDEX IF NOT EXISTS idx_fsrs_due_queue ON fsrs_card_states(user_id, state, due_at);
   CREATE INDEX IF NOT EXISTS idx_fsrs_logs_history ON fsrs_review_logs(user_id, question_id, review_time DESC);
+  CREATE INDEX IF NOT EXISTS idx_cqm_user_company ON company_question_mastery(user_id, company_id);
 `;
 
 export function runSchemaMigrations(db: Database.Database) {

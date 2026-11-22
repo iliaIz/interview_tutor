@@ -345,4 +345,13 @@ export const CANONICAL_TABLES_SQL = `
     expires_at DATETIME NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS company_question_mastery (
+    user_id TEXT NOT NULL DEFAULT 'default_user',
+    company_id TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    is_mastered INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
+    last_evaluated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, company_id, question_id)
+  );
 `;
