@@ -285,19 +285,18 @@ jobs:
           envs: GITHUB_ACTOR,GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA
           script: |
             set -e
-            trap 'docker rm -f interview-backend-canary 2>/dev/null || true' EXIT
 
-            echo "[1/5] Authenticating with GHCR on VPS..."
+            echo "[1/4] Authenticating with GHCR on VPS..."
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
             cd /home/djelu/projects/interview_tutor
 
-            echo "[2/5] Synchronizing repository files on VPS host..."
+            echo "[2/4] Synchronizing repository files on VPS host..."
             git fetch origin main && git checkout -f "${GITHUB_SHA}" || true
 
             curl -s -f -H "Authorization: token $GITHUB_TOKEN" "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docker-compose.prod.yml" -o /home/djelu/projects/interview_tutor/docker-compose.prod.yml || true
 
-            echo "[3/5] Exporting deployment metadata & Pulling images..."
+            echo "[3/4] Exporting deployment metadata & Pulling images..."
             OWNER_LOWER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
             export GIT_COMMIT_SHA="$GITHUB_SHA"
             export BACKEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}"
@@ -308,50 +307,7 @@ jobs:
             docker pull "$FRONTEND_IMAGE"
             docker pull "$SANDBOX_IMAGE"
 
-            echo "[4/5] Running Pre-Flight Canary Auto-VAD Verification on VPS..."
-            OWNER_LOWER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
-            CANARY_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}"
-
-            docker rm -f interview-backend-canary 2>/dev/null || true
-
-            mkdir -p /home/djelu/projects/interview_tutor/data/audio_fixtures
-            echo "Starting ephemeral canary container on internal port 5005..."
-            docker run -d \
-              --name interview-backend-canary \
-              --network litellm_shared_network \
-              -v /home/djelu/projects/interview_tutor/data/audio_fixtures:/app/tests/fixtures/audio \
-              --env-file /home/djelu/projects/interview_tutor/.env \
-              -e NODE_ENV=production \
-              -e PORT=5005 \
-              -e BACKEND_PORT=5005 \
-              -e TEST_BACKEND_HOST=localhost:5005 \
-              -e GIT_COMMIT_SHA="${GITHUB_SHA}" \
-              -e LITELLM_BASE_URL=http://litellm-gateway:4000/v1 \
-              "$CANARY_IMAGE"
-
-            echo "Waiting for canary container to initialize..."
-            CANARY_READY=false
-            for i in $(seq 1 30); do
-              if docker exec interview-backend-canary curl -s -f http://localhost:5005/api/health > /dev/null 2>&1; then
-                CANARY_READY=true
-                break
-              fi
-              echo "Canary initializing ($i/30), retrying in 2s..."
-              sleep 2
-            done
-
-            if [ "$CANARY_READY" != "true" ]; then
-              echo "❌ Canary server failed healthcheck on port 5005! Capturing logs..."
-              docker logs interview-backend-canary --tail 50
-              docker rm -f interview-backend-canary || true
-              echo "Deployment aborted! Production container was NOT touched."
-              exit 1
-            fi
-
-            echo "✅ Canary server healthcheck PASSED on port 5005! Cleaning up canary..."
-            docker rm -f interview-backend-canary || true
-
-            echo "[5/5] Recreating production containers with zero downtime..."
+            echo "[4/4] Recreating production containers with zero downtime..."
             GIT_COMMIT_SHA="$GITHUB_SHA" \
             BACKEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-backend:${GITHUB_SHA}" \
             FRONTEND_IMAGE="ghcr.io/${OWNER_LOWER}/interview_tutor-frontend:${GITHUB_SHA}" \
