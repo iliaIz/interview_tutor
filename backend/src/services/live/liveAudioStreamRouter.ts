@@ -41,26 +41,26 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   const session = options.session;
   const clientSocket = options.clientSocket;
   const terminate = options.terminate;
-  const upstreamWsUrl = options.upstreamWsUrl || session.upstreamWsUrl || '';
-  const setupMessage = options.setupMessage || session.setupMessage || {};
-  const sessionId = options.sessionId || session.id || 'dev_session';
+  const upstreamWsUrl = options.upstreamWsUrl || '';
+  const setupMessage = options.setupMessage || {};
+  const sessionId = options.sessionId || session.sessionId || 'dev_session';
   const questionId = options.questionId || session.questionId || '';
   const sessionType = options.sessionType || session.sessionType || 'interview';
-  const tutorMode = options.tutorMode || session.tutorMode || 'socratic_tutoring';
-  const bugTitle = options.bugTitle || session.bugTitle || '';
+  const tutorMode = options.tutorMode || 'socratic_tutoring';
+  const bugTitle = options.bugTitle || (session as any).bugTitle || '';
   const questionText = options.questionText || session.questionText || '';
   const topic = options.topic || session.topic || 'Java';
-  const voiceName = options.voiceName || session.voiceName || 'Puck';
+  const voiceName = options.voiceName || 'Puck';
   const isRetry = options.isRetry ?? session.isRetry ?? false;
-  const isResumed = options.isResumed ?? session.isResumed ?? false;
-  const initialUserMessage = options.initialUserMessage || session.initialUserMessage || '';
+  const isResumed = options.isResumed ?? false;
+  const initialUserMessage = options.initialUserMessage || '';
   const totalQuestions = options.totalQuestions ?? session.totalQuestions ?? 0;
   const questionIndex = options.questionIndex ?? session.questionIndex ?? 0;
-  const parsedHints = options.parsedHints || session.parsedHints || [];
-  const liveCoaching = options.liveCoaching ?? session.liveCoaching ?? false;
+  const parsedHints = options.parsedHints || [];
+  const liveCoaching = options.liveCoaching ?? false;
   const liveModel = options.liveModel || session.liveModel || 'gemini-live-v3';
-  const challengeCategory = options.challengeCategory || session.challengeCategory || '';
-  const challengeTrack = options.challengeTrack || session.challengeTrack || '';
+  const challengeCategory = options.challengeCategory || (session as any).challengeCategory || '';
+  const challengeTrack = options.challengeTrack || (session as any).challengeTrack || '';
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;

@@ -189,10 +189,28 @@ export class LiveVoiceSession {
 
     const router = createLiveAudioStreamRouter({
       session,
+      setupMessage,
+      upstreamWsUrl: config.upstreamWsUrl,
       clientSocket,
       terminate: terminateRouter,
-      setupMessage,
-      upstreamWsUrl: config.upstreamWsUrl
+      sessionId: config.sessionId,
+      questionId: config.questionId,
+      sessionType: config.sessionType,
+      tutorMode: config.tutorMode,
+      bugTitle: config.bugTitle,
+      questionText: config.questionText,
+      topic: config.topic,
+      voiceName: config.voiceName,
+      isRetry: config.isRetry,
+      isResumed: config.isResumed,
+      initialUserMessage: config.initialUserMessage,
+      totalQuestions: config.totalQuestions,
+      questionIndex: config.questionIndex,
+      parsedHints: config.parsedHints,
+      liveCoaching: config.liveCoaching,
+      liveModel: config.liveModel,
+      challengeCategory: config.challengeCategory,
+      challengeTrack: config.challengeTrack
     });
 
     instance = new LiveVoiceSession(config.sessionId, fsm, watchdogs, session, clientSocket, router);
