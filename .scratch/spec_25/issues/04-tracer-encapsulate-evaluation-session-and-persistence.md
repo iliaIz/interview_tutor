@@ -2,7 +2,7 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** None (can start immediately)
-**Status:** ready-for-agent
+**Status:** closed (verified in production CI/CD run 45084957707)
 
 ## What to Build
 Consolidate the 5-Gate evaluation flow and persistence in `backend/src/services/sandbox/ChallengeEvaluationSession.ts`. Eliminate shallow `evaluationPipelinePersistence.ts` by pulling manifest loading and atomic SQLite upserts directly into the session aggregate. Replace 3 separate manual `persistRecord` calls in `ChallengeEvaluationPipeline.ts` with an encapsulated lifecycle and expose a clean `getTerminalVerdict()` method for `practiceSseAdapter.ts`.

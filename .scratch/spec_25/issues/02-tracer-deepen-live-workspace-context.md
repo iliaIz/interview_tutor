@@ -2,7 +2,7 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** None (can start immediately)
-**Status:** ready-for-agent
+**Status:** closed (verified in production CI/CD run 45084957707)
 
 ## What to Build
 Deepen `LiveWorkspaceContext` to become the authoritative aggregate for live challenge state, active file tracking, and XML grounding in live sessions. Refactor `liveWsClientFrameHandler.ts` to delegate incoming `session_init`, `workspace_active_file_changed`, and `workspace_file_update` events directly to `LiveWorkspaceContext.applyClientFrame(frame)`, eliminating 18+ direct property mutations on the anemic `ProxySession` bag.

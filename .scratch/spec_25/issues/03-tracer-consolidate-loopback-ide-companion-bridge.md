@@ -2,7 +2,7 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** None (can start immediately)
-**Status:** ready-for-agent
+**Status:** closed (verified in production CI/CD run 45084957707)
 
 ## What to Build
 Create a deep, headless `IdeBridgeConnection` module in `frontend/src/services/IdeBridgeConnection.ts` that consolidates the 85% duplicated loopback WebSocket transport, 15s heartbeat pings, exponential reconnect backoff, and port multiplexing (:41789 for task arena, :41790 for whiteboard). Refactor `useIdeBridge.ts` and `useWhiteboardIdeBridge.ts` into thin adapters, and replace untyped `window.dispatchEvent('workspace_file_updated')` with a typed observer / callback seam.

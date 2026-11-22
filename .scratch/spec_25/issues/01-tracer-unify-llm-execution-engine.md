@@ -2,7 +2,7 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** None (can start immediately)
-**Status:** ready-for-agent
+**Status:** closed (verified in production CI/CD run 45084957707)
 
 ## What to Build
 Implement the deep `LlmExecutionEngine` module that encapsulates all LiteLLM proxy communication, network failover (`host.docker.internal` -> `localhost`), Invariant 5 Full-Jitter Exponential Backoff on 429/503 errors, markdown fence stripping, and JSON regex repair. Migrate `backend/src/services/geminiText.ts` and `backend/src/services/BugChallengeGeneratorService.ts` to call `LlmExecutionEngine.executeJson<T>()` and `executeText()`.
