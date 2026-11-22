@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
-import { envConfig } from '../config/env';
-import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
+import { LlmExecutionEngine } from './LlmExecutionEngine';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
 import { ANTI_SYCOPHANCY_DIRECTIVES, EPISTEMIC_BENEVOLENCE_AXIOM } from '../prompts/core/antiSycophancy';
 dotenv.config();
@@ -43,6 +42,49 @@ ${EPISTEMIC_BENEVOLENCE_AXIOM}
   "positivePoints": [список от 0 до 3 пунктов: конкретные технические факты, которые кандидат назвал верно; пустой массив [], если точных фактов нет],
   "missingPoints": [список от 0 до 4 пунктов: упущенные ключевые механизмы или ошибки с обязательным указанием штрафа "[-X баллов]"],
   "feedback": "Сухое, объективное техническое резюме (2-3 предложения) на русском языке без приветствий и комплиментов: прямой вердикт по глубине понимания темы и главная точка отказа в ответе"
+}`;
+}
+
+export async function evaluateAnswerWithGemini(
+  question: string,
+  referenceAnswer: string,
+  userAnswer: string,
+  userGender: 'female' | 'male' | 'neutral' = 'female'
+): Promise<EvalResult> {
+  const systemPrompt = buildEvaluateAnswerSystemPrompt(userGender);
+  const prompt = `Вопрос: ${question}
+
+Эталонный ответ:
+${referenceAnswer}
+
+Ответ кандидата на рецензию:
+${wrapUntrustedContext('candidate_answer', userAnswer)}`;
+
+  try {
+    const parsed = await LlmExecutionEngine.executeJson<any>({
+      systemPrompt,
+      userPrompt: prompt,
+      presetKey: 'conceptualGrading',
+      timeoutMs: 45_000
+    });
+
+    const rawScore = typeof parsed.score === 'number' ? parsed.score : 0;
+    const positivePoints = Array.isArray(parsed.positivePoints) ? parsed.positivePoints : [];
+    const missingPoints = Array.isArray(parsed.missingPoints) ? parsed.missingPoints : [];
+    const isPassed = typeof parsed.isPassed === 'boolean' ? parsed.isPassed : (rawScore >= 70);
+    const feedback = typeof parsed.feedback === 'string' && parsed.feedback.trim() ? parsed.feedback : 'Оценка ответа завершена.';
+
+    return {
+      score: rawScore,
+      isPassed,
+      positivePoints,
+      missingPoints,
+      feedback
+    };
+  } catch (err: any) {
+    console.error(`LiteLLM Proxy evaluation error:`, err);
+    throw new Error(`Ошибка оценки ответа через LiteLLM Proxy: ${err.message}`);
+  }
 }`;
 }
 

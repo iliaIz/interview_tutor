@@ -3,7 +3,7 @@ import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleTurnCommit, armTurnWatchdogs } from './liveWsTurnCommitHandler';
-import { applyWorkspaceFileUpdate, matchWorkspaceFilePath, mergeWorkspaceManifests } from './workspaceManifestStore';
+import { LiveWorkspaceContext } from './LiveWorkspaceContext';
 
 export interface ClientFrameHandlerOptions {
   session: ProxySession;
@@ -68,96 +68,7 @@ export function attachLiveClientFrameHandler(options: ClientFrameHandlerOptions)
         return;
       }
 
-      if (parsed.type === 'session_init') {
-        if (parsed.challenge) {
-          const ch = parsed.challenge;
-          if (ch.category) session.challengeCategory = ch.category;
-          if (ch.track) session.challengeTrack = ch.track;
-          if (ch.title) { session.bugTitle = ch.title; session.questionText = ch.title; }
-          if (ch.instructions) session.bugExplanation = ch.instructions;
-          if (ch.activeFileContent) session.codeSnippet = ch.activeFileContent;
-          if (ch.activeFilePath) session.activeFilePath = ch.activeFilePath;
-          if (ch.workspaceManifest) {
-            session.workspaceManifest = mergeWorkspaceManifests(session.workspaceManifest, ch.workspaceManifest);
-          }
-        }
-        if (parsed.workspaceManifest) {
-          session.workspaceManifest = mergeWorkspaceManifests(session.workspaceManifest, parsed.workspaceManifest);
-        }
-        if (parsed.codeSnippet) session.codeSnippet = parsed.codeSnippet;
-        if (parsed.bugTitle) { session.bugTitle = parsed.bugTitle; session.questionText = parsed.bugTitle; }
-        if (parsed.bugExplanation) session.bugExplanation = parsed.bugExplanation;
-        if (parsed.questionText && !session.questionText) session.questionText = parsed.questionText;
-        if (parsed.referenceAnswer && !session.referenceAnswer) session.referenceAnswer = parsed.referenceAnswer;
-        if (parsed.topic) session.topic = parsed.topic;
-        if (parsed.persona) session.persona = parsed.persona;
-        if (parsed.strategy) session.strategy = parsed.strategy;
-        if (parsed.targetGrade) session.targetGrade = parsed.targetGrade;
-        if (parsed.activeCodeArtifact) session.activeCodeArtifact = parsed.activeCodeArtifact;
-        if (parsed.academyBridgeContext) session.academyBridgeContext = parsed.academyBridgeContext;
-        if (parsed.seniorReview) session.seniorReview = parsed.seniorReview;
-        if (typeof parsed.questionIndex === 'number') session.questionIndex = parsed.questionIndex;
-        if (typeof parsed.totalQuestions === 'number') session.totalQuestions = parsed.totalQuestions;
-        if (typeof parsed.isRetry === 'boolean') session.isRetry = parsed.isRetry;
-
-        console.log(`📋 [LIVE_SESSION_INIT] Session initialized: domain=${parsed.challenge?.domain || 'auto'}, title="${session.bugTitle || 'unknown'}", files=${session.workspaceManifest?.fileCount || 1}${session.seniorReview ? ', with seniorReview' : ''}`);
-
-        // SOTA Late 2026 Invariant 2.6: Strict Channel Separation (No Interleaving).
-        // session_init updates workspace manifest in memory. The initial grounding turn
-        // is atomically bundled with the Turn 0 greeting in handleSetupCompleteGreeting()
-        // with turnComplete: true, preventing illegal mid-synthesis interleaving frames.
-        return;
-      }
-
-      if (parsed.type === 'workspace_file_update') {
-        applyWorkspaceFileUpdate(session, parsed.path, parsed.content);
-        return;
-      }
-
-      if (parsed.type === 'workspace_active_file_changed') {
-        const filePath = (parsed.path || '').trim();
-        if (filePath && session.workspaceManifest) {
-          const manifest = session.workspaceManifest;
-          const allFiles = Array.isArray(manifest.files) ? manifest.files : [];
-          const secondary = Array.isArray(manifest.secondaryFiles) ? manifest.secondaryFiles : [];
-          const found = allFiles.find((f: any) => matchWorkspaceFilePath(f.path, filePath))
-            || secondary.find((f: any) => matchWorkspaceFilePath(f.path, filePath));
-          if (found) {
-            if (manifest.activeFile && manifest.activeFile.path !== found.path) {
-              if (!secondary.some((s: any) => matchWorkspaceFilePath(s.path, manifest.activeFile.path))) {
-                secondary.push({ ...manifest.activeFile });
-              }
-            }
-            manifest.activeFile = { path: found.path, content: found.content };
-            manifest.secondaryFiles = secondary.filter((s: any) => !matchWorkspaceFilePath(s.path, found.path));
-            session.codeSnippet = found.content;
-            session.activeFilePath = found.path;
-            console.log(`🎯 [WORKSPACE_ACTIVE_FILE] Active file switched to "${found.path}" in memory`);
-          }
-        }
-        return;
-      }
-
-      if (parsed.type === 'screen_context_sync') {
-        // SOTA Late 2026 Level 6: Suppress editor code streaming from live audio channel
-        return;
-      }
-
-      if (parsed.type === 'sandbox_result_update') {
-        session.latestSandboxSummary = parsed.summary;
-        console.log(`🧪 [SANDBOX_RESULT_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
-        return;
-      }
-
-      if (parsed.type === 'mutation_result_update') {
-        session.latestMutationSummary = parsed.summary;
-        console.log(`🧬 [MUTATION_RESULT_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
-        return;
-      }
-
-      if (parsed.type === 'tx_evaluation_update') {
-        session.latestTxSummary = parsed.summary;
-        console.log(`💳 [TX_EVALUATION_UPDATE] Intercepted in-memory: "${(parsed.summary || '').slice(0, 60)}..."`);
+      if (LiveWorkspaceContext.applyClientFrame(session, parsed)) {
         return;
       }
 

@@ -1,24 +1,14 @@
 /**
  * useWhiteboardIdeBridge.ts
  * React hook connecting Web Whiteboard to the Local Zero-Dependency Whiteboard Companion Bridge
- * over Loopback WebSocket (ws://127.0.0.1:41790).
- * Completely isolated from Task Code Bridge on :41789.
+ * over Loopback WebSocket (ws://127.0.0.1:41790) via IdeBridgeConnection (SPEC-25).
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { IdeBridgeConnection, IdeBridgeStatus } from '../services/IdeBridgeConnection';
 
-export type WhiteboardIdeStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing';
-
-interface BridgeMessage {
-  type: string;
-  origin?: 'ide' | 'web';
-  path?: string;
-  content?: string;
-  workspaceDir?: string;
-  timestamp?: number;
-}
-
+export type WhiteboardIdeStatus = IdeBridgeStatus;
 export const WHITEBOARD_BRIDGE_URL = 'ws://127.0.0.1:41790';
 
 export function useWhiteboardIdeBridge() {
@@ -28,14 +18,10 @@ export function useWhiteboardIdeBridge() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
+  const bridgeRef = useRef<IdeBridgeConnection | null>(null);
   const updateIdeTrackedContent = useAppStore((s) => s.updateIdeTrackedContent);
 
   const handleFileFromIde = useCallback((filePath: string, newContent: string) => {
-    // Only process Whiteboard files or fallback
     const normalized = filePath.replace(/\\/g, '/');
     if (!normalized.endsWith('Whiteboard.java') && !normalized.includes('Whiteboard')) {
       return;
@@ -46,132 +32,34 @@ export function useWhiteboardIdeBridge() {
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     setLastSyncTime(timeStr);
-    setStatus('syncing');
-    setTimeout(() => setStatus('connected'), 600);
 
-    // Broadcast workspace_file_updated so active live voice sessions register Whiteboard.java in manifest
-    try {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('workspace_file_updated', {
-            detail: {
-              path: 'Whiteboard.java',
-              content: newContent,
-              language: 'java'
-            }
-          })
-        );
-      }
-    } catch {
-      // Non-critical if voice session not active
-    }
+    IdeBridgeConnection.notifyWorkspaceFileUpdated({
+      path: 'Whiteboard.java',
+      content: newContent,
+      language: 'java'
+    });
   }, [updateIdeTrackedContent]);
 
-  const connect = useCallback(() => {
-    if (
-      socketRef.current &&
-      (socketRef.current.readyState === WebSocket.OPEN ||
-        socketRef.current.readyState === WebSocket.CONNECTING)
-    ) {
-      return;
-    }
-
-    setStatus('connecting');
-    try {
-      const ws = new WebSocket(WHITEBOARD_BRIDGE_URL);
-      socketRef.current = ws;
-
-      ws.onopen = () => {
-        setStatus('connected');
-        ws.send(
-          JSON.stringify({
-            type: 'HANDSHAKE_INIT',
-            clientVersion: '1.0.0',
-            channel: 'whiteboard',
-            timestamp: Date.now()
-          })
-        );
-
-        // Heartbeat ping
-        heartbeatIntervalRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'PING', timestamp: Date.now() }));
-          }
-        }, 15000);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data: BridgeMessage = JSON.parse(event.data);
-
-          if (data.type === 'HANDSHAKE_ACK') {
-            setStatus('connected');
-            if (data.workspaceDir) {
-              setWorkspaceDir(data.workspaceDir);
-            }
-          }
-
-          if (
-            data.type === 'FILE_UPDATED' &&
-            data.origin === 'ide' &&
-            data.path &&
-            typeof data.content === 'string'
-          ) {
-            handleFileFromIde(data.path, data.content);
-          }
-        } catch {
-          // Ignore unparseable frames
-        }
-      };
-
-      ws.onclose = () => {
-        setStatus('disconnected');
-        setWorkspaceDir(null);
-        socketRef.current = null;
-        if (heartbeatIntervalRef.current) {
-          clearInterval(heartbeatIntervalRef.current);
-          heartbeatIntervalRef.current = null;
-        }
-
-        // Auto-reconnect probe
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3500);
-      };
-
-      ws.onerror = () => {
-        // Socket error triggers onclose
-      };
-    } catch {
-      setStatus('disconnected');
-    }
-  }, [handleFileFromIde]);
-
   useEffect(() => {
-    connect();
+    const bridge = new IdeBridgeConnection({
+      port: 41790,
+      channel: 'whiteboard',
+      onFileUpdated: handleFileFromIde,
+      onStatusChange: setStatus,
+      onWorkspaceDirChange: setWorkspaceDir
+    });
+
+    bridgeRef.current = bridge;
+    bridge.connect();
 
     return () => {
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
+      bridge.disconnect();
+      bridgeRef.current = null;
     };
-  }, [connect]);
+  }, [handleFileFromIde]);
 
-  // Controlled Checkout: User explicitly pushes selected revision code to local disk
   const checkoutCode = useCallback((content: string) => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(
-        JSON.stringify({
-          type: 'FILE_UPDATED',
-          origin: 'web',
-          path: 'src/main/java/Whiteboard.java',
-          content
-        })
-      );
-    }
+    bridgeRef.current?.sendFileUpdate('src/main/java/Whiteboard.java', content);
   }, []);
 
   const downloadWhiteboardZip = async () => {

@@ -38,45 +38,8 @@ export interface DynamicTaskResult {
   evaluationCriteria: string[];
 }
 
-export type GatewayUnavailableReason = 
-  | 'rate_limit_exceeded' 
-  | 'proxy_unreachable' 
-  | 'upstream_timeout' 
-  | 'schema_parse_error';
-
-export class LlmGatewayUnavailableError extends Error {
-  public readonly category = 'transient';
-  public readonly reason: GatewayUnavailableReason;
-  public readonly retryAfterSeconds: number;
-  public readonly userMessage: string;
-  public readonly healthEndpoint = '/api/health';
-  public readonly availableBankCount = 70;
-
-  constructor(reason: GatewayUnavailableReason, technicalDetail?: string) {
-    let userMsg = 'ИИ-модель перегружена или шлюз временно недоступен. Мы автоматически восстанавливаем связь.';
-    let retryAfter = 5;
-
-    if (reason === 'rate_limit_exceeded') {
-      userMsg = 'Достигнут кратковременный лимит запросов к ИИ-модели (Rate Limit). Автоматический повтор через несколько секунд.';
-      retryAfter = 6;
-    } else if (reason === 'proxy_unreachable') {
-      userMsg = 'Локальный шлюз LiteLLM временно недоступен (Docker контейнер перезапускается или обновляет сетевой маршрут).';
-      retryAfter = 4;
-    } else if (reason === 'upstream_timeout') {
-      userMsg = 'Время ожидания ответа ИИ-модели превысило допустимый лимит (сетевой таймаут).';
-      retryAfter = 5;
-    } else if (reason === 'schema_parse_error') {
-      userMsg = 'ИИ-модель вернула неполный ответ. Повторный запрос восстановит корректную генерацию.';
-      retryAfter = 3;
-    }
-
-    super(technicalDetail ? `${userMsg} (${technicalDetail})` : userMsg);
-    this.name = 'LlmGatewayUnavailableError';
-    this.reason = reason;
-    this.retryAfterSeconds = retryAfter;
-    this.userMessage = userMsg;
-  }
-}
+import { LlmGatewayUnavailableError, GatewayUnavailableReason } from './LlmExecutionEngine';
+export { LlmGatewayUnavailableError, GatewayUnavailableReason };
 
 export class DynamicTaskGenerator {
   /**

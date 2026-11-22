@@ -1,11 +1,9 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
-import { envConfig } from '../config/env';
 import { TOPIC_MAP } from './topics';
-import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
-import { LlmGatewayUnavailableError } from './dynamicTaskGenerator';
-import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
+import { LlmExecutionEngine, LlmGatewayUnavailableError } from './LlmExecutionEngine';
+import { wrapUntrustedContext } from '../prompts/core/sandboxDirectives';
 import { ANTI_SYCOPHANCY_DIRECTIVES } from '../prompts/core/antiSycophancy';
 import {
   TechStackInfo,
@@ -41,10 +39,6 @@ export {
 };
 
 export async function generateBugChallenge(params: GenerateBugChallengeParams): Promise<BugChallenge> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-  const modelName = envConfig.models.text;
-
   let topicName = params.topic || 'Java & Spring Framework';
   const topicId = params.topicId || (params.topic ? params.topic.toLowerCase().replace(/\s+/g, '-') : 'general');
   let contextInfo = '';
@@ -162,73 +156,12 @@ ${contextInfo}
   try {
     console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Model: ${modelName}, Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
     
-    const reasoningPayload = {
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: REASONING_PRESETS.deepIncidentSynthesis.temperature,
-      max_tokens: REASONING_PRESETS.deepIncidentSynthesis.maxTokens,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
-    };
-
-    let proxyRes: Response;
-    try {
-      proxyRes = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`,
-        },
-        signal: AbortSignal.timeout(90_000),
-        body: JSON.stringify(reasoningPayload)
-      });
-    } catch (fetchErr: any) {
-      if (endpointUrl.includes('host.docker.internal')) {
-        const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-        console.log(`🔄 Retrying with local URL: ${localUrl}`);
-        proxyRes = await fetch(localUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${proxyApiKey}`,
-          },
-          signal: AbortSignal.timeout(90_000),
-          body: JSON.stringify(reasoningPayload)
-        });
-      } else {
-        throw fetchErr;
-      }
-    }
-
-    if (!proxyRes.ok) {
-      const errText = await proxyRes.text();
-      throw new Error(`LiteLLM Proxy (${proxyRes.status}): ${errText}`);
-    }
-
-    const data = await proxyRes.json();
-    const rawContent = data.choices?.[0]?.message?.content || '{}';
-    let cleanedJson = rawContent.trim();
-    if (cleanedJson.startsWith('```json')) {
-      cleanedJson = cleanedJson.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleanedJson.startsWith('```')) {
-      cleanedJson = cleanedJson.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleanedJson);
-    } catch (parseErr) {
-      console.warn('JSON.parse failed on LLM output, extracting JSON block:', parseErr);
-      const jsonMatch = cleanedJson.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw parseErr;
-      }
-    }
+    const parsed = await LlmExecutionEngine.executeJson<any>({
+      systemPrompt,
+      userPrompt: prompt,
+      presetKey: 'deepIncidentSynthesis',
+      timeoutMs: 90_000
+    });
 
     const challengeId = `bug_${crypto.randomBytes(8).toString('hex')}`;
 
