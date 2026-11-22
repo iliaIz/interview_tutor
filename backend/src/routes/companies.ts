@@ -38,26 +38,66 @@ router.get('/:id/readiness', (req: Request, res: Response) => {
     return res.status(404).json({ error: `Company profile '${req.params.id}' not found` });
   }
 
+  const companyId = req.params.id;
   const userId = (req.query.user_id as string) || 'default_user';
 
   try {
+    // 1. Theory
     const masteredRow = db.prepare(
       'SELECT count(*) as cnt FROM company_question_mastery WHERE user_id = ? AND company_id = ? AND is_mastered = 1'
-    ).get(userId, req.params.id) as { cnt: number } | undefined;
-
+    ).get(userId, companyId) as { cnt: number } | undefined;
     const completedTheory = masteredRow ? masteredRow.cnt : 0;
-    const totalTheory = 27;
+    const totalTheory = companyId === 'alfa_digital' ? 27 : 20;
     const theoryPct = Math.min(100, Math.round((completedTheory / totalTheory) * 100));
 
-    // Default readiness payload conforming to OpenAPI spec
+    // 2. Code Review
+    const crRow = db.prepare(
+      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
+       WHERE user_id = ? AND challenge_id LIKE ? AND (status = 'PASSED' OR score >= 80)`
+    ).get(userId, companyId === 'alfa_digital' ? 'cr-alfa-%' : 'case_%') as { cnt: number } | undefined;
+    const completedCR = crRow ? crRow.cnt : 0;
+    const totalCR = companyId === 'alfa_digital' ? 6 : 2;
+    const crPct = Math.min(100, Math.round((completedCR / totalCR) * 100));
+
+    // 3. Live Coding
+    const lcRow = db.prepare(
+      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
+       WHERE user_id = ? AND (challenge_id LIKE ? OR challenge_id = 'lld-key-value-cache-ttl') AND (status = 'PASSED' OR score >= 80)`
+    ).get(userId, companyId === 'alfa_digital' ? 'lc-alfa-%' : 'iban-%') as { cnt: number } | undefined;
+    const completedLC = lcRow ? lcRow.cnt : 0;
+    const totalLC = companyId === 'alfa_digital' ? 5 : 2;
+    const lcPct = Math.min(100, Math.round((completedLC / totalLC) * 100));
+
+    // 4. SQL
+    const sqlRow = db.prepare(
+      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
+       WHERE user_id = ? AND challenge_id LIKE ? AND (status = 'PASSED' OR score >= 80)`
+    ).get(userId, companyId === 'alfa_digital' ? 'sql-alfa-%' : 'sql-raiff-%') as { cnt: number } | undefined;
+    const completedSql = sqlRow ? sqlRow.cnt : 0;
+    const totalSql = companyId === 'alfa_digital' ? 7 : 5;
+    const sqlPct = Math.min(100, Math.round((completedSql / totalSql) * 100));
+
+    // 5. System Design
+    const sdRow = db.prepare(
+      'SELECT count(DISTINCT scenario_id) as cnt FROM system_design_submissions WHERE user_id = ?'
+    ).get(userId) as { cnt: number } | undefined;
+    const completedSD = sdRow ? sdRow.cnt : 0;
+    const totalSD = 5;
+    const sdPct = Math.min(100, Math.round((completedSD / totalSD) * 100));
+
+    const overallPct = Math.min(
+      100,
+      Math.round(0.25 * theoryPct + 0.2 * crPct + 0.2 * lcPct + 0.15 * sqlPct + 0.2 * sdPct)
+    );
+
     const readiness = {
-      companyId: req.params.id,
-      overallPercentage: Math.round(theoryPct * 0.25),
+      companyId,
+      overallPercentage: overallPct,
       theory: { completed: completedTheory, total: totalTheory, percentage: theoryPct },
-      codeReview: { completed: 0, total: 6, percentage: 0 },
-      liveCoding: { completed: 0, total: 5, percentage: 0 },
-      sql: { completed: 0, total: 7, percentage: 0 },
-      systemDesign: { completed: 0, total: 5, percentage: 0 }
+      codeReview: { completed: completedCR, total: totalCR, percentage: crPct },
+      liveCoding: { completed: completedLC, total: totalLC, percentage: lcPct },
+      sql: { completed: completedSql, total: totalSql, percentage: sqlPct },
+      systemDesign: { completed: completedSD, total: totalSD, percentage: sdPct }
     };
 
     res.json(readiness);
