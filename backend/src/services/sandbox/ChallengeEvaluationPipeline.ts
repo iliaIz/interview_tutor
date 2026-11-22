@@ -218,7 +218,7 @@ export class ChallengeEvaluationPipeline {
     yield { gate: 'PERSISTENCE', status: 'RUNNING', progressPercent: 90, timestamp: Date.now() };
     const aiScore = aiFeedbackPayload?.score ?? (testsPassed ? 75 : 0);
     const finalScore = mutationScorePayload ? Math.round(aiScore * 0.7 + mutationScorePayload.percentage * 0.3) : aiScore;
-    const isPassed = testsPassed && astResult.passed && mutationPassed && finalScore >= 70 && !aiEvaluationResult?.concurrencyAnalysis?.hasCarrierThreadPinning;
+    const isPassed = testsPassed && staticVerdict.passed && mutationPassed && finalScore >= 70 && !aiEvaluationResult?.concurrencyAnalysis?.hasCarrierThreadPinning;
     const finalStatus = isPassed ? 'PASSED' : 'FAILED';
 
     try {
