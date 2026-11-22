@@ -122,8 +122,8 @@ export interface UseLiveVoiceSessionReturn {
   // 8. Tactile interaction (barge-in if AI speaking; turn commit if candidate speaking)
   handleInteraction: () => void;
   // 9. Delegation seams for text & custom frames
-  sendTextMessage?: (text: string, displayText?: string) => void;
-  sendCustomFrame?: (frame: any) => void;
+  sendTextMessage: (text: string, displayText?: string) => void;
+  sendCustomFrame: (frame: any) => void;
   engineRef?: React.MutableRefObject<NativeLiveVoiceEngine | null>;
 
   // Direct boolean & metric projections (eliminates shallow wrapper layer)
@@ -139,8 +139,9 @@ export interface UseLiveVoiceSessionReturn {
   startSession: (params: LiveAudioSessionParams) => Promise<void>;
   disconnectSession: () => void;
   finishManualTurn: () => void;
+  handleBargeIn: () => void;
   handleCentralButtonClick: () => void;
-  sendCanvasDelta?: (delta: any) => void;
+  sendCanvasDelta: (delta: any) => void;
   playoutManagerRef: { current: any };
 }
 
@@ -321,7 +322,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   }, []);
 
   const playoutManagerRef = useRef<any>(null);
-  playoutManagerRef.current = engineRef.current?.playoutManager || null;
+  playoutManagerRef.current = (engineRef.current as any)?.playoutManager || null;
 
   return {
     state,
@@ -350,6 +351,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     startSession: connect,
     disconnectSession: disconnect,
     finishManualTurn: handleInteraction,
+    handleBargeIn: handleInteraction,
     handleCentralButtonClick: handleInteraction,
     sendCanvasDelta,
     playoutManagerRef
