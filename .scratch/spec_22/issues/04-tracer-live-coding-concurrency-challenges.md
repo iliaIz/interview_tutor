@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Tracer-Bullet  
 **Blocked by:** #01  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `json/machine_coding_challenges.json`:
@@ -35,6 +35,6 @@
 - Re-implementing cache logic for `lc-alfa-03` (must reuse `lld-key-value-cache-ttl`).
 
 ## Acceptance Criteria
-- [ ] Challenges seeded cleanly into `coding_challenges`.
-- [ ] Starter files and unit tests compile and run in sandbox.
-- [ ] Direct navigation from `launchArenaTask` opens challenge in Practice Arena.
+- [x] Challenges seeded cleanly into `coding_challenges`.
+- [x] Starter files and unit tests compile and run in sandbox.
+- [x] Direct navigation from `launchArenaTask` opens challenge in Practice Arena.

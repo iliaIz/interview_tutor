@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Prefactor  
 **Blocked by:** None (can start immediately)  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `backend/src/services/dbSchema.ts`:
@@ -43,6 +43,6 @@
 - Modifying frontend components.
 
 ## Acceptance Criteria
-- [ ] `company_question_mastery` table and index created cleanly on server startup.
-- [ ] `GET /api/companies` returns existing company profiles without regression.
-- [ ] TypeScript compilation passes with zero type errors.
+- [x] `company_question_mastery` table and index created cleanly on server startup.
+- [x] `GET /api/companies` returns existing company profiles without regression.
+- [x] TypeScript compilation passes with zero type errors.

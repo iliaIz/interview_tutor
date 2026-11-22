@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Tracer-Bullet  
 **Blocked by:** #01  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `json/sql_challenges.json`:
@@ -34,6 +34,6 @@
 - Running Docker containers with PostgreSQL on the VPS host.
 
 ## Acceptance Criteria
-- [ ] All 5 PGlite challenges execute and validate query results in in-browser WASM engine.
-- [ ] Forensics cards for SQL-06 and SQL-07 integrated with detailed plan and locking explanations.
-- [ ] Navigation from Alfa Digital pipeline launches `SqlArena` with target challenge pre-selected.
+- [x] All 5 PGlite challenges execute and validate query results in in-browser WASM engine.
+- [x] Forensics cards for SQL-06 and SQL-07 integrated with detailed plan and locking explanations.
+- [x] Navigation from Alfa Digital pipeline launches `SqlArena` with target challenge pre-selected.

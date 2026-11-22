@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Tracer-Bullet  
 **Blocked by:** #01  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `json/alfa_interview_questions.json` (or additive entries in `all_interview_questions.json`):
@@ -38,6 +38,6 @@
 - Mutating existing legacy question records.
 
 ## Acceptance Criteria
-- [ ] `GET /api/companies/alfa_digital/questions` returns exactly 27 curated questions.
-- [ ] `POST /api/companies/alfa_digital/questions/:id/mastery` updates `company_question_mastery` idempotently.
-- [ ] Existing questions and routes remain 100% operational.
+- [x] `GET /api/companies/alfa_digital/questions` returns exactly 27 curated questions.
+- [x] `POST /api/companies/alfa_digital/questions/:id/mastery` updates `company_question_mastery` idempotently.
+- [x] Existing questions and routes remain 100% operational.

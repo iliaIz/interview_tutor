@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Tracer-Bullet  
 **Blocked by:** #02, #03, #04, #05  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `json/company_profiles.json`:
@@ -45,7 +45,7 @@
 - Introducing parallel UI routing components.
 
 ## Acceptance Criteria
-- [ ] Profile `alfa_digital` loads via `GET /api/companies/alfa_digital` and validates against schema.
-- [ ] User can switch between Raiffeisen and Alfa Digital in `CompanyPrepStudio`.
-- [ ] CRI readiness calculation reflects completed tasks accurately.
-- [ ] All stages launch their target arenas with company context.
+- [x] Profile `alfa_digital` loads via `GET /api/companies/alfa_digital` and validates against schema.
+- [x] User can switch between Raiffeisen and Alfa Digital in `CompanyPrepStudio`.
+- [x] CRI readiness calculation reflects completed tasks accurately.
+- [x] All stages launch their target arenas with company context.

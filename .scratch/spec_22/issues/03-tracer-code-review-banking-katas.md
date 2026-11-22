@@ -3,7 +3,7 @@
 **Parent:** Spec 22 (`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`)  
 **Archetype:** Tracer-Bullet  
 **Blocked by:** #01  
-**Status:** ready-for-agent  
+**Status:** closed  
 
 ## What to Build
 1. In `json/refactoring_challenges.json`:
@@ -33,6 +33,6 @@
 - Modifying unrelated katas.
 
 ## Acceptance Criteria
-- [ ] All 6 CR cards (`cr-alfa-01` .. `cr-alfa-06`) ingested into JSON catalog and seeded into database.
-- [ ] Ground Truth failure physics and fixes validated against senior banking standards.
-- [ ] Direct navigation to each CR card from `launchArenaTask` opens without error.
+- [x] All 6 CR cards (`cr-alfa-01` .. `cr-alfa-06`) ingested into JSON catalog and seeded into database.
+- [x] Ground Truth failure physics and fixes validated against senior banking standards.
+- [x] Direct navigation to each CR card from `launchArenaTask` opens without error.
