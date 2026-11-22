@@ -315,6 +315,7 @@ interface AppState {
   setLatestTxEvaluation: (res: ScenarioEvaluationResult | null) => void;
 
   openPracticeChallenge: (challenge: CodingChallenge, draftFiles?: FileNode[]) => void;
+  openPracticeChallengeById: (idOrSlug: string) => Promise<boolean>;
   setPracticeWorkspaceFiles: (files: FileNode[]) => void;
   closePracticeChallenge: () => void;
   updateWorkspaceFileContent: (index: number, content: string) => void;
@@ -1006,6 +1007,30 @@ export const useAppStore = create<AppState>()(
           isPracticeEvaluating: false,
           practiceElapsedSeconds: 0
         });
+      },
+
+      openPracticeChallengeById: async (idOrSlug: string): Promise<boolean> => {
+        try {
+          const res = await fetch(`/api/practice/challenges/${encodeURIComponent(idOrSlug)}`, {
+            credentials: 'include'
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const challenge = data.challenge || data;
+            const draft = data.savedDraft;
+            get().openPracticeChallenge(challenge, draft);
+            set({ currentStudioTab: 'practice' });
+            return true;
+          } else {
+            console.warn(`[useAppStore] Challenge ${idOrSlug} returned HTTP ${res.status}`);
+            set({ currentStudioTab: 'practice' });
+            return false;
+          }
+        } catch (err) {
+          console.error(`[useAppStore] Failed to load challenge ${idOrSlug}:`, err);
+          set({ currentStudioTab: 'practice' });
+          return false;
+        }
       },
 
       setPracticeWorkspaceFiles: (files) => set({

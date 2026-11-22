@@ -25,72 +25,64 @@ export interface LocalStudioCallbacks {
  * Eliminates dangling entity IDs and string-prefix sniffing.
  * File length limit: <= 350 lines (Rule 8).
  */
-export async function launchArenaTask(
-  target: ArenaNavigationTarget,
-  callbacks?: LocalStudioCallbacks
-): Promise<void> {
-  const store = useAppStore.getState();
+export class ArenaWorkspaceCoordinator {
+  public static async launch(
+    target: ArenaNavigationTarget,
+    callbacks?: LocalStudioCallbacks
+  ): Promise<void> {
+    const store = useAppStore.getState();
 
-  switch (target.arena) {
-    case 'practice': {
-      try {
-        const res = await fetch(`/api/practice/challenges/${encodeURIComponent(target.entityId)}`, {
-          credentials: 'include'
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const challenge = data.challenge || data;
-          const draft = data.savedDraft;
-          store.openPracticeChallenge(challenge, draft);
-        } else {
-          console.warn(`[ArenaNavigator] Challenge ${target.entityId} returned HTTP ${res.status}`);
-        }
-      } catch (err) {
-        console.error(`[ArenaNavigator] Failed to load challenge ${target.entityId}:`, err);
+    switch (target.arena) {
+      case 'practice': {
+        await store.openPracticeChallengeById(target.entityId);
+        break;
       }
-      store.setStudioTab('practice');
-      break;
-    }
 
-    case 'system_design': {
-      try {
+      case 'system_design': {
         await store.openSystemDesignById(target.entityId);
-      } catch (err) {
-        console.error(`[ArenaNavigator] Failed to load scenario ${target.entityId}:`, err);
-        store.setStudioTab('system_design');
+        break;
       }
-      break;
-    }
 
-    case 'sql_arena': {
-      callbacks?.setTargetSqlChallengeId(target.entityId);
-      callbacks?.setActiveSubTab('sql_arena');
-      break;
-    }
+      case 'sql_arena': {
+        if (callbacks?.setTargetSqlChallengeId && callbacks?.setActiveSubTab) {
+          callbacks.setTargetSqlChallengeId(target.entityId);
+          callbacks.setActiveSubTab('sql_arena');
+        } else {
+          store.setStudioTab('companies');
+        }
+        break;
+      }
 
-    case 'take_home': {
-      callbacks?.setActiveSubTab('take_home');
-      break;
-    }
+      case 'take_home': {
+        if (callbacks?.setActiveSubTab) {
+          callbacks.setActiveSubTab('take_home');
+        } else {
+          store.setStudioTab('companies');
+        }
+        break;
+      }
 
-    case 'voice_modal': {
-      AudioPlayoutManager.warmup();
-      callbacks?.setIsVoiceOpen(true);
-      break;
-    }
+      case 'voice_modal': {
+        AudioPlayoutManager.warmup();
+        callbacks?.setIsVoiceOpen(true);
+        break;
+      }
 
-    case 'incidents': {
-      store.openTopicBugHunt(target.entityId, target.contextTitle || target.entityId);
-      store.setStudioTab('incidents');
-      break;
-    }
+      case 'incidents': {
+        store.openTopicBugHunt(target.entityId, target.contextTitle || target.entityId);
+        store.setStudioTab('incidents');
+        break;
+      }
 
-    default: {
-      console.warn(`[ArenaNavigator] Unknown arena: ${target.arena}`);
-      store.setStudioTab('practice');
+      default: {
+        console.warn(`[ArenaWorkspaceCoordinator] Unknown arena: ${target.arena}`);
+        store.setStudioTab('practice');
+      }
     }
   }
 }
+
+export const launchArenaTask = ArenaWorkspaceCoordinator.launch;
 
 /**
  * Resolves a stage launch action into an ArenaNavigationTarget.

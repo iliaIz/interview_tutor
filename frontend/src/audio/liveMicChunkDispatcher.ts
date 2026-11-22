@@ -8,7 +8,6 @@
 
 import { MicrophoneMetrics } from './MicrophoneCapture';
 import { VoiceEngineState } from './types';
-import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
 
 const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
 
@@ -38,7 +37,6 @@ export class LiveMicChunkDispatcher {
     isTurn0Lockdown: boolean,
     isSessionReady: boolean,
     turnMode: 'auto' | 'manual' | undefined,
-    playoutManager: AudioPlayoutManager,
     ws: WebSocket | null,
     callbacks: MicDispatcherCallbacks
   ): void {

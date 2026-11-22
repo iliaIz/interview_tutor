@@ -142,7 +142,6 @@ export interface UseLiveVoiceSessionReturn {
   handleBargeIn: () => void;
   handleCentralButtonClick: () => void;
   sendCanvasDelta: (delta: any) => void;
-  playoutManagerRef: { current: any };
 }
 
 export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): UseLiveVoiceSessionReturn {
@@ -321,9 +320,6 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     engineRef.current?.sendCustomFrame({ type: 'canvas_delta', payload: delta });
   }, []);
 
-  const playoutManagerRef = useRef<any>(null);
-  playoutManagerRef.current = (engineRef.current as any)?.playoutManager || null;
-
   return {
     state,
     metrics,
@@ -353,7 +349,6 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     finishManualTurn: handleInteraction,
     handleBargeIn: handleInteraction,
     handleCentralButtonClick: handleInteraction,
-    sendCanvasDelta,
-    playoutManagerRef
+    sendCanvasDelta
   };
 }

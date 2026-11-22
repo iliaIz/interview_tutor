@@ -23,7 +23,6 @@ interface PracticeVoiceContextType {
   toggleMic: () => void;
   finishManualTurn: () => void;
   sendTextMessage: (text: string, displayText?: string) => void;
-  playoutManagerRef: React.MutableRefObject<AudioPlayoutManager | null>;
   startPracticeSession: () => Promise<void>;
   startPracticeSessionWithReview: (focusedFinding?: any) => Promise<void>;
   handleCentralButtonClick: () => void;
@@ -72,7 +71,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     finishManualTurn,
     sendTextMessage,
     handleBargeIn,
-    playoutManagerRef
+    handleInteraction
   } = session;
 
   const launchPracticeSession = useCallback(async (seniorReviewPayload?: any) => {
@@ -262,15 +261,8 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [session.isConnected, syncEditorCode]);
 
   const handleCentralButtonClick = useCallback(() => {
-    const isPlaying = playoutManagerRef.current?.isPlaying() ?? false;
-    if (isAiSpeaking || isPlaying) {
-      handleBargeIn();
-    } else if (interviewConfig.turnMode === 'manual' && isRecording) {
-      finishManualTurn();
-    } else {
-      toggleMic();
-    }
-  }, [isAiSpeaking, playoutManagerRef, handleBargeIn, interviewConfig.turnMode, isRecording, finishManualTurn, toggleMic]);
+    handleInteraction();
+  }, [handleInteraction]);
 
   return (
     <PracticeVoiceContext.Provider

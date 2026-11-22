@@ -217,7 +217,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.isTurn0Lockdown,
       this.isSessionReady,
       this.config?.turnMode,
-      this.playoutManager,
       this.ws,
       {
         onTransientFiltered: () => this.callbacks.onTransientFiltered?.(),

@@ -111,7 +111,7 @@ export const SystemDesignArena: React.FC = () => {
     disconnectVoiceSession,
     handleStartVoiceDefense,
     sendCanvasDelta,
-    playoutManagerRef
+    handleBargeIn
   } = useSystemDesignVoiceDefense({
     activeScenario: activeSystemDesignScenario,
     architectureMode,
@@ -282,11 +282,7 @@ export const SystemDesignArena: React.FC = () => {
             onToggleMic={toggleMic}
             onFinishTurn={finishManualTurn}
             onDisconnect={disconnectVoiceSession}
-            onBargeIn={() => {
-              if (isAiSpeaking && playoutManagerRef.current) {
-                playoutManagerRef.current.handleInterruption();
-              }
-            }}
+            onBargeIn={handleBargeIn}
           />
         </div>
       )}

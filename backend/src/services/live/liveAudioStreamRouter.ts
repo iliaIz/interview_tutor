@@ -8,26 +8,26 @@ import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 
 export interface StreamRouterOptions {
   session: ProxySession;
-  setupMessage: any;
-  upstreamWsUrl: string;
   clientSocket: WebSocket;
   terminate: (source: string, code?: number, reason?: Buffer) => void;
-  sessionId: string;
-  questionId: string;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
-  tutorMode: string;
-  bugTitle: string;
-  questionText: string;
-  topic: string;
-  voiceName: string;
-  isRetry: boolean;
-  isResumed: boolean;
-  initialUserMessage: string;
-  totalQuestions: number;
-  questionIndex: number;
-  parsedHints: string[];
-  liveCoaching: boolean;
-  liveModel: string;
+  setupMessage?: any;
+  upstreamWsUrl?: string;
+  sessionId?: string;
+  questionId?: string;
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  tutorMode?: string;
+  bugTitle?: string;
+  questionText?: string;
+  topic?: string;
+  voiceName?: string;
+  isRetry?: boolean;
+  isResumed?: boolean;
+  initialUserMessage?: string;
+  totalQuestions?: number;
+  questionIndex?: number;
+  parsedHints?: string[];
+  liveCoaching?: boolean;
+  liveModel?: string;
   challengeCategory?: string;
   challengeTrack?: string;
 }
@@ -38,31 +38,29 @@ export interface StreamRouterOptions {
  * Cognitive bounding limit: <= 350 lines.
  */
 export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
-  const {
-    session,
-    setupMessage,
-    upstreamWsUrl,
-    clientSocket,
-    terminate,
-    sessionId,
-    questionId,
-    sessionType,
-    tutorMode,
-    bugTitle,
-    questionText,
-    topic,
-    voiceName,
-    isRetry,
-    isResumed,
-    initialUserMessage,
-    totalQuestions,
-    questionIndex,
-    parsedHints,
-    liveCoaching,
-    liveModel,
-    challengeCategory = '',
-    challengeTrack = ''
-  } = options;
+  const session = options.session;
+  const clientSocket = options.clientSocket;
+  const terminate = options.terminate;
+  const upstreamWsUrl = options.upstreamWsUrl || session.upstreamWsUrl || '';
+  const setupMessage = options.setupMessage || session.setupMessage || {};
+  const sessionId = options.sessionId || session.id || 'dev_session';
+  const questionId = options.questionId || session.questionId || '';
+  const sessionType = options.sessionType || session.sessionType || 'interview';
+  const tutorMode = options.tutorMode || session.tutorMode || 'socratic_tutoring';
+  const bugTitle = options.bugTitle || session.bugTitle || '';
+  const questionText = options.questionText || session.questionText || '';
+  const topic = options.topic || session.topic || 'Java';
+  const voiceName = options.voiceName || session.voiceName || 'Puck';
+  const isRetry = options.isRetry ?? session.isRetry ?? false;
+  const isResumed = options.isResumed ?? session.isResumed ?? false;
+  const initialUserMessage = options.initialUserMessage || session.initialUserMessage || '';
+  const totalQuestions = options.totalQuestions ?? session.totalQuestions ?? 0;
+  const questionIndex = options.questionIndex ?? session.questionIndex ?? 0;
+  const parsedHints = options.parsedHints || session.parsedHints || [];
+  const liveCoaching = options.liveCoaching ?? session.liveCoaching ?? false;
+  const liveModel = options.liveModel || session.liveModel || 'gemini-live-v3';
+  const challengeCategory = options.challengeCategory || session.challengeCategory || '';
+  const challengeTrack = options.challengeTrack || session.challengeTrack || '';
 
   const handleGeminiDisconnect = (source: string, code?: number, reason?: Buffer) => {
     if (session.isTerminated) return;

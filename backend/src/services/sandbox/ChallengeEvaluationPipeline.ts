@@ -2,6 +2,7 @@ import { CodingChallenge } from '../challengeSeedData';
 import { evaluateChallengeSubmission, EvaluationResult } from '../codeEvaluator';
 import { JvmExecutionService, SandboxExecutionResponse } from './JvmExecutionService';
 import { RefactoringAstVerifier } from './RefactoringAstVerifier';
+import { JavaStaticAnalysisEngine } from './JavaStaticAnalysisEngine';
 import { JvmMutationEngine } from './JvmMutationEngine';
 import { EvaluationPipelinePersistence } from './evaluationPipelinePersistence';
 import {
@@ -91,36 +92,49 @@ export class ChallengeEvaluationPipeline {
     yield { gate: 'JVM_UNIT_TESTS', status: 'PASSED', progressPercent: 20, payload: { testResults: testResultsPayload }, timestamp: Date.now() };
     if (input.abortSignal?.aborted) return;
 
-    // Gate 2: AST_INVARIANTS
+    // Gate 2: AST_INVARIANTS & Static Verification
     yield { gate: 'AST_INVARIANTS', status: 'RUNNING', progressPercent: 30, timestamp: Date.now() };
     const constraints = (input as any).structuralConstraints || (manifest as any)?.structuralConstraints || (manifest as any)?.designPatternContext?.structuralConstraints;
-    const astResult = RefactoringAstVerifier.verify(files, constraints);
-    const astViolations: EvaluationAstViolation[] = (astResult.violations || []).map(v => ({
-      rule: v.rule, line: v.lineNumber, message: `${v.message} (${v.file}:${v.lineNumber})`
-    }));
+    const staticVerdict = JavaStaticAnalysisEngine.verify(files, {
+      structuralConstraints: constraints,
+      isRefactoring,
+      enforceTestQuality: true
+    });
 
-    if (!astResult.passed) {
+    const astViolations: EvaluationAstViolation[] = staticVerdict.violations
+      .filter(v => v.category === 'AST_INVARIANT' || v.category === 'SECURITY')
+      .map(v => ({
+        rule: v.rule, line: v.line, message: `${v.message} (${v.file}:${v.line})`
+      }));
+
+    if (!staticVerdict.passed) {
       if (input.abortSignal?.aborted) return;
+      const blocking = staticVerdict.blockingFailure;
+      const score = blocking?.score ?? 30;
+      const errorMessage = blocking?.error || (astViolations[0]?.message || 'нарушение инвариантов');
+
       const astEval = {
         compilationStatus: { isCompilable: true, syntaxErrors: [] },
         astViolations,
         scoreBreakdown: {
-          overallScore: 30,
-          summaryReview: `Отклонено Gate 2 AST: ${astViolations[0]?.message || 'нарушение инвариантов'}`
+          overallScore: score,
+          summaryReview: errorMessage
         }
       };
       EvaluationPipelinePersistence.persistRecord({
-        challengeId, userId, files, activePhase, status: 'FAILED', score: 30,
+        challengeId, userId, files, activePhase, status: 'FAILED', score,
         evaluation: astEval,
         timeSpentSeconds
       });
 
       yield {
-        gate: 'AST_INVARIANTS', status: 'FAILED', progressPercent: 40,
+        gate: blocking?.gate === 'MUTATION_TESTS' ? 'MUTATION_TESTS' : 'AST_INVARIANTS',
+        status: 'FAILED',
+        progressPercent: 40,
         payload: {
           astViolations,
           evaluation: astEval,
-          error: `Нарушены архитектурные AST-инварианты (${astViolations.length} нарушений).`
+          error: errorMessage
         },
         timestamp: Date.now()
       };
@@ -143,12 +157,13 @@ export class ChallengeEvaluationPipeline {
         const percentage = Math.round(mutationResult.mutationScore);
         mutationScorePayload = { killedMutants: mutationResult.killedCount, totalMutants: mutationResult.totalMutants, percentage };
 
-        if (percentage < 60 || !mutationResult.passedThreshold) {
+        if (percentage < 60 || !mutationResult.passedThreshold || mutationResult.error) {
           mutationPassed = false;
           const hint = mutationResult.mutantResults?.filter(m => m.status === 'SURVIVED' && m.remediationHint).map(m => m.remediationHint).slice(0, 2).join(' ') || 'Добавьте тесты на граничные условия.';
+          const failError = mutationResult.error || `Мутационный скор (${percentage}%) ниже порога 60%. Выжило мутантов: ${mutationResult.survivedCount}. ${hint}`;
           yield {
             gate: 'MUTATION_TESTS', status: 'FAILED', progressPercent: 60,
-            payload: { mutationScore: mutationScorePayload, error: `Мутационный скор (${percentage}%) ниже порога 60%. Выжило мутантов: ${mutationResult.survivedCount}. ${hint}` },
+            payload: { mutationScore: mutationScorePayload, error: failError },
             timestamp: Date.now()
           };
         } else {

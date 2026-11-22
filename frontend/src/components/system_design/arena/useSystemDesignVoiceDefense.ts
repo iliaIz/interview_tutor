@@ -39,7 +39,7 @@ export function useSystemDesignVoiceDefense({
     toggleMic,
     finishManualTurn,
     sendCanvasDelta,
-    playoutManagerRef
+    handleBargeIn
   } = useLiveVoiceSession({
     getActiveCode: () => {
       return architectureMode === 'canvas'
@@ -158,6 +158,6 @@ export function useSystemDesignVoiceDefense({
     disconnectVoiceSession,
     handleStartVoiceDefense,
     sendCanvasDelta,
-    playoutManagerRef
+    handleBargeIn
   };
 }
