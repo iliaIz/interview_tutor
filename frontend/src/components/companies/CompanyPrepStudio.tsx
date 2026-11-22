@@ -4,11 +4,13 @@ import { CompanyProfile, CompanyPipelineStage, TargetArena } from '@interview-pr
 import { CompanyPipelineTab } from './CompanyPipelineTab';
 import { CompanyDossierTab } from './CompanyDossierTab';
 import { CompanyRunbookTab } from './CompanyRunbookTab';
+import { CompanyTheoryDeckTab } from './CompanyTheoryDeckTab';
+import { CompanyBrandBanner } from './CompanyBrandBanner';
 import { SqlArena } from '../sql/SqlArena';
 import { CompanyTakeHomeLab } from './CompanyTakeHomeLab';
 import { VoiceModal } from '../VoiceModal';
 import { 
-  Building2, Sparkles, MapPin, ExternalLink, 
+  Building2, Sparkles, MapPin, ExternalLink, BookOpen,
   Layers, FileText, Zap, Database, RotateCcw, AlertCircle, PackageCheck, Bot
 } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
@@ -20,12 +22,24 @@ export const CompanyPrepStudio: React.FC = () => {
 
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>('raiffeisen_dgtl');
-  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
+  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'theory' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
   const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
+  const [readinessData, setReadinessData] = useState<any>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [targetSqlChallengeId, setTargetSqlChallengeId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Load backend readiness index
+  const fetchReadiness = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/companies/${selectedProfileId}/readiness`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setReadinessData(data);
+      }
+    } catch {}
+  }, [selectedProfileId]);
 
   // Load profiles from backend
   const fetchProfiles = useCallback(async () => {
@@ -33,9 +47,7 @@ export const CompanyPrepStudio: React.FC = () => {
     setLoadError(null);
     try {
       const res = await fetch('/api/companies', { credentials: 'include' });
-      if (!res.ok) {
-        throw new Error(`Ошибка сервера (${res.status}): не удалось получить профили`);
-      }
+      if (!res.ok) throw new Error(`Ошибка сервера (${res.status}): не удалось получить профили`);
       const data: CompanyProfile[] = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         setProfiles(data);
@@ -56,6 +68,10 @@ export const CompanyPrepStudio: React.FC = () => {
   useEffect(() => {
     void fetchProfiles();
   }, [fetchProfiles]);
+
+  useEffect(() => {
+    void fetchReadiness();
+  }, [fetchReadiness]);
 
   // Load completed stages from localStorage
   useEffect(() => {
@@ -96,15 +112,16 @@ export const CompanyPrepStudio: React.FC = () => {
 
   // Compute Company Readiness Index (CRI)
   const readinessIndex = useMemo(() => {
+    if (readinessData?.overallPercentage !== undefined) {
+      return readinessData.overallPercentage;
+    }
     if (!profile) return 0;
     let score = 0;
     for (const stage of profile.stages) {
-      if (completedStageIds.has(stage.id)) {
-        score += stage.weight * 100;
-      }
+      if (completedStageIds.has(stage.id)) score += stage.weight * 100;
     }
     return Math.min(100, Math.round(score));
-  }, [profile, completedStageIds]);
+  }, [profile, completedStageIds, readinessData]);
 
   const toggleStageComplete = (stageId: string) => {
     const updated = new Set(completedStageIds);
@@ -176,117 +193,53 @@ export const CompanyPrepStudio: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-24 font-sans">
       {/* Brand Header Banner */}
-      <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm relative overflow-hidden ${
-        isAlfa
-          ? 'bg-gradient-to-r from-rose-500/15 via-rose-100/10 to-white border-rose-300/60'
-          : 'bg-gradient-to-r from-amber-400/20 via-amber-200/10 to-white border-amber-300/60'
-      }`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              {profiles.length > 1 && (
-                <div className="flex items-center gap-1 bg-white/90 p-0.5 rounded-xl border border-slate-200/80 shadow-xs mr-1">
-                  {profiles.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedProfileId(p.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        selectedProfileId === p.id
-                          ? p.id === 'alfa_digital'
-                            ? 'bg-rose-600 text-white shadow-xs'
-                            : 'bg-amber-400 text-amber-950 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <span>{p.logoBadge || '🏦'}</span>
-                      <span>{p.id === 'alfa_digital' ? 'Альфа-Банк' : 'Райффайзен'}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <span className={`px-3 py-1 rounded-full text-xs font-black shadow-xs flex items-center gap-1.5 ${
-                isAlfa ? 'bg-rose-600 text-white' : 'bg-amber-400 text-amber-950'
-              }`}>
-                <Building2 className="w-3.5 h-3.5" />
-                {profile.name}
-              </span>
-              <span className="text-xs text-slate-600 font-mono flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-pastel-muted" /> {isAlfa ? 'Alfa Digital Hub' : 'Raiffeisen DGTL Hub'}
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
-              {isAlfa ? 'Целевая Подготовка: Senior Java & HighLoad FinTech' : 'Целевая Подготовка: Product Engineer (Java/Kotlin)'}
-            </h1>
-            <p className="text-xs text-slate-700 max-w-2xl leading-relaxed">
-              {profile.tagline}
-            </p>
-          </div>
-
-          {/* Quick Stats Pill & AI Copilot Action */}
-          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-            <button
-              onClick={() => {
-                if (profile) {
-                  setActiveContext(
-                    normalizeCompanyContext({
-                      profile,
-                      activeStage: profile.stages[0],
-                      activeTaskTitle: `Целевая подготовка: ${profile.name} (${activeSubTab})`
-                    })
-                  );
-                }
-                toggleOpen(true);
-              }}
-              className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs shadow-xs flex items-center gap-2 transition-all cursor-pointer border ${
-                isAlfa
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700/30'
-                  : 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-500/30'
-              }`}
-              title={`Открыть диалог с AI-Напарником (${profile.name})`}
-            >
-              <Bot className="w-4 h-4" />
-              <span>AI-Напарник (Bar-Raiser)</span>
-            </button>
-
-            <div className={`flex items-center gap-3 bg-white/90 p-3 rounded-2xl border shadow-xs font-mono text-xs ${
-              isAlfa ? 'border-rose-300/40' : 'border-amber-300/40'
-            }`}>
-              <div>
-                <span className="block text-slate-500 text-[10px] uppercase font-bold">Степень готовности</span>
-                <span className="font-extrabold text-base text-slate-900">{readinessIndex}% CRI</span>
-              </div>
-              <div className="h-8 w-px bg-slate-200" />
-              <div>
-                <span className="block text-slate-500 text-[10px] uppercase font-bold">Этапов</span>
-                <span className={`font-extrabold text-base ${isAlfa ? 'text-rose-700' : 'text-amber-700'}`}>
-                  {profile.stages.length} раунда
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CompanyBrandBanner
+        profile={profile}
+        profiles={profiles}
+        selectedProfileId={selectedProfileId}
+        onSelectProfileId={setSelectedProfileId}
+        isAlfa={isAlfa}
+        readinessIndex={readinessIndex}
+        onOpenCopilot={() => {
+          setActiveContext(
+            normalizeCompanyContext({
+              profile,
+              activeStage: profile.stages[0],
+              activeTaskTitle: `Целевая подготовка: ${profile.name} (${activeSubTab})`
+            })
+          );
+          toggleOpen(true);
+        }}
+      />
 
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-2 border-b border-pastel-border/70 pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('pipeline')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'pipeline'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+            activeSubTab === 'pipeline' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Layers className="w-4 h-4" />
           Воронка отбора (Пайплайн)
         </button>
 
+        {isAlfa && (
+          <button
+            onClick={() => setActiveSubTab('theory')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+              activeSubTab === 'theory' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            Теория & Скрининг (27)
+          </button>
+        )}
+
         <button
           onClick={() => setActiveSubTab('dossier')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'dossier'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+            activeSubTab === 'dossier' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -296,9 +249,7 @@ export const CompanyPrepStudio: React.FC = () => {
         <button
           onClick={() => setActiveSubTab('runbook')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'runbook'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+            activeSubTab === 'runbook' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Zap className="w-4 h-4" />
@@ -308,26 +259,24 @@ export const CompanyPrepStudio: React.FC = () => {
         <button
           onClick={() => setActiveSubTab('sql_arena')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'sql_arena'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
+            activeSubTab === 'sql_arena' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
           }`}
         >
           <Database className="w-4 h-4" />
           PostgreSQL WASM Арена
         </button>
 
-        <button
-          onClick={() => setActiveSubTab('take_home')}
-          className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'take_home'
-              ? 'bg-teal-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
-          }`}
-        >
-          <PackageCheck className="w-4 h-4" />
-          Тестовое задание (25 PRs)
-        </button>
+        {profile.takeHomePrCases && profile.takeHomePrCases.length > 0 && (
+          <button
+            onClick={() => setActiveSubTab('take_home')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
+              activeSubTab === 'take_home' ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
+            }`}
+          >
+            <PackageCheck className="w-4 h-4" />
+            Тестовое задание ({profile.takeHomePrCases.length} PRs)
+          </button>
+        )}
       </div>
 
       {/* Tab Panels */}
@@ -338,6 +287,14 @@ export const CompanyPrepStudio: React.FC = () => {
           onToggleStageComplete={toggleStageComplete}
           onLaunchStageAction={handleLaunchStage}
           companyReadinessIndex={readinessIndex}
+        />
+      )}
+
+      {activeSubTab === 'theory' && (
+        <CompanyTheoryDeckTab
+          companyId={profile.id}
+          companyName={profile.name}
+          onMasteryUpdated={fetchReadiness}
         />
       )}
 
@@ -361,7 +318,7 @@ export const CompanyPrepStudio: React.FC = () => {
         />
       )}
 
-      {activeSubTab === 'take_home' && (
+      {activeSubTab === 'take_home' && profile.takeHomePrCases && (
         <CompanyTakeHomeLab
           onBackToPipeline={() => setActiveSubTab('pipeline')}
           companyName={profile.name}
@@ -376,9 +333,21 @@ export const CompanyPrepStudio: React.FC = () => {
           onClose={() => setIsVoiceOpen(false)}
           initialSessionType="interview"
           vadPauseMs={800}
-          topic={`${profile.name}: Product Engineer Fit Interview`}
-          currentQuestionText={`Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`}
-          customPromptOverride={`РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. ТЕМЫ К ОБСУЖДЕНИЮ: 1) 5-шаговый поиск причин просадки конверсии; 2) Метрики TTM, Customer Pain Index, SRM в A/B, Conversion Lift%; 3) STAR-опыт решения факапов; 4) Финтех-инварианты: BigDecimal, сортировка блокировок min->max, Transactional Outbox. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Если кандидат начинает ответ с разбора любого из этих пунктов — сразу тепло поддерживай продуктовый диалог без лишних вводных. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`}
+          topic={
+            isAlfa
+              ? 'АО «Альфа-Банк» (Alfa Digital & А-Токен): Технический скрининг'
+              : `${profile.name}: Product Engineer Fit Interview`
+          }
+          currentQuestionText={
+            isAlfa
+              ? 'Привет! Начнем наш технический скрининг в Alfa Digital. Расскажи кратко о своем опыте с HighLoad, и сразу перейдем к физике JMM и HotSpot: что происходит при синхронизации на объекте, и почему String.intern() в synchronized — это критический дефект?'
+              : `Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`
+          }
+          customPromptOverride={
+            isAlfa
+              ? `РОЛЬ: Lead Java-архитектор в АО «Альфа-Банк» (Alfa Digital & А-Токен). Твоя цель — провести жесткий технический скрининг на позицию Senior Java Engineer в Финтех. ТЕМЫ ДЛЯ ГЛУБОКОГО ЗОНДИРОВАНИЯ: 1) JMM happens-before, safepoints, biased/thin/fat locking, Metaspace vs off-heap zero-copy sendfile, G1 vs ZGC; 2) Concurrency: CAS, полосковые блокировки (SegmentedConcurrentHashMap); 3) Spring: обход прокси при самовызове @Transactional, утечки пула HikariCP; 4) PostgreSQL: MVCC t_xmin/t_xmax, Dead Tuples, vacuum wraparound, SSI write skew; 5) Kafka: zero-copy sendfile, EOS 2PC PID; 6) А-Токен: Waves Enterprise, ГОСТ КС2, SOAP в АБС Equation. Требуй физических причин вместо симптомов. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`
+              : `РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. ТЕМЫ К ОБСУЖДЕНИЮ: 1) 5-шаговый поиск причин просадки конверсии; 2) Метрики TTM, Customer Pain Index, SRM в A/B, Conversion Lift%; 3) STAR-опыт решения факапов; 4) Финтех-инварианты: BigDecimal, сортировка блокировок min->max, Transactional Outbox. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`
+          }
         />
       )}
     </div>

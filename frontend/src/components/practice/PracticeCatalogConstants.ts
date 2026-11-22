@@ -19,6 +19,7 @@ export const FlameIcon = Flame;
 
 export const CATEGORIES: { id: ChallengeCategory; name: string; icon: React.ComponentType<any>; badge?: string }[] = [
   { id: 'all', name: 'Все задачи', icon: Code2 },
+  { id: 'alfa_digital', name: '🅰️ Альфа-Банк', icon: FlameIcon, badge: 'Alfa Digital Track' },
   { id: 'raiffeisen', name: '🏦 Райффайзенбанк', icon: Crown, badge: 'FinTech Track' },
   { id: 'design_patterns', name: 'Design Patterns', icon: Layers, badge: '7 Katas (SOTA 2026)' },
   { id: 'refactoring_kata', name: 'Refactoring Arena', icon: Shield, badge: '24 Katas (L0–L3)' },
@@ -59,6 +60,13 @@ export const REFACTORING_ARCHETYPES = [
 
 export function isChallengeInCategory(c: { id?: string; category?: string; track?: string }, category: ChallengeCategory): boolean {
   if (category === 'all') return true;
+  if (category === 'alfa_digital') {
+    const alfaIds = [
+      'cr-alfa-01', 'cr-alfa-02', 'cr-alfa-03', 'cr-alfa-04', 'cr-alfa-05', 'cr-alfa-06',
+      'lc-alfa-01', 'lc-alfa-02', 'lld-key-value-cache-ttl', 'lc-alfa-04', 'lc-alfa-05'
+    ];
+    return alfaIds.includes(c.id || '') || c.track === 'alfa_livecoding' || c.track === 'alfa_code_review';
+  }
   if (category === 'raiffeisen') {
     const rIds = ['iban-validator', 'sparse-vector', 'case_transfer_service', 'case_account_collections'];
     return rIds.includes(c.id || '') || c.track === 'raiffeisen_code_review';

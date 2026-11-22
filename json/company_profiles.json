@@ -566,8 +566,12 @@
       "pitchScriptMarkdown": "«Здравствуйте! Я Senior Java-разработчик со специализацией на высоконагруженных финтех-системах, распределенных транзакциях и платформенной надежности.\n\nВ фокусе моей экспертизы — проектирование отказоустойчивых бэкендов на Java 21, Spring Boot и PostgreSQL под требованиями Zero-Downtime и 100% финансовой консистентности. Работал с устранением распределенного Dual Write через Transactional Outbox с Debezium CDC, калибровкой пулов HikariCP по закону Литтла и гарантией Exactly-Once в Kafka.\n\nВ Альфа-Банке мне особенно интересна платформа цифровых финансовых активов «А-Токен»: синергия блокчейна Waves Enterprise, криптографии ГОСТ КС2 и надежного связывания с медленными банковскими АБС по SOAP. Готов глубоко погрузиться в проектирование сервисов выпуска и обращения ЦФА с защитой от Double-Spending и перегрузок на первичных размещениях.»",
       "mustReviewTaskIds": [
         "cr-alfa-01",
+        "cr-alfa-02",
+        "cr-alfa-03",
         "lc-alfa-01",
+        "lc-alfa-02",
         "sql-alfa-01",
+        "sql-alfa-07",
         "L3-PERF-HIKARICP-STARVATION",
         "L4-DIST-IDEMPOTENT-OUTBOX"
       ],
@@ -575,32 +579,56 @@
         {
           "taskId": "cr-alfa-01",
           "title": "PaymentController: 8+ багов за 15 минут",
-          "targetArena": "incidents",
-          "badge": "🅰️ Code Review"
+          "targetArena": "practice",
+          "badge": "🅰️ CR-01"
+        },
+        {
+          "taskId": "cr-alfa-02",
+          "title": "CalculationService: @Transactional и HikariCP",
+          "targetArena": "practice",
+          "badge": "🅰️ CR-02"
+        },
+        {
+          "taskId": "cr-alfa-03",
+          "title": "Dual Write & Transactional Outbox",
+          "targetArena": "practice",
+          "badge": "🅰️ CR-03"
         },
         {
           "taskId": "lc-alfa-01",
           "title": "SegmentedConcurrentHashMap (40 мин)",
           "targetArena": "practice",
-          "badge": "⚡ Concurrency"
+          "badge": "⚡ LC-01"
+        },
+        {
+          "taskId": "lc-alfa-02",
+          "title": "Banking Stream API & BigDecimal",
+          "targetArena": "practice",
+          "badge": "💻 LC-02"
         },
         {
           "taskId": "sql-alfa-01",
           "title": "Покупатели Laptop и Monitor (INTERSECT vs HAVING)",
           "targetArena": "sql_arena",
-          "badge": "📊 SQL"
+          "badge": "📊 SQL-01"
+        },
+        {
+          "taskId": "sql-alfa-07",
+          "title": "Read Committed Lost Update & SELECT FOR UPDATE",
+          "targetArena": "sql_arena",
+          "badge": "🔒 SQL-07"
         },
         {
           "taskId": "L3-PERF-HIKARICP-STARVATION",
           "title": "Калибровка пула HikariCP по закону Литтла",
           "targetArena": "system_design",
-          "badge": "🏛️ HLD"
+          "badge": "🏛️ SD-01"
         },
         {
           "taskId": "L4-DIST-IDEMPOTENT-OUTBOX",
           "title": "Idempotent Payment & Transactional Outbox",
           "targetArena": "system_design",
-          "badge": "🏛️ HLD"
+          "badge": "🏛️ SD-02"
         }
       ],
       "checklist": [

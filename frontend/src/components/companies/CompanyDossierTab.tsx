@@ -33,30 +33,32 @@ export const CompanyDossierTab: React.FC<CompanyDossierTabProps> = ({ culture, c
       <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/80">
         {(
           [
-            { id: 'culture', label: 'Парадигма & Флаги', icon: Cpu },
-            { id: 'competencies', label: `${profile?.competencies?.length || 9} Компетенций PE`, icon: Compass },
-            { id: 'spec_review', label: `${profile?.specReviewChecklist?.length || 8}-Point Spec Review`, icon: ClipboardCheck },
-            { id: 'star_cases', label: `STAR Сценарии (${profile?.starScenarios?.length || 4})`, icon: Sparkles },
-            { id: 'talent_q', label: `Тест Talent Q (${profile?.talentQGuide?.deadlineHours || 72}ч)`, icon: Calculator }
+            { id: 'culture', label: 'Парадигма & Флаги', icon: Cpu, visible: true },
+            { id: 'competencies', label: `${profile?.competencies?.length || 9} Компетенций PE`, icon: Compass, visible: Boolean(profile?.competencies && profile.competencies.length > 0) },
+            { id: 'spec_review', label: `${profile?.specReviewChecklist?.length || 8}-Point Spec Review`, icon: ClipboardCheck, visible: Boolean(profile?.specReviewChecklist && profile.specReviewChecklist.length > 0) },
+            { id: 'star_cases', label: `STAR Сценарии (${profile?.starScenarios?.length || 4})`, icon: Sparkles, visible: Boolean(profile?.starScenarios && profile.starScenarios.length > 0) },
+            { id: 'talent_q', label: `Тест Talent Q (${profile?.talentQGuide?.deadlineHours || 72}ч)`, icon: Calculator, visible: Boolean(profile?.talentQGuide) }
           ] as const
-        ).map((sec) => {
-          const Icon = sec.icon;
-          const isActive = activeSection === sec.id;
-          return (
-            <button
-              key={sec.id}
-              onClick={() => setActiveSection(sec.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                isActive
-                  ? 'bg-amber-400 text-slate-950 shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              <span>{sec.label}</span>
-            </button>
-          );
-        })}
+        )
+          .filter((sec) => sec.visible)
+          .map((sec) => {
+            const Icon = sec.icon;
+            const isActive = activeSection === sec.id;
+            return (
+              <button
+                key={sec.id}
+                onClick={() => setActiveSection(sec.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                  isActive
+                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{sec.label}</span>
+              </button>
+            );
+          })}
       </div>
 
       {/* 1. Paradigm & Red/Green Flags Section */}
