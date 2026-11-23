@@ -19,11 +19,11 @@ export interface UseVoiceModalCoordinatorReturn {
   textInput: string;
   setTextInput: (text: string) => void;
   isSettingsOpen: boolean;
-  setIsSettingsOpen: (open: boolean) => void;
+  setIsSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isCribSheetOpen: boolean;
-  setIsCribSheetOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  setIsCribSheetOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isWhiteboardOpen: boolean;
-  setIsWhiteboardOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  setIsWhiteboardOpen: (open: boolean) => void;
   isMuted: boolean;
   handleToggleMute: () => void;
   isBatchMode: boolean;
