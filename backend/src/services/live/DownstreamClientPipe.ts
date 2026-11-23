@@ -36,7 +36,7 @@ export class DownstreamClientPipe {
     if (session.isTerminated) return;
     session.lastActivityAt = Date.now();
     const buffer = toRawBuffer(data);
-    let payloadBuffer = buffer;
+    let payloadBuffer: Buffer | null = buffer;
     let parsed: any = null;
     let isBargeIn = false;
 
