@@ -20,8 +20,10 @@
   - Local builds are intercepted and blocked by the system guardrail at `/usr/local/bin/docker`.
 - **CANONICAL CI/CD WORKFLOW:**
   - All container images are built in cloud runners by GitHub Actions (`.github/workflows/deploy.yml`).
-  - Local verification: ONLY run fast typechecks or linters (`npx tsc --noEmit`).
-  - Deployment: Commit and push changes to GitHub (`git push origin <branch>`). GitHub Actions builds, tests, pushes to GHCR, and performs zero-downtime deployment on the VPS via `docker compose pull && docker compose up -d`.
+  - NO LOCAL COMPILATION OR TYPECHECKS: Never run `tsc`, `npx tsc`, `npm run build`, or `cargo` locally. All heavy toolchains are blocked by `/usr/local/sbin/blocked-tool`.
+  - NO FULL-DISK SCANS: Never run `find /`, `grep -r /`, or scan `/var/lib/docker/overlay2`. File searches are strictly constrained to the project folder (`find src/ ...`, `git ls-files`).
+  - Remote verification: Commit and push to a feature branch (`git push -u origin feat/...`) and run `remote-verify`.
+  - Deployment: Fast-forward merge to `main` and push (`git push origin main`). GitHub Actions builds, tests, pushes to GHCR, and performs zero-downtime deployment on the VPS via `docker compose pull && docker compose up -d`.
 
 ---
 
@@ -182,9 +184,10 @@
 <!-- ================================================================= -->
 <!-- STRICT ARCHITECTURAL INVARIANT: ZERO-TRUST LOCAL EXECUTION        -->
 <!-- ================================================================= -->
-## ⚠️ STRICT ENVIRONMENT INVARIANT: NO LOCAL BUILDS OR TESTS (SOTA 2026)
-- **Local compilation, bundlers, and test suites are strictly prohibited and hardware-blocked on this node.**
-  - This node has strictly 1.8 GB RAM. Running `cargo build`, `npm run build`, `mvn`, `gradle`, `docker build`, or `pytest` causes OOM crashes and server freezes.
+## ⚠️ STRICT ENVIRONMENT INVARIANT: NO LOCAL BUILDS, TESTS OR FULL-DISK SCANS (SOTA 2026)
+- **Local compilation, bundlers, test suites, and full-disk scans are strictly prohibited on this node.**
+  - This node has strictly 1.8 GB RAM running 24 active Docker containers. Running `cargo build`, `npm run build`, `mvn`, `gradle`, `docker build`, `pytest`, `tsc`, or `npx tsc` causes immediate OOM crashes.
+  - Running recursive searches from root (`find /`, `grep -r /`, `du /`) reads millions of `overlay2` files, exhausts kernel VFS memory, and locks `[kswapd0]` into 100% CPU lockup. All searches must stay inside the local project folder.
   - All heavy toolchains are intercepted by `/usr/local/sbin/blocked-tool` (exit code 126).
 - **CANONICAL CI/CD WORKFLOW:**
   1. Make your code changes cleanly.
