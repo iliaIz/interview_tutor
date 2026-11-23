@@ -278,3 +278,18 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 
 
 
+
+---
+
+### 2.21 `DownstreamClientPipe & LiveClientGuardService: Audio Gating during isAiGenerating & Duplicate Commit Shield (Spec 35)`
+- **Location:** [`backend/src/services/live/DownstreamClientPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/DownstreamClientPipe.ts), [`backend/src/services/live/liveClientGuardService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveClientGuardService.ts)
+- **What Was Done:**
+  1. **Duplicate Commit Shield:** In `DownstreamClientPipe.ts`, if `session.isAiGenerating === true` when `audioStreamEnd` arrives, the duplicate frame is logged and dropped (`🛡️ [DUPLICATE_COMMIT_GUARD]`), preventing FSM state corruption and repeated watchdog re-arming.
+  2. **Generation Audio Gating:** In `liveClientGuardService.ts:shouldSuppressEchoChunk`, incoming audio chunks arriving while `session.isAiGenerating === true` without explicit `isBargeIn` are suppressed even in `auto` mode. This prevents trailing breath and ambient noise from causing Google Cloud VAD to abort model generation.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Streaming ambient mic audio during model thinking caused Google Gemini Live to cancel response synthesis via `START_OF_ACTIVITY_INTERRUPTS`.
+  - *Empirical Finding:* Confirmed by Docker telemetry: candidate speech followed by trailing audio resulted in 0 response turns until 22s watchdog timeout.
+- **Rationale & "Why":** Strict channel separation during generation ensures Gemini Live has undisturbed latency to synthesize speech. Explicit tactile or acoustic barge-in continues to bypass suppression as intended.
+- **Invariants:**
+  - `session.isAiGenerating === true` gates non-barge-in audio chunks from reaching upstream.
+  - Cognitive bounding: `DownstreamClientPipe.ts` <= 350 lines; `liveClientGuardService.ts` <= 200 lines.

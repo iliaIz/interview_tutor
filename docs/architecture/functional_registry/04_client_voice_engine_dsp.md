@@ -297,3 +297,21 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 
 
 
+
+---
+
+### 2.19 `Spec 35: LiveVoiceStateMachine COMMITTING Decoupling & Silent Reconnect Recovery`
+- **Location:** [`frontend/src/audio/LiveVoiceStateMachine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceStateMachine.ts), [`frontend/src/audio/NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts), [`frontend/src/audio/liveMicChunkDispatcher.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveMicChunkDispatcher.ts)
+- **What Was Done:**
+  1. **COMMITTING Public State Decoupling:** Replaced legacy mapping `COMMITTING -> LISTENING` with `COMMITTING -> CONNECTING`. This prevents `liveMicChunkDispatcher` from treating the waiting/thinking phase as candidate speech, eliminating continuous PCM streaming and duplicate turn commits.
+  2. **Mic Dispatch Silence & Chunk Freeze:** Dispatched audio frames and trailing silence counters are frozen when `state !== 'LISTENING'`.
+  3. **Silent Hot Reconnect Recovery:** When `setupComplete` arrives with `reconnected: true` or `silent: true`, `NativeLiveVoiceEngine` immediately resets `isTurn0Lockdown = false` and calls `unlockCandidateTurn()`, eliminating dead-air lockups on hot reconnect.
+  4. **Idempotent Commit Guard:** `commitSpokenTurn()` requires `isCandidateTurnActive() === true`, preventing re-entrant commit loops.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Streaming mic chunks during `COMMITTING` caused Google Cloud VAD to interpret audio as user activity, triggering `START_OF_ACTIVITY_INTERRUPTS` and aborting generation.
+  - *Empirical Observation:* Confirmed in Docker logs: candidate commits triggered repeated `Illegal state transition attempted: AI_THINKING -> COMMITTING`, causing 22s timeouts.
+- **Rationale & "Why":**
+  - Following `gemini_live_reference`, `COMMITTING` is a waiting state (`isThinking: true`). Upstream Gemini Live requires clean separation between candidate audio input and model output synthesis.
+- **Failure Modes & Invariants:**
+  - Prevents Google Gemini Live interrupt-cancel loop.
+  - Prevents Turn 0 lockdown freeze on reconnected sessions.
