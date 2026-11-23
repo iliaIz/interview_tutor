@@ -32,7 +32,7 @@ export class LiveVoiceSession {
   private readonly _id: string;
   private readonly _fsm: SessionFsm;
   private readonly _watchdogs: WatchdogManager;
-  private readonly _upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void };
+  private readonly _upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; close?: (code?: number, reason?: string) => void };
   private readonly _session: ProxySession;
   private readonly _clientSocket: WebSocket;
   private isTerminated: boolean = false;
@@ -43,7 +43,7 @@ export class LiveVoiceSession {
     watchdogs: WatchdogManager,
     session: ProxySession,
     clientSocket: WebSocket,
-    upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void }
+    upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; close?: (code?: number, reason?: string) => void }
   ) {
     this._id = id;
     this._fsm = fsm;
@@ -232,6 +232,9 @@ export class LiveVoiceSession {
       this._session.currentAiTurnText = '';
     }
     this._session.frameQueue = [];
+    try {
+      this._upstreamRouter.close?.(code || 1000, reason ? reason.toString() : 'Normal Closure');
+    } catch {}
     try {
       if (this._session.geminiSocket && (this._session.geminiSocket.readyState === WebSocket.OPEN || this._session.geminiSocket.readyState === WebSocket.CONNECTING)) {
         this._session.geminiSocket.close(1000, 'Normal Closure');

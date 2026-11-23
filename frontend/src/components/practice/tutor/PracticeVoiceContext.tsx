@@ -152,7 +152,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         userGender: interviewConfig.userGender || 'female',
         turnMode,
         liveModel: interviewConfig.liveModel,
-        vadPauseMs: interviewConfig.vadPauseMs ?? 1800,
+        vadPauseMs: interviewConfig.vadPauseMs ?? 800,
         tutorPersona: seniorReviewPayload ? 'senior_socratic' : tutorPersona,
         strategy: 'socratic_tutoring',
         seniorReview: seniorReviewPayload,

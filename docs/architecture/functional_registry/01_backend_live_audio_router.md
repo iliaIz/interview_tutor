@@ -293,3 +293,21 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
 - **Invariants:**
   - `session.isAiGenerating === true` gates non-barge-in audio chunks from reaching upstream.
   - Cognitive bounding: `DownstreamClientPipe.ts` <= 350 lines; `liveClientGuardService.ts` <= 200 lines.
+
+---
+
+### 2.22 `UpstreamGeminiPipe & LiveToolEngine: Practice Pair Resilience, Zombie Reconnect Elimination & SILENT Tool Scheduling (Spec 36)`
+- **Location:** [`backend/src/services/live/UpstreamGeminiPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/UpstreamGeminiPipe.ts), [`backend/src/services/live/LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts), [`backend/src/services/live/LiveToolEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveToolEngine.ts), [`backend/src/services/live/liveWorkspaceHandlers.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWorkspaceHandlers.ts), [`backend/src/services/live/liveWsTurnCommitHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsTurnCommitHandler.ts)
+- **What Was Done:**
+  1. **Zombie Reconnect Suppression:** In `UpstreamGeminiPipe.ts`, if `this.isClosed || code === 1000 || code === 1001`, reconnect scheduling is strictly suppressed. In `liveStreamErrorDetector.ts`, codes 1000/1001 are classified as non-retryable. `LiveVoiceSession.terminate()` calls `router.close() -> pipe.close()`, permanently stopping timers and closing the socket.
+  2. **Whiteboard SILENT Scheduling:** In `LiveToolEngine.ts` and `liveWorkspaceHandlers.ts`, `update_whiteboard` scheduling mode changed from `WHEN_IDLE` to `SILENT`, eliminating uncoordinated secondary speech turns and conversational chatter after canvas mutations.
+  3. **Turn 0 Manifest Deduplication:** In `LiveGreetingReplay.ts`, removed redundant raw file tree concatenation in Turn 0 `clientContent.turns`, preserving token budget in the sliding window.
+  4. **Adaptive Watchdog Calibration:** In `liveWsTurnCommitHandler.ts`, extended Phase 2 timeout to 25.0s (Phase 1 nudge to 8.0s) for `practice_pair` / tutor sessions to prevent premature dead-air turn resets while vocoder infers over large multi-turn KV-caches.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Returning `WHEN_IDLE` for UI mutations caused Gemini Live to plan a verbal turn after whiteboard updates, racing with candidate speech and causing TTFA to degrade to 10–17s.
+  - *Empirical Finding:* Docker logs confirmed that `update_whiteboard` was immediately followed by a 10.8s TTFA delay, and closing the drawer spawned 3 consecutive 120-second zombie sessions in LiteLLM.
+- **Rationale & "Why":** Strict adherence to Google Live Late-2026 protocol specifications (`gemini_live_reference`).
+- **Invariants:**
+  - Client closures with code 1000/1001 must never trigger upstream reconnect.
+  - Whiteboard mutations must execute with `scheduling: "SILENT"`.
+  - Cognitive bounding: `LiveVoiceSession.ts` <= 300 lines; `UpstreamGeminiPipe.ts` <= 350 lines; `LiveToolEngine.ts` <= 350 lines.

@@ -155,12 +155,6 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       } else {
         greetingText = `Привет! Я готов к разбору задачи «${effectiveTitle}». Поприветствуй меня в 1 коротком предложении и предложи обсудить граничные случаи или план решения. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
       }
-
-      if (session.workspaceManifest?.projectTree && session.workspaceManifest.projectTree.length > 0) {
-        const treeStr = session.workspaceManifest.projectTree.map((p: string) => `• ${p}`).join('\n');
-        const activePath = session.workspaceManifest.activeFile?.path || 'Solution.java';
-        greetingText += `\n[ФАЙЛЫ ВОРКСПЕЙСА ДЛЯ ЧТЕНИЯ ЧЕРЕЗ read_file]:\n${treeStr}\nАктивный файл: ${activePath}`;
-      }
     } else {
       greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
     }

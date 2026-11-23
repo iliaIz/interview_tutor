@@ -280,6 +280,9 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   return {
     connectGemini: (isInternalReconnect = false) => {
       pipe.connect(isInternalReconnect);
+    },
+    close: (code?: number, reason?: string) => {
+      pipe.close(code, reason);
     }
   };
 }

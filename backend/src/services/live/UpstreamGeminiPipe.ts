@@ -136,7 +136,7 @@ export class UpstreamGeminiPipe {
   }
 
   private handleSocketClose(source: string, code?: number, reason?: Buffer): void {
-    if (this.isClosed) return;
+    if (this.isClosed || code === 1000 || code === 1001) return;
 
     const reasonStr = reason ? reason.toString() : '';
     const isNonRetryable = isNonRetryableUpstreamError(reasonStr, code);

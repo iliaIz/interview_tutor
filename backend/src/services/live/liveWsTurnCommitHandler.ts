@@ -69,6 +69,8 @@ export function handleTurnCommit(
 
 export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket): void {
   const isThinkingModel = Boolean(session.liveModel && session.liveModel.includes('thinking'));
+  const isToolHeavyTutorSession = session.tutorMode === 'practice_pair' || session.sessionType === 'tutor';
+  const isExtendedThinking = isThinkingModel || isToolHeavyTutorSession;
 
   if (session.fsm) {
     session.fsm.transition('COMMITTING');
@@ -76,20 +78,20 @@ export function armTurnWatchdogs(session: ProxySession, clientSocket: WebSocket)
   }
 
   if (session.watchdogs) {
-    session.watchdogs.arm(isThinkingModel, session.deadAirTimeoutMs);
+    session.watchdogs.arm(isExtendedThinking, session.deadAirTimeoutMs);
     return;
   }
 
   if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
-  const nudgeDelay = isThinkingModel ? 8000 : 5000;
+  const nudgeDelay = isExtendedThinking ? 8000 : 5000;
   session.nudgeWatchdog = setTimeout(() => {
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs: nudgeDelay }));
     }
   }, nudgeDelay);
 
-  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (22.0s for standard, 25.0s for thinking)
-  const defaultTimeout = isThinkingModel ? 25000 : 22000;
+  // Bounded Generation Watchdog: SOTA 2026 Dead-Air Prevention (22.0s for standard, 25.0s for thinking/tool-heavy)
+  const defaultTimeout = isExtendedThinking ? 25000 : 22000;
   const deadAirTimeoutMs = session.deadAirTimeoutMs ?? defaultTimeout;
   if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
   session.deadAirWatchdog = setTimeout(() => {

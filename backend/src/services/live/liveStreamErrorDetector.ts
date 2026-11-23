@@ -6,7 +6,7 @@
  */
 
 export function isNonRetryableUpstreamError(text?: string, code?: number): boolean {
-  if (code === 1008 || code === 4001 || code === 4003 || code === 4403) return true;
+  if (code === 1000 || code === 1001 || code === 1008 || code === 4001 || code === 4003 || code === 4403) return true;
   if (!text) return false;
   const lower = text.toLowerCase();
   return (

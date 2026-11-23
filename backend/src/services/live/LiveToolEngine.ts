@@ -81,7 +81,7 @@ const TOOL_DEFINITIONS: LiveToolDefinition[] = [
   {
     name: 'update_whiteboard',
     handler: handleUpdateWhiteboard,
-    scheduling: 'WHEN_IDLE',
+    scheduling: 'SILENT',
     dedupWindowMs: 3000,
     dedupResponseResult: {
       status: 'SUCCESS',

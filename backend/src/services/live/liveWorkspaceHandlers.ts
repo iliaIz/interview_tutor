@@ -41,7 +41,7 @@ export function handleUpdateWhiteboard(
         updatedAt: Date.now()
       }
     },
-    scheduling: 'WHEN_IDLE'
+    scheduling: 'SILENT'
   };
 }
 
