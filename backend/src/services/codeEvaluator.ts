@@ -183,8 +183,7 @@ ${sandboxProofXml}
 ${codeXml}
 </evaluation_request>`;
 
-  const llmEngine = LlmExecutionEngine.getInstance();
-  const evalData = await llmEngine.executeJson<any>({
+  const evalData = await LlmExecutionEngine.executeJson<any>({
     presetKey: 'codeAudit',
     systemPrompt: systemInstruction,
     userPrompt,
