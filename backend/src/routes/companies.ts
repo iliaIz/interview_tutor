@@ -18,14 +18,15 @@ router.get('/', (_req: Request, res: Response) => {
 
 // GET /api/companies/:id/readiness - Retrieve candidate readiness index for company
 router.get('/:id/readiness', (req: Request, res: Response) => {
-  const profile = CompanyReadinessRepository.getProfileById(req.params.id);
+  const companyId = String(req.params.id);
+  const profile = CompanyReadinessRepository.getProfileById(companyId);
   if (!profile) {
-    return res.status(404).json({ error: `Company profile '${req.params.id}' not found` });
+    return res.status(404).json({ error: `Company profile '${companyId}' not found` });
   }
 
   const userId = (req.query.user_id as string) || 'default_user';
   try {
-    const readiness = CompanyReadinessRepository.calculateReadiness(req.params.id, userId);
+    const readiness = CompanyReadinessRepository.calculateReadiness(companyId, userId);
     res.json(readiness);
   } catch (err: any) {
     console.error('[CompaniesRoute] Failed to compute readiness:', err);
@@ -35,9 +36,10 @@ router.get('/:id/readiness', (req: Request, res: Response) => {
 
 // GET /api/companies/:id/questions - Retrieve curated questions for company
 router.get('/:id/questions', (req: Request, res: Response) => {
+  const companyId = String(req.params.id);
   const userId = (req.query.user_id as string) || 'default_user';
   try {
-    const questions = CompanyReadinessRepository.getCuratedQuestions(req.params.id, userId);
+    const questions = CompanyReadinessRepository.getCuratedQuestions(companyId, userId);
     res.json(questions);
   } catch (err: any) {
     console.error('[CompaniesRoute] Failed to load company questions:', err);
@@ -47,7 +49,8 @@ router.get('/:id/questions', (req: Request, res: Response) => {
 
 // POST /api/companies/:id/questions/:questionId/mastery - Toggle mastery for question
 router.post('/:id/questions/:questionId/mastery', (req: Request, res: Response) => {
-  const { id: companyId, questionId } = req.params;
+  const companyId = String(req.params.id);
+  const questionId = String(req.params.questionId);
   const userId = (req.body.user_id as string) || 'default_user';
   const isMastered = req.body.isMastered !== undefined ? Boolean(req.body.isMastered) : true;
   const score = Number(req.body.score) || 100;
@@ -63,9 +66,10 @@ router.post('/:id/questions/:questionId/mastery', (req: Request, res: Response) 
 
 // GET /api/companies/:id - Retrieve specific company profile
 router.get('/:id', (req: Request, res: Response) => {
-  const profile = CompanyReadinessRepository.getProfileById(req.params.id);
+  const companyId = String(req.params.id);
+  const profile = CompanyReadinessRepository.getProfileById(companyId);
   if (!profile) {
-    return res.status(404).json({ error: `Company profile '${req.params.id}' not found` });
+    return res.status(404).json({ error: `Company profile '${companyId}' not found` });
   }
   res.json(profile);
 });
