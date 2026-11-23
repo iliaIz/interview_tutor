@@ -39,7 +39,7 @@ export interface CheatSheetBookmark {
   codeSnippet?: string;
   fixedCode?: string;
   categoryBadge?: string;
-  createdAt?: string;
+  createdAt: string;
 }
 
 export interface QuestionEvaluationSummary {
@@ -230,7 +230,7 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
           codeSnippet: b.codeSnippet,
           fixedCode: b.fixedCode,
           categoryBadge: b.categoryBadge,
-          createdAt: b.createdAt || new Date().toISOString()
+          createdAt: new Date().toISOString()
         },
         ...state.cheatSheetBookmarks
       ]
