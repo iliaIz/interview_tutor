@@ -124,8 +124,14 @@ export class CandidateMemoryAggregate {
     return this.deficitRepo.resetGapForPractice(gapId, userId);
   }
 
-  public async findRelevantCandidateGaps(userId: string = 'default_user', currentTopic: string = '', limit = 3): Promise<CandidateGap[]> {
-    return this.deficitRepo.findRelevantCandidateGaps(userId, currentTopic, limit);
+  public async findRelevantCandidateGaps(
+    questionText: string,
+    topic: string,
+    questionId?: string,
+    threshold = 0.70,
+    userId = 'default_user'
+  ): Promise<CandidateGap[]> {
+    return this.deficitRepo.findRelevantCandidateGaps(questionText, topic, questionId, threshold, userId);
   }
 
   public getUserProfile(userId: string = 'default_user'): UserProfileData {

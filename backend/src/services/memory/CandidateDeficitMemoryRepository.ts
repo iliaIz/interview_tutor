@@ -9,7 +9,10 @@ import crypto from 'crypto';
 import { db } from '../db';
 import {
   embedText,
-  float32ArrayToBuffer
+  float32ArrayToBuffer,
+  bufferToFloat32Array,
+  cosineSimilarity,
+  getOrCacheQuestionEmbedding
 } from './VectorEmbeddingRepository';
 
 export interface CandidateGap {
@@ -152,20 +155,52 @@ export class CandidateDeficitMemoryRepository {
     return res.changes > 0;
   }
 
-  public async findRelevantCandidateGaps(userId: string = 'default_user', currentTopic: string = '', limit = 3): Promise<CandidateGap[]> {
+  public async findRelevantCandidateGaps(
+    questionText: string,
+    topic: string,
+    questionId?: string,
+    threshold = 0.70,
+    userId = 'default_user'
+  ): Promise<CandidateGap[]> {
     try {
-      const rows = db.prepare(`SELECT * FROM candidate_error_vectors WHERE user_id = ? AND status IN ('ACTIVE_DEFICIT', 'VERIFYING') ORDER BY deficit_weight DESC LIMIT ?`).all(userId, limit) as any[];
-      return rows.map(r => ({
-        id: r.id,
-        questionId: r.question_id,
-        topic: r.topic,
-        subtopic: r.subtopic,
-        errorConcept: r.error_concept,
-        deficitWeight: r.deficit_weight,
-        status: r.status,
-        soloStreak: r.solo_streak
-      }));
-    } catch (_) {
+      const questionVec = questionId
+        ? await getOrCacheQuestionEmbedding(questionId, questionText, topic)
+        : await embedText(`${topic}: ${questionText}`);
+
+      const rows = db.prepare(`
+        SELECT id, question_id, topic, subtopic, error_concept, embedding, deficit_weight, status, solo_streak
+        FROM candidate_error_vectors
+        WHERE user_id = ? AND status IN ('ACTIVE_DEFICIT', 'VERIFYING')
+        ORDER BY updated_at DESC
+        LIMIT 100
+      `).all(userId) as any[];
+
+      if (!rows || rows.length === 0) return [];
+
+      const matches: CandidateGap[] = [];
+      for (const row of rows) {
+        if (!row.embedding) continue;
+        const gapVec = bufferToFloat32Array(row.embedding);
+        const sim = cosineSimilarity(questionVec, gapVec);
+        if (sim >= threshold) {
+          matches.push({
+            id: row.id,
+            questionId: row.question_id,
+            topic: row.topic,
+            subtopic: row.subtopic,
+            errorConcept: row.error_concept,
+            deficitWeight: row.deficit_weight,
+            status: row.status,
+            soloStreak: row.solo_streak,
+            similarity: sim
+          });
+        }
+      }
+
+      matches.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
+      return matches.slice(0, 2);
+    } catch (err) {
+      console.error('Error finding relevant candidate gaps:', err);
       return [];
     }
   }

@@ -45,11 +45,13 @@ export {
 const aggregate = CandidateMemoryAggregate.getInstance();
 
 export async function findRelevantCandidateGaps(
-  userId: string = 'default_user',
-  currentTopic: string = '',
-  limit: number = 3
+  questionText: string,
+  topic: string,
+  questionId?: string,
+  threshold = 0.70,
+  userId = 'default_user'
 ): Promise<CandidateGap[]> {
-  return aggregate.findRelevantCandidateGaps(userId, currentTopic, limit);
+  return aggregate.findRelevantCandidateGaps(questionText, topic, questionId, threshold, userId);
 }
 
 export async function applyKnowledgeDecay(params: KnowledgeDecayEventParams) {
