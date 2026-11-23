@@ -133,6 +133,20 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - All files strictly <= 350 lines (Rule 8 compliant).
   - Pure diff generation and AST rule evaluations are headless and testable in 0ms without mounting React DOM.
 
+---
+
+### 2.10 `Wave 6: Guided Roadmap Progression Engine, System Design Gateway & Catalog Studio (Spec 31)`
+- **Location:** [`backend/src/services/RoadmapProgressionEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/RoadmapProgressionEngine.ts), [`backend/src/routes/roadmaps.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/roadmaps.ts), [`backend/src/services/SystemDesignCatalog.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/SystemDesignCatalog.ts), [`backend/src/services/SystemDesignProbeGateway.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/SystemDesignProbeGateway.ts), [`backend/src/routes/systemDesign.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/systemDesign.ts), [`frontend/src/components/system_design/SystemDesignCatalog.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/system_design/SystemDesignCatalog.tsx)
+- **What Was Done:**
+  1. **Roadmap Progression Engine:** Extracted `RoadmapProgressionEngine.ts` (292 lines) encapsulating reactive step progress, monotonic advancement invariant, cognitive interleaving recommender, and 4-pillar Senior Readiness Radar calculations. Reduced `backend/src/routes/roadmaps.ts` from 339 to 111 lines.
+  2. **System Design Catalog & Gateway Decoupling:** Extracted `SystemDesignCatalog.ts` (162 lines) for SQLite manifest DAO queries and `SystemDesignProbeGateway.ts` (110 lines) encapsulating LiteLLM proxy connections, Docker host fallback heuristics, and probe prompt directives. Reduced `backend/src/routes/systemDesign.ts` from 333 to 109 lines.
+  3. **System Design Catalog Studio Slicing:** Extracted `scenarioLevel.ts` (49 lines), `useScenarioCatalogFilters.ts` (183 lines), `SystemDesignCatalogHeader.tsx` (178 lines), `SystemDesignScenarioCard.tsx` (84 lines), and `SystemDesignScenarioDetail.tsx` (151 lines). Reduced monolithic `SystemDesignCatalog.tsx` from 707 lines down to 230 lines.
+- **Invariants:**
+  - Rule 1 Gateway isolation: AI probe connections route strictly through LiteLLM proxy with fallback handling in the dedicated gateway adapter.
+  - All files strictly <= 350 lines (Rule 8 compliant).
+  - Monotonic current_step progression invariant enforced.
+
+
 
 
 

@@ -252,6 +252,18 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Zero parallel reimplementation: audio streaming is governed solely by `LiveVoiceEngine`.
   - All files strictly <= 350 lines (Rule 8 compliant).
 
+---
+
+### 2.16 `Wave 6: Voice Modal Lifecycle & Stage Coordinator Decoupling (Spec 31)`
+- **Location:** [`frontend/src/components/voice/useVoiceModalCoordinator.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/useVoiceModalCoordinator.ts), [`frontend/src/components/VoiceModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceModal.tsx)
+- **What Was Done:**
+  1. **Headless Coordinator Extraction:** Extracted `useVoiceModalCoordinator.ts` (344 lines) isolating the 4-stage lifecycle FSM (`lobby` -> `active` -> `verdict` -> `grand_finale`), question batch navigation, checkpointing, auto-start guards, and workspace custom DOM event listener.
+  2. **Lean Presentation Shell:** Reduced `VoiceModal.tsx` from 398 lines (high-churn file on the verge of Rule 8 ceiling) to 185 lines of declarative presentation.
+- **Invariants:**
+  - Rule 8 compliant: `VoiceModal.tsx` <= 200 lines, `useVoiceModalCoordinator.ts` <= 350 lines.
+  - Zero behavioral drift: Dual-Sided Handshake and Auto-VAD protocols fully preserved.
+
+
 
 
 
