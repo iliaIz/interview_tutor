@@ -1,30 +1,27 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { SystemDesignEvaluation } from '../../types/nextgen';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ArchitectureGraphPayload } from '../../types/systemDesignCanvas';
 import { CapacityMathCoach } from './CapacityMathCoach';
-import { SystemDesignCompassSheet } from './compass/SystemDesignCompassSheet';
 import { SystemDesignVoiceHUD } from './defense/SystemDesignVoiceHUD';
-import { HiringCommitteeVerdictModal } from './defense/HiringCommitteeVerdictModal';
-import { VoiceModal } from '../VoiceModal';
 import { SystemDesignTopBar } from './arena/SystemDesignTopBar';
 import { SystemDesignSpecTab } from './arena/SystemDesignSpecTab';
 import { SystemDesignArchitectureTab } from './arena/SystemDesignArchitectureTab';
-import { SystemDesignStaffChatTab, TutorMode } from './arena/SystemDesignStaffChatTab';
-import { SystemDesignEvaluationModal } from './arena/SystemDesignEvaluationModal';
+import { SystemDesignStaffChatTab } from './arena/SystemDesignStaffChatTab';
+import { SystemDesignModalCoordinator } from './arena/SystemDesignModalCoordinator';
 import { useSystemDesignVoiceDefense } from './arena/useSystemDesignVoiceDefense';
 import { useSystemDesignDraft } from './arena/useSystemDesignDraft';
-import { buildSystemDesignVoicePrompt } from './arena/systemDesignVoicePrompt';
+import { useSystemDesignStaffChat } from './hooks/useSystemDesignStaffChat';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { normalizeSystemDesignContext } from '@interview-prep/shared';
 
 const INITIAL_MERMAID = 'graph TD\n  Client[🌐 Client] --> LB[⚖️ LB] --> Gateway[🚪 Gateway] --> ServiceA[⚙️ Core Service] --> DB[(🗄️ Primary DB)]';
 
 export const SystemDesignArena: React.FC = () => {
-  const { 
-    activeSystemDesignScenario, 
-    closeSystemDesignScenario, 
+  const {
+    activeSystemDesignScenario,
+    closeSystemDesignScenario,
     showToast,
     academyBreadcrumbContext,
     returnToAcademyStep,
@@ -47,29 +44,11 @@ export const SystemDesignArena: React.FC = () => {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
-  
+
   const [mermaidCode, setMermaidCode] = useState<string>(
     activeSystemDesignScenario?.initialMermaid || INITIAL_MERMAID
   );
-  
   const [candidateNotes, setCandidateNotes] = useState<string>('');
-
-  const defaultMode = useMemo<TutorMode>(() => {
-    const lvl = activeSystemDesignScenario?.target_level;
-    if (lvl === 'L3_JUNIOR') return 'eli5';
-    if (lvl === 'L4_MIDDLE') return 'socratic';
-    return 'deep_dive';
-  }, [activeSystemDesignScenario?.target_level]);
-
-  const [tutorMode, setTutorMode] = useState<TutorMode>(defaultMode);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
-    {
-      role: 'assistant',
-      content: `Здравствуйте! Я Staff-интервьюер по System Design. Расскажите, как вы планируете построить архитектуру для «${activeSystemDesignScenario?.title || 'этого сервиса'}»? С каких ключевых компонентов вы начнете?`
-    }
-  ]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Evaluation & Draft State
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -89,6 +68,10 @@ export const SystemDesignArena: React.FC = () => {
       if (sub.evaluation) setEvaluationResult(sub.evaluation);
     }
   });
+
+  const currentTopology = architectureMode === 'canvas'
+    ? (canvasPayload?.architectureMermaid || mermaidCode)
+    : mermaidCode;
 
   // Voice Defense Hook
   const {
@@ -121,24 +104,28 @@ export const SystemDesignArena: React.FC = () => {
     showToast
   });
 
-  // Gemini Live Voice Tutor State
-  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
-  const [voiceTutorSessionId, setVoiceTutorSessionId] = useState<string | null>(null);
-
-  const handleStartVoiceTutor = () => {
-    if (!activeSystemDesignScenario) return;
-    if (isVoiceConnected) disconnectVoiceSession();
-    setVoiceTutorSessionId(`voice_sd_tutor_${activeSystemDesignScenario.id}_${Date.now()}`);
-    setIsVoiceTutorOpen(true);
-  };
-
-  const currentTopology = architectureMode === 'canvas'
-    ? (canvasPayload?.architectureMermaid || mermaidCode)
-    : mermaidCode;
-
-  const systemDesignVoicePrompt = useMemo(() => {
-    return buildSystemDesignVoicePrompt(activeSystemDesignScenario, currentTopology, candidateNotes);
-  }, [activeSystemDesignScenario, currentTopology, candidateNotes]);
+  // Staff AI Chat & Gemini Live Voice Tutor Hook
+  const {
+    tutorMode,
+    setTutorMode,
+    chatMessages,
+    inputMessage,
+    setInputMessage,
+    isSendingMessage,
+    handleSendMessage,
+    isVoiceTutorOpen,
+    setIsVoiceTutorOpen,
+    voiceTutorSessionId,
+    handleStartVoiceTutor,
+    systemDesignVoicePrompt
+  } = useSystemDesignStaffChat({
+    scenario: activeSystemDesignScenario,
+    currentTopology,
+    candidateNotes,
+    isVoiceConnected,
+    disconnectVoiceSession,
+    showToast
+  });
 
   useBodyScrollLock(Boolean(evaluationResult));
 
@@ -169,43 +156,6 @@ export const SystemDesignArena: React.FC = () => {
   }, []);
 
   if (!activeSystemDesignScenario) return null;
-
-  const handleSendMessage = async (textOverride?: string) => {
-    const userMsg = (textOverride || inputMessage).trim();
-    if (!userMsg || isSendingMessage) return;
-    if (!textOverride) setInputMessage('');
-    
-    const updatedChat = [...chatMessages, { role: 'user' as const, content: userMsg }];
-    setChatMessages(updatedChat);
-    setIsSendingMessage(true);
-
-    try {
-      const res = await fetch('/api/system-design/probe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          scenarioId: activeSystemDesignScenario.id,
-          userMessage: userMsg,
-          mode: tutorMode,
-          conversationHistory: updatedChat.slice(-6),
-          currentTopology,
-          candidateNotes
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-      } else {
-        showToast({ type: 'error', title: 'Ошибка AI', message: 'Не удалось получить ответ от Staff AI' });
-      }
-    } catch {
-      showToast({ type: 'error', title: 'Сетевая ошибка', message: 'Ошибка связи с сервером' });
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
 
   const handleEvaluate = async () => {
     if (!activeSystemDesignScenario || isEvaluating) return;
@@ -338,54 +288,36 @@ export const SystemDesignArena: React.FC = () => {
         )}
       </div>
 
-      {evaluationResult && (
-        <SystemDesignEvaluationModal
-          evaluationResult={evaluationResult}
-          onClose={() => setEvaluationResult(null)}
-        />
-      )}
-
-      {hiringCommitteePacket && (
-        <HiringCommitteeVerdictModal
-          packet={hiringCommitteePacket}
-          scenarioTitle={activeSystemDesignScenario.title}
-          observations={observations}
-          onClose={() => setHiringCommitteePacket(null)}
-          onRetry={() => {
-            setHiringCommitteePacket(null);
-            setChaosAlert(null);
-            setObservations([]);
-            void handleStartVoiceDefense();
-          }}
-        />
-      )}
-
-      <SystemDesignCompassSheet
-        isOpen={isCompassOpen}
-        onClose={() => setIsCompassOpen(false)}
+      <SystemDesignModalCoordinator
+        evaluationResult={evaluationResult}
+        onCloseEvaluation={() => setEvaluationResult(null)}
+        hiringCommitteePacket={hiringCommitteePacket}
+        scenarioTitle={activeSystemDesignScenario.title}
+        observations={observations}
+        onCloseVerdict={() => setHiringCommitteePacket(null)}
+        onRetryDefense={() => {
+          setHiringCommitteePacket(null);
+          setChaosAlert(null);
+          setObservations([]);
+          void handleStartVoiceDefense();
+        }}
+        isCompassOpen={isCompassOpen}
+        onCloseCompass={() => setIsCompassOpen(false)}
         onAskTutorAboutRule={(ruleTitle, ruleSummary) => {
           setIsCompassOpen(false);
           setActiveTab('staff_ai');
           setInputMessage(`Объясните подробнее золотое правило «${ruleTitle}» в контексте нашей системы «${activeSystemDesignScenario.title}»:\n${ruleSummary}`);
         }}
+        isVoiceTutorOpen={isVoiceTutorOpen}
+        voiceTutorSessionId={voiceTutorSessionId}
+        onCloseVoiceTutor={() => {
+          setIsVoiceTutorOpen(false);
+        }}
+        problemStatement={activeSystemDesignScenario.problem_statement}
+        referenceAnswer={activeSystemDesignScenario.contextMarkdown}
+        tutorMode={tutorMode}
+        systemDesignVoicePrompt={systemDesignVoicePrompt}
       />
-
-      {isVoiceTutorOpen && voiceTutorSessionId && activeSystemDesignScenario && (
-        <VoiceModal
-          key={voiceTutorSessionId}
-          isOpen={isVoiceTutorOpen}
-          onClose={() => {
-            setIsVoiceTutorOpen(false);
-            setVoiceTutorSessionId(null);
-          }}
-          topic={`System Design: ${activeSystemDesignScenario.title}`}
-          currentQuestionText={activeSystemDesignScenario.problem_statement || activeSystemDesignScenario.title}
-          referenceAnswer={activeSystemDesignScenario.contextMarkdown}
-          initialSessionType="tutor"
-          initialTutorMode={tutorMode}
-          customPromptOverride={systemDesignVoicePrompt}
-        />
-      )}
     </div>
   );
 };

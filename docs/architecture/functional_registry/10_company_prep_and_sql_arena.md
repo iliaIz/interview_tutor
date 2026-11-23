@@ -117,4 +117,26 @@ This subsystem introduces company-targeted technical assessment pipelines (start
   5. **Take-Home Forensics Decomposition (Issue #59):** Refactored `CompanyTakeHomeLab.tsx` to read PR forensics from `profile.takeHomePrCases`, deleted ~160 lines of hardcoded arrays, reducing file length to 197 lines (strictly $\le 200$ lines).
 - **Invariants Upheld:** Zero-trust local execution (all 5 issues verified via cloud `remote-verify` in GitHub Actions), Cognitive Bounding (all files $\le 350$ lines, TakeHomeLab $\le 200$ lines), Zero Phantom Fallbacks, UI Deletion Test Exception adhered to.
 
+---
+
+### 2.11. Wave 7 Architectural Deepening: SQL Arena Headless Engine & Modular Workbench
+- **Files Touched:**
+  - `frontend/src/components/sql/hooks/useSqlArena.ts`
+  - `frontend/src/components/sql/components/SqlChallengeDetailCard.tsx`
+  - `frontend/src/components/sql/components/SqlWorkbenchPanel.tsx`
+  - `frontend/src/components/sql/SqlArena.tsx`
+- **1. What Was Done:**
+  - Extracted `useSqlArena` (184 lines) headless hook managing PGlite execution lifecycle, catalog loading, tab auto-routing heuristic (`diff`/`result`), Copilot store synchronization, and global keyboard shortcuts.
+  - Extracted `SqlChallengeDetailCard` (40 lines) rendering category, difficulty grade, challenge title, interview trap description, and instructions markdown.
+  - Extracted `SqlWorkbenchPanel` (78 lines) owning CodeMirror editor buffer, execution toolbar, reset, and AI-Copilot launch action.
+  - Collapsed `SqlArena.tsx` from 379 lines down to 192 lines.
+- **2. Hypotheses & Intermediate Conclusions:**
+  - Mixing PGlite WASM query execution, CodeMirror configuration, results tab rendering, and Copilot store synchronization inside `SqlArena.tsx` created monolithic component bloat. Extracting `useSqlArena` isolates all state and asynchronous execution logic behind a clean headless interface.
+- **3. Rationale & "Why":** Strict adherence to Rule 8 file hygiene ($\le 350$ lines for new files, $\le 400$ lines for modified files) and headless domain decoupling.
+- **4. Failure Modes & Invariants:**
+  - Query execution with matched diff automatically routes to `result` with success confetti.
+  - Query execution with unmatched diff automatically routes to `diff` view.
+  - Omnipresent Copilot store context is synchronized on challenge/sql change and cleanly pruned on arena unmount.
+
+
 

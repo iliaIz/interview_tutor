@@ -5,7 +5,7 @@ import { DialogueTurn } from '../../../audio/useLiveVoiceSession';
 
 export type TutorRole = 'bug_hunt' | 'free_chat';
 
-interface BugHuntVoiceMentorProps {
+export interface BugHuntVoiceMentorController {
   tutorRole: TutorRole;
   onSelectTutorRole: (role: TutorRole) => void;
   isMuted: boolean;
@@ -23,23 +23,44 @@ interface BugHuntVoiceMentorProps {
   startBugVoiceSession: () => void;
 }
 
-export const BugHuntVoiceMentor: React.FC<BugHuntVoiceMentorProps> = ({
-  tutorRole,
-  onSelectTutorRole,
-  isMuted,
-  toggleMute,
-  isConnected,
-  isAiSpeaking,
-  isRecording,
-  isPauseHolding,
-  isUserSpeaking,
-  dialogueTurns,
-  inputText,
-  setInputText,
-  handleSendBugText,
-  toggleMic,
-  startBugVoiceSession
-}) => {
+export interface BugHuntVoiceMentorProps {
+  controller?: BugHuntVoiceMentorController;
+  tutorRole?: TutorRole;
+  onSelectTutorRole?: (role: TutorRole) => void;
+  isMuted?: boolean;
+  toggleMute?: () => void;
+  isConnected?: boolean;
+  isAiSpeaking?: boolean;
+  isRecording?: boolean;
+  isPauseHolding?: boolean;
+  isUserSpeaking?: boolean;
+  dialogueTurns?: DialogueTurn[];
+  inputText?: string;
+  setInputText?: (text: string) => void;
+  handleSendBugText?: (textToSend?: string) => void;
+  toggleMic?: () => void;
+  startBugVoiceSession?: () => void;
+}
+
+export const BugHuntVoiceMentor: React.FC<BugHuntVoiceMentorProps> = (props) => {
+  const c = props.controller || (props as Required<BugHuntVoiceMentorProps>);
+  const {
+    tutorRole,
+    onSelectTutorRole,
+    isMuted,
+    toggleMute,
+    isConnected,
+    isAiSpeaking,
+    isRecording,
+    isPauseHolding,
+    isUserSpeaking,
+    dialogueTurns,
+    inputText,
+    setInputText,
+    handleSendBugText,
+    toggleMic,
+    startBugVoiceSession
+  } = c;
   const textInputRef = useRef<HTMLInputElement | null>(null);
 
   return (

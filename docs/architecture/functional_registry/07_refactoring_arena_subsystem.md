@@ -94,3 +94,37 @@ The Refactoring Arena & Voice Code Review subsystem delivers canonical technical
 - **Machine Coding LLD:** 51 challenges across BigTech, FinTech, and Concurrency tracks.
 - **JSON Manifest SSOT:** `json/refactoring_challenges.json` verified with complete multi-file workspaces and Bar-Raiser questions.
 - **Automated Verification:** `scripts/verify_refactoring_suite.py` passes 100% green.
+
+---
+
+## 4. Wave 7 Architectural Deepening: Bug Hunt Session, Triage Compass & Multi-Arena Decoupling
+- **Files Touched:**
+  - `frontend/src/components/incidents/bughunt/useBugHuntSession.ts`
+  - `frontend/src/components/incidents/bughunt/useBugHuntVoiceBridge.ts`
+  - `frontend/src/components/incidents/bughunt/BugHuntLoaderCard.tsx`
+  - `frontend/src/components/incidents/bughunt/BugHuntVoiceMentor.tsx`
+  - `frontend/src/components/incidents/BugHuntArena.tsx`
+  - `frontend/src/components/triage/compass/triageRules.ts`
+  - `frontend/src/components/triage/compass/TriageRuleDetail.tsx`
+  - `frontend/src/components/triage/compass/TriageCompassSheet.tsx`
+  - `frontend/src/components/triage/hooks/useIncidentInvestigation.ts`
+  - `frontend/src/components/triage/IncidentTriageStudio.tsx`
+  - `frontend/src/components/system_design/hooks/useSystemDesignStaffChat.ts`
+  - `frontend/src/components/system_design/arena/SystemDesignModalCoordinator.tsx`
+  - `frontend/src/components/system_design/canvas/initialCanvasGraph.ts`
+  - `frontend/src/components/system_design/canvas/useArchitectureCanvasState.ts`
+  - `frontend/src/components/system_design/canvas/ArchitectureCanvas.tsx`
+  - `frontend/src/components/system_design/SystemDesignArena.tsx`
+- **1. What Was Done:**
+  - **Bug Hunt Arena (Issue 01):** Extracted `useBugHuntSession` (206 lines) and `useBugHuntVoiceBridge` (156 lines). Replaced 15 drilled props in `BugHuntVoiceMentor` with a unified `BugHuntVoiceMentorController`. Extracted `BugHuntLoaderCard` (52 lines) for multi-interval trivia/elapsed time loops. Collapsed `BugHuntArena.tsx` from 399 lines (1 line shy of hard failure) down to 155 lines.
+  - **Triage Forensic Knowledge (Issue 02):** Extracted static SRE compass rules (147 lines) into `triageRules.ts` for zero-JSX verification. Extracted `TriageRuleDetail.tsx` (99 lines) and `useIncidentInvestigation.ts` (314 lines) managing active tabs, stopwatch, and RCA autosave. Collapsed `TriageCompassSheet.tsx` from 396 to 148 lines, and `IncidentTriageStudio.tsx` from 360 to 156 lines.
+  - **System Design Arena & Canvas (Issue 03):** Extracted `useSystemDesignStaffChat` (124 lines), `SystemDesignModalCoordinator` (88 lines), `initialCanvasGraph.ts` (103 lines), and `useArchitectureCanvasState` (252 lines). Collapsed `ArchitectureCanvas.tsx` from 391 to 136 lines, and `SystemDesignArena.tsx` from 391 to 323 lines.
+- **2. Hypotheses & Intermediate Conclusions:**
+  - `BugHuntArena.tsx` was at 399 lines, dangerously near the 400-line limit. Decomposing business logic into pure headless hooks ensures UI presentation remains independent from session persistence and voice state machines.
+  - In `ArchitectureCanvas.tsx`, embedding drag-and-drop screen-to-flow coordinate conversion and discrete-event simulation telemetry created excessive cognitive churn. Moving this into `useArchitectureCanvasState` decoupled ReactFlow rendering from simulation math.
+- **3. Rationale & "Why":** Strict adherence to Rule 8 file limits ($\le 350$ lines for new files, $\le 400$ lines for modified files) and SRP boundaries.
+- **4. Failure Modes & Invariants:**
+  - Bug Hunt session state transitions and academy breadcrumb syncing are preserved monotonically.
+  - Incident investigation autosave maintains exact contract with local storage and backend endpoints.
+  - ReactFlow canvas node/edge mutations cleanly feed discrete event simulation worker without dropping telemetry frames.
+
