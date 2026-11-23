@@ -1,10 +1,16 @@
+/**
+ * codeEvaluator.ts
+ * Practice Code Evaluation Judge (SOTA Late 2026).
+ * Conducts Gate 4 Senior AI audit via LlmExecutionEngine.
+ * Enforces Invariant 1 (LiteLLM Proxy Centralization) and Invariant 5 (Zero-Phantom Full-Jitter Retry).
+ * Cognitive Bounding Limit: <= 350 lines (Rule 8 compliant).
+ */
+
 import { preProcessWorkspaceFiles } from './astAnalyzer';
 import { CodingChallenge } from './challengeSeedData';
 import { recordNewErrorGap } from './vectorMemoryService';
-import { envConfig } from '../config/env';
-import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
-import { fetchWithFullJitterRetry } from '../utils/httpRetry';
+import { LlmExecutionEngine } from './LlmExecutionEngine';
 import { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, normalizeConcurrencyFindings } from './codeEvaluatorSchema';
 import { EvaluationRequest, TestCaseResult, EvaluationResult } from './codeEvaluatorTypes';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
@@ -12,8 +18,6 @@ import { ANTI_SYCOPHANCY_DIRECTIVES, EPISTEMIC_BENEVOLENCE_AXIOM } from '../prom
 import { LANGUAGE_LOCK_INVARIANT } from '../prompts/core/languageDirectives';
 
 export { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, EvaluationRequest, TestCaseResult, EvaluationResult };
-
-
 
 export function buildCodeEvaluatorSystemInstruction(dpContext?: any): string {
   const patternDirective = dpContext ? `
@@ -36,33 +40,18 @@ ${ANTI_SYCOPHANCY_DIRECTIVES}
 ${EPISTEMIC_BENEVOLENCE_AXIOM}
 
 АКСИОМА ЭПИСТЕМИЧЕСКОЙ ЗАБОТЫ И ПРАВИЛА РЕВЬЮ:
-1. НИКАКОЙ ЛЕСТИ И «СЭНДВИЧ-ФИДБЕКА»: категорически запрещено начинать ревью с шаблонных комплиментов («Код написан аккуратно и чисто», «Хорошая структура», «Отличная попытка»).
+1. НИКАКОЙ ЛЕСТИ И «СЭНДВИЧ-ФИДБЕКА»: категорически запрещено начинать ревью с шаблонных комплиментов.
 2. ИНВАРИАНТ summaryReview (Verdict-First): первое предложение summaryReview ОБЯЗАНО сразу фиксировать инженерный статус надежности кода и перечень критических угроз.
-   - Пример при наличии дефектов: «Код не готов к продакшену из-за 2 критических дефектов многопоточности (RACE_CONDITION, CARRIER_THREAD_PINNING), ведущих к деградации пула потоков и потере данных под нагрузкой.»
-   - Пример для эталонного кода без дефектов: «Код готов к продакшену: инварианты потокобезопасности, транзакционности и управления ресурсами соблюдены.»
-3. ИНВАРИАНТ findings (Zero-Fluff): включай ТОЛЬКО реальные, верифицируемые дефекты (нарушения JMM/Concurrency, утечки ресурсов, проблемы транзакционности и проксирования Spring/Hibernate, неоптимальная алгоритмическая сложность, уязвимости безопасности). Запрещено добавлять в findings похвалу или субъективные вкусовые придирки к форматированию.
-4. СТРОГИЙ ГРОССБУХ ОЦЕНКИ (Zero-Phantom-Deductions): итоговый балл/статус прохождения должен однозначно и строго вытекать из тяжести (severity) зафиксированных в findings дефектов.
+3. ИНВАРИАНТ findings (Zero-Fluff): включай ТОЛЬКО реальные, верифицируемые дефекты (нарушения JMM/Concurrency, утечки ресурсов, проблемы транзакционности, уязвимости).
+4. СТРОГИЙ ГРОССБУХ ОЦЕНКИ (Zero-Phantom-Deductions): итоговый балл должен строго вытекать из тяжести зафиксированных дефектов.
 
 ПРАВИЛА ОЦЕНКИ И ЯЗЫКОВОЙ ИНВАРИАНТ:
-1. ЯЗЫК РЕЦЕНЗИИ — СТРОГО РУССКИЙ (100% RUSSIAN REVIEW):
-   - Все текстовые описания ("summaryReview", "findings[].description", "findings[].remediation", замечания по архитектуре и современным идиомам) пиши ИСКЛЮЧИТЕЛЬНО НА РУССКОМ ЯЗЫКЕ.
-   - Имена классов, методов, аннотаций и библиотек (например: ConcurrentHashMap, updateAndGet, @Transactional, ReentrantLock) сохраняй в оригинальном виде (Code-Switching).
-2. Виртуальное исполнение и тесты: Уважай реальные результаты песочницы JVM.
-   - АНТИ-ПОДДАКИВАНИЕ (FACTUAL ANCHOR): При наличии ошибок компиляции или упавших тестов correctnessScore не может превышать 60, а overallScore — 68.
-3. Многопоточность и Java Memory Model (JMM):
-   - Проверяй неатомарные составные операции над общим стейтом (напр. count++, check-then-act без атомиков/блокировок).
-   - Проверяй видимость памяти JMM (отсутствие volatile, барьеров памяти).
-   - КРИТИЧЕСКИЙ АНАЛИЗ PROJECT LOOM: Проверяй Carrier Thread Pinning при блокирующих операциях (I/O, Thread.sleep) внутри synchronized-блоков. Рекомендуй ReentrantLock.
-   - КОНТРАКТ ДЛЯ "findings": Массив findings должен содержать ТОЛЬКО реальные дефекты и риски многопоточности. Если код полностью потокобезопасен, массив findings ОБЯЗАН быть пустым []. Не помещай комплименты и похвалу в findings.
-   - Каждый элемент findings обязан быть объектом: "category" (один из RACE_CONDITION, NON_ATOMIC_COMPOUND, JMM_VISIBILITY, CARRIER_THREAD_PINNING, DEADLOCK_RISK), "location", "description", "remediation".
-4. Архитектура, SOLID и чистота кода:
-   - Проверяй Single Responsibility, Open-Closed (особенно для расширений Фазы 2) и Interface Segregation.
-   - Для рефакторинга: сохранение обратной совместимости публичных API и изоляцию швов (protected-методы).
-5. Идиомы Java 21:
-   - Проверяй использование Records, Pattern Matching, Sealed Interfaces, Sequenced Collections вместо устаревшего Java 8 boilerplate.
-6. Веса и итоговый балл:
-   - Вычисли под-баллы (0-100) для correctness, concurrency, architecture, idioms.
-   - overallScore = (0.35 * correctness) + (0.25 * concurrency) + (0.25 * architecture) + (0.15 * idioms).
+1. ЯЗЫК РЕЦЕНЗИИ — СТРОГО РУССКИЙ (100% RUSSIAN REVIEW). Имена классов/методов/аннотаций сохраняй в оригинале.
+2. Виртуальное исполнение и тесты: уважай реальные результаты песочницы JVM. При упавших тестах correctnessScore <= 60, overallScore <= 68.
+3. Многопоточность и JMM: проверяй неатомарные операции, видимость, Carrier Thread Pinning в Project Loom (synchronized над I/O).
+4. Архитектура и SOLID: проверяй SRP, OCP, ISP.
+5. Идиомы Java 21: Records, Pattern Matching, Sealed Interfaces, Sequenced Collections.
+6. Веса: overallScore = (0.35 * correctness) + (0.25 * concurrency) + (0.25 * architecture) + (0.15 * idioms).
 ${patternDirective}
 
 OUTPUT FORMAT:
@@ -80,12 +69,7 @@ Generate ONLY valid JSON adhering strictly to this JSON format:
     "hasJmmVisibilityIssues": false,
     "hasCarrierThreadPinning": false,
     "findings": [
-      {
-        "category": "NON_ATOMIC_COMPOUND",
-        "location": "ParkingLotManagerService.occupySlot()",
-        "description": "Инкремент счетчика на неатомарном поле приводит к потере обновлений при параллельном доступе",
-        "remediation": "Замените поле на AtomicInteger или защитите критическую секцию через ReentrantLock"
-      }
+      { "category": "NON_ATOMIC_COMPOUND", "location": "Service.method()", "description": "описание", "remediation": "исправление" }
     ]
   },
   "architecturalCompliance": {
@@ -94,23 +78,16 @@ Generate ONLY valid JSON adhering strictly to this JSON format:
     "modernJava21IdiomAdoption": []
   },
   "scoreBreakdown": {
-    "correctnessScore": 95,
-    "concurrencyScore": 90,
-    "architectureScore": 85,
-    "modernIdiomsScore": 90,
-    "overallScore": 90,
-    "summaryReview": "Код готов к продакшену: инварианты потокобезопасности, транзакционности и управления ресурсами соблюдены."
+    "correctnessScore": 95, "concurrencyScore": 90, "architectureScore": 85, "modernIdiomsScore": 90, "overallScore": 90,
+    "summaryReview": "Код готов к продакшену: инварианты соблюдены."
   }
 }`;
 }
 
 export async function evaluateChallengeSubmission(req: EvaluationRequest): Promise<EvaluationResult> {
   const { challenge, files, activePhase, sandboxResult, abortSignal } = req;
-
-  // 1. Phase 1: Static AST Analysis and Fact Extraction
   const preProcess = preProcessWorkspaceFiles(files);
 
-  // If real JVM Sandbox execution failed compilation, return immediately with authoritative compiler diagnostics
   if (sandboxResult && !sandboxResult.isCompilable) {
     return {
       compilationStatus: {
@@ -153,7 +130,6 @@ export async function evaluateChallengeSubmission(req: EvaluationRequest): Promi
     };
   }
 
-  // Build candidate code blocks wrapped in untrusted sandbox container
   const escapeXmlAttr = (str: string) => str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&apos;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let codeXml = '<candidate_workspace>\n';
   for (const f of preProcess.sanitizedFiles) {
@@ -176,11 +152,9 @@ ${sandboxResult.securityViolations.map(v => `    <violation rule="${v.rule}" fil
   <test_runs>
 ${sandboxResult.testResults.map(t => `    <test name="${t.testName}" status="${t.status}" durationMs="${t.durationMs}" ${t.failureReason ? `failure="${t.failureReason}"` : ''} />`).join('\n')}
   </test_runs>
-</real_sandbox_execution_proof>
-NOTE FOR JUDGE: The candidate's tests have ALREADY been executed in the authoritative in-memory Java 21 Sandbox. Do NOT contradict or hallucinate different functional test results. Base your evaluation on this proof and assess Architecture, SOLID, Concurrency, and whether AST structural violations were resolved.` : '';
+</real_sandbox_execution_proof>` : '';
 
   const systemInstruction = buildCodeEvaluatorSystemInstruction((challenge as any).designPatternContext);
-
   const phaseInfo = challenge.phasedRequirements?.find(p => p.phase === activePhase);
   const phaseText = phaseInfo ? `Phase ${activePhase} Objective: ${phaseInfo.title}\n${phaseInfo.descriptionMarkdown}` : '';
 
@@ -209,61 +183,14 @@ ${sandboxProofXml}
 ${codeXml}
 </evaluation_request>`;
 
-  const chatUrl = envConfig.proxy.chatUrl;
-  const apiKey = envConfig.proxy.apiKey;
-  const model = envConfig.models.text || 'gemini-smart';
-
-  console.log(`🤖 Starting practice code evaluation via LiteLLM (${chatUrl}) [${model}] with Full-Jitter retry...`);
-
-  const response = await fetchWithFullJitterRetry(
-    chatUrl,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        temperature: REASONING_PRESETS.codeAudit.temperature,
-        max_tokens: REASONING_PRESETS.codeAudit.maxTokens,
-        response_format: { type: 'json_object' },
-        extra_body: buildReasoningExtraBody(REASONING_PRESETS.codeAudit),
-        messages: [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    },
-    2, // maxRetries = 2 (1 initial + 2 retries = 3 total attempts per invariant)
+  const llmEngine = LlmExecutionEngine.getInstance();
+  const evalData = await llmEngine.executeJson<any>({
+    presetKey: 'codeAudit',
+    systemPrompt: systemInstruction,
+    userPrompt,
     abortSignal,
-    40_000 // 40s per attempt timeout
-  );
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`LiteLLM Proxy evaluation failed [${response.status}]: ${errText}`);
-  }
-
-  const rawJson = await response.json();
-  const choice = rawJson.choices?.[0];
-  const contentStr = choice?.message?.content || choice?.message?.reasoning_content || choice?.text;
-  if (!contentStr) {
-    throw new Error('LiteLLM returned empty completion response');
-  }
-
-  const cleanContentStr = contentStr
-    .replace(/^\s*```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
-
-  let evalData: any;
-  try {
-    evalData = JSON.parse(cleanContentStr);
-  } catch (err: any) {
-    console.error('Failed to parse evaluation JSON from Gemini 3.7 Flash:', cleanContentStr);
-    throw new Error(`Invalid JSON evaluation response from AI Gateway: ${err.message}`);
-  }
+    timeoutMs: 40_000
+  });
 
   const realTestCases: TestCaseResult[] = sandboxResult && sandboxResult.testResults.length > 0
     ? sandboxResult.testResults.map(tr => ({
@@ -338,7 +265,6 @@ ${codeXml}
     astSignalsSummary: preProcess.allSignals.map(s => `[${s.category}] ${s.description}`)
   };
 
-  // Asynchronously record deficit into Vector Radar if score is low or serious issues found
   try {
     if (result.scoreBreakdown.overallScore < 75 || result.concurrencyAnalysis.hasCarrierThreadPinning || result.concurrencyAnalysis.hasRaceConditions) {
       const errorConcept = result.concurrencyAnalysis.hasCarrierThreadPinning
