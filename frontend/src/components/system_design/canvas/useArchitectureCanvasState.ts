@@ -51,7 +51,7 @@ export interface UseArchitectureCanvasStateReturn {
   handleEdgeClick: (_event: React.MouseEvent, edge: Edge) => void;
   onDrop: (event: React.DragEvent) => void;
   onDragOver: (event: React.DragEvent) => void;
-  reactFlowWrapper: React.RefObject<HTMLDivElement | null>;
+  reactFlowWrapper: React.RefObject<HTMLDivElement>;
   setReactFlowInstance: (instance: ReactFlowInstance | null) => void;
   telemetry: any;
   inputRps: number;
