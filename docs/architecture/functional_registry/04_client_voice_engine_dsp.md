@@ -263,6 +263,18 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Rule 8 compliant: `VoiceModal.tsx` <= 200 lines, `useVoiceModalCoordinator.ts` <= 350 lines.
   - Zero behavioral drift: Dual-Sided Handshake and Auto-VAD protocols fully preserved.
 
+---
+
+### 2.17 `Wave 8: Global Audio Control Pill & Voice Lobby Hero / Mode Switches Decoupling (Spec 33)`
+- **Location:** [`frontend/src/components/voice/audio_pill/useGlobalAudioPill.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/audio_pill/useGlobalAudioPill.ts), [`frontend/src/components/voice/audio_pill/GlobalAudioDrawerContent.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/audio_pill/GlobalAudioDrawerContent.tsx), [`frontend/src/components/voice/GlobalAudioControlPill.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/GlobalAudioControlPill.tsx), [`frontend/src/components/voice/lobby/VoiceLobbyHero.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/lobby/VoiceLobbyHero.tsx), [`frontend/src/components/voice/lobby/VoiceLobbyModeSwitches.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/lobby/VoiceLobbyModeSwitches.tsx), [`frontend/src/components/voice/VoiceLobbyView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceLobbyView.tsx)
+- **What Was Done:**
+  1. **Audio Pill Headless Hook & Drawer:** Extracted `useGlobalAudioPill.ts` (113 lines) managing voice preview greeting playback via HTML5 Audio, Escape / outside-click DOM listeners, and interview configuration bindings. Extracted `GlobalAudioDrawerContent.tsx` (266 lines) for turnMode, voice selector, and candidate grade controls. Reduced `GlobalAudioControlPill.tsx` from 378 to 91 lines.
+  2. **Voice Lobby Decomposition:** Extracted `VoiceLobbyHero.tsx` (80 lines) for hero avatar, grade badge, and turn mode pill. Extracted `VoiceLobbyModeSwitches.tsx` (163 lines) for language switcher, deep dive, live coaching, and 3-tier calibration. Reduced `VoiceLobbyView.tsx` from 354 to 155 lines.
+- **Invariants:**
+  - Audio preview playback uses non-blocking asynchronous fetch and safely handles audio element error states without leaking memory.
+  - All files strictly <= 350 lines (Rule 8 compliant).
+
+
 
 
 

@@ -146,6 +146,18 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - All files strictly <= 350 lines (Rule 8 compliant).
   - Monotonic current_step progression invariant enforced.
 
+---
+
+### 2.11 `Wave 8: Practice Catalog Search & Filter Engine Extraction (Spec 33)`
+- **Location:** [`frontend/src/components/practice/hooks/usePracticeCatalogFilter.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/hooks/usePracticeCatalogFilter.ts), [`frontend/src/components/practice/PracticeCatalog.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeCatalog.tsx)
+- **What Was Done:**
+  - Extracted `usePracticeCatalogFilter.ts` (178 lines) encapsulating multi-axis category, archetype, status, and text search filter memoization, grade accordion collapse state, and active challenge selection synchronization.
+  - Reduced `PracticeCatalog.tsx` from 364 to 268 lines.
+- **Invariants:**
+  - Filtering logic is purely functional, eliminating re-render thrashing and enabling zero-JSX unit testing.
+  - All files strictly <= 350 lines (Rule 8 compliant).
+
+
 
 
 

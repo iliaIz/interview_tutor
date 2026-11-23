@@ -138,5 +138,24 @@ This subsystem introduces company-targeted technical assessment pipelines (start
   - Query execution with unmatched diff automatically routes to `diff` view.
   - Omnipresent Copilot store context is synchronized on challenge/sql change and cleanly pruned on arena unmount.
 
+---
+
+### 2.12. Wave 8 Architectural Deepening: Company Prep Studio Session & Header Decoupling
+- **Files Touched:**
+  - `frontend/src/components/companies/hooks/useCompanyStudioSession.ts`
+  - `frontend/src/components/companies/components/CompanyPrepStudioHeader.tsx`
+  - `frontend/src/components/companies/CompanyPrepStudio.tsx`
+- **1. What Was Done:**
+  - Extracted `useCompanyStudioSession.ts` (171 lines) headless hook managing profile loading, CRI score calculation, localStorage completed stages persistence, polymorphic Copilot context synchronization, and arena navigation routing.
+  - Extracted `CompanyPrepStudioHeader.tsx` (120 lines) rendering the brand banner and sub-tab selection bar.
+  - Collapsed `CompanyPrepStudio.tsx` from 365 lines down to 165 lines.
+- **2. Hypotheses & Intermediate Conclusions:**
+  - As the top churn hotspot (7 commits across recent PRs), `CompanyPrepStudio.tsx` had accumulated heavy state management and side effects. Isolating session state and navigation into `useCompanyStudioSession` decoupled business logic from presentation.
+- **3. Rationale & "Why":** Strict adherence to Rule 8 file hygiene ($\le 350$ lines for new files, $\le 400$ lines for modified files) and headless domain decoupling.
+- **4. Failure Modes & Invariants:**
+  - CRI readiness index calculations remain monotonic and accurately reflect stage weights and mastery updates.
+  - Copilot state automatically clears on arena unmount to prevent stale context bleeding.
+
+
 
 
