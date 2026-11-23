@@ -195,10 +195,10 @@ export class LiveSessionAggregate {
       this._proxySession.heartbeatInterval = null;
     }
 
-    this._watchdogs.clearAll();
+    this._watchdogs.dispose();
 
     try {
-      this._fsm.transition('CLOSED');
+      this._fsm.transition('TERMINATED');
     } catch {}
 
     if (
