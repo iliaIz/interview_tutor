@@ -8,7 +8,8 @@
 import { buildSystemPrompt } from './livePromptBuilder';
 import { getLiveToolDeclarations } from './liveToolDeclarations';
 import { buildGeminiLiveSetupMessage } from './liveGeminiConfigBuilder';
-import { LiveSessionConfig, ProxySession } from './liveSessionTypes';
+import { ProxySession } from './liveSessionTypes';
+import { LiveSessionConfig } from './liveSessionConfigTypes';
 
 export interface SetupDirectives {
   systemPromptText: string;
