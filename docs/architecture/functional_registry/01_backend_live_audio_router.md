@@ -311,3 +311,21 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - Client closures with code 1000/1001 must never trigger upstream reconnect.
   - Whiteboard mutations must execute with `scheduling: "SILENT"`.
   - Cognitive bounding: `LiveVoiceSession.ts` <= 300 lines; `UpstreamGeminiPipe.ts` <= 350 lines; `LiveToolEngine.ts` <= 350 lines.
+
+---
+
+### 2.23 `LiveDeadAirGuard, ToolAudioMutex & SessionResumptionManager: Vocoder Clamping, Tool Audio Gating & Session Resumption (Spec 37)`
+- **Location:** [`backend/src/services/live/LiveDeadAirGuard.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveDeadAirGuard.ts), [`backend/src/services/live/ToolAudioMutex.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/ToolAudioMutex.ts), [`backend/src/services/live/SessionResumptionManager.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/SessionResumptionManager.ts), [`backend/src/services/live/liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`backend/src/services/live/DownstreamClientPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/DownstreamClientPipe.ts), [`backend/src/services/live/LiveToolEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveToolEngine.ts), [`backend/src/services/live/liveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts)
+- **What Was Done:**
+  1. **LiveDeadAirGuard Port & Integration:** Ported `LiveDeadAirGuard` from `gemini_live_reference/packages/bff-gateway/src/deadAirGuard.ts`. Inspects incoming PCM RMS on model turn parts. Suppresses trailing digital silence ($RMS \le 0.005$) $>1200$ms. Clamps vocoder stalls $\ge 2000$ms by synthesizing clean `{ serverContent: { turnComplete: true, deadAirClamped: true } }`, disarming turn watchdogs and smoothly transitioning FSM to `CANDIDATE_LISTENING`.
+  2. **ToolAudioMutex Port & Integration:** Ported `ToolAudioMutex` from `gemini_live_reference/packages/core/src/tools/ToolAudioMutex.ts`. Acquired on `toolCall`, released on `toolResponse`, cancelled on `toolCallCancellation`. In `DownstreamClientPipe.ts`, outgoing microphone chunks are gated while tools are executing (`shouldGateMicAudio() === true`), preventing Google error `1008 Policy Violation: Operation is not implemented` and turn queue corruption.
+  3. **SessionResumptionManager Port & Setup Injection:** Ported `SessionResumptionManager` from `gemini_live_reference/packages/core/src/context/SessionResumptionManager.ts`. In `liveAudioStreamRouter.ts`, intercepts incoming `sessionResumptionUpdate.newHandle` when `resumable === true`. In `liveGeminiConfigBuilder.ts`, injects `setup.sessionResumptionConfig = { handle }` when handle is present, preserving TPU KV-cache across socket drops.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* In 28.5-minute continuous sessions, Gemini's vocoder encountered trailing digital silence stalls and KV-cache prefill delays (TTFA 50.5s) because trailing silence held turns open and mic chunks leaked during tool execution.
+  - *Empirical Finding:* Triangulated in session `session_practice_1795466330568_5rlf6v`: 19 watchdog timeouts occurred because Google's vocoder emitted zero-energy frames without closing the turn, while mic chunks were sent during tools without a mutex.
+- **Rationale & "Why":** Strict 100% adherence to Google Gemini Live protocol SSOT in `gemini_live_reference` (Invariants 3, 9, 10).
+- **Invariants:**
+  - Trailing silence frames $\ge 2000$ms must be clamped to `turnComplete: true`.
+  - Mic frames must be gated during active tool execution.
+  - Cognitive bounding: `liveAudioStreamRouter.ts` <= 350 lines; `LiveDeadAirGuard.ts` <= 350 lines; `ToolAudioMutex.ts` <= 350 lines; `SessionResumptionManager.ts` <= 350 lines.
+

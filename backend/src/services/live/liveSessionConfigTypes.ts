@@ -66,6 +66,7 @@ export interface LiveSessionResolvedConfig extends LiveSessionPromptConfig {
   hrQuestion?: any;
   hrMode?: any;
   targetQuestionId?: string;
+  resumptionHandle?: string;
 }
 
 export type LiveSessionConfig = LiveSessionResolvedConfig;

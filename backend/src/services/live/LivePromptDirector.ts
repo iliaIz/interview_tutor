@@ -72,7 +72,8 @@ export class LivePromptDirector {
       normalizedTools: toolDeclarations,
       vadPauseMs: session.vadPauseMs,
       turnMode: config.turnMode,
-      temperature: config.temperature
+      temperature: config.temperature,
+      resumptionHandle: session.resumptionHandle || config.resumptionHandle
     });
 
     return {

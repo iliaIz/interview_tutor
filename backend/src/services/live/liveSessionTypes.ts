@@ -3,6 +3,9 @@ import { InterviewPersonaId, TargetGrade } from '../../prompts/personas';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm } from './sessionFsm';
+import type { LiveDeadAirGuard } from './LiveDeadAirGuard';
+import type { ToolAudioMutex } from './ToolAudioMutex';
+import type { SessionResumptionManager } from './SessionResumptionManager';
 
 export function toRawBuffer(data: RawData): Buffer {
   if (Buffer.isBuffer(data)) return data;
@@ -113,4 +116,8 @@ export interface ProxySession {
     learningObjective?: string;
     targetConcepts?: string[];
   };
+  deadAirGuard?: LiveDeadAirGuard;
+  toolAudioMutex?: ToolAudioMutex;
+  resumptionManager?: SessionResumptionManager;
+  resumptionHandle?: string;
 }

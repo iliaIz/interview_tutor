@@ -15,6 +15,7 @@ export interface BuildGeminiSetupOptions {
   vadPauseMs?: number;
   turnMode?: 'auto' | 'manual';
   temperature?: number;
+  resumptionHandle?: string;
 }
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
@@ -93,6 +94,12 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
       realtimeInputConfig
     }
   };
+
+  if (opts.resumptionHandle) {
+    setupMessage.setup.sessionResumptionConfig = {
+      handle: opts.resumptionHandle
+    };
+  }
 
   if (normalizedTools && normalizedTools.length > 0) {
     setupMessage.setup.tools = [

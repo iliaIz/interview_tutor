@@ -9,6 +9,9 @@ import { ProxySession } from './liveSessionTypes';
 import { LiveSessionResolvedConfig } from './liveSessionConfigTypes';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm } from './sessionFsm';
+import { LiveDeadAirGuard } from './LiveDeadAirGuard';
+import { ToolAudioMutex } from './ToolAudioMutex';
+import { SessionResumptionManager } from './SessionResumptionManager';
 
 export function createInitialProxySession(
   config: LiveSessionResolvedConfig,
@@ -71,6 +74,10 @@ export function createInitialProxySession(
     lastRttMs: null,
     sessionStartedAt: Date.now(),
     academyCourse: config.academyCourse,
-    academyStep: config.academyStep
+    academyStep: config.academyStep,
+    deadAirGuard: new LiveDeadAirGuard(),
+    toolAudioMutex: new ToolAudioMutex(),
+    resumptionManager: new SessionResumptionManager(config.resumptionHandle),
+    resumptionHandle: config.resumptionHandle
   };
 }

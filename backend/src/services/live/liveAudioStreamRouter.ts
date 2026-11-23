@@ -13,6 +13,7 @@ import { LiveToolEngine } from './LiveToolEngine';
 import { isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 import { UpstreamGeminiPipe } from './UpstreamGeminiPipe';
+import { LiveDeadAirGuard } from './LiveDeadAirGuard';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -160,6 +161,53 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
       }
 
+      // 1.5 Session Resumption Handle Tracking (SOTA Late 2026)
+      if (parsed.sessionResumptionUpdate) {
+        if (session.resumptionManager?.update(parsed.sessionResumptionUpdate)) {
+          session.resumptionHandle = session.resumptionManager.getLatestHandle() || undefined;
+          console.log(`🔑 [SESSION_RESUMPTION] Rotated active cryptographic handle (session: ${session.sessionId || 'anon'})`);
+        }
+      }
+
+      // 1.6 LiveDeadAirGuard Vocoder Stall & Digital Silence Clamping (SOTA Late 2026)
+      let isDeadAirSuppressed = false;
+      if (session.deadAirGuard && parsed.serverContent) {
+        const parts = parsed.serverContent.modelTurn?.parts;
+        let isSilence = true;
+        if (parts) {
+          for (const part of parts) {
+            if (part.inlineData?.data) {
+              const rms = LiveDeadAirGuard.calculateBase64PcmRms(part.inlineData.data);
+              if (rms > 0.005) {
+                isSilence = false;
+              }
+            }
+          }
+        }
+        const inspection = session.deadAirGuard.inspectAudioFrame(isSilence);
+        if (inspection.synthesizeTurnComplete) {
+          console.warn('🛑 [DEAD_AIR_GUARD] Clamped vocoder trailing silence (>=2000ms). Synthesizing turnComplete.');
+          if (session.watchdogs) session.watchdogs.disarmAll();
+          session.fsm?.transition('CANDIDATE_LISTENING');
+          session.isAiGenerating = false;
+          session.deadAirGuard.reset();
+          const clampedTurn = {
+            serverContent: {
+              turnComplete: true,
+              deadAirClamped: true
+            }
+          };
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(JSON.stringify(clampedTurn));
+          }
+          LiveTelemetryAccumulator.sealTurnComplete(session, clientSocket, liveModel);
+          return;
+        }
+        if (inspection.suppressFrame) {
+          isDeadAirSuppressed = true;
+        }
+      }
+
       // 2. Model Turn & Output Transcription
       if (parsed.serverContent?.modelTurn) {
         session.isAiGenerating = true;
@@ -231,6 +279,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       // 6. Turn Complete / Generation Complete (SOTA Equivalence)
       const isUpstreamTurnComplete = Boolean(parsed.serverContent?.turnComplete || parsed.serverContent?.generationComplete);
       if (isUpstreamTurnComplete) {
+        session.deadAirGuard?.reset();
         const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
         if (isInteractionIdle) {
           if (session.watchdogs) session.watchdogs.disarmAll();
@@ -270,7 +319,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         str = JSON.stringify(parsed);
       }
 
-      const shouldForwardToClient = (!isToolCallProcessed || Boolean(parsed?.serverContent)) && !session.isCannedErrorTurn;
+      const shouldForwardToClient = (!isToolCallProcessed || Boolean(parsed?.serverContent)) && !session.isCannedErrorTurn && !isDeadAirSuppressed;
       if (shouldForwardToClient && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(str);
       }

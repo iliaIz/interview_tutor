@@ -202,11 +202,16 @@ export class LiveToolEngine {
     }
     console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(functionCalls));
 
+    for (const call of functionCalls) {
+      session.toolAudioMutex?.acquire(call.id);
+    }
+
     if (session.toolCallSafetyTimeout) clearTimeout(session.toolCallSafetyTimeout);
     session.toolCallSafetyTimeout = setTimeout(() => {
       if (session.isToolCallPending) {
         console.warn('⚠️ Tool call safety timeout (10s) reached: releasing audio gate');
         session.isToolCallPending = false;
+        session.toolAudioMutex?.reset();
       }
     }, 10000);
 
@@ -323,10 +328,12 @@ export class LiveToolEngine {
       type: 'tool_execution_complete',
       tools: functionCalls.map((fc) => fc.name)
     });
+    session.toolAudioMutex?.reset();
   }
 
   public static handleCancellation(session: ProxySession, ids: string[]): void {
     console.log('🚫 [TOOL_CALL_CANCELLED] Upstream Gemini cancelled tool calls:', ids);
+    session.toolAudioMutex?.cancel(ids);
     session.isToolCallPending = false;
     if (session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);

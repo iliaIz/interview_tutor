@@ -65,6 +65,7 @@ export class DownstreamClientPipe {
       if (parsed.type === 'barge_in' || isBargeIn) {
         LiveClientGuardService.handleBargeIn(session, parsed.bargeInType || (parsed.type === 'barge_in' ? 'tactile' : 'acoustic'), parsed.epoch || Date.now());
         session.watchdogs?.disarmAll();
+        session.deadAirGuard?.reset();
         session.fsm?.transition('CANDIDATE_LISTENING');
         if (!parsed.realtimeInput && !parsed.realtime_input) {
           return;
@@ -164,6 +165,7 @@ export class DownstreamClientPipe {
     if (parsed.type === 'turn_reset') {
       session.isAiGenerating = false;
       session.watchdogs?.disarmAll();
+      session.deadAirGuard?.reset();
       session.fsm?.transition('CANDIDATE_LISTENING');
       session.aiPlayoutEstimatedEndEpoch = 0;
       session.currentTurnAudioBytes = 0;
@@ -268,6 +270,10 @@ export class DownstreamClientPipe {
     }
 
     if (parsed.realtime_input?.audio || parsed.realtimeInput?.audio || parsed.realtimeInput?.mediaChunks) {
+      if (session.toolAudioMutex?.shouldGateMicAudio()) {
+        return null;
+      }
+      session.deadAirGuard?.reset();
       session.audioChunksCount = (session.audioChunksCount || 0) + 1;
       if (session.audioChunksCount === 1) {
         session.fsm?.transition('CANDIDATE_SPEAKING');
@@ -291,6 +297,7 @@ export class DownstreamClientPipe {
         return Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType, data: audioData } } }));
       }
     } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
+      session.deadAirGuard?.reset();
       if (session.isAiGenerating) {
         console.warn(`🛡️ [DUPLICATE_COMMIT_GUARD] Suppressed duplicate audioStreamEnd while AI is already generating (sessionId: ${session.sessionId || 'anon'})`);
         return null;
