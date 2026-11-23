@@ -43,15 +43,15 @@ export interface CheatSheetBookmark {
 }
 
 export interface QuestionEvaluationSummary {
-  id?: string;
+  id: string;
   questionId: string;
-  topic?: string;
+  topic: string;
   mode: 'voice' | 'text';
   score: number;
   isPassed: boolean;
   positivePoints: string[];
   missingPoints: string[];
-  feedback?: string;
+  feedback: string;
   userAnswer?: string;
   transcript?: string;
   audioMetrics?: any;

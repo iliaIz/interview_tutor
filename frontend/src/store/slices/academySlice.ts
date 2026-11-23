@@ -5,7 +5,7 @@
  */
 
 import { StateCreator } from 'zustand';
-import { RoadmapStep } from '../../types/roadmap';
+import { RoadmapStep } from '../../types/nextgen';
 
 export interface AcademyBreadcrumbContext {
   courseId: string;
