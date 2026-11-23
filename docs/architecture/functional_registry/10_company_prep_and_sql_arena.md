@@ -59,6 +59,19 @@ This subsystem introduces company-targeted technical assessment pipelines (start
 - **Rationale & Why:** Hardcoded relative paths break across TS source vs. compiled dist. Multi-path fallback resolution combined with self-contained Docker images resolves the root cause.
 - **Failure Modes & Invariants:** Prevents `ENOENT` on missing files; prevents silent JSON catalog drift across environments; guarantees actionable UI recovery cards on fetch failures.
 
+### 2.6. Wave 4: Multimodal Theory Deck & Zero-Auto-Send Copilot Adapter (SPEC-29)
+- **Files:** `frontend/src/services/CompanyTrackContextAdapter.ts`, `frontend/src/components/companies/useCompanyTheoryDeck.ts`, `frontend/src/components/companies/CompanyQuestionItem.tsx`, `frontend/src/components/companies/CompanyTheoryHeader.tsx`, `frontend/src/components/companies/CompanyTheoryDeckTab.tsx`
+- **What Was Done:**
+  1. Extracted `CompanyTrackContextAdapter` normalizing company profiles and theory questions into canonical `TutorActiveContext` and typed `VoiceModal` props.
+  2. Eliminated eager chat dispatch (`store.sendMessage`) when opening Copilot drawer (`Zero-Auto-Send Invariant`). Drawer now opens with contextual chips (`💡 Объяснить физику концепции`, `🎯 Что спросит сеньор?`, `❌ Красные флаги`, `⚡ Сократический блиц`), leaving user in full control of prompt execution.
+  3. Added multimodal Live Gemini Voice sessions directly from each question card: `🎙️ Тьютор` (`initialSessionType="tutor"` for Socratic learning without evaluation pressure) and `🎙️ Скрининг` (`initialSessionType="interview"` for scored oral evaluation).
+  4. Decomposed `CompanyTheoryDeckTab.tsx` (339 lines -> 165 lines) into headless hook and focused presenter components, achieving 100% Rule 8 file hygiene compliance.
+- **Hypotheses & Conclusions:**
+  - *Hypothesis:* Eagerly sending synthetic chat messages on button click hijacked user intention and violated ADR 0003. Decoupling drawer opening from LLM execution restored candidate control.
+  - *Observation:* Users can now choose whether to learn via voice (Live Gemini), get examined (Screening), or ask specific questions in Copilot without unwanted text spam.
+- **Rationale & Why:** Adheres strictly to the Hub-and-Spoke Copilot architecture (ADR 0003) and Gemini Live multimodal state machine (ADR 0004).
+
+
 ### 2.6. Polymorphic `TutorActiveContext` & Omnipresent AI Copilot
 - **Files:** `shared/src/schemas/tutorContext.ts`, `shared/src/schemas/tutorNormalizer.ts`, `backend/src/prompts/tutor/polymorphicPromptBuilder.ts`, `backend/src/routes/practiceTutorStreaming.ts`, `frontend/src/store/tutorTransport.ts`, `frontend/src/store/usePracticeTutorStore.ts`, `frontend/src/components/practice/tutor/PracticeTutorDrawer.tsx`, `frontend/src/components/practice/tutor/TutorQuickActionChips.tsx`.
 - **What Was Done:**

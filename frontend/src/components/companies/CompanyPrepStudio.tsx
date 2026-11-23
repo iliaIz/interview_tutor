@@ -297,6 +297,7 @@ export const CompanyPrepStudio: React.FC = () => {
         <CompanyTheoryDeckTab
           companyId={profile.id}
           companyName={profile.name}
+          companyProfile={profile}
           onMasteryUpdated={fetchReadiness}
         />
       )}

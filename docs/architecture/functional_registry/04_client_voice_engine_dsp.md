@@ -224,6 +224,20 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - `VoiceTutorView` must delegate all state and hotkeys to `useVoiceTutorSession`.
   - All newly created files must strictly remain <= 350 lines.
 
+---
+
+### 2.14 `Wave 4: Quiz Session Engine, Topic Catalog Aggregate & Executive Report Presenter (Spec 29)`
+- **Location:** [`frontend/src/services/quiz/QuizSessionEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/quiz/QuizSessionEngine.ts), [`frontend/src/services/topics/TopicCatalogEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/topics/TopicCatalogEngine.ts), [`frontend/src/services/reports/ExecutiveReportPresenter.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/reports/ExecutiveReportPresenter.ts), [`frontend/src/components/ExamQuiz.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/ExamQuiz.tsx), [`frontend/src/components/TopicSelector.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/TopicSelector.tsx), [`frontend/src/components/InterviewReportModal.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/InterviewReportModal.tsx)
+- **What Was Done:**
+  1. **Topic Progression & FSRS Blitz Catalog:** Extracted `TopicCatalogEngine.ts` and `useTopicCatalog.ts`. Sliced `TopicSelector.tsx` from 793 to 138 lines into `TopicCatalogToolbar.tsx`, `TopicDomainAccordionList.tsx`, and `TopicCardGrid.tsx`.
+  2. **Dual-Mode Quiz Session Engine:** Extracted `QuizSessionEngine.ts` and `useQuizSession.ts`. Reconciled dual evaluation pipelines (text vs Gemini Live voice) and auto-healing, shrinking `ExamQuiz.tsx` from 773 to 121 lines into `QuizQuestionArena.tsx` and `QuizScorecardView.tsx`.
+  3. **Executive Report Presenter & Audio Coaching:** Extracted `ExecutiveReportPresenter.ts`, moving inlined JSX IIFEs (Deepgram Nova-3 filtering, JSON transcript parsing, acoustic speech profile mapping) into a pure view model transformer. Shrunk `InterviewReportModal.tsx` from 633 to 245 lines into `AcousticCoachingStudio.tsx` and `InterviewTranscriptViewer.tsx`.
+- **Invariants:**
+  - Zero modal-over-modal lock race (Rule 6 compliant).
+  - All files strictly <= 350 lines (Rule 8 compliant).
+  - Reconciled evaluation pipelines persist identical server progress across text and voice modalities.
+
+
 
 
 
