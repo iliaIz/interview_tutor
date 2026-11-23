@@ -51,6 +51,12 @@ import {
   createPracticeSlice
 } from './slices/practiceSlice';
 
+import {
+  CompanySlice,
+  CompanySubTab,
+  createCompanySlice
+} from './slices/companySlice';
+
 // Re-export all domain types and canonical selectors for existing consumers
 export type {
   StudioTab,
@@ -69,6 +75,8 @@ export type {
   CodeArtifactRevision,
   ActiveWhiteboardArtifact,
   PracticeSlice,
+  CompanySlice,
+  CompanySubTab,
   UiSlice,
   QuestionsSlice,
   AcademySlice,
@@ -77,7 +85,7 @@ export type {
 
 export { selectActiveWhiteboardArtifact, pruneCodeRevisionsWithNonEviction };
 
-export type AppState = UiSlice & QuestionsSlice & AcademySlice & WhiteboardSlice & PracticeSlice;
+export type AppState = UiSlice & QuestionsSlice & AcademySlice & WhiteboardSlice & PracticeSlice & CompanySlice;
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -86,7 +94,8 @@ export const useAppStore = create<AppState>()(
       ...createQuestionsSlice(...a),
       ...createAcademySlice(...a),
       ...createWhiteboardSlice(...a),
-      ...createPracticeSlice(...a)
+      ...createPracticeSlice(...a),
+      ...createCompanySlice(...a)
     }),
     {
       name: 'interview-prep-storage-v2',

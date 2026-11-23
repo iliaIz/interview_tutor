@@ -14,7 +14,8 @@ export type ReasoningPresetKey = keyof typeof REASONING_PRESETS;
 
 export interface LlmExecutionOptions {
   systemPrompt?: string;
-  userPrompt: string;
+  userPrompt?: string;
+  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   model?: string;
   presetKey?: ReasoningPresetKey;
   temperature?: number;
@@ -98,11 +99,17 @@ export class LlmExecutionEngine {
     const timeoutMs = options.timeoutMs ?? 60_000;
     const maxRetries = options.maxRetries ?? 2;
 
-    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
-    if (options.systemPrompt) {
-      messages.push({ role: 'system', content: options.systemPrompt });
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = options.messages
+      ? [...options.messages]
+      : [];
+    if (!options.messages) {
+      if (options.systemPrompt) {
+        messages.push({ role: 'system', content: options.systemPrompt });
+      }
+      if (options.userPrompt) {
+        messages.push({ role: 'user', content: options.userPrompt });
+      }
     }
-    messages.push({ role: 'user', content: options.userPrompt });
 
     const preset = options.presetKey ? REASONING_PRESETS[options.presetKey] : undefined;
     const reasoningExtra = preset ? buildReasoningExtraBody(preset) : {};

@@ -30,6 +30,7 @@ export interface CurrentTurnMetrics {
 export interface ProxySession {
   clientSocket: WebSocket;
   geminiSocket: WebSocket;
+  aggregate?: any;
   isSetupComplete: boolean;
   frameQueue: Buffer[];
   sessionId?: string;

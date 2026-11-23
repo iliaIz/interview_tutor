@@ -20,6 +20,7 @@ import { attachLiveClientFrameHandler } from './liveWsClientFrameHandler';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm, LiveSessionState } from './sessionFsm';
 import { createInitialProxySession } from './sessionStartupHelper';
+import { LiveSessionAggregate } from './LiveSessionAggregate';
 
 export interface SessionStartupOptions {
   clientSocket: WebSocket;
@@ -91,7 +92,9 @@ export class LiveVoiceSession {
 
     const fsm = new SessionFsm('INIT');
     const watchdogs = new WatchdogManager();
-    const session = createInitialProxySession(config, clientSocket, fsm, watchdogs);
+    const aggregate = new LiveSessionAggregate(config, clientSocket, fsm, watchdogs);
+    const session = aggregate.proxySession;
+    session.aggregate = aggregate;
 
     let instance: LiveVoiceSession;
     const terminate = (reason: string = 'Normal Closure', code: number = 1000, source: string = 'Session') => {

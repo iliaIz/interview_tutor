@@ -234,8 +234,11 @@ export class LiveToolEngine {
         continue;
       }
 
-      // 1. Central Invariant 2.1: Turn 0 Tool Lockdown
-      if (definition.isGatedOnTurn0 && !session.hasCandidateResponded) {
+      // 1. Central Invariant 2.1: Turn 0 Tool Lockdown (Enforced via LiveSessionAggregate)
+      const isBlockedByAggregate = session.aggregate?.canExecuteGradingTools
+        ? !session.aggregate.canExecuteGradingTools().allowed
+        : !session.hasCandidateResponded;
+      if (definition.isGatedOnTurn0 && isBlockedByAggregate) {
         console.warn(`🛡️ [First-Turn Guard] Blocked premature ${call.name} before candidate spoke.`);
         this.sendGeminiToolResponse(
           geminiSocket,

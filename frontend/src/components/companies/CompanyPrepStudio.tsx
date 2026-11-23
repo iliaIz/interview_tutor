@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CompanyProfile, CompanyPipelineStage, TargetArena } from '@interview-prep/shared';
 import { CompanyPipelineTab } from './CompanyPipelineTab';
@@ -11,60 +11,69 @@ import { SqlArena } from '../sql/SqlArena';
 import { CompanyTakeHomeLab } from './CompanyTakeHomeLab';
 import { VoiceModal } from '../VoiceModal';
 import { 
-  Building2, Sparkles, MapPin, ExternalLink, BookOpen, Code2,
-  Layers, FileText, Zap, Database, RotateCcw, AlertCircle, PackageCheck, Bot
+  BookOpen, Code2, Layers, FileText, Zap, Database, RotateCcw, AlertCircle, PackageCheck
 } from 'lucide-react';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { normalizeCompanyContext } from '@interview-prep/shared';
 import { launchArenaTask, resolveStageTarget, resolveRunbookTaskTarget } from '../../services/arenaNavigator';
 
 export const CompanyPrepStudio: React.FC = () => {
-  const { setStudioTab } = useAppStore();
-
-  const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string>('raiffeisen_dgtl');
-  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'theory' | 'challenges' | 'dossier' | 'runbook' | 'sql_arena' | 'take_home'>('pipeline');
-  const [completedStageIds, setCompletedStageIds] = useState<Set<string>>(new Set());
-  const [readinessData, setReadinessData] = useState<any>(null);
-  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
-  const [targetSqlChallengeId, setTargetSqlChallengeId] = useState<string | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    companyProfiles,
+    selectedCompanyProfileId,
+    activeCompanySubTab,
+    completedCompanyStageIds,
+    companyReadinessData,
+    targetSqlChallengeId,
+    isCompanyVoiceOpen,
+    isCompanyLoading,
+    companyLoadError,
+    setCompanyProfiles,
+    setSelectedCompanyProfileId,
+    setActiveCompanySubTab,
+    toggleCompanyStageComplete,
+    setCompletedCompanyStageIds,
+    setCompanyReadinessData,
+    setTargetSqlChallengeId,
+    setIsCompanyVoiceOpen,
+    setIsCompanyLoading,
+    setCompanyLoadError
+  } = useAppStore();
 
   // Load backend readiness index
   const fetchReadiness = useCallback(async () => {
     try {
-      const res = await fetch(`/api/companies/${selectedProfileId}/readiness`, { credentials: 'include' });
+      const res = await fetch(`/api/companies/${selectedCompanyProfileId}/readiness`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setReadinessData(data);
+        setCompanyReadinessData(data);
       }
     } catch {}
-  }, [selectedProfileId]);
+  }, [selectedCompanyProfileId, setCompanyReadinessData]);
 
   // Load profiles from backend
   const fetchProfiles = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
+    setIsCompanyLoading(true);
+    setCompanyLoadError(null);
     try {
       const res = await fetch('/api/companies', { credentials: 'include' });
       if (!res.ok) throw new Error(`Ошибка сервера (${res.status}): не удалось получить профили`);
       const data: CompanyProfile[] = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        setProfiles(data);
-        if (!data.some((p) => p.id === selectedProfileId)) {
-          setSelectedProfileId(data[0].id);
+        setCompanyProfiles(data);
+        if (!data.some((p) => p.id === selectedCompanyProfileId)) {
+          setSelectedCompanyProfileId(data[0].id);
         }
       } else {
         throw new Error('Список профилей компаний пуст');
       }
     } catch (err: any) {
       console.error('[CompanyPrepStudio] Failed to load profiles:', err);
-      setLoadError(err.message || 'Ошибка загрузки профиля компании');
+      setCompanyLoadError(err.message || 'Ошибка загрузки профиля компании');
     } finally {
-      setIsLoading(false);
+      setIsCompanyLoading(false);
     }
-  }, [selectedProfileId]);
+  }, [selectedCompanyProfileId, setCompanyProfiles, setSelectedCompanyProfileId, setIsCompanyLoading, setCompanyLoadError]);
 
   useEffect(() => {
     void fetchProfiles();
@@ -77,34 +86,33 @@ export const CompanyPrepStudio: React.FC = () => {
   // Load completed stages from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(`company_completed_stages_${selectedProfileId}`);
+      const saved = localStorage.getItem(`company_stages_${selectedCompanyProfileId}`);
       if (saved) {
-        setCompletedStageIds(new Set(JSON.parse(saved)));
+        setCompletedCompanyStageIds(JSON.parse(saved));
       }
     } catch {}
-  }, [selectedProfileId]);
+  }, [selectedCompanyProfileId, setCompletedCompanyStageIds]);
 
   const profile = useMemo(() => {
-    return profiles.find((p) => p.id === selectedProfileId) || profiles[0];
-  }, [profiles, selectedProfileId]);
+    return companyProfiles.find((p) => p.id === selectedCompanyProfileId) || companyProfiles[0];
+  }, [companyProfiles, selectedCompanyProfileId]);
 
   const setActiveContext = usePracticeTutorStore((s) => s.setActiveContext);
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
 
   // Sync active company context to polymorphic AI Copilot
   useEffect(() => {
-    if (profile && activeSubTab !== 'sql_arena') {
+    if (profile && activeCompanySubTab !== 'sql_arena') {
       setActiveContext(
         normalizeCompanyContext({
           profile,
           activeStage: profile.stages[0],
-          activeTaskTitle: `Целевая подготовка: ${profile.name} [${activeSubTab}]`
+          activeTaskTitle: `Целевая подготовка: ${profile.name} [${activeCompanySubTab}]`
         })
       );
     }
-  }, [profile, activeSubTab, setActiveContext]);
+  }, [profile, activeCompanySubTab, setActiveContext]);
 
-  // Clean up tutor context on unmount
   useEffect(() => {
     return () => {
       setActiveContext(null);
@@ -113,53 +121,37 @@ export const CompanyPrepStudio: React.FC = () => {
 
   // Compute Company Readiness Index (CRI)
   const readinessIndex = useMemo(() => {
-    if (readinessData?.overallPercentage !== undefined) {
-      return readinessData.overallPercentage;
+    if (companyReadinessData?.overallPercentage !== undefined) {
+      return companyReadinessData.overallPercentage;
     }
     if (!profile) return 0;
     let score = 0;
+    const completedSet = new Set(completedCompanyStageIds);
     for (const stage of profile.stages) {
-      if (completedStageIds.has(stage.id)) score += stage.weight * 100;
+      if (completedSet.has(stage.id)) score += stage.weight * 100;
     }
     return Math.min(100, Math.round(score));
-  }, [profile, completedStageIds, readinessData]);
+  }, [profile, completedCompanyStageIds, companyReadinessData]);
 
-  const toggleStageComplete = (stageId: string) => {
-    const updated = new Set(completedStageIds);
-    if (updated.has(stageId)) {
-      updated.delete(stageId);
-    } else {
-      updated.add(stageId);
-    }
-    setCompletedStageIds(updated);
-    try {
-      localStorage.setItem(
-        `company_completed_stages_${selectedProfileId}`,
-        JSON.stringify([...updated])
-      );
-    } catch {}
-  };
-
-  // Stage Action Launcher
   const handleLaunchStage = (stage: CompanyPipelineStage) => {
     const target = resolveStageTarget(stage);
     void launchArenaTask(target, {
-      setActiveSubTab,
+      setActiveSubTab: (tab: any) => setActiveCompanySubTab(tab),
       setTargetSqlChallengeId,
-      setIsVoiceOpen
+      setIsVoiceOpen: setIsCompanyVoiceOpen
     });
   };
 
   const handleNavigateToTask = (taskId: string, explicitArena?: TargetArena) => {
     const target = resolveRunbookTaskTarget(taskId, profile, explicitArena);
     void launchArenaTask(target, {
-      setActiveSubTab,
+      setActiveSubTab: (tab: any) => setActiveCompanySubTab(tab),
       setTargetSqlChallengeId,
-      setIsVoiceOpen
+      setIsVoiceOpen: setIsCompanyVoiceOpen
     });
   };
 
-  if (isLoading) {
+  if (isCompanyLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3 font-sans">
         <div className="w-10 h-10 border-4 border-amber-400/40 border-t-amber-500 rounded-full animate-spin" />
@@ -168,7 +160,7 @@ export const CompanyPrepStudio: React.FC = () => {
     );
   }
 
-  if (loadError || !profile) {
+  if (companyLoadError || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 font-sans px-4 text-center">
         <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
@@ -176,7 +168,7 @@ export const CompanyPrepStudio: React.FC = () => {
         </div>
         <div className="space-y-1 max-w-md">
           <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Не удалось загрузить профиль компании</h3>
-          <p className="text-xs text-rose-500/90 font-mono">{loadError || 'Профиль не найден'}</p>
+          <p className="text-xs text-rose-500/90 font-mono">{companyLoadError || 'Профиль не найден'}</p>
         </div>
         <button
           onClick={() => void fetchProfiles()}
@@ -190,15 +182,15 @@ export const CompanyPrepStudio: React.FC = () => {
   }
 
   const isAlfa = profile.id === 'alfa_digital';
+  const completedSet = new Set(completedCompanyStageIds);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-24 font-sans">
-      {/* Brand Header Banner */}
       <CompanyBrandBanner
         profile={profile}
-        profiles={profiles}
-        selectedProfileId={selectedProfileId}
-        onSelectProfileId={setSelectedProfileId}
+        profiles={companyProfiles}
+        selectedProfileId={selectedCompanyProfileId}
+        onSelectProfileId={setSelectedCompanyProfileId}
         isAlfa={isAlfa}
         readinessIndex={readinessIndex}
         onOpenCopilot={() => {
@@ -206,19 +198,18 @@ export const CompanyPrepStudio: React.FC = () => {
             normalizeCompanyContext({
               profile,
               activeStage: profile.stages[0],
-              activeTaskTitle: `Целевая подготовка: ${profile.name} (${activeSubTab})`
+              activeTaskTitle: `Целевая подготовка: ${profile.name} (${activeCompanySubTab})`
             })
           );
           toggleOpen(true);
         }}
       />
 
-      {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-2 border-b border-pastel-border/70 pb-2 overflow-x-auto">
         <button
-          onClick={() => setActiveSubTab('pipeline')}
+          onClick={() => setActiveCompanySubTab('pipeline')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'pipeline' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            activeCompanySubTab === 'pipeline' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Layers className="w-4 h-4" />
@@ -227,9 +218,9 @@ export const CompanyPrepStudio: React.FC = () => {
 
         {isAlfa && (
           <button
-            onClick={() => setActiveSubTab('theory')}
+            onClick={() => setActiveCompanySubTab('theory')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-              activeSubTab === 'theory' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+              activeCompanySubTab === 'theory' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -239,9 +230,9 @@ export const CompanyPrepStudio: React.FC = () => {
 
         {isAlfa && (
           <button
-            onClick={() => setActiveSubTab('challenges')}
+            onClick={() => setActiveCompanySubTab('challenges')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-              activeSubTab === 'challenges' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-amber-50 hover:text-amber-800'
+              activeCompanySubTab === 'challenges' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-amber-50 hover:text-amber-800'
             }`}
           >
             <Code2 className="w-4 h-4" />
@@ -250,9 +241,9 @@ export const CompanyPrepStudio: React.FC = () => {
         )}
 
         <button
-          onClick={() => setActiveSubTab('dossier')}
+          onClick={() => setActiveCompanySubTab('dossier')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'dossier' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            activeCompanySubTab === 'dossier' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -260,9 +251,9 @@ export const CompanyPrepStudio: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveSubTab('runbook')}
+          onClick={() => setActiveCompanySubTab('runbook')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'runbook' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            activeCompanySubTab === 'runbook' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Zap className="w-4 h-4" />
@@ -270,9 +261,9 @@ export const CompanyPrepStudio: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveSubTab('sql_arena')}
+          onClick={() => setActiveCompanySubTab('sql_arena')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'sql_arena' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
+            activeCompanySubTab === 'sql_arena' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
           }`}
         >
           <Database className="w-4 h-4" />
@@ -281,9 +272,9 @@ export const CompanyPrepStudio: React.FC = () => {
 
         {profile.takeHomePrCases && profile.takeHomePrCases.length > 0 && (
           <button
-            onClick={() => setActiveSubTab('take_home')}
+            onClick={() => setActiveCompanySubTab('take_home')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
-              activeSubTab === 'take_home' ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
+              activeCompanySubTab === 'take_home' ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
             }`}
           >
             <PackageCheck className="w-4 h-4" />
@@ -292,18 +283,17 @@ export const CompanyPrepStudio: React.FC = () => {
         )}
       </div>
 
-      {/* Tab Panels */}
-      {activeSubTab === 'pipeline' && (
+      {activeCompanySubTab === 'pipeline' && (
         <CompanyPipelineTab
           stages={profile.stages}
-          completedStageIds={completedStageIds}
-          onToggleStageComplete={toggleStageComplete}
+          completedStageIds={completedSet}
+          onToggleStageComplete={toggleCompanyStageComplete}
           onLaunchStageAction={handleLaunchStage}
           companyReadinessIndex={readinessIndex}
         />
       )}
 
-      {activeSubTab === 'theory' && (
+      {activeCompanySubTab === 'theory' && (
         <CompanyTheoryDeckTab
           companyId={profile.id}
           companyName={profile.name}
@@ -311,18 +301,18 @@ export const CompanyPrepStudio: React.FC = () => {
         />
       )}
 
-      {activeSubTab === 'challenges' && (
+      {activeCompanySubTab === 'challenges' && (
         <CompanyChallengesTab
           companyName={profile.name}
           onNavigateToTask={handleNavigateToTask}
         />
       )}
 
-      {activeSubTab === 'dossier' && (
+      {activeCompanySubTab === 'dossier' && (
         <CompanyDossierTab culture={profile.culture} companyName={profile.name} profile={profile} />
       )}
 
-      {activeSubTab === 'runbook' && (
+      {activeCompanySubTab === 'runbook' && (
         <CompanyRunbookTab
           runbook={profile.expressRunbook}
           onNavigateToTask={handleNavigateToTask}
@@ -330,27 +320,26 @@ export const CompanyPrepStudio: React.FC = () => {
         />
       )}
 
-      {activeSubTab === 'sql_arena' && (
+      {activeCompanySubTab === 'sql_arena' && (
         <SqlArena
           initialChallengeId={targetSqlChallengeId}
-          onBackToCompanyTrack={() => setActiveSubTab('pipeline')}
+          onBackToCompanyTrack={() => setActiveCompanySubTab('pipeline')}
           companyContextName={profile.name}
         />
       )}
 
-      {activeSubTab === 'take_home' && profile.takeHomePrCases && (
+      {activeCompanySubTab === 'take_home' && profile.takeHomePrCases && (
         <CompanyTakeHomeLab
-          onBackToPipeline={() => setActiveSubTab('pipeline')}
+          onBackToPipeline={() => setActiveCompanySubTab('pipeline')}
           companyName={profile.name}
           prCases={profile.takeHomePrCases}
         />
       )}
 
-      {/* Voice Modal with Dynamic Bar-Raiser Persona */}
-      {isVoiceOpen && (
+      {isCompanyVoiceOpen && (
         <VoiceModal
-          isOpen={isVoiceOpen}
-          onClose={() => setIsVoiceOpen(false)}
+          isOpen={isCompanyVoiceOpen}
+          onClose={() => setIsCompanyVoiceOpen(false)}
           initialSessionType="interview"
           vadPauseMs={800}
           topic={
