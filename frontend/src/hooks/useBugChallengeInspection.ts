@@ -7,8 +7,14 @@
 
 import { useMemo, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { evaluateAstRules, AstRuleItem } from '../utils/astRules';
+import { evaluateAstRules } from '../utils/astRules';
 import { generateUnifiedDiff } from '../utils/diff';
+
+export interface AstAnalysisResultItem {
+  id: string;
+  text: string;
+  isViolation: boolean;
+}
 
 export interface TechStackInfo {
   language: string;
@@ -54,7 +60,7 @@ export interface BugChallenge {
 }
 
 export interface BugChallengeInspectionResult {
-  astAnalysis: AstRuleItem[];
+  astAnalysis: AstAnalysisResultItem[];
   unifiedDiffCode: string;
   takeaways: string[];
   bookmarked: boolean;

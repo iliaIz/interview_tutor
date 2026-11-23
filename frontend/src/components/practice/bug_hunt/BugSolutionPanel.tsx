@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CodeViewer } from '../../CodeViewer';
-import { BugChallenge } from '../../hooks/useBugChallengeInspection';
+import { BugChallenge } from '../../../hooks/useBugChallengeInspection';
 
 interface BugSolutionPanelProps {
   challenge: BugChallenge;

@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { Activity, ChevronDown, ChevronUp, Server, AlertTriangle, GitPullRequest } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ProductionContext } from '../../hooks/useBugChallengeInspection';
+import { ProductionContext } from '../../../hooks/useBugChallengeInspection';
 
 interface BugIncidentAccordionProps {
   productionContext: ProductionContext;

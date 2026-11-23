@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Bug, Award, Sparkles, Bookmark, BookmarkCheck } from 'lucide-react';
-import { BugChallenge } from '../../hooks/useBugChallengeInspection';
+import { BugChallenge } from '../../../hooks/useBugChallengeInspection';
 
 interface BugChallengeHeaderProps {
   challenge: BugChallenge;
