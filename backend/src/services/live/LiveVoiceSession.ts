@@ -9,12 +9,10 @@
 import { WebSocket, RawData } from 'ws';
 import http from 'http';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
-import { buildSystemPrompt } from './livePromptBuilder';
-import { getLiveToolDeclarations } from './liveToolDeclarations';
+import { LivePromptDirector } from './LivePromptDirector';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { ProxySession } from './liveSessionTypes';
 import { createLiveAudioStreamRouter } from './liveAudioStreamRouter';
-import { buildGeminiLiveSetupMessage } from './liveGeminiConfigBuilder';
 import { SessionConfigurationResolver } from './SessionConfigurationResolver';
 import { attachLiveClientFrameHandler } from './liveWsClientFrameHandler';
 import { WatchdogManager } from './WatchdogManager';
@@ -138,57 +136,7 @@ export class LiveVoiceSession {
     }, 15000);
     (session.heartbeatInterval as any)?.unref?.();
 
-    const systemPromptText = buildSystemPrompt({
-      topic: config.topic,
-      questionText: config.questionText,
-      referenceAnswer: config.referenceAnswer,
-      strategy: config.strategy,
-      voiceName: config.voiceName,
-      userGender: config.userGender,
-      turnMode: config.turnMode,
-      maxProbes: config.maxProbes,
-      anchors: config.anchors,
-      deepDive: config.deepDive,
-      liveCoaching: config.liveCoaching,
-      customPromptOverride: config.customPromptOverride,
-      questionIndex: config.questionIndex,
-      totalQuestions: config.totalQuestions,
-      sessionType: config.sessionType,
-      tutorMode: config.tutorMode,
-      bugTitle: config.bugTitle,
-      bugExplanation: config.bugExplanation,
-      codeSnippet: config.codeSnippet,
-      fixedCode: config.fixedCode,
-      unitTest: config.unitTest,
-      incidentContext: config.incidentContext,
-      hints: config.parsedHints,
-      targetSeniority: config.userProfile?.targetSeniority,
-      primaryStack: config.userProfile?.primaryStack,
-      candidateGaps: config.candidateGaps,
-      activeCodeArtifact: config.activeCodeArtifact,
-      codeRevisionsSummary: config.codeRevisionsSummary,
-      persona: config.persona,
-      targetGrade: config.targetGrade,
-      strictness: config.strictness,
-      challengeCategory: config.challengeCategory,
-      challengeTrack: config.challengeTrack,
-      workspaceManifest: session.workspaceManifest,
-      academyBridgeContext: session.academyBridgeContext || (config.academyCourse ? { courseId: config.academyCourse, stepId: config.academyStep } : undefined),
-      seniorReview: session.seniorReview
-    });
-
-    const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode);
-    const setupMessage = buildGeminiLiveSetupMessage({
-      liveModel: config.liveModel,
-      voiceName: config.voiceName,
-      systemPromptText,
-      sessionType: config.sessionType,
-      strategy: config.strategy,
-      normalizedTools: toolDeclarations,
-      vadPauseMs: session.vadPauseMs,
-      turnMode: config.turnMode,
-      temperature: config.temperature
-    });
+    const { setupMessage } = LivePromptDirector.buildSetupDirectives(config, session);
 
     const router = createLiveAudioStreamRouter({
       session,

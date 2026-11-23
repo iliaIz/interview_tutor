@@ -128,4 +128,20 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 - **Rationale & "Why":** Adheres to SOTA conversational UX standards for multi-question continuous voice dialogues.
 - **Invariants:** For questions with `questionIndex > 0`, Turn 0 greeting MUST NOT re-introduce the AI tutor from scratch; it MUST transition directly to the next question.
 
+---
+
+### 2.10 `LivePromptDirector: Deep Setup Assembly & Modular Prompt Deconstruction (Spec 28)`
+- **Location:** [`backend/src/services/live/LivePromptDirector.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LivePromptDirector.ts), [`backend/src/services/live/livePromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts)
+- **What Was Done:**
+  1. Extracted `LivePromptDirector.ts` (83 lines) as a deep module consolidating prompt directives, tool declarations, Turn 0 tool lockdown gating, and Gemini Live setup message creation behind a single `buildSetupDirectives(config, session)` interface.
+  2. Shrunk `LiveVoiceSession.ts` lines 141-191 down to a 1-line call, eliminating 50+ lines of scattered setup glue.
+  3. Decomposed `livePromptBuilder.ts` from 677 lines down to 330 lines by extracting `liveSystemDesignPromptBuilder.ts`, `liveTutorSessionPromptBuilder.ts`, `liveMockInterviewPromptBuilder.ts`, `liveRubricBuilder.ts`, and `livePromptBuilderConstants.ts`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Monolithic prompt builders exceeding 600 lines become brittle and couple callers to internal prompt string concatenation.
+  - *Empirical Finding:* Specializing prompt builders by session typology (System Design, Tutor, Mock Assessment) isolates prompt changes and guarantees all files stay bounded <= 350 lines.
+- **Rationale & "Why":** Adheres to Rule 8 file size limits and high-leverage interface design.
+- **Invariants:**
+  - `LiveVoiceSession` must never assemble prompt strings or tool declarations manually; all setup messages must route through `LivePromptDirector`.
+  - Cognitive bounding: all prompt builder modules <= 350 lines.
+
 

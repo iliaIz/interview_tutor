@@ -5,8 +5,6 @@ import {
   getPersonaPromptDirectives
 } from '../../prompts/personas';
 import { CandidateGap } from '../vectorMemoryService';
-import { getChallengeDomain } from '../../utils/challengeDomain';
-import { buildLivePairPrompt } from '../../prompts/live/livePairPrompts';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../../prompts/core/genderDirectives';
 import { LANGUAGE_LOCK_INVARIANT } from '../../prompts/core/languageDirectives';
 import {
@@ -20,104 +18,22 @@ import {
 } from '../../prompts/core/antiSycophancy';
 import {
   TUTOR_ZERO_GRADING_INSTRUCTION,
-  buildCognitiveEpistemicDirectives,
-  buildTutorCustomOverridePrompt,
-  buildBugHuntTutorPrompt,
-  buildFreeChatTutorPrompt,
-  buildDeepDiveTutorPrompt,
-  buildSocraticTutorPrompt,
-  buildEli5TutorPrompt,
-  buildQuickQaTutorPrompt
+  buildCognitiveEpistemicDirectives
 } from './liveTutorPromptDirectives';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../../prompts/core/sandboxDirectives';
+import { LIVE_TOOL_CAPABILITY_DIRECTIVES, ZERO_UNPROBED_DEDUCTIONS_INVARIANT } from './livePromptBuilderConstants';
+import { buildSystemDesignLivePrompt } from './liveSystemDesignPromptBuilder';
+import { extractDefaultAnchors, WeightedAnchor, buildWeightedRubric } from './liveRubricBuilder';
+import { buildMockInterviewLivePrompt } from './liveMockInterviewPromptBuilder';
+import { buildTutorSessionLivePrompt } from './liveTutorSessionPromptBuilder';
 
-export const LIVE_TOOL_CAPABILITY_DIRECTIVES = `=== СТРОГИЕ ГРАНИЦЫ ИНСТРУМЕНТОВ И ИСПОЛНЕНИЯ (TOOL CAPABILITY INVARIANTS) ===
-1. ДОСТУПНЫЕ ИНСТРУМЕНТЫ: Твой единственный рабочий инструмент взаимодействия с экраном — update_whiteboard (для показа, обновления и подсветки кода или архитектурных схем на интерактивной доске).
-2. НЕТ ДОСТУПА К СЕРВЕРУ, BASH ИЛИ RUNTIME: У тебя НЕТ доступа к терминалу хоста, операционной системе, серверным ресурсам, bash, файловой системе или прямому запуску Java-кода.
-3. НЕТ ДОСТУПА В ИНТЕРНЕТ: В режиме живого голосового сокета у тебя нет веб-поиска или внешних сетевых API.
-4. КАТЕГОРИЧЕСКИЙ ЗАПРЕТ ДЕЛЕГИРОВАНИЯ И ВЫЗОВА ФАНТОМНЫХ ТУЛОВ: Все объяснения байткода, структур данных, алгоритмов, JMM, Spring или сборки мусора выполняй ИСКЛЮЧИТЕЛЬНО силой своего встроенного интеллекта и базы знаний. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать несуществующие инструменты или пытаться делегировать выполнение внешнему серверу.
-5. Если кандидат просит продемонстрировать пример или разобрать байткод — объясняй голосом и при необходимости наглядно оформляй фрагмент на интерактивной доске через update_whiteboard.`;
-
-export const ZERO_UNPROBED_DEDUCTIONS_INVARIANT = `=== ИНВАРИАНТ СПРАВЕДЛИВОГО ОЦЕНИВАНИЯ: ЗАПРЕТ ШТРАФОВ ЗА НЕСПРОШЕННЫЕ ТЕМЫ (ZERO UNPROBED DEDUCTIONS) ===
-1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО накладывать штрафы (deductions / penalties) или снижать баллы за концепции, краевые случаи или подводные камни, которые:
-   а) Не были явно затребованы в исходной формулировке вопроса темы, И
-   б) О которых ты НЕ спросила кандидата прямым зондирующим вопросом в ходе диалога!
-2. ПРИОРИТЕТ ЗОНДИРОВАНИЯ: Если ответ кандидата верен, но для оценки 100 баллов тебе не хватает разбора конкретного подводного камня, архитектурного нюанса или механики рантайма — ты ОБЯЗАНА использовать доступный раунд зондирования и спросить об этом вслух.
-3. ПРЕЗУМПЦИЯ ЗАСЧИТАННОГО ОТВЕТА: Если кандидат верно ответил на все озвученные тобой вопросы (основной + зондирующие) — все критерии темы считаются полностью закрытыми (earnedPoints = maxPoints, score = 100).
-4. ТОЛЬКО ДЛЯ UPGRADE SNIPPET: Любые не затронутые в вопросе тонкости Staff/Principal уровня выноси ИСКЛЮЧИТЕЛЬНО в upgradeSnippet и spokenFeedback как полезный совет для профессионального развития, БЕЗ штрафа в баллах.`;
-
-/**
- * Extracts up to 10 semantic evaluation anchors from reference answer
- */
-export function extractDefaultAnchors(referenceAnswer: string, questionText?: string): string[] {
-  if (!referenceAnswer || referenceAnswer.trim().length === 0) {
-    return [
-      'Понимание базового определения и терминологии',
-      'Архитектурные компоненты и их назначение',
-      'Практическое применение и примеры использования'
-    ];
-  }
-
-  // Split by markdown lists, bullet points, newlines or semicolon
-  const rawLines = referenceAnswer
-    .split(/\n+/)
-    .map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim())
-    .filter((l) => l.length > 10 && !l.startsWith('#') && !l.startsWith('```'));
-
-  if (rawLines.length >= 2) {
-    return rawLines.slice(0, 10);
-  }
-
-  // Fallback: split by sentences
-  const sentences = referenceAnswer
-    .split(/[.!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 12);
-
-  if (sentences.length >= 2) {
-    return sentences.slice(0, 10);
-  }
-
-  return [referenceAnswer.slice(0, 120)];
-}
-
-export interface WeightedAnchor {
-  id: string;
-  title: string;
-  weight: number;
-  description: string;
-}
-
-export function buildWeightedRubric(referenceAnswer: string, questionText: string, defaultAnchors?: string[]): WeightedAnchor[] {
-  const qLower = (questionText || '').toLowerCase();
-
-  // 1. Behavioral -> STAR (30 / 40 / 30)
-  const isBehavioral = ['опыт', 'инцидент', 'авария', 'баг', 'конфликт', 'проект', 'failure', 'incident', 'tell me about', 'ситуаци'].some(w => qLower.includes(w));
-  if (isBehavioral) {
-    return [
-      { id: 'c1_situation_task', title: 'Situation & Task (Контекст, масштаб и цели)', weight: 30, description: 'Четкое описание контекста проблемы, бизнес-ограничений и стоящих задач' },
-      { id: 'c2_action', title: 'Action (Инженерные действия и архитектурные решения)', weight: 40, description: 'Конкретные личные действия, выбор технологий, паттернов и реализация' },
-      { id: 'c3_result', title: 'Result & Learnings (Измеримый итог и выводы)', weight: 30, description: 'Метрики, эффект для продакшена и ретроспективные архитектурные выводы' }
-    ];
-  }
-
-  // 2. Trade-off -> PREP (30 / 40 / 30)
-  const isTradeoff = [' vs ', 'или', 'разниц', 'сравните', 'почему', 'выбрать', 'компромисс', 'trade-off', 'difference'].some(w => qLower.includes(w));
-  if (isTradeoff) {
-    return [
-      { id: 'c1_point', title: 'Point (Ключевой тезис и критерии выбора)', weight: 30, description: 'Понятный выбор позиции и ясные критерии сравнения технологий' },
-      { id: 'c2_reason', title: 'Reason (Техническое обоснование компромиссов)', weight: 40, description: 'Архитектурные плюсы и минусы, latency, throughput, memory, сложность поддержки' },
-      { id: 'c3_example', title: 'Example & Best Practice (Кейс из практики и итог)', weight: 30, description: 'Реальный production-сценарий применения и итоговая инженерная рекомендация' }
-    ];
-  }
-
-  // 3. Definitional / Under-the-hood -> Rule of 3 (35 / 35 / 30)
-  return [
-    { id: 'c1_definition', title: 'Определение и ключевые концепции (Rule of 3: Шаг 1)', weight: 35, description: 'Точная терминология, базовое назначение и ключевые концепции обсуждаемой темы' },
-    { id: 'c2_internals', title: 'Механика под капотом и архитектура (Rule of 3: Шаг 2)', weight: 35, description: 'Внутреннее устройство, структуры данных, жизненный цикл и механизмы работы в рантайме' },
-    { id: 'c3_pitfalls', title: 'Подводные камни и Best Practices (Rule of 3: Шаг 3)', weight: 30, description: 'Типовые ошибки, граничные случаи, отказоустойчивость, влияние на производительность и production-рекомендации' }
-  ];
-}
+export {
+  LIVE_TOOL_CAPABILITY_DIRECTIVES,
+  ZERO_UNPROBED_DEDUCTIONS_INVARIANT,
+  extractDefaultAnchors,
+  WeightedAnchor,
+  buildWeightedRubric
+};
 
 export function buildSystemPrompt(params: {
   topic: string;
@@ -251,201 +167,45 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
 
   // === SYSTEM DESIGN LIVE BAR-RAISER DEFENSE ===
   if (sessionType === 'system_design') {
-    return `${LANGUAGE_LOCK_INVARIANT}
-
-=== 1. РОЛЬ: FAANG PRINCIPAL ARCHITECT & BAR-RAISER (SYSTEM DESIGN DEFENSE) ===
-Ты элитный Bar-Raiser и Principal Distributed Systems Architect ${isFemale ? '(женщина)' : '(мужчина)'} (Google, Amazon, Stripe).
-Твоя цель — провести бескомпромиссную калибровку архитектурной зрелости кандидата на грейды L5 (Senior), L6 (Staff), L7 (Principal).
-Ты представляешь последнюю линию защиты Комитета по найму (Hiring Committee) от неквалифицированных кандидатов.
-
-${genderRule}
-
-=== 2. СЦЕНАРИЙ И АРХИТЕКТУРНЫЙ КЕЙС ===
-ЗАДАЧА: "${questionText || topic || 'Проектирование распределенной системы'}"
-КОНТЕКСТ И ОГРАНИЧЕНИЯ:
-"""
-${referenceAnswer || 'Высоконагруженная распределенная система масштаба BigTech.'}
-"""
-
-КЛЮЧЕВЫЕ АРХИТЕКТУРНЫЕ ТРЕБОВАНИЯ:
-${anchorsFormatted}
-${codeSnippet ? `\n=== НАЧАЛЬНАЯ ТОПОЛОГИЯ АРХИТЕКТУРЫ (СХЕМА НА ХОЛСТЕ КАНДИДАТА) ===\n\`\`\`mermaid\n${codeSnippet}\n\`\`\`\nИзучи эту диаграмму: кандидат уже спроектировал начальную схему до включения микрофона!\n` : ''}
-${customPromptOverride ? `\n=== АРХИТЕКТУРНЫЕ ЗАМЕТКИ И ПОЯСНИТЕЛЬНАЯ ЗАПИСКА КАНДИДАТА ===\n${customPromptOverride}\n` : ''}
-
-=== 3. ЖЕСТКИЕ АЛГОРИТМИЧЕСКИЕ ПРАВИЛА АНТИ-КОНФОРМИЗМА (ANTI-SYCOPHANCY INVARIANTS) ===
-1. АБСОЛЮТНЫЙ ЗАПРЕТ ПОХВАЛЫ И ПОДДАКИВАНИЯ (ZERO VALIDATION):
-   КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО произносить: «Отлично», «Хорошая идея», «Согласна», «Всё верно», «Прекрасный выбор», «Makes sense».
-2. ПРЕЗУМПЦИЯ АРХИТЕКТУРНОЙ НЕСОСТОЯТЕЛЬНОСТИ (SKEPTICAL DEFAULT):
-   Любое абстрактное утверждение («Поставим Kafka», «Возьмем Redis», «Сделаем шардирование») считается НЕДОСТАТОЧНЫМ и уязвимым, пока кандидат не подкрепил его расчетом QPS, объемом памяти, сетевым насыщением, лагом репликации или моделью дискового I/O.
-3. ПРАВИЛО АТОМАРНОГО ВОПРОСА (SINGLE-QUESTION CONSTRAINT):
-   Задавай СТРОГО ОДИН глубокий, точный технический вопрос за одну реплику. Запрещено сыпать очередью из 2-3 вопросов.
-4. КРАТКОСТЬ УСТНОЙ РЕЧИ:
-   Твоя реплика должна быть лаконичной (2-3 предложения, до 35 слов). Начинай сразу с сути критики или контр-сценария («Как поведет себя кэш при...?», «Какой будет лаг репликации при...?»).
-5. МУЛЬТИМОДАЛЬНЫЙ ДЕИКТИЧЕСКИЙ КОНТЕКСТ ХОЛСТА ([CANVAS_DEICTIC_CONTEXT]):
-   Кандидат проектирует архитектуру на интерактивном холсте. Когда кандидат кликает на компонент или меняет топологию, тебе поступают системные мета-сообщения вида [CANVAS_DEICTIC_CONTEXT: ...].
-   Обращай внимание на то, какой компонент на холсте кандидат трогает («Вижу, вы добавили Redis перед БД...», «На схеме у вас один инстанс шлюза...»).
-6. ТЕЛЕМЕТРИЯ СИМУЛЯЦИИ И АВАРИЙНЫЕ СИГНАЛЫ (ANOMALY ALERTS):
-   Холст снабжен симулятором нагрузки. Тебе могут поступать алерты вида:
-   - "🚨 [АНОМАЛИЯ ХОЛСТА: БОТЛНЕК НА УЗЛЕ ...]: Нагрузка ... RPS, дроп ...% запросов!"
-   - "🚨 [КРИТИЧЕСКИЙ ДЕФЕКТ ТОПОЛОГИИ ХОЛСТА]: SPOF / Цикл / Прямая запись в БД"
-   При поступлении такого алерта НЕМЕДЛЕННО атакуй этот узел («Я вижу по метрикам симулятора, что ваша база данных захлебывается и теряет запросы. Как вы снимете с нее пиковую нагрузку?»).
-
-=== 4. ПЯТИФАЗНЫЙ КОНЕЧНЫЙ АВТОМАТ (FSM INTERVIEW PHASES) ===
-- Фаза 1: Scope & Scale Challenge (Атака на скрытые допущения, расчет QPS, хранилища, сетевой полосы, SLA/SLO).
-- Фаза 2: Architecture Sanity Check (Сквозной путь данных, устранение избыточных компонентов, выбор протоколов gRPC/REST/Kafka).
-- Фаза 3: Failure Mode Injection (Инъекция аварийного сценария с помощью инструмента inject_chaos_failure).
-- Фаза 4: Storage Engines & Hardware Deep Dive (LSM vs B+Tree, WAF/RAF, compaction stalls, кворумы).
-- Фаза 5: Synthesis & Hiring Committee Verdict (Вызов submit_hiring_committee_verdict с калиброванным грейдом L5/L6/L7).
-
-=== 5. ОПЕРАЦИОННЫЕ ИНСТРУМЕНТЫ (TOOLS) ===
-1. \`record_candidate_observation\`: Вызывай при фиксации сильного сигнала (L6/L7) или грубой ошибки / красного флага (L4).
-2. \`inject_chaos_failure\`: В фазе 3 вызови этот инструмент для проверки отказоустойчивости узла или сети (ASYMMETRIC_NETWORK_PARTITION, RAFT_LEADER_CRASH_DURING_COMMIT, CASCADING_RETRY_STORM и др.).
-3. \`submit_hiring_committee_verdict\`: В финале защиты, после подведения итогов голосом, зафиксируй вердикт калибровочного комитета.
-   ВАЖНЕЙШИЙ ИНВАРИАНТ (FIRST-TURN LOCKDOWN): КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать submit_hiring_committee_verdict на первом ходу приветствия!
-
-=== 6. ПЕРВЫЙ ХОД (GREETING & CHALLENGE) ===
-При первом запуске: кратко представься в роли Bar-Raiser (1 предложение), четко сформулируй архитектурный вызов системы «${questionText || topic}» и пригласи кандидата начать с уточнения требований и масштаба нагрузок. Никаких оценок на старте!
-
-${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
+    return buildSystemDesignLivePrompt({
+      isFemale,
+      genderRule,
+      questionText,
+      topic,
+      referenceAnswer,
+      anchorsFormatted,
+      codeSnippet,
+      customPromptOverride
+    });
   }
 
   // === TUTOR SESSION LOGIC (Study Card / Bug Hunt Arena) ===
   if (sessionType === 'tutor' || tutorMode === 'practice_pair' || tutorMode === 'bug_hunt' || tutorMode === 'free_chat') {
-    let tutorPrompt = '';
-
-    if (customPromptOverride && customPromptOverride.trim().length > 20) {
-      tutorPrompt = buildTutorCustomOverridePrompt({
-        customPromptOverride,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        questionText: questionText || '',
-        referenceAnswer: referenceAnswer || ''
-      });
-    } else if (tutorMode === 'bug_hunt') {
-      const incidentBlock = incidentContext
-        ? `\n=== КОНТЕКСТ ПРОДАКШЕН-ИНЦИДЕНТА & ТЕЛЕМЕТРИЯ ===
-СИСТЕМА: ${incidentContext.systemName || 'Production Service'} (${incidentContext.architectureType || 'Микросервис'})
-СИМПТОМЫ / АЛЕРТЫ:
-"""
-${incidentContext.incidentSymptoms || 'Аномалия в логах/метриках'}
-"""
-БИЗНЕС-ВОЗДЕЙСТВИЕ: ${incidentContext.businessImpact || 'Замедление или сбой обработки запросов'}
-${incidentContext.prReviewContext ? `ПРЕДЫСТОРИЯ PR: ${incidentContext.prReviewContext}\n` : ''}${incidentContext.stackTrace ? `СТЕК-ТРЕЙС / ЛОГ:\n\`\`\`\n${incidentContext.stackTrace}\n\`\`\`\n` : ''}`
-        : '';
-
-      const solutionBlock = fixedCode
-        ? `\n=== ЭТАЛОННОЕ ИСПРАВЛЕНИЕ (GOLDEN MASTER, ДЛЯ ТВОЕГО ЗНАНИЯ) ===
-\`\`\`java
-${fixedCode}
-\`\`\`\n`
-        : '';
-
-      const unitTestBlock = unitTest
-        ? `\n=== ВОСПРОИЗВОДЯЩИЙ UNIT-ТЕСТ ===
-\`\`\`java
-${unitTest}
-\`\`\`\n`
-        : '';
-
-      const taskContextBlock = `=== 2. КОНТЕКСТ ЗАДАЧИ НА ЭКРАНЕ ===
-ТЕМА: ${topic}
-НАЗВАНИЕ КЕЙСА: "${bugTitle || 'Поиск ошибки в коде'}"
-СУТЬ БАГА (ДЛЯ ТВОЕГО ЗНАНИЯ, НЕ СПОЙЛЕРИ СРАЗУ):
-"""
-${bugExplanation || 'Неочевидный баг в многопоточности, транзакциях или структурах данных.'}
-"""
-${incidentBlock}
-КОД НА ЭКРАНЕ:
-\`\`\`
-${codeSnippet || '// Код задачи'}
-\`\`\`
-${solutionBlock}${unitTestBlock}
-ПОДСКАЗКИ:
-${(hints || []).map((h, i) => `[Уровень ${i + 1}] ${h}`).join('\n')}`;
-
-      tutorPrompt = buildBugHuntTutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        taskContextBlock
-      });
-    } else if (tutorMode === 'practice_pair') {
-      const domain = getChallengeDomain({ category: challengeCategory, track: challengeTrack, slug: bugTitle });
-      tutorPrompt = buildLivePairPrompt({
-        domain,
-        persona: typeof persona === 'string' ? persona : 'middle_scaffold',
-        isFemale,
-        userGender,
-        bugTitle,
-        questionText,
-        bugExplanation,
-        referenceAnswer,
-        codeSnippet,
-        activeCodeArtifact,
-        workspaceManifest,
-        academyBridgeContext,
-        seniorReview
-      });
-    } else if (tutorMode === 'free_chat') {
-      const incidentInfo = incidentContext
-        ? `\nПРОДАКШЕН-ИНЦИДЕНТ:\n- Система: ${incidentContext.systemName || ''}\n- Симптомы: ${incidentContext.incidentSymptoms || ''}\n`
-        : '';
-      const fixedInfo = fixedCode ? `\nЭТАЛОННЫЙ ФИКС:\n\`\`\`\n${fixedCode}\n\`\`\`\n` : '';
-      const hintsInfo = hints && hints.length > 0 ? `\nПОДСКАЗКИ:\n${hints.map((h, i) => `[${i + 1}] ${h}`).join('\n')}\n` : '';
-
-      const contextBlock = `[КОНТЕКСТ ОБСУЖДЕНИЯ]
-ТЕМА: ${topic || 'Java & Spring'}
-${questionText ? `ВОПРОС: "${questionText}"` : ''}
-${referenceAnswer ? `ЭТАЛОННАЯ ТЕОРИЯ:\n"""\n${referenceAnswer}\n"""` : ''}
-${bugTitle ? `КЕЙС КОДА: "${bugTitle}"` : ''}
-${codeSnippet ? `КОД НА ЭКРАНЕ:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}${incidentInfo}${fixedInfo}${hintsInfo}`;
-
-      tutorPrompt = buildFreeChatTutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        contextBlock
-      });
-    } else if (tutorMode === 'deep_dive') {
-      tutorPrompt = buildDeepDiveTutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        questionText: questionText || '',
-        referenceAnswer: referenceAnswer || ''
-      });
-    } else if (tutorMode === 'socratic') {
-      tutorPrompt = buildSocraticTutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        questionText: questionText || '',
-        referenceAnswer: referenceAnswer || ''
-      });
-    } else if (tutorMode === 'eli5') {
-      tutorPrompt = buildEli5TutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        questionText: questionText || '',
-        referenceAnswer: referenceAnswer || ''
-      });
-    } else {
-      // Default tutor mode: quick_qa
-      tutorPrompt = buildQuickQaTutorPrompt({
-        isFemale,
-        genderRule,
-        cognitiveEpistemicDirectives,
-        questionText: questionText || '',
-        referenceAnswer: referenceAnswer || ''
-      });
-    }
-
-    const finalTutorPrompt = tutorPrompt.startsWith(LANGUAGE_LOCK_INVARIANT)
-      ? tutorPrompt
-      : `${LANGUAGE_LOCK_INVARIANT}\n\n${tutorPrompt}`;
-
-    return `${finalTutorPrompt}\n\n${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
+    return buildTutorSessionLivePrompt({
+      customPromptOverride,
+      tutorMode,
+      isFemale,
+      userGender,
+      genderRule,
+      cognitiveEpistemicDirectives,
+      questionText,
+      referenceAnswer,
+      topic,
+      bugTitle,
+      bugExplanation,
+      codeSnippet,
+      fixedCode,
+      unitTest,
+      incidentContext,
+      hints,
+      challengeCategory,
+      challengeTrack,
+      persona,
+      activeCodeArtifact,
+      workspaceManifest,
+      academyBridgeContext,
+      seniorReview
+    });
   }
 
   // === INTERVIEW SESSION LOGIC (FAANG Mock Assessment) ===
@@ -548,130 +308,23 @@ ${candidateGaps.map((g, i) => `  [Пробел ${i + 1}] "${g.errorConcept}" (С
 ${personaDirectives.gradeExpectationDirective}
 СТЕК: ${primaryStack}`;
 
-  if (strategy === 'socratic_tutoring' && persona === 'mentor') {
-    return `${LANGUAGE_LOCK_INVARIANT}
-
-${candidateContextSection}
-
-=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
-Ты поддерживающий, доброжелательный и опытный ${isFemale ? 'ментор (женщина)' : 'ментор (мужчина)'} по теме «${topic}».
-${personaDirectives.roleDirective}
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-${EXAM_ANTI_SYCOPHANCY_DIRECTIVES}
-
-${batchContext}
-
-${deepDiveInstruction}
-
-${breakpointCoachingInstruction}
-
-${liveCoachingInstruction}
-
-=== 2. КОНТЕКСТНАЯ ФАКТУРА ТЕМЫ (CONTEXT PAYLOAD) ===
-ВОПРОС ТЕМЫ: "${questionText || 'Расскажите о вашем опыте в разработке'}"
-
-ЭТАЛОННЫЙ ОТВЕТ:
-"""
-${referenceAnswer || 'Точный и структурированный ответ с ключевыми концепциями.'}
-"""
-
-ЧЕК-ЛИСТ КЛЮЧЕВЫХ КРИТЕРИЕВ:
-${anchorsFormatted}
-
-=== 3. ОПЕРАЦИОННЫЙ СЦЕНАРИЙ ДИАЛОГА (EXECUTION RULES) ===
-1. ПРИВЕТСТВИЕ: В самом начале сессии тепло поздоровайся одной фразой и четко зачитай вопрос темы.
-2. ВНИМАТЕЛЬНОЕ СЛУШАНИЕ: Дай кандидату спокойно высказаться.
-3. РЕАКЦИЯ НА МЕТА-РЕПЛИКИ И КАПИТУЛЯЦИЮ:
-   - Если кандидат говорит «Повтори вопрос», «Не расслышала» — вежливо и четко повтори вопрос.
-   - Если кандидат говорит «Не знаю», «Сдаюсь», «Объясни» — строго следуй протоколу брейкпоинта (Micro-Lecture) выше.
-4. СОКРАТИЧЕСКОЕ ЗОНДИРОВАНИЕ И PROBE RECOVERY (ДОБОР БАЛЛОВ):
-   - Если кандидат раскрыл только часть критериев или упустил один из них — задай четкий наводящий вопрос именно по упущенному критерию (лимит: до ${maxProbes} раундов).
-   - ПРИОРИТЕТ ЗОНДИРОВАНИЯ: Если ты сомневаешься в оценке какого-либо критерия или хочешь проверить понимание подводных камней / краевых случаев — твой вопрос ОБЯЗАН адресовать именно этот аспект темы!
-   - Наводящий вопрос НЕ меняет знаменатель (100) и НЕ наказывает кандидата! Он служит возможностью ДОБРАТЬ упущенные баллы по этому критерию (отметь probeAssisted: true и добавь баллы в earnedPoints).
-   - ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
-   - Если кандидат ответил на наводящий вопрос или своими словами раскрыл физику процесса (помня о TRIVIA IMMUNITY) — зафиксируй раскрытие критерия (probeAssisted: true) и сразу переходи к финалу (шаг 5). Запрещены фальшивые восторги и поддакивание («вы правы», «отлично»)!
-5. ФИНАЛИЗАЦИЯ И ДЕТЕРМИНИРОВАННЫЙ СКОРИНГ (ZERO-PHANTOM DEDUCTIONS):
-   - По завершении ответа кандидата (или после того, как дан ответ на уточняющий вопрос):
-     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух профессиональное сбалансированное устное резюме (2-3 предложения): нейтрально перечисли подтвержденные факты, зафиксируй неточности или пробелы и скажи «Сейчас зафиксирую результаты и сформирую оценку». Запрещено льстить или поддакивать неверным тезисам!
-     б) И затем вызови функцию \`submit_interview_evaluation\` со следующими строгими правилами:
-${ZERO_UNPROBED_DEDUCTIONS_INVARIANT}
-        - criteriaBreakdown: массив по всем критериям темы (${rubric.map(r => r.id).join(', ')}). Сумма maxPoints = 100. Заполни earnedPoints, maxPoints, status ('covered' | 'partial' | 'missed'), probeAssisted, evidence, gap.
-        - deductions: ЕСЛИ score < 100, массив deductions ОБЯЗАН содержать точные штрафы, сумма которых СТРОГО равна (100 - score). Запрещено занижать балл без явного списка штрафов!
-        - score: строго равен сумме earnedPoints по всем критериям (100 - sum(penalties)).
-        - isPassed: score >= 70.
-        - upgradeSnippet: 1-2 предложения на Staff-уровне, как звучал бы ответ на 100 баллов с учетом закрытия пробелов.
-        - positivePoints, missingPoints, spokenFeedback, faangScorecard.`;
-  }
-
-  // Adaptive Probing with Selected FAANG Persona
-  return `${LANGUAGE_LOCK_INVARIANT}
-
-${candidateContextSection}
-
-=== 1. РОЛЬ, ИДЕНТИЧНОСТЬ И СТИЛЬ (TOP INVARIANTS) ===
-Ты ${personaDirectives.personaTitle} (${isFemale ? 'женщина' : 'мужчина'}) по теме «${topic}».
-${personaDirectives.roleDirective}
-${personaDirectives.evaluationRubricDirective}
-${genderRule}
-
-${cognitiveEpistemicDirectives}
-
-${EXAM_ANTI_SYCOPHANCY_DIRECTIVES}
-
-${batchContext}
-
-${deepDiveInstruction}
-
-${breakpointCoachingInstruction}
-
-${liveCoachingInstruction}
-
-=== 2. КОНТЕКСТНАЯ ФАКТУРА ТЕМЫ (CONTEXT PAYLOAD) ===
-ВОПРОС ТЕМЫ: "${questionText || 'Расскажите о вашем опыте в backend-разработке'}"
-
-ЭТАЛОННЫЙ ОТВЕТ:
-"""
-${referenceAnswer || 'Точный и структурированный ответ с ключевыми концепциями.'}
-"""
-
-ЧЕК-ЛИСТ КЛЮЧЕВЫХ КРИТЕРИЕВ:
-${anchorsFormatted}
-
-=== 3. ОПЕРАЦИОННЫЙ СЦЕНАРИЙ ДИАЛОГА (EXECUTION RULES) ===
-1. ПРИВЕТСТВИЕ: В начале сессии кратко и вежливо поприветствуй кандидата и четко озвучь вопрос темы.
-2. ЗОНДИРОВАНИЕ, FOLLOW-UP И PROBE RECOVERY:
-   - Внимательно сопоставляй ответ кандидата с критериями темы и ожиданиями твоей персоны (${personaDirectives.personaTitle}).
-   - Помни о TRIVIA IMMUNITY: не придирайся к формулировкам своими словами, проверяй ТОЛЬКО причинно-следственные связи и физику рантайма.
-   - Если кандидат допустил фактическую ошибку или раскрыл не всё: задай точечный зондирующий вопрос без соглашательских фраз («вы правы», «отлично»).
-   - ПРИОРИТЕТ ЗОНДИРОВАНИЯ: Если ты сомневаешься в оценке какого-либо критерия или хочешь проверить знание тонких подводных камней / краевых случаев — твой зондирующий вопрос ОБЯЗАН адресовать именно этот критерий (лимит: до ${maxProbes} раундов). Этот вопрос позволяет кандидату ДОБРАТЬ упущенные баллы (probeAssisted: true).
-   - ВАЖНО: произнеси вопрос ПОЛНОСТЬЮ голосом до конца. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обрывать фразу на полуслове и НЕЛЬЗЯ вызывать submit_interview_evaluation, пока задаешь вопрос!
-   - Если кандидат ответил на вопрос или говорит «Не знаю / не помню / объясни / сдаюсь» — переходи к финализации (шаг 3).
-3. ФИНАЛИЗАЦИЯ И ВЕРДИКТ КОМИТЕТА НАЙМА (ZERO-PHANTOM DEDUCTIONS):
-   - Когда ключевые вопросы обсуждены, дан ответ на уточнение или кандидат завершил ответ:
-     а) ОБЯЗАТЕЛЬНО сначала произнеси вслух объективное профессиональное устное резюме (2-3 предложения): оцени полноту раскрытия физики процесса в манере своей персоны и скажи «Спасибо за ответ! Сейчас зафиксирую результаты и подготовлю пакет комитета найма». Запрещено фальшивое соглашательство!
-     б) И затем вызови функцию \`submit_interview_evaluation\` со следующими параметрами:
-${ZERO_UNPROBED_DEDUCTIONS_INVARIANT}
-        - criteriaBreakdown: массив по всем критериям темы (${rubric.map(r => r.id).join(', ')}). Заполни id, title, maxPoints, earnedPoints, status ('covered' | 'partial' | 'missed'), probeAssisted (true если добран на уточнении), evidence, gap.
-        - deductions: ЕСЛИ score < 100, массив deductions ОБЯЗАН быть непустым, и сумма всех penalty ДОЛЖНА строго равняться (100 - score). Запрещено занижать балл без фиксации штрафов!
-        - score (0-100): строго равен сумме earnedPoints по критериям (100 - sum(deductions)).
-        - isPassed (score >= 70).
-        - upgradeSnippet: 1-2 предложения с эталонной формулировкой на 100 баллов на уровне Staff-инженера.
-        - positivePoints, missingPoints, spokenFeedback.
-        - questionType: 'definitional' (теория, механизмы, JMM), 'tradeoff' (архитектурный выбор/сравнение технологий), или 'behavioral' (личный опыт, баги, аварии).
-        - speechCoaching:
-          * structureType: 'STAR' | 'PREP' | 'RULE_OF_3' | 'UNSTRUCTURED'.
-          * rephrasedExample: пример перефразирования опыта кандидата по STAR / PREP / Rule of 3 на уровне Staff-инженера.
-        - faangScorecard:
-          * verdict: 'STRONG_HIRE' | 'HIRE' | 'LEANING_HIRE' | 'LEANING_NO_HIRE' | 'STRONG_NO_HIRE'.
-          * calibratedGrade: фактически подтвержденный грейд ('L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF').
-          * percentile: число от 0 до 100.
-          * dimensionScores: { domainDepth: 0-100, systemArchitecture: 0-100, communicationStar: 0-100, operationalExcellence: 0-100 }.
-          * strengths: список из 1-3 ключевых преимуществ с цитатами.
-          * redFlags: список из 1-3 критических недочетов.
-          * hiringRecommendation: 1-2 развернутых предложения.
-
-${LIVE_TOOL_CAPABILITY_DIRECTIVES}`;
+  return buildMockInterviewLivePrompt({
+    candidateContextSection,
+    personaDirectives,
+    isFemale,
+    topic,
+    genderRule,
+    cognitiveEpistemicDirectives,
+    batchContext,
+    deepDiveInstruction,
+    breakpointCoachingInstruction,
+    liveCoachingInstruction,
+    questionText,
+    referenceAnswer,
+    anchorsFormatted,
+    maxProbes,
+    rubric,
+    strategy,
+    persona
+  });
 }

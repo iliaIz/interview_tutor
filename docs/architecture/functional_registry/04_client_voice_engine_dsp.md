@@ -208,6 +208,22 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - The AI voice must never duck itself from its own speaker audio.
   - Autoregressive audio vocoder generation must strictly run with `temperature: 1.0`.
 
+---
+
+### 2.13 `useVoiceTutorSession & Split-Screen View Decomposition (Spec 28)`
+- **Location:** [`frontend/src/audio/useVoiceTutorSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useVoiceTutorSession.ts), [`frontend/src/components/voice/VoiceTutorView.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/voice/VoiceTutorView.tsx)
+- **What Was Done:**
+  1. Extracted `useVoiceTutorSession.ts` (76 lines) as a headless session hook encapsulating keyboard shortcuts (Alt+Left/Right), text input buffer, question navigation, and deictic focus sync.
+  2. Decomposed `VoiceTutorView.tsx` from 801 lines down to 202 lines by extracting `VoiceTutorTheoryPanel.tsx` (194 lines), `VoiceTutorControls.tsx` (35 lines), `VoiceTutorLobbyView.tsx` (103 lines), `VoiceTutorActiveHUD.tsx` (286 lines), and `VoiceTutorMediaCluster.tsx` (202 lines).
+  3. Extracted `QuestionCatalogEngine.ts` (159 lines) with pure domain calculations, shrinking `QuestionExplorer.tsx` from 872 lines to 328 lines alongside `QuestionCardItem.tsx` (204 lines), `QuestionExplorerHeader.tsx` (195 lines), and `QuestionExplorerActionDock.tsx` (98 lines).
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* UI components passing 30+ props and holding both presentation and keyboard event listeners suffer from extreme coupling and cannot be tested headlessly.
+  - *Empirical Finding:* Separating presentation from headless state hooks allows deterministic testing of keyboard events and multi-select filters in 0ms without DOM mocking.
+- **Rationale & "Why":** Adheres to Rule 8 file size limits (all files <= 350 lines) and the UI Deletion Test Exception.
+- **Invariants:**
+  - `VoiceTutorView` must delegate all state and hotkeys to `useVoiceTutorSession`.
+  - All newly created files must strictly remain <= 350 lines.
+
 
 
 

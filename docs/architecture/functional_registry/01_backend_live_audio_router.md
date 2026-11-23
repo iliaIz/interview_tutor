@@ -259,6 +259,21 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - Every spoken AI response following candidate speech MUST contain >= 1200 bytes audio (Invariant 2.9).
   - Backend generation state and watchdogs MUST be armed upon receiving `audioStreamEnd`.
 
+---
+
+### 2.20 `DownstreamClientPipe: Consolidated Client Ingress Transport & Heartbeat Invariant Router (Spec 28)`
+- **Location:** [`backend/src/services/live/DownstreamClientPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/DownstreamClientPipe.ts), [`backend/src/services/live/liveWsClientFrameHandler.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWsClientFrameHandler.ts)
+- **What Was Done:**
+  1. Extracted `DownstreamClientPipe.ts` (325 lines) consolidating client WebSocket ingress, heartbeat routing (ping, pong, sync_ping), memory turn sync (`resume_sync`), barge-in disarming, turn reset, canvas deictic context, and fast-handoff audio chunk forwarding into a single deep module.
+  2. Shrunk `liveWsClientFrameHandler.ts` from 296 lines to 42 lines by turning it into a minimal adapter that delegates frame dispatch to `DownstreamClientPipe`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Splitting client frame parsing and session state mutation across sibling handlers caused cyclic state updates and leaked transport invariants into orchestration layers.
+  - *Empirical Finding:* Encapsulating transport protocols in `DownstreamClientPipe` unifies client ingress behind a single `handleFrame` seam, ensuring echo suppression, watchdog arming, and turn resets happen deterministically in one place.
+- **Rationale & "Why":** Deep module architecture replacing shallow pass-through glue with a cohesive transport gateway.
+- **Invariants:**
+  - Downstream client WebSocket traffic must route exclusively through `DownstreamClientPipe`.
+  - Cognitive bounding: `DownstreamClientPipe.ts` <= 350 lines; `liveWsClientFrameHandler.ts` <= 100 lines.
+
 
 
 
