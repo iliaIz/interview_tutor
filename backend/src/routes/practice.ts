@@ -34,7 +34,7 @@ router.get('/challenges', (req, res) => {
 router.get('/challenges/:id', (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const details = PracticeChallengeCatalog.getChallengeManifest(req.params.id, userId);
+    const details = PracticeChallengeCatalog.getChallengeManifest(String(req.params.id), userId);
     if (!details) {
       return res.status(404).json({ error: 'Coding challenge not found' });
     }
@@ -79,7 +79,7 @@ router.post('/transaction-lab/draft', requireAuth, (req, res) => {
 router.get('/transaction-lab/draft/:scenarioId', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const draft = PracticeChallengeCatalog.getTransactionLabDraft(userId, req.params.scenarioId);
+    const draft = PracticeChallengeCatalog.getTransactionLabDraft(userId, String(req.params.scenarioId));
     res.json({ draft });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -134,7 +134,7 @@ router.post('/generate-task', async (req, res) => {
 router.get('/:challengeId/export-zip', requireAuth, (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const { filename, buffer } = PracticeChallengeCatalog.exportMavenPackage(req.params.challengeId, userId);
+    const { filename, buffer } = PracticeChallengeCatalog.exportMavenPackage(String(req.params.challengeId), userId);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buffer);
