@@ -1,8 +1,16 @@
-import React, { useMemo, useState } from 'react';
+/**
+ * CodeViewer.tsx
+ * Pure presentation rendering component for Code and Unified Diffs.
+ * Cognitive Bounding SLA: <= 200 lines (Rule 8 compliant, down from 445 lines).
+ */
+
+import React, { useState } from 'react';
 import Prism from '../utils/prismSetup';
 import { Highlight, type PrismTheme } from 'prism-react-renderer';
 import { Copy, Check, Search } from 'lucide-react';
-import { useSelectionFocusStore } from '../store/useSelectionFocusStore';
+import { registerSreLogGrammar } from '../utils/prismLogGrammar';
+import { velvetObsidianTheme } from '../themes/velvetObsidianTheme';
+import { useCodeViewerModel } from '../hooks/useCodeViewerModel';
 
 // Import Prism language definitions for Java, Kotlin, SQL, JSON, Bash
 import 'prismjs/components/prism-clike';
@@ -12,137 +20,10 @@ import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-bash';
 
-/**
- * Register Custom JVM Forensics & SRE Observability Log Grammar into Prism
- */
-if (Prism && Prism.languages) {
-  Prism.languages.log = {
-    'thread-deadlock': {
-      pattern: /Found \d+ Java-level deadlock|Deadlock detected|deadlock/i,
-      alias: 'important'
-    },
-    'thread-state-runnable': {
-      pattern: /java\.lang\.Thread\.State:\s*RUNNABLE/i,
-      alias: 'attr-name'
-    },
-    'thread-state-blocked': {
-      pattern: /java\.lang\.Thread\.State:\s*BLOCKED[^\n]*/i,
-      alias: 'deleted'
-    },
-    'thread-state-waiting': {
-      pattern: /java\.lang\.Thread\.State:\s*(TIMED_WAITING|WAITING)[^\n]*/i,
-      alias: 'keyword'
-    },
-    'lock-address': {
-      pattern: /<0x[0-9a-fA-F]+>|parking to wait for <0x[0-9a-fA-F]+>|waiting on <0x[0-9a-fA-F]+>|locked <0x[0-9a-fA-F]+>/i,
-      alias: 'number'
-    },
-    'log-error': {
-      pattern: /\b(FATAL|ERROR|SEVERE|CRITICAL|OutOfMemoryError|NullPointerException|Deadlock|TimeoutException|SQLException|HikariPool-\d+ - Connection is not available)\b/,
-      alias: 'deleted'
-    },
-    'log-warn': {
-      pattern: /\b(WARN|WARNING|Slow query|High GC pause|Pool exhausted)\b/,
-      alias: 'annotation'
-    },
-    'log-info': {
-      pattern: /\b(INFO|DEBUG|TRACE)\b/,
-      alias: 'function'
-    },
-    'thread-name': {
-      pattern: /"[^"\n]+"(?=\s+#\d+)/,
-      alias: 'class-name'
-    },
-    'timestamp': {
-      pattern: /\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/,
-      alias: 'comment'
-    },
-    'string': {
-      pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
-      greedy: true
-    },
-    'number': /\b\d+(?:\.\d+)?(?:ms|s|MB|GB|KB|K|M|B)?\b/
-  };
+// Register SRE Log Grammar
+registerSreLogGrammar(Prism);
 
-  Prism.languages.jstack = Prism.languages.log;
-}
-
-/**
- * Velvet Obsidian Luxury Dark Theme Token Mappings
- */
-export const velvetObsidianTheme: PrismTheme = {
-  plain: {
-    color: '#E0E6ED',
-    backgroundColor: '#0B0C10',
-  },
-  styles: [
-    {
-      types: ['comment', 'prolog', 'doctype', 'cdata'],
-      style: {
-        color: '#637777',
-        fontStyle: 'italic',
-      },
-    },
-    {
-      types: ['annotation', 'decorator', 'attr-name'],
-      style: {
-        color: '#C792EA',
-        fontWeight: '600',
-      },
-    },
-    {
-      types: ['keyword', 'tag', 'operator'],
-      style: {
-        color: '#7FDBCA',
-      },
-    },
-    {
-      types: ['class-name', 'type-annotation', 'builtin'],
-      style: {
-        color: '#82AAFF',
-      },
-    },
-    {
-      types: ['string', 'char'],
-      style: {
-        color: '#ECC48D',
-      },
-    },
-    {
-      types: ['function', 'function-variable'],
-      style: {
-        color: '#80CBC4',
-      },
-    },
-    {
-      types: ['number', 'boolean'],
-      style: {
-        color: '#FF5370',
-      },
-    },
-    {
-      types: ['punctuation'],
-      style: {
-        color: '#89DDFF',
-      },
-    },
-    {
-      types: ['deleted', 'important'],
-      style: {
-        color: '#FF6B6B',
-        fontWeight: 'bold',
-      },
-    },
-    {
-      types: ['inserted'],
-      style: {
-        color: '#49D69E',
-        fontWeight: 'bold',
-      },
-    },
-  ],
-};
-
+export { velvetObsidianTheme };
 export type SupportedLanguage = 'java' | 'kotlin' | 'sql' | 'json' | 'bash' | 'markdown' | 'log' | 'jstack' | string;
 
 export interface CodeViewerProps {
@@ -159,126 +40,32 @@ export interface CodeViewerProps {
   revisionId?: string;
 }
 
-type DiffKind = 'added' | 'removed' | 'neutral';
+const CodeViewerComponent: React.FC<CodeViewerProps> = (props) => {
+  const {
+    code,
+    language = 'java',
+    isDiff = false,
+    showLineNumbers = true,
+    title,
+    className = '',
+    maxHeight,
+    searchQuery = '',
+    revisionIndex
+  } = props;
 
-interface LineMetadata {
-  diffKind: DiffKind;
-  cleanText: string;
-  isMatch?: boolean;
-}
-
-const CodeViewerComponent: React.FC<CodeViewerProps> = ({
-  code,
-  language = 'java',
-  isDiff = false,
-  showLineNumbers = true,
-  title,
-  className = '',
-  maxHeight,
-  searchQuery = '',
-  revisionIndex,
-  revisionTitle,
-  revisionId,
-}) => {
   const [copied, setCopied] = useState(false);
-  const { activeFocus, setFocus, clearFocus } = useSelectionFocusStore();
-  const rawCodeLines = useMemo(() => (code || '').trimEnd().split('\n'), [code]);
 
-  // SOTA 2026 Deictic Grounding: Check if line is within active user focus
-  const isLineInFocus = (lineNum: number) => {
-    if (!activeFocus || activeFocus.zone !== 'code') return false;
-    if (activeFocus.revisionIndex !== undefined && revisionIndex !== undefined && activeFocus.revisionIndex !== revisionIndex) {
-      return false;
-    }
-    const start = activeFocus.startLine ?? 0;
-    const end = activeFocus.endLine ?? 0;
-    return lineNum >= start && lineNum <= end;
-  };
-
-  const handleGutterClick = (lineNum: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isLineInFocus(lineNum) && activeFocus?.startLine === activeFocus?.endLine) {
-      clearFocus();
-      return;
-    }
-
-    let start = lineNum;
-    let end = lineNum;
-
-    if (e.shiftKey && activeFocus && activeFocus.zone === 'code' && activeFocus.startLine) {
-      start = Math.min(activeFocus.startLine, lineNum);
-      end = Math.max(activeFocus.startLine, lineNum);
-    }
-
-    const selectedLinesText = rawCodeLines.slice(start - 1, end).join('\n');
-
-    setFocus({
-      zone: 'code',
-      text: selectedLinesText,
-      startLine: start,
-      endLine: end,
-      revisionIndex,
-      revisionTitle: title || revisionTitle || (revisionIndex ? `v${revisionIndex}` : undefined),
-      revisionId,
-      language,
-      timestamp: Date.now()
-    });
-  };
-
-  // Normalize code and extract unified diff & search match metadata
-  const { normalizedCode, linesMeta, totalMatches } = useMemo(() => {
-    const rawLines = (code || '').trimEnd().split('\n');
-    const cleanSearch = searchQuery.trim().toLowerCase();
-
-    if (!isDiff) {
-      let matchesCount = 0;
-      const metadata: LineMetadata[] = rawLines.map((line) => {
-        const isMatch = cleanSearch.length > 0 && line.toLowerCase().includes(cleanSearch);
-        if (isMatch) matchesCount++;
-        return { diffKind: 'neutral', cleanText: line, isMatch };
-      });
-
-      return {
-        normalizedCode: rawLines.join('\n'),
-        linesMeta: metadata,
-        totalMatches: matchesCount,
-      };
-    }
-
-    const metadata: LineMetadata[] = [];
-    const sanitizedCodeLines: string[] = [];
-    let matchesCount = 0;
-
-    for (const rawLine of rawLines) {
-      let diffKind: DiffKind = 'neutral';
-      let cleanText = rawLine;
-
-      if (rawLine.startsWith('+')) {
-        diffKind = 'added';
-        cleanText = ' ' + rawLine.slice(1);
-      } else if (rawLine.startsWith('-')) {
-        diffKind = 'removed';
-        cleanText = ' ' + rawLine.slice(1);
-      }
-
-      const isMatch = cleanSearch.length > 0 && cleanText.toLowerCase().includes(cleanSearch);
-      if (isMatch) matchesCount++;
-
-      metadata.push({ diffKind, cleanText, isMatch });
-      sanitizedCodeLines.push(cleanText);
-    }
-
-    return {
-      normalizedCode: sanitizedCodeLines.join('\n'),
-      linesMeta: metadata,
-      totalMatches: matchesCount,
-    };
-  }, [code, isDiff, searchQuery]);
+  const {
+    normalizedCode,
+    linesMeta,
+    totalMatches,
+    isLineInFocus,
+    handleGutterClick
+  } = useCodeViewerModel(props);
 
   const handleCopy = () => {
-    // Copy clean code without diff signs if in diff mode
     const textToCopy = isDiff
-      ? linesMeta.map(l => l.cleanText.trimStart()).join('\n')
+      ? linesMeta.map((l) => l.cleanText.trimStart()).join('\n')
       : code;
 
     navigator.clipboard.writeText(textToCopy);

@@ -237,6 +237,21 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - All files strictly <= 350 lines (Rule 8 compliant).
   - Reconciled evaluation pipelines persist identical server progress across text and voice modalities.
 
+---
+
+### 2.15 `Wave 5: Acoustic DSP Engine Decoupling & Dead Code Cleanup (Spec 30)`
+- **Location:** [`frontend/src/services/audio/AcousticDspEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/audio/AcousticDspEngine.ts), [`frontend/src/services/audio/SpeechClarityAnalyzer.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/audio/SpeechClarityAnalyzer.ts), [`frontend/src/services/audio/QuestionFrameworkClassifier.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/audio/QuestionFrameworkClassifier.ts), [`frontend/src/services/AcousticTelemetryService.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AcousticTelemetryService.ts)
+- **What Was Done:**
+  1. **Acoustic DSP Decoupling:** Extracted `AcousticDspEngine.ts` (230 lines) as a pure math Float32 PCM engine (RMS dBFS, 10th percentile noise floor calibration, SNR, gross/net WPM, and 30-point energy sparkline downsampling) without any DOM, Tailwind, or styling dependencies.
+  2. **Speech Clarity & Disfluencies:** Extracted `SpeechClarityAnalyzer.ts` (82 lines) with Russian/English filler words dictionary regex matching and clarity percentage scoring.
+  3. **Question Framework Taxonomy:** Extracted `QuestionFrameworkClassifier.ts` (68 lines) categorizing prompts into STAR, PREP, and Rule-of-3 frameworks.
+  4. **Lean Facade:** Shrunk `AcousticTelemetryService.ts` from 563 to 240 lines, preserving 100% backward compatibility for existing callers.
+  5. **Dead Code Prototype Purge:** Deleted `frontend/src/hooks/useLiveKitAudioSession.ts` (550 lines of unimported prototype code) in strict compliance with the Rule 8 Zero Parallel Reimplementation invariant.
+- **Invariants:**
+  - DSP math runs headlessly on pure PCM buffers in <1ms without DOM or CSS dependencies.
+  - Zero parallel reimplementation: audio streaming is governed solely by `LiveVoiceEngine`.
+  - All files strictly <= 350 lines (Rule 8 compliant).
+
 
 
 

@@ -1,23 +1,33 @@
 /**
- * AcousticTelemetryService
- * Computes speech acoustics metrics:
- * - RMS dBFS and 10th percentile noise floor calibration
- * - Signal-to-Noise Ratio (SNR dB)
- * - Gross and Net Words Per Minute (WPM)
- * - Pause Ratio %
- * - 30-point normalized energy vector for sparkline waveform rendering
+ * AcousticTelemetryService.ts
+ * Deep facade for speech acoustics, clarity heuristics, and executive coaching profiles.
+ * Delegates low-level math to AcousticDspEngine, NLP to SpeechClarityAnalyzer,
+ * and pedagogical structure to QuestionFrameworkClassifier.
+ * Cognitive Bounding SLA: <= 250 lines (Rule 8 compliant, down from 563 lines).
  */
 
-export interface AcousticMetrics {
-  rmsDb: number;
-  noiseFloorDb: number;
-  snrDb: number;
-  grossWpm: number;
-  netWpm: number;
-  pauseRatioPercent: number;
-  energyVector30: number[];
-}
+import {
+  AcousticDspEngine,
+  AcousticMetrics,
+  WordTimestamp
+} from './audio/AcousticDspEngine';
+import {
+  SpeechClarityAnalyzer,
+  SpeechClarityMetrics
+} from './audio/SpeechClarityAnalyzer';
+import {
+  QuestionFrameworkClassifier,
+  QuestionStructureFormat,
+  QuestionCategoryType
+} from './audio/QuestionFrameworkClassifier';
 
+export type {
+  AcousticMetrics,
+  WordTimestamp,
+  SpeechClarityMetrics,
+  QuestionStructureFormat,
+  QuestionCategoryType
+};
 
 export interface MetricCardInfo {
   title: string;
@@ -26,25 +36,6 @@ export interface MetricCardInfo {
   badgeStyle: string;
   techValue: string;
   iconEmoji: string;
-}
-
-export type QuestionCategoryType = 'definitional' | 'tradeoff' | 'behavioral';
-
-export interface QuestionStructureFormat {
-  category: QuestionCategoryType;
-  title: string;
-  recommendedFramework: 'STAR' | 'PREP' | 'RULE_OF_3';
-  description: string;
-  badgeStyle: string;
-}
-
-export interface SpeechClarityMetrics {
-  totalWords: number;
-  fillerWordsCount: number;
-  detectedFillers: Array<{ word: string; count: number }>;
-  clarityScorePercent: number;
-  pacingState: 'optimal' | 'rushed' | 'slow';
-  wpm: number;
 }
 
 export interface HumanizedAcousticProfile {
@@ -56,8 +47,37 @@ export interface HumanizedAcousticProfile {
 }
 
 export class AcousticTelemetryService {
-  private static readonly EPSILON = 1e-12;
-  private static readonly TARGET_POINTS = 30;
+  /**
+   * Delegates pure acoustic computation to AcousticDspEngine.
+   */
+  public static computeMetrics(
+    pcmData: Float32Array,
+    sampleRate: number = 16000,
+    transcriptText: string = '',
+    wordTimestamps?: WordTimestamp[]
+  ): AcousticMetrics {
+    return AcousticDspEngine.computeMetrics(pcmData, sampleRate, transcriptText, wordTimestamps);
+  }
+
+  /**
+   * Delegates verbal fluency and disfluencies evaluation to SpeechClarityAnalyzer.
+   */
+  public static analyzeSpeechClarity(
+    transcriptText: string,
+    grossWpm: number = 0
+  ): SpeechClarityMetrics {
+    return SpeechClarityAnalyzer.analyze(transcriptText, grossWpm);
+  }
+
+  /**
+   * Delegates pedagogical structure classification to QuestionFrameworkClassifier.
+   */
+  public static classifyQuestionStructure(
+    questionText: string,
+    topic?: string
+  ): QuestionStructureFormat {
+    return QuestionFrameworkClassifier.classify(questionText, topic);
+  }
 
   /**
    * Transforms raw acoustic telemetry into human-readable, executive coaching insights
@@ -177,7 +197,7 @@ export class AcousticTelemetryService {
           iconEmoji: '💎'
         };
       } else if (clarityMetrics.clarityScorePercent >= 75) {
-        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map(f => `«${f.word}»`).join(', ');
+        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map((f) => `«${f.word}»`).join(', ');
         clarity = {
           title: 'Умеренная чистота',
           description: `Зафиксировано ${clarityMetrics.fillerWordsCount} слов-паразитов (${topFillers}). Попробуйте заменять их короткой паузой.`,
@@ -187,7 +207,7 @@ export class AcousticTelemetryService {
           iconEmoji: '🌿'
         };
       } else {
-        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map(f => `«${f.word}»`).join(', ');
+        const topFillers = clarityMetrics.detectedFillers.slice(0, 3).map((f) => `«${f.word}»`).join(', ');
         clarity = {
           title: 'Частые слова-паразиты',
           description: `Обнаружено ${clarityMetrics.fillerWordsCount} слов-паразитов (${topFillers}). Делайте вдох вместо «эээ/ну» — пауза звучит солидно!`,
@@ -215,349 +235,6 @@ export class AcousticTelemetryService {
       structure,
       clarity,
       mentorPraise
-    };
-  }
-
-  /**
-   * Analyze recorded PCM samples Float32 [-1.0, 1.0], transcript text, and optional Deepgram word timestamps.
-   * When word timestamps are available, trims pre/post silence and calculates true articulation rate and pause ratio.
-   */
-  public static analyzeAcoustics(
-    pcmData: Float32Array,
-    sampleRate: number,
-    transcriptText: string,
-    wordTimestamps?: Array<{ word: string; start: number; end: number }>
-  ): AcousticMetrics {
-    const totalSamples = pcmData.length;
-    const totalDurationSec = totalSamples / sampleRate;
-
-    if (totalSamples === 0 || totalDurationSec === 0) {
-      return {
-        rmsDb: -60,
-        noiseFloorDb: -60,
-        snrDb: 0,
-        grossWpm: 0,
-        netWpm: 0,
-        pauseRatioPercent: 0,
-        energyVector30: new Array(this.TARGET_POINTS).fill(0.1),
-      };
-    }
-
-    const words = transcriptText
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0);
-
-    const validTimestamps = (wordTimestamps && wordTimestamps.length > 0)
-      ? wordTimestamps.filter((w) => typeof w.start === 'number' && typeof w.end === 'number' && w.end >= w.start)
-      : null;
-
-    let grossWpm = 0;
-    let netWpm = 0;
-    let pauseRatioPercent = 0;
-    let activeStartSample = 0;
-    let activeEndSample = totalSamples;
-
-    if (validTimestamps && validTimestamps.length >= 2) {
-      // =========================================================================
-      // 1. Deepgram Word Timestamps-Based Exact Metrics (Standard 2026)
-      // =========================================================================
-      const firstWordStart = validTimestamps[0].start;
-      const lastWordEnd = validTimestamps[validTimestamps.length - 1].end;
-      const speechSpanDurationSec = Math.max(0.5, lastWordEnd - firstWordStart);
-
-      // Clamp active PCM slice for true speech RMS calibration (excludes dead pre/post click silence)
-      activeStartSample = Math.max(0, Math.floor(firstWordStart * sampleRate));
-      activeEndSample = Math.min(totalSamples, Math.ceil(lastWordEnd * sampleRate));
-
-      let totalPhonationSec = 0;
-      let totalRhetoricalPausesSec = 0; // Gaps 0.35s .. 0.9s (natural phrasing rhythm)
-      let totalCognitivePausesSec = 0;   // Gaps > 0.9s (actual thinking / hesitation)
-
-      for (let i = 0; i < validTimestamps.length; i++) {
-        const w = validTimestamps[i];
-        totalPhonationSec += Math.max(0.05, w.end - w.start);
-
-        if (i < validTimestamps.length - 1) {
-          const nextW = validTimestamps[i + 1];
-          const gap = Math.max(0, nextW.start - w.end);
-          if (gap > 0.9) {
-            totalCognitivePausesSec += gap;
-          } else if (gap >= 0.35) {
-            totalRhetoricalPausesSec += gap;
-          }
-        }
-      }
-
-      // Active speech duration = Phonation + natural phrasing micro-gaps
-      const activeConversationalDurationSec = Math.max(0.5, totalPhonationSec + totalRhetoricalPausesSec);
-
-      // Pause ratio: percentage of active speech window spent in true cognitive hesitation (> 0.9s)
-      // Professional natural speech usually exhibits 12% - 28% pauses.
-      const calculatedPauseRatio = (totalCognitivePausesSec / speechSpanDurationSec) * 100;
-      pauseRatioPercent = Math.min(65, Math.max(5, calculatedPauseRatio));
-
-      // Real WPM calculation over speech span (excluding dead edge silence)
-      grossWpm = Math.round(validTimestamps.length / (speechSpanDurationSec / 60));
-      netWpm = Math.round(validTimestamps.length / (activeConversationalDurationSec / 60));
-    } else {
-      // =========================================================================
-      // 2. DSP Fallback (Frame-based VAD when word timestamps are pending/unavailable)
-      // =========================================================================
-      const frameSize = Math.max(128, Math.floor(sampleRate * 0.02)); // 20ms frame
-      const frameRmsValues: number[] = [];
-
-      for (let i = 0; i < totalSamples; i += frameSize) {
-        const end = Math.min(i + frameSize, totalSamples);
-        let frameSum = 0;
-        for (let j = i; j < end; j++) {
-          const val = pcmData[j];
-          frameSum += val * val;
-        }
-        const frameRms = Math.sqrt(frameSum / (end - i));
-        frameRmsValues.push(20 * Math.log10(frameRms + this.EPSILON));
-      }
-
-      // Noise Floor estimation from 10th percentile
-      const sortedFrameRms = [...frameRmsValues].sort((a, b) => a - b);
-      const noiseFloorIndex = Math.floor(sortedFrameRms.length * 0.1);
-      const noiseFloorDb = sortedFrameRms[noiseFloorIndex] ?? -60;
-
-      // Adaptive VAD threshold with margin for unvoiced consonants
-      const vadThresholdDb = Math.max(noiseFloorDb + 6, -48);
-      let activeFramesCount = 0;
-      for (const val of frameRmsValues) {
-        if (val > vadThresholdDb) {
-          activeFramesCount++;
-        }
-      }
-
-      const frameDurationSec = frameSize / sampleRate;
-      const activeSpeechDurationSec = Math.min(
-        totalDurationSec,
-        activeFramesCount * frameDurationSec
-      );
-
-      let effectiveWordCount = words.length;
-      if (effectiveWordCount < 8 && activeSpeechDurationSec > 3) {
-        effectiveWordCount = Math.round(activeSpeechDurationSec * 2.15);
-      }
-
-      grossWpm = totalDurationSec > 0 ? (effectiveWordCount / (totalDurationSec / 60)) : 0;
-      netWpm = activeSpeechDurationSec > 0 ? (effectiveWordCount / (activeSpeechDurationSec / 60)) : 0;
-
-      const pauseDurationSec = Math.max(0, totalDurationSec - activeSpeechDurationSec);
-      pauseRatioPercent = totalDurationSec > 0 ? (pauseDurationSec / totalDurationSec) * 100 : 0;
-    }
-
-    // Compute RMS and Noise Floor over the calibrated active speech slice
-    const sliceStart = activeStartSample;
-    const sliceEnd = Math.max(sliceStart + 128, activeEndSample);
-    const sliceLen = sliceEnd - sliceStart;
-
-    let sumSquares = 0;
-    for (let i = sliceStart; i < sliceEnd; i++) {
-      const val = pcmData[i];
-      sumSquares += val * val;
-    }
-    const overallRms = Math.sqrt(sumSquares / sliceLen);
-    const rmsDb = Math.max(-90, 20 * Math.log10(overallRms + this.EPSILON));
-
-    // Calculate Noise Floor over full buffer
-    const frameSize = Math.max(128, Math.floor(sampleRate * 0.02));
-    const allFrameRms: number[] = [];
-    for (let i = 0; i < totalSamples; i += frameSize) {
-      const end = Math.min(i + frameSize, totalSamples);
-      let fSum = 0;
-      for (let j = i; j < end; j++) {
-        const val = pcmData[j];
-        fSum += val * val;
-      }
-      allFrameRms.push(20 * Math.log10(Math.sqrt(fSum / (end - i)) + this.EPSILON));
-    }
-    allFrameRms.sort((a, b) => a - b);
-    const noiseFloorDb = allFrameRms[Math.floor(allFrameRms.length * 0.1)] ?? -60;
-    const snrDb = Math.max(0, rmsDb - noiseFloorDb);
-
-    // 30-Point Sparkline Energy Vector
-    const energyVector30 = this.compute30PointEnergyVector(pcmData);
-
-    return {
-      rmsDb: Number(rmsDb.toFixed(1)),
-      noiseFloorDb: Number(noiseFloorDb.toFixed(1)),
-      snrDb: Number(snrDb.toFixed(1)),
-      grossWpm: Number(grossWpm.toFixed(0)),
-      netWpm: Number(netWpm.toFixed(0)),
-      pauseRatioPercent: Number(pauseRatioPercent.toFixed(1)),
-      energyVector30,
-    };
-  }
-
-  private static compute30PointEnergyVector(pcmData: Float32Array): number[] {
-    const vector = new Float64Array(this.TARGET_POINTS);
-    const binSize = Math.floor(pcmData.length / this.TARGET_POINTS);
-
-    if (binSize === 0) {
-      return new Array(this.TARGET_POINTS).fill(0.1);
-    }
-
-    let minEnergy = Infinity;
-    let maxEnergy = -Infinity;
-
-    for (let k = 0; k < this.TARGET_POINTS; k++) {
-      const start = k * binSize;
-      const end = k === this.TARGET_POINTS - 1 ? pcmData.length : start + binSize;
-      let sumSquares = 0;
-
-      for (let j = start; j < end; j++) {
-        const sample = pcmData[j];
-        sumSquares += sample * sample;
-      }
-
-      const rms = Math.sqrt(sumSquares / (end - start));
-      vector[k] = rms;
-
-      if (rms < minEnergy) minEnergy = rms;
-      if (rms > maxEnergy) maxEnergy = rms;
-    }
-
-    const range = maxEnergy - minEnergy;
-    const normalized: number[] = [];
-
-    for (let k = 0; k < this.TARGET_POINTS; k++) {
-      if (range < this.EPSILON) {
-        normalized.push(0.2);
-      } else {
-        const normVal = (vector[k] - minEnergy) / range;
-        // Keep in [0.08, 1.0] for nice visual bar heights in sparkline
-        normalized.push(Number((0.08 + normVal * 0.92).toFixed(3)));
-      }
-    }
-
-    return normalized;
-  }
-
-  // Canonical lexicon of speech disfluencies and filler words
-  private static readonly RUSSIAN_FILLERS = [
-    'эээ', 'ээ', 'ммм', 'мм', 'как бы', 'типа', 'ну', 'в общем-то',
-    'в общем', 'короче', 'так сказать', 'значит', 'собственно',
-    'в принципе', 'вот', 'слушай'
-  ];
-
-  private static readonly ENGLISH_FILLERS = [
-    'um', 'uh', 'er', 'ah', 'like', 'you know', 'basically',
-    'sort of', 'kind of', 'actually', 'literally', 'i mean', 'right'
-  ];
-
-  /**
-   * Evaluates verbal fluency, disfluencies, and speech clarity percentage
-   */
-  public static analyzeSpeechClarity(transcriptText: string, grossWpm: number = 0): SpeechClarityMetrics {
-    const text = (transcriptText || '').trim();
-    if (!text) {
-      return {
-        totalWords: 0,
-        fillerWordsCount: 0,
-        detectedFillers: [],
-        clarityScorePercent: 100,
-        pacingState: 'optimal',
-        wpm: grossWpm
-      };
-    }
-
-    const words = text.split(/\s+/).filter(w => w.length > 0);
-    const totalWords = words.length;
-    const lowerText = text.toLowerCase();
-
-    const fillerMap = new Map<string, number>();
-    let totalFillers = 0;
-
-    const allFillers = [...this.RUSSIAN_FILLERS, ...this.ENGLISH_FILLERS];
-    for (const filler of allFillers) {
-      const escaped = filler.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(?:^|[\\s,.;:!?"'«»(—–-])${escaped}(?=[\\s,.;:!?"'«»)—–-]|$|\\n)`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches && matches.length > 0) {
-        fillerMap.set(filler, (fillerMap.get(filler) || 0) + matches.length);
-        totalFillers += matches.length;
-      }
-    }
-
-    const detectedFillers = Array.from(fillerMap.entries())
-      .map(([word, count]) => ({ word, count }))
-      .sort((a, b) => b.count - a.count);
-
-    // Score: 100% minus penalty for filler density
-    const clarityScorePercent = totalWords > 0
-      ? Math.max(0, Math.min(100, Math.round(100 - (totalFillers / totalWords) * 150)))
-      : 100;
-
-    let pacingState: 'optimal' | 'rushed' | 'slow' = 'optimal';
-    if (grossWpm > 170) pacingState = 'rushed';
-    else if (grossWpm > 0 && grossWpm < 100) pacingState = 'slow';
-
-    return {
-      totalWords,
-      fillerWordsCount: totalFillers,
-      detectedFillers,
-      clarityScorePercent,
-      pacingState,
-      wpm: grossWpm
-    };
-  }
-
-  /**
-   * Adaptive Question Classifier:
-   * Categorizes technical questions into Definitional (Rule of 3), Trade-off (PREP), or Behavioral (STAR).
-   */
-  public static classifyQuestionStructure(questionText: string, topic?: string): QuestionStructureFormat {
-    const qLower = (questionText || '').toLowerCase();
-    const tLower = (topic || '').toLowerCase();
-
-    // 1. Behavioral & Incident questions (Experience, failures, war stories) -> STAR
-    const behavioralKeywords = [
-      'инцидент', 'авари', 'опыт', 'расскажите о', 'случай', 'баг', 'проблем',
-      'утечк', 'падени', 'дедлок', 'сбой', 'поломк', 'сложный баг', 'ошибк',
-      'incident', 'outage', 'failure', 'tell me about', 'experience', 'situation',
-      'debugged', 'debug', 'post-mortem', 'rca', 'root cause'
-    ];
-
-    const isBehavioral = behavioralKeywords.some(kw => qLower.includes(kw) || tLower.includes(kw));
-    if (isBehavioral) {
-      return {
-        category: 'behavioral',
-        title: 'Опыт / Инцидент (STAR)',
-        recommendedFramework: 'STAR',
-        description: 'Рекомендуется структура STAR: Situation (Контекст) -> Task (Задача) -> Action (Ваши действия) -> Result (Измеримый итог).',
-        badgeStyle: 'bg-rose-50 text-pastel-accentRoseText border-pastel-accentRose/30'
-      };
-    }
-
-    // 2. Trade-off & Architectural choice questions -> PREP
-    const tradeoffKeywords = [
-      ' vs ', 'или', 'разниц', 'сравните', 'почему', 'выбрать', 'компромисс',
-      'когда использовать', 'в чем отличие', 'плюсы и минусы', 'trade-off',
-      'difference between', 'compare', 'prefer', 'pros and cons', 'when to use'
-    ];
-
-    const isTradeoff = tradeoffKeywords.some(kw => qLower.includes(kw));
-    if (isTradeoff) {
-      return {
-        category: 'tradeoff',
-        title: 'Архитектурный выбор (PREP)',
-        recommendedFramework: 'PREP',
-        description: 'Рекомендуется структура PREP: Point (Тезис) -> Reason (Причина) -> Example (Пример из практики) -> Point (Итоговый вывод).',
-        badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200/80'
-      };
-    }
-
-    // 3. Definitional & Under-the-Hood questions -> Rule of 3
-    return {
-      category: 'definitional',
-      title: 'Теория и кишки (Rule of 3)',
-      recommendedFramework: 'RULE_OF_3',
-      description: 'Рекомендуется структура Rule of 3: 1) Определение -> 2) Механика под капотом (JMM/Spring) -> 3) Подводный камень / Best practice.',
-      badgeStyle: 'bg-blue-50 text-blue-700 border-blue-200/80'
     };
   }
 }

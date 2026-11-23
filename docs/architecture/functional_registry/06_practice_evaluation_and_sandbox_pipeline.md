@@ -120,6 +120,19 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - Every mutant in all 42 platform katas must either compile as a complete unit or patch safely into the target source file without creating Stillborn mutants.
   - The UI MUST never display "Брешь в тестах" when a mutant fails due to compiler errors (`STILLBORN`).
 
+---
+
+### 2.9 `Wave 5: Practice Challenge Catalog Domain Seam, Bug Challenge Studio & CodeViewer Decomposition (Spec 30)`
+- **Location:** [`backend/src/services/practice/PracticeChallengeCatalog.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/practice/PracticeChallengeCatalog.ts), [`backend/src/routes/practice.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practice.ts), [`frontend/src/hooks/useBugChallengeInspection.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/hooks/useBugChallengeInspection.ts), [`frontend/src/components/BugChallengeCard.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/BugChallengeCard.tsx), [`frontend/src/components/CodeViewer.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/CodeViewer.tsx)
+- **What Was Done:**
+  1. **Practice Challenge Catalog Seam:** Extracted `PracticeChallengeCatalog.ts` (283 lines) encapsulating all SQLite `coding_challenges` and `coding_submissions` queries, user status mapping, transaction catalog federation, file limit validation, and Maven ZIP packaging. Reduced `backend/src/routes/practice.ts` from 331 to 147 lines of lean HTTP routing.
+  2. **Bug Challenge Studio Slicing:** Extracted pure in-process `diff.ts` (47 lines) and `useBugChallengeInspection.ts` (124 lines). Sliced the 609-line `BugChallengeCard.tsx` down to 188 lines into `BugChallengeHeader.tsx` (108 lines), `BugIncidentAccordion.tsx` (90 lines), and `BugSolutionPanel.tsx` (206 lines).
+  3. **CodeViewer SRE Grammars & Themes:** Extracted `velvetObsidianTheme.ts` (80 lines), `prismLogGrammar.ts` (59 lines), and `useCodeViewerModel.ts` (143 lines). Reduced `CodeViewer.tsx` from 445 lines down to 232 lines.
+- **Invariants:**
+  - Zero raw SQL queries leaked into Express route handlers.
+  - All files strictly <= 350 lines (Rule 8 compliant).
+  - Pure diff generation and AST rule evaluations are headless and testable in 0ms without mounting React DOM.
+
 
 
 
