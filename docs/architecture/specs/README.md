@@ -39,6 +39,8 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **20** | **Voice, System Design & War Room Anti-Sycophancy (Part 2: Arenas & Voice)** | [`20_VOICE_SYSTEM_DESIGN_WAR_ROOM_ANTI_SYCOPHANCY.md`](20_VOICE_SYSTEM_DESIGN_WAR_ROOM_ANTI_SYCOPHANCY.md) | Live Voice cognitive epistemic directives, Capacity Math Verification Gate, War Room Hard Stop on destructive actions, HR zero flattery |
 | **21** | **Evaluators, Code Review & Challenge Gen Anti-Sycophancy (Part 3: Evaluation)** | [`21_EVALUATORS_CODE_REVIEW_AND_CHALLENGE_GEN_ANTI_SYCOPHANCY.md`](21_EVALUATORS_CODE_REVIEW_AND_CHALLENGE_GEN_ANTI_SYCOPHANCY.md) | Zero-Phantom-Deductions math ledger (`score = 100 - sum(deductions)`), Verdict-First code review summary, Ground Truth failure physics in bug challenges |
 | **22** | **Alfa Digital & А-Токен Targeted Preparation Hub** | [`22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md`](22_ALFA_BANK_TARGETED_PREPARATION_AND_SOTA_VERIFICATION.md) | Zero-silo company projection, 27 physical root-cause questions, 23 Alfa banking katas, CRI readiness radar |
+| **36** | **Gemini Live Practice Pair Resilience** | [`36_GEMINI_LIVE_PRACTICE_PAIR_RESILIENCE.md`](36_GEMINI_LIVE_PRACTICE_PAIR_RESILIENCE.md) | Practice Pair resilience, normal closure reconnect suppression, whiteboard SILENT scheduling, VAD pause alignment |
+| **37** | **Gemini Live Long Session Stability & Stream Sync** | [`37_GEMINI_LIVE_LONG_SESSION_STABILITY_AND_STREAM_SYNC.md`](37_GEMINI_LIVE_LONG_SESSION_STABILITY_AND_STREAM_SYNC.md) | Context window compression (slidingWindow), LiveDeadAirGuard vocoder clamping (2000ms), upstream watchdog resync, whiteboard verbal continuity |
 
 ---
 
