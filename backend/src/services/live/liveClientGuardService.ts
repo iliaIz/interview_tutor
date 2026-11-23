@@ -114,6 +114,13 @@ export class LiveClientGuardService {
       return true;
     }
 
+    // Invariant: while Gemini is actively generating a response (thinking/synthesizing),
+    // trailing mic audio or ambient silence must NOT stream upstream to prevent Cloud VAD
+    // from aborting generation via START_OF_ACTIVITY_INTERRUPTS.
+    if (session.isAiGenerating) {
+      return true;
+    }
+
     // Native Cloud VAD: Gemini needs continuous audio to detect speech start/end
     if (turnMode === 'auto') {
       return false;

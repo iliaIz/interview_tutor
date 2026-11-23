@@ -32,6 +32,7 @@ export type VoiceStateEvent =
   | { type: 'SPEECH_STARTED' }
   | { type: 'SPEECH_PAUSED' }
   | { type: 'COMMIT_TRIGGERED' }
+  | { type: 'THINKING_START' }
   | { type: 'FIRST_AUDIO_RECEIVED' }
   | { type: 'SERVER_TURN_DONE' }
   | { type: 'DEAD_AIR_RECOVERED'; reason?: string }
@@ -57,7 +58,7 @@ export class LiveVoiceStateMachine {
       case 'CANDIDATE_LISTENING': return 'LISTENING';
       case 'CANDIDATE_SPEAKING': return 'LISTENING';
       case 'CANDIDATE_HOLD': return 'LISTENING';
-      case 'COMMITTING': return 'LISTENING';
+      case 'COMMITTING': return 'CONNECTING';
       case 'AI_THINKING': return 'CONNECTING';
       case 'AI_SPEAKING': return 'AI_SPEAKING';
       case 'COMPLETED': return 'COMPLETED';
@@ -137,8 +138,14 @@ export class LiveVoiceStateMachine {
         }
         break;
 
+      case 'THINKING_START':
       case 'SERVER_TURN_DONE':
-        if (prev === 'COMMITTING' || prev === 'CANDIDATE_HOLD' || prev === 'CANDIDATE_SPEAKING') {
+        if (
+          prev === 'COMMITTING' ||
+          prev === 'CANDIDATE_HOLD' ||
+          prev === 'CANDIDATE_SPEAKING' ||
+          prev === 'CANDIDATE_LISTENING'
+        ) {
           next = 'AI_THINKING';
         }
         break;

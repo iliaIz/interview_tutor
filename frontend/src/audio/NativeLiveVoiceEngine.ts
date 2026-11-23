@@ -1,15 +1,7 @@
 /**
  * NativeLiveVoiceEngine.ts
  * SOTA Late-2026 Headless Clean Native Voice Engine for Gemini 3.8 Live.
- * 
- * Invariants:
- * - Direct 16kHz PCM continuous microphone streaming (100ms frames / 10 fps).
- * - Symmetrical Dual-Sided Handshake (turnComplete + DAC drain synchronization).
- * - Programmatic Audio Mutex: freezes microphone chunks during tool execution (prevents WS Close 1008).
- * - Server-driven Acoustic Barge-In: instantaneous de-click cut-off upon serverContent.interrupted.
- * - Zero client-side VAD middleware (relies strictly on Google native cloud VAD).
- * 
- * Bounded cognitive size: <= 300 lines (Rule 8).
+ * Enforces Dual-Sided Handshake, Audio Mutex, and Cloud VAD streaming.
  */
 
 import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
@@ -128,6 +120,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public commitSpokenTurn(): void {
+    if (!this.fsm.isCandidateTurnActive()) return;
     this.micDispatcher.resetCounters();
     this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
@@ -246,6 +239,9 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     if (parsed.type === 'setupComplete') {
       this.isSessionReady = true;
+      if (parsed.rawParsed?.reconnected || parsed.rawParsed?.silent) {
+        this.isTurn0Lockdown = false;
+      }
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
       if (!this.isTurn0Lockdown) {
         this.unlockCandidateTurn();

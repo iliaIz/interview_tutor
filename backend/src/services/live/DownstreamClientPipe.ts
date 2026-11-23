@@ -291,6 +291,10 @@ export class DownstreamClientPipe {
         return Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType, data: audioData } } }));
       }
     } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
+      if (session.isAiGenerating) {
+        console.warn(`🛡️ [DUPLICATE_COMMIT_GUARD] Suppressed duplicate audioStreamEnd while AI is already generating (sessionId: ${session.sessionId || 'anon'})`);
+        return null;
+      }
       session.hasCandidateResponded = true;
       session.isAiGenerating = true;
       session.lastTurnCommitTime = Date.now();
