@@ -2,7 +2,12 @@
 
 **Archetype:** Prefactor
 **Blocked by:** None
-**Status:** ready-for-agent
+**Status:** closed - verified in production (commit b6f818d)
+
+## Verification
+- Verified by: GitHub Actions Run 45089445074 & 45090110754
+- `UpstreamGeminiPipe.ts`: Encapsulates upstream WS, backoff jitter, Turn 0 frame gating (170 lines)
+- `liveAudioStreamRouter.ts`: Shrunk from 379 to 285 lines.
 
 ## What to Build
 Extract upstream WebSocket connection management, Turn 0 frame gating, backoff reconnection, and raw frame decoding out of `backend/src/services/live/liveAudioStreamRouter.ts` into a dedicated `UpstreamGeminiPipe` class. Provide typed turn events (`SETUP_COMPLETE`, `GREETING_READY`, `AUDIO_CHUNK`, `TOOL_CALL`, `TURN_FINISHED`, `ERROR`) to downstream coordinators. Reduce `liveAudioStreamRouter.ts` from 379 lines to &le; 240 lines while preserving its exact public API (`createLiveAudioStreamRouter`).

@@ -2,7 +2,13 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** #01 (benefits from CandidateMemoryAggregate for error gap recording)
-**Status:** ready-for-agent
+**Status:** closed - verified in production (commit b6f818d)
+
+## Verification
+- Verified by: GitHub Actions Run 45089445074 & 45090110754
+- `codeEvaluator.ts` shrunk from 361 to 287 lines.
+- Delegates to `LlmExecutionEngine.executeJson`.
+- Inherits Docker host network failover and structured 503 recovery cards.
 
 ## What to Build
 Refactor `backend/src/services/codeEvaluator.ts` to delegate all LLM generation and JSON parsing to `LlmExecutionEngine` (Spec 25). Eliminate duplicated HTTP `fetchWithFullJitterRetry` calls, authorization header management, and manual markdown code fence stripping. Inherit Docker network failover (`host.docker.internal` &rarr; `localhost:4000`) and structured `LlmGatewayUnavailableError` handling (Invariant 1 & 5). Shrink `codeEvaluator.ts` from 361 to &le; 250 lines (strictly complying with Rule 8).

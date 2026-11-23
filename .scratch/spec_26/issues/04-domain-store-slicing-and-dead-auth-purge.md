@@ -2,7 +2,13 @@
 
 **Archetype:** Expand-Migrate-Contract
 **Blocked by:** None
-**Status:** ready-for-agent
+**Status:** closed - verified in production (commit b6f818d)
+
+## Verification
+- Verified by: GitHub Actions Run 45089445074 & 45090110754
+- `useAppStore.ts` shrunk from 1,384 to 134 lines.
+- Slices: `academySlice.ts` (174 lines), `practiceSlice.ts` (197 lines), `questionsSlice.ts` (343 lines), `uiSlice.ts` (205 lines), `whiteboardSlice.ts` (310 lines).
+- 100 lines of dead duplicate auth code removed. All 57 call sites intact.
 
 ## What to Build
 Decompose the 1,384-line monolithic Zustand store `frontend/src/store/useAppStore.ts` into focused domain slices:
