@@ -13,8 +13,8 @@ export interface EvalRecord {
   score: number;
   isPassed: boolean;
   feedback: string;
-  positivePoints?: string[];
-  missingPoints?: string[];
+  positivePoints: string[];
+  missingPoints: string[];
 }
 
 export interface QuizScorecardSummary {

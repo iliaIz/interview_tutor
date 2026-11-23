@@ -129,13 +129,18 @@ export function useQuizSession() {
 
         const evalRecord = QuizSessionEngine.reconcileTextEval(currentQ, userAnswer, data);
         setQuestionEvaluation(currentQ.id, {
-          ...evalRecord,
           id: currentQ.id,
           questionId: currentQ.id,
           topic: selectedTopicName || currentQ.topic,
           mode: 'text',
           questionText: currentQ.question,
-          referenceAnswer: currentQ.answer
+          referenceAnswer: currentQ.answer,
+          score: evalRecord.score,
+          isPassed: evalRecord.isPassed,
+          feedback: evalRecord.feedback,
+          positivePoints: evalRecord.positivePoints,
+          missingPoints: evalRecord.missingPoints,
+          userAnswer
         });
 
         if (evalRecord.score >= 80) {
@@ -176,13 +181,18 @@ export function useQuizSession() {
       if (question) {
         const record = QuizSessionEngine.reconcileVoiceEval(question, evalData);
         setQuestionEvaluation(qId, {
-          ...record,
           id: qId,
           questionId: qId,
           topic: selectedTopicName || question.topic,
           mode: 'voice',
           questionText: question.question,
-          referenceAnswer: question.answer
+          referenceAnswer: question.answer,
+          score: record.score,
+          isPassed: record.isPassed,
+          feedback: record.feedback,
+          positivePoints: record.positivePoints,
+          missingPoints: record.missingPoints,
+          userAnswer: record.userAnswer
         });
         setResultsHistory((prev) => ({
           ...prev,

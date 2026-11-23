@@ -59,18 +59,32 @@ export class CompanyTrackContextAdapter {
     ];
 
     return {
-      domain: 'company_track',
-      domainLabel: `${company.name}: ${question.module || question.topic}`,
-      activeEntityTitle: question.question,
-      groundingSummary: `Вопрос из программы ${company.name}: «${question.question}» (${question.topic}).${probeStr}${redFlagsStr}`,
-      quickActionChips: chips,
-      allowedPersonas: ['junior_explainer', 'senior_socratic', 'faang_interviewer', 'company_interviewer'],
-      defaultPersona: 'company_interviewer',
-      meta: {
+      arena: 'companies',
+      entityId: `${company.id}:${question.id}`,
+      entityTitle: question.question,
+      domain: `${company.name}: ${question.module || question.topic}`,
+      persona: 'company_interviewer',
+      assistanceLevel: 3,
+      instructions: `Вопрос из программы ${company.name}: «${question.question}» (${question.topic}).\nЭталонный ответ: ${question.answer || ''}${probeStr}${redFlagsStr}`,
+      companyContext: {
         companyId: company.id,
-        questionId: question.id,
-        topic: question.topic
-      }
+        companyName: company.name,
+        stageTitle: question.module || question.topic,
+        cultureMetrics: company.culture?.metricsFocus,
+        redFlags: company.culture?.redFlags,
+        greenFlags: company.culture?.greenFlags,
+        takeHomeContext: company.takeHomePrCases && company.takeHomePrCases.length > 0
+          ? {
+              title: `Take-Home Lab (${company.name})`,
+              prAntiPatternsSummary: company.takeHomePrCases
+                .map((c) => c.title || '')
+                .filter(Boolean)
+                .slice(0, 3)
+                .join(', ')
+            }
+          : undefined
+      },
+      quickActionChips: chips
     };
   }
 
