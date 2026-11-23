@@ -11,35 +11,35 @@ export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'pract
 
 export interface ActiveAudioJob {
   jobId: string;
-  topicId: string;
-  topicName: string;
-  status: 'pending' | 'synthesizing' | 'ready' | 'failed';
-  audioUrl?: string;
-  durationSeconds?: number;
-  error?: string;
+  audioUrl: string;
+  title: string;
+  topic?: string;
+  transcript?: string;
+  metadata?: any;
 }
 
 export interface ToastNotification {
   id: string;
-  type: 'success' | 'error' | 'info' | 'warning';
+  type: 'error' | 'success' | 'info' | 'warning';
   title: string;
-  message: string;
-  duration?: number;
+  message?: string;
+  technicalDetails?: string;
 }
 
 export interface SystemHealth {
   status: 'ready' | 'warming_up' | 'unreachable' | 'checking';
   isAiReady: boolean;
+  message?: string;
   latencyMs?: number;
   error?: string;
   commitSha?: string;
-  message?: string;
 }
 
 export interface RecapTarget {
-  topicId: string;
-  topicName: string;
-  questionCount: number;
+  questionIds?: string[];
+  topicId?: string;
+  topicName?: string;
+  title: string;
 }
 
 export interface UiSlice {

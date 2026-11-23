@@ -31,24 +31,35 @@ export interface TopicProgress {
 
 export interface CheatSheetBookmark {
   id: string;
-  topicId: string;
-  topicName: string;
+  topicId?: string;
+  topicName?: string;
   title: string;
-  subtopic: string;
-  takeaways: string[];
+  subtopic?: string;
+  takeaways?: string[];
   codeSnippet?: string;
   fixedCode?: string;
   categoryBadge?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface QuestionEvaluationSummary {
+  id?: string;
   questionId: string;
+  topic?: string;
+  mode: 'voice' | 'text';
   score: number;
-  passed: boolean;
-  verdict: string;
+  isPassed: boolean;
+  positivePoints: string[];
+  missingPoints: string[];
   feedback?: string;
-  evaluatedAt: string;
+  userAnswer?: string;
+  transcript?: string;
+  audioMetrics?: any;
+  createdAt?: string;
+  questionText?: string;
+  referenceAnswer?: string;
+  verdict?: string;
+  evaluatedAt?: string;
 }
 
 export interface TopicAccessMeta {
@@ -219,7 +230,7 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
           codeSnippet: b.codeSnippet,
           fixedCode: b.fixedCode,
           categoryBadge: b.categoryBadge,
-          createdAt: new Date().toISOString()
+          createdAt: b.createdAt || new Date().toISOString()
         },
         ...state.cheatSheetBookmarks
       ]
