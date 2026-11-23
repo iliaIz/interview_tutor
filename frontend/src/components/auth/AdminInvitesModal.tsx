@@ -1,151 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { useAppStore } from '../../store/useAppStore';
-import { KeyRound, Plus, X, Copy, Check, Shield, User, Trash2, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
+import React from 'react';
+import { KeyRound, Plus, X, Copy, Check, Trash2, RefreshCw, Sparkles, AlertCircle, Download } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-
-export interface InviteItem {
-  id: string;
-  label: string;
-  role: 'owner' | 'user';
-  isActive: boolean;
-  maxUses: number;
-  useCount: number;
-  createdAt: string;
-  lastUsedAt?: string;
-  userId: string;
-  userName: string;
-  userLastLoginAt?: string;
-}
-
 import { useAuthStore } from '../../store/useAuthStore';
+import { useAdminInvitesManager } from './invites/useAdminInvitesManager';
+import { exportInvitesToCsv, InviteItem } from './invites/adminInvitesUtils';
+
+export type { InviteItem };
 
 export const AdminInvitesModal: React.FC = () => {
-  const { showToast } = useAppStore();
   const { isAdminInvitesModalOpen, closeAdminInvitesModal, currentUser } = useAuthStore();
   useBodyScrollLock(isAdminInvitesModalOpen);
 
-  const [invites, setInvites] = useState<InviteItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-
-  // Form State
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<'user' | 'owner'>('user');
-
-  const [maxUses, setMaxUses] = useState<number>(0);
-  const [customCode, setCustomCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  // Newly Created Code Display
-  const [newlyCreatedCode, setNewlyCreatedCode] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
-
-  const fetchInvites = async () => {
-    if (!currentUser || currentUser.role !== 'owner') return;
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/invites', {
-        credentials: 'include'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setInvites(data);
-      }
-    } catch (e) {
-      console.error('Failed to load invites:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAdminInvitesModalOpen) {
-      fetchInvites();
-      setNewlyCreatedCode(null);
-      setError(null);
-    }
-  }, [isAdminInvitesModalOpen]);
+  const {
+    invites,
+    isLoading,
+    isCreating,
+    error,
+    newlyCreatedCode,
+    isCopied,
+    name,
+    setName,
+    role,
+    setRole,
+    maxUses,
+    setMaxUses,
+    customCode,
+    setCustomCode,
+    fetchInvites,
+    handleCreateInvite,
+    handleRevokeInvite,
+    copyToClipboard
+  } = useAdminInvitesManager(isAdminInvitesModalOpen);
 
   if (!isAdminInvitesModalOpen || !currentUser || currentUser.role !== 'owner') {
     return null;
   }
-
-  const handleCreateInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      setError('Укажите имя кандидата или название инвайта');
-      return;
-    }
-
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      const res = await fetch('/api/auth/invites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: name.trim(),
-          role,
-          maxUses,
-          code: customCode.trim() || undefined
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setNewlyCreatedCode(data.invite.plainCode);
-        setName('');
-        setCustomCode('');
-        fetchInvites();
-        showToast({
-          type: 'success',
-          title: 'Инвайт создан',
-          message: `Код ${data.invite.plainCode} успешно сгенерирован`
-        });
-      } else {
-        setError(data.message || data.error || 'Ошибка при создании инвайта');
-      }
-    } catch (err) {
-      setError('Сетевая ошибка при генерации инвайта');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleRevokeInvite = async (id: string, label: string) => {
-    if (!confirm(`Удалить инвайт «${label}» из базы данных? Доступ по этому коду будет немедленно прекращен.`)) return;
-
-    try {
-      const res = await fetch(`/api/auth/invites/${id}/revoke`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (res.ok) {
-        fetchInvites();
-        showToast({
-          type: 'info',
-          title: 'Инвайт удалён',
-          message: `Инвайт для «${label}» полностью удалён из базы данных`
-        });
-      }
-    } catch (e) {
-      console.error('Failed to revoke:', e);
-    }
-  };
-
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-    showToast({
-      type: 'success',
-      title: 'Скопировано',
-      message: 'Инвайт-код скопирован в буфер обмена'
-    });
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/40 backdrop-blur-md overflow-y-auto modal-overscroll-contain font-sans">
@@ -291,14 +180,24 @@ export const AdminInvitesModal: React.FC = () => {
               <h4 className="text-xs font-bold text-pastel-text flex items-center gap-2">
                 <span>Список всех инвайтов ({invites.length}):</span>
               </h4>
-              <button
-                onClick={fetchInvites}
-                disabled={isLoading}
-                className="p-1 rounded-lg text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose/40 transition cursor-pointer"
-                title="Обновить список"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => exportInvitesToCsv(invites)}
+                  disabled={invites.length === 0}
+                  className="p-1 rounded-lg text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose/40 transition cursor-pointer disabled:opacity-40"
+                  title="Экспорт в CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={fetchInvites}
+                  disabled={isLoading}
+                  className="p-1 rounded-lg text-pastel-muted hover:text-pastel-text hover:bg-pastel-rose/40 transition cursor-pointer"
+                  title="Обновить список"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-pastel-border/60 border border-pastel-border/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
@@ -343,7 +242,6 @@ export const AdminInvitesModal: React.FC = () => {
                           <span>Удалить</span>
                         </button>
                       )}
-
                     </div>
                   </div>
                 ))

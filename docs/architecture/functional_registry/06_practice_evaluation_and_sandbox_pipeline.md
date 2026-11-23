@@ -157,6 +157,20 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - Filtering logic is purely functional, eliminating re-render thrashing and enabling zero-JSX unit testing.
   - All files strictly <= 350 lines (Rule 8 compliant).
 
+---
+
+### 2.12 `Wave 9: Practice Arena Header & Workspace Decoupling, Finding Bridge Extraction (Spec 34)`
+- **Location:** [`frontend/src/components/practice/arena/PracticeArenaHeader.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/arena/PracticeArenaHeader.tsx), [`frontend/src/components/practice/arena/usePracticeFindingBridge.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/arena/usePracticeFindingBridge.ts), [`frontend/src/components/practice/arena/PracticeArenaWorkspace.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/arena/PracticeArenaWorkspace.tsx), [`frontend/src/components/practice/PracticeArena.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/PracticeArena.tsx)
+- **What Was Done:**
+  1. **Practice Arena Header Extraction:** Extracted `PracticeArenaHeader.tsx` (173 lines) encapsulating the Academy breadcrumbs, mobile spec/editor tab switcher, AI Whiteboard drawer trigger, AI-Tutor copilot trigger, and desktop Focus Mode toggle.
+  2. **Finding Bridge Hook:** Extracted `usePracticeFindingBridge.ts` (34 lines) isolating the regex parser for finding locations (`Class.java`) and Monaco editor file index synchronization.
+  3. **Workspace Split-Pane Component:** Extracted `PracticeArenaWorkspace.tsx` (113 lines) coordinating the split view between `ChallengeSpecPanel` and `WorkspaceEditor`, plus review evaluation modal and whiteboard drawer.
+  4. **Pure Router Transformation:** Shrunk `PracticeArena.tsx` from 343 to 103 lines as a lean, readable router between `TransactionLabArena`, `PracticeCatalog`, and `PracticeArenaWorkspace`.
+- **Invariants:**
+  - All files strictly <= 350 lines (Rule 8 compliant).
+  - Backward compatibility: voice defense gate, transactions lab arena routing, and challenge initialization preserved identically.
+
+
 
 
 

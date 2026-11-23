@@ -1,19 +1,10 @@
-import React, { useState } from 'react';
-import {
-  Sliders,
-  Users,
-  User,
-  Volume2,
-  VolumeX,
-  Loader2,
-  Settings2,
-  ChevronDown,
-  ChevronUp,
-  Sparkles
-} from 'lucide-react';
-import { RUSSIAN_VOICES, DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT } from './audioRecapConfig';
+import React from 'react';
+import { Sliders, Users, User, Loader2, Sparkles } from 'lucide-react';
+import { VoiceSelectorGroup } from './recap/VoiceSelectorGroup';
+import { AdvancedPromptsCollapsible } from './recap/AdvancedPromptsCollapsible';
+import { DURATION_OPTIONS, TONE_OPTIONS } from './recap/recapConfigTypes';
 
-interface RecapSettingsFormProps {
+export interface RecapSettingsFormProps {
   mode: 'duo' | 'solo';
   onModeChange: (m: 'duo' | 'solo') => void;
   voice1: string;
@@ -54,8 +45,6 @@ export const RecapSettingsForm: React.FC<RecapSettingsFormProps> = ({
   setUserPrompt,
   onSubmit,
 }) => {
-  const [showAdvancedPrompts, setShowAdvancedPrompts] = useState(false);
-
   return (
     <div className="space-y-4 overflow-y-auto pr-1 flex-1">
       {/* Warmup notice if AI Gateway is not ready */}
@@ -116,136 +105,22 @@ export const RecapSettingsForm: React.FC<RecapSettingsFormProps> = ({
       </div>
 
       {/* 2. Voice Pickers */}
-      <div className="bg-pastel-card/60 p-3 rounded-2xl border border-pastel-border/60 space-y-3">
-        {mode === 'solo' ? (
-          <div>
-            <label className="block text-xs font-semibold text-pastel-text mb-1.5 flex items-center justify-between">
-              <span>Выберите диктора (Русский)</span>
-            </label>
-            <div className="flex items-center gap-2 min-w-0">
-              <select
-                value={voice1}
-                onChange={(e) => setVoice1(e.target.value)}
-                className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none truncate"
-              >
-                {RUSSIAN_VOICES.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.gender}) — {v.desc}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={!isAiReady}
-                onClick={() => onPreviewVoice(voice1)}
-                className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                  !isAiReady
-                    ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
-                    : previewingVoice === voice1
-                    ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
-                    : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
-                }`}
-                title="Прослушать пример голоса"
-              >
-                {!isAiReady ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                ) : previewingVoice === voice1 ? (
-                  <VolumeX className="w-4 h-4 animate-pulse" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">Тест</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
-            <div className="min-w-0">
-              <label className="block text-xs font-semibold text-pastel-text mb-1 flex items-center justify-between">
-                <span>Голос 1 (Ведущий)</span>
-              </label>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <select
-                  value={voice1}
-                  onChange={(e) => setVoice1(e.target.value)}
-                  className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentRose outline-none truncate"
-                >
-                  {RUSSIAN_VOICES.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.gender}) — {v.desc}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!isAiReady}
-                  onClick={() => onPreviewVoice(voice1)}
-                  className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                    !isAiReady
-                      ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
-                      : previewingVoice === voice1
-                      ? 'bg-pastel-accentRose text-white border-pastel-accentRose'
-                      : 'bg-white text-pastel-accentRose border-pastel-accentRose/30 hover:bg-pastel-rose cursor-pointer'
-                  }`}
-                >
-                  {previewingVoice === voice1 ? (
-                    <VolumeX className="w-4 h-4 animate-pulse" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-xs font-semibold text-pastel-text mb-1 flex items-center justify-between">
-                <span>Голос 2 (Соведущий)</span>
-              </label>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <select
-                  value={voice2}
-                  onChange={(e) => setVoice2(e.target.value)}
-                  className="flex-1 min-w-0 w-full bg-white text-pastel-text text-xs rounded-xl p-2.5 border border-pastel-border focus:border-pastel-accentViolet outline-none truncate"
-                >
-                  {RUSSIAN_VOICES.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.gender}) — {v.desc}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!isAiReady}
-                  onClick={() => onPreviewVoice(voice2)}
-                  className={`shrink-0 p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1 transition ${
-                    !isAiReady
-                      ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
-                      : previewingVoice === voice2
-                      ? 'bg-pastel-accentViolet text-white border-pastel-accentViolet'
-                      : 'bg-white text-pastel-accentViolet border-pastel-accentViolet/30 hover:bg-pastel-lavender cursor-pointer'
-                  }`}
-                >
-                  {previewingVoice === voice2 ? (
-                    <VolumeX className="w-4 h-4 animate-pulse" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <VoiceSelectorGroup
+        mode={mode}
+        voice1={voice1}
+        setVoice1={setVoice1}
+        voice2={voice2}
+        setVoice2={setVoice2}
+        previewingVoice={previewingVoice}
+        onPreviewVoice={onPreviewVoice}
+        isAiReady={isAiReady}
+      />
 
       {/* 3. Duration Selector */}
       <div>
         <label className="block text-xs font-semibold text-pastel-text mb-1.5">Желаемая длительность</label>
         <div className="grid grid-cols-3 gap-2">
-          {[
-            { id: 'Short (5-7 min)', label: '⚡ Краткий', desc: '5–7 минут' },
-            { id: 'Medium (10-15 min)', label: '☕ Средний', desc: '10–15 минут' },
-            { id: 'Long (20+ min)', label: '🎙️ Глубокий', desc: '20+ минут' },
-          ].map((l) => (
+          {DURATION_OPTIONS.map((l) => (
             <button
               type="button"
               key={l.id}
@@ -267,11 +142,7 @@ export const RecapSettingsForm: React.FC<RecapSettingsFormProps> = ({
       <div>
         <label className="block text-xs font-semibold text-pastel-text mb-1.5">Тон и подача</label>
         <div className="grid grid-cols-3 gap-2">
-          {[
-            { id: 'Fun', label: '🔥 Непринужденный', desc: 'Живой, с юмором' },
-            { id: 'Informative', label: '💡 Экспертный', desc: 'Четко по делу' },
-            { id: 'Formal', label: '🎓 Академический', desc: 'Строго по стандартам' },
-          ].map((t) => (
+          {TONE_OPTIONS.map((t) => (
             <button
               type="button"
               key={t.id}
@@ -290,57 +161,12 @@ export const RecapSettingsForm: React.FC<RecapSettingsFormProps> = ({
       </div>
 
       {/* 5. Advanced Prompt Settings */}
-      <div className="border-t border-pastel-border/60 pt-3">
-        <button
-          type="button"
-          onClick={() => setShowAdvancedPrompts(!showAdvancedPrompts)}
-          className="flex items-center justify-between w-full text-xs font-semibold text-pastel-muted hover:text-pastel-text py-1 transition cursor-pointer"
-        >
-          <span className="flex items-center gap-1.5">
-            <Settings2 className="w-3.5 h-3.5" /> Настройки системных промптов (Advanced)
-          </span>
-          {showAdvancedPrompts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {showAdvancedPrompts && (
-          <div className="mt-3 space-y-3 p-3 bg-white rounded-2xl border border-pastel-border shadow-xs">
-            <div>
-              <label className="block text-[11px] font-semibold text-pastel-muted mb-1">
-                Системный промпт роли (System Prompt)
-              </label>
-              <textarea
-                rows={3}
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                className="w-full text-xs p-2.5 bg-pastel-bg rounded-xl border border-pastel-border focus:border-pastel-accentRose outline-none text-pastel-text font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-pastel-muted mb-1">
-                Инструкция к пересказу (User Prompt / Фокус)
-              </label>
-              <textarea
-                rows={2}
-                value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
-                className="w-full text-xs p-2.5 bg-pastel-bg rounded-xl border border-pastel-border focus:border-pastel-accentRose outline-none text-pastel-text"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
-                setUserPrompt(DEFAULT_USER_PROMPT);
-              }}
-              className="text-[10px] text-pastel-accentRose hover:underline cursor-pointer"
-            >
-              Сбросить промпты к дефолтным
-            </button>
-          </div>
-        )}
-      </div>
+      <AdvancedPromptsCollapsible
+        systemPrompt={systemPrompt}
+        setSystemPrompt={setSystemPrompt}
+        userPrompt={userPrompt}
+        setUserPrompt={setUserPrompt}
+      />
 
       {/* Submit Button */}
       <button

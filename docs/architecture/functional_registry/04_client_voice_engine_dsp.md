@@ -274,6 +274,19 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Audio preview playback uses non-blocking asynchronous fetch and safely handles audio element error states without leaking memory.
   - All files strictly <= 350 lines (Rule 8 compliant).
 
+---
+
+### 2.18 `Wave 9: Audio Recap Settings Form Modular Decomposition (Spec 34)`
+- **Location:** [`frontend/src/components/audio/recap/recapConfigTypes.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/audio/recap/recapConfigTypes.ts), [`frontend/src/components/audio/recap/VoiceSelectorGroup.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/audio/recap/VoiceSelectorGroup.tsx), [`frontend/src/components/audio/recap/AdvancedPromptsCollapsible.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/audio/recap/AdvancedPromptsCollapsible.tsx), [`frontend/src/components/audio/RecapSettingsForm.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/audio/RecapSettingsForm.tsx)
+- **What Was Done:**
+  1. **Voice Selector Subcomponent:** Extracted `VoiceSelectorGroup.tsx` (148 lines) managing Gemini Live voice persona cards (Puck, Charon, Aoede, Fenrir, Kore) and custom voice preview trigger.
+  2. **Advanced Directives Collapsible:** Extracted `AdvancedPromptsCollapsible.tsx` (73 lines) managing accordion disclosure for custom TTS prompts, speed control, and topic emphasis directives.
+  3. **Types SSOT & Facade:** Created `recapConfigTypes.ts` (21 lines) and collapsed `RecapSettingsForm.tsx` from 370 to 196 lines.
+- **Invariants:**
+  - Complete backward compatibility for existing parent consumers (`AudioRecapModal`).
+  - All newly created files strictly <= 350 lines (Rule 8 compliant).
+
+
 
 
 
