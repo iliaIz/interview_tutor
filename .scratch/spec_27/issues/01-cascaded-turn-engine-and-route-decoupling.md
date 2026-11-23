@@ -2,7 +2,8 @@
 
 **Archetype:** Tracer-Bullet
 **Blocked by:** None (can start immediately)
-**Status:** ready-for-agent
+**Status:** closed-verified
+**Verification Run:** GitHub Actions Run ID 45160011852 (100% Green)
 
 ## What to Build
 Extract the 562-line procedural Express route in `backend/src/routes/interviewTurn.ts` into a deep domain module `CascadedTurnEngine` and `GreetingSynthesisService`.
