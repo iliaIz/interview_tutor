@@ -237,7 +237,7 @@ function runContractTests() {
         sessionType: 'hr_tutor',
         topic: 'Elevator Pitch'
       },
-      { globalConfig, runtimeConfig: runtimeCfg }
+      { globalConfig: globalCfg, runtimeConfig: runtimeCfg }
     );
 
     assert(resolved.voice === 'Aoede', 'Global voice hydrates arena without hardcode');
