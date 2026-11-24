@@ -262,7 +262,6 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       pacingWindowStatus: 'building',
       hesitationCount: 0,
       fillerWordsSpotted: [],
-      guidedStepState: null,
       liveCandidateTranscript: '',
       guidedStepState: null,
       latestScorecard: null,
