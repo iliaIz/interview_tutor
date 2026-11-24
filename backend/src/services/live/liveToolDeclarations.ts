@@ -1,5 +1,9 @@
 import { isHrSessionType } from '@interview-prep/shared';
-export function getLiveToolDeclarations(sessionType: string = 'interview', tutorMode?: string): any[] {
+export function getLiveToolDeclarations(
+  sessionType: string = 'interview',
+  tutorMode?: string,
+  hrMode?: string
+): any[] {
   const toolDeclarations: any[] = [];
 
   // Universal AI Whiteboard Tool (available in all interview & tutor sessions)
@@ -357,6 +361,34 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
           redFlags: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Выявленные риски или красные флаги' }
         },
         required: ['overallScore', 'spokenFeedback']
+      }
+    });
+  }
+
+  if (sessionType === 'hr_tutor' && hrMode === 'guided_zero_start') {
+    toolDeclarations.push({
+      name: 'advance_hr_learning_step',
+      description:
+        'Переключает ступень (Эхо -> Перефраз -> Без подсказки -> Сборка), вариант формулировки или микро-блок в режиме обучения «С нуля» по голосовой просьбе кандидата или после успешного повтора.',
+      behavior: 'NON_BLOCKING',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          action: {
+            type: 'STRING',
+            enum: ['next_rung', 'next_beat', 'next_variant', 'repeat_beat', 'toggle_cue'],
+            description: 'next_rung: следующая ступень/переход дальше; next_variant: озвучить иначе; repeat_beat: повторить блок; next_beat: следующий блок; toggle_cue: показать/скрыть подсказку'
+          },
+          masteredCurrentBeat: {
+            type: 'BOOLEAN',
+            description: 'true если кандидат уверенно произнес ключевые факты текущего блока'
+          },
+          reason: {
+            type: 'STRING',
+            description: 'Краткая причина перехода (например: "кандидат попросил дальше" или "уверенный перефраз")'
+          }
+        },
+        required: ['action']
       }
     });
   }

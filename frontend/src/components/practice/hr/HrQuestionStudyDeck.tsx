@@ -20,6 +20,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHrSimulatorStore } from '../../../store/useHrSimulatorStore';
+import { HrStudyAudioBar } from './HrStudyAudioBar';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   metrics: TrendingUp,
@@ -29,8 +30,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   motivation: Heart
 };
 
+import { HrSessionMode } from '@interview-prep/shared';
+
 interface HrQuestionStudyDeckProps {
-  onStartVoiceDrill: () => void;
+  onStartVoiceDrill: (overrideMode?: HrSessionMode) => void;
 }
 
 export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStartVoiceDrill }) => {
@@ -38,6 +41,7 @@ export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStar
   const nextQuestion = useHrSimulatorStore((state) => state.nextQuestion);
   const prevQuestion = useHrSimulatorStore((state) => state.prevQuestion);
   const questionsList = useHrSimulatorStore((state) => state.questionsList);
+  const masteredBeatsByQuestion = useHrSimulatorStore((state) => state.masteredBeatsByQuestion);
   const selectedQuestionId = useHrSimulatorStore((state) => state.selectedQuestionId);
 
   const [showAnswer, setShowAnswer] = useState(true);
@@ -209,6 +213,12 @@ export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStar
             </div>
           )}
 
+          {/* Spec 40: Passive Study Audio Micro-Beats Bar */}
+          <HrStudyAudioBar
+            question={activeQuestion}
+            masteredBeatIds={masteredBeatsByQuestion[activeQuestion.id] || []}
+          />
+
           {/* Action Bridge: 1-Click to Voice Drill */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gradient-to-r from-pastel-rose/40 to-pastel-lavender/30 p-4 rounded-2xl border border-pastel-accentRose/20">
             <div>
@@ -220,13 +230,23 @@ export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStar
                 Отработайте формулировки голосом без подглядывания. Тайминг ответа строго {activeQuestion.targetDurationSec.minSec}–{activeQuestion.targetDurationSec.maxSec} секунд.
               </div>
             </div>
-            <button
-              onClick={onStartVoiceDrill}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-pastel-accentRose hover:opacity-90 text-white font-bold text-xs shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0"
-            >
-              <Mic className="w-4 h-4 fill-white" />
-              <span>Отработать вслух (75с)</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+              <button
+                onClick={() => onStartVoiceDrill('guided_zero_start')}
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                title="Пошаговый разбор с нуля: короткие блоки, эхо-повтор и постепенное снятие подсказок"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Учить с нуля (по шагам)</span>
+              </button>
+              <button
+                onClick={() => onStartVoiceDrill()}
+                className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-pastel-accentRose hover:opacity-90 text-white font-bold text-xs shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Mic className="w-4 h-4 fill-white" />
+                <span>Отработать вслух</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

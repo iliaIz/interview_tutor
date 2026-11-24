@@ -4,8 +4,87 @@
  * Не содержат прямых зависимостей от WebSocket (ws).
  */
 
-import { HR_VOICE_EVENTS, HrScorecard } from '@interview-prep/shared';
+import { HR_VOICE_EVENTS, HrScorecard, HrStepControlAction } from '@interview-prep/shared';
 import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
+import { getHrQuestion } from './hrContextResolver';
+import {
+  resolveQuestionMicroBeats,
+  createInitialGuidedState,
+  applyGuidedStepAction,
+  buildStepStatePayload
+} from './hrGuidedStepper';
+
+const VALID_STEP_ACTIONS = new Set<HrStepControlAction>([
+  'next_rung',
+  'next_beat',
+  'next_variant',
+  'repeat_beat',
+  'toggle_cue'
+]);
+
+function buildGuidedToolDirective(payload: ReturnType<typeof buildStepStatePayload>): string {
+  const facts = payload.immutableFacts.join(', ');
+  if (payload.rung === 1) {
+    return `Ступень 1 (Эхо-повтор), блок «${payload.beatTitle}». Произнеси естественной речью (не дословно как робот!) короткую фразу 8–15 слов по смыслу варианта: «${payload.activeVariantText}», обязательно сохранив точные факты (${facts}). Попроси кандидата повторить.`;
+  }
+  if (payload.rung === 2) {
+    return `Ступень 2 (Свой перефраз), блок «${payload.beatTitle}». Скажи иначе или попроси кандидата переформулировать эту мысль СВОИМИ словами (другими связками!), строго сохранив факты: ${facts}. Ориентир нового варианта: «${payload.activeVariantText}».`;
+  }
+  if (payload.rung === 3) {
+    return `Ступень 3 (Без подсказки — шпаргалка скрыта!). Задай кандидату реалистичный вопрос рекрутера: «${payload.hrTriggerPrompt}» — НЕ подсказывай ответ заранее, дай вспомнить и произнести по памяти.`;
+  }
+  return `Ступень 4 (Сборка — Снежный ком!). Предложи кандидату плавно соединить предыдущие освоенные блоки и блок «${payload.beatTitle}» в один связный ответ на 20–30 секунд с сохранением всех фактов (${facts}).`;
+}
+
+export function handleAdvanceHrLearningStep(
+  args: Record<string, any>,
+  ctx: ToolExecutionContext
+): ToolExecutionResult {
+  const { session } = ctx;
+  const question = getHrQuestion(session.questionId);
+  const beats = resolveQuestionMicroBeats(question, session.chunkId);
+
+  if (beats.length === 0) {
+    return {
+      result: { status: 'ERROR', message: 'Микро-блоки для вопроса не найдены.' },
+      scheduling: 'WHEN_IDLE'
+    };
+  }
+
+  if (!session.hrGuidedState) {
+    session.hrGuidedState = createInitialGuidedState(question, session.chunkId);
+  }
+
+  const rawAction = String(args.action || 'next_rung') as HrStepControlAction;
+  const action: HrStepControlAction = VALID_STEP_ACTIONS.has(rawAction) ? rawAction : 'next_rung';
+
+  const nextState = applyGuidedStepAction(session.hrGuidedState!, beats, action, {
+    masteredCurrentBeat: typeof args.masteredCurrentBeat === 'boolean' ? args.masteredCurrentBeat : undefined
+  });
+  session.hrGuidedState = nextState;
+
+  const payload = buildStepStatePayload(nextState, beats, 'ai_tool', args.reason ? String(args.reason) : undefined);
+
+  console.log(
+    `🪜 [HR_GUIDED] Tool ${action}: beat=${payload.beatIndex + 1}/${payload.totalBeats} (${payload.beatId}), rung=${payload.rung}, var=${payload.variantIndex}`
+  );
+
+  return {
+    result: {
+      status: 'SUCCESS',
+      beatId: payload.beatId,
+      beatTitle: payload.beatTitle,
+      rung: payload.rung,
+      cueVisible: payload.cueVisible,
+      directive: buildGuidedToolDirective(payload)
+    },
+    clientEvent: {
+      type: HR_VOICE_EVENTS.HR_STEP_STATE,
+      payload
+    },
+    scheduling: 'WHEN_IDLE'
+  };
+}
 
 export function handleAdvanceHrPhase(
   args: Record<string, any>

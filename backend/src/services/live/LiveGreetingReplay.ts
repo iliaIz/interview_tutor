@@ -1,7 +1,14 @@
 import { WebSocket } from 'ws';
+import { HR_VOICE_EVENTS } from '@interview-prep/shared';
 import { ProxySession } from './liveSessionTypes';
 import { liveSessionRegistry } from './liveSessionRegistry';
 import { getChallengeDomain } from '../../utils/challengeDomain';
+import { getHrQuestion } from './hrContextResolver';
+import {
+  resolveQuestionMicroBeats,
+  createInitialGuidedState,
+  buildStepStatePayload
+} from './hrGuidedStepper';
 
 export interface GreetingReplayOptions {
   session: ProxySession;
@@ -82,6 +89,18 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
 
     if (clientSocket.readyState === WebSocket.OPEN) {
       clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
+      if (sessionType === 'hr_tutor' && session.hrMode === 'guided_zero_start' && session.hrGuidedState) {
+        const activeQuestion = getHrQuestion(session.questionId);
+        const beats = resolveQuestionMicroBeats(activeQuestion, session.chunkId);
+        if (beats.length > 0) {
+          clientSocket.send(
+            JSON.stringify({
+              type: HR_VOICE_EVENTS.HR_STEP_STATE,
+              payload: buildStepStatePayload(session.hrGuidedState, beats, 'session_init', 'hot_reconnect')
+            })
+          );
+        }
+      }
       clientSocket.send(JSON.stringify({
         type: 'setupComplete',
         hasInitialUserMessage: !!initialUserMessage,
@@ -157,6 +176,26 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       }
     } else {
       greetingText = `Привет! Я изучаю вопрос «${questionText || topic}». Поприветствуй меня в 1 короткой фразе. (ОТВЕТ СТРОГО ГОЛОСОМ НА РУССКОМ ЯЗЫКЕ: 1 фраза).`;
+    }
+  } else if (sessionType === 'hr_tutor') {
+    const activeQuestion = getHrQuestion(session.questionId);
+    if (session.hrMode === 'guided_zero_start') {
+      const beats = resolveQuestionMicroBeats(activeQuestion, session.chunkId);
+      const initialState = createInitialGuidedState(activeQuestion, session.chunkId);
+      session.hrGuidedState = initialState;
+
+      if (initialState && beats.length > 0) {
+        const initPayload = buildStepStatePayload(initialState, beats, 'session_init');
+        if (clientSocket.readyState === WebSocket.OPEN) {
+          clientSocket.send(JSON.stringify({ type: HR_VOICE_EVENTS.HR_STEP_STATE, payload: initPayload }));
+        }
+        const firstBeat = beats[0];
+        greetingText = `Привет! Мы учим ответ «с полного нуля» по микро-блокам. Коротко поприветствуй кандидата уверенным теплым голосом тренера Ольги, назови Блок 1 («${firstBeat.title}»), естественно произнеси его первую формулировку своими связками на основе ориентира: «${firstBeat.spokenVariants[0]}» (сохранив точные факты: ${firstBeat.immutableFacts.join(', ')}) и попроси повторить вслух. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
+      } else {
+        greetingText = `Привет! Мы начинаем пошаговую тренировку с нуля по вопросу «${activeQuestion?.canonicalQuestion || questionText || 'Расскажите о себе'}». Поприветствуй кандидата и произнеси первую короткую фразу для повтора.`;
+      }
+    } else {
+      greetingText = `Привет! Мы начинаем живую репетицию вопроса «${activeQuestion?.canonicalQuestion || questionText || 'Расскажите о себе'}». Коротко поприветствуй кандидата как тренер Ольга и дай команду начинать ответ. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
     }
   } else {
     const isSubsequent = questionIndex > 0;

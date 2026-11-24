@@ -84,7 +84,7 @@ export interface LiveAudioSessionParams {
     targetConcepts?: string[];
   };
   seniorReview?: any;
-  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal';
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal' | 'guided_zero_start';
   dossierId?: string;
   jobId?: string;
   hrPersonaId?: string;
@@ -226,6 +226,13 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
           useHrSimulatorStore.getState().appendTranscriptDelta(delta);
         } catch (e) {
           console.warn('[useLiveVoiceSession] HR transcript delta update failed:', e);
+        }
+      },
+      onHrStepState: (stepState) => {
+        try {
+          useHrSimulatorStore.getState().setGuidedStepState(stepState);
+        } catch (e) {
+          console.warn('[useLiveVoiceSession] HR step state update failed:', e);
         }
       },
       onError: (err) => {

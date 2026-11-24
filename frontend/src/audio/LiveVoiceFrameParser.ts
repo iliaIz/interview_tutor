@@ -34,6 +34,7 @@ export interface ParsedLiveFrameResult {
   hrPhaseTransitionPayload?: any;
   hrScorecardPayload?: any;
   hrTranscriptDelta?: string;
+  hrStepStatePayload?: any;
   rawParsed?: any;
 }
 
@@ -109,6 +110,11 @@ export class LiveVoiceFrameParser {
 
       if (data.type === 'hr_user_transcript_delta') {
         result.hrTranscriptDelta = data.delta || data.text || '';
+        return result;
+      }
+
+      if (data.type === 'hr_step_state') {
+        result.hrStepStatePayload = data.payload || data;
         return result;
       }
 

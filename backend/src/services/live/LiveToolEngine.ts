@@ -14,6 +14,7 @@ import {
 } from './liveSystemDesignToolDispatcher';
 import {
   handleAdvanceHrPhase,
+  handleAdvanceHrLearningStep,
   handleEmitHrRoundEvaluation,
   handleSubmitHrEvaluation
 } from './liveHrToolDispatcher';
@@ -133,6 +134,13 @@ const TOOL_DEFINITIONS: LiveToolDefinition[] = [
     name: 'advance_hr_phase',
     handler: handleAdvanceHrPhase,
     scheduling: 'SILENT'
+  },
+  {
+    name: 'advance_hr_learning_step',
+    handler: handleAdvanceHrLearningStep,
+    scheduling: 'WHEN_IDLE',
+    isGatedOnTurn0: true,
+    turn0ErrorMessage: DEFAULT_TURN0_ERROR
   },
   {
     name: 'emit_hr_round_evaluation',

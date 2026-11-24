@@ -9,9 +9,11 @@ import {
   JobContext,
   HrQuestionRubricItem,
   HrQuestionChunk,
+  HrMicroBeat,
   HrSessionMode,
   HrPersonaId
 } from '@interview-prep/shared';
+import type { HrGuidedSessionState } from './hrGuidedStepper';
 import { getPersonaPromptDirectives } from '../../prompts/personas';
 import { LANGUAGE_LOCK_INVARIANT } from '../../prompts/core/languageDirectives';
 import { getAiGenderDirective, getCandidateGenderDirective } from '../../prompts/core/genderDirectives';
@@ -28,6 +30,9 @@ export interface BuildHrSystemPromptOptions {
   personaId: HrPersonaId;
   activeQuestion?: HrQuestionRubricItem;
   activeChunk?: HrQuestionChunk;
+  activeBeat?: HrMicroBeat;
+  totalBeats?: number;
+  guidedState?: HrGuidedSessionState;
   voiceName?: string;
   userGender?: 'female' | 'male' | 'neutral';
   turnMode?: 'manual' | 'auto';
@@ -85,7 +90,19 @@ ${dossier.prohibitedPhrases.map((p) => `- "${p}"`).join('\n')}`;
 }
 
 export function buildHrSimulatorSystemPrompt(opts: BuildHrSystemPromptOptions): string {
-  const { dossier, jobContext, mode, personaId, activeQuestion, activeChunk, userGender = 'female', turnMode = 'auto' } = opts;
+  const {
+    dossier,
+    jobContext,
+    mode,
+    personaId,
+    activeQuestion,
+    activeChunk,
+    activeBeat,
+    totalBeats = activeQuestion?.microBeats?.length || 1,
+    guidedState,
+    userGender = 'female',
+    turnMode = 'auto'
+  } = opts;
   const voiceName = sanitizeVoiceName(opts.voiceName, DEFAULT_VOICE_NAME);
 
   const personaDirectives = getPersonaPromptDirectives({
@@ -99,8 +116,35 @@ export function buildHrSimulatorSystemPrompt(opts: BuildHrSystemPromptOptions): 
   const candidateGenderDirective = getCandidateGenderDirective(userGender);
   const serializedDossier = serializeDossierToMarkdown(dossier);
 
+  const beatBlockText = activeBeat
+    ? `АКТИВНЫЙ МИКРО-БЛОК ${((guidedState?.beatIndex || 0) + 1)}/${totalBeats}: «${activeBeat.title}»
+Неизменяемые факты (цитируются ТОЧНО): ${activeBeat.immutableFacts.join(' | ')}
+Разнообразные естественные формулировки для твоего живого моделирования:
+${activeBeat.spokenVariants.map((v, idx) => `  ${idx + 1}. «${v}»`).join('\n')}
+HR-вопрос для ступени без подсказки: «${activeBeat.hrTriggerPrompt}»`
+    : `Вопрос: «${activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}»`;
+
   const modeDirectives =
-    mode === 'tutor_rehearsal'
+    mode === 'guided_zero_start'
+      ? `=== РЕЖИМ: ОБУЧЕНИЕ «С ПОЛНОГО НУЛЯ» (4-RUNG GUIDED MICRO-CHUNKS / ЭХО-ПОВТОР) ===
+Твоя роль: заботливый, но требовательный к фактам тренер моторики Ольга. Ты учишь кандидата с нуля по микро-шагам (8–15 слов за раз), постепенно убирая подсказки.
+Вопрос: "${activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}"
+${activeChunk ? `Выбранный чанк: "${activeChunk.title}"\n` : ''}${beatBlockText}
+
+ЛЕСТНИЦА 4 СТУПЕНЕЙ (FADING SCAFFOLDING):
+- Ступень 1 (Эхо-повтор): Произнеси 1 короткую естественную фразу (8–15 слов) по смыслу блока и попроси кандидата повторить вслух.
+- Ступень 2 (Свой перефраз): Попроси кандидата сказать ту же мысль ДРУГИМИ словами своими связками, сохраняя неизменяемые факты.
+- Ступень 3 (Без подсказки): Задай реалистичный вопрос рекрутера без спойлеров и выслушай воспроизведение по памяти.
+- Ступень 4 (Сборка / Снежный ком): Объедините освоенные блоки в единый плавный фрагмент на 20–30 секунд.
+
+ЖЁСТКИЙ ИНВАРИАНТ АНТИ-ПОПУГАЯ (PARAPHRASE DIVERSITY):
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО повторять одну и ту же формулировку дословно дважды подряд! Каждый раз меняй связки и порядок вводных слов, звучи как живой человек.
+- НЕ заставляй кандидата зубрить связки — требуй 100% дословной точности ТОЛЬКО для неизменяемых фактов (статьи ФЗ-422 / ТК РФ, формы СТД-СФР / КНД 1122035, цифры 7,4 года / 15+ млн / 2 200 RPS / 310–330к net) и пресекай стоп-слова.
+
+ГИБРИДНОЕ УПРАВЛЕНИЕ ПРОГРЕССОМ (ГОЛОС + КНОПКИ):
+- Когда кандидат говорит голосом («дальше», «следующий шаг», «давай другой вариант», «скажи иначе», «следующий блок», «повторим») ИЛИ уверенно справился с текущей ступенью — ОБЯЗАТЕЛЬНО вызови инструмент "advance_hr_learning_step" (next_rung / next_variant / next_beat / repeat_beat) и продолжай по его директиве!
+- НИКОГДА не вызывай "advance_hr_learning_step" или инструменты оценки на Турне 0!`
+      : mode === 'tutor_rehearsal'
       ? `=== РЕЖИМ: ИНТЕРАКТИВНАЯ РЕПЕТИЦИЯ И МОТОРИКА РЕЧИ (TUTOR REHEARSAL) ===
 Твоя цель: отработать моторику речи и автоматизм ответа до стандарта Senior/Staff инженера.
 Вопрос для отработки: "${activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}"

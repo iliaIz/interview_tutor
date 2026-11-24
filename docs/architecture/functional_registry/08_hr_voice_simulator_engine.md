@@ -21,6 +21,11 @@ With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal M
 - **Epistemic boundary**: verbatim precision enforced strictly on laws/docs/metrics/salary, with conversational freedom for transitions and narrative motivation.
 - **Zero scorecard popups**: rehearsal mode eliminates numerical grades and modal popups.
 
+With **Spec 40**, the engine adds cold-start beginner scaffolding without disturbing `tutor_rehearsal` or examiner modes:
+- **Atomic Micro-Beats & Paraphrase Diversity (`canonicalQuestionMatrix.json`):** All 13 canonical questions decomposed into 30 atomic 8–15 word `microBeats`, each carrying `immutableFacts` and 3 vetted natural Russian `spokenVariants` plus a realistic `hrTriggerPrompt`.
+- **Passive Study Audio Warm-Up (`HrStudyAudioBar.tsx` + `GET /api/hr/study-tts`):** Cached global-voice Gemini TTS playback in the Study Deck with variant cycling, speed control (`0.9x/1.0x/1.15x`), and Phrase -> Pause shadowing mode.
+- **Guided Zero-Start Voice Mode (`guided_zero_start` / «С нуля (Повтор)»):** 4-rung Fading Scaffolding ladder (`Echo-Catch -> Paraphrase Flip -> Naked Recall -> Snowball Bridge`) with hybrid voice progression (`advance_hr_learning_step` tool) and synced UI controls (`HR_STEP_CONTROL` -> `HR_STEP_STATE`), live AI speech subtitles, toggleable cue card, and local mastery tracking.
+
 ---
 
 ## 2. Functions & Components Catalog
@@ -57,6 +62,7 @@ With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal M
 | **H3: Worked-Example Scaffolding (Wave 21)** | Reading the canonical answer and traps table prior to speaking eliminates cognitive speech freeze. | Candidate possesses clear mental model of required anchors and legal citations before starting the voice timer. | Validated. Pedagogical scaffolding eliminates blind test friction. |
 | **H4: Zero Regressions** | Adding HR session modes and pedagogical components does not affect existing `interview`, `tutor`, or `system_design` modes. | All existing unit tests, prompt tests, tool isolation tests, and playout contracts continue passing 100%. | Validated. Zero regressions across all tracks. |
 | **H5: In-Flight Rehearsal & Chunking (Spec 38)** | Immediate in-flight correction stops bad habits at the syllable level; chunking reduces cognitive load. | Candidate practices isolated 20-30s blocks without scorecard friction, mastering legal citations and metrics. | Validated. Deliberate practice loop established. |
+| **H6: 4-Rung Fading Scaffolding & Paraphrase Diversity (Spec 40)** | Splitting answers into 8–15 word micro-beats across Echo -> Paraphrase -> Naked Recall -> Snowball eliminates zero-start freeze while varying phrasing prevents rote parroting. | 30 vetted micro-beats (3 variants each) across all 13 questions + Study TTS + hybrid `advance_hr_learning_step` / button WS sync verified in CI invariants. | Validated. Guided cold-start ladder & passive audio warm-up operational. |
 
 ---
 
@@ -70,3 +76,4 @@ With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal M
 6. **Verbatim Law/Doc Precision vs. Conversational Freedom (Spec 38):** Verbatim precision is mandatory for articles (422-ФЗ, ст. 65 ТК РФ), document forms (СТД-СФР, КНД 1122035), metrics (7+ лет, 15+ млн, 2 200 RPS) and salary (310k-330k net). Structural transitions and motivation can be freely expressed.
 7. **Scorecard Suppression in Rehearsal (Spec 38):** Mode `tutor_rehearsal` strictly suppresses numerical scorecard tools and evaluation modals.
 8. **Global Auto-VAD, Engine & Voice SSOT Compliance:** `HrScreeningArena`, `HrVoiceHUD`, and `hrPromptBuilder.ts` respect the active global `turnMode`, `liveModel`, `voice`, `vadPauseMs`, `enableSilenceClarification`, and `userGender` via `resolveLiveSessionConfig()`, with no hardcoded `(Aoede)` or forced manual/auto override.
+9. **Hybrid Guided Sync & Non-Parroting Boundary (Spec 40):** `guided_zero_start` also suppresses scorecards, never hardcodes wording parroting on connective glue while locking `immutableFacts` verbatim, keeps `advance_hr_learning_step` gated on Turn 0, and treats `toggle_cue` silently without interrupting Gemini Live.

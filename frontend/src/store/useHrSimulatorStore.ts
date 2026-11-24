@@ -14,8 +14,14 @@ import {
   HrAnchorCard,
   HrQuestionRubricItem,
   HrTelemetryTick,
-  HrScorecard
+  HrScorecard,
+  HrStepStatePayload
 } from '@interview-prep/shared';
+import {
+  HrMasteredBeatsMap,
+  loadMasteredBeatsMap,
+  mergeMasteredBeatsForQuestion
+} from './hrMasteryStorage';
 
 export interface HrSimulatorState {
   // Session Configuration & Pedagogical State
@@ -42,12 +48,17 @@ export interface HrSimulatorState {
   fillerWordsSpotted: string[];
   liveCandidateTranscript: string;
 
+  // Spec 40 Guided Micro-Chunking & Mastery Persistence
+  guidedStepState: HrStepStatePayload | null;
+  masteredBeatsByQuestion: HrMasteredBeatsMap;
+
   // Evaluation & Scorecards
   latestScorecard: HrScorecard | null;
   isScorecardOpen: boolean;
 
   // Actions
   initializeSession: (mode: HrSessionMode, personaId: HrPersonaId, question: HrQuestionRubricItem) => void;
+  setGuidedStepState: (stepState: HrStepStatePayload) => void;
   setPhase: (phase: HrSimulationPhase) => void;
   registerFastKwsHit: (anchorId: string, latencyMs: number) => void;
   reconcileServerHit: (anchorId: string) => void;
@@ -92,6 +103,8 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
 
   latestScorecard: null,
   isScorecardOpen: false,
+  guidedStepState: null,
+  masteredBeatsByQuestion: loadMasteredBeatsMap(),
 
   initializeSession: (mode, personaId, question) => {
     const chunkId = get().selectedChunkId;
@@ -123,6 +136,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       pacingWindowStatus: 'building',
       hesitationCount: 0,
       fillerWordsSpotted: [],
+      guidedStepState: null,
       liveCandidateTranscript: '',
       latestScorecard: null,
       isScorecardOpen: false
@@ -198,8 +212,20 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
     });
   },
 
+  setGuidedStepState: (stepState) => {
+    set((state) => ({
+      guidedStepState: stepState,
+      masteredBeatsByQuestion: mergeMasteredBeatsForQuestion(
+        state.masteredBeatsByQuestion,
+        stepState.questionId,
+        stepState.masteredBeatIds || []
+      )
+    }));
+  },
+
   setScorecard: (scorecard) => {
-    if (get().mode === 'tutor_rehearsal') return;
+    const m = get().mode;
+    if (m === 'tutor_rehearsal' || m === 'guided_zero_start') return;
     set({
       latestScorecard: scorecard,
       isScorecardOpen: true
@@ -236,7 +262,9 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       pacingWindowStatus: 'building',
       hesitationCount: 0,
       fillerWordsSpotted: [],
+      guidedStepState: null,
       liveCandidateTranscript: '',
+      guidedStepState: null,
       latestScorecard: null,
       isScorecardOpen: false
     }));
@@ -320,6 +348,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
         hesitationCount: 0,
         fillerWordsSpotted: [],
         liveCandidateTranscript: '',
+        guidedStepState: null,
         latestScorecard: null,
         isScorecardOpen: false
       });

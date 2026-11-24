@@ -42,6 +42,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **36** | **Gemini Live Practice Pair Resilience** | [`36_GEMINI_LIVE_PRACTICE_PAIR_RESILIENCE.md`](36_GEMINI_LIVE_PRACTICE_PAIR_RESILIENCE.md) | Practice Pair resilience, normal closure reconnect suppression, whiteboard SILENT scheduling, VAD pause alignment |
 | **37** | **Gemini Live Long Session Stability & Stream Sync** | [`37_GEMINI_LIVE_LONG_SESSION_STABILITY_AND_STREAM_SYNC.md`](37_GEMINI_LIVE_LONG_SESSION_STABILITY_AND_STREAM_SYNC.md) | Context window compression (slidingWindow), LiveDeadAirGuard vocoder clamping (2000ms), upstream watchdog resync, whiteboard verbal continuity |
 | **38** | **HR Voice Tutor Rehearsal & Chunking** | [`38_HR_VOICE_TUTOR_REHEARSAL_AND_CHUNKING.md`](38_HR_VOICE_TUTOR_REHEARSAL_AND_CHUNKING.md) | Interactive rehearsal partner (`tutor_rehearsal`), mentor persona (Aoede), in-flight error correction, on-demand verbal cues, anchor chunking |
+| **40** | **HR Guided Micro-Chunking & Study TTS** | [`40_HR_GUIDED_MICRO_CHUNKS_AND_AUDIO_STUDY.md`](40_HR_GUIDED_MICRO_CHUNKS_AND_AUDIO_STUDY.md) | 4-rung Fading Scaffolding (`guided_zero_start`), atomic `microBeats`, paraphrase diversity, Study Tab TTS (`GET /api/hr/study-tts`), hybrid voice + button sync |
 
 ---
 

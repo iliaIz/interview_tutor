@@ -30,7 +30,7 @@ export interface VoiceEngineConfig {
   sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
   dossierId?: string;
   targetQuestionId?: string;
-  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal';
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal' | 'guided_zero_start';
   tutorMode?: string;
   voice?: string;
   userGender?: string;
@@ -204,6 +204,7 @@ export interface VoiceEngineCallbacks {
   onHrPhaseTransition?: (payload: any) => void;
   onHrScorecardReady?: (scorecard: any) => void;
   onHrTranscriptDelta?: (delta: string) => void;
+  onHrStepState?: (payload: any) => void;
 }
 
 export interface ILiveVoiceEngine {

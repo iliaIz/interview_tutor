@@ -25,6 +25,14 @@ const {
 
 const { getLiveToolDeclarations } = require('../dist/services/live/liveToolDeclarations');
 const { HrSimulationOrchestrator } = require('../dist/services/live/HrSimulationOrchestrator');
+const {
+  resolveQuestionMicroBeats,
+  createInitialGuidedState,
+  applyGuidedStepAction,
+  buildStepStatePayload,
+  handleGuidedStepControlFrame
+} = require('../dist/services/live/hrGuidedStepper');
+const { handleAdvanceHrLearningStep } = require('../dist/services/live/liveHrToolDispatcher');
 
 console.log('========================================================================');
 console.log('🧪 SOTA HR VOICE SIMULATOR ENGINE INVARIANT & CONTRACT TEST SUITE');
@@ -227,6 +235,115 @@ async function runAllTests() {
     assert.strictEqual(hrEvalTools.length, 0, 'Rehearsal mode (hr_tutor) must NOT expose evaluation tools');
 
     console.log('  ✅ Suite 6 passed: Spec 38 mentor coach & rehearsal invariants verified.');
+  }
+
+  // --------------------------------------------------------------------------
+  // SUITE 7: Spec 40 Guided Micro-Chunking ("С нуля") FSM, Tools & Anti-Parroting
+  // --------------------------------------------------------------------------
+  console.log('\n🔹 [Suite 7] Spec 40: Guided Micro-Chunking FSM, Hybrid Sync & Prompt');
+  {
+    const dossier = getCandidateDossier();
+    const job = getJobContext();
+    const pitchQ = getHrQuestion('hr_q0_elevator_pitch');
+    const beats = resolveQuestionMicroBeats(pitchQ);
+    assert.ok(beats.length >= 4, `Pitch must have >= 4 atomic microBeats (got ${beats.length})`);
+
+    // Prompt checks
+    const guidedPrompt = buildHrSimulatorSystemPrompt({
+      dossier,
+      jobContext: job,
+      mode: 'guided_zero_start',
+      personaId: 'mentor_coach',
+      activeQuestion: pitchQ,
+      activeBeat: beats[0],
+      totalBeats: beats.length,
+      voiceName: 'Kore'
+    });
+    assert.ok(guidedPrompt.includes('ЛЕСТНИЦА 4 СТУПЕНЕЙ'), 'Guided prompt must describe 4-rung ladder');
+    assert.ok(guidedPrompt.includes('АНТИ-ПОПУГАЯ'), 'Guided prompt must enforce paraphrase diversity');
+    assert.ok(guidedPrompt.includes('advance_hr_learning_step'), 'Guided prompt must wire advance_hr_learning_step tool');
+
+    // Tool isolation: expose advance_hr_learning_step ONLY in guided_zero_start, zero eval tools
+    const guidedTools = getLiveToolDeclarations('hr_tutor', 'deep_dive', 'guided_zero_start');
+    assert.ok(
+      guidedTools.some((t) => t.name === 'advance_hr_learning_step'),
+      'guided_zero_start must expose advance_hr_learning_step'
+    );
+    assert.strictEqual(
+      guidedTools.filter((t) => ['emit_hr_round_evaluation', 'submit_hr_evaluation'].includes(t.name)).length,
+      0,
+      'guided_zero_start must NOT expose evaluation tools'
+    );
+
+    // Deterministic FSM progression: Rung 1 -> Rung 2 (variant rotates) -> Rung 3 (cue hides) -> Next Beat 1 -> Snowball Rung 4
+    let gState = createInitialGuidedState(pitchQ);
+    assert.strictEqual(gState.beatIndex, 0);
+    assert.strictEqual(gState.rung, 1);
+    assert.strictEqual(gState.cueVisible, true);
+
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    assert.strictEqual(gState.rung, 2);
+    assert.strictEqual(gState.variantIndex, 1, 'Rung 1 -> 2 must rotate phrasing variant');
+
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    assert.strictEqual(gState.rung, 3);
+    assert.strictEqual(gState.cueVisible, false, 'Rung 3 Naked Recall must auto-fade cue card');
+
+    // From Beat 0 Rung 3 -> advances directly to Beat 1 Rung 1 and marks Beat 0 mastered
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    assert.strictEqual(gState.beatIndex, 1);
+    assert.strictEqual(gState.rung, 1);
+    assert.strictEqual(gState.cueVisible, true);
+    assert.ok(gState.masteredBeatIds.includes(beats[0].id), 'Beat 0 must be marked mastered');
+
+    // Advance Beat 1 through Rung 1 -> 2 -> 3 -> 4 (Snowball Bridge activates from Beat 1+)
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    gState = applyGuidedStepAction(gState, beats, 'next_rung');
+    assert.strictEqual(gState.beatIndex, 1);
+    assert.strictEqual(gState.rung, 4, 'Beat 1 must enter Rung 4 Snowball Bridge');
+
+    // Tool dispatcher & button WS control handler
+    const mockClientFrames = [];
+    const mockGeminiFrames = [];
+    const mockSession = {
+      questionId: 'hr_q0_elevator_pitch',
+      hrMode: 'guided_zero_start',
+      isSetupComplete: true,
+      hasCandidateResponded: true,
+      clientSocket: { readyState: 1, send: (s) => mockClientFrames.push(JSON.parse(s)) },
+      geminiSocket: { readyState: 1, send: (s) => mockGeminiFrames.push(JSON.parse(s)) },
+      hrGuidedState: gState
+    };
+
+    const toolRes = handleAdvanceHrLearningStep({ action: 'next_beat', masteredCurrentBeat: true }, { session: mockSession });
+    assert.strictEqual(toolRes.clientEvent.type, 'hr_step_state');
+    assert.strictEqual(toolRes.clientEvent.payload.beatIndex, 2);
+    assert.strictEqual(toolRes.clientEvent.payload.source, 'ai_tool');
+
+    // Silent toggle_cue must update client state WITHOUT sending clientContent turn to Gemini
+    const prevGeminiCount = mockGeminiFrames.length;
+    const handledSilent = handleGuidedStepControlFrame(mockSession, mockSession.clientSocket, {
+      type: 'hr_step_control',
+      payload: { action: 'toggle_cue', cueVisible: false }
+    });
+    assert.strictEqual(handledSilent, true);
+    assert.strictEqual(mockGeminiFrames.length, prevGeminiCount, 'toggle_cue must NOT interrupt Gemini Live');
+
+    // Next button frame must both emit HR_STEP_STATE and nudge Gemini Live
+    handleGuidedStepControlFrame(mockSession, mockSession.clientSocket, {
+      type: 'hr_step_control',
+      payload: { action: 'next_variant' }
+    });
+    if (mockSession.nudgeWatchdog) clearTimeout(mockSession.nudgeWatchdog);
+    if (mockSession.deadAirWatchdog) clearTimeout(mockSession.deadAirWatchdog);
+    assert.strictEqual(mockGeminiFrames.length, prevGeminiCount + 1, 'next_variant button must sync Gemini Live');
+    assert.strictEqual(mockClientFrames[mockClientFrames.length - 1].payload.source, 'client_button');
+
+    const snapshot = buildStepStatePayload(mockSession.hrGuidedState, beats, 'client_button');
+    assert.ok(snapshot.activeVariantText.length > 10);
+
+    console.log('  ✅ Suite 7 passed: Spec 40 Guided Micro-Chunking FSM, hybrid tools & WS sync verified.');
   }
 
   console.log('\n========================================================================');

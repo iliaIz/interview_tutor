@@ -22,4 +22,5 @@ export function dispatchDomainEvents(callbacks: VoiceEngineCallbacks, parsed: Pa
   if (parsed.hrPhaseTransitionPayload) callbacks.onHrPhaseTransition?.(parsed.hrPhaseTransitionPayload);
   if (parsed.hrScorecardPayload) callbacks.onHrScorecardReady?.(parsed.hrScorecardPayload);
   if (parsed.hrTranscriptDelta) callbacks.onHrTranscriptDelta?.(parsed.hrTranscriptDelta);
+  if (parsed.hrStepStatePayload) callbacks.onHrStepState?.(parsed.hrStepStatePayload);
 }

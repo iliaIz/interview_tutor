@@ -64,7 +64,7 @@ export class LivePromptDirector {
       hrMode: config.hrMode
     });
 
-    const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode);
+    const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode, config.hrMode);
 
     const setupMessage = buildGeminiLiveSetupMessage({
       liveModel: config.liveModel,

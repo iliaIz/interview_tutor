@@ -49,6 +49,8 @@ export function createInitialProxySession(
     targetGrade: config.targetGrade,
     isToolCallPending: false,
     sessionType: config.sessionType,
+    hrMode: config.hrMode,
+    chunkId: config.chunkId,
     tutorMode: config.tutorMode,
     liveModel: config.liveModel,
     isUpstreamReconnecting: false,

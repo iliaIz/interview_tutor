@@ -29,6 +29,7 @@ import { buildMockInterviewLivePrompt } from './liveMockInterviewPromptBuilder';
 import { buildTutorSessionLivePrompt } from './liveTutorSessionPromptBuilder';
 import { buildHrSimulatorSystemPrompt } from './hrPromptBuilder';
 import { getCandidateDossier, getJobContext, getHrQuestion, getHrQuestionChunk } from './hrContextResolver';
+import { resolveQuestionMicroBeats } from './hrGuidedStepper';
 
 export {
   LIVE_TOOL_CAPABILITY_DIRECTIVES,
@@ -177,6 +178,7 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
     const jobContext = getJobContext();
     const activeQuestion = getHrQuestion((params as any).questionId);
     const activeChunk = (params as any).chunkId ? getHrQuestionChunk((params as any).questionId, (params as any).chunkId) : undefined;
+    const microBeats = hrMode === 'guided_zero_start' ? resolveQuestionMicroBeats(activeQuestion, (params as any).chunkId) : [];
     return buildHrSimulatorSystemPrompt({
       dossier,
       jobContext,
@@ -184,6 +186,8 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
       personaId: (params.persona as any) || (sessionType === 'hr_tutor' ? 'mentor_coach' : 'friendly_sourcer'),
       activeQuestion,
       activeChunk,
+      activeBeat: microBeats[0],
+      totalBeats: microBeats.length,
       voiceName,
       userGender,
       turnMode

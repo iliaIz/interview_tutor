@@ -29,6 +29,7 @@ export const HrQuestionSelector: React.FC<HrQuestionSelectorProps> = ({ onSelect
   const questionsList = useHrSimulatorStore((state) => state.questionsList);
   const selectedQuestionId = useHrSimulatorStore((state) => state.selectedQuestionId);
   const selectQuestion = useHrSimulatorStore((state) => state.selectQuestion);
+  const masteredBeatsByQuestion = useHrSimulatorStore((state) => state.masteredBeatsByQuestion);
 
   // Group questions by phase
   const groupedQuestions = React.useMemo(() => {
@@ -87,6 +88,8 @@ export const HrQuestionSelector: React.FC<HrQuestionSelectorProps> = ({ onSelect
                 {items.map((q) => {
                   const isSelected = q.id === selectedQuestionId;
                   const anchorsCount = q.requiredAnchors?.length || 0;
+                  const beatsCount = q.microBeats?.length || 0;
+                  const masteredCount = (masteredBeatsByQuestion[q.id] || []).length;
 
                   return (
                     <button
@@ -102,7 +105,7 @@ export const HrQuestionSelector: React.FC<HrQuestionSelectorProps> = ({ onSelect
                         <div className="text-xs truncate leading-snug">
                           {q.title}
                         </div>
-                        <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-medium">
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-medium flex-wrap">
                           <span className="flex items-center gap-0.5">
                             <Timer className="w-2.5 h-2.5" />
                             {q.targetDurationSec.minSec}–{q.targetDurationSec.maxSec}с
@@ -112,6 +115,22 @@ export const HrQuestionSelector: React.FC<HrQuestionSelectorProps> = ({ onSelect
                             <Tag className="w-2.5 h-2.5" />
                             {anchorsCount} {anchorsCount === 1 ? 'якорь' : 'якорей'}
                           </span>
+                          {beatsCount > 0 && (
+                            <>
+                              <span>•</span>
+                              <span
+                                className={
+                                  masteredCount >= beatsCount
+                                    ? 'text-emerald-600 font-bold'
+                                    : masteredCount > 0
+                                    ? 'text-indigo-600 font-semibold'
+                                    : ''
+                                }
+                              >
+                                {masteredCount}/{beatsCount} блоков
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 

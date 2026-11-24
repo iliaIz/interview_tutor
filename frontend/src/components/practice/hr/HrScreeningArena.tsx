@@ -8,19 +8,16 @@ import { HrVoiceHUD } from './HrVoiceHUD';
 import { HrScorecardModal } from './HrScorecardModal';
 import { HrQuestionStudyDeck } from './HrQuestionStudyDeck';
 import { HrQuestionSelector } from './HrQuestionSelector';
-import { HrSessionMode, HrPersonaId, HrQuestionRubricItem } from '@interview-prep/shared';
-import { 
-  Play, 
-  Briefcase, 
-  UserCheck, 
-  Sparkles, 
-  HeartHandshake,
-  ShieldAlert,
-  Search,
+import { HrModeSelector } from './HrModeSelector';
+import { HrSessionMode, HrPersonaId, HrQuestionRubricItem, HrStepControlAction, HR_VOICE_EVENTS } from '@interview-prep/shared';
+import {
+  Play,
+  Briefcase,
+  UserCheck,
+  Sparkles,
   BookOpen,
   Mic,
-  List,
-  GraduationCap
+  List
 } from 'lucide-react';
 
 export const HrScreeningArena: React.FC = () => {
@@ -46,9 +43,11 @@ export const HrScreeningArena: React.FC = () => {
     state,
     metrics,
     statusMessage,
+    dialogueTurns,
     connect,
     disconnect,
-    handleInteraction
+    handleInteraction,
+    sendCustomFrame
   } = useLiveVoiceSession();
 
   const isConnected = state !== 'IDLE' && state !== 'ERROR' && state !== 'COMPLETED';
@@ -85,18 +84,34 @@ export const HrScreeningArena: React.FC = () => {
     };
   }, [isConnected, isRecording, storeAnchorCards, registerFastKwsHit]);
 
-  const handleStartSimulation = async (targetQuestion?: HrQuestionRubricItem) => {
+  const handleStartSimulation = async (
+    targetQuestion?: HrQuestionRubricItem,
+    overrideMode?: HrSessionMode
+  ) => {
     const questionToRun = targetQuestion || activeQuestion;
     if (!questionToRun) return;
 
+    const effectiveMode = overrideMode || mode;
+    if (overrideMode && overrideMode !== mode) {
+      setMode(overrideMode);
+    }
+
     setActiveTab('voice');
-    const effectivePersona = mode === 'tutor_rehearsal' ? 'mentor_coach' : personaId;
-    initializeSession(mode, effectivePersona, questionToRun);
+    const isCoachMode = effectiveMode === 'tutor_rehearsal' || effectiveMode === 'guided_zero_start';
+    const effectivePersona = isCoachMode ? 'mentor_coach' : personaId;
+    if (isCoachMode && personaId !== 'mentor_coach') {
+      setPersonaId('mentor_coach');
+    }
+    initializeSession(effectiveMode, effectivePersona, questionToRun);
 
     await connect({
-      sessionType: mode === 'tutor_rehearsal' ? 'hr_tutor' : (mode === 'full_screening_simulation' ? 'hr_simulation' : 'hr_micro_drill'),
+      sessionType: isCoachMode
+        ? 'hr_tutor'
+        : effectiveMode === 'full_screening_simulation'
+        ? 'hr_simulation'
+        : 'hr_micro_drill',
       persona: effectivePersona,
-      hrMode: mode,
+      hrMode: effectiveMode,
       hrPersonaId: effectivePersona,
       dossierId: 'canonical_senior_java',
       jobId: 'fintech_highload_expansion',
@@ -104,6 +119,20 @@ export const HrScreeningArena: React.FC = () => {
       topic: questionToRun.title,
       questionText: questionToRun.canonicalQuestion,
       chunkId: selectedChunkId || undefined
+    });
+  };
+
+  const handleStepControl = (
+    action: HrStepControlAction,
+    extra?: { beatIndex?: number; cueVisible?: boolean }
+  ) => {
+    sendCustomFrame({
+      type: HR_VOICE_EVENTS.HR_STEP_CONTROL,
+      payload: {
+        action,
+        beatIndex: extra?.beatIndex,
+        cueVisible: extra?.cueVisible
+      }
     });
   };
 
@@ -150,77 +179,13 @@ export const HrScreeningArena: React.FC = () => {
 
           {/* Persona & Mode Pickers (When in voice tab) */}
           {activeTab === 'voice' && !isConnected && (
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">
-                <button
-                  onClick={() => { setMode('tutor_rehearsal'); setPersonaId('mentor_coach'); }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                    mode === 'tutor_rehearsal'
-                      ? 'bg-pastel-accentRose text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Репетиция
-                </button>
-                <button
-                  onClick={() => { setMode('rapid_fire_micro_drill'); if (personaId === 'mentor_coach') setPersonaId('friendly_sourcer'); }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                    mode === 'rapid_fire_micro_drill'
-                      ? 'bg-pastel-accentRose text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Микро-дрилл
-                </button>
-                <button
-                  onClick={() => { setMode('full_screening_simulation'); if (personaId === 'mentor_coach') setPersonaId('friendly_sourcer'); }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                    mode === 'full_screening_simulation'
-                      ? 'bg-pastel-accentRose text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Полный скрининг
-                </button>
-              </div>
-
-              {mode === 'tutor_rehearsal' ? (
-                <div className="flex items-center px-2 py-1 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold gap-1.5" title={`Ольга — Наставник по моторике ответов (${activeVoice})`}>
-                  <GraduationCap className="w-4 h-4 text-purple-600" />
-                  <span>Ольга (Коуч • {activeVoice})</span>
-                </div>
-              ) : (
-                <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">
-                  <button
-                    onClick={() => setPersonaId('friendly_sourcer')}
-                    className={`p-1.5 rounded-lg transition cursor-pointer ${
-                      personaId === 'friendly_sourcer' ? 'bg-pink-100 text-pink-700' : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                    title="Елена — Дружелюбный сорсер"
-                  >
-                    <HeartHandshake className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setPersonaId('bank_compliance_officer')}
-                    className={`p-1.5 rounded-lg transition cursor-pointer ${
-                      personaId === 'bank_compliance_officer' ? 'bg-amber-100 text-amber-800' : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                    title="Виктория — Офицер комплаенса"
-                  >
-                    <ShieldAlert className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setPersonaId('behavioral_conflict_hunter')}
-                    className={`p-1.5 rounded-lg transition cursor-pointer ${
-                      personaId === 'behavioral_conflict_hunter' ? 'bg-purple-100 text-purple-700' : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                    title="Дарья — Охотник за конфликтами (STAR)"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+            <HrModeSelector
+              mode={mode}
+              personaId={personaId}
+              activeVoice={activeVoice}
+              onSelectMode={setMode}
+              onSelectPersona={setPersonaId}
+            />
           )}
 
           {/* Mobile Catalog Drawer Toggle */}
@@ -263,7 +228,7 @@ export const HrScreeningArena: React.FC = () => {
         <main className="flex-1 min-w-0 overflow-y-auto px-1">
           {activeTab === 'study' ? (
             /* Tab 1: Pedagogical Worked-Example Study Deck */
-            <HrQuestionStudyDeck onStartVoiceDrill={() => handleStartSimulation()} />
+            <HrQuestionStudyDeck onStartVoiceDrill={(overrideMode) => handleStartSimulation(undefined, overrideMode)} />
           ) : (
             /* Tab 2: Multimodal Voice Training Arena */
             <div className="w-full max-w-3xl mx-auto py-2">
@@ -333,11 +298,17 @@ export const HrScreeningArena: React.FC = () => {
 
                   <button
                     onClick={() => handleStartSimulation()}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-pastel-accentRose hover:opacity-90 text-white font-bold text-sm shadow-md transition transform active:scale-95 cursor-pointer"
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl hover:opacity-90 text-white font-bold text-sm shadow-md transition transform active:scale-95 cursor-pointer ${
+                      mode === 'guided_zero_start' ? 'bg-indigo-600' : 'bg-pastel-accentRose'
+                    }`}
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
-                      {mode === 'tutor_rehearsal' ? 'Начать репетицию' : 'Начать созвон'} ({activeQuestion?.targetDurationSec.minSec || 60}–{activeQuestion?.targetDurationSec.maxSec || 80}с)
+                      {mode === 'guided_zero_start'
+                        ? `Начать с нуля (${activeQuestion?.microBeats?.length || 2} микро-блоков)`
+                        : mode === 'tutor_rehearsal'
+                        ? `Начать репетицию (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`
+                        : `Начать созвон (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`}
                     </span>
                   </button>
                 </div>
@@ -350,6 +321,8 @@ export const HrScreeningArena: React.FC = () => {
                   isUserSpeaking={isUserSpeaking}
                   isPauseHolding={isPauseHolding}
                   statusMessage={statusMessage}
+                  dialogueTurns={dialogueTurns}
+                  onStepControl={handleStepControl}
                   onCentralClick={handleInteraction}
                   onDisconnect={disconnect}
                 />
@@ -360,7 +333,7 @@ export const HrScreeningArena: React.FC = () => {
       </div>
 
       {/* Scorecard Modal on Round Completion (examiner modes only) */}
-      {mode !== 'tutor_rehearsal' && (
+      {mode !== 'tutor_rehearsal' && mode !== 'guided_zero_start' && (
         <HrScorecardModal onRetry={() => handleStartSimulation()} />
       )}
     </div>

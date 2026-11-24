@@ -11,6 +11,7 @@ import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleTurnCommit, armTurnWatchdogs } from './liveWsTurnCommitHandler';
 import { LiveWorkspaceContext } from './LiveWorkspaceContext';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
+import { handleGuidedStepControlFrame } from './hrGuidedStepper';
 
 export interface DownstreamClientPipeOptions {
   session: ProxySession;
@@ -136,6 +137,10 @@ export class DownstreamClientPipe {
           timestamp: Date.now()
         }));
       }
+      return true;
+    }
+
+    if (handleGuidedStepControlFrame(session, clientSocket, parsed)) {
       return true;
     }
 

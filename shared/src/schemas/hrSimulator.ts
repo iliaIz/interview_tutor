@@ -133,7 +133,8 @@ export type JobContext = Static<typeof JobContextSchema>;
 export const HrSessionModeSchema = Type.Union([
   Type.Literal('full_screening_simulation'),
   Type.Literal('rapid_fire_micro_drill'),
-  Type.Literal('tutor_rehearsal')
+  Type.Literal('tutor_rehearsal'),
+  Type.Literal('guided_zero_start')
 ]);
 export type HrSessionMode = Static<typeof HrSessionModeSchema>;
 
@@ -203,6 +204,36 @@ export const HrQuestionChunkSchema = Type.Object({
 });
 export type HrQuestionChunk = Static<typeof HrQuestionChunkSchema>;
 
+export const HrLearningRungSchema = Type.Union([
+  Type.Literal(1),
+  Type.Literal(2),
+  Type.Literal(3),
+  Type.Literal(4)
+]);
+export type HrLearningRung = Static<typeof HrLearningRungSchema>;
+
+export const HrMicroBeatSchema = Type.Object({
+  id: Type.String(),
+  chunkId: Type.String(),
+  title: Type.String(),
+  anchorIds: Type.Array(Type.String()),
+  immutableFacts: Type.Array(Type.String(), {
+    minItems: 1,
+    description: 'Non-negotiable legal citations, documents, metrics, and dates preserved identically during paraphrasing'
+  }),
+  spokenVariants: Type.Array(Type.String(), {
+    minItems: 2,
+    description: 'Natural 8-15 word varied Russian phrasings for anti-parroting live rehearsal and passive TTS warm-up'
+  }),
+  hrTriggerPrompt: Type.String({
+    description: 'Realistic HR trigger cue for Rung 3 naked recall without spoiling target wording'
+  }),
+  cueHints: Type.Array(Type.String(), {
+    description: 'Short visual anchor pill hints displayed inside the toggleable cue card'
+  })
+});
+export type HrMicroBeat = Static<typeof HrMicroBeatSchema>;
+
 export const HrQuestionRubricItemSchema = Type.Object({
   id: Type.String(),
   title: Type.String(),
@@ -216,6 +247,7 @@ export const HrQuestionRubricItemSchema = Type.Object({
   requiredAnchors: Type.Array(HrAnchorCardSchema),
   forbiddenPatterns: Type.Array(Type.String()),
   chunks: Type.Optional(Type.Array(HrQuestionChunkSchema)),
+  microBeats: Type.Optional(Type.Array(HrMicroBeatSchema)),
   phase: Type.Optional(HrSimulationPhaseSchema)
 });
 export type HrQuestionRubricItem = Static<typeof HrQuestionRubricItemSchema>;
