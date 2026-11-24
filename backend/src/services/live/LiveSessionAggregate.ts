@@ -13,6 +13,7 @@ import { WatchdogManager } from './WatchdogManager';
 import { ProxySession, CurrentTurnMetrics } from './liveSessionTypes';
 import { LiveSessionResolvedConfig } from './liveSessionConfigTypes';
 import { createInitialProxySession } from './sessionStartupHelper';
+import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export class LiveSessionAggregate {
   private readonly _id: string;
@@ -146,7 +147,7 @@ export class LiveSessionAggregate {
     this._proxySession.lastActivityAt = this._lastActivityAt;
   }
 
-  public startTurn(vadPauseSettingMs: number = 800): void {
+  public startTurn(vadPauseSettingMs: number = DEFAULT_VAD_PAUSE_MS): void {
     this._currentTurnIndex++;
     this._proxySession.currentTurnIndex = this._currentTurnIndex;
     this._currentTurnMetrics = {

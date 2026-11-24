@@ -7,6 +7,7 @@
 import React from 'react';
 import { Play, Mic, Settings2, Loader2 } from 'lucide-react';
 import { InterviewConfig } from '../../types/interviewConfig';
+import { VOICE_DEFAULTS } from '../../config/voiceDefaults';
 
 export interface VoiceTutorLobbyViewProps {
   tutorMode: 'deep_dive' | 'socratic' | 'eli5' | 'free_chat';
@@ -95,7 +96,7 @@ export const VoiceTutorLobbyView: React.FC<VoiceTutorLobbyViewProps> = ({
           className="w-full py-2 px-3 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs hover:border-pastel-accentViolet/50 group"
         >
           <Settings2 className="w-3.5 h-3.5 text-pastel-accentViolet group-hover:rotate-45 transition-transform" />
-          <span>⚙️ Все настройки (Голос: {interviewConfig.voice || 'Kore'})</span>
+          <span>⚙️ Все настройки (Голос: {interviewConfig.voice || VOICE_DEFAULTS.voice})</span>
         </button>
       </div>
     </div>

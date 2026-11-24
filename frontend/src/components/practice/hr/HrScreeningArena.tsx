@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLiveVoiceSession } from '../../../audio/useLiveVoiceSession';
 import { ClientKeywordSpotter } from '../../../audio/ClientKeywordSpotter';
 import { useHrSimulatorStore } from '../../../store/useHrSimulatorStore';
+import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
 import { HrVoiceHUD } from './HrVoiceHUD';
 import { HrScorecardModal } from './HrScorecardModal';
 import { HrQuestionStudyDeck } from './HrQuestionStudyDeck';
@@ -25,6 +27,8 @@ export const HrScreeningArena: React.FC = () => {
   const [mode, setMode] = useState<HrSessionMode>('tutor_rehearsal');
   const [personaId, setPersonaId] = useState<HrPersonaId>('mentor_coach');
   const [isCatalogOpenMobile, setIsCatalogOpenMobile] = useState(false);
+  const { config: interviewConfig } = useInterviewConfig();
+  const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
 
   const activeTab = useHrSimulatorStore((state) => state.activeTab);
   const setActiveTab = useHrSimulatorStore((state) => state.setActiveTab);
@@ -181,9 +185,9 @@ export const HrScreeningArena: React.FC = () => {
               </div>
 
               {mode === 'tutor_rehearsal' ? (
-                <div className="flex items-center px-2 py-1 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold gap-1.5" title="Ольга — Наставник по моторике ответов (Aoede)">
+                <div className="flex items-center px-2 py-1 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold gap-1.5" title={`Ольга — Наставник по моторике ответов (${activeVoice})`}>
                   <GraduationCap className="w-4 h-4 text-purple-600" />
-                  <span>Ольга (Коуч)</span>
+                  <span>Ольга (Коуч • {activeVoice})</span>
                 </div>
               ) : (
                 <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">

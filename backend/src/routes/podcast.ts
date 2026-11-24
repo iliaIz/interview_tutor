@@ -9,6 +9,7 @@ import {
   getJob
 } from '../services/podcast';
 import { TOPIC_MAP } from '../services/topics';
+import { DEFAULT_SECONDARY_VOICE_NAME, DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../config/liveDefaults';
 
 const router = Router();
 
@@ -32,8 +33,8 @@ router.post('/generate', async (req: Request, res: Response) => {
       systemPrompt,
       userPrompt,
       mode,
-      voice1: voice1 || 'Kore',
-      voice2: voice2 || 'Puck',
+      voice1: voice1 ? sanitizeVoiceName(voice1) : DEFAULT_VOICE_NAME,
+      voice2: voice2 ? sanitizeVoiceName(voice2, DEFAULT_SECONDARY_VOICE_NAME) : DEFAULT_SECONDARY_VOICE_NAME,
     });
 
     res.json(job);
@@ -207,7 +208,7 @@ const sampleAudioCache = new Map<string, Buffer>();
 // GET /api/podcast/sample-audio - Stream WAV sample for voice preview using Gemini TTS
 router.get('/sample-audio', async (req: Request, res: Response) => {
   try {
-    const voice = (req.query.voice as string) || 'Kore';
+    const voice = sanitizeVoiceName(req.query.voice, DEFAULT_VOICE_NAME);
 
     if (sampleAudioCache.has(voice)) {
       res.setHeader('Content-Type', 'audio/wav');

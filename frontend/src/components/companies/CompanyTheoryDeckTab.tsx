@@ -157,7 +157,6 @@ export const CompanyTheoryDeckTab: React.FC<CompanyTheoryDeckTabProps> = ({
           initialSessionType={voiceProps.initialSessionType}
           initialTutorMode={voiceProps.initialTutorMode}
           customPromptOverride={voiceProps.customPromptOverride}
-          vadPauseMs={800}
         />
       )}
     </div>

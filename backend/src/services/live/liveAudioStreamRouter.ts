@@ -14,6 +14,8 @@ import { isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 import { UpstreamGeminiPipe } from './UpstreamGeminiPipe';
 import { LiveDeadAirGuard } from './LiveDeadAirGuard';
+import { envConfig } from '../../config/env';
+import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export interface StreamRouterOptions {
   session: ProxySession;
@@ -59,7 +61,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     questionIndex = session.questionIndex ?? 0,
     parsedHints = [],
     liveCoaching = false,
-    liveModel = session.liveModel || 'gemini-live-v3',
+    liveModel = session.liveModel || envConfig.models.live,
     challengeCategory = (session as any).challengeCategory || '',
     challengeTrack = (session as any).challengeTrack || ''
   } = options;
@@ -97,7 +99,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
               error: reasonStr || 'Голосовой шлюз отклонил подключение модели.',
               errorCode: session.terminalErrorCode || 'FORBIDDEN_MODEL_ACCESS',
               retryable: false,
-              suggestedFallbackModel: 'gemini-live-v3'
+              suggestedFallbackModel: envConfig.models.livePreview || envConfig.models.live
             }));
           } catch {}
         }
@@ -229,7 +231,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
             turnIndex: session.currentTurnIndex || 0,
             candidateSpeechStartedAt: commitAnchor,
             candidateSpeechEndedAt: commitAnchor,
-            vadPauseSettingMs: session.vadPauseMs || 1800,
+            vadPauseSettingMs: session.vadPauseMs || DEFAULT_VAD_PAUSE_MS,
             speechDurationMs: 0,
             audioBytesReceived: 0,
             textChars: 0,

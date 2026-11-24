@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLiveVoiceSession } from '../../audio/useLiveVoiceSession';
-import { VoiceEngineConfig } from '../../audio/types';
+import { useLiveVoiceSession, LiveAudioSessionParams } from '../../audio/useLiveVoiceSession';
 import { DEBUG_STEPS } from './debugStepDefinitions';
 import { DebugVoiceControls } from './DebugVoiceControls';
+import { useInterviewConfig } from '../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../config/voiceDefaults';
 import { Play, Square, Mic, MicOff, Volume2, Activity, Zap, RefreshCw, Terminal, MessageSquare } from 'lucide-react';
 
 interface DebugLiveConsoleProps {
@@ -33,8 +34,15 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
 
   const stepDef = DEBUG_STEPS.find((s) => s.step === selectedStep) || DEBUG_STEPS[0];
   const isRunning = session.state !== 'IDLE' && session.state !== 'COMPLETED' && session.state !== 'ERROR';
-  const [voice, setVoice] = useState<string>('Aoede');
+  const { config: interviewConfig } = useInterviewConfig();
+  const [voice, setVoice] = useState<string>(() => interviewConfig.voice || VOICE_DEFAULTS.voice);
   const [temperature, setTemperature] = useState<number>(1.0);
+
+  useEffect(() => {
+    if (!isRunning && interviewConfig.voice) {
+      setVoice(interviewConfig.voice);
+    }
+  }, [interviewConfig.voice, isRunning]);
 
   const addLog = (type: LogEntry['type'], text: string) => {
     const time = new Date().toISOString().substring(11, 23);
@@ -82,22 +90,18 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
 
     addLog('info', `▶ Инициализация теста: ${stepDef.title} (Шаг ${selectedStep})`);
 
-    const cfg: VoiceEngineConfig = {
+    const cfg: LiveAudioSessionParams = {
       sessionId: `debug_step_${selectedStep}_${now}`,
       questionId: `debug_step_${selectedStep}`,
       sessionType: 'tutor',
       tutorMode: 'practice_pair',
-      topic: 'Тестирование Авто-VAD v3',
+      topic: 'Тестирование Live голосового тракта',
       questionText: 'Проверка звукового тракта и VAD',
       voice,
       temperature,
-      turnMode: 'auto',
-      liveModel: 'gemini-live-v3',
-      vadPauseMs: 800,
       debugStep: selectedStep,
       challengeTrack: 'debug',
-      challengeDomain: 'debug',
-      enableSilenceClarification: false
+      challengeDomain: 'debug'
     };
 
     if (selectedStep >= 2) {

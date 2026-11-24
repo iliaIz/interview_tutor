@@ -117,6 +117,18 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 
 ---
 
+### 2.11 `SessionConfigurationResolver, liveGeminiConfigBuilder, hrPromptBuilder & liveDefaults: Global Config & Unclamped VAD SSOT`
+- **Location:** [`backend/src/config/liveDefaults.ts`](file:///home/djelu/projects/interview_tutor/backend/src/config/liveDefaults.ts), [`backend/src/server.ts`](file:///home/djelu/projects/interview_tutor/backend/src/server.ts), [`backend/src/services/live/SessionConfigurationResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/SessionConfigurationResolver.ts), [`backend/src/services/live/sessionInitFrameMerger.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionInitFrameMerger.ts), [`backend/src/services/live/liveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts), [`backend/src/services/live/hrPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/hrPromptBuilder.ts)
+- **What Was Done:**
+  1. Created backend `liveDefaults.ts` SSOT (`DEFAULT_VOICE_NAME`, `DEFAULT_TURN_MODE`, `MIN_VAD_SILENCE_MS = 500`, `MAX_VAD_SILENCE_MS = 2500`, `DEFAULT_VAD_PAUSE_MS = 1800`, `clampVadPauseMs`, `sanitizeVoiceName`) and removed conflicting literals (`'Puck'`, `'Aoede'`, `'gemini-live-v3'`, `800`, `1000`) across `liveGeminiConfigBuilder.ts`, `UpstreamGeminiPipe.ts`, `liveAudioStreamRouter.ts`, `hrPromptBuilder.ts`, `personas.ts`, `GreetingSynthesisService.ts`, `CascadedTurnEngine.ts`, and `livekitAuthService.ts`.
+  2. Expanded `GET /api/config` in `server.ts` to expose `defaults`, `vad` bounds/presets, `voices`, and `models` for dynamic frontend discovery.
+  3. Unblocked UI VAD pause presets (`1200–2400` ms) in `liveGeminiConfigBuilder.ts` by replacing the `[500, 1000]` ms clamp with `clampVadPauseMs()` (`[500, 2500]` ms), while keeping `turnMode === 'manual'` (`disabled: true`) untouched.
+  4. Added `turnMode`, `voice`, `liveModel`, `vadPauseMs`, `enableSilenceClarification`, `userGender`, `strictness` merging in `sessionInitFrameMerger.ts` and `turnMode` cadence support in `hrPromptBuilder.ts`.
+- **Rationale & "Why":** Eliminates split-brain defaults across arenas and stops the backend from silently truncating UI `vadPauseMs` presets > 1000ms.
+- **Invariants:** `silenceDurationMs` honors `[500, 2500]` ms in Auto-VAD; `manual` mode keeps `automaticActivityDetection.disabled = true`; no voice or engine name is hardcoded over user config.
+
+---
+
 ### 2.9 `LiveGreetingReplay.ts & liveVoiceUrlBuilder.ts: Dynamic Batch Recitation & Transition Greeting (Wave 17)`
 - **Location:** [`backend/src/services/live/LiveGreetingReplay.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveGreetingReplay.ts), [`frontend/src/audio/liveVoiceUrlBuilder.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveVoiceUrlBuilder.ts)
 - **What Was Done:**

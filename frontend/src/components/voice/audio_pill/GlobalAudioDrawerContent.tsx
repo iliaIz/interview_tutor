@@ -4,6 +4,14 @@ import {
 } from 'lucide-react';
 import { AVAILABLE_VOICES, GeminiVoiceName, UserGender } from '../../../types/interviewConfig';
 import { TargetGrade } from '../../../types/personas';
+import { useAppStore } from '../../../store/useAppStore';
+import {
+  VOICE_DEFAULTS,
+  getLiveModelUiMeta,
+  getVadPresetOptions
+} from '../../../config/voiceDefaults';
+import { resolveEffectiveLiveModel } from '../../../audio/voiceConfigResolver';
+import { setExplicitLiveModelPreference } from '../../../services/profileStorage';
 
 export interface GlobalAudioDrawerContentProps {
   turnMode: 'auto' | 'manual';
@@ -28,6 +36,13 @@ export const GlobalAudioDrawerContent: React.FC<GlobalAudioDrawerContentProps> =
   onPlayPreview,
   onOpenAdvanced
 }) => {
+  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const supportedModels = runtimeConfig?.models?.supportedLiveModels?.length
+    ? runtimeConfig.models.supportedLiveModels
+    : [...VOICE_DEFAULTS.supportedLiveModels];
+  const defaultRuntimeModel = runtimeConfig?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
+  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig);
+  const vadPresets = getVadPresetOptions(runtimeConfig?.vad?.presetsMs);
   return (
     <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-white/95 backdrop-blur-xl border border-pastel-border/90 rounded-3xl p-4 sm:p-5 shadow-2xl z-50 font-sans space-y-4 animate-in fade-in zoom-in-95 duration-150 text-slate-800">
       {/* Header */}
@@ -87,46 +102,66 @@ export const GlobalAudioDrawerContent: React.FC<GlobalAudioDrawerContentProps> =
             : 'Вы сами нажимаете «Закончить ответ» — идеально для шумных мест.'}
         </p>
 
+        <div className="pt-1.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Движок Live</span>
+            <span className="text-[9px] text-slate-400 font-medium">
+              {turnMode === 'auto' ? 'Auto-VAD' : 'Push-to-Talk'}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1 bg-pastel-bg/80 p-1 rounded-xl border border-pastel-border">
+            {supportedModels.map((modelId) => {
+              const meta = getLiveModelUiMeta(modelId, defaultRuntimeModel);
+              const isSelected = activeLiveModel === modelId;
+              return (
+                <button
+                  key={modelId}
+                  type="button"
+                  onClick={() => {
+                    setExplicitLiveModelPreference(modelId);
+                    updateConfig({ liveModel: modelId });
+                  }}
+                  title={meta.description}
+                  className={`flex items-center justify-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer truncate ${
+                    isSelected
+                      ? 'bg-white text-purple-900 shadow-xs border border-purple-300 ring-1 ring-purple-300/40'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span className="truncate">{meta.icon} {meta.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {turnMode === 'auto' && (
           <div className="pt-1.5 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Движок Live</span>
-              <span className="text-[9px] text-slate-400 font-medium">Auto-VAD</span>
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Пауза Auto-VAD</span>
+              <span className="text-[10px] font-bold text-pastel-accentViolet">
+                {((config.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs) / 1000).toFixed(1)}с
+              </span>
             </div>
-            <div className="grid grid-cols-3 gap-1 bg-pastel-bg/80 p-1 rounded-xl border border-pastel-border">
-              <button
-                type="button"
-                onClick={() => updateConfig({ liveModel: 'gemini-live-v3' })}
-                className={`flex items-center justify-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                  (config.liveModel || 'gemini-live-v3') === 'gemini-live-v3'
-                    ? 'bg-white text-purple-900 shadow-xs border border-purple-300 ring-1 ring-purple-300/40'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>🟣 Live v3</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => updateConfig({ liveModel: 'gemini-live-v2' })}
-                className={`flex items-center justify-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                  (config.liveModel || 'gemini-live-v3') === 'gemini-live-v2'
-                    ? 'bg-white text-emerald-900 shadow-xs border border-emerald-300 ring-1 ring-emerald-300/40'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>🟢 Live v2</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => updateConfig({ liveModel: 'gemini-live-thinking-v3' })}
-                className={`flex items-center justify-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                  config.liveModel === 'gemini-live-thinking-v3'
-                    ? 'bg-white text-indigo-900 shadow-xs border border-indigo-300 ring-1 ring-indigo-300/40'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>🧠 Thinking</span>
-              </button>
+            <div className="grid grid-cols-5 gap-1 bg-pastel-bg/80 p-1 rounded-xl border border-pastel-border">
+              {vadPresets.map((item) => {
+                const isSelected = (config.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs) === item.ms;
+                return (
+                  <button
+                    key={item.ms}
+                    type="button"
+                    onClick={() => updateConfig({ vadPauseMs: item.ms })}
+                    title={item.desc}
+                    className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-white text-pastel-accentViolet shadow-xs border border-pastel-accentViolet/40'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    }`}
+                  >
+                    {(item.ms / 1000).toFixed(1)}с
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

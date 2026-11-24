@@ -33,6 +33,7 @@ import {
   getStrictnessDirectives
 } from '../../prompts/core/antiSycophancy';
 import { sanitizeVoice } from './GreetingSynthesisService';
+import { DEFAULT_VOICE_NAME } from '../../config/liveDefaults';
 import {
   DeductionItem,
   TurnReasoningResult,
@@ -65,7 +66,7 @@ export class CascadedTurnEngine {
       maxProbes = 2,
       strategy = 'socratic_tutoring',
       deepDive = true,
-      voice: rawVoice = 'Kore',
+      voice: rawVoice = DEFAULT_VOICE_NAME,
       userGender: rawUserGender = 'female',
       activeCodeArtifact,
       persona = 'mentor',

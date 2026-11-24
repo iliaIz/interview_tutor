@@ -33,6 +33,15 @@ import {
 } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 import { envConfig } from './config/env';
+import {
+  VALID_VOICES,
+  DEFAULT_VOICE_NAME,
+  DEFAULT_TURN_MODE,
+  MIN_VAD_SILENCE_MS,
+  MAX_VAD_SILENCE_MS,
+  DEFAULT_VAD_PAUSE_MS,
+  VAD_PAUSE_PRESETS_MS
+} from './config/liveDefaults';
 
 dotenv.config();
 
@@ -86,7 +95,7 @@ app.get('/api/health', async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// Dynamic Model Discovery Configuration Endpoint for Frontend
+// Dynamic Model Discovery & Voice Defaults Configuration Endpoint for Frontend
 app.get('/api/config', (req, res) => {
   res.json({
     models: {
@@ -99,6 +108,18 @@ app.get('/api/config', (req, res) => {
       defaultEmbeddingModel: envConfig.models.embedding,
       supportedLiveModels: envConfig.models.supportedLiveModels
     },
+    defaults: {
+      voice: DEFAULT_VOICE_NAME,
+      turnMode: DEFAULT_TURN_MODE,
+      vadPauseMs: DEFAULT_VAD_PAUSE_MS,
+      enableSilenceClarification: false
+    },
+    vad: {
+      minMs: MIN_VAD_SILENCE_MS,
+      maxMs: MAX_VAD_SILENCE_MS,
+      presetsMs: [...VAD_PAUSE_PRESETS_MS]
+    },
+    voices: [...VALID_VOICES],
     livekit: {
       url: envConfig.livekit.publicUrl
     }

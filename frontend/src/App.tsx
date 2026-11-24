@@ -50,6 +50,7 @@ export const App: React.FC = () => {
     currentView,
     systemHealth,
     checkHealth,
+    fetchRuntimeConfig,
     activeReportModal,
     closeReportModal,
     activeTopicBugHunt,
@@ -59,9 +60,10 @@ export const App: React.FC = () => {
   } = useAppStore();
 
   React.useEffect(() => {
-    // Initial Auth & Health Check
+    // Initial Auth, Health & Dynamic Voice Config Discovery
     checkAuthSession();
     checkHealth();
+    fetchRuntimeConfig();
 
     // SOTA 2026 Page Visibility Aware Poller (Saves battery & mobile cellular data)
     let intervalId: any = null;

@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import { ProxySession } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
+import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export function handleTurnCommit(
   session: ProxySession,
@@ -48,7 +49,7 @@ export function handleTurnCommit(
       turnIndex: session.currentTurnIndex || 0,
       candidateSpeechStartedAt: session.lastTurnCommitTime - speechDurationMs,
       candidateSpeechEndedAt: session.lastTurnCommitTime,
-      vadPauseSettingMs: session.vadPauseMs || 1800,
+      vadPauseSettingMs: session.vadPauseMs || DEFAULT_VAD_PAUSE_MS,
       speechDurationMs,
       audioBytesReceived: 0,
       textChars: 0,

@@ -7,6 +7,7 @@
 import React from 'react';
 import { Play, Pause, Square, Volume2, Mic, MicOff, Loader2, Clock, Zap } from 'lucide-react';
 import { InterviewConfig } from '../../types/interviewConfig';
+import { VOICE_DEFAULTS } from '../../config/voiceDefaults';
 
 export interface VoiceTutorMediaClusterProps {
   isSessionPaused?: boolean;
@@ -164,7 +165,7 @@ export const VoiceTutorMediaCluster: React.FC<VoiceTutorMediaClusterProps> = ({
           <div className="flex items-center gap-1.5">
             <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1 animate-pulse">
               <Clock className="w-3 h-3 text-amber-600" />
-              <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? 1800) / 1000).toFixed(1)}с)...</span>
+              <span>Слушаю паузу ({((interviewConfig.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs) / 1000).toFixed(1)}с)...</span>
             </span>
             <button
               type="button"

@@ -3,6 +3,8 @@ import { useAppStore } from '../store/useAppStore';
 import { X, Headphones, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useInterviewConfig } from '../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../config/voiceDefaults';
 import {
   DEFAULT_SYSTEM_PROMPT,
   DUO_TONE_PROMPTS,
@@ -14,12 +16,18 @@ import { RecapProgressTelemetry } from './audio/RecapProgressTelemetry';
 
 export const AudioRecapModal: React.FC = () => {
   const { isRecapModalOpen, closeRecapModal, recapTarget, systemHealth } = useAppStore();
+  const { config: interviewConfig } = useInterviewConfig();
 
   useBodyScrollLock(isRecapModalOpen);
 
+  const defaultVoice1 = interviewConfig.voice || VOICE_DEFAULTS.voice;
+  const defaultVoice2 = defaultVoice1 === VOICE_DEFAULTS.secondaryVoice
+    ? VOICE_DEFAULTS.voice
+    : VOICE_DEFAULTS.secondaryVoice;
+
   const [mode, setMode] = useState<'duo' | 'solo'>('duo');
-  const [voice1, setVoice1] = useState<string>('Kore');
-  const [voice2, setVoice2] = useState<string>('Puck');
+  const [voice1, setVoice1] = useState<string>(defaultVoice1);
+  const [voice2, setVoice2] = useState<string>(defaultVoice2);
   const [tone, setTone] = useState<string>('Fun');
   const [length, setLength] = useState<string>('Medium (10-15 min)');
   const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);

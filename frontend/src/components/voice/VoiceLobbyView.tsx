@@ -57,11 +57,10 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
         selectedPersona={interviewConfig.persona || 'mentor'}
         selectedGrade={interviewConfig.targetGrade || 'L5_SENIOR'}
         selectedVoice={interviewConfig.voice}
-        onSelectPersona={(p, recommendedVoice) => {
+        onSelectPersona={(p) => {
           handleConfigChange({
             ...interviewConfig,
-            persona: p,
-            voice: recommendedVoice || interviewConfig.voice
+            persona: p
           });
         }}
         onSelectGrade={(g) => {

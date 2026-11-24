@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { envConfig } from '../config/env';
+import { DEFAULT_SECONDARY_VOICE_NAME, DEFAULT_VOICE_NAME } from '../config/liveDefaults';
 
 import {
   WavInfo,
@@ -94,8 +95,8 @@ export async function startPodcastJob(options: GeneratePodcastOptions): Promise<
         startTime: Date.now(),
         modelsUsed: { scriptModel, ttsModel },
         voices: {
-          voice1: options.voice1 || 'Kore',
-          voice2: options.voice2 || 'Puck',
+          voice1: options.voice1 || DEFAULT_VOICE_NAME,
+          voice2: options.voice2 || DEFAULT_SECONDARY_VOICE_NAME,
           mode: options.mode || 'duo'
         },
         steps: []
@@ -127,8 +128,8 @@ async function processPodcastJobAsync(jobId: string, options: GeneratePodcastOpt
   const startTime = Date.now();
   const scriptModel = envConfig.models.text;
   const ttsModel = envConfig.models.tts;
-  const voice1 = options.voice1 || 'Kore';
-  const voice2 = options.voice2 || 'Puck';
+  const voice1 = options.voice1 || DEFAULT_VOICE_NAME;
+  const voice2 = options.voice2 || DEFAULT_SECONDARY_VOICE_NAME;
   const mode = options.mode || 'duo';
 
   const telemetry: JobTelemetry = {

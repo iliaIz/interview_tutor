@@ -286,17 +286,16 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   - Complete backward compatibility for existing parent consumers (`AudioRecapModal`).
   - All newly created files strictly <= 350 lines (Rule 8 compliant).
 
+---
 
-
-
-
-
-
-
-
-
-
-
+### 2.21 `voiceConfigResolver & VoiceDefaults: Global Auto-VAD, Engine & Voice SSOT Across All Arenas`
+- **Location:** [`frontend/src/config/voiceDefaults.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/config/voiceDefaults.ts), [`frontend/src/audio/voiceConfigResolver.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/voiceConfigResolver.ts), [`frontend/src/audio/useLiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts), [`frontend/src/audio/liveVoiceUrlBuilder.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveVoiceUrlBuilder.ts), [`frontend/src/components/VoiceSettingsDrawer.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/VoiceSettingsDrawer.tsx)
+- **What Was Done:**
+  1. Extracted pure `resolveLiveSessionConfig()` and `resolveEffectiveLiveModel()` inside `voiceConfigResolver.ts`, hydrating every `useLiveVoiceSession.connect()` caller (`HrScreeningArena`, `useBugHuntVoiceBridge`, `useSystemDesignVoiceDefense`, `PracticeVoiceContext`, `useVoiceModalCoordinator`, `DebugLiveConsole`) with active `getActiveConfig()` + `/api/config` defaults.
+  2. Connected `uiSlice.fetchRuntimeConfig()` (`GET /api/config`) at `App.tsx` startup so model pickers (`GlobalAudioDrawerContent`, `VoiceDialogueModeSection`) render dynamic backend aliases in both `auto` and `manual` modes.
+  3. Removed hardcoded overrides (`vadPauseMs={800}` in company tabs, `'Aoede'` in HR/BugHunt/Debug, profile selection resetting `turnMode`/`liveModel` in `VoiceSettingsDrawer`, persona selection overwriting `voice` in `VoiceLobbyView`).
+- **Rationale & "Why":** Enforces global Auto-VAD, engine, and voice selection at one headless boundary rather than duplicating config plumbing per screen.
+- **Invariants:** No arena may drop or override global Auto-VAD/engine/voice unless explicitly passed; `turnMode === 'manual'` remains intact.
 
 ---
 

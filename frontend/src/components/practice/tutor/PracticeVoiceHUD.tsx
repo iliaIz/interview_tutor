@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { usePracticeVoice } from './PracticeVoiceContext';
 import { useAppStore } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
 import { Mic, MicOff, Volume2, PhoneOff, Radio, Sparkles, Send, Loader2 } from 'lucide-react';
 
 interface PracticeVoiceHUDProps {
@@ -64,7 +65,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white border border-pastel-accentRose/20 text-[10px] font-bold text-pastel-accentRoseText shadow-2xs truncate">
             <Radio className="w-3 h-3 text-pastel-accentRose animate-pulse shrink-0" />
             <span className="truncate">
-              {interviewConfig.voice || 'Kore'} • {interviewConfig.userGender === 'male' ? 'Мужской' : interviewConfig.userGender === 'neutral' ? 'На «Вы»' : 'Женский'} • {isManualMode ? 'По кнопке' : 'Авто-VAD'}
+              {interviewConfig.voice || VOICE_DEFAULTS.voice} • {interviewConfig.userGender === 'male' ? 'Мужской' : interviewConfig.userGender === 'neutral' ? 'На «Вы»' : 'Женский'} • {isManualMode ? 'По кнопке' : 'Авто-VAD'}
             </span>
           </div>
         </div>
@@ -161,7 +162,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
             : isRecording
             ? isManualMode
               ? 'Говорите, затем нажмите кнопку для отправки'
-              : 'Говорите свободно, пауза 1.8с запустит ответ'
+              : `Говорите свободно, пауза ${((interviewConfig.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs) / 1000).toFixed(1)}с запустит ответ`
             : isConnected
             ? statusMessage
             : 'Подключение к аудио-шлюзу...'}

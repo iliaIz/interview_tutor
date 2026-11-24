@@ -99,12 +99,22 @@ export interface LiveSessionInitFrame {
   sessionId: string;
   sessionType?: string;
   tutorMode?: string;
+  voice?: string;
+  userGender?: string;
+  turnMode?: 'auto' | 'manual';
+  liveModel?: string;
+  vadPauseMs?: number;
+  enableSilenceClarification?: boolean;
   topic?: string;
   questionText?: string;
   referenceAnswer?: string;
   persona?: string;
   strategy?: string;
   targetGrade?: string;
+  strictness?: string;
+  maxProbes?: number;
+  deepDive?: boolean;
+  liveCoaching?: boolean;
   customPrompt?: string;
   challenge?: {
     id?: string;

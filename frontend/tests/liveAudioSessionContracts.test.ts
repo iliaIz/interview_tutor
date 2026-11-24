@@ -6,6 +6,15 @@
  * and Single-Envelope Turn Commit invariants to prevent upstream Gemini Live desynchronization.
  */
 
+import {
+  resolveLiveSessionConfig,
+  resolveEffectiveLiveModel,
+  clampClientVadPauseMs
+} from '../src/audio/voiceConfigResolver';
+import { buildLiveVoiceWebSocketUrl } from '../src/audio/liveVoiceUrlBuilder';
+import type { InterviewConfig } from '../src/types/interviewConfig';
+import type { RuntimeVoiceConfig } from '../src/config/voiceDefaults';
+
 interface TestContext {
   passed: number;
   failed: number;
@@ -192,6 +201,68 @@ function runContractTests() {
       threwOnEmpty = true;
     }
     assert(threwOnEmpty, 'Empty sessionId throws validation error preventing session: anon');
+  }
+
+  // [Test 5] Global Auto-VAD, Engine & Voice SSOT Resolution Contract
+  console.log('\n[Test 5] Global Auto-VAD, Dynamic Engine Discovery & Voice SSOT');
+  {
+    const globalCfg: InterviewConfig = {
+      strategy: 'adaptive_probing',
+      voice: 'Aoede',
+      maxProbes: 4,
+      userGender: 'female',
+      turnMode: 'auto',
+      liveModel: 'gemini-live-v2',
+      vadPauseMs: 2400,
+      enableSilenceClarification: true,
+      persona: 'google_staff',
+      targetGrade: 'L6_STAFF',
+      strictness: 'hardcore',
+      deepDive: true,
+      liveCoaching: true
+    };
+    const runtimeCfg: RuntimeVoiceConfig = {
+      models: {
+        defaultLiveModel: 'gemini-custom-live',
+        supportedLiveModels: ['gemini-custom-live', 'gemini-live-v2', 'gemini-live-v3']
+      },
+      vad: { minMs: 500, maxMs: 2500, presetsMs: [800, 1200, 1500, 1800, 2400] }
+    };
+
+    // Simulate arena caller (e.g., HR / BugHunt / SystemDesign) omitting voice, turnMode, liveModel, vadPauseMs
+    const resolved = resolveLiveSessionConfig(
+      {
+        sessionId: 'sess_hr_1',
+        questionId: 'hr_q0',
+        sessionType: 'hr_tutor',
+        topic: 'Elevator Pitch'
+      },
+      { globalConfig, runtimeConfig: runtimeCfg }
+    );
+
+    assert(resolved.voice === 'Aoede', 'Global voice hydrates arena without hardcode');
+    assert(resolved.turnMode === 'auto', 'Global Auto-VAD turnMode hydrates arena');
+    assert(resolved.liveModel === 'gemini-live-v2', 'Global liveModel hydrates arena');
+    assert(resolved.vadPauseMs === 2400, 'Global 2400ms VAD pause hydrates unclamped');
+    assert(resolved.enableSilenceClarification === true, 'Global silence clarification flag propagated');
+    assert(resolved.strictness === 'hardcore', 'Global strictness propagated');
+    assert(resolved.targetGrade === 'L6_STAFF', 'Global targetGrade propagated');
+
+    // Runtime defaultLiveModel wins when unsupported/stale model or no model stored
+    const fallbackDynamicModel = resolveEffectiveLiveModel(
+      { ...globalCfg, liveModel: 'stale-retired-model' },
+      runtimeCfg
+    );
+    assert(fallbackDynamicModel === 'gemini-custom-live', 'Stale/unexplicit model yields to /api/config defaultLiveModel');
+    assert(clampClientVadPauseMs(3000, runtimeCfg) === 2500, 'Client VAD pause clamps safely at 2500ms');
+
+    const wsUrl = buildLiveVoiceWebSocketUrl(resolved);
+    assert(wsUrl.includes('voice=Aoede'), 'WS URL carries global voice');
+    assert(wsUrl.includes('turnMode=auto'), 'WS URL carries global turnMode');
+    assert(wsUrl.includes('liveModel=gemini-live-v2'), 'WS URL carries global liveModel');
+    assert(wsUrl.includes('vadPauseMs=2400'), 'WS URL carries global vadPauseMs');
+    assert(wsUrl.includes('enableSilenceClarification=true'), 'WS URL carries silence clarification');
+    assert(wsUrl.includes('strictness=hardcore'), 'WS URL carries strictness');
   }
 
   // Summary

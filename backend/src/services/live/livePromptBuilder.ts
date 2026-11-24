@@ -23,6 +23,7 @@ import {
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../../prompts/core/sandboxDirectives';
 import { LIVE_TOOL_CAPABILITY_DIRECTIVES, ZERO_UNPROBED_DEDUCTIONS_INVARIANT } from './livePromptBuilderConstants';
 import { buildSystemDesignLivePrompt } from './liveSystemDesignPromptBuilder';
+import { DEFAULT_TURN_MODE, DEFAULT_VOICE_NAME } from '../../config/liveDefaults';
 import { extractDefaultAnchors, WeightedAnchor, buildWeightedRubric } from './liveRubricBuilder';
 import { buildMockInterviewLivePrompt } from './liveMockInterviewPromptBuilder';
 import { buildTutorSessionLivePrompt } from './liveTutorSessionPromptBuilder';
@@ -93,9 +94,9 @@ export function buildSystemPrompt(params: {
     questionText,
     referenceAnswer = '',
     strategy = 'adaptive_probing',
-    voiceName = 'Kore',
+    voiceName = DEFAULT_VOICE_NAME,
     userGender = 'female',
-    turnMode = 'manual',
+    turnMode = DEFAULT_TURN_MODE,
     maxProbes = 3,
     anchors = [],
     deepDive,
@@ -184,7 +185,8 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
       activeQuestion,
       activeChunk,
       voiceName,
-      userGender
+      userGender,
+      turnMode
     });
   }
 

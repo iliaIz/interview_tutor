@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../services/db';
+import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../config/liveDefaults';
 
 const router = Router();
 
@@ -69,7 +70,7 @@ router.post('/', (req, res) => {
       badge: badgeText,
       description: desc,
       strategy: config.strategy || 'adaptive_probing',
-      voice: config.voice || 'Kore',
+      voice: sanitizeVoiceName(config.voice, DEFAULT_VOICE_NAME),
       max_probes: config.maxProbes || 3,
       custom_prompt_override: config.customPromptOverride || null,
       custom_anchors: anchorsJson

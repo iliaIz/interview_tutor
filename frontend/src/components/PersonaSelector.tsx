@@ -155,7 +155,7 @@ export const PersonaSelector: React.FC<PersonaSelectorProps> = ({
 
                       <div className="pt-1.5 border-t border-pastel-border/30 flex items-center justify-between text-[9px] text-pastel-sub">
                         <span className="italic truncate max-w-[170px]">{p.signatureQuote}</span>
-                        <span className="font-semibold shrink-0 ml-1">Голос: {p.recommendedVoice}</span>
+                        <span className="font-semibold shrink-0 ml-1">Рек. тембр: {p.recommendedVoice}</span>
                       </div>
                     </button>
                   );

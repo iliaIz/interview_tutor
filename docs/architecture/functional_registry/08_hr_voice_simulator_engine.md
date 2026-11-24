@@ -14,7 +14,7 @@ The `Generic HR Voice Simulator Engine` provides an adaptive, anti-sycophantic, 
 
 With **Wave 21**, the engine incorporates a complete **Pedagogical Worked-Example Suite** allowing candidates to learn answers from scratch inside the UI: reading canonical answers in Markdown (identical to the Theory track), exploring anchor definitions, studying anti-pattern traps, and seamlessly transitioning into voice drills via 1-click motor bridges.
 
-With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal Mode (`tutor_rehearsal`)** with persona **`mentor_coach` ("Ольга" — Aoede)**:
+With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal Mode (`tutor_rehearsal`)** with persona **`mentor_coach` ("Ольга" — голос из глобального профиля)**:
 - **In-flight error correction**: stops candidate immediately upon stop-words or factual distortion to force a re-take.
 - **On-demand verbal cues**: supplies facts and legal articles when candidate asks for help.
 - **Anchor chunking**: breaks down long questions into 2-3 isolated blocks for focused motor rehearsal.
@@ -69,3 +69,4 @@ With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal M
 5. **Monotonic State Latch:** Anchor cards never revert backwards (`CONFIRMED_HIT` cannot revert to `OPTIMISTIC_HIT` or `PENDING`).
 6. **Verbatim Law/Doc Precision vs. Conversational Freedom (Spec 38):** Verbatim precision is mandatory for articles (422-ФЗ, ст. 65 ТК РФ), document forms (СТД-СФР, КНД 1122035), metrics (7+ лет, 15+ млн, 2 200 RPS) and salary (310k-330k net). Structural transitions and motivation can be freely expressed.
 7. **Scorecard Suppression in Rehearsal (Spec 38):** Mode `tutor_rehearsal` strictly suppresses numerical scorecard tools and evaluation modals.
+8. **Global Auto-VAD, Engine & Voice SSOT Compliance:** `HrScreeningArena`, `HrVoiceHUD`, and `hrPromptBuilder.ts` respect the active global `turnMode`, `liveModel`, `voice`, `vadPauseMs`, `enableSilenceClarification`, and `userGender` via `resolveLiveSessionConfig()`, with no hardcoded `(Aoede)` or forced manual/auto override.

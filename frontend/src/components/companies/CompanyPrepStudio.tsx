@@ -142,7 +142,6 @@ export const CompanyPrepStudio: React.FC = () => {
           isOpen={isCompanyVoiceOpen}
           onClose={() => setIsCompanyVoiceOpen(false)}
           initialSessionType="interview"
-          vadPauseMs={800}
           topic={
             isAlfa
               ? 'АО «Альфа-Банк» (Alfa Digital & А-Токен): Технический скрининг'

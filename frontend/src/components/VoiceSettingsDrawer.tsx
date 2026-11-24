@@ -14,6 +14,7 @@ import {
   deleteUserProfile
 } from '../services/profileStorage';
 import { useInterviewConfig } from '../hooks/useInterviewConfig';
+import { previewGeminiVoiceAudio } from '../services/voicePreviewService';
 import { VoiceProfilesSection } from './voice/settings/VoiceProfilesSection';
 import { VoiceStrategySection } from './voice/settings/VoiceStrategySection';
 import { VoiceDialogueModeSection } from './voice/settings/VoiceDialogueModeSection';
@@ -57,40 +58,18 @@ export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   const playVoicePreview = async (voice: GeminiVoiceName) => {
     if (previewingVoice) return;
     setPreviewingVoice(voice);
-
-    try {
-      const res = await fetch('/api/interview/greeting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: 'Знакомство',
-          questionText: 'Привет! Я твой голосовой наставник по Java и Spring.',
-          voice: voice,
-          strategy: config.strategy || 'socratic_tutoring'
-        })
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.audioBase64) {
-        if (!audioRef.current) {
-          audioRef.current = new Audio();
-        }
-        audioRef.current.src = `data:audio/wav;base64,${data.audioBase64}`;
-        audioRef.current.onended = () => setPreviewingVoice(null);
-        audioRef.current.onerror = () => setPreviewingVoice(null);
-        await audioRef.current.play();
-      } else {
-        setPreviewingVoice(null);
-      }
-    } catch (err) {
-      console.warn('Voice preview failed:', err);
-      setPreviewingVoice(null);
-    }
+    await previewGeminiVoiceAudio({
+      voice,
+      userGender: config.userGender,
+      strategy: config.strategy,
+      audioRef,
+      onFinish: () => setPreviewingVoice(null)
+    });
   };
 
   const handleSelectProfile = (profile: InterviewProfile) => {
     onChangeConfig({
+      ...config,
       ...profile.config,
       customPromptOverride: profile.config.customPromptOverride
     });

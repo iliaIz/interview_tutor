@@ -6,6 +6,7 @@
  */
 
 import { envConfig } from '../../config/env';
+import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../../config/liveDefaults';
 import { LlmExecutionEngine } from '../LlmExecutionEngine';
 import { synthesizeTTSWithRetry } from '../podcast';
 
@@ -26,10 +27,8 @@ export interface GreetingResult {
   audioBase64: string;
 }
 
-const VALID_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'] as const;
-
 export function sanitizeVoice(v: unknown): string {
-  return typeof v === 'string' && VALID_VOICES.includes(v as any) ? v : 'Kore';
+  return sanitizeVoiceName(v, DEFAULT_VOICE_NAME);
 }
 
 export class GreetingSynthesisService {
@@ -37,7 +36,7 @@ export class GreetingSynthesisService {
     const {
       topic = 'Java Core',
       questionText,
-      voice: rawVoice = 'Kore',
+      voice: rawVoice = DEFAULT_VOICE_NAME,
       userGender: rawUserGender = 'female',
       sessionType: rawSessionType = 'interview',
       tutorMode: rawTutorMode = 'deep_dive',

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GeminiVoiceName, TurnMode, UserGender } from '../../../types/interviewConfig';
 import { TargetGrade } from '../../../types/personas';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
+import { previewGeminiVoiceAudio } from '../../../services/voicePreviewService';
 
 export interface UseGlobalAudioPillReturn {
   isOpen: boolean;
@@ -51,41 +53,18 @@ export function useGlobalAudioPill(): UseGlobalAudioPillReturn {
   const playVoicePreview = useCallback(async (v: GeminiVoiceName) => {
     if (previewingVoice) return;
     setPreviewingVoice(v);
+    await previewGeminiVoiceAudio({
+      voice: v,
+      userGender: config.userGender,
+      strategy: config.strategy,
+      audioRef,
+      onFinish: () => setPreviewingVoice(null)
+    });
+  }, [previewingVoice, config.userGender, config.strategy]);
 
-    try {
-      const res = await fetch('/api/interview/greeting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: 'Знакомство',
-          questionText: 'Привет! Я твой голосовой наставник по Java и Spring.',
-          voice: v,
-          strategy: 'socratic_tutoring'
-        })
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.audioBase64) {
-        if (!audioRef.current) {
-          audioRef.current = new Audio();
-        }
-        audioRef.current.src = `data:audio/wav;base64,${data.audioBase64}`;
-        audioRef.current.onended = () => setPreviewingVoice(null);
-        audioRef.current.onerror = () => setPreviewingVoice(null);
-        await audioRef.current.play();
-      } else {
-        setPreviewingVoice(null);
-      }
-    } catch (err) {
-      console.warn('Voice preview failed:', err);
-      setPreviewingVoice(null);
-    }
-  }, [previewingVoice]);
-
-  const turnMode = config.turnMode || 'manual';
-  const voice = config.voice || 'Kore';
-  const targetGrade = config.targetGrade || 'L5_SENIOR';
+  const turnMode = config.turnMode || VOICE_DEFAULTS.turnMode;
+  const voice = config.voice || VOICE_DEFAULTS.voice;
+  const targetGrade = config.targetGrade || VOICE_DEFAULTS.targetGrade;
   const alwaysShowPreflight = config.alwaysShowPreflight === true;
 
   const getGradeShort = useCallback((g: TargetGrade) => {

@@ -9,6 +9,7 @@
 import { WebSocket, RawData } from 'ws';
 import { toRawBuffer } from './liveSessionTypes';
 import { isNonRetryableUpstreamError } from './liveStreamErrorDetector';
+import { envConfig } from '../../config/env';
 
 export interface UpstreamGeminiPipeOptions {
   upstreamWsUrl: string;
@@ -42,7 +43,7 @@ export class UpstreamGeminiPipe {
       } catch {}
     }
 
-    const { upstreamWsUrl, setupMessage, liveModel = 'gemini-live-v3' } = this.options;
+    const { upstreamWsUrl, setupMessage, liveModel = envConfig.models.live } = this.options;
     console.log(`⚡ ${isInternalReconnect ? 'Reconnecting' : 'Connecting'} UpstreamGeminiPipe (${upstreamWsUrl})...`);
 
     const ws = new WebSocket(upstreamWsUrl);

@@ -10,6 +10,7 @@ import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { handleTurnCommit, armTurnWatchdogs } from './liveWsTurnCommitHandler';
 import { LiveWorkspaceContext } from './LiveWorkspaceContext';
+import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export interface DownstreamClientPipeOptions {
   session: ProxySession;
@@ -281,7 +282,7 @@ export class DownstreamClientPipe {
         session.currentTurnMetrics = {
           turnIndex: session.currentTurnIndex,
           candidateSpeechStartedAt: Date.now(),
-          vadPauseSettingMs: session.vadPauseMs || 1800,
+          vadPauseSettingMs: session.vadPauseMs || DEFAULT_VAD_PAUSE_MS,
           speechDurationMs: 0,
           audioBytesReceived: 0,
           textChars: 0,

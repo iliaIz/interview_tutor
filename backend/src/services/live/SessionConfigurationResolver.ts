@@ -1,6 +1,13 @@
 import http from 'http';
 import url from 'url';
 import { envConfig } from '../../config/env';
+import {
+  DEFAULT_VOICE_NAME,
+  DEFAULT_TURN_MODE,
+  DEFAULT_VAD_PAUSE_MS,
+  sanitizeVoiceName,
+  clampVadPauseMs
+} from '../../config/liveDefaults';
 import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vectorMemoryService';
 import { TargetGrade } from '../../prompts/personas';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
@@ -77,9 +84,9 @@ export class SessionConfigurationResolver {
     if (query.codeRevisionsSummary) { try { codeRevisionsSummary = JSON.parse(query.codeRevisionsSummary as string); } catch {} }
 
     const promptConfig: LiveSessionPromptConfig = {
-      voiceName: (query.voice as string) || 'Kore',
+      voiceName: sanitizeVoiceName(query.voice, DEFAULT_VOICE_NAME),
       userGender: ((query.userGender as string) === 'male' || (query.userGender as string) === 'neutral' ? query.userGender : 'female') as 'female' | 'male' | 'neutral',
-      turnMode: ((query.turnMode as string) === 'manual' ? 'manual' : 'auto') as 'manual' | 'auto',
+      turnMode: (query.turnMode === 'manual' ? 'manual' : query.turnMode === 'auto' ? 'auto' : DEFAULT_TURN_MODE) as 'manual' | 'auto',
       strategy: ((query.strategy as string) === 'socratic_tutoring' ? 'socratic_tutoring' : 'adaptive_probing') as 'adaptive_probing' | 'socratic_tutoring',
       persona: (query.persona as string) || 'mentor',
       targetGrade: ((query.targetGrade as string) || 'L5_SENIOR') as TargetGrade,
@@ -121,7 +128,7 @@ export class SessionConfigurationResolver {
       userProfile: getUserProfile(authenticatedUser.id || 'default_user'),
       liveModel,
       upstreamWsUrl,
-      vadPauseMs: Number(query.vadPauseMs) || 800,
+      vadPauseMs: clampVadPauseMs(query.vadPauseMs, DEFAULT_VAD_PAUSE_MS),
       enableSilenceClarification: query.enableSilenceClarification === 'true',
       debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined,
       academyCourse: (query.academyCourse as string) || undefined,

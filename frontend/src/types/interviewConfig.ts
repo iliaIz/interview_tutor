@@ -49,7 +49,7 @@ export const AVAILABLE_VOICES: VoiceOption[] = [
 
 export type UserGender = 'female' | 'male' | 'neutral';
 export type TurnMode = 'manual' | 'auto';
-export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3' | 'gemini-live-thinking-v3';
+export type LiveModelChoice = 'gemini-live-v2' | 'gemini-live-v3' | 'gemini-live-thinking-v3' | (string & {});
 export type InterviewLanguage = 'ru' | 'en';
 export type StudyModality = 'voice' | 'text';
 export type StrictnessLevel = 'learning' | 'standard' | 'hardcore';
@@ -67,14 +67,14 @@ export interface InterviewConfig {
   userGender?: UserGender; // 👩/👨/⚪ Пол кандидата для согласования грамматики в диалоге
   turnMode?: TurnMode; // 🛑 'manual' (по кнопке «Закончить ответ») | 🎙️ 'auto' (авто-VAD)
   studyModality?: StudyModality; // 🎯 Приоритетный режим проверки: 🎙️ 'voice' (по умолчанию) | 📝 'text'
-  liveModel?: LiveModelChoice; // ⚡ 'gemini-live-v2' (Стабильный, SOTA) | 'gemini-live-v3' (Preview)
+  liveModel?: LiveModelChoice; // ⚡ Выбранный голосовой движок (синхронизируется через /api/config)
   deepDive?: boolean; // 🔬 Глубокое зондирование (под капот, смежные темы, стресс-тест)
   liveCoaching?: boolean; // 🎓 Разбор ошибок и объяснение правильного ответа на лету
   customPromptOverride?: string;
   customAnchors?: string[];
   autoAdvance?: boolean; // ⚡ Автоматический переход к следующему вопросу
   transitionDelay?: number; // ⏱️ Задержка автоперехода в секундах (3, 5, 10, 15, 0 = только вручную)
-  vadPauseMs?: number; // ⏱️ Длительность паузы тишины VAD в мс (1200..2500, по умолчанию 1800)
+  vadPauseMs?: number; // ⏱️ Длительность паузы тишины VAD в мс (500..2500, по умолчанию 1800)
   enableSilenceClarification?: boolean; // 🔄 Автоматически переспрашивать голосом при тишине или неразборчивом ответе (по умолчанию false)
   alwaysShowPreflight?: boolean; // 🔘 Всегда показывать предстартовое подтверждение (false = быстрый старт в 1 клик)
 }

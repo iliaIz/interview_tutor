@@ -1,9 +1,16 @@
 /**
  * liveGeminiConfigBuilder.ts
- * Builds the canonical setup message for Google Gemini Live / Gemini 3.8 Live.
+ * Builds the canonical setup message for Google Gemini Live.
  * Configures generationConfig, realtimeInputConfig (Auto-VAD & interruption rules),
  * systemInstruction, and function declarations.
  */
+
+import { envConfig } from '../../config/env';
+import {
+  MIN_VAD_SILENCE_MS,
+  clampVadPauseMs,
+  sanitizeVoiceName
+} from '../../config/liveDefaults';
 
 export interface BuildGeminiSetupOptions {
   liveModel: string;
@@ -20,20 +27,20 @@ export interface BuildGeminiSetupOptions {
 
 export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any {
   const {
-    liveModel,
+    liveModel: rawLiveModel,
     voiceName,
     systemPromptText,
     sessionType,
     strategy,
     normalizedTools,
-    vadPauseMs = 500,
+    vadPauseMs = MIN_VAD_SILENCE_MS,
     turnMode = 'auto'
   } = opts;
 
-  const validVoices = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'];
-  const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Puck';
+  const liveModel = rawLiveModel || envConfig.models.live;
+  const resolvedVoice = sanitizeVoiceName(voiceName);
 
-  const isThinkingModel = liveModel.includes('thinking') || liveModel === 'gemini-live-thinking-v3';
+  const isThinkingModel = liveModel.includes('thinking') || liveModel === envConfig.models.liveThinking;
 
   // Canonical Gemini Live Standard (SOTA Late 2026):
   // Audio vocoder autoregressive synthesis requires temperature 1.0 (Google default).
@@ -61,9 +68,9 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
     };
   }
 
-  // Native Cloud VAD & Activity Detection for Gemini 3.8 Live (Canonical Google Standard)
+  // Native Cloud VAD & Activity Detection for Gemini Live (Canonical Google Standard)
   const isAutoVad = turnMode === 'auto';
-  const effectiveSilenceDurationMs = Math.max(500, Math.min(1000, vadPauseMs ? Number(vadPauseMs) : 500));
+  const effectiveSilenceDurationMs = clampVadPauseMs(vadPauseMs, MIN_VAD_SILENCE_MS);
 
   const automaticActivityDetection: any = isAutoVad
     ? {

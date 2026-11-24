@@ -9,6 +9,7 @@
 import { spawn } from 'child_process';
 import { Readable } from 'stream';
 import { envConfig } from '../../config/env';
+import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../../config/liveDefaults';
 
 export interface WavInfo {
   audioFormat: number;
@@ -184,8 +185,8 @@ export class OpusEncoderService {
   }
 }
 
-export async function synthesizeTTSBuffer(text: string, voice: string = 'Kore'): Promise<Buffer> {
-  const validVoice = (['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir'].includes(voice)) ? voice : 'Kore';
+export async function synthesizeTTSBuffer(text: string, voice: string = DEFAULT_VOICE_NAME): Promise<Buffer> {
+  const validVoice = sanitizeVoiceName(voice, DEFAULT_VOICE_NAME);
 
   const speechUrl = envConfig.proxy.speechUrl;
   const proxyApiKey = envConfig.proxy.apiKey;
@@ -216,7 +217,7 @@ export async function synthesizeTTSBuffer(text: string, voice: string = 'Kore'):
 
 export async function synthesizeTTSWithRetry(
   text: string, 
-  voice: string = 'Kore', 
+  voice: string = DEFAULT_VOICE_NAME, 
   maxRetries = 4,
   onRetry?: (attempt: number, delayMs: number, reason: string) => void
 ): Promise<{ buffer: Buffer; retries: number }> {

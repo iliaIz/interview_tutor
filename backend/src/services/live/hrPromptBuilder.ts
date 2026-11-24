@@ -19,6 +19,7 @@ import {
   EPISTEMIC_BENEVOLENCE_AXIOM,
   EPISTEMIC_TRIAGE_DIRECTIVE
 } from '../../prompts/core/antiSycophancy';
+import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../../config/liveDefaults';
 
 export interface BuildHrSystemPromptOptions {
   dossier: CandidateDossier;
@@ -29,6 +30,7 @@ export interface BuildHrSystemPromptOptions {
   activeChunk?: HrQuestionChunk;
   voiceName?: string;
   userGender?: 'female' | 'male' | 'neutral';
+  turnMode?: 'manual' | 'auto';
 }
 
 export const HR_ANTI_SYCOPHANCY_DIRECTIVES = `=== ДИРЕКТИВЫ АНТИ-СИКОФАНТИИ ДЛЯ HR-СКРИНИНГА (ZERO-FLATTERY INVARIANT) ===
@@ -83,8 +85,8 @@ ${dossier.prohibitedPhrases.map((p) => `- "${p}"`).join('\n')}`;
 }
 
 export function buildHrSimulatorSystemPrompt(opts: BuildHrSystemPromptOptions): string {
-  const { dossier, jobContext, mode, personaId, activeQuestion, activeChunk, userGender = 'male' } = opts;
-  const voiceName = opts.voiceName || (personaId === 'mentor_coach' ? 'Aoede' : 'Kore');
+  const { dossier, jobContext, mode, personaId, activeQuestion, activeChunk, userGender = 'female', turnMode = 'auto' } = opts;
+  const voiceName = sanitizeVoiceName(opts.voiceName, DEFAULT_VOICE_NAME);
 
   const personaDirectives = getPersonaPromptDirectives({
     persona: personaId,
@@ -142,6 +144,9 @@ ${LANGUAGE_LOCK_INVARIANT}
 
 ${aiGenderDirective}
 ${candidateGenderDirective}
+${turnMode === 'manual'
+    ? '=== РЕЖИМ ХОДА (MANUAL PUSH-TO-TALK) ===\nКандидат сам отправляет законченный ответ кнопкой. Внимательно дождись сигнала завершения хода.'
+    : '=== РЕЖИМ ХОДА (СВОБОДНЫЙ ДИАЛОГ / AUTO-VAD) ===\nВеди живой голосовой диалог без длинных монологов: дождись естественной паузы кандидата и реагируй кратко и по делу.'}
 
 === КОНТЕКСТ ВАКАНСИИ ===
 Компания: ${jobContext.companyName} (${jobContext.industryDomain})

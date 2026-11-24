@@ -5,6 +5,7 @@
  */
 
 import { VoiceEngineConfig, LiveSessionInitFrame } from './types';
+import { VOICE_DEFAULTS, getCachedRuntimeVoiceConfig } from '../config/voiceDefaults';
 
 export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -12,15 +13,18 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     ? (window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host)
     : 'localhost:5000';
 
+  const runtimeDefaults = getCachedRuntimeVoiceConfig();
+  const resolvedDefaultModel = runtimeDefaults?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
+
   const params = new URLSearchParams({
     sessionId: cfg.sessionId,
     questionId: cfg.questionId,
     sessionType: cfg.sessionType,
     questionText: cfg.questionText ? cfg.questionText.slice(0, 300) : (cfg.bugExplanation ? cfg.bugExplanation.slice(0, 300) : ''),
-    voice: cfg.voice || 'Kore',
-    turnMode: cfg.turnMode || 'auto',
-    liveModel: cfg.liveModel || 'gemini-live-v3',
-    vadPauseMs: String(cfg.vadPauseMs || 800),
+    voice: cfg.voice || runtimeDefaults?.defaults?.voice || VOICE_DEFAULTS.voice,
+    turnMode: cfg.turnMode || runtimeDefaults?.defaults?.turnMode || VOICE_DEFAULTS.turnMode,
+    liveModel: cfg.liveModel || resolvedDefaultModel,
+    vadPauseMs: String(cfg.vadPauseMs ?? runtimeDefaults?.defaults?.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs),
     temperature: String(cfg.temperature ?? 1.0)
   });
 
@@ -28,10 +32,14 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
     params.set('challengeId', cfg.questionId);
   }
 
-  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy', 'userGender', 'academyCourse', 'academyStep', 'dossierId', 'targetQuestionId', 'hrMode'] as const;
+  const optionalKeys = ['tutorMode', 'persona', 'targetGrade', 'strategy', 'strictness', 'userGender', 'academyCourse', 'academyStep', 'dossierId', 'targetQuestionId', 'hrMode'] as const;
   for (const k of optionalKeys) {
     if (cfg[k]) params.set(k, String(cfg[k]));
   }
+
+  if (typeof cfg.deepDive === 'boolean') params.set('deepDive', String(cfg.deepDive));
+  if (typeof cfg.liveCoaching === 'boolean') params.set('liveCoaching', String(cfg.liveCoaching));
+  if (typeof cfg.maxProbes === 'number') params.set('maxProbes', String(cfg.maxProbes));
 
   if (cfg.challengeCategory) params.set('category', cfg.challengeCategory);
   if (cfg.challengeTrack) params.set('track', cfg.challengeTrack);
@@ -73,12 +81,22 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
     sessionId: cfg.sessionId,
     sessionType: cfg.sessionType,
     tutorMode: cfg.tutorMode,
+    voice: cfg.voice,
+    userGender: cfg.userGender,
+    turnMode: cfg.turnMode,
+    liveModel: cfg.liveModel,
+    vadPauseMs: cfg.vadPauseMs,
+    enableSilenceClarification: cfg.enableSilenceClarification,
     topic: cfg.topic,
     questionText: cfg.questionText,
     referenceAnswer: cfg.referenceAnswer,
     persona: cfg.persona,
     strategy: cfg.strategy,
     targetGrade: cfg.targetGrade,
+    strictness: cfg.strictness,
+    maxProbes: cfg.maxProbes,
+    deepDive: cfg.deepDive,
+    liveCoaching: cfg.liveCoaching,
     customPrompt: cfg.customPrompt,
     questionIndex: cfg.questionIndex,
     totalQuestions: cfg.totalQuestions,

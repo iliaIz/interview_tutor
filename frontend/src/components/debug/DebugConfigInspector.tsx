@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { DEBUG_STEPS, DebugStepDef } from './debugStepDefinitions';
 import { Code2, Copy, Check, Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { useInterviewConfig } from '../../hooks/useInterviewConfig';
+import { useAppStore } from '../../store/useAppStore';
+import { VOICE_DEFAULTS } from '../../config/voiceDefaults';
+import { resolveEffectiveLiveModel } from '../../audio/voiceConfigResolver';
 
 interface DebugConfigInspectorProps {
   selectedStep: number;
@@ -14,11 +18,35 @@ interface DebugConfigInspectorProps {
 export const DebugConfigInspector: React.FC<DebugConfigInspectorProps> = ({ selectedStep }) => {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'payload' | 'capabilities'>('payload');
+  const { config: interviewConfig } = useInterviewConfig();
+  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
 
   const stepDef = DEBUG_STEPS.find((s) => s.step === selectedStep) || DEBUG_STEPS[0];
+  const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
+  const activeModel = resolveEffectiveLiveModel(interviewConfig, runtimeConfig);
+  const activeVadPauseMs = interviewConfig.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs;
+  const activeTurnMode = interviewConfig.turnMode || VOICE_DEFAULTS.turnMode;
+
+  const dynamicSetupPayload = useMemo(() => {
+    const cloned = JSON.parse(JSON.stringify(stepDef.setupPayload));
+    if (cloned?.setup) {
+      cloned.setup.model = `models/${activeModel}`;
+      if (cloned.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig) {
+        cloned.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName = activeVoice;
+      }
+      if (cloned.setup.automaticActivityDetection) {
+        cloned.setup.automaticActivityDetection = {
+          disabled: activeTurnMode === 'manual',
+          silenceDurationMs: activeVadPauseMs,
+          prefixPaddingMs: 200
+        };
+      }
+    }
+    return cloned;
+  }, [stepDef, activeModel, activeVoice, activeVadPauseMs, activeTurnMode]);
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(JSON.stringify(stepDef.setupPayload, null, 2));
+    void navigator.clipboard.writeText(JSON.stringify(dynamicSetupPayload, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -51,7 +79,7 @@ export const DebugConfigInspector: React.FC<DebugConfigInspectorProps> = ({ sele
           </div>
           <div>
             <h3 className="text-xs font-bold text-pastel-text">Инспектор конфигурации шага {selectedStep}</h3>
-            <p className="text-[10px] text-pastel-muted">Реальный JSON payload, отправляемый в Gemini Live v3</p>
+            <p className="text-[10px] text-pastel-muted">Реальный JSON payload для выбранного движка ({activeModel})</p>
           </div>
         </div>
 
@@ -95,7 +123,7 @@ export const DebugConfigInspector: React.FC<DebugConfigInspectorProps> = ({ sele
           </div>
 
           <pre className="p-3.5 rounded-2xl bg-slate-900 text-slate-100 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-60 border border-slate-800 shadow-inner">
-            {JSON.stringify(stepDef.setupPayload, null, 2)}
+            {JSON.stringify(dynamicSetupPayload, null, 2)}
           </pre>
 
           <div className="p-2.5 rounded-xl bg-violet-50/70 border border-violet-200/60 text-[11px] text-slate-700 space-y-1">

@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useInterviewConfig } from '../../hooks/useInterviewConfig';
 import { useAppStore } from '../../store/useAppStore';
-import { useLiveVoiceSession } from '../../audio/useLiveVoiceSession';
-import { VoiceEngineConfig } from '../../audio/types';
+import { useLiveVoiceSession, LiveAudioSessionParams } from '../../audio/useLiveVoiceSession';
 import { VoiceEvaluationResult } from '../../types/voice';
 import { QuestionItem, VoiceModalProps } from './voiceModalTypes';
 import { useVoiceModalShortcuts } from './useVoiceModalShortcuts';
@@ -133,7 +132,7 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
       setStage('active');
       const targetQ = isBatchMode && questionsBatch ? questionsBatch[targetIndex] : null;
 
-      const config: VoiceEngineConfig = {
+      const config: LiveAudioSessionParams = {
         sessionId: `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         questionId: targetQ?.id || questionId || 'Q_DEFAULT',
         topic: targetQ?.topic || topic,
@@ -141,15 +140,20 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
         referenceAnswer: targetQ?.answer || referenceAnswer,
         sessionType: initialSessionType,
         tutorMode: initialSessionType === 'tutor' ? initialTutorMode : undefined,
-        voice: interviewConfig.voice || 'Kore',
-        turnMode: interviewConfig.turnMode || 'auto',
-        liveModel: interviewConfig.liveModel || 'gemini-live-v3',
+        voice: interviewConfig.voice,
+        userGender: interviewConfig.userGender,
+        turnMode: interviewConfig.turnMode,
+        liveModel: interviewConfig.liveModel,
         temperature: 1.0,
-        vadPauseMs: vadPauseMs ?? interviewConfig.vadPauseMs ?? 800,
-        enableSilenceClarification: interviewConfig.enableSilenceClarification ?? false,
-        persona: interviewConfig.persona || 'mentor',
-        targetGrade: interviewConfig.targetGrade || 'L5_SENIOR',
+        vadPauseMs: vadPauseMs ?? interviewConfig.vadPauseMs,
+        enableSilenceClarification: interviewConfig.enableSilenceClarification,
+        persona: interviewConfig.persona,
+        targetGrade: interviewConfig.targetGrade,
         strategy: initialSessionType === 'tutor' ? 'socratic_tutoring' : interviewConfig.strategy,
+        strictness: interviewConfig.strictness,
+        deepDive: interviewConfig.deepDive,
+        liveCoaching: interviewConfig.liveCoaching,
+        maxProbes: interviewConfig.maxProbes,
         customPrompt: customPromptOverride,
         questionIndex: targetIndex,
         totalQuestions,

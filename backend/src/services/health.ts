@@ -102,22 +102,18 @@ export async function checkSystemHealth(): Promise<SystemHealthStatus> {
           availableInProxy = modelsData.data.map((m: any) => m.id);
         }
 
-        // Verify models existence
+        // Verify models existence dynamically from envConfig / LiteLLM registry
         textModelReady = availableInProxy.includes(textModelName);
-        liveModelReady = availableInProxy.includes(liveModelName) || 
-                         availableInProxy.includes('gemini-live-v3') ||
-                         availableInProxy.includes('gemini-live-v2') ||
-                         availableInProxy.includes('gemini-tts-live-v3') ||
+        liveModelReady = availableInProxy.includes(liveModelName) ||
+                         envConfig.models.supportedLiveModels.some((m) => availableInProxy.includes(m)) ||
                          availableInProxy.includes('gemini-live');
         livePreviewModelReady = !livePreviewModelName ||
                                 availableInProxy.includes(livePreviewModelName) ||
-                                availableInProxy.includes('gemini-live-v2') ||
-                                availableInProxy.includes('gemini-live-v3');
-        liveThinkingModelReady = availableInProxy.includes(liveThinkingModelName) ||
-                                 availableInProxy.includes('gemini-live-thinking-v3') ||
-                                 availableInProxy.includes('gemini-3.8-live-extended-thinking');
-        ttsModelReady = availableInProxy.includes(ttsModelName) ||
-                        availableInProxy.includes('gemini-tts-v3');
+                                envConfig.models.supportedLiveModels.some((m) => availableInProxy.includes(m));
+        liveThinkingModelReady = !liveThinkingModelName ||
+                                 availableInProxy.includes(liveThinkingModelName) ||
+                                 envConfig.models.supportedLiveModels.some((m) => m.includes('thinking') && availableInProxy.includes(m));
+        ttsModelReady = availableInProxy.includes(ttsModelName);
         embeddingModelReady = availableInProxy.includes(embeddingModelName) ||
                               availableInProxy.includes('gemini-embedding') ||
                               availableInProxy.includes('text-embedding-3-small') ||

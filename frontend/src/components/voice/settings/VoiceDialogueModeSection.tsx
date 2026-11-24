@@ -1,6 +1,10 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { InterviewConfig } from '../../../types/interviewConfig';
+import { useAppStore } from '../../../store/useAppStore';
+import { VOICE_DEFAULTS, getLiveModelUiMeta } from '../../../config/voiceDefaults';
+import { resolveEffectiveLiveModel } from '../../../audio/voiceConfigResolver';
+import { setExplicitLiveModelPreference } from '../../../services/profileStorage';
 
 interface VoiceDialogueModeSectionProps {
   config: InterviewConfig;
@@ -11,6 +15,12 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
   config,
   onChangeConfig
 }) => {
+  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const supportedModels = runtimeConfig?.models?.supportedLiveModels?.length
+    ? runtimeConfig.models.supportedLiveModels
+    : [...VOICE_DEFAULTS.supportedLiveModels];
+  const defaultRuntimeModel = runtimeConfig?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
+  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig);
   return (
     <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
       <div className="flex items-center justify-between">
@@ -70,63 +80,41 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
         </button>
       </div>
 
-      {/* Выбор Live-модели для Auto-VAD */}
-      {config.turnMode === 'auto' && (
-        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-            Движок Live WebSocket (через LiteLLM Proxy)
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-v3' })}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                (config.liveModel || 'gemini-live-v3') === 'gemini-live-v3'
-                  ? 'bg-purple-50/80 border-purple-400 ring-1 ring-purple-400/40 shadow-xs'
-                  : 'bg-white hover:bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs font-bold text-purple-950">🟣 gemini-live-v3</span>
-                <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded">По умолчанию</span>
-              </div>
-              <p className="text-[10px] text-slate-600">SOTA Gemini 3.1 Live Preview со сверхбыстрым синтезом.</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-v2' })}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                config.liveModel === 'gemini-live-v2'
-                  ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
-                  : 'bg-white hover:bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs font-bold text-emerald-950">🟢 gemini-live-v2</span>
-                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Стабильный</span>
-              </div>
-              <p className="text-[10px] text-slate-600">Проверенный движок 2.5 Flash на случай сбоев в Preview.</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onChangeConfig({ ...config, liveModel: 'gemini-live-thinking-v3' })}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                config.liveModel === 'gemini-live-thinking-v3'
-                  ? 'bg-indigo-50/80 border-indigo-400 ring-1 ring-indigo-400/40 shadow-xs'
-                  : 'bg-white hover:bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs font-bold text-indigo-950">🧠 live-thinking-v3</span>
-                <span className="text-[9px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded">3.8 Thinking</span>
-              </div>
-              <p className="text-[10px] text-slate-600">Глубокие скрытые рассуждения для сложных архитектурных сценариев.</p>
-            </button>
-          </div>
+      {/* Выбор Live-модели (доступен в обоих режимах диалога) */}
+      <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+          Движок Live WebSocket (через LiteLLM Proxy)
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {supportedModels.map((modelId) => {
+            const meta = getLiveModelUiMeta(modelId, defaultRuntimeModel);
+            const isSelected = activeLiveModel === modelId;
+            return (
+              <button
+                key={modelId}
+                type="button"
+                onClick={() => {
+                  setExplicitLiveModelPreference(modelId);
+                  onChangeConfig({ ...config, liveModel: modelId });
+                }}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-purple-50/80 border-purple-400 ring-1 ring-purple-400/40 shadow-xs'
+                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-0.5 gap-1">
+                  <span className="text-xs font-bold text-slate-900 truncate">{meta.icon} {meta.label}</span>
+                  <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.5 rounded shrink-0">
+                    {meta.shortBadge}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600">{meta.description}</p>
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {/* Тумблер переспрашивания при тишине / неразборчивом ответе */}
       <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">

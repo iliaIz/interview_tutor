@@ -21,18 +21,25 @@ export function useInterviewConfig() {
       }
     };
 
+    const handleRuntimeUpdate = () => {
+      setConfigState(getActiveConfig());
+    };
+
     window.addEventListener('interview_config_updated', handleUpdate);
+    window.addEventListener('interview_runtime_config_updated', handleRuntimeUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('interview_config_updated', handleUpdate);
+      window.removeEventListener('interview_runtime_config_updated', handleRuntimeUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, []);
 
   const updateConfig = useCallback((patch: Partial<InterviewConfig>) => {
     setConfigState((prev) => {
-      const next = { ...prev, ...patch };
+      const base = { ...getActiveConfig(), ...prev };
+      const next = { ...base, ...patch };
       saveActiveConfig(next);
       return next;
     });

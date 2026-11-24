@@ -97,7 +97,7 @@ const fallbackSetup = buildGeminiLiveSetupMessage({
   normalizedTools: []
 });
 
-assert(fallbackSetup.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Puck', 'Invalid voice safely falls back to Puck');
+assert(fallbackSetup.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Kore', 'Invalid voice safely falls back to canonical Kore');
 
 // Test 6: Low temperature clamp for vocoder stability (Spec 17)
 const clampedSetup = buildGeminiLiveSetupMessage({
@@ -110,6 +110,43 @@ const clampedSetup = buildGeminiLiveSetupMessage({
   normalizedTools: []
 });
 assert(clampedSetup.setup.generationConfig.temperature === 1.0, 'Low temperature < 0.7 clamped to 1.0 for vocoder stability');
+
+// Test 7: Global Auto-VAD silenceDurationMs range [500, 2500] and Manual Mode preservation
+const vad1800 = buildGeminiLiveSetupMessage({
+  liveModel: 'gemini-live-v3',
+  voiceName: 'Aoede',
+  systemPromptText: 'Prompt',
+  sessionType: 'interview',
+  strategy: 'adaptive_probing',
+  vadPauseMs: 1800,
+  turnMode: 'auto',
+  normalizedTools: []
+});
+assert(vad1800.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 1800, 'UI default 1800ms passes through unclamped');
+
+const vadClampedHigh = buildGeminiLiveSetupMessage({
+  liveModel: 'gemini-live-v3',
+  voiceName: 'Aoede',
+  systemPromptText: 'Prompt',
+  sessionType: 'interview',
+  strategy: 'adaptive_probing',
+  vadPauseMs: 3500,
+  turnMode: 'auto',
+  normalizedTools: []
+});
+assert(vadClampedHigh.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 2500, 'Extreme pause clamps to 2500ms ceiling');
+
+const manualSetup = buildGeminiLiveSetupMessage({
+  liveModel: 'gemini-live-v3',
+  voiceName: 'Kore',
+  systemPromptText: 'Prompt',
+  sessionType: 'interview',
+  strategy: 'adaptive_probing',
+  vadPauseMs: 1800,
+  turnMode: 'manual',
+  normalizedTools: []
+});
+assert(manualSetup.setup.realtimeInputConfig.automaticActivityDetection.disabled === true, 'Manual turn mode preserves automaticActivityDetection.disabled: true');
 
 console.log(`\n📊 GeminiConfigBuilder Results: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

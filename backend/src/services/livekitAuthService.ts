@@ -1,5 +1,6 @@
 import { AccessToken } from 'livekit-server-sdk';
 import { envConfig } from '../config/env';
+import { DEFAULT_TURN_MODE, DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../config/liveDefaults';
 import { getUserProfile, findRelevantCandidateGaps, CandidateGap } from './vectorMemoryService';
 import { buildSystemPrompt, extractDefaultAnchors } from './live/livePromptBuilder';
 import { InterviewPersonaId, TargetGrade } from '../prompts/personas';
@@ -17,6 +18,7 @@ export interface CreateLiveKitTokenParams {
   strategy?: 'adaptive_probing' | 'socratic_tutoring';
   voiceName?: string;
   userGender?: 'female' | 'male' | 'neutral';
+  turnMode?: 'manual' | 'auto';
   liveModel?: string;
   questionIndex?: number;
   totalQuestions?: number;
@@ -51,8 +53,9 @@ export async function generateLiveKitVoiceToken(
   const topic = params.topic || 'Java Spring Engineering';
   const questionText = params.questionText || '';
   const referenceAnswer = params.referenceAnswer || '';
-  const voiceName = params.voiceName || 'Kore';
+  const voiceName = sanitizeVoiceName(params.voiceName, DEFAULT_VOICE_NAME);
   const userGender = params.userGender || (userProfile as any).gender || 'female';
+  const turnMode = params.turnMode === 'manual' ? 'manual' : params.turnMode === 'auto' ? 'auto' : DEFAULT_TURN_MODE;
   const strategy = params.strategy || 'socratic_tutoring';
   const persona = params.persona || 'friendly_mentor';
   const targetGrade: TargetGrade = params.targetGrade || 'L4_MIDDLE';
@@ -77,7 +80,7 @@ export async function generateLiveKitVoiceToken(
     strategy,
     voiceName,
     userGender,
-    turnMode: 'auto',
+    turnMode,
     maxProbes: 3,
     anchors,
     questionIndex,

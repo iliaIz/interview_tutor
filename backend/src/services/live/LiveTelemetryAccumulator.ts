@@ -3,6 +3,7 @@ import { ProxySession } from './liveSessionTypes';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
+import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 /**
  * LiveTelemetryAccumulator (SOTA Late 2026).
@@ -120,7 +121,7 @@ export class LiveTelemetryAccumulator {
       sessionId: session.sessionId || 'anon',
       turnIndex: metrics?.turnIndex || 0,
       speaker: 'model',
-      vadPauseSettingMs: session.vadPauseMs || 1800,
+      vadPauseSettingMs: session.vadPauseMs || DEFAULT_VAD_PAUSE_MS,
       speechDurationMs: metrics?.speechDurationMs || 0,
       ttfrMs,
       ttftMs,

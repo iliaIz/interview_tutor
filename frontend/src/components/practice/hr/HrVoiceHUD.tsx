@@ -1,5 +1,7 @@
 import React from 'react';
 import { useHrSimulatorStore } from '../../../store/useHrSimulatorStore';
+import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
 import { HrAnchorCardsGrid } from './HrAnchorCardsGrid';
 import { HrPacingTimerBar } from './HrPacingTimerBar';
 import { HrTelemetryDashboard } from './HrTelemetryDashboard';
@@ -57,6 +59,9 @@ export const HrVoiceHUD: React.FC<HrVoiceHUDProps> = ({
   const personaId = useHrSimulatorStore((state) => state.personaId);
   const mode = useHrSimulatorStore((state) => state.mode);
   const liveTranscript = useHrSimulatorStore((state) => state.liveCandidateTranscript);
+  const { config: interviewConfig } = useInterviewConfig();
+  const isManualMode = (interviewConfig.turnMode || VOICE_DEFAULTS.turnMode) === 'manual';
+  const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
 
   const persona = PERSONA_CONFIGS[personaId] || PERSONA_CONFIGS.friendly_sourcer;
   const PersonaIcon = persona.icon;
@@ -90,7 +95,9 @@ export const HrVoiceHUD: React.FC<HrVoiceHUDProps> = ({
           {/* Mode Pill */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 shadow-2xs">
             <Radio className="w-3 h-3 text-pastel-accentRose animate-pulse" />
-            <span>{mode === 'full_screening_simulation' ? 'Полный скрининг' : 'Микро-дрилл (75с)'}</span>
+            <span>
+              {mode === 'full_screening_simulation' ? 'Полный скрининг' : mode === 'tutor_rehearsal' ? 'Репетиция' : 'Микро-дрилл (75с)'} • {activeVoice} • {isManualMode ? 'По кнопке' : 'Авто-VAD'}
+            </span>
           </div>
         </div>
 
@@ -123,6 +130,8 @@ export const HrVoiceHUD: React.FC<HrVoiceHUDProps> = ({
           title={
             isAiSpeaking
               ? 'Нажмите для тактильного перебивания ИИ (Barge-In)'
+              : isManualMode
+              ? 'Нажмите, чтобы завершить ответ и отправить его ИИ'
               : 'Микрофон активен. Говорите свободно.'
           }
         >

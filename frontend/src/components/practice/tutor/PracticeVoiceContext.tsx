@@ -80,7 +80,6 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const files = state.practiceWorkspaceFiles.length > 0 ? state.practiceWorkspaceFiles : practiceWorkspaceFiles;
       const activeIndex = typeof state.activeWorkspaceFileIndex === 'number' ? state.activeWorkspaceFileIndex : activeWorkspaceFileIndex;
       const currentFile = files[activeIndex] || files[0];
-      const turnMode = interviewConfig.turnMode || 'auto';
 
       const domain = resolveTutorDomain({
         category: activePracticeChallenge?.category,
@@ -148,11 +147,17 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
             }
           : undefined,
         codeRevisionsSummary: revSummary,
-        voice: interviewConfig.voice || 'Kore',
-        userGender: interviewConfig.userGender || 'female',
-        turnMode,
+        voice: interviewConfig.voice,
+        userGender: interviewConfig.userGender,
+        turnMode: interviewConfig.turnMode,
         liveModel: interviewConfig.liveModel,
-        vadPauseMs: interviewConfig.vadPauseMs ?? 800,
+        vadPauseMs: interviewConfig.vadPauseMs,
+        enableSilenceClarification: interviewConfig.enableSilenceClarification,
+        targetGrade: interviewConfig.targetGrade,
+        strictness: interviewConfig.strictness,
+        deepDive: interviewConfig.deepDive,
+        liveCoaching: interviewConfig.liveCoaching,
+        maxProbes: interviewConfig.maxProbes,
         tutorPersona: seniorReviewPayload ? 'senior_socratic' : tutorPersona,
         strategy: 'socratic_tutoring',
         seniorReview: seniorReviewPayload,

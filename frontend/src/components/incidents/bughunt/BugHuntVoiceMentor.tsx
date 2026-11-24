@@ -2,6 +2,8 @@ import React, { useRef } from 'react';
 import { Volume2, VolumeX, Mic, MicOff, Bug, MessageSquare, Send } from 'lucide-react';
 
 import { DialogueTurn } from '../../../audio/useLiveVoiceSession';
+import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
+import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
 
 export type TutorRole = 'bug_hunt' | 'free_chat';
 
@@ -62,13 +64,18 @@ export const BugHuntVoiceMentor: React.FC<BugHuntVoiceMentorProps> = (props) => 
     startBugVoiceSession
   } = c;
   const textInputRef = useRef<HTMLInputElement | null>(null);
+  const { config: interviewConfig } = useInterviewConfig();
+  const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
+  const isManualMode = (interviewConfig.turnMode || VOICE_DEFAULTS.turnMode) === 'manual';
 
   return (
     <div className="p-5 rounded-2xl bg-white/95 border border-pastel-border/80 shadow-2xs space-y-3.5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-pastel-border/60 pb-3">
         <div className="flex items-center gap-2">
           <Volume2 className="w-4 h-4 text-pastel-accentRose" />
-          <span className="text-xs font-bold text-pastel-text">AI-Техлид в реальном времени (Aoede):</span>
+          <span className="text-xs font-bold text-pastel-text">
+            AI-Техлид в реальном времени ({activeVoice} • {isManualMode ? 'По кнопке' : 'Авто-VAD'}):
+          </span>
           {isMuted ? (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
               🔇 Режим тишины

@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { NativeLiveVoiceEngine } from './NativeLiveVoiceEngine';
 import { useAppStore } from '../store/useAppStore';
 import { useHrSimulatorStore } from '../store/useHrSimulatorStore';
+import { resolveLiveSessionConfig } from './voiceConfigResolver';
 import {
   VoiceEngineState,
   VoiceEngineConfig,
@@ -49,6 +50,12 @@ export interface LiveAudioSessionParams {
   tutorPersona?: string;
   targetGrade?: string;
   strategy?: string;
+  strictness?: string;
+  maxProbes?: number;
+  deepDive?: boolean;
+  liveCoaching?: boolean;
+  debugStep?: number;
+  temperature?: number;
   bugTitle?: string;
   bugExplanation?: string;
   codeSnippet?: string;
@@ -232,52 +239,9 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     setDialogueTurns([]);
     setMetrics({ rmsDb: -100, vadActive: false, rttMs: null, audioChunksCount: 0 });
 
-    const config: VoiceEngineConfig = {
-      sessionId: params.sessionId || `session_${Date.now()}`,
-      questionId: params.questionId || 'default_question',
-      topic: params.topic,
-      questionText: params.questionText,
-      referenceAnswer: params.referenceAnswer,
-      sessionType: params.sessionType || 'interview',
-      tutorMode: params.tutorMode,
-      voice: params.voice || 'Kore',
-      userGender: params.userGender,
-      turnMode: params.turnMode || 'auto',
-      liveModel: params.liveModel,
-      vadPauseMs: params.vadPauseMs,
-      persona: params.persona || params.tutorPersona,
-      targetGrade: params.targetGrade,
-      strategy: params.strategy,
-      bugTitle: params.bugTitle,
-      bugExplanation: params.bugExplanation,
-      codeSnippet: params.codeSnippet || optionsRef.current.getActiveCode?.(),
-      fixedCode: params.fixedCode,
-      unitTest: params.unitTest,
-      scenarioId: params.scenarioId,
-      incidentContext: params.incidentContext,
-      customPrompt: params.customPrompt,
-      challengeCategory: params.challengeCategory,
-      challengeTrack: params.challengeTrack,
-      challengeDomain: params.challengeDomain,
-      initialUserMessage: params.initialUserMessage,
-      isResumed: params.isResumed,
-      enableSilenceClarification: params.enableSilenceClarification,
-      workspaceManifest: params.workspaceManifest,
-      activeCodeArtifact: params.activeCodeArtifact as any,
-      academyCourse: params.academyCourse,
-      academyStep: params.academyStep,
-      academyBridgeContext: params.academyBridgeContext,
-      seniorReview: params.seniorReview,
-      hrMode: params.hrMode as any,
-      dossierId: params.dossierId,
-      jobId: params.jobId,
-      hrPersonaId: params.hrPersonaId,
-      questionMatrixId: params.questionMatrixId,
-      chunkId: params.chunkId,
-      questionIndex: params.questionIndex,
-      totalQuestions: params.totalQuestions,
-      isRetry: params.isRetry
-    };
+    const config: VoiceEngineConfig = resolveLiveSessionConfig(params, {
+      activeCode: optionsRef.current.getActiveCode?.(),
+    });
 
     await engineRef.current?.connect(config);
     optionsRef.current.onSetupComplete?.();
