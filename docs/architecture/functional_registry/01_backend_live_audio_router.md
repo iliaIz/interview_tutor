@@ -329,3 +329,19 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - Mic frames must be gated during active tool execution.
   - Cognitive bounding: `liveAudioStreamRouter.ts` <= 350 lines; `LiveDeadAirGuard.ts` <= 350 lines; `ToolAudioMutex.ts` <= 350 lines; `SessionResumptionManager.ts` <= 350 lines.
 
+---
+
+### 2.24 `LiveClientGuardService & DownstreamClientPipe: Cloud VAD Pipeline Restoration (Spec 39)`
+- **Location:** [`backend/src/services/live/liveClientGuardService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveClientGuardService.ts), [`backend/src/services/live/DownstreamClientPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/DownstreamClientPipe.ts)
+- **What Was Done:**
+  1. In `liveClientGuardService.ts`, restored priority of `if (turnMode === 'auto') return false;` before `session.isAiGenerating` checks, guaranteeing uninterrupted audio and trailing silence streaming in Auto-VAD mode.
+  2. In `DownstreamClientPipe.ts`, removed premature `session.isAiGenerating = true` and `armTurnWatchdogs` from the `audioStreamEnd` frame handler, ensuring generation state is driven strictly by upstream `serverContent.modelTurn`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Marking `isAiGenerating = true` on `audioStreamEnd` caused `LiveClientGuardService` to choke all incoming microphone frames, starving Google's server-side Cloud VAD of trailing silence and causing 22s watchdog hangs.
+  - *Empirical Finding:* Google Gemini Live does not trigger generation on `audioStreamEnd`; it requires continuous PCM audio with trailing ambient silence.
+- **Rationale & "Why":** 100% adherence to Google Gemini 3.8 Live reference architecture (`gemini_live_reference`).
+- **Invariants:**
+  - In `turnMode === 'auto'`, audio frames must not be choked before model turn begins.
+  - `isAiGenerating` must only be set when upstream modelTurn arrives.
+
+

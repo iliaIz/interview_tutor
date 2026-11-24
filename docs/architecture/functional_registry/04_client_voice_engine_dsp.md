@@ -315,3 +315,20 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 - **Failure Modes & Invariants:**
   - Prevents Google Gemini Live interrupt-cancel loop.
   - Prevents Turn 0 lockdown freeze on reconnected sessions.
+
+---
+
+### 2.20 `Spec 39: LiveMicChunkDispatcher Continuous Cloud VAD Streaming in Auto Mode`
+- **Location:** [`frontend/src/audio/liveMicChunkDispatcher.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveMicChunkDispatcher.ts)
+- **What Was Done:**
+  1. Removed the client-side 500ms silence timer (`candidateSilenceFramesAfterVoicing >= 25 -> onCommitSpokenTurn()`) in auto mode (`turnMode !== 'manual'`).
+  2. Maintained unbroken 16kHz PCM audio streaming (including natural ambient silence between speech utterances) directly into the WebSocket connection during `CANDIDATE_LISTENING`.
+  3. Kept manual turn mode (`turnMode === 'manual'`) push-to-talk button behavior completely intact.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Hypothesis:* Cutting off the microphone stream on the client after 500ms of silence and sending `audioStreamEnd` caused Gemini Live to pause/flush rather than generate, leading to 22-second dead-air freezes across all arenas.
+  - *Empirical Observation:* Google Gemini Live Native Cloud VAD endpoints turns server-side based on continuous audio + ambient silence, matching `gemini_live_reference`.
+- **Rationale & "Why":** Aligns 100% with Google's canonical Live API standard without artificial client truncation hacks.
+- **Invariants:**
+  - In `turnMode === 'auto'`, PCM audio frames flow continuously to Gemini without artificial client cutoff.
+  - Manual mode remains fully isolated and operable via tactile commit.
+

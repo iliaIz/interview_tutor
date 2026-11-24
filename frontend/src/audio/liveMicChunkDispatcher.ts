@@ -14,18 +14,14 @@ const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
 export interface MicDispatcherCallbacks {
   onTransientFiltered?: () => void;
   onBargeIn: (source: 'acoustic') => void;
-  onCommitSpokenTurn: () => void;
+  onCommitSpokenTurn?: () => void;
 }
 
 export class LiveMicChunkDispatcher {
   private consecutiveVoicingFrames = 0;
-  private candidateVoicingFramesInTurn = 0;
-  private candidateSilenceFramesAfterVoicing = 0;
 
   public resetCounters(): void {
     this.consecutiveVoicingFrames = 0;
-    this.candidateVoicingFramesInTurn = 0;
-    this.candidateSilenceFramesAfterVoicing = 0;
   }
 
   public dispatchChunk(
@@ -36,7 +32,7 @@ export class LiveMicChunkDispatcher {
     isAudioMutexLocked: boolean,
     isTurn0Lockdown: boolean,
     isSessionReady: boolean,
-    turnMode: 'auto' | 'manual' | undefined,
+    _turnMode: 'auto' | 'manual' | undefined,
     ws: WebSocket | null,
     callbacks: MicDispatcherCallbacks
   ): void {
@@ -78,29 +74,12 @@ export class LiveMicChunkDispatcher {
     }
 
     if (!isSessionReady || state !== 'LISTENING') {
-      this.candidateVoicingFramesInTurn = 0;
-      this.candidateSilenceFramesAfterVoicing = 0;
       return;
     }
 
-    // Auto-VAD Speech Cessation Detection (Fast-Handoff)
-    const isVoicing = Boolean(metrics?.speechDetected || (metrics && metrics.rmsDb > -42));
-    if (isVoicing) {
-      this.candidateVoicingFramesInTurn++;
-      this.candidateSilenceFramesAfterVoicing = 0;
-    } else if (this.candidateVoicingFramesInTurn >= 4) {
-      // Candidate spoke for >= 80ms, now silent
-      this.candidateSilenceFramesAfterVoicing++;
-      // ~500ms trailing silence (25 frames at 20ms) triggers fast-handoff in auto mode
-      if (turnMode !== 'manual' && this.candidateSilenceFramesAfterVoicing >= 25) {
-        this.candidateVoicingFramesInTurn = 0;
-        this.candidateSilenceFramesAfterVoicing = 0;
-        callbacks.onCommitSpokenTurn();
-        return;
-      }
-    }
-
     // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
+    // In native Cloud VAD (turnMode === 'auto'), continuous 16kHz PCM audio including ambient silence
+    // streams unhindered to Gemini Live, identical to gemini_live_reference SSOT.
     if (ws && ws.readyState === WebSocket.OPEN) {
       if (metrics?.isTransientSpike) {
         callbacks.onTransientFiltered?.();

@@ -298,14 +298,7 @@ export class DownstreamClientPipe {
       }
     } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {
       session.deadAirGuard?.reset();
-      if (session.isAiGenerating) {
-        console.warn(`🛡️ [DUPLICATE_COMMIT_GUARD] Suppressed duplicate audioStreamEnd while AI is already generating (sessionId: ${session.sessionId || 'anon'})`);
-        return null;
-      }
       session.hasCandidateResponded = true;
-      session.isAiGenerating = true;
-      session.lastTurnCommitTime = Date.now();
-      armTurnWatchdogs(session, clientSocket);
       return Buffer.from(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
     } else if (parsed.clientContent) {
       return Buffer.from(JSON.stringify({ clientContent: parsed.clientContent }));
