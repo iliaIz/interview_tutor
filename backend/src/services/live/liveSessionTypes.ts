@@ -60,7 +60,7 @@ export interface ProxySession {
   persona?: InterviewPersonaId | string;
   targetGrade?: TargetGrade;
   isToolCallPending?: boolean;
-  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   tutorMode?: string;
   liveModel?: string;
   currentArchitectureMermaid?: string;

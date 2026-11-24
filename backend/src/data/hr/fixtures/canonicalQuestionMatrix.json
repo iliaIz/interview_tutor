@@ -4,14 +4,22 @@
     "title": "Самопрезентация (Elevator Pitch: Anchor — Build — Bridge)",
     "canonicalQuestion": "Расскажите немного о себе, вашем ключевом опыте и чем вы занимались последнее время.",
     "referenceAnswer": "Здравствуйте! Меня зовут Илья, я Java Backend Engineer с 8 годами опыта в разработке и масштабировании отказоустойчивых enterprise-систем. Более 7 лет я проработал в аккредитованной IT-компании ООО «БТЛаб», где вырос с инженера до ведущего разработчика на системах документооборота (15+ млн документов, 5 000+ активных пользователей), стаж подтвержден выпиской СТД-СФР с Госуслуг с квалифицированной ЭЦП. Занимался распилом монолита на Spring Boot, транспортом на Kafka и RabbitMQ, нагрузочным тестированием в JMeter и оптимизацией PostgreSQL (ускорение выборок p95 с 520 мс до 45 мс). Весной 2025 года после закрытия 7-летнего цикла на финансовой подушке я взял осознанную паузу для актуализации квалификации под новейший стек и реализовал открытый архитектурный Showcase — Event Ingestion Platform. В нем обкатал Java 21 на виртуальных потоках Loom, Transactional Outbox с CTE-лизингом, Kafka KRaft, гибридный векторный поиск Spring AI и PostgreSQL pgvector с нагрузкой до 2 200 RPS на k6. В феврале 2026 года оформил статус плательщика НПД (справка КНД 1122035), коммерческих услуг не оказывал, поэтому чеков закономерно не велось по ФЗ-422. Сейчас цикл R&D полностью завершен, возвращаюсь в стабильный продуктовый контур компании на долгосрочный full-time.",
-    "targetDurationSec": { "minSec": 60, "maxSec": 80, "hardCapSec": 90 },
+    "targetDurationSec": {
+      "minSec": 60,
+      "maxSec": 80,
+      "hardCapSec": 90
+    },
     "phase": "phase2_elevator_pitch",
     "requiredAnchors": [
       {
         "id": "anc_btlab_sfr",
         "label": "ООО «БТЛаб» (7+ лет, СТД-СФР)",
         "category": "legal",
-        "matchStems": ["бтлаб", "стд", "сфр"],
+        "matchStems": [
+          "бтлаб",
+          "стд",
+          "сфр"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -19,7 +27,12 @@
         "id": "anc_scale_metrics",
         "label": "15+ млн документов / 5 000+ польз.",
         "category": "metrics",
-        "matchStems": ["15", "миллион", "5000", "документ"],
+        "matchStems": [
+          "15",
+          "миллион",
+          "5000",
+          "документ"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -27,7 +40,11 @@
         "id": "anc_mono_kafka_pg",
         "label": "Распил монолита + Kafka + Postgres",
         "category": "architecture",
-        "matchStems": ["монолит", "kafka", "postgres"],
+        "matchStems": [
+          "монолит",
+          "kafka",
+          "postgres"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -35,7 +52,13 @@
         "id": "anc_loom_outbox",
         "label": "Java 21 Loom + CTE Outbox",
         "category": "architecture",
-        "matchStems": ["loom", "виртуальн", "outbox", "отбокс", "cte"],
+        "matchStems": [
+          "loom",
+          "виртуальн",
+          "outbox",
+          "отбокс",
+          "cte"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -43,7 +66,12 @@
         "id": "anc_pgvector_rps",
         "label": "pgvector (halfvec) + 2 200 RPS k6",
         "category": "metrics",
-        "matchStems": ["pgvector", "2200", "две тысячи", "k6"],
+        "matchStems": [
+          "pgvector",
+          "2200",
+          "две тысячи",
+          "k6"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -51,7 +79,13 @@
         "id": "anc_npd_knd1122035",
         "label": "НПД (КНД 1122035, pre-revenue 422-ФЗ)",
         "category": "legal",
-        "matchStems": ["нпд", "1122035", "самозанят", "422", "pre-revenue"],
+        "matchStems": [
+          "нпд",
+          "1122035",
+          "самозанят",
+          "422",
+          "pre-revenue"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -64,6 +98,44 @@
       "устал на прошлой работе",
       "сидел дома",
       "не брали на работу"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_0_1_btlab",
+        "title": "Опыт в БТЛаб и масштабы",
+        "anchorIds": [
+          "anc_btlab_sfr",
+          "anc_scale_metrics",
+          "anc_mono_kafka_pg"
+        ],
+        "targetDurationSec": {
+          "minSec": 25,
+          "maxSec": 35
+        }
+      },
+      {
+        "id": "chunk_0_2_showcase",
+        "title": "R&D Showcase и новейший стек",
+        "anchorIds": [
+          "anc_loom_outbox",
+          "anc_pgvector_rps"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      },
+      {
+        "id": "chunk_0_3_legal",
+        "title": "Правовой статус и финал",
+        "anchorIds": [
+          "anc_npd_knd1122035"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -71,14 +143,23 @@
     "title": "Причина ухода из ООО «БТЛаб» после 7.4 лет",
     "canonicalQuestion": "Почему вы решили уйти из ООО «БТЛаб» после более чем 7 лет работы?",
     "referenceAnswer": "В «БТЛаб» я прошел отличный путь от инженера до ведущего разработчика. Мы успешно декомпозировали монолит, выстроили асинхронный обмен на Kafka и оптимизировали базу данных. Однако за 7 лет ключевые архитектурные вызовы были закрыты, проект перешел в стадию плавной поддержки, а мне было принципиально важно выйти на современный стек (Java 21, Spring Boot 3, pgvector, виртуальные потоки) и решить прикладные задачи высокой нагрузки с нуля. Расстались на абсолютно позитивной ноте, с руководством и коллегами сохраняются отличные профессиональные отношения.",
-    "targetDurationSec": { "minSec": 35, "maxSec": 60, "hardCapSec": 75 },
+    "targetDurationSec": {
+      "minSec": 35,
+      "maxSec": 60,
+      "hardCapSec": 75
+    },
     "phase": "phase3_work_history",
     "requiredAnchors": [
       {
         "id": "anc_q1_arch_closed",
         "label": "Закрыли архитектурные вызовы -> фаза поддержки",
         "category": "motivation",
-        "matchStems": ["архитектур", "поддержк", "вызов", "закрыл"],
+        "matchStems": [
+          "архитектур",
+          "поддержк",
+          "вызов",
+          "закрыл"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -86,7 +167,12 @@
         "id": "anc_q1_modern_stack",
         "label": "Переход на новейший стек (Java 21 / Spring 3)",
         "category": "architecture",
-        "matchStems": ["java 21", "spring", "стек", "актуализац"],
+        "matchStems": [
+          "java 21",
+          "spring",
+          "стек",
+          "актуализац"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -94,7 +180,12 @@
         "id": "anc_q1_good_terms",
         "label": "Расстались позитивно / без конфликтов",
         "category": "motivation",
-        "matchStems": ["позитивн", "расстал", "отношен", "коллег"],
+        "matchStems": [
+          "позитивн",
+          "расстал",
+          "отношен",
+          "коллег"
+        ],
         "weight": 2,
         "status": "PENDING"
       }
@@ -105,6 +196,31 @@
       "мало платили",
       "конфликт с начальством",
       "сократили"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_1_1_arch",
+        "title": "Закрытие архитектурных вызовов",
+        "anchorIds": [
+          "anc_q1_arch_closed"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_1_2_stack_terms",
+        "title": "Новый стек и позитивное расставание",
+        "anchorIds": [
+          "anc_q1_modern_stack",
+          "anc_q1_good_terms"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -112,14 +228,23 @@
     "title": "Пауза в найме и R&D проект Event Ingestion Platform",
     "canonicalQuestion": "Чем вы занимались после увольнения из БТЛаб? Почему делали свой R&D проект, а не вышли сразу в штат?",
     "referenceAnswer": "После более 7 лет непрерывной работы в энтерпрайзе я сформировал финансовую подушку и осознанно выделил время на инженерный апгрейд. Вместо пассивного отдыха я занялся проектированием распределенной платформы потокового сбора, семантической обработки и дистрибуции контента Event Ingestion Platform как архитектурного Showcase. Это была возможность на практике обкатать новейший промышленный стек: Java 21 Loom, Kafka KRaft, Spring AI и гибридный поиск PostgreSQL pgvector, Transactional Outbox. Доведение платформы в одиночку до 2 200 RPS на k6 и тестов в Testcontainers потребовало полноценного R&D цикла. Юридически в феврале 2026 года оформил статус плательщика НПД. На текущий момент эта фаза успешно завершена, и я возвращаюсь к командной разработке на длительный срок.",
-    "targetDurationSec": { "minSec": 45, "maxSec": 75, "hardCapSec": 85 },
+    "targetDurationSec": {
+      "minSec": 45,
+      "maxSec": 75,
+      "hardCapSec": 85
+    },
     "phase": "phase4_gap_deep_dive",
     "requiredAnchors": [
       {
         "id": "anc_q2_pillow",
         "label": "Осознанная пауза на финансовой подушке",
         "category": "motivation",
-        "matchStems": ["подушк", "осознан", "пауз", "апгрейд"],
+        "matchStems": [
+          "подушк",
+          "осознан",
+          "пауз",
+          "апгрейд"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -127,7 +252,14 @@
         "id": "anc_q2_showcase_arch",
         "label": "Showcase: Loom, CTE Outbox, Kafka KRaft, pgvector",
         "category": "architecture",
-        "matchStems": ["showcase", "шоукейс", "loom", "outbox", "отбокс", "kraft"],
+        "matchStems": [
+          "showcase",
+          "шоукейс",
+          "loom",
+          "outbox",
+          "отбокс",
+          "kraft"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -135,7 +267,12 @@
         "id": "anc_q2_metrics",
         "label": "2 200 RPS на k6 + Testcontainers",
         "category": "metrics",
-        "matchStems": ["2200", "k6", "testcontainers", "контейнер"],
+        "matchStems": [
+          "2200",
+          "k6",
+          "testcontainers",
+          "контейнер"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -145,6 +282,31 @@
       "отдыхал год",
       "просто учился по курсам",
       "сидел дома"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_2_1_pillow",
+        "title": "Осознанная пауза на подушке",
+        "anchorIds": [
+          "anc_q2_pillow"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_2_2_showcase",
+        "title": "Showcase архитектура и метрики",
+        "anchorIds": [
+          "anc_q2_showcase_arch",
+          "anc_q2_metrics"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      }
     ]
   },
   {
@@ -152,14 +314,23 @@
     "title": "Комплаенс НПД: отсутствие чеков и коммерческих заказчиков (ФЗ-422)",
     "canonicalQuestion": "Были ли у вашего проекта коммерческие заказчики? Почему по самозанятости нет чеков или договоров?",
     "referenceAnswer": "Проект создавался строго как исследовательский pre-revenue R&D прототип и личный архитектурный Showcase на собственные ресурсы. Я инвестировал собственное инженерное время в архитектуру и бенчмарки, не привлекая внешних заказчиков и не продавая услуги третьим лицам. Поэтому коммерческих расчетов со сторонними клиентами не велось, и фискальные чеки закономерно не формировались в силу отсутствия объекта налогообложения (ст. 2 и ст. 14 ФЗ № 422-ФЗ). Статус плательщика НПД открыт в феврале 2026 года и подтверждается справкой ФНС КНД 1122035 с цифровой подписью. А главным подтверждением квалификации выступает работающий код и архитектура в репозитории на GitHub.",
-    "targetDurationSec": { "minSec": 40, "maxSec": 70, "hardCapSec": 80 },
+    "targetDurationSec": {
+      "minSec": 40,
+      "maxSec": 70,
+      "hardCapSec": 80
+    },
     "phase": "phase4_gap_deep_dive",
     "requiredAnchors": [
       {
         "id": "anc_q3_prerevenue",
         "label": "Pre-revenue R&D на собственные ресурсы",
         "category": "legal",
-        "matchStems": ["pre-revenue", "собственн", "исследовательск", "showcase"],
+        "matchStems": [
+          "pre-revenue",
+          "собственн",
+          "исследовательск",
+          "showcase"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -167,7 +338,12 @@
         "id": "anc_q3_fz422",
         "label": "Отсутствие объекта налогообложения (ст. 2, 14 ФЗ-422)",
         "category": "legal",
-        "matchStems": ["422", "объект", "налогообложен", "стать"],
+        "matchStems": [
+          "422",
+          "объект",
+          "налогообложен",
+          "стать"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -175,7 +351,13 @@
         "id": "anc_q3_knd1122035",
         "label": "Справка КНД 1122035 с ЭЦП ФНС + код на GitHub",
         "category": "legal",
-        "matchStems": ["1122035", "кнд", "github", "эцп", "справк"],
+        "matchStems": [
+          "1122035",
+          "кнд",
+          "github",
+          "эцп",
+          "справк"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -186,6 +368,31 @@
       "забыл пробить чеки",
       "работал вчерную",
       "работал без договора"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_3_1_fz422",
+        "title": "Pre-revenue и ФЗ-422",
+        "anchorIds": [
+          "anc_q3_prerevenue",
+          "anc_q3_fz422"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      },
+      {
+        "id": "chunk_3_2_knd",
+        "title": "Справка КНД 1122035",
+        "anchorIds": [
+          "anc_q3_knd1122035"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -193,14 +400,23 @@
     "title": "Риск параллельной занятости (Overemployment) и ухода в свой бизнес",
     "canonicalQuestion": "А что, если ваш проект начнет развиваться дальше? Не решите ли вы уйти через полгода в свой бизнес?",
     "referenceAnswer": "Этот сценарий исключен. Проект изначально задумывался и реализовывался как технологический прототип и личный Showcase, а не как венчурный стартап. Я закрыл этот цикл, зафиксировал архитектурные результаты и не планирую заниматься коммерциализацией или привлечением инвестиций. Моя ключевая профессиональная цель и зона максимальной отдачи — это глубокая инженерная разработка сложных распределенных платформ в составе сильной корпоративной продуктовой команды на полный рабочий день.",
-    "targetDurationSec": { "minSec": 30, "maxSec": 50, "hardCapSec": 60 },
+    "targetDurationSec": {
+      "minSec": 30,
+      "maxSec": 50,
+      "hardCapSec": 60
+    },
     "phase": "phase4_gap_deep_dive",
     "requiredAnchors": [
       {
         "id": "anc_q4_closed_cycle",
         "label": "Цикл закрыт: технологический Showcase, не стартап",
         "category": "motivation",
-        "matchStems": ["закрыл", "прототип", "showcase", "стартап"],
+        "matchStems": [
+          "закрыл",
+          "прототип",
+          "showcase",
+          "стартап"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -208,7 +424,12 @@
         "id": "anc_q4_focus_enterprise",
         "label": "Фокус: 100% full-time в сильной продуктовой команде",
         "category": "motivation",
-        "matchStems": ["full-time", "команд", "продукт", "наем"],
+        "matchStems": [
+          "full-time",
+          "команд",
+          "продукт",
+          "наем"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -217,6 +438,30 @@
       "если будут деньги, уйду",
       "буду пилить по вечерам",
       "хочу свой стартап"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_4_1_closed",
+        "title": "Завершенный цикл исследований",
+        "anchorIds": [
+          "anc_q4_closed_cycle"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_4_2_enterprise",
+        "title": "100% фокус на enterprise full-time",
+        "anchorIds": [
+          "anc_q4_focus_enterprise"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -224,14 +469,25 @@
     "title": "Зарплатные ожидания и испытательный срок",
     "canonicalQuestion": "Какие зарплатные ожидания вы рассматриваете? Готовы ли снизиться по зарплате на период испытательного срока?",
     "referenceAnswer": "Я ориентируюсь на 310 000 — 330 000 рублей net на руки при официальном оформлении по ТК РФ. По испытательному сроку: я привык давать ощутимый инженерный результат с первых недель работы и быстро погружаться в архитектуру. Поэтому я рассчитываю на стабильную планку в 310 000 рублей net с первого дня, чтобы полностью сфокусироваться на бизнес-задачах без пересмотра условий через 3 месяца.",
-    "targetDurationSec": { "minSec": 30, "maxSec": 50, "hardCapSec": 60 },
+    "targetDurationSec": {
+      "minSec": 30,
+      "maxSec": 50,
+      "hardCapSec": 60
+    },
     "phase": "phase5_compliance_financials",
     "requiredAnchors": [
       {
         "id": "anc_q5_salary_range",
         "label": "310 000 – 330 000 ₽ net по ТК РФ",
         "category": "compensation",
-        "matchStems": ["310", "330", "триста десять", "тк рф", "net", "на руки"],
+        "matchStems": [
+          "310",
+          "330",
+          "триста десять",
+          "тк рф",
+          "net",
+          "на руки"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -239,7 +495,12 @@
         "id": "anc_q5_no_discount",
         "label": "Без снижения на испытательный срок (с 1 дня)",
         "category": "compensation",
-        "matchStems": ["испытательн", "снижен", "первог", "результат"],
+        "matchStems": [
+          "испытательн",
+          "снижен",
+          "первог",
+          "результат"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -248,6 +509,30 @@
       "можно и 250k",
       "готов уступить",
       "подвинусь по деньгам"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_5_1_salary",
+        "title": "Зарплатная вилка 310k-330k net",
+        "anchorIds": [
+          "anc_q5_salary_range"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_5_2_probation",
+        "title": "Полный оклад с 1 дня испытательного",
+        "anchorIds": [
+          "anc_q5_no_discount"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -255,14 +540,22 @@
     "title": "Параллельные офферы и процесс найма",
     "canonicalQuestion": "Есть ли у вас параллельные собеседования или офферы прямо сейчас?",
     "referenceAnswer": "Да, я сейчас нахожусь в активной фазе общения, прохожу собеседования в нескольких профильных компаниях, но финальных обязательств пока ни перед кем не взял. Ваша вакансия мне крайне интересна по стеку и задачам, поэтому я отдаю ей приоритет и готов оперативно пройти технические этапы.",
-    "targetDurationSec": { "minSec": 20, "maxSec": 40, "hardCapSec": 50 },
+    "targetDurationSec": {
+      "minSec": 20,
+      "maxSec": 40,
+      "hardCapSec": 50
+    },
     "phase": "phase5_compliance_financials",
     "requiredAnchors": [
       {
         "id": "anc_q6_active_phase",
         "label": "Активная фаза, но обязательств нет",
         "category": "motivation",
-        "matchStems": ["активн", "обязательств", "собеседован"],
+        "matchStems": [
+          "активн",
+          "обязательств",
+          "собеседован"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -270,7 +563,11 @@
         "id": "anc_q6_priority",
         "label": "Ваша вакансия в приоритете",
         "category": "motivation",
-        "matchStems": ["приоритет", "интересн", "оперативн"],
+        "matchStems": [
+          "приоритет",
+          "интересн",
+          "оперативн"
+        ],
         "weight": 2,
         "status": "PENDING"
       }
@@ -278,6 +575,30 @@
     "forbiddenPatterns": [
       "никто не зовет",
       "уже подписал оффер"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_6_1_active",
+        "title": "Активная фаза финальных интервью",
+        "anchorIds": [
+          "anc_q6_active_phase"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_6_2_priority",
+        "title": "Приоритет вашей компании",
+        "anchorIds": [
+          "anc_q6_priority"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -285,14 +606,24 @@
     "title": "Срок выхода на работу (Notice Period)",
     "canonicalQuestion": "Какой у вас notice period? Через сколько готовы выйти?",
     "referenceAnswer": "У меня нет двухнедельной отработки в найме. Я готов выйти на работу в течение 1–1.5 недель после согласования оффера — это время требуется на подписание документов и получение рабочего оборудования.",
-    "targetDurationSec": { "minSec": 20, "maxSec": 30, "hardCapSec": 40 },
+    "targetDurationSec": {
+      "minSec": 20,
+      "maxSec": 30,
+      "hardCapSec": 40
+    },
     "phase": "phase5_compliance_financials",
     "requiredAnchors": [
       {
         "id": "anc_q7_period",
         "label": "1–1.5 недели (документы + оборудование)",
         "category": "compensation",
-        "matchStems": ["недел", "полторы", "1.5", "оборудован", "документ"],
+        "matchStems": [
+          "недел",
+          "полторы",
+          "1.5",
+          "оборудован",
+          "документ"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -300,6 +631,19 @@
     "forbiddenPatterns": [
       "месяц",
       "не знаю когда"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_7_1_notice",
+        "title": "Notice Period 1-1.5 недели",
+        "anchorIds": [
+          "anc_q7_period"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -307,14 +651,22 @@
     "title": "Статус по воинскому учету",
     "canonicalQuestion": "Какой у вас статус по воинскому учету? Есть ли военный билет?",
     "referenceAnswer": "У меня на руках постоянный военный билет категории «В» (ограниченно годен к военной службе, зачислен в запас). Мне 35 лет, я нахожусь за пределами призывного возраста (до 30 лет) и призыву на срочную службу не подлежу. Все документы полностью в порядке и готовы к предоставлению в отдел кадров.",
-    "targetDurationSec": { "minSec": 20, "maxSec": 40, "hardCapSec": 50 },
+    "targetDurationSec": {
+      "minSec": 20,
+      "maxSec": 40,
+      "hardCapSec": 50
+    },
     "phase": "phase5_compliance_financials",
     "requiredAnchors": [
       {
         "id": "anc_q8_ticket_v",
         "label": "Военный билет категории «В» на руках",
         "category": "legal",
-        "matchStems": ["билет", "категор", "запас"],
+        "matchStems": [
+          "билет",
+          "категор",
+          "запас"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -322,7 +674,11 @@
         "id": "anc_q8_age35",
         "label": "35 лет: за пределами призыва (до 30 лет)",
         "category": "legal",
-        "matchStems": ["35", "тридцать пять", "призыв"],
+        "matchStems": [
+          "35",
+          "тридцать пять",
+          "призыв"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -331,6 +687,30 @@
       "билета нет",
       "скрываюсь",
       "не стою на учете"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_8_1_ticket",
+        "title": "Военный билет (категория В)",
+        "anchorIds": [
+          "anc_q8_ticket_v"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_8_2_age",
+        "title": "Возраст 35 лет и учет",
+        "anchorIds": [
+          "anc_q8_age35"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -338,14 +718,23 @@
     "title": "Локация и формат занятости",
     "canonicalQuestion": "Где вы находитесь физически? Готовы ли к гибриду или переезду?",
     "referenceAnswer": "Я постоянно проживаю в Краснодаре, гражданин РФ, налоговый резидент РФ. Рассматриваю 100% удаленный формат работы по территории РФ — у меня полностью оборудованное рабочее место и 8 лет автономной разработки. К периодическим командировкам в Москву или Санкт-Петербург на проектные планирования или синхронизации полностью открыт.",
-    "targetDurationSec": { "minSec": 20, "maxSec": 40, "hardCapSec": 50 },
+    "targetDurationSec": {
+      "minSec": 20,
+      "maxSec": 40,
+      "hardCapSec": 50
+    },
     "phase": "phase5_compliance_financials",
     "requiredAnchors": [
       {
         "id": "anc_q9_krasnodar_remote",
         "label": "Краснодар, 100% удаленка по РФ, 8 лет опыта",
         "category": "compensation",
-        "matchStems": ["краснодар", "удален", "8 лет", "резидент"],
+        "matchStems": [
+          "краснодар",
+          "удален",
+          "8 лет",
+          "резидент"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -353,7 +742,12 @@
         "id": "anc_q9_business_trips",
         "label": "Открыт к командировкам в Москву / СПб",
         "category": "compensation",
-        "matchStems": ["командировк", "москв", "петербург", "спб"],
+        "matchStems": [
+          "командировк",
+          "москв",
+          "петербург",
+          "спб"
+        ],
         "weight": 2,
         "status": "PENDING"
       }
@@ -361,6 +755,30 @@
     "forbiddenPatterns": [
       "живу за границей",
       "не в РФ"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_9_1_krasnodar",
+        "title": "Краснодар и 100% удаленка по РФ",
+        "anchorIds": [
+          "anc_q9_krasnodar_remote"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_9_2_trips",
+        "title": "Готовность к командировкам",
+        "anchorIds": [
+          "anc_q9_business_trips"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   },
   {
@@ -368,14 +786,23 @@
     "title": "Поведенческий кейс: Архитектурный спор (pgvector vs Qdrant)",
     "canonicalQuestion": "Расскажите о конфликте с коллегой или архитектурном споре. Как решили?",
     "referenceAnswer": "На этапе проектирования Showcase возник вопрос: выносить векторный поиск в отдельную базу (Qdrant) или использовать расширение pgvector в PostgreSQL. Вторая база давала бы отдельный сетевой оверхед и сложность распределенной транзакции. Я не стал вступать в эмоциональный спор, а за 2 дня собрал нагрузочный стенд на k6 и показал бенчмарки: pgvector с индексом HNSW на типе halfvec держал 1 миллион документов с задержкой 25 мс прямо внутри PostgreSQL в единой ACID-транзакции с метаданными. Мы сэкономили месяцы поддержки инфраструктуры и получили строгую транзакционность из коробки.",
-    "targetDurationSec": { "minSec": 40, "maxSec": 70, "hardCapSec": 80 },
+    "targetDurationSec": {
+      "minSec": 40,
+      "maxSec": 70,
+      "hardCapSec": 80
+    },
     "phase": "phase3_work_history",
     "requiredAnchors": [
       {
         "id": "anc_q10_dilemma",
         "label": "Дилемма: выделенный Qdrant vs pgvector в Postgres",
         "category": "architecture",
-        "matchStems": ["qdrant", "pgvector", "postgres", "транзакц"],
+        "matchStems": [
+          "qdrant",
+          "pgvector",
+          "postgres",
+          "транзакц"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -383,7 +810,13 @@
         "id": "anc_q10_benchmarks",
         "label": "Решение через стенд k6 и бенчмарки (HNSW halfvec, 25 мс)",
         "category": "architecture",
-        "matchStems": ["бенчмарк", "k6", "hnsw", "halfvec", "25"],
+        "matchStems": [
+          "бенчмарк",
+          "k6",
+          "hnsw",
+          "halfvec",
+          "25"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -392,6 +825,30 @@
       "поругались",
       "я доказал что они дураки",
       "проигнорировал их"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_10_1_dilemma",
+        "title": "Архитектурная дилемма (pgvector vs Qdrant)",
+        "anchorIds": [
+          "anc_q10_dilemma"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      },
+      {
+        "id": "chunk_10_2_benchmarks",
+        "title": "Бенчмарки и решение консилиума",
+        "anchorIds": [
+          "anc_q10_benchmarks"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      }
     ]
   },
   {
@@ -399,14 +856,24 @@
     "title": "Поведенческий кейс: Сбой в продакшене (Post-Mortem HikariCP)",
     "canonicalQuestion": "Были ли у вас серьезные сбои (факапы) в продакшене?",
     "referenceAnswer": "Да, при релизе новой редакции интеграционного шлюза со СМЭВ мы столкнулись с исчерпанием пула соединений HikariCP: внешний сервис ведомства начал отвечать с задержкой в 30 секунд вместо 200 мс. Потоки приложения удерживали соединения БД в ожидании HTTP-ответа, и база исчерпала лимит коннектов. Я оперативно локализовал сбой, перезапустил сервис с ограничением таймаутов, затем вынес сетевой вызов наружу из транзакции и обернул его в Circuit Breaker на базе Resilience4j. После инцидента я написал Post-Mortem для команды и вывел метрики насыщенности пула соединений в Prometheus.",
-    "targetDurationSec": { "minSec": 45, "maxSec": 75, "hardCapSec": 85 },
+    "targetDurationSec": {
+      "minSec": 45,
+      "maxSec": 75,
+      "hardCapSec": 85
+    },
     "phase": "phase3_work_history",
     "requiredAnchors": [
       {
         "id": "anc_q11_hikaricp_smev",
         "label": "Сбой: зависание СМЭВ и исчерпание пула HikariCP",
         "category": "architecture",
-        "matchStems": ["смэв", "hikaricp", "пул", "коннект", "таймаут"],
+        "matchStems": [
+          "смэв",
+          "hikaricp",
+          "пул",
+          "коннект",
+          "таймаут"
+        ],
         "weight": 3,
         "status": "PENDING"
       },
@@ -414,7 +881,13 @@
         "id": "anc_q11_circuit_breaker",
         "label": "Решение: вынос из транзакции, Circuit Breaker, Post-Mortem",
         "category": "architecture",
-        "matchStems": ["circuit", "breaker", "resilience4j", "post-mortem", "метрик"],
+        "matchStems": [
+          "circuit",
+          "breaker",
+          "resilience4j",
+          "post-mortem",
+          "метрик"
+        ],
         "weight": 3,
         "status": "PENDING"
       }
@@ -423,6 +896,30 @@
       "виноваты админы",
       "это не моя ошибка",
       "база сама упала"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_11_1_incident",
+        "title": "Инцидент: HikariCP и СМЭВ",
+        "anchorIds": [
+          "anc_q11_hikaricp_smev"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      },
+      {
+        "id": "chunk_11_2_remediation",
+        "title": "Circuit Breaker и устранение",
+        "anchorIds": [
+          "anc_q11_circuit_breaker"
+        ],
+        "targetDurationSec": {
+          "minSec": 20,
+          "maxSec": 30
+        }
+      }
     ]
   },
   {
@@ -430,14 +927,23 @@
     "title": "Встречные вопросы кандидата к HR (Reverse Q&A)",
     "canonicalQuestion": "Есть ли у вас встречные вопросы по вакансии или компании ко мне?",
     "referenceAnswer": "Да, у меня три вопроса. Во-первых, какова ключевая цель найма на эту позицию: расширение команды под новый высоконагруженный функционал или закрытие технического долга и поддержка текущей платформы? Во-вторых, как в инженерной культуре команды устроены процессы Code Review, написания тестов и релизный цикл? И в-третьих, какие следующие этапы отбора предусмотрены в компании и с кем планируется техническое интервью?",
-    "targetDurationSec": { "minSec": 40, "maxSec": 60, "hardCapSec": 75 },
+    "targetDurationSec": {
+      "minSec": 40,
+      "maxSec": 60,
+      "hardCapSec": 75
+    },
     "phase": "phase6_candidate_qa",
     "requiredAnchors": [
       {
         "id": "anc_q12_hiring_goal",
         "label": "Вопрос 1: Цель найма (новые фичи vs техдолг)",
         "category": "motivation",
-        "matchStems": ["цель", "найм", "расширен", "техдолг"],
+        "matchStems": [
+          "цель",
+          "найм",
+          "расширен",
+          "техдолг"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -445,7 +951,12 @@
         "id": "anc_q12_engineering_culture",
         "label": "Вопрос 2: Процессы тестов, Code Review и релизов",
         "category": "motivation",
-        "matchStems": ["review", "ревью", "тест", "релиз"],
+        "matchStems": [
+          "review",
+          "ревью",
+          "тест",
+          "релиз"
+        ],
         "weight": 2,
         "status": "PENDING"
       },
@@ -453,7 +964,11 @@
         "id": "anc_q12_next_stages",
         "label": "Вопрос 3: Следующие этапы и техническое интервью",
         "category": "motivation",
-        "matchStems": ["этап", "техническ", "интервью"],
+        "matchStems": [
+          "этап",
+          "техническ",
+          "интервью"
+        ],
         "weight": 2,
         "status": "PENDING"
       }
@@ -461,6 +976,41 @@
     "forbiddenPatterns": [
       "вопросов нет",
       "все понятно"
+    ],
+    "chunks": [
+      {
+        "id": "chunk_12_1_business",
+        "title": "Вопрос 1: Цели найма и бизнес-задачи",
+        "anchorIds": [
+          "anc_q12_hiring_goal"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_12_2_culture",
+        "title": "Вопрос 2: Инженерная культура и релизы",
+        "anchorIds": [
+          "anc_q12_engineering_culture"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      },
+      {
+        "id": "chunk_12_3_stages",
+        "title": "Вопрос 3: Следующие этапы найма",
+        "anchorIds": [
+          "anc_q12_next_stages"
+        ],
+        "targetDurationSec": {
+          "minSec": 15,
+          "maxSec": 25
+        }
+      }
     ]
   }
 ]

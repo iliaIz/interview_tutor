@@ -21,16 +21,18 @@ export type SessionType =
   | 'system_design'
   | 'incident'
   | 'hr_simulation'
-  | 'hr_micro_drill';
+  | 'hr_micro_drill'
+  | 'hr_tutor';
 
-export function isHrSessionType(sessionType: string | undefined): sessionType is 'hr_simulation' | 'hr_micro_drill' {
-  return sessionType === 'hr_simulation' || sessionType === 'hr_micro_drill';
+export function isHrSessionType(sessionType: string | undefined): sessionType is 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' {
+  return sessionType === 'hr_simulation' || sessionType === 'hr_micro_drill' || sessionType === 'hr_tutor';
 }
 
 export function isHrPersonaId(persona: string | undefined): persona is import('./schemas/hrSimulator').HrPersonaId {
   return (
     persona === 'friendly_sourcer' ||
     persona === 'bank_compliance_officer' ||
-    persona === 'behavioral_conflict_hunter'
+    persona === 'behavioral_conflict_hunter' ||
+    persona === 'mentor_coach'
   );
 }

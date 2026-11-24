@@ -9,7 +9,7 @@ export interface BuildGeminiSetupOptions {
   liveModel: string;
   voiceName: string;
   systemPromptText: string;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   strategy: 'adaptive_probing' | 'socratic_tutoring';
   normalizedTools: any[];
   vadPauseMs?: number;

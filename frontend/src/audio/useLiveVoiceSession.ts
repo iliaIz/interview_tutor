@@ -77,11 +77,12 @@ export interface LiveAudioSessionParams {
     targetConcepts?: string[];
   };
   seniorReview?: any;
-  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill';
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal';
   dossierId?: string;
   jobId?: string;
   hrPersonaId?: string;
   questionMatrixId?: string;
+  chunkId?: string;
   questionIndex?: number;
   totalQuestions?: number;
   isRetry?: boolean;
@@ -272,6 +273,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       jobId: params.jobId,
       hrPersonaId: params.hrPersonaId,
       questionMatrixId: params.questionMatrixId,
+      chunkId: params.chunkId,
       questionIndex: params.questionIndex,
       totalQuestions: params.totalQuestions,
       isRetry: params.isRetry

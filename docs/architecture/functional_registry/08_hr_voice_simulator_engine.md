@@ -14,6 +14,13 @@ The `Generic HR Voice Simulator Engine` provides an adaptive, anti-sycophantic, 
 
 With **Wave 21**, the engine incorporates a complete **Pedagogical Worked-Example Suite** allowing candidates to learn answers from scratch inside the UI: reading canonical answers in Markdown (identical to the Theory track), exploring anchor definitions, studying anti-pattern traps, and seamlessly transitioning into voice drills via 1-click motor bridges.
 
+With **Spec 38**, the engine introduces an **Interactive Voice Tutor Rehearsal Mode (`tutor_rehearsal`)** with persona **`mentor_coach` ("Ольга" — Aoede)**:
+- **In-flight error correction**: stops candidate immediately upon stop-words or factual distortion to force a re-take.
+- **On-demand verbal cues**: supplies facts and legal articles when candidate asks for help.
+- **Anchor chunking**: breaks down long questions into 2-3 isolated blocks for focused motor rehearsal.
+- **Epistemic boundary**: verbatim precision enforced strictly on laws/docs/metrics/salary, with conversational freedom for transitions and narrative motivation.
+- **Zero scorecard popups**: rehearsal mode eliminates numerical grades and modal popups.
+
 ---
 
 ## 2. Functions & Components Catalog
@@ -49,6 +56,7 @@ With **Wave 21**, the engine incorporates a complete **Pedagogical Worked-Exampl
 | **H2: Anti-Sycophancy Directives** | Strict prompt rules prevent model from false compliments if candidate uses casual slang ("pet-project", "сидел дома"). | Model rigorously intercepts colloquialisms, flags red flags, and deducts lexical density points. | Validated. Radical Candor established. |
 | **H3: Worked-Example Scaffolding (Wave 21)** | Reading the canonical answer and traps table prior to speaking eliminates cognitive speech freeze. | Candidate possesses clear mental model of required anchors and legal citations before starting the voice timer. | Validated. Pedagogical scaffolding eliminates blind test friction. |
 | **H4: Zero Regressions** | Adding HR session modes and pedagogical components does not affect existing `interview`, `tutor`, or `system_design` modes. | All existing unit tests, prompt tests, tool isolation tests, and playout contracts continue passing 100%. | Validated. Zero regressions across all tracks. |
+| **H5: In-Flight Rehearsal & Chunking (Spec 38)** | Immediate in-flight correction stops bad habits at the syllable level; chunking reduces cognitive load. | Candidate practices isolated 20-30s blocks without scorecard friction, mastering legal citations and metrics. | Validated. Deliberate practice loop established. |
 
 ---
 
@@ -59,3 +67,5 @@ With **Wave 21**, the engine incorporates a complete **Pedagogical Worked-Exampl
 3. **Turn 0 Tool Lockdown:** Model is strictly forbidden from calling evaluation tools during initial greeting and question recitation.
 4. **Engine vs. Payload Isolation:** No hardcoded personal names or company names in engine code; all data injected via TypeBox-validated fixtures.
 5. **Monotonic State Latch:** Anchor cards never revert backwards (`CONFIRMED_HIT` cannot revert to `OPTIMISTIC_HIT` or `PENDING`).
+6. **Verbatim Law/Doc Precision vs. Conversational Freedom (Spec 38):** Verbatim precision is mandatory for articles (422-ФЗ, ст. 65 ТК РФ), document forms (СТД-СФР, КНД 1122035), metrics (7+ лет, 15+ млн, 2 200 RPS) and salary (310k-330k net). Structural transitions and motivation can be freely expressed.
+7. **Scorecard Suppression in Rehearsal (Spec 38):** Mode `tutor_rehearsal` strictly suppresses numerical scorecard tools and evaluation modals.

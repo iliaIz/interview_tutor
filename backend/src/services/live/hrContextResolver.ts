@@ -12,6 +12,7 @@ import {
   JobContext,
   JobContextSchema,
   HrQuestionRubricItem,
+  HrQuestionChunk,
   Value
 } from '@interview-prep/shared';
 
@@ -124,6 +125,12 @@ export function getHrQuestion(questionId?: string): HrQuestionRubricItem {
     return c.questions.get(questionId)!;
   }
   return c.questionsList[0];
+}
+
+export function getHrQuestionChunk(questionId: string, chunkId?: string): HrQuestionChunk | undefined {
+  if (!chunkId) return undefined;
+  const question = getHrQuestion(questionId);
+  return question.chunks?.find((ch) => ch.id === chunkId);
 }
 
 export function getAllHrQuestions(): HrQuestionRubricItem[] {

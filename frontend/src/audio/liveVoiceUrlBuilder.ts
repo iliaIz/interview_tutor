@@ -60,6 +60,7 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
   if (cfg.jobId) params.set('jobId', cfg.jobId);
   if (cfg.hrPersonaId) params.set('hrPersonaId', cfg.hrPersonaId);
   if (cfg.questionMatrixId) params.set('questionMatrixId', cfg.questionMatrixId);
+  if (cfg.chunkId) params.set('chunkId', cfg.chunkId);
 
   return `${protocol}//${host}/ws/live?${params.toString()}`;
 }
@@ -100,7 +101,8 @@ export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void
     dossierId: cfg.dossierId,
     jobId: cfg.jobId,
     hrPersonaId: cfg.hrPersonaId,
-    questionMatrixId: cfg.questionMatrixId
+    questionMatrixId: cfg.questionMatrixId,
+    chunkId: cfg.chunkId
   };
 
   try {

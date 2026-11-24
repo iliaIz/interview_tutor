@@ -8,6 +8,7 @@ import {
   CandidateDossier,
   JobContext,
   HrQuestionRubricItem,
+  HrQuestionChunk,
   HrSessionMode,
   HrPersonaId
 } from '@interview-prep/shared';
@@ -25,6 +26,7 @@ export interface BuildHrSystemPromptOptions {
   mode: HrSessionMode;
   personaId: HrPersonaId;
   activeQuestion?: HrQuestionRubricItem;
+  activeChunk?: HrQuestionChunk;
   voiceName?: string;
   userGender?: 'female' | 'male' | 'neutral';
 }
@@ -81,7 +83,8 @@ ${dossier.prohibitedPhrases.map((p) => `- "${p}"`).join('\n')}`;
 }
 
 export function buildHrSimulatorSystemPrompt(opts: BuildHrSystemPromptOptions): string {
-  const { dossier, jobContext, mode, personaId, activeQuestion, voiceName = 'Kore', userGender = 'male' } = opts;
+  const { dossier, jobContext, mode, personaId, activeQuestion, activeChunk, userGender = 'male' } = opts;
+  const voiceName = opts.voiceName || (personaId === 'mentor_coach' ? 'Aoede' : 'Kore');
 
   const personaDirectives = getPersonaPromptDirectives({
     persona: personaId,
@@ -95,7 +98,21 @@ export function buildHrSimulatorSystemPrompt(opts: BuildHrSystemPromptOptions): 
   const serializedDossier = serializeDossierToMarkdown(dossier);
 
   const modeDirectives =
-    mode === 'rapid_fire_micro_drill'
+    mode === 'tutor_rehearsal'
+      ? `=== РЕЖИМ: ИНТЕРАКТИВНАЯ РЕПЕТИЦИЯ И МОТОРИКА РЕЧИ (TUTOR REHEARSAL) ===
+Твоя цель: отработать моторику речи и автоматизм ответа до стандарта Senior/Staff инженера.
+Вопрос для отработки: "${activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}"
+Эталонный ответ: "${activeQuestion?.referenceAnswer || ''}"
+${activeChunk ? `АКТИВНЫЙ ЧАНК ДЛЯ ОТРАБОТКИ: "${activeChunk.title}" (Якоря чанка: ${activeChunk.anchorIds.join(', ')}). Фокусируйся строго на содержании этого блока!` : 'ОТРАБОТКА ПОЛНОГО ОТВЕТА (все смысловые блоки).'}
+
+ИНВАРИАНТЫ ТВОЕГО ПОВЕДЕНИЯ:
+1. ТУРН 0: Поприветствуй кандидата уверенным голосом тренера Ольги и четко объяви задачу: ${activeChunk ? `«Отрабатываем блок: ${activeChunk.title}. Твоя задача — назвать ключевые якоря. Поехали!»` : `«Отрабатываем ответ на вопрос: ${activeQuestion?.canonicalQuestion || 'Расскажите о себе'}. Говори уверенно, называй якоря. Начинай!»`}. НЕ вызывай инструментов на Турне 0!
+2. ВНИМАТЕЛЬНО СЛУШАЙ (ПРАВИЛО ПАУЗЫ): Если кандидат говорит связно, факты верны и стоп-слов нет — МОЛЧИ и дай развернуть мысль. Не перебивай на полуслове!
+3. МОМЕНТАЛЬНЫЙ СТОП НА ОШИБКАХ (IN-FLIGHT CORRECTION): Если кандидат делает паузу после фразы со стоп-словом («сидела дома», «делала пет-проект», «брала заказы», «устала») или искажает факты досье (занижает стаж, путает статьи закона или цифры) — сразу останови: «Стоп. [Назови ошибку]. В твоем досье это называется [правильная формулировка]. Переговори эту фразу прямо сейчас!».
+4. МГНОВЕННЫЙ ОТВЕТ НА ПРОСЬБУ О ПОМОЩИ: Если кандидат говорит «подскажи», «какая статья», «что дальше» или «забыла цифру» — сразу назови точный факт из досье в 1 предложении и добавь: «Повтори теперь своими словами!».
+5. ТОЧНОСТЬ ФАКТОВ VS СВОБОДА ФОРМУЛИРОВОК: Требуй дословной точности ТОЛЬКО для юридических статей (ст. 2 и 14 ФЗ-422, ст. 65 ТК РФ), документов (СТД-СФР, КНД 1122035), цифр (7+ лет, 15+ млн, 2 200 RPS k6) и зарплаты (310k-330k net). Связки, переходы и мотивацию кандидат формулирует свободно своими словами. Не заставляй зубрить каждое слово!
+6. НИКАКИХ ОЦЕНОК И СКОРИНГОВ: В режиме репетиции КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО вызывать инструменты оценки ("emit_hr_round_evaluation" или "submit_hr_evaluation"). Никаких баллов. Только живой голосовой разбор и прогоны!`
+      : mode === 'rapid_fire_micro_drill'
       ? `=== РЕЖИМ: ВЫСОКОЧАСТОТНЫЙ MICRO-DRILL (RAPID-FIRE MOTOR TRAINING) ===
 Твоя цель: отработать рефлекторную мышечную память ответа на КОНКРЕТНЫЙ вопрос:
 Вопрос для отработки: "${activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}"

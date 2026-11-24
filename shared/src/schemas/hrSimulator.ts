@@ -132,14 +132,16 @@ export type JobContext = Static<typeof JobContextSchema>;
 
 export const HrSessionModeSchema = Type.Union([
   Type.Literal('full_screening_simulation'),
-  Type.Literal('rapid_fire_micro_drill')
+  Type.Literal('rapid_fire_micro_drill'),
+  Type.Literal('tutor_rehearsal')
 ]);
 export type HrSessionMode = Static<typeof HrSessionModeSchema>;
 
 export const HrPersonaIdSchema = Type.Union([
   Type.Literal('friendly_sourcer'),
   Type.Literal('bank_compliance_officer'),
-  Type.Literal('behavioral_conflict_hunter')
+  Type.Literal('behavioral_conflict_hunter'),
+  Type.Literal('mentor_coach')
 ]);
 export type HrPersonaId = Static<typeof HrPersonaIdSchema>;
 
@@ -190,6 +192,17 @@ export type HrAnchorCard = Static<typeof HrAnchorCardSchema>;
 // 6. QUESTION RUBRICS & MATRIX
 // ============================================================================
 
+export const HrQuestionChunkSchema = Type.Object({
+  id: Type.String(),
+  title: Type.String(),
+  anchorIds: Type.Array(Type.String()),
+  targetDurationSec: Type.Object({
+    minSec: Type.Integer({ default: 20 }),
+    maxSec: Type.Integer({ default: 35 })
+  })
+});
+export type HrQuestionChunk = Static<typeof HrQuestionChunkSchema>;
+
 export const HrQuestionRubricItemSchema = Type.Object({
   id: Type.String(),
   title: Type.String(),
@@ -202,6 +215,7 @@ export const HrQuestionRubricItemSchema = Type.Object({
   }),
   requiredAnchors: Type.Array(HrAnchorCardSchema),
   forbiddenPatterns: Type.Array(Type.String()),
+  chunks: Type.Optional(Type.Array(HrQuestionChunkSchema)),
   phase: Type.Optional(HrSimulationPhaseSchema)
 });
 export type HrQuestionRubricItem = Static<typeof HrQuestionRubricItemSchema>;

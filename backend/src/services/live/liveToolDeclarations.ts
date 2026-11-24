@@ -302,7 +302,7 @@ export function getLiveToolDeclarations(sessionType: string = 'interview', tutor
     );
   }
 
-  if (isHrSessionType(sessionType)) {
+  if (isHrSessionType(sessionType) && sessionType !== 'hr_tutor') {
     toolDeclarations.push({
       name: 'advance_hr_phase',
       description: 'Вызывается ИИ-рекрутером для перехода к следующей смысловой фазе скрининга (например от small talk к самопрезентации или к комплаенсу)',

@@ -23,7 +23,7 @@ export interface StreamRouterOptions {
   upstreamWsUrl?: string;
   sessionId?: string;
   questionId?: string;
-  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   tutorMode?: string;
   bugTitle?: string;
   questionText?: string;

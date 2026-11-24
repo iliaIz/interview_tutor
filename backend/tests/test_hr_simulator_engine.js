@@ -192,6 +192,43 @@ async function runAllTests() {
     console.log('  ✅ Suite 5 passed: Orchestrator state machine & phase dispatch verified.');
   }
 
+  // --------------------------------------------------------------------------
+  // SUITE 6: Spec 38 Mentor Coach & Rehearsal Directives Verification
+  // --------------------------------------------------------------------------
+  console.log('\n🔹 [Suite 6] Spec 38: Mentor Coach Rehearsal & Chunking Directives');
+  {
+    const dossier = getCandidateDossier();
+    const job = getJobContext();
+    const pitchQ = getHrQuestion('hr_q0_elevator_pitch') || getHrQuestion('q01_elevator_pitch');
+    assert.ok(pitchQ.chunks && pitchQ.chunks.length >= 2, 'Elevator pitch must have at least 2 chunks');
+
+    const chunk1 = pitchQ.chunks[0];
+    const tutorPrompt = buildHrSimulatorSystemPrompt({
+      dossier,
+      jobContext: job,
+      mode: 'tutor_rehearsal',
+      personaId: 'mentor_coach',
+      activeQuestion: pitchQ,
+      activeChunk: chunk1,
+      voiceName: 'Aoede'
+    });
+
+    assert.ok(tutorPrompt.includes('ОЛЬГА'), 'Prompt must identify coach Olga');
+    assert.ok(tutorPrompt.includes('TUTOR REHEARSAL'), 'Prompt must include tutor rehearsal mode');
+    assert.ok(tutorPrompt.includes(chunk1.title), 'Prompt must focus on active chunk title');
+    assert.ok(tutorPrompt.includes('МОМЕНТАЛЬНЫЙ СТОП НА ОШИБКАХ'), 'Prompt must mandate in-flight stop on errors');
+    assert.ok(tutorPrompt.includes('МГНОВЕННЫЙ ОТВЕТ НА ПРОСЬБУ О ПОМОЩИ'), 'Prompt must mandate instant answer on help request');
+    assert.ok(tutorPrompt.includes('ТОЧНОСТЬ ФАКТОВ VS СВОБОДА ФОРМУЛИРОВОК'), 'Prompt must define epistemic precision boundary');
+    assert.ok(tutorPrompt.includes('НИКАКИХ ОЦЕНОК И СКОРИНГОВ'), 'Prompt must prohibit scoring in rehearsal');
+
+    // Tool suppression in hr_tutor
+    const tutorTools = getLiveToolDeclarations('hr_tutor');
+    const hrEvalTools = tutorTools.filter((t) => ['emit_hr_round_evaluation', 'submit_hr_evaluation'].includes(t.name));
+    assert.strictEqual(hrEvalTools.length, 0, 'Rehearsal mode (hr_tutor) must NOT expose evaluation tools');
+
+    console.log('  ✅ Suite 6 passed: Spec 38 mentor coach & rehearsal invariants verified.');
+  }
+
   console.log('\n========================================================================');
   console.log('🎉 ALL HR SIMULATOR ENGINE INVARIANT SUITES PASSED SUCCESSFULLY!');
   console.log('========================================================================\n');

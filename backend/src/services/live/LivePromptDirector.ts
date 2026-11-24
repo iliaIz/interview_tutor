@@ -58,7 +58,10 @@ export class LivePromptDirector {
       challengeTrack: config.challengeTrack,
       workspaceManifest: session.workspaceManifest,
       academyBridgeContext: session.academyBridgeContext || (config.academyCourse ? { courseId: config.academyCourse, stepId: config.academyStep } : undefined),
-      seniorReview: session.seniorReview
+      seniorReview: session.seniorReview,
+      questionId: config.questionId,
+      chunkId: config.chunkId,
+      hrMode: config.hrMode
     });
 
     const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode);

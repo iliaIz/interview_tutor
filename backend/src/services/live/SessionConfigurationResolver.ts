@@ -125,7 +125,10 @@ export class SessionConfigurationResolver {
       enableSilenceClarification: query.enableSilenceClarification === 'true',
       debugStep: query.debugStep !== undefined ? parseInt(String(query.debugStep), 10) : undefined,
       academyCourse: (query.academyCourse as string) || undefined,
-      academyStep: (query.academyStep as string) || undefined
+      academyStep: (query.academyStep as string) || undefined,
+      hrMode: (query.hrMode as any) || undefined,
+      hrPersonaId: (query.hrPersonaId as any) || undefined,
+      chunkId: (query.chunkId as string) || undefined
     };
 
     SessionConfigurationResolver.mergeInitFrame(config, rawInitFrame);

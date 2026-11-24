@@ -26,6 +26,8 @@ import { buildSystemDesignLivePrompt } from './liveSystemDesignPromptBuilder';
 import { extractDefaultAnchors, WeightedAnchor, buildWeightedRubric } from './liveRubricBuilder';
 import { buildMockInterviewLivePrompt } from './liveMockInterviewPromptBuilder';
 import { buildTutorSessionLivePrompt } from './liveTutorSessionPromptBuilder';
+import { buildHrSimulatorSystemPrompt } from './hrPromptBuilder';
+import { getCandidateDossier, getJobContext, getHrQuestion, getHrQuestionChunk } from './hrContextResolver';
 
 export {
   LIVE_TOOL_CAPABILITY_DIRECTIVES,
@@ -50,11 +52,13 @@ export function buildSystemPrompt(params: {
   customPromptOverride?: string;
   questionIndex?: number;
   totalQuestions?: number;
-  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | string;
+  sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
   candidateDossier?: any;
   jobContext?: any;
   hrQuestion?: any;
   hrMode?: any;
+  questionId?: string;
+  chunkId?: string;
   tutorMode?: 'deep_dive' | 'free_chat' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt' | 'practice_pair';
   bugTitle?: string;
   bugExplanation?: string;
@@ -164,6 +168,25 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
 
   const rubric = buildWeightedRubric(referenceAnswer || '', questionText || '', anchors);
   const anchorsFormatted = rubric.map((r, i) => `  [Критерий ${i + 1}: ${r.id}] (Вес: ${r.weight} б.) ${r.title}\n    Суть: ${r.description}`).join('\n');
+
+  // === HR VOICE SIMULATOR & REHEARSAL TUTOR SESSION ===
+  if (isHrSessionType(sessionType)) {
+    const hrMode = params.hrMode || (sessionType === 'hr_simulation' ? 'full_screening_simulation' : (sessionType === 'hr_tutor' ? 'tutor_rehearsal' : 'rapid_fire_micro_drill'));
+    const dossier = getCandidateDossier();
+    const jobContext = getJobContext();
+    const activeQuestion = getHrQuestion((params as any).questionId);
+    const activeChunk = (params as any).chunkId ? getHrQuestionChunk((params as any).questionId, (params as any).chunkId) : undefined;
+    return buildHrSimulatorSystemPrompt({
+      dossier,
+      jobContext,
+      mode: hrMode,
+      personaId: (params.persona as any) || (sessionType === 'hr_tutor' ? 'mentor_coach' : 'friendly_sourcer'),
+      activeQuestion,
+      activeChunk,
+      voiceName,
+      userGender
+    });
+  }
 
   // === SYSTEM DESIGN LIVE BAR-RAISER DEFENSE ===
   if (sessionType === 'system_design') {

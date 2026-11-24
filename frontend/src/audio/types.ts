@@ -27,10 +27,10 @@ export interface VoiceEngineConfig {
   topic?: string;
   questionText?: string;
   referenceAnswer?: string;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | string;
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
   dossierId?: string;
   targetQuestionId?: string;
-  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill';
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal';
   tutorMode?: string;
   voice?: string;
   userGender?: string;
@@ -91,6 +91,7 @@ export interface VoiceEngineConfig {
   jobId?: string;
   hrPersonaId?: string;
   questionMatrixId?: string;
+  chunkId?: string;
 }
 
 export interface LiveSessionInitFrame {
@@ -144,6 +145,7 @@ export interface LiveSessionInitFrame {
   jobId?: string;
   hrPersonaId?: string;
   questionMatrixId?: string;
+  chunkId?: string;
 }
 
 export interface VoiceEvaluationResult {

@@ -17,17 +17,20 @@ import {
   Search,
   BookOpen,
   Mic,
-  List
+  List,
+  GraduationCap
 } from 'lucide-react';
 
 export const HrScreeningArena: React.FC = () => {
-  const [mode, setMode] = useState<HrSessionMode>('rapid_fire_micro_drill');
-  const [personaId, setPersonaId] = useState<HrPersonaId>('friendly_sourcer');
+  const [mode, setMode] = useState<HrSessionMode>('tutor_rehearsal');
+  const [personaId, setPersonaId] = useState<HrPersonaId>('mentor_coach');
   const [isCatalogOpenMobile, setIsCatalogOpenMobile] = useState(false);
 
   const activeTab = useHrSimulatorStore((state) => state.activeTab);
   const setActiveTab = useHrSimulatorStore((state) => state.setActiveTab);
   const activeQuestion = useHrSimulatorStore((state) => state.activeQuestion);
+  const selectedChunkId = useHrSimulatorStore((state) => state.selectedChunkId);
+  const setSelectedChunkId = useHrSimulatorStore((state) => state.setSelectedChunkId);
   const fetchQuestions = useHrSimulatorStore((state) => state.fetchQuestions);
   const storeAnchorCards = useHrSimulatorStore((state) => state.anchorCards);
   const initializeSession = useHrSimulatorStore((state) => state.initializeSession);
@@ -83,18 +86,20 @@ export const HrScreeningArena: React.FC = () => {
     if (!questionToRun) return;
 
     setActiveTab('voice');
-    initializeSession(mode, personaId, questionToRun);
+    const effectivePersona = mode === 'tutor_rehearsal' ? 'mentor_coach' : personaId;
+    initializeSession(mode, effectivePersona, questionToRun);
 
     await connect({
-      sessionType: mode === 'full_screening_simulation' ? 'hr_simulation' : 'hr_micro_drill',
-      persona: personaId,
+      sessionType: mode === 'tutor_rehearsal' ? 'hr_tutor' : (mode === 'full_screening_simulation' ? 'hr_simulation' : 'hr_micro_drill'),
+      persona: effectivePersona,
       hrMode: mode,
-      hrPersonaId: personaId,
+      hrPersonaId: effectivePersona,
       dossierId: 'canonical_senior_java',
       jobId: 'fintech_highload_expansion',
       questionId: questionToRun.id,
       topic: questionToRun.title,
-      questionText: questionToRun.canonicalQuestion
+      questionText: questionToRun.canonicalQuestion,
+      chunkId: selectedChunkId || undefined
     });
   };
 
@@ -144,7 +149,17 @@ export const HrScreeningArena: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2">
               <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">
                 <button
-                  onClick={() => setMode('rapid_fire_micro_drill')}
+                  onClick={() => { setMode('tutor_rehearsal'); setPersonaId('mentor_coach'); }}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                    mode === 'tutor_rehearsal'
+                      ? 'bg-pastel-accentRose text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Репетиция
+                </button>
+                <button
+                  onClick={() => { setMode('rapid_fire_micro_drill'); if (personaId === 'mentor_coach') setPersonaId('friendly_sourcer'); }}
                   className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
                     mode === 'rapid_fire_micro_drill'
                       ? 'bg-pastel-accentRose text-white'
@@ -154,7 +169,7 @@ export const HrScreeningArena: React.FC = () => {
                   Микро-дрилл
                 </button>
                 <button
-                  onClick={() => setMode('full_screening_simulation')}
+                  onClick={() => { setMode('full_screening_simulation'); if (personaId === 'mentor_coach') setPersonaId('friendly_sourcer'); }}
                   className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
                     mode === 'full_screening_simulation'
                       ? 'bg-pastel-accentRose text-white'
@@ -165,35 +180,42 @@ export const HrScreeningArena: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">
-                <button
-                  onClick={() => setPersonaId('friendly_sourcer')}
-                  className={`p-1.5 rounded-lg transition cursor-pointer ${
-                    personaId === 'friendly_sourcer' ? 'bg-pink-100 text-pink-700' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Елена — Дружелюбный сорсер"
-                >
-                  <HeartHandshake className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setPersonaId('bank_compliance_officer')}
-                  className={`p-1.5 rounded-lg transition cursor-pointer ${
-                    personaId === 'bank_compliance_officer' ? 'bg-amber-100 text-amber-800' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Виктория — Офицер комплаенса"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setPersonaId('behavioral_conflict_hunter')}
-                  className={`p-1.5 rounded-lg transition cursor-pointer ${
-                    personaId === 'behavioral_conflict_hunter' ? 'bg-purple-100 text-purple-700' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Дарья — Охотник за конфликтами (STAR)"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-              </div>
+              {mode === 'tutor_rehearsal' ? (
+                <div className="flex items-center px-2 py-1 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold gap-1.5" title="Ольга — Наставник по моторике ответов (Aoede)">
+                  <GraduationCap className="w-4 h-4 text-purple-600" />
+                  <span>Ольга (Коуч)</span>
+                </div>
+              ) : (
+                <div className="flex p-1 bg-white border border-slate-200 rounded-xl text-xs">
+                  <button
+                    onClick={() => setPersonaId('friendly_sourcer')}
+                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                      personaId === 'friendly_sourcer' ? 'bg-pink-100 text-pink-700' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="Елена — Дружелюбный сорсер"
+                  >
+                    <HeartHandshake className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPersonaId('bank_compliance_officer')}
+                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                      personaId === 'bank_compliance_officer' ? 'bg-amber-100 text-amber-800' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="Виктория — Офицер комплаенса"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPersonaId('behavioral_conflict_hunter')}
+                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                      personaId === 'behavioral_conflict_hunter' ? 'bg-purple-100 text-purple-700' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="Дарья — Охотник за конфликтами (STAR)"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -255,13 +277,49 @@ export const HrScreeningArena: React.FC = () => {
                     «{activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}»
                   </p>
 
+                  {activeQuestion?.chunks && activeQuestion.chunks.length > 0 && (
+                    <div className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-3 text-left">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                        <BookOpen className="w-3 h-3 text-pastel-accentRose" />
+                        Масштаб отработки (Чанкование)
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChunkId(null)}
+                          className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                            selectedChunkId === null
+                              ? 'bg-pastel-accentRose text-white shadow-2xs'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Весь ответ целиком
+                        </button>
+                        {activeQuestion.chunks.map((ch) => (
+                          <button
+                            key={ch.id}
+                            type="button"
+                            onClick={() => setSelectedChunkId(ch.id)}
+                            className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                              selectedChunkId === ch.id
+                                ? 'bg-pastel-accentRose text-white shadow-2xs'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            {ch.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-5 text-left">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
                       <Briefcase className="w-3 h-3 text-pastel-accentRose" />
                       Смысловые якоря ответа
                     </div>
                     <div className="flex flex-wrap gap-1.5 text-xs">
-                      {(activeQuestion?.requiredAnchors || []).map((a) => (
+                      {(storeAnchorCards || []).map((a) => (
                         <span key={a.id} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700 text-[11px]">
                           {a.label}
                         </span>
@@ -274,7 +332,9 @@ export const HrScreeningArena: React.FC = () => {
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-pastel-accentRose hover:opacity-90 text-white font-bold text-sm shadow-md transition transform active:scale-95 cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
-                    <span>Начать созвон ({activeQuestion?.targetDurationSec.minSec || 60}–{activeQuestion?.targetDurationSec.maxSec || 80}с)</span>
+                    <span>
+                      {mode === 'tutor_rehearsal' ? 'Начать репетицию' : 'Начать созвон'} ({activeQuestion?.targetDurationSec.minSec || 60}–{activeQuestion?.targetDurationSec.maxSec || 80}с)
+                    </span>
                   </button>
                 </div>
               ) : (
@@ -295,8 +355,10 @@ export const HrScreeningArena: React.FC = () => {
         </main>
       </div>
 
-      {/* Scorecard Modal on Round Completion */}
-      <HrScorecardModal onRetry={() => handleStartSimulation()} />
+      {/* Scorecard Modal on Round Completion (examiner modes only) */}
+      {mode !== 'tutor_rehearsal' && (
+        <HrScorecardModal onRetry={() => handleStartSimulation()} />
+      )}
     </div>
   );
 };

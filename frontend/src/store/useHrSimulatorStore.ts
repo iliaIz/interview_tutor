@@ -30,6 +30,7 @@ export interface HrSimulatorState {
   activeTab: 'study' | 'voice';
   questionsList: HrQuestionRubricItem[];
   selectedQuestionId: string | null;
+  selectedChunkId: string | null;
   isLoadingQuestions: boolean;
 
   // Real-Time Speech Telemetry
@@ -60,6 +61,7 @@ export interface HrSimulatorState {
   setActiveTab: (tab: 'study' | 'voice') => void;
   fetchQuestions: () => Promise<void>;
   selectQuestion: (questionId: string) => void;
+  setSelectedChunkId: (chunkId: string | null) => void;
   nextQuestion: () => void;
   prevQuestion: () => void;
 }
@@ -77,6 +79,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   activeTab: 'study',
   questionsList: [],
   selectedQuestionId: null,
+  selectedChunkId: null,
   isLoadingQuestions: false,
 
   elapsedTurnSec: 0,
@@ -91,7 +94,15 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   isScorecardOpen: false,
 
   initializeSession: (mode, personaId, question) => {
-    const cards = (question.requiredAnchors || []).map((card) => ({
+    const chunkId = get().selectedChunkId;
+    let targetAnchors = question.requiredAnchors || [];
+    if (chunkId && question.chunks) {
+      const chunk = question.chunks.find((c) => c.id === chunkId);
+      if (chunk) {
+        targetAnchors = targetAnchors.filter((a) => chunk.anchorIds.includes(a.id));
+      }
+    }
+    const cards = targetAnchors.map((card) => ({
       ...card,
       status: 'PENDING' as const,
       hitTimestampMs: undefined,
@@ -101,7 +112,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
     set({
       mode,
       personaId,
-      currentPhase: mode === 'rapid_fire_micro_drill' ? 'phase2_elevator_pitch' : 'phase1_small_talk',
+      currentPhase: mode === 'full_screening_simulation' ? 'phase1_small_talk' : 'phase2_elevator_pitch',
       activeQuestion: question,
       selectedQuestionId: question.id,
       anchorCards: cards,
@@ -188,6 +199,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   },
 
   setScorecard: (scorecard) => {
+    if (get().mode === 'tutor_rehearsal') return;
     set({
       latestScorecard: scorecard,
       isScorecardOpen: true
@@ -200,7 +212,15 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
 
   resetForRetry: () => {
     const activeQ = get().activeQuestion;
-    const cards = (activeQ?.requiredAnchors || []).map((card) => ({
+    const chunkId = get().selectedChunkId;
+    let targetAnchors = activeQ?.requiredAnchors || [];
+    if (chunkId && activeQ?.chunks) {
+      const chunk = activeQ.chunks.find((c) => c.id === chunkId);
+      if (chunk) {
+        targetAnchors = targetAnchors.filter((a) => chunk.anchorIds.includes(a.id));
+      }
+    }
+    const cards = targetAnchors.map((card) => ({
       ...card,
       status: 'PENDING' as const,
       hitTimestampMs: undefined,
@@ -220,6 +240,32 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       latestScorecard: null,
       isScorecardOpen: false
     }));
+  },
+
+  setSelectedChunkId: (chunkId) => {
+    const q = get().activeQuestion;
+    if (!q) {
+      set({ selectedChunkId: chunkId });
+      return;
+    }
+    const allAnchors = q.requiredAnchors || [];
+    let targetAnchors = allAnchors;
+    if (chunkId && q.chunks) {
+      const chunk = q.chunks.find((c) => c.id === chunkId);
+      if (chunk) {
+        targetAnchors = allAnchors.filter((a) => chunk.anchorIds.includes(a.id));
+      }
+    }
+    const cards = targetAnchors.map((card) => ({
+      ...card,
+      status: 'PENDING' as const,
+      hitTimestampMs: undefined,
+      detectionLatencyMs: undefined
+    }));
+    set({
+      selectedChunkId: chunkId,
+      anchorCards: cards
+    });
   },
 
   // Pedagogical Suite Actions
@@ -263,6 +309,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
 
       set({
         selectedQuestionId: found.id,
+        selectedChunkId: null,
         activeQuestion: found,
         anchorCards: cards,
         drillAttemptsCount: 1,

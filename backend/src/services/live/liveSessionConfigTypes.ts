@@ -23,7 +23,7 @@ export interface LiveSessionResolvedConfig extends LiveSessionPromptConfig {
   sessionId: string;
   userId: string;
   authenticatedUser: any;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill';
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   tutorMode: any;
   questionId: string;
   topic: string;
@@ -65,6 +65,8 @@ export interface LiveSessionResolvedConfig extends LiveSessionPromptConfig {
   jobContext?: any;
   hrQuestion?: any;
   hrMode?: any;
+  chunkId?: string;
+  hrPersonaId?: any;
   targetQuestionId?: string;
   resumptionHandle?: string;
 }

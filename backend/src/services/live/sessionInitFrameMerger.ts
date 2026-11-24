@@ -36,5 +36,8 @@ export function mergeInitFrame(config: LiveSessionResolvedConfig, rawInitFrame?:
   if (typeof init.questionIndex === 'number') config.questionIndex = init.questionIndex;
   if (typeof init.totalQuestions === 'number') config.totalQuestions = init.totalQuestions;
   if (typeof init.isRetry === 'boolean') config.isRetry = init.isRetry;
+  if (init.hrMode) config.hrMode = init.hrMode;
+  if (init.hrPersonaId) config.hrPersonaId = init.hrPersonaId;
+  if (init.chunkId) config.chunkId = init.chunkId;
   if (init.sessionId) config.sessionId = init.sessionId;
 }
