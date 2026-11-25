@@ -260,7 +260,8 @@ async function runAllTests() {
       totalBeats: beats.length,
       voiceName: 'Kore'
     });
-    assert.ok(guidedPrompt.includes('ЛЕСТНИЦА 4 СТУПЕНЕЙ'), 'Guided prompt must describe 4-rung ladder');
+    assert.ok(guidedPrompt.includes('ЛЕСТНИЦА СТУПЕНЕЙ'), 'Guided prompt must describe fading scaffolding ladder');
+    assert.ok(guidedPrompt.includes('Ступень 4'), 'All-route guided prompt must include Rung 4 Snowball Bridge');
     assert.ok(guidedPrompt.includes('АНТИ-ПОПУГАЯ'), 'Guided prompt must enforce paraphrase diversity');
     assert.ok(guidedPrompt.includes('advance_hr_learning_step'), 'Guided prompt must wire advance_hr_learning_step tool');
 
