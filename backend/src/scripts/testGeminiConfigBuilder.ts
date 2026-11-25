@@ -264,13 +264,13 @@ async function runBlueprintBuilderTests() {
 
   // Test 10: session_init merges hrMode + startBeatId + beatScope into HR blueprint before connect
   const hrReq = {
-    url: '/ws/live?ticket=valid_ticket&sessionType=hr_tutor&questionId=q01_elevator_pitch&hrMode=tutor_rehearsal',
+    url: '/ws/live?ticket=valid_ticket&sessionType=hr_tutor&questionId=hr_q0_elevator_pitch&hrMode=tutor_rehearsal',
     headers: {}
   } as unknown as http.IncomingMessage;
   const hrInitFrame = {
     type: 'session_init',
     hrMode: 'guided_zero_start',
-    startBeatId: 'q01_b2',
+    startBeatId: 'beat_0_2_scale_kafka',
     beatScope: 'single_beat',
     vadPauseMs: 2100
   };
@@ -302,9 +302,10 @@ async function runBlueprintBuilderTests() {
     {
       sessionType: 'tutor',
       tutorMode: 'practice_pair',
-      bugTitle: 'TokenBucket',
-      questionText: 'TokenBucket',
-      seniorReview: earlyInitFrame.seniorReview
+      questionId: 'kata_rate_limiter',
+      academyBridgeContext: earlyInitFrame.academyBridgeContext,
+      seniorReview: earlyInitFrame.seniorReview,
+      workspaceManifest: earlyInitFrame.workspaceManifest
     },
     stubDeps
   );
