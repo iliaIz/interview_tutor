@@ -23,6 +23,7 @@ import {
   loadMasteredBeatsMap,
   mergeMasteredBeatsForQuestion
 } from './hrMasteryStorage';
+import { resolveQuestionAnchorCards } from './hrAnchorResolver';
 
 export interface HrSimulatorState {
   // Session Configuration & Pedagogical State
@@ -120,26 +121,14 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
 
   initializeSession: (mode, personaId, question, guidedOpts) => {
     const chunkId = mode === 'guided_zero_start' ? null : get().selectedChunkId;
-    let targetAnchors = question.requiredAnchors || [];
-    if (mode === 'guided_zero_start') {
-      const effectiveScope = guidedOpts?.beatScope || get().guidedBeatScope;
-      const effectiveBeatId = guidedOpts?.startBeatId !== undefined ? guidedOpts.startBeatId : get().selectedStartBeatId;
-      if (effectiveScope === 'single_beat' && effectiveBeatId && question.microBeats) {
-        const beat = question.microBeats.find((b) => b.id === effectiveBeatId);
-        if (beat) targetAnchors = targetAnchors.filter((a) => beat.anchorIds.includes(a.id));
-      }
-    } else if (chunkId && question.chunks) {
-      const chunk = question.chunks.find((c) => c.id === chunkId);
-      if (chunk) {
-        targetAnchors = targetAnchors.filter((a) => chunk.anchorIds.includes(a.id));
-      }
-    }
-    const cards = targetAnchors.map((card) => ({
-      ...card,
-      status: 'PENDING' as const,
-      hitTimestampMs: undefined,
-      detectionLatencyMs: undefined
-    }));
+    const effectiveScope = guidedOpts?.beatScope || get().guidedBeatScope;
+    const effectiveBeatId = guidedOpts?.startBeatId !== undefined ? guidedOpts.startBeatId : get().selectedStartBeatId;
+    const cards = resolveQuestionAnchorCards(question, {
+      mode,
+      chunkId,
+      startBeatId: effectiveBeatId,
+      beatScope: effectiveScope
+    });
 
     set({
       mode,
@@ -259,25 +248,17 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   },
 
   resetForRetry: () => {
-    const activeQ = get().activeQuestion;
-    const chunkId = get().selectedChunkId;
-    let targetAnchors = activeQ?.requiredAnchors || [];
-    if (chunkId && activeQ?.chunks) {
-      const chunk = activeQ.chunks.find((c) => c.id === chunkId);
-      if (chunk) {
-        targetAnchors = targetAnchors.filter((a) => chunk.anchorIds.includes(a.id));
-      }
-    }
-    const cards = targetAnchors.map((card) => ({
-      ...card,
-      status: 'PENDING' as const,
-      hitTimestampMs: undefined,
-      detectionLatencyMs: undefined
-    }));
+    const state = get();
+    const cards = resolveQuestionAnchorCards(state.activeQuestion, {
+      mode: state.mode,
+      chunkId: state.selectedChunkId,
+      startBeatId: state.selectedStartBeatId,
+      beatScope: state.guidedBeatScope
+    });
 
-    set((state) => ({
+    set((prev) => ({
       anchorCards: cards,
-      drillAttemptsCount: state.drillAttemptsCount + 1,
+      drillAttemptsCount: prev.drillAttemptsCount + 1,
       elapsedTurnSec: 0,
       rollingWpm: 0,
       pacingStatus: 'optimal',
@@ -292,25 +273,12 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   },
 
   setSelectedChunkId: (chunkId) => {
-    const q = get().activeQuestion;
-    if (!q) {
+    const state = get();
+    if (!state.activeQuestion) {
       set({ selectedChunkId: chunkId });
       return;
     }
-    const allAnchors = q.requiredAnchors || [];
-    let targetAnchors = allAnchors;
-    if (chunkId && q.chunks) {
-      const chunk = q.chunks.find((c) => c.id === chunkId);
-      if (chunk) {
-        targetAnchors = allAnchors.filter((a) => chunk.anchorIds.includes(a.id));
-      }
-    }
-    const cards = targetAnchors.map((card) => ({
-      ...card,
-      status: 'PENDING' as const,
-      hitTimestampMs: undefined,
-      detectionLatencyMs: undefined
-    }));
+    const cards = resolveQuestionAnchorCards(state.activeQuestion, { mode: state.mode, chunkId });
     set({
       selectedChunkId: chunkId,
       anchorCards: cards
@@ -349,12 +317,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
     const list = get().questionsList;
     const found = list.find((q) => q.id === questionId);
     if (found) {
-      const cards = (found.requiredAnchors || []).map((card) => ({
-        ...card,
-        status: 'PENDING' as const,
-        hitTimestampMs: undefined,
-        detectionLatencyMs: undefined
-      }));
+      const cards = resolveQuestionAnchorCards(found);
 
       set({
         selectedQuestionId: found.id,

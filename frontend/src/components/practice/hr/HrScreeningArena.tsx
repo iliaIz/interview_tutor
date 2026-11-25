@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLiveVoiceSession } from '../../../audio/useLiveVoiceSession';
 import { ClientKeywordSpotter } from '../../../audio/ClientKeywordSpotter';
 import { useHrSimulatorStore } from '../../../store/useHrSimulatorStore';
+import { formatHrStartCtaLabel, resolveDisplayAnchors } from '../../../store/hrAnchorResolver';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
 import { HrVoiceHUD } from './HrVoiceHUD';
@@ -301,27 +302,20 @@ export const HrScreeningArena: React.FC = () => {
                       Смысловые якоря ответа
                     </div>
                     <div className="flex flex-wrap gap-1.5 text-xs">
-                      {(() => {
-                        const beats = activeQuestion?.microBeats || [];
-                        const activeBeat =
-                          beats.find((b) => b.id === selectedStartBeatId) || beats[0];
-                        const displayAnchors =
-                          mode === 'guided_zero_start' && activeQuestion
-                            ? guidedBeatScope === 'single_beat' && activeBeat
-                              ? (activeQuestion.requiredAnchors || []).filter((a) =>
-                                  activeBeat.anchorIds.includes(a.id)
-                                )
-                              : activeQuestion.requiredAnchors || []
-                            : storeAnchorCards || [];
-                        return displayAnchors.map((a) => (
-                          <span
-                            key={a.id}
-                            className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700 text-[11px]"
-                          >
-                            {a.label}
-                          </span>
-                        ));
-                      })()}
+                      {resolveDisplayAnchors(
+                        activeQuestion,
+                        storeAnchorCards,
+                        mode,
+                        selectedStartBeatId,
+                        guidedBeatScope
+                      ).map((a) => (
+                        <span
+                          key={a.id}
+                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700 text-[11px]"
+                        >
+                          {a.label}
+                        </span>
+                      ))}
                     </div>
                   </div>
 
@@ -333,21 +327,7 @@ export const HrScreeningArena: React.FC = () => {
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
-                      {(() => {
-                        if (mode !== 'guided_zero_start') {
-                          return mode === 'tutor_rehearsal'
-                            ? `Начать репетицию (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`
-                            : `Начать созвон (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`;
-                        }
-                        const beats = activeQuestion?.microBeats || [];
-                        const idx = selectedStartBeatId
-                          ? Math.max(0, beats.findIndex((b) => b.id === selectedStartBeatId))
-                          : 0;
-                        if (guidedBeatScope === 'single_beat' && beats[idx]) {
-                          return `Отработать только Блок ${idx + 1}: «${beats[idx].title}»`;
-                        }
-                        return `Начать с Блока ${idx + 1} из ${beats.length || 1} (весь маршрут)`;
-                      })()}
+                      {formatHrStartCtaLabel(activeQuestion, mode, selectedStartBeatId, guidedBeatScope)}
                     </span>
                   </button>
                 </div>
