@@ -45,8 +45,11 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
 
 ### Live Session & Transport
 - **Fast-Handoff VAD:** A hybrid speech boundary signaling mechanism (`{ realtimeInput: { audioStreamEnd: true } }`) dispatched upon candidate speech cessation to eliminate Gemini Live silence accumulation stalls without corrupting WebSocket frames.
-- **LiveSessionAggregate:** An encapsulated domain entity managing the lifecycle of a real-time multimodal session (watchdog timers, upstream Gemini WebSocket, downstream client WebSocket, state machine).
-- **Anemic Data Bag:** An anti-pattern where an object exposes 50+ mutable public fields without encapsulation or invariant protection (e.g., legacy `ProxySession`).
+- **LiveSessionAggregate:** An encapsulated domain entity managing the lifecycle of a real-time multimodal session (watchdog timers, upstream transport port, downstream client socket, state machine, turn custody).
+- **SessionTurnState:** Package-private mutable turn-custody collaborator hidden inside `LiveVoiceSession` so internal streaming mechanics never leak as a public data bag.
+- **LiveSessionBlueprint:** An immutable pre-flight session artifact containing resolved configuration, system directives, tool schemas, upstream setup builder, and Turn 0 greeting builder assembled before upstream connection opens.
+- **ChallengeSubmissionRepository:** Persistence owner for coding challenge manifests, canonical challenge identity resolution, and versioned evaluation verdict storage.
+- **Anemic Data Bag:** An anti-pattern where an object exposes dozens of mutable public fields without encapsulation or invariant protection (banned in public interfaces).
 - **Turn 0 Lockdown:** Architectural invariant preventing AI evaluators from submitting grading verdicts before the candidate has spoken during the greeting phase.
 
 ### Company Preparation & Relational Data Engines
