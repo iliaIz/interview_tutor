@@ -6,6 +6,7 @@
 
 import { StateCreator } from 'zustand';
 import { RoadmapStep } from '../../types/nextgen';
+import { ArenaWorkspaceCoordinator, resolveAcademyStepTarget } from '../../services/arenaNavigator';
 
 export interface AcademyBreadcrumbContext {
   courseId: string;
@@ -85,9 +86,6 @@ export const createAcademySlice: StateCreator<any, [], [], AcademySlice> = (set,
   },
 
   launchAcademyStepTarget: async (step, courseId, courseTitle) => {
-    const targetArena = step.targetArena || step.coreRequirements?.targetArena || step.coreRequirements?.taskType;
-    const targetScenarioId = step.targetScenarioId || step.coreRequirements?.targetScenarioId;
-
     set({
       academyBreadcrumbContext: {
         courseId,
@@ -101,59 +99,9 @@ export const createAcademySlice: StateCreator<any, [], [], AcademySlice> = (set,
       activeAcademyStepModal: null
     });
 
-    if (targetArena === 'transactions' || targetArena === 'spring_transactions') {
-      const scenId = targetScenarioId || 'self_invocation_bypass';
-      get().openTransactionLab(scenId);
-    } else if (targetArena === 'system_design' || targetArena === 'hld') {
-      const scenId = targetScenarioId || step.coreRequirements?.hldScenarioId || 'hld-scenario-01';
-      await get().openSystemDesignById(scenId);
-    } else if (targetArena === 'incident_triage' || targetArena === 'triage') {
-      const incId = targetScenarioId || step.coreRequirements?.triageIncidentId || 'triage-l0-01';
-      try {
-        const res = await fetch('/api/triage/incidents', { credentials: 'include' });
-        if (res.ok) {
-          const incidents = await res.json();
-          const found = incidents.find((i: any) => i.id === incId || i.slug === incId);
-          if (found) {
-            get().openTriageIncident(found);
-            set({ currentStudioTab: 'triage' });
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load triage incident:', e);
-      }
-      set({ currentStudioTab: 'triage' });
-    } else if (targetArena === 'testing_mutation' || targetArena === 'machine_coding' || targetArena === 'lld') {
-      const challId = targetScenarioId || step.coreRequirements?.lldChallengeSlug || 'rate-limiter-token-bucket';
-      try {
-        const res = await fetch('/api/practice/challenges', { credentials: 'include' });
-        if (res.ok) {
-          const challenges = await res.json();
-          const found = challenges.find((c: any) => c.id === challId || c.slug === challId);
-          if (found) {
-            get().openPracticeChallenge(found);
-            set({ currentStudioTab: 'practice' });
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load practice challenge:', e);
-      }
-      set({ currentStudioTab: 'practice' });
-    } else if (targetArena === 'oral_interview') {
-      set({
-        currentStudioTab: 'theory',
-        currentView: 'questions'
-      });
-    } else {
-      const topic = step.domain || step.coreRequirements?.theoryTopic || 'core';
-      get().setSelectedTopic(topic, 'Java Core & Spring');
-      set({
-        currentStudioTab: 'theory',
-        currentView: 'questions'
-      });
-    }
+    await ArenaWorkspaceCoordinator.launch(resolveAcademyStepTarget(step), undefined, {
+      getStore: () => get()
+    });
   },
 
   setActiveRoadmapId: (id) => set({ activeRoadmapId: id, activeAcademyCourseId: id }),

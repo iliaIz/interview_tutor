@@ -2,8 +2,10 @@ import { useAppStore } from '../store/useAppStore';
 import { TargetArena, CompanyPipelineStage, CompanyProfile } from '@interview-prep/shared';
 import { AudioPlayoutManager } from './AudioPlayoutManager';
 
+export type ExtendedTargetArena = TargetArena | 'transactions' | 'triage' | 'theory';
+
 export interface ArenaNavigationTarget {
-  arena: TargetArena;
+  arena: ExtendedTargetArena;
   entityId: string;
   contextTitle?: string;
   options?: {
@@ -19,18 +21,81 @@ export interface LocalStudioCallbacks {
   setIsVoiceOpen: (open: boolean) => void;
 }
 
+export interface ArenaCoordinatorStore {
+  openPracticeChallengeById: (idOrSlug: string) => Promise<boolean>;
+  openSystemDesignById: (scenarioIdOrAlias: string) => Promise<void>;
+  openTransactionLab: (scenarioId?: string) => void;
+  openTriageIncident: (incident: any) => void;
+  openTopicBugHunt: (topicId: string, topicName: string) => void;
+  openTopicQuestions: (topicId: string, topicName: string) => void;
+  setView: (view: 'topics' | 'questions' | 'study' | 'quiz') => void;
+  setStudioTab: (tab: any) => void;
+}
+
+export interface ArenaLaunchPorts {
+  getStore?: () => ArenaCoordinatorStore;
+  fetchTriageIncidents?: () => Promise<any[]>;
+}
+
+async function defaultFetchTriageIncidents(): Promise<any[]> {
+  const res = await fetch('/api/triage/incidents', { credentials: 'include' });
+  return res.ok ? res.json() : [];
+}
+
+/**
+ * Resolves an Academy roadmap step into a typed ArenaNavigationTarget
+ * so Academy and Company Studio share one canonical navigation seam (Spec 44).
+ */
+export function resolveAcademyStepTarget(step: any): ArenaNavigationTarget {
+  const targetArena = step?.targetArena || step?.coreRequirements?.targetArena || step?.coreRequirements?.taskType;
+  const targetScenarioId = step?.targetScenarioId || step?.coreRequirements?.targetScenarioId;
+
+  if (targetArena === 'transactions' || targetArena === 'spring_transactions') {
+    return { arena: 'transactions', entityId: targetScenarioId || 'self_invocation_bypass', contextTitle: step?.title };
+  }
+  if (targetArena === 'system_design' || targetArena === 'hld') {
+    return {
+      arena: 'system_design',
+      entityId: targetScenarioId || step?.coreRequirements?.hldScenarioId || 'hld-scenario-01',
+      contextTitle: step?.title
+    };
+  }
+  if (targetArena === 'incident_triage' || targetArena === 'triage') {
+    return {
+      arena: 'triage',
+      entityId: targetScenarioId || step?.coreRequirements?.triageIncidentId || 'triage-l0-01',
+      contextTitle: step?.title
+    };
+  }
+  if (targetArena === 'testing_mutation' || targetArena === 'machine_coding' || targetArena === 'lld') {
+    return {
+      arena: 'practice',
+      entityId: targetScenarioId || step?.coreRequirements?.lldChallengeSlug || 'rate-limiter-token-bucket',
+      contextTitle: step?.title
+    };
+  }
+  if (targetArena === 'oral_interview') {
+    return { arena: 'theory', entityId: '', contextTitle: step?.title };
+  }
+  return {
+    arena: 'theory',
+    entityId: step?.domain || step?.coreRequirements?.theoryTopic || 'core',
+    contextTitle: 'Java Core & Spring'
+  };
+}
+
 /**
  * Deterministically navigates to any assessment arena or challenge,
  * pre-hydrating target stores before transitioning views.
- * Eliminates dangling entity IDs and string-prefix sniffing.
- * File length limit: <= 350 lines (Rule 8).
+ * Eliminates duplicate store branching and dangling entity IDs (<= 180 lines).
  */
 export class ArenaWorkspaceCoordinator {
   public static async launch(
     target: ArenaNavigationTarget,
-    callbacks?: LocalStudioCallbacks
+    callbacks?: LocalStudioCallbacks,
+    ports?: ArenaLaunchPorts
   ): Promise<void> {
-    const store = useAppStore.getState();
+    const store = ports?.getStore ? ports.getStore() : useAppStore.getState();
 
     switch (target.arena) {
       case 'practice': {
@@ -38,8 +103,36 @@ export class ArenaWorkspaceCoordinator {
         break;
       }
 
+      case 'transactions': {
+        store.openTransactionLab(target.entityId || 'self_invocation_bypass');
+        break;
+      }
+
       case 'system_design': {
         await store.openSystemDesignById(target.entityId);
+        break;
+      }
+
+      case 'triage': {
+        try {
+          const fetcher = ports?.fetchTriageIncidents ?? defaultFetchTriageIncidents;
+          const incidents = await fetcher();
+          const found = incidents.find((i: any) => i.id === target.entityId || i.slug === target.entityId);
+          if (found) store.openTriageIncident(found);
+        } catch (e) {
+          console.error('[ArenaWorkspaceCoordinator] Failed to load triage incident:', e);
+        }
+        store.setStudioTab('triage');
+        break;
+      }
+
+      case 'theory': {
+        if (target.entityId) {
+          store.openTopicQuestions(target.entityId, target.contextTitle || 'Java Core & Spring');
+        } else {
+          store.setView('questions');
+        }
+        store.setStudioTab('theory');
         break;
       }
 
@@ -84,9 +177,6 @@ export class ArenaWorkspaceCoordinator {
 
 export const launchArenaTask = ArenaWorkspaceCoordinator.launch;
 
-/**
- * Resolves a stage launch action into an ArenaNavigationTarget.
- */
 export function resolveStageTarget(stage: CompanyPipelineStage): ArenaNavigationTarget {
   return {
     arena: stage.targetArena,
@@ -95,10 +185,6 @@ export function resolveStageTarget(stage: CompanyPipelineStage): ArenaNavigation
   };
 }
 
-/**
- * Resolves a runbook taskId into a typed ArenaNavigationTarget
- * using profile stages and typed mustReviewTasks.
- */
 export function resolveRunbookTaskTarget(
   taskId: string,
   profile: CompanyProfile,
@@ -107,34 +193,16 @@ export function resolveRunbookTaskTarget(
   if (explicitArena) {
     return { arena: explicitArena, entityId: taskId };
   }
-
-  // 1. Check explicit typed mustReviewTasks in expressRunbook
   const typedTask = profile.expressRunbook.mustReviewTasks?.find((t) => t.taskId === taskId);
   if (typedTask) {
-    return {
-      arena: typedTask.targetArena,
-      entityId: typedTask.taskId,
-      contextTitle: typedTask.title
-    };
+    return { arena: typedTask.targetArena, entityId: typedTask.taskId, contextTitle: typedTask.title };
   }
-
-  // 2. Check stages
   const stage = profile.stages.find((s) => s.targetEntityId === taskId || s.id === taskId);
   if (stage) {
     return resolveStageTarget(stage);
   }
-
-  // 3. Fallback heuristics for raw legacy string taskIds
-  if (taskId.startsWith('sql-')) {
-    return { arena: 'sql_arena', entityId: taskId };
-  }
-  if (taskId.startsWith('SD-') || taskId.startsWith('sd-')) {
-    return { arena: 'system_design', entityId: taskId };
-  }
-  if (taskId === 'cib-interns-test-task') {
-    return { arena: 'take_home', entityId: taskId };
-  }
-
-  // Default to practice arena (machine coding / refactoring katas)
+  if (taskId.startsWith('sql-')) return { arena: 'sql_arena', entityId: taskId };
+  if (taskId.startsWith('SD-') || taskId.startsWith('sd-')) return { arena: 'system_design', entityId: taskId };
+  if (taskId === 'cib-interns-test-task') return { arena: 'take_home', entityId: taskId };
   return { arena: 'practice', entityId: taskId };
 }

@@ -96,21 +96,15 @@ export class CompanyTrackContextAdapter {
     question: CompanyQuestionSummary,
     mode: 'tutor' | 'interview'
   ) {
-    const isAlfa = company.id === 'alfa_digital';
     const probeStr = question.depthProbe?.length ? ` Точки углубления: ${question.depthProbe.join('; ')}.` : '';
     const redFlagStr = question.redFlags?.length ? ` Красные флаги: ${question.redFlags.join('; ')}.` : '';
+    const paradigm = company.culture?.engineeringParadigm ? ` Фокус: ${company.culture.engineeringParadigm}.` : '';
 
-    const rolePrompt = isAlfa
-      ? `РОЛЬ: Lead Java-архитектор в АО «Альфа-Банк» (Alfa Digital & А-Токен). ${
-          mode === 'tutor'
-            ? 'Режим Тьютора: разбирай физику процессов, память JVM, HotSpot, задавай сократические наводящие вопросы, помогай разобраться.'
-            : 'Режим Скрининга: проведи жесткий технический блиц, оцени глубину ответа на уровне байткода и JMM.'
-        }${probeStr}${redFlagStr}`
-      : `РОЛЬ: Product Engineer Lead в ${company.name}. ${
-          mode === 'tutor'
-            ? 'Режим Тьютора: помоги разобрать тему, задавай сократические вопросы по STAR и метрикам.'
-            : 'Режим Скрининга: проведи Fit/STAR собеседование с оценкой.'
-        }${probeStr}${redFlagStr}`;
+    const rolePrompt = `РОЛЬ: Lead Engineer / Технический интервьюер в ${company.name}.${paradigm} ${
+      mode === 'tutor'
+        ? 'Режим Тьютора: разбирай первопричины и физику концепций, задавай сократические наводящие вопросы, помогай разобраться.'
+        : 'Режим Скрининга: проведи жесткий технический блиц, проверь глубину понимания инвариантов, метрик и красных флагов.'
+    }${probeStr}${redFlagStr}`;
 
     return {
       topic: `${company.name}: ${question.module || question.topic}`,

@@ -13,19 +13,17 @@ import { useCompanyStudioSession } from './hooks/useCompanyStudioSession';
 import { CompanyPrepStudioHeader } from './components/CompanyPrepStudioHeader';
 
 export const CompanyPrepStudio: React.FC = () => {
-  const {
-    companyProfiles,
-    selectedCompanyProfileId,
-    activeCompanySubTab,
-    targetSqlChallengeId,
-    isCompanyVoiceOpen,
-    isCompanyLoading,
-    companyLoadError,
-    setSelectedCompanyProfileId,
-    setActiveCompanySubTab,
-    toggleCompanyStageComplete,
-    setIsCompanyVoiceOpen
-  } = useAppStore();
+  const companyProfiles = useAppStore((s) => s.companyProfiles);
+  const selectedCompanyProfileId = useAppStore((s) => s.selectedCompanyProfileId);
+  const activeCompanySubTab = useAppStore((s) => s.activeCompanySubTab);
+  const targetSqlChallengeId = useAppStore((s) => s.targetSqlChallengeId);
+  const isCompanyVoiceOpen = useAppStore((s) => s.isCompanyVoiceOpen);
+  const isCompanyLoading = useAppStore((s) => s.isCompanyLoading);
+  const companyLoadError = useAppStore((s) => s.companyLoadError);
+  const setSelectedCompanyProfileId = useAppStore((s) => s.setSelectedCompanyProfileId);
+  const setActiveCompanySubTab = useAppStore((s) => s.setActiveCompanySubTab);
+  const toggleCompanyStageComplete = useAppStore((s) => s.toggleCompanyStageComplete);
+  const setIsCompanyVoiceOpen = useAppStore((s) => s.setIsCompanyVoiceOpen);
 
   const {
     profile,
@@ -69,6 +67,10 @@ export const CompanyPrepStudio: React.FC = () => {
     );
   }
 
+  const curatedChallenges = profile.curatedChallenges || [];
+  const hasTheoryTab = Boolean(profile.readinessConfig?.questionCatalogFile);
+  const theoryCount = profile.readinessConfig?.theory.total ?? 0;
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 pb-24 font-sans">
       <CompanyPrepStudioHeader
@@ -78,6 +80,9 @@ export const CompanyPrepStudio: React.FC = () => {
         setSelectedCompanyProfileId={setSelectedCompanyProfileId}
         isAlfa={isAlfa}
         readinessIndex={readinessIndex}
+        hasTheoryTab={hasTheoryTab}
+        theoryCount={theoryCount}
+        challengesCount={curatedChallenges.length}
         activeCompanySubTab={activeCompanySubTab}
         setActiveCompanySubTab={setActiveCompanySubTab}
         onOpenCopilot={openCopilot}
@@ -105,6 +110,7 @@ export const CompanyPrepStudio: React.FC = () => {
       {activeCompanySubTab === 'challenges' && (
         <CompanyChallengesTab
           companyName={profile.name}
+          challenges={curatedChallenges}
           onNavigateToTask={handleNavigateToTask}
         />
       )}
@@ -142,20 +148,14 @@ export const CompanyPrepStudio: React.FC = () => {
           isOpen={isCompanyVoiceOpen}
           onClose={() => setIsCompanyVoiceOpen(false)}
           initialSessionType="interview"
-          topic={
-            isAlfa
-              ? 'АО «Альфа-Банк» (Alfa Digital & А-Токен): Технический скрининг'
-              : `${profile.name}: Product Engineer Fit Interview`
-          }
+          topic={profile.voicePreset?.topic ?? `${profile.name}: Interview Preparation`}
           currentQuestionText={
-            isAlfa
-              ? 'Привет! Начнем наш технический скрининг в Alfa Digital. Расскажи кратко о своем опыте с HighLoad, и сразу перейдем к физике JMM и HotSpot: что происходит при синхронизации на объекте, и почему String.intern() в synchronized — это критический дефект?'
-              : `Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и как предотвращаешь финансовые сбои на проде?`
+            profile.voicePreset?.initialQuestionText ??
+            `Расскажи о своем опыте работы с высоконагруженными сервисами, метриках (${profile.culture.metricsFocus.slice(0, 3).join(', ')}) и предотвращении инцидентов.`
           }
           customPromptOverride={
-            isAlfa
-              ? `РОЛЬ: Lead Java-архитектор в АО «Альфа-Банк» (Alfa Digital & А-Токен). Твоя цель — провести жесткий технический скрининг на позицию Senior Java Engineer в Финтех. ТЕМЫ ДЛЯ ГЛУБОКОГО ЗОНДИРОВАНИЯ: 1) JMM happens-before, safepoints, biased/thin/fat locking, Metaspace vs off-heap zero-copy sendfile, G1 vs ZGC; 2) Concurrency: CAS, полосковые блокировки (SegmentedConcurrentHashMap); 3) Spring: обход прокси при самовызове @Transactional, утечки пула HikariCP; 4) PostgreSQL: MVCC t_xmin/t_xmax, Dead Tuples, vacuum wraparound, SSI write skew; 5) Kafka: zero-copy sendfile, EOS 2PC PID; 6) А-Токен: Waves Enterprise, ГОСТ КС2, SOAP в АБС Equation. Требуй физических причин вместо симптомов. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`
-              : `РОЛЬ: Product Engineer Lead в ${profile.name}. Проведи Fit/Culture интервью по методике STAR. ТЕМЫ К ОБСУЖДЕНИЮ: 1) 5-шаговый поиск причин просадки конверсии; 2) Метрики TTM, Customer Pain Index, SRM в A/B, Conversion Lift%; 3) STAR-опыт решения факапов; 4) Финтех-инварианты: BigDecimal, сортировка блокировок min->max, Transactional Outbox. Инженерная парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`
+            profile.voicePreset?.systemPrompt ??
+            `РОЛЬ: Ведущий инженер в ${profile.name}. Парадигма: ${profile.culture.engineeringParadigm}. Красные флаги: ${profile.culture.redFlags.join('; ')}. Зеленые сигналы: ${profile.culture.greenFlags.join('; ')}.`
           }
         />
       )}

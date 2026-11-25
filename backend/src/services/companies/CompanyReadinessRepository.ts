@@ -1,12 +1,18 @@
 /**
  * CompanyReadinessRepository.ts
- * Repository encapsulating company profile catalogs, question mastery,
- * and readiness index computations (SPEC-27).
- * Cognitive Bounding SLA: <= 200 lines (Rule 8 compliant).
+ * Repository encapsulating validated company profile manifests, question mastery,
+ * and manifest-driven readiness index computations (SPEC-27 / Spec 44 <= 180 lines).
  */
 
 import fs from 'fs';
-import { CompanyProfile } from '@interview-prep/shared';
+import Database from 'better-sqlite3';
+import {
+  CompanyProfile,
+  CompanyProfileSchema,
+  CompanyReadinessManifest,
+  ReadinessCategoryRule,
+  Value
+} from '@interview-prep/shared';
 import { resolveJsonCatalogPath } from '../../utils/pathResolver';
 import { db } from '../db';
 
@@ -26,110 +32,115 @@ export interface CompanyReadinessResult {
   systemDesign: ReadinessCategoryBreakdown;
 }
 
+const DEFAULT_READINESS_MANIFEST: CompanyReadinessManifest = {
+  theory: { total: 20 },
+  codeReview: { total: 1 },
+  liveCoding: { total: 1 },
+  sql: { total: 1 },
+  systemDesignTotal: 5
+};
+
+function countMatchingSubmissions(database: Database.Database, userId: string, rule: ReadinessCategoryRule): number {
+  const prefixes = rule.idPrefixes || [];
+  const exactIds = rule.exactIds || [];
+  if (prefixes.length === 0 && exactIds.length === 0) return 0;
+
+  const clauses: string[] = [];
+  const params: Array<string> = [userId];
+  for (const prefix of prefixes) {
+    clauses.push('challenge_id LIKE ?');
+    params.push(`${prefix}%`);
+  }
+  if (exactIds.length > 0) {
+    clauses.push(`challenge_id IN (${exactIds.map(() => '?').join(', ')})`);
+    params.push(...exactIds);
+  }
+  const sql = `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions
+    WHERE user_id = ? AND (${clauses.join(' OR ')}) AND (status = 'PASSED' OR score >= 80)`;
+  const row = database.prepare(sql).get(...params) as { cnt: number } | undefined;
+  return row ? row.cnt : 0;
+}
+
+function toBreakdown(completed: number, totalRaw: number): ReadinessCategoryBreakdown {
+  const total = Math.max(1, totalRaw);
+  return { completed, total, percentage: Math.min(100, Math.round((completed / total) * 100)) };
+}
+
 export class CompanyReadinessRepository {
   private static cachedProfiles: CompanyProfile[] | null = null;
+  private readonly database: Database.Database;
 
-  public static loadProfiles(): CompanyProfile[] {
-    if (this.cachedProfiles && this.cachedProfiles.length > 0) {
+  constructor(database: Database.Database = db) {
+    this.database = database;
+  }
+
+  public static loadProfiles(forceReload = false): CompanyProfile[] {
+    if (!forceReload && this.cachedProfiles && this.cachedProfiles.length > 0) {
       return this.cachedProfiles;
     }
-    try {
-      const profilesPath = resolveJsonCatalogPath('company_profiles.json');
-      if (!fs.existsSync(profilesPath)) {
-        console.error(`[CompanyReadinessRepository] company_profiles.json not found at: ${profilesPath}`);
-        return [];
-      }
-      const raw = fs.readFileSync(profilesPath, 'utf-8');
-      this.cachedProfiles = JSON.parse(raw);
-      return this.cachedProfiles || [];
-    } catch (err) {
-      console.error('[CompanyReadinessRepository] Failed to load company profiles:', err);
+    const profilesPath = resolveJsonCatalogPath('company_profiles.json');
+    if (!fs.existsSync(profilesPath)) {
+      console.error(`[CompanyReadinessRepository] company_profiles.json not found at: ${profilesPath}`);
       return [];
     }
+    const raw = fs.readFileSync(profilesPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error('[COMPANY_SCHEMA_ERROR] company_profiles.json root must be an array');
+    }
+    for (const entry of parsed) {
+      if (!Value.Check(CompanyProfileSchema, entry)) {
+        const err = [...Value.Errors(CompanyProfileSchema, entry)][0];
+        throw new Error(`[COMPANY_SCHEMA_ERROR] Invalid profile '${entry?.id || 'unknown'}' at ${err?.path}: ${err?.message}`);
+      }
+    }
+    this.cachedProfiles = parsed as CompanyProfile[];
+    return this.cachedProfiles;
   }
 
   public static getProfileById(companyId: string): CompanyProfile | undefined {
-    const profiles = this.loadProfiles();
-    return profiles.find((p) => p.id === companyId);
+    return this.loadProfiles().find((p) => p.id === companyId);
   }
 
-  public static calculateReadiness(companyId: string, userId: string = 'default_user'): CompanyReadinessResult {
-    // 1. Theory
-    const masteredRow = db.prepare(
+  public calculateReadiness(companyId: string, userId: string = 'default_user'): CompanyReadinessResult {
+    const profile = CompanyReadinessRepository.getProfileById(companyId);
+    const cfg = profile?.readinessConfig ?? DEFAULT_READINESS_MANIFEST;
+
+    const masteredRow = this.database.prepare(
       'SELECT count(*) as cnt FROM company_question_mastery WHERE user_id = ? AND company_id = ? AND is_mastered = 1'
     ).get(userId, companyId) as { cnt: number } | undefined;
-    const completedTheory = masteredRow ? masteredRow.cnt : 0;
-    const totalTheory = companyId === 'alfa_digital' ? 27 : 20;
-    const theoryPct = Math.min(100, Math.round((completedTheory / totalTheory) * 100));
 
-    // 2. Code Review
-    const crRow = db.prepare(
-      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
-       WHERE user_id = ? AND challenge_id LIKE ? AND (status = 'PASSED' OR score >= 80)`
-    ).get(userId, companyId === 'alfa_digital' ? 'cr-alfa-%' : 'case_%') as { cnt: number } | undefined;
-    const completedCR = crRow ? crRow.cnt : 0;
-    const totalCR = companyId === 'alfa_digital' ? 6 : 2;
-    const crPct = Math.min(100, Math.round((completedCR / totalCR) * 100));
+    const theory = toBreakdown(masteredRow ? masteredRow.cnt : 0, cfg.theory.total);
+    const codeReview = toBreakdown(countMatchingSubmissions(this.database, userId, cfg.codeReview), cfg.codeReview.total);
+    const liveCoding = toBreakdown(countMatchingSubmissions(this.database, userId, cfg.liveCoding), cfg.liveCoding.total);
+    const sql = toBreakdown(countMatchingSubmissions(this.database, userId, cfg.sql), cfg.sql.total);
 
-    // 3. Live Coding
-    const lcRow = db.prepare(
-      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
-       WHERE user_id = ? AND (challenge_id LIKE ? OR challenge_id = 'lld-key-value-cache-ttl') AND (status = 'PASSED' OR score >= 80)`
-    ).get(userId, companyId === 'alfa_digital' ? 'lc-alfa-%' : 'iban-%') as { cnt: number } | undefined;
-    const completedLC = lcRow ? lcRow.cnt : 0;
-    const totalLC = companyId === 'alfa_digital' ? 5 : 2;
-    const lcPct = Math.min(100, Math.round((completedLC / totalLC) * 100));
-
-    // 4. SQL
-    const sqlRow = db.prepare(
-      `SELECT count(DISTINCT challenge_id) as cnt FROM coding_submissions 
-       WHERE user_id = ? AND challenge_id LIKE ? AND (status = 'PASSED' OR score >= 80)`
-    ).get(userId, companyId === 'alfa_digital' ? 'sql-alfa-%' : 'sql-raiff-%') as { cnt: number } | undefined;
-    const completedSql = sqlRow ? sqlRow.cnt : 0;
-    const totalSql = companyId === 'alfa_digital' ? 7 : 5;
-    const sqlPct = Math.min(100, Math.round((completedSql / totalSql) * 100));
-
-    // 5. System Design
-    const sdRow = db.prepare(
+    const sdRow = this.database.prepare(
       'SELECT count(DISTINCT scenario_id) as cnt FROM system_design_submissions WHERE user_id = ?'
     ).get(userId) as { cnt: number } | undefined;
-    const completedSD = sdRow ? sdRow.cnt : 0;
-    const totalSD = 5;
-    const sdPct = Math.min(100, Math.round((completedSD / totalSD) * 100));
+    const systemDesign = toBreakdown(sdRow ? sdRow.cnt : 0, cfg.systemDesignTotal);
 
-    const overallPct = Math.min(
+    const overallPercentage = Math.min(
       100,
-      Math.round(0.25 * theoryPct + 0.2 * crPct + 0.2 * lcPct + 0.15 * sqlPct + 0.2 * sdPct)
+      Math.round(0.25 * theory.percentage + 0.2 * codeReview.percentage + 0.2 * liveCoding.percentage + 0.15 * sql.percentage + 0.2 * systemDesign.percentage)
     );
 
-    return {
-      companyId,
-      overallPercentage: overallPct,
-      theory: { completed: completedTheory, total: totalTheory, percentage: theoryPct },
-      codeReview: { completed: completedCR, total: totalCR, percentage: crPct },
-      liveCoding: { completed: completedLC, total: totalLC, percentage: lcPct },
-      sql: { completed: completedSql, total: totalSql, percentage: sqlPct },
-      systemDesign: { completed: completedSD, total: totalSD, percentage: sdPct }
-    };
+    return { companyId, overallPercentage, theory, codeReview, liveCoding, sql, systemDesign };
   }
 
-  public static getCuratedQuestions(companyId: string, userId: string = 'default_user'): any[] {
-    if (companyId !== 'alfa_digital') {
-      return [];
-    }
+  public getCuratedQuestions(companyId: string, userId: string = 'default_user'): any[] {
+    const profile = CompanyReadinessRepository.getProfileById(companyId);
+    const catalogFile = profile?.readinessConfig?.questionCatalogFile;
+    if (!catalogFile) return [];
 
-    const jsonPath = resolveJsonCatalogPath('alfa_interview_questions.json');
+    const jsonPath = resolveJsonCatalogPath(catalogFile);
     if (!fs.existsSync(jsonPath)) {
-      throw new Error('Alfa Digital questions catalog not found');
+      throw new Error(`Questions catalog not found for '${companyId}': ${catalogFile}`);
     }
-
-    const raw = fs.readFileSync(jsonPath, 'utf-8');
-    const questions = JSON.parse(raw);
-
-    const masteryRows = db.prepare(
+    const questions = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    const masteryRows = this.database.prepare(
       'SELECT question_id, is_mastered, score FROM company_question_mastery WHERE user_id = ? AND company_id = ?'
     ).all(userId, companyId) as Array<{ question_id: string; is_mastered: number; score: number }>;
-
     const masteryMap = new Map(masteryRows.map((r) => [r.question_id, r]));
 
     return questions.map((q: any) => {
@@ -142,21 +153,39 @@ export class CompanyReadinessRepository {
     });
   }
 
-  public static recordQuestionMastery(
+  public recordQuestionMastery(
     companyId: string,
     questionId: string,
     userId: string = 'default_user',
     isMastered: boolean = true,
     score: number = 100
   ): void {
-    const isMasteredNum = isMastered ? 1 : 0;
-    db.prepare(`
+    this.database.prepare(`
       INSERT INTO company_question_mastery (user_id, company_id, question_id, is_mastered, score, last_evaluated_at)
       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id, company_id, question_id) DO UPDATE SET
         is_mastered = excluded.is_mastered,
         score = excluded.score,
         last_evaluated_at = CURRENT_TIMESTAMP
-    `).run(userId, companyId, questionId, isMasteredNum, score);
+    `).run(userId, companyId, questionId, isMastered ? 1 : 0, score);
+  }
+
+  public static calculateReadiness(companyId: string, userId: string = 'default_user', database: Database.Database = db): CompanyReadinessResult {
+    return new CompanyReadinessRepository(database).calculateReadiness(companyId, userId);
+  }
+
+  public static getCuratedQuestions(companyId: string, userId: string = 'default_user', database: Database.Database = db): any[] {
+    return new CompanyReadinessRepository(database).getCuratedQuestions(companyId, userId);
+  }
+
+  public static recordQuestionMastery(
+    companyId: string,
+    questionId: string,
+    userId: string = 'default_user',
+    isMastered: boolean = true,
+    score: number = 100,
+    database: Database.Database = db
+  ): void {
+    new CompanyReadinessRepository(database).recordQuestionMastery(companyId, questionId, userId, isMastered, score);
   }
 }

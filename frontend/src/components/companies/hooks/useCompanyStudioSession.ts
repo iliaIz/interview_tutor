@@ -18,22 +18,20 @@ export interface UseCompanyStudioSessionReturn {
 }
 
 export function useCompanyStudioSession(): UseCompanyStudioSessionReturn {
-  const {
-    companyProfiles,
-    selectedCompanyProfileId,
-    activeCompanySubTab,
-    completedCompanyStageIds,
-    companyReadinessData,
-    setCompanyProfiles,
-    setSelectedCompanyProfileId,
-    setActiveCompanySubTab,
-    setCompletedCompanyStageIds,
-    setCompanyReadinessData,
-    setTargetSqlChallengeId,
-    setIsCompanyVoiceOpen,
-    setIsCompanyLoading,
-    setCompanyLoadError
-  } = useAppStore();
+  const companyProfiles = useAppStore((s) => s.companyProfiles);
+  const selectedCompanyProfileId = useAppStore((s) => s.selectedCompanyProfileId);
+  const activeCompanySubTab = useAppStore((s) => s.activeCompanySubTab);
+  const completedCompanyStageIds = useAppStore((s) => s.completedCompanyStageIds);
+  const companyReadinessData = useAppStore((s) => s.companyReadinessData);
+  const setCompanyProfiles = useAppStore((s) => s.setCompanyProfiles);
+  const setSelectedCompanyProfileId = useAppStore((s) => s.setSelectedCompanyProfileId);
+  const setActiveCompanySubTab = useAppStore((s) => s.setActiveCompanySubTab);
+  const setCompletedCompanyStageIds = useAppStore((s) => s.setCompletedCompanyStageIds);
+  const setCompanyReadinessData = useAppStore((s) => s.setCompanyReadinessData);
+  const setTargetSqlChallengeId = useAppStore((s) => s.setTargetSqlChallengeId);
+  const setIsCompanyVoiceOpen = useAppStore((s) => s.setIsCompanyVoiceOpen);
+  const setIsCompanyLoading = useAppStore((s) => s.setIsCompanyLoading);
+  const setCompanyLoadError = useAppStore((s) => s.setCompanyLoadError);
 
   const fetchReadiness = useCallback(async () => {
     try {
@@ -79,15 +77,24 @@ export function useCompanyStudioSession(): UseCompanyStudioSessionReturn {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`company_stages_${selectedCompanyProfileId}`);
-      if (saved) {
-        setCompletedCompanyStageIds(JSON.parse(saved));
-      }
-    } catch {}
+      setCompletedCompanyStageIds(saved ? JSON.parse(saved) : []);
+    } catch {
+      setCompletedCompanyStageIds([]);
+    }
   }, [selectedCompanyProfileId, setCompletedCompanyStageIds]);
 
   const profile = useMemo(() => {
     return companyProfiles.find((p) => p.id === selectedCompanyProfileId) || companyProfiles[0] || null;
   }, [companyProfiles, selectedCompanyProfileId]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const hasTheory = Boolean(profile.readinessConfig?.questionCatalogFile);
+    const hasChallenges = Boolean(profile.curatedChallenges && profile.curatedChallenges.length > 0);
+    if ((activeCompanySubTab === 'theory' && !hasTheory) || (activeCompanySubTab === 'challenges' && !hasChallenges)) {
+      setActiveCompanySubTab('pipeline');
+    }
+  }, [profile, activeCompanySubTab, setActiveCompanySubTab]);
 
   const setActiveContext = usePracticeTutorStore((s) => s.setActiveContext);
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);

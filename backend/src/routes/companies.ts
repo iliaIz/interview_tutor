@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { getAuthUserId } from '../middleware/auth';
 import { CompanyReadinessRepository } from '../services/companies/CompanyReadinessRepository';
 
 const router = Router();
@@ -24,7 +25,7 @@ router.get('/:id/readiness', (req: Request, res: Response) => {
     return res.status(404).json({ error: `Company profile '${companyId}' not found` });
   }
 
-  const userId = (req.query.user_id as string) || 'default_user';
+  const userId = getAuthUserId(req);
   try {
     const readiness = CompanyReadinessRepository.calculateReadiness(companyId, userId);
     res.json(readiness);
@@ -37,7 +38,7 @@ router.get('/:id/readiness', (req: Request, res: Response) => {
 // GET /api/companies/:id/questions - Retrieve curated questions for company
 router.get('/:id/questions', (req: Request, res: Response) => {
   const companyId = String(req.params.id);
-  const userId = (req.query.user_id as string) || 'default_user';
+  const userId = getAuthUserId(req);
   try {
     const questions = CompanyReadinessRepository.getCuratedQuestions(companyId, userId);
     res.json(questions);
@@ -51,7 +52,7 @@ router.get('/:id/questions', (req: Request, res: Response) => {
 router.post('/:id/questions/:questionId/mastery', (req: Request, res: Response) => {
   const companyId = String(req.params.id);
   const questionId = String(req.params.questionId);
-  const userId = (req.body.user_id as string) || 'default_user';
+  const userId = getAuthUserId(req);
   const isMastered = req.body.isMastered !== undefined ? Boolean(req.body.isMastered) : true;
   const score = Number(req.body.score) || 100;
 

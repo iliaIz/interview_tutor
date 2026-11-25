@@ -1,139 +1,30 @@
-import React, { useState } from 'react';
-import { Bug, Code2, ArrowRight, Bot, Clock, ShieldAlert, Sparkles, Filter } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Bug, Code2, ArrowRight, Bot, Clock, Sparkles } from 'lucide-react';
+import { CompanyCuratedChallengeItem } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-
-interface ChallengeCardInfo {
-  id: string;
-  title: string;
-  category: 'code_review' | 'live_coding';
-  difficulty: 'Middle' | 'Senior';
-  estimatedMinutes: number;
-  summary: string;
-  keyPoints: string[];
-}
-
-const ALFA_CHALLENGES: ChallengeCardInfo[] = [
-  // 6 Code Review Katas
-  {
-    id: 'cr-alfa-01',
-    title: 'PaymentController: 8+ скрытых дефектов в REST-контроллере',
-    category: 'code_review',
-    difficulty: 'Senior',
-    estimatedMinutes: 20,
-    summary: 'Классический собеседовательный контроллер с критическими финтех-уязвимостями.',
-    keyPoints: ['Static HashMap утечка памяти', 'Потеря точности double в деньгах', 'Внешний HTTP внутри @Transactional (утечка HikariCP)', 'Отправка в Kafka до фиксации транзакции']
-  },
-  {
-    id: 'cr-alfa-02',
-    title: 'CalculationService: Ретраи внутри @Transactional и зависание HikariCP',
-    category: 'code_review',
-    difficulty: 'Middle',
-    estimatedMinutes: 15,
-    summary: 'Антипаттерн @Retryable внутри транзакции, вызывающий голодание пула БД.',
-    keyPoints: ['Зависание соединений в пуле', 'Ретраи транзакций на уровне бизнес-логики', 'Преждевременный push событий']
-  },
-  {
-    id: 'cr-alfa-03',
-    title: 'OrderProcessingService: Нарушение атомарности Dual Write',
-    category: 'code_review',
-    difficulty: 'Middle',
-    estimatedMinutes: 20,
-    summary: 'Распределенная несогласованность при совмещении записи в БД и HTTP RPC.',
-    keyPoints: ['Атомарность распределенных операций', 'Паттерн Transactional Outbox', 'Идемпотентные потребители событий']
-  },
-  {
-    id: 'cr-alfa-04',
-    title: 'AccountLocker: Синхронизация на String.intern() и Deadlock',
-    category: 'code_review',
-    difficulty: 'Middle',
-    estimatedMinutes: 15,
-    summary: 'Смертельная ловушка синхронизации на строковом пуле JVM.',
-    keyPoints: ['Deadlock в String Pool', 'Опасность интернированных объектов', 'Альтернатива: полосковые Striped Locks']
-  },
-  {
-    id: 'cr-alfa-05',
-    title: 'CustomerOrderRepository: Hibernate N+1 и антипаттерн EAGER',
-    category: 'code_review',
-    difficulty: 'Middle',
-    estimatedMinutes: 15,
-    summary: 'Падение производительности СУБД из-за взрывного роста числа SQL-запросов.',
-    keyPoints: ['N+1 проблема Hibernate', 'Опасность FetchType.EAGER', 'Решение через @EntityGraph и JOIN FETCH']
-  },
-  {
-    id: 'cr-alfa-06',
-    title: 'ExceptionProcessor: Поведение try-catch-finally в байткоде JVM',
-    category: 'code_review',
-    difficulty: 'Middle',
-    estimatedMinutes: 10,
-    summary: 'Нюансы таблицы исключений JVM ExceptionTable и перетирание return-значений.',
-    keyPoints: ['Перетирание return в блоке finally', 'Проглатывание unchecked исключений', 'Поведение JVM стэка операндов']
-  },
-
-  // 5 Live Coding Challenges
-  {
-    id: 'lc-alfa-01',
-    title: 'SegmentedConcurrentHashMap: Полосковые блокировки (Striped Locking)',
-    category: 'live_coding',
-    difficulty: 'Senior',
-    estimatedMinutes: 40,
-    summary: 'Реализация масштабируемой потокобезопасной таблицы на массиве ReentrantLock.',
-    keyPoints: ['Полосковая синхронизация по хешу', 'Volatile видимость чтения без блокировок', 'Устранение bottleneck synchronizedMap']
-  },
-  {
-    id: 'lc-alfa-02',
-    title: 'BankingStreamProcessor: Агрегация транзакций на Stream API & BigDecimal',
-    category: 'live_coding',
-    difficulty: 'Middle',
-    estimatedMinutes: 30,
-    summary: 'Высокоточная обработка финансовых проводок без потери копеек.',
-    keyPoints: ['Исключение float/double в деньгах', 'GroupingBy и кастомные Collectors', 'Потокобезопасность в parallelStream']
-  },
-  {
-    id: 'lld-key-value-cache-ttl',
-    title: 'In-Memory Key-Value Cache с TTL и защитой от Cache Stampede',
-    category: 'live_coding',
-    difficulty: 'Senior',
-    estimatedMinutes: 45,
-    summary: 'Высоконагруженный локальный кэш с инвалидацией и параллельным доступом.',
-    keyPoints: ['Атомарный computeIfAbsent', 'Защита от эффекта собачьего набега (Stampede)', 'Очистка устаревших записей по таймеру']
-  },
-  {
-    id: 'lc-alfa-04',
-    title: 'ImmutableAccount: Защитное копирование и контракт equals/hashCode',
-    category: 'live_coding',
-    difficulty: 'Middle',
-    estimatedMinutes: 25,
-    summary: 'Проектирование 100% иммутабельной сущности счета с коллекциями и датами.',
-    keyPoints: ['Глубокое защитное копирование (defensive copying)', 'Корректный хешкод при коллизиях', 'Защита от мутаций через геттеры']
-  },
-  {
-    id: 'lc-alfa-05',
-    title: 'PaymentRestController: Jakarta Bean Validation & Mockito ArgumentCaptor',
-    category: 'live_coding',
-    difficulty: 'Middle',
-    estimatedMinutes: 30,
-    summary: 'Написание чистого Spring REST-контроллера с валидацией и юнит-тестами.',
-    keyPoints: ['Аннотации @Valid, @Pattern, @Positive', 'Перехват DTO через ArgumentCaptor', 'Тестирование негативных сценариев с MockMvc']
-  }
-];
 
 interface CompanyChallengesTabProps {
   companyName: string;
+  challenges: CompanyCuratedChallengeItem[];
   onNavigateToTask: (taskId: string, targetArena?: any) => void;
 }
 
 export const CompanyChallengesTab: React.FC<CompanyChallengesTabProps> = ({
   companyName,
+  challenges,
   onNavigateToTask
 }) => {
   const [filter, setFilter] = useState<'all' | 'code_review' | 'live_coding'>('all');
 
-  const filteredChallenges = ALFA_CHALLENGES.filter((c) => {
-    if (filter === 'all') return true;
-    return c.category === filter;
-  });
+  const codeReviewCount = useMemo(() => challenges.filter((c) => c.category === 'code_review').length, [challenges]);
+  const liveCodingCount = useMemo(() => challenges.filter((c) => c.category === 'live_coding').length, [challenges]);
 
-  const handleAskAiForChallenge = (c: ChallengeCardInfo) => {
+  const filteredChallenges = useMemo(
+    () => (filter === 'all' ? challenges : challenges.filter((c) => c.category === filter)),
+    [challenges, filter]
+  );
+
+  const handleAskAiForChallenge = (c: CompanyCuratedChallengeItem) => {
     const store = usePracticeTutorStore.getState();
     store.toggleOpen(true);
     void store.sendMessage(
@@ -154,7 +45,7 @@ export const CompanyChallengesTab: React.FC<CompanyChallengesTabProps> = ({
               <Sparkles className="w-3 h-3 text-rose-600" /> Практический полигон в IDE
             </span>
             <span className="text-xs text-slate-500 font-mono">
-              Всего: 11 задач (6 Code Review + 5 Live Coding)
+              Всего: {challenges.length} задач ({codeReviewCount} Code Review + {liveCodingCount} Live Coding)
             </span>
           </div>
           <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
@@ -173,7 +64,7 @@ export const CompanyChallengesTab: React.FC<CompanyChallengesTabProps> = ({
               filter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Все (11)
+            Все ({challenges.length})
           </button>
           <button
             onClick={() => setFilter('code_review')}
@@ -181,7 +72,7 @@ export const CompanyChallengesTab: React.FC<CompanyChallengesTabProps> = ({
               filter === 'code_review' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Bug className="w-3.5 h-3.5" /> Code Review (6)
+            <Bug className="w-3.5 h-3.5" /> Code Review ({codeReviewCount})
           </button>
           <button
             onClick={() => setFilter('live_coding')}
@@ -189,7 +80,7 @@ export const CompanyChallengesTab: React.FC<CompanyChallengesTabProps> = ({
               filter === 'live_coding' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Code2 className="w-3.5 h-3.5" /> Live Coding (5)
+            <Code2 className="w-3.5 h-3.5" /> Live Coding ({liveCodingCount})
           </button>
         </div>
       </div>

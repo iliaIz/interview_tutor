@@ -10,6 +10,9 @@ export interface CompanyPrepStudioHeaderProps {
   setSelectedCompanyProfileId: (id: string) => void;
   isAlfa: boolean;
   readinessIndex: number;
+  hasTheoryTab: boolean;
+  theoryCount: number;
+  challengesCount: number;
   activeCompanySubTab: string;
   setActiveCompanySubTab: (tab: any) => void;
   onOpenCopilot: () => void;
@@ -22,6 +25,9 @@ export const CompanyPrepStudioHeader: React.FC<CompanyPrepStudioHeaderProps> = (
   setSelectedCompanyProfileId,
   isAlfa,
   readinessIndex,
+  hasTheoryTab,
+  theoryCount,
+  challengesCount,
   activeCompanySubTab,
   setActiveCompanySubTab,
   onOpenCopilot
@@ -49,7 +55,7 @@ export const CompanyPrepStudioHeader: React.FC<CompanyPrepStudioHeaderProps> = (
           Воронка отбора (Пайплайн)
         </button>
 
-        {isAlfa && (
+        {hasTheoryTab && (
           <button
             onClick={() => setActiveCompanySubTab('theory')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
@@ -57,11 +63,11 @@ export const CompanyPrepStudioHeader: React.FC<CompanyPrepStudioHeaderProps> = (
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            Теория & Скрининг (27)
+            Теория & Скрининг ({theoryCount})
           </button>
         )}
 
-        {isAlfa && (
+        {challengesCount > 0 && (
           <button
             onClick={() => setActiveCompanySubTab('challenges')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 shrink-0 ${
@@ -69,7 +75,7 @@ export const CompanyPrepStudioHeader: React.FC<CompanyPrepStudioHeaderProps> = (
             }`}
           >
             <Code2 className="w-4 h-4" />
-            Задачи & Code Review (11)
+            Задачи & Code Review ({challengesCount})
           </button>
         )}
 
