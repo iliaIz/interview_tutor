@@ -54,6 +54,7 @@ export function useEvaluationPipeline() {
   const [stepperState, setStepperState] = useState<StepperState>({
     sandbox: { status: 'pending', label: 'Ожидание запуска' },
     ast: { status: 'pending', label: 'Ожидание' },
+    mutation: { status: 'pending', label: 'Ожидание' },
     ai: { status: 'pending', label: 'Ожидание' },
     report: { status: 'pending', label: 'Ожидание' }
   });
@@ -146,17 +147,24 @@ export function useEvaluationPipeline() {
       }
     } else if (gate === 'MUTATION_TESTS') {
       if (status === 'RUNNING') {
+        setCurrentStage({ stage: 'ast_analysis', label: 'Мутационное тестирование (PITest)...', timestamp: Date.now() });
+        setStepperState((prev) => ({ ...prev, mutation: { status: 'running', label: 'PITest...' } }));
         addLog('Шаг 3 [MUTATION_TESTS]: Мутационное тестирование (PITest)...', 'info');
       } else if (status === 'PASSED') {
         const score = payload.mutationScore?.percentage ?? 100;
         const killed = payload.mutationScore?.killedMutants ?? 0;
         const total = payload.mutationScore?.totalMutants ?? 0;
+        setStepperState((prev) => ({ ...prev, mutation: { status: 'success', label: `${score}% (${killed}/${total})` } }));
         addLog(`PITest: Мутационный скор ${score}% (${killed}/${total} мутантов уничтожено).`, 'success');
       } else if (status === 'SKIPPED') {
+        setStepperState((prev) => ({ ...prev, mutation: { status: 'skipped', label: 'Пропущено' } }));
         addLog('PITest: Мутационные тесты пропущены (мутанты не заданы).', 'info');
       } else if (status === 'FAILED') {
         const errMsg = payload.error || 'Мутационный скор ниже порога';
-        addLog(`PITest предупреждение: ${errMsg}`, 'warn');
+        setCurrentStage({ stage: 'failed', label: errMsg, timestamp: Date.now() });
+        setStepperState((prev) => ({ ...prev, mutation: { status: 'error', label: errMsg } }));
+        addLog(`PITest сбой: ${errMsg}`, 'error');
+        setActiveError({ message: errMsg, canRetryAiOnly: false });
       }
     } else if (gate === 'AI_EVALUATION') {
       if (status === 'RUNNING') {
@@ -222,6 +230,7 @@ export function useEvaluationPipeline() {
     setStepperState({
       sandbox: { status: 'running', label: 'Компиляция и тесты...' },
       ast: { status: 'pending', label: 'Ожидание' },
+      mutation: { status: 'pending', label: 'Ожидание' },
       ai: { status: 'pending', label: 'Ожидание' },
       report: { status: 'pending', label: 'Ожидание' }
     });
@@ -243,13 +252,31 @@ export function useEvaluationPipeline() {
           challengeId: activePracticeChallenge.id,
           files: practiceWorkspaceFiles,
           activePhase: activePracticePhase,
-          timeSpentSeconds: evaluationTimer
+          timeSpentSeconds: useAppStore.getState().practiceElapsedSeconds || 0
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}: Ошибка отправки на проверку`);
+      }
+
+      if (response.headers.get('content-type')?.includes('application/json')) {
+        const jsonData = await response.json();
+        if (jsonData.evaluation) {
+          const score = Math.round(jsonData.evaluation.scoreBreakdown?.overallScore ?? (jsonData.isPassed ? 75 : 0));
+          setActivePracticeReport(jsonData.evaluation);
+          setStepperState((prev) => ({
+            ...prev,
+            report: { status: jsonData.isPassed ? 'success' : 'error', label: `Оценка: ${score}/100` }
+          }));
+          setCurrentStage({ stage: 'complete', label: `Оценка завершена: ${score}/100`, timestamp: Date.now() });
+          addLog(`Рецензия получена (${score}/100).`, jsonData.isPassed ? 'success' : 'warn');
+        } else if (jsonData.error) {
+          setActiveError({ message: jsonData.error, canRetryAiOnly: Boolean(jsonData.canRetryAiOnly) });
+          addLog(`Сбой оценки: ${jsonData.error}`, 'error');
+        }
+        return;
       }
 
       if (!response.body) throw new Error('ReadableStream not supported');
@@ -277,6 +304,9 @@ export function useEvaluationPipeline() {
             const parsed = JSON.parse(jsonStr);
             if (parsed.gate) {
               dispatchGateEvent(parsed);
+            } else if (parsed.error) {
+              setActiveError({ message: parsed.error, canRetryAiOnly: Boolean(parsed.canRetryAiOnly) });
+              addLog(parsed.error, 'error');
             }
           } catch {
             // ignore malformed SSE frames
@@ -299,8 +329,8 @@ export function useEvaluationPipeline() {
     isPracticeEvaluating,
     practiceWorkspaceFiles,
     activePracticePhase,
-    evaluationTimer,
     dispatchGateEvent,
+    setActivePracticeReport,
     setIsPracticeEvaluating,
     showToast,
     addLog

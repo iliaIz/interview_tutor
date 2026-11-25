@@ -188,7 +188,7 @@ export class ChallengeEvaluationSession {
     if (mutants && mutants.length > 0) {
       try {
         const requiredScore = manifest?.requiredMutationScore ?? 75;
-        const mutResult = await mutationRunner({ challengeId, files, mutants, requiredScore });
+        const mutResult = await mutationRunner({ challengeId, files, mutants, requiredScore, skipPreScan: true });
         mutationPassed = mutResult.passedThreshold;
         mutationScorePayload = {
           killedMutants: mutResult.killedCount,
@@ -197,9 +197,23 @@ export class ChallengeEvaluationSession {
         };
 
         if (!mutResult.passedThreshold) {
+          if (input.abortSignal?.aborted) return;
+          const mutError = `Мутационное тестирование не пройдено (${mutResult.mutationScore}% < ${requiredScore}%)`;
+          const mutEval = {
+            compilationStatus: { isCompilable: true, syntaxErrors: sandboxResult.syntaxErrors || [] },
+            virtualExecutionResult: { passCount: passedCount, failCount: failedCount, testCases: sandboxResult.testResults || [] },
+            mutationScore: mutationScorePayload,
+            scoreBreakdown: { overallScore: mutResult.mutationScore, summaryReview: mutError }
+          };
+          repo.persistSubmission({
+            challengeId, userId, files, activePhase, status: 'FAILED', score: mutResult.mutationScore,
+            evaluation: { sandboxResult, astViolations, mutationScore: mutationScorePayload, ...mutEval },
+            timeSpentSeconds
+          });
+          this.terminalVerdict = { status: 'FAILED', score: mutResult.mutationScore, evaluation: mutEval, timeSpentSeconds };
           yield {
             gate: 'MUTATION_TESTS', status: 'FAILED', progressPercent: 60,
-            payload: { mutationScore: mutationScorePayload, error: `Мутационное тестирование не пройдено (${mutResult.mutationScore}% < ${requiredScore}%)` },
+            payload: { mutationScore: mutationScorePayload, evaluation: mutEval, error: mutError },
             timestamp: Date.now()
           };
           return;
@@ -231,7 +245,7 @@ export class ChallengeEvaluationSession {
       };
 
       aiEvaluationResult = await llmJudge({
-        challenge: evaluationChallenge, files, activePhase, timeSpentSeconds, sandboxResult, abortSignal: input.abortSignal
+        challenge: evaluationChallenge, files, activePhase, timeSpentSeconds, sandboxResult, abortSignal: input.abortSignal, userId
       });
 
       aiFeedbackPayload = {

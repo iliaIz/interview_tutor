@@ -273,6 +273,7 @@ ${codeXml}
         : `Deficit in ${challenge.title} (${challenge.category})`;
 
       void recordNewErrorGap({
+        userId: req.userId,
         questionId: challenge.id,
         topic: challenge.category,
         subtopic: challenge.title,

@@ -9,6 +9,7 @@ export interface EvaluationRequest {
   timeSpentSeconds?: number;
   sandboxResult?: SandboxExecutionResponse;
   abortSignal?: AbortSignal;
+  userId?: string;
 }
 
 export interface TestCaseResult {

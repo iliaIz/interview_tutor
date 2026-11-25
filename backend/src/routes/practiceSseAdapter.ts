@@ -1,9 +1,14 @@
 import { getAuthUserId } from '../middleware/auth';
-import { ChallengeEvaluationPipeline } from '../services/sandbox/ChallengeEvaluationPipeline';
+import { ChallengeEvaluationSession } from '../services/sandbox/ChallengeEvaluationSession';
+import {
+  ChallengeSubmissionRepository,
+  validateWorkspaceFiles,
+  WorkspaceValidationError
+} from '../services/sandbox/ChallengeSubmissionRepository';
 
 /**
  * practiceSseAdapter.ts
- * Stream bridge for Practice Challenge Evaluation (SPEC-23).
+ * Stream bridge for Practice Challenge Evaluation (SPEC-23 / Spec 43).
  * Decoupled from evaluation business logic: strictly translates pipeline events
  * to SSE events (or JSON response when requested).
  */
@@ -11,25 +16,24 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
   try {
     const userId = getAuthUserId(req);
     const challengeId = req.params.id || req.body.challengeId;
-    const files = req.body.codeFiles || req.body.files;
+    const rawFiles = req.body.codeFiles || req.body.files;
     const activePhase = Number(req.body.activePhase) || 1;
     const timeSpentSeconds = Number(req.body.timeSpentSeconds) || 0;
 
-    if (!challengeId || !Array.isArray(files) || files.length === 0) {
+    if (!challengeId) {
       res.status(400).json({ error: 'challengeId and non-empty files array are required' });
       return;
     }
 
-    if (files.length > 15) {
-      res.status(400).json({ error: 'Exceeded maximum allowable files limit (15 files max)' });
-      return;
-    }
-
-    for (const f of files) {
-      if (typeof f.content === 'string' && f.content.length > 200_000) {
-        res.status(400).json({ error: `File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)` });
+    let files;
+    try {
+      files = validateWorkspaceFiles(rawFiles);
+    } catch (err: any) {
+      if (err instanceof WorkspaceValidationError) {
+        res.status(err.statusCode).json({ error: err.message });
         return;
       }
+      throw err;
     }
 
     const isJsonMode = req.headers.accept === 'application/json' && req.query.stream !== 'true';
@@ -60,9 +64,11 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
     };
 
     let jsonResult: { success: boolean; isPassed: boolean; status: string; evaluation: any } | null = null;
+    let terminalError: { statusCode: number; error: string; canRetryAiOnly: boolean } | null = null;
+    const session = new ChallengeEvaluationSession({ submissionRepo: ChallengeSubmissionRepository });
 
     try {
-      for await (const event of ChallengeEvaluationPipeline.evaluate({
+      for await (const event of session.runGates({
         challengeId,
         userId,
         codeFiles: files,
@@ -143,15 +149,33 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
             });
           }
         } else if (event.gate === 'MUTATION_TESTS') {
-          sendSseEvent('stage', {
-            ...event,
-            stage: 'mutation',
-            label: event.status === 'PASSED'
-              ? `PITest: Мутационный скор ${event.payload?.mutationScore?.percentage || 100}%`
-              : (event.status === 'RUNNING'
-                ? 'PITest: Мутационное тестирование...'
-                : (event.payload?.error || 'Мутационный тест завершен'))
-          });
+          if (event.status === 'FAILED') {
+            if (isJsonMode) break;
+            sendSseEvent('stage', {
+              ...event,
+              stage: 'mutation',
+              label: event.payload?.error || 'Мутационный скор ниже порога'
+            });
+            sendSseEvent('complete', {
+              ...event,
+              gate: 'PERSISTENCE',
+              stage: 'complete',
+              success: false,
+              isPassed: false,
+              status: 'FAILED',
+              evaluation: event.payload?.evaluation
+            });
+          } else {
+            sendSseEvent('stage', {
+              ...event,
+              stage: 'mutation',
+              label: event.status === 'PASSED'
+                ? `PITest: Мутационный скор ${event.payload?.mutationScore?.percentage || 100}%`
+                : (event.status === 'RUNNING'
+                  ? 'PITest: Мутационное тестирование...'
+                  : (event.payload?.error || 'Мутационный тест завершен'))
+            });
+          }
         } else if (event.gate === 'AI_EVALUATION') {
           if (event.status === 'RUNNING') {
             sendSseEvent('stage', {
@@ -161,10 +185,13 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
               details: { model: 'gemini-smart' }
             });
           } else if (event.status === 'FAILED') {
+            const errMsg = event.payload?.error || 'Ошибка вызова AI-шлюза при оценке';
+            terminalError = { statusCode: 503, error: errMsg, canRetryAiOnly: true };
+            if (isJsonMode) break;
             sendSseEvent('error', {
               ...event,
               stage: 'failed',
-              error: event.payload?.error || 'Ошибка вызова AI-шлюза при оценке',
+              error: errMsg,
               canRetryAiOnly: true
             });
           } else {
@@ -202,6 +229,22 @@ export async function handleEvaluationStream(req: any, res: any): Promise<void> 
       if (isJsonMode) {
         if (jsonResult) {
           return res.status(200).json(jsonResult);
+        }
+        const fallbackVerdict = session.getTerminalVerdict();
+        if (fallbackVerdict) {
+          return res.status(200).json({
+            success: true,
+            isPassed: fallbackVerdict.status === 'PASSED',
+            status: fallbackVerdict.status,
+            evaluation: fallbackVerdict.evaluation
+          });
+        }
+        if (terminalError) {
+          return res.status(terminalError.statusCode).json({
+            success: false,
+            error: terminalError.error,
+            canRetryAiOnly: terminalError.canRetryAiOnly
+          });
         }
         return res.status(500).json({ error: 'Evaluation did not produce a final verdict' });
       }

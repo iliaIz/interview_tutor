@@ -7,7 +7,7 @@
 
 import { db } from '../db';
 import { CodingChallenge } from '../challengeSeedData';
-import { EvaluationPipelinePersistence } from '../sandbox/evaluationPipelinePersistence';
+import { ChallengeSubmissionRepository, validateWorkspaceFiles } from '../sandbox/ChallengeSubmissionRepository';
 import { buildChallengeZipPackage } from '../mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../practiceTxCatalogService';
 
@@ -176,19 +176,12 @@ export class PracticeChallengeCatalog {
   public static saveDraft(userId: string, payload: SaveDraftPayload): { success: boolean; savedAt: string } {
     const { challengeId, files, activePhase = 1, timeSpentSeconds = 0 } = payload;
 
-    if (!challengeId || !Array.isArray(files)) {
+    if (!challengeId) {
       throw new Error('challengeId and files array are required');
     }
-    if (files.length > 15) {
-      throw new Error('Exceeded maximum allowable files limit (15 files max)');
-    }
-    for (const f of files) {
-      if (typeof f.content === 'string' && f.content.length > 200_000) {
-        throw new Error(`File ${f.path || 'unknown'} exceeds maximum allowable size (200KB max)`);
-      }
-    }
+    validateWorkspaceFiles(files, { allowEmpty: true });
 
-    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const canonicalChallengeId = ChallengeSubmissionRepository.resolveCanonicalChallengeId(challengeId);
     const submissionId = `sub_${canonicalChallengeId}_${userId}`;
     const stmt = db.prepare(`
       INSERT INTO coding_submissions (
@@ -251,7 +244,7 @@ export class PracticeChallengeCatalog {
    * Resets a user's workspace draft.
    */
   public static resetWorkspace(userId: string, challengeId: string): void {
-    const canonicalChallengeId = EvaluationPipelinePersistence.resolveCanonicalChallengeId(challengeId);
+    const canonicalChallengeId = ChallengeSubmissionRepository.resolveCanonicalChallengeId(challengeId);
     const submissionId = `sub_${canonicalChallengeId}_${userId}`;
     db.prepare('DELETE FROM coding_submissions WHERE id = ? OR (challenge_id = ? AND user_id = ?)').run(submissionId, canonicalChallengeId, userId);
   }

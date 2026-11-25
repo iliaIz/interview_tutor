@@ -278,7 +278,7 @@ async function runBlueprintBuilderTests() {
   assert(hrBlueprint !== null, 'HR resolveFromRequest resolves blueprint');
   if (hrBlueprint) {
     assert(hrBlueprint.config.hrMode === 'guided_zero_start', 'session_init overrides hrMode to guided_zero_start');
-    assert(hrBlueprint.config.startBeatId === 'q01_b2', 'session_init hydrates startBeatId');
+    assert(hrBlueprint.config.startBeatId === 'beat_0_2_scale_kafka', 'session_init hydrates startBeatId');
     assert(hrBlueprint.config.beatScope === 'single_beat', 'session_init hydrates beatScope');
     const hrSetup = hrBlueprint.buildUpstreamSetup() as any;
     assert(hrSetup.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 2100, 'HR setup carries session_init vadPauseMs=2100');

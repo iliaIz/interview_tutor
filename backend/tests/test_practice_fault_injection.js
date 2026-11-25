@@ -288,8 +288,36 @@ public class OrderService {
     assert.ok(persistentError.data.error.includes('503'), 'Error message must reflect gateway status code');
     console.log('  ✅ Scenario 3 PASSED: Persistent failure exhausts 3 attempts and emits clean error event!');
 
+    // Scenario 4: JSON Accept negotiation on persistent Gate 4 failure returns structured 503 instead of generic 500
+    mockGateway.resetRequestCount();
+    mockGateway.setFaultSequence(['503', '503', '503', '503']);
+    const jsonFailRes = await new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port: appPort,
+        path: '/api/practice/evaluate',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${testSessionId}`
+        }
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => { body += chunk.toString('utf-8'); });
+        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body }));
+      });
+      req.on('error', reject);
+      req.write(JSON.stringify(validSubmissionPayload));
+      req.end();
+    });
+    assert.strictEqual(jsonFailRes.statusCode, 503, 'JSON mode persistent AI failure must return 503');
+    const jsonFailBody = JSON.parse(jsonFailRes.body);
+    assert.strictEqual(jsonFailBody.canRetryAiOnly, true, 'JSON mode persistent AI failure must set canRetryAiOnly: true');
+    console.log('  ✅ Scenario 4 PASSED: JSON mode persistent 503 returns clean 503 with canRetryAiOnly!');
+
     console.log('\n========================================================================');
-    console.log('🎉 ALL INTEGRATED FAULT-INJECTION RESILIENCE SCENARIOS PASSED (3/3)!');
+    console.log('🎉 ALL INTEGRATED FAULT-INJECTION RESILIENCE SCENARIOS PASSED (4/4)!');
     console.log('========================================================================\n');
   } finally {
     testServer.close();
