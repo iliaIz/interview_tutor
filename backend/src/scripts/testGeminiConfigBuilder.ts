@@ -9,7 +9,11 @@
  * 4. Asynchronous non-blocking tools preservation.
  */
 
+import http from 'http';
 import { buildGeminiLiveSetupMessage } from '../services/live/liveGeminiConfigBuilder';
+import { LiveSessionBlueprintBuilder } from '../services/live/LiveSessionBlueprintBuilder';
+import { LiveVoiceSession } from '../services/live/LiveVoiceSession';
+import type { BlueprintDependencies, ChallengeResolutionInput } from '../services/live/liveSessionConfigTypes';
 
 let passed = 0;
 let failed = 0;
@@ -176,5 +180,155 @@ const manualSetup = buildGeminiLiveSetupMessage({
 });
 assert(manualSetup.setup.realtimeInputConfig.automaticActivityDetection.disabled === true, 'Manual turn mode preserves automaticActivityDetection.disabled: true');
 
-console.log(`\n📊 GeminiConfigBuilder Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+async function runBlueprintBuilderTests() {
+  console.log('\n🧪 Running LiveSessionBlueprintBuilder (Spec 45) Test Suite...');
+
+  const stubDeps: BlueprintDependencies = {
+    authenticate: (_req, query) => (query.ticket === 'valid_ticket' ? { id: 'user_spec45', name: 'Test Candidate', role: 'user' } : null),
+    findGaps: async () => [],
+    getUserProfile: () => ({ targetSeniority: 'Senior', primaryStack: 'Java 21, Spring Boot 3.4' } as any),
+    resolveChallenge: (input: ChallengeResolutionInput) => ({
+      topic: input.queryTopic || 'Java Concurrency',
+      bugTitle: input.queryBugTitle || '',
+      questionText: input.queryQuestionText || 'Explain volatile.',
+      referenceAnswer: input.queryReferenceAnswer || 'Memory visibility and happens-before ordering.',
+      bugExplanation: input.queryBugExplanation || '',
+      fixedCode: input.queryFixedCode || '',
+      codeSnippet: input.queryCodeSnippet || '',
+      challengeCategory: input.queryChallengeCategory || '',
+      challengeTrack: input.queryChallengeTrack || '',
+      workspaceManifest: null,
+      activeFilePath: input.queryActiveFilePath || ''
+    })
+  };
+
+  // Test 8: Auth rejection returns null
+  const unauthReq = { url: '/ws/live?sessionType=interview', headers: {} } as unknown as http.IncomingMessage;
+  const unauthBlueprint = await LiveSessionBlueprintBuilder.resolveFromRequest(unauthReq, undefined, stubDeps);
+  assert(unauthBlueprint === null, 'resolveFromRequest rejects unauthorized request with null');
+
+  // Test 9: resolveFromRequest merges early session_init (vadPauseMs + academyBridgeContext + seniorReview + voice) BEFORE upstream setup
+  const authReq = {
+    url: '/ws/live?ticket=valid_ticket&sessionType=tutor&tutorMode=practice_pair&voice=Aoede&vadPauseMs=1200&questionId=kata_rate_limiter',
+    headers: {}
+  } as unknown as http.IncomingMessage;
+
+  const earlyInitFrame = {
+    type: 'session_init',
+    voice: 'Puck',
+    vadPauseMs: 2400,
+    academyBridgeContext: {
+      courseId: 'concurrency-deep-dive',
+      stepId: 'step-volatile',
+      moduleTitle: 'JMM & Happens-Before',
+      learningObjective: 'Master volatile write-read visibility',
+      targetConcepts: ['StoreLoad', 'Cache coherence']
+    },
+    seniorReview: {
+      overallScore: 78,
+      summaryReview: 'Missing memory fence reasoning',
+      focusedFinding: {
+        category: 'Concurrency',
+        location: 'TokenBucket.java:42',
+        description: 'Non-volatile refill timestamp read without synchronization',
+        remediation: 'Use AtomicReference or volatile'
+      }
+    },
+    workspaceManifest: {
+      activeFile: { path: 'src/TokenBucket.java', content: 'public class TokenBucket {}' },
+      files: [{ path: 'src/TokenBucket.java', content: 'public class TokenBucket {}' }]
+    }
+  };
+
+  const practiceBlueprint = await LiveSessionBlueprintBuilder.resolveFromRequest(authReq, earlyInitFrame, stubDeps);
+  assert(practiceBlueprint !== null, 'resolveFromRequest resolves blueprint for authorized request');
+  if (practiceBlueprint) {
+    assert(practiceBlueprint.config.voiceName === 'Puck', 'session_init overrides voice to Puck before connect');
+    assert(practiceBlueprint.config.vadPauseMs === 2400, 'session_init overrides vadPauseMs to 2400 before connect');
+    assert(practiceBlueprint.config.academyBridgeContext?.moduleTitle === 'JMM & Happens-Before', 'session_init hydrates academyBridgeContext');
+    assert(practiceBlueprint.config.seniorReview?.overallScore === 78, 'session_init hydrates seniorReview');
+    assert(practiceBlueprint.systemPromptText.includes('JMM & Happens-Before'), 'systemPromptText embeds hydrated academyBridgeContext');
+
+    const setupBeforeConnect = practiceBlueprint.buildUpstreamSetup() as any;
+    assert(setupBeforeConnect.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Puck', 'buildUpstreamSetup() carries session_init voice Puck');
+    assert(setupBeforeConnect.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 2400, 'buildUpstreamSetup() carries session_init vadPauseMs=2400');
+    assert(setupBeforeConnect.setup.systemInstruction.parts[0].text.includes('JMM & Happens-Before'), 'buildUpstreamSetup() systemInstruction carries hydrated academyBridgeContext');
+    assert(Boolean(setupBeforeConnect.setup.contextWindowCompression?.slidingWindow), 'buildUpstreamSetup() preserves Spec 42 compression');
+
+    const dynamicResumed = practiceBlueprint.buildUpstreamSetup('crypto_spec45') as any;
+    assert(dynamicResumed.setup.sessionResumption?.handle === 'crypto_spec45', 'buildUpstreamSetup(handle) injects sessionResumption.handle');
+    assert(dynamicResumed.setup.sessionResumptionConfig === undefined, 'buildUpstreamSetup(handle) omits legacy sessionResumptionConfig');
+    const strippedResumed = practiceBlueprint.buildUpstreamSetup(undefined) as any;
+    assert(strippedResumed.setup.sessionResumption === undefined, 'buildUpstreamSetup(undefined) strips stale resumption handle');
+  }
+
+  // Test 10: session_init merges hrMode + startBeatId + beatScope into HR blueprint before connect
+  const hrReq = {
+    url: '/ws/live?ticket=valid_ticket&sessionType=hr_tutor&questionId=q01_elevator_pitch&hrMode=tutor_rehearsal',
+    headers: {}
+  } as unknown as http.IncomingMessage;
+  const hrInitFrame = {
+    type: 'session_init',
+    hrMode: 'guided_zero_start',
+    startBeatId: 'q01_b2',
+    beatScope: 'single_beat',
+    vadPauseMs: 2100
+  };
+  const hrBlueprint = await LiveSessionBlueprintBuilder.resolveFromRequest(hrReq, hrInitFrame, stubDeps);
+  assert(hrBlueprint !== null, 'HR resolveFromRequest resolves blueprint');
+  if (hrBlueprint) {
+    assert(hrBlueprint.config.hrMode === 'guided_zero_start', 'session_init overrides hrMode to guided_zero_start');
+    assert(hrBlueprint.config.startBeatId === 'q01_b2', 'session_init hydrates startBeatId');
+    assert(hrBlueprint.config.beatScope === 'single_beat', 'session_init hydrates beatScope');
+    const hrSetup = hrBlueprint.buildUpstreamSetup() as any;
+    assert(hrSetup.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 2100, 'HR setup carries session_init vadPauseMs=2100');
+    const hrGreeting = hrBlueprint.buildTurn0Greeting();
+    assert(hrGreeting.includes('Изолированная тренировка одного блока'), 'HR Turn 0 greeting reflects single_beat startBeatId scope');
+  }
+
+  // Test 11: resolveFromParams & Turn 0 greeting parity across WS & LiveKit modes
+  const lkSysDesign = await LiveSessionBlueprintBuilder.resolveFromParams(
+    { sessionType: 'system_design', topic: 'Distributed Rate Limiter', questionText: 'Design Rate Limiter' },
+    stubDeps
+  );
+  const wsSysDesignGreeting = LiveSessionBlueprintBuilder.resolveTurn0GreetingText({
+    sessionType: 'system_design',
+    topic: 'Distributed Rate Limiter',
+    questionText: 'Design Rate Limiter'
+  });
+  assert(lkSysDesign.buildTurn0Greeting() === wsSysDesignGreeting && wsSysDesignGreeting.includes('Distributed Rate Limiter'), 'System design Turn 0 greeting matches identically across WS and LiveKit');
+
+  const lkPractice = await LiveSessionBlueprintBuilder.resolveFromParams(
+    {
+      sessionType: 'tutor',
+      tutorMode: 'practice_pair',
+      bugTitle: 'TokenBucket',
+      questionText: 'TokenBucket',
+      seniorReview: earlyInitFrame.seniorReview
+    },
+    stubDeps
+  );
+  assert(
+    practiceBlueprint !== null && lkPractice.buildTurn0Greeting() === practiceBlueprint.buildTurn0Greeting(),
+    'Practice pair Turn 0 greeting with seniorReview matches identically across WS and LiveKit'
+  );
+
+  // Test 12: LiveVoiceSession.extractEarlySessionInit detects session_init in earlyQueue without consuming audio frames
+  const earlyQueue = [
+    Buffer.from(JSON.stringify({ realtimeInput: { audio: { data: 'AAAA', mimeType: 'audio/pcm;rate=16000' } } })),
+    Buffer.from(JSON.stringify(earlyInitFrame))
+  ];
+  const extractedInit = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
+  assert(extractedInit?.type === 'session_init' && extractedInit?.vadPauseMs === 2400, 'extractEarlySessionInit extracts session_init from Buffer earlyQueue');
+  assert(earlyQueue.length === 2, 'extractEarlySessionInit leaves earlyQueue intact for DownstreamClientPipe');
+}
+
+runBlueprintBuilderTests()
+  .then(() => {
+    console.log(`\n📊 GeminiConfigBuilder Results: ${passed} passed, ${failed} failed`);
+    if (failed > 0) process.exit(1);
+  })
+  .catch((err) => {
+    console.error('❌ Test suite threw error:', err);
+    process.exit(1);
+  });

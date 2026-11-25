@@ -9,15 +9,13 @@
 import { WebSocket, RawData } from 'ws';
 import http from 'http';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
-import { LivePromptDirector } from './LivePromptDirector';
+import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { ProxySession } from './liveSessionTypes';
+import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { createLiveAudioStreamRouter } from './liveAudioStreamRouter';
-import { SessionConfigurationResolver } from './SessionConfigurationResolver';
 import { attachLiveClientFrameHandler } from './liveWsClientFrameHandler';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm, LiveSessionState } from './sessionFsm';
-import { createInitialProxySession } from './sessionStartupHelper';
 import { LiveSessionAggregate } from './LiveSessionAggregate';
 import { LiveStreamSentinel } from './LiveStreamSentinel';
 
@@ -60,6 +58,28 @@ export class LiveVoiceSession {
   public get fsm(): SessionFsm { return this._fsm; }
   public get watchdogs(): WatchdogManager { return this._watchdogs; }
 
+  public static extractEarlySessionInit(earlyQueue?: (Buffer | any)[]): any {
+    if (!Array.isArray(earlyQueue) || earlyQueue.length === 0) return undefined;
+    let latestInit: any;
+    for (const item of earlyQueue) {
+      if (!item) continue;
+      try {
+        let parsed: any = item;
+        if (typeof item === 'string') {
+          parsed = JSON.parse(item);
+        } else if (Buffer.isBuffer(item) || Array.isArray(item) || item instanceof ArrayBuffer) {
+          parsed = JSON.parse(toRawBuffer(item).toString('utf8'));
+        } else if (ArrayBuffer.isView(item)) {
+          parsed = JSON.parse(Buffer.from(item.buffer, item.byteOffset, item.byteLength).toString('utf8'));
+        }
+        if (parsed && typeof parsed === 'object' && parsed.type === 'session_init') {
+          latestInit = parsed;
+        }
+      } catch {}
+    }
+    return latestInit;
+  }
+
   public static async start(options: SessionStartupOptions): Promise<LiveVoiceSession | null> {
     const { clientSocket, earlyQueue, cleanupEarlyCapture } = options;
     const req = options.req || options.request;
@@ -74,8 +94,9 @@ export class LiveVoiceSession {
       return null;
     }
 
-    const config = await SessionConfigurationResolver.resolve(req);
-    if (!config) {
+    const initialInitFrame = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
+    const blueprint = await LiveSessionBlueprintBuilder.resolveFromRequest(req, initialInitFrame);
+    if (!blueprint) {
       if (cleanupEarlyCapture) cleanupEarlyCapture();
       console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
       clientSocket.close(4401, 'Unauthorized: Valid ticket or invite session required');
@@ -87,6 +108,7 @@ export class LiveVoiceSession {
       return null;
     }
 
+    const { config } = blueprint;
     console.log(`📡 [LiveVoiceSession] Starting: type=${config.sessionType}, mode=${config.tutorMode}, model=${config.liveModel}`);
 
     const fsm = new SessionFsm('INIT');
@@ -94,6 +116,10 @@ export class LiveVoiceSession {
     const aggregate = new LiveSessionAggregate(config, clientSocket, fsm, watchdogs);
     const session = aggregate.proxySession;
     session.aggregate = aggregate;
+    if (config.workspaceManifest) session.workspaceManifest = config.workspaceManifest;
+    if (config.activeCodeArtifact) session.activeCodeArtifact = config.activeCodeArtifact;
+    if (config.academyBridgeContext) session.academyBridgeContext = config.academyBridgeContext;
+    if (config.seniorReview) session.seniorReview = config.seniorReview;
 
     let instance: LiveVoiceSession;
     const terminate = (reason: string = 'Normal Closure', code: number = 1000, source: string = 'Session') => {
@@ -166,7 +192,7 @@ export class LiveVoiceSession {
     }, 15000);
     (session.heartbeatInterval as any)?.unref?.();
 
-    const { setupMessage } = LivePromptDirector.buildSetupDirectives(config, session);
+    const setupMessage = blueprint.buildUpstreamSetup(session.resumptionHandle);
 
     const router = createLiveAudioStreamRouter({
       session,

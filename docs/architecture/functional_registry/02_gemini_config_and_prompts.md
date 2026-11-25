@@ -168,4 +168,18 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 - **Invariants:**
   - Canonical `setup.sessionResumption` and `setup.contextWindowCompression.slidingWindow` must be present in every Gemini Live setup frame (`testGeminiConfigBuilder.ts` enforced).
 
+---
+
+### 2.13 `LiveSessionBlueprintBuilder: Unified Session Resolution, Early Init Hydration & Greeting SSOT (Spec 45 / #170)`
+- **Location:** [`LiveSessionBlueprintBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveSessionBlueprintBuilder.ts), [`liveSessionConfigTypes.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveSessionConfigTypes.ts), [`LiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveVoiceSession.ts), [`liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`LiveGreetingReplay.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveGreetingReplay.ts), [`livekitAuthService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/livekitAuthService.ts)
+- **What Was Done:**
+  1. Consolidated `sessionConfigAuth.ts`, `liveWsSessionParams.ts`, `SessionConfigurationResolver.ts`, `sessionInitFrameMerger.ts`, `liveWsChallengeResolver.ts`, and `LivePromptDirector.ts` into one deep `LiveSessionBlueprintBuilder` exposing `resolveFromRequest`, `resolveFromParams`, `buildDynamicSetupMessage`, and `resolveTurn0GreetingText`.
+  2. Updated `LiveVoiceSession.start()` to extract any early `session_init` frame from `earlyQueue` via `extractEarlySessionInit` before calling `resolveFromRequest(req, initialInitFrame)`, ensuring `voice`, `vadPauseMs`, `academyBridgeContext`, `seniorReview`, and `hrMode`/`beatScope` hydrate `buildUpstreamSetup()` prior to opening the upstream socket while forwarding `earlyQueue` unchanged to `DownstreamClientPipe`.
+  3. Unified Turn 0 greeting generation across WebSocket (`LiveGreetingReplay.ts`) and LiveKit (`livekitAuthService.ts`) via `resolveTurn0GreetingText` and `blueprint.buildTurn0Greeting()`.
+- **Hypotheses & Intermediate Conclusions:**
+  - *Root Cause:* `LiveVoiceSession.start()` previously ignored `earlyQueue` during config resolution, causing `session_init` fields (`vadPauseMs`, `academyBridgeContext`, `seniorReview`, `hrMode`/`beatScope`) to miss the initial Gemini `setup` frame; additionally, `livekitAuthService.ts` maintained a diverging copy of the Turn 0 greeting matrix.
+- **Rationale & "Why":** Eliminates 6 shallow pass-through modules and enforces single-source-of-truth pre-flight session assembly with injectable test seams (`BlueprintDependencies`).
+- **Invariants:**
+  - Early `session_init` frames MUST hydrate `LiveSessionBlueprint` before upstream `setup` is built; `LiveSessionBlueprintBuilder.ts` <= 320 lines.
+
 
