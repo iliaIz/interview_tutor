@@ -34,6 +34,7 @@ export interface MutationExecutionRequest {
   mutants: MutantDefinition[];
   requiredScore?: number;
   timeoutMs?: number;
+  skipPreScan?: boolean;
 }
 
 export interface MutationExecutionResponse {
@@ -65,43 +66,48 @@ export class JvmMutationEngine {
     const startTime = Date.now();
     const requiredScore = request.requiredScore || 85;
 
-    // 1. AST Security Check
-    const secResult = AstSecurityScanner.scan(request.files);
-    if (!secResult.isSafe) {
-      const primaryViolation = secResult.violations[0];
-      return {
-        isMutationRun: true,
-        baselinePassed: false,
-        totalMutants: request.mutants?.length || 0,
-        killedCount: 0,
-        survivedCount: request.mutants?.length || 0,
-        mutationScore: 0,
-        passedThreshold: false,
-        requiredScore,
-        executionTimeMs: Date.now() - startTime,
-        mutantResults: [],
-        error: `Нарушение политики безопасности: ${primaryViolation.message}`
-      };
-    }
+    let qualityViolations: TestQualityViolation[] = [];
 
-    // 2. AST Test Quality Check (Anti-Patterns & Potemkin Tests)
-    const qualityResult = TestQualityScanner.scan(request.files);
-    if (!qualityResult.isValid) {
-      const blocking = qualityResult.violations.find((v) => v.severity === 'ERROR');
-      return {
-        isMutationRun: true,
-        baselinePassed: false,
-        totalMutants: request.mutants?.length || 0,
-        killedCount: 0,
-        survivedCount: request.mutants?.length || 0,
-        mutationScore: 0,
-        passedThreshold: false,
-        requiredScore,
-        executionTimeMs: Date.now() - startTime,
-        mutantResults: [],
-        qualityViolations: qualityResult.violations,
-        error: `Антипаттерн тестирования: ${blocking?.message || 'Обнаружены критические ошибки тест-дизайна'}`
-      };
+    if (!request.skipPreScan) {
+      // 1. AST Security Check
+      const secResult = AstSecurityScanner.scan(request.files);
+      if (!secResult.isSafe) {
+        const primaryViolation = secResult.violations[0];
+        return {
+          isMutationRun: true,
+          baselinePassed: false,
+          totalMutants: request.mutants?.length || 0,
+          killedCount: 0,
+          survivedCount: request.mutants?.length || 0,
+          mutationScore: 0,
+          passedThreshold: false,
+          requiredScore,
+          executionTimeMs: Date.now() - startTime,
+          mutantResults: [],
+          error: `Нарушение политики безопасности: ${primaryViolation.message}`
+        };
+      }
+
+      // 2. AST Test Quality Check (Anti-Patterns & Potemkin Tests)
+      const qualityResult = TestQualityScanner.scan(request.files);
+      qualityViolations = qualityResult.violations;
+      if (!qualityResult.isValid) {
+        const blocking = qualityResult.violations.find((v) => v.severity === 'ERROR');
+        return {
+          isMutationRun: true,
+          baselinePassed: false,
+          totalMutants: request.mutants?.length || 0,
+          killedCount: 0,
+          survivedCount: request.mutants?.length || 0,
+          mutationScore: 0,
+          passedThreshold: false,
+          requiredScore,
+          executionTimeMs: Date.now() - startTime,
+          mutantResults: [],
+          qualityViolations,
+          error: `Антипаттерн тестирования: ${blocking?.message || 'Обнаружены критические ошибки тест-дизайна'}`
+        };
+      }
     }
 
     // 3. Run Mutation Compiler (Hot Daemon -> Fallback CLI)
@@ -151,7 +157,7 @@ export class JvmMutationEngine {
         requiredScore,
         executionTimeMs: Date.now() - startTime,
         mutantResults: [],
-        qualityViolations: qualityResult.violations,
+        qualityViolations,
         error
       };
     }
@@ -215,7 +221,7 @@ export class JvmMutationEngine {
         requiredScore,
         executionTimeMs: parsed.executionTimeMs || (Date.now() - startTime),
         mutantResults: enrichedMutants,
-        qualityViolations: qualityResult.violations,
+        qualityViolations,
         error: parsed.error
       };
     } catch {
@@ -230,7 +236,7 @@ export class JvmMutationEngine {
         requiredScore,
         executionTimeMs: Date.now() - startTime,
         mutantResults: [],
-        qualityViolations: qualityResult.violations,
+        qualityViolations,
         error: `Ошибка парсинга вывода мутационного раннера: ${output.slice(0, 300)}`
       };
     }
