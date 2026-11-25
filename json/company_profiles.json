@@ -531,7 +531,31 @@
         "label": "🛡️ Дефекты TransferService",
         "promptMessage": "Объясни скрытые баги в TransferService: почему возникает дедлок в БД и как работает детерминированная сортировка min(id)->max(id)."
       }
-    ]
+    ],
+    "readinessConfig": {
+      "theory": {
+        "total": 20
+      },
+      "codeReview": {
+        "total": 2,
+        "idPrefixes": ["case_"]
+      },
+      "liveCoding": {
+        "total": 2,
+        "idPrefixes": ["iban-"],
+        "exactIds": ["lld-key-value-cache-ttl"]
+      },
+      "sql": {
+        "total": 5,
+        "idPrefixes": ["sql-raiff-"]
+      },
+      "systemDesignTotal": 5
+    },
+    "voicePreset": {
+      "topic": "АО «Райффайзенбанк» (Raiffeisen DGTL): Product Engineer Fit Interview",
+      "initialQuestionText": "Расскажи о своем опыте: как ты подходишь к сквозной ответственности за фичи, какие метрики отслеживаешь (TTM (Time to Market), Pain Index, Conversion Lift%) и как предотвращаешь финансовые сбои на проде?",
+      "systemPrompt": "РОЛЬ: Product Engineer Lead в АО «Райффайзенбанк» (Raiffeisen DGTL). Проведи Fit/Culture интервью по методике STAR. ТЕМЫ К ОБСУЖДЕНИЮ: 1) 5-шаговый поиск причин просадки конверсии; 2) Метрики TTM, Customer Pain Index, SRM в A/B, Conversion Lift%; 3) STAR-опыт решения факапов; 4) Финтех-инварианты: BigDecimal, сортировка блокировок min->max, Transactional Outbox. Инженерная парадигма: Product Engineer (End-to-End Ownership: от продуктовой гипотезы и метрик до TDD тестов и продакшен-мониторинга). Красные флаги: Использование double или float для финансовых балансов (потеря точности IEEE 754); Использование synchronized на методах перевода вместо пессимистических блокировок БД; Незнание трехзначной логики SQL (падение NOT IN при наличии хотя бы одного NULL); Игнорирование сквозной идемпотентности (idempotencyKey) в платежных операциях; Самовызов @Transactional метода внутри одного Spring-бина (AOP Proxy bypass). Зеленые сигналы: Детерминированная сортировка primary keys (min -> max) при блокировках для предотвращения дедлоков; Constructor injection экземпляра java.time.Clock для детерминированного тестирования времени; Понимание разницы DENSE_RANK vs RANK vs ROW_NUMBER при связках категорий расходов; Применение Transactional Outbox + Debezium CDC для гарантированной доставки событий; Shift-Left тестирование: написание воспроизводящих сбои тестов до генерации кода."
+    }
   },
   {
     "id": "alfa_digital",
@@ -642,6 +666,7 @@
     "stages": [
       {
         "id": "alfa-stage-1-theory",
+        "stageNumber": 1,
         "title": "1. Скрининг: Теория, JMM & Физика JVM",
         "description": "Устный блиц с Lead-инженером: JMM happens-before, память JVM (Metaspace vs Off-Heap), G1 vs ZGC, MVCC PostgreSQL и семантика Kafka EOS.",
         "estimatedMinutes": 25,
@@ -652,6 +677,7 @@
       },
       {
         "id": "alfa-stage-2-code-review",
+        "stageNumber": 2,
         "title": "2. Секция Code Review: 6 банковских кейсов",
         "description": "Поиск скрытых дефектов за 15-20 минут: PaymentController (8 багов), @Transactional ретраи, Dual Write Outbox, String.intern(), Hibernate N+1.",
         "estimatedMinutes": 30,
@@ -662,6 +688,7 @@
       },
       {
         "id": "alfa-stage-3-live-coding",
+        "stageNumber": 3,
         "title": "3. Секция Live Coding & Concurrency",
         "description": "Написание чистого и потокобезопасного кода в IDE: SegmentedConcurrentHashMap, стримы с BigDecimal, Key-Value Cache с TTL и защита от race conditions.",
         "estimatedMinutes": 40,
@@ -672,6 +699,7 @@
       },
       {
         "id": "alfa-stage-4-sql",
+        "stageNumber": 4,
         "title": "4. Реляционный SQL: Аналитика & Ловушки PostgreSQL",
         "description": "Решение практических задач в браузере (PGlite WASM): совместные покупки, расчет конверсии воронки, оконные функции и диагностика блокировок.",
         "estimatedMinutes": 25,
@@ -682,6 +710,7 @@
       },
       {
         "id": "alfa-stage-5-system-design",
+        "stageNumber": 5,
         "title": "5. Глубокий тех & System Design: ЦФА «А-Токен»",
         "description": "Проектирование высоконагруженных финтех-систем: архитектура криптошлюза ЦФА (Waves Enterprise, СКЗИ ГОСТ, SOAP в АБС) и отказоустойчивый Transactional Outbox.",
         "estimatedMinutes": 60,
@@ -918,17 +947,188 @@
       {
         "id": "alfa-grill-jvm",
         "label": "🅰️ Загриль по JVM и памяти",
-        "prompt": "Проведи жесткий экзамен уровня Senior Java в Альфа-Банке: задай мне глубокий вопрос по устройству памяти JVM (Stack, Metaspace, Off-heap) или механизмам ZGC. Требуй ответов от первопричины."
+        "promptMessage": "Проведи жесткий экзамен уровня Senior Java в Альфа-Банке: задай мне глубокий вопрос по устройству памяти JVM (Stack, Metaspace, Off-heap) или механизмам ZGC. Требуй ответов от первопричины."
       },
       {
         "id": "alfa-grill-concurrency",
         "label": "⚡ Экзамен по Concurrency",
-        "prompt": "Задай мне сложный вопрос по JMM, happens-before, эволюции локов HotSpot или LongAdder. Оценивай точность и выявляй малейшие неточности."
+        "promptMessage": "Задай мне сложный вопрос по JMM, happens-before, эволюции локов HotSpot или LongAdder. Оценивай точность и выявляй малейшие неточности."
       },
       {
         "id": "alfa-grill-atoken",
         "label": "🪙 Архитектура «А-Токен»",
-        "prompt": "Давай разберем архитектуру платформы ЦФА «А-Токен»: блокчейн Waves Enterprise, интеграцию с АБС и защиту от Double-Spending. Проверь мою готовность ко 2-му этапу собеседования."
+        "promptMessage": "Давай разберем архитектуру платформы ЦФА «А-Токен»: блокчейн Waves Enterprise, интеграцию с АБС и защиту от Double-Spending. Проверь мою готовность ко 2-му этапу собеседования."
+      }
+    ],
+    "readinessConfig": {
+      "questionCatalogFile": "alfa_interview_questions.json",
+      "theory": {
+        "total": 27
+      },
+      "codeReview": {
+        "total": 6,
+        "idPrefixes": ["cr-alfa-"]
+      },
+      "liveCoding": {
+        "total": 5,
+        "idPrefixes": ["lc-alfa-"],
+        "exactIds": ["lld-key-value-cache-ttl"]
+      },
+      "sql": {
+        "total": 7,
+        "idPrefixes": ["sql-alfa-"]
+      },
+      "systemDesignTotal": 5
+    },
+    "voicePreset": {
+      "topic": "АО «Альфа-Банк» (Alfa Digital & А-Токен): Технический скрининг",
+      "initialQuestionText": "Привет! Начнем наш технический скрининг в Alfa Digital. Расскажи кратко о своем опыте с HighLoad, и сразу перейдем к физике JMM и HotSpot: что происходит при синхронизации на объекте, и почему String.intern() в synchronized — это критический дефект?",
+      "systemPrompt": "РОЛЬ: Lead Java-архитектор в АО «Альфа-Банк» (Alfa Digital & А-Токен). Твоя цель — провести жесткий технический скрининг на позицию Senior Java Engineer в Финтех. ТЕМЫ ДЛЯ ГЛУБОКОГО ЗОНДИРОВАНИЯ: 1) JMM happens-before, safepoints, biased/thin/fat locking, Metaspace vs off-heap zero-copy sendfile, G1 vs ZGC; 2) Concurrency: CAS, полосковые блокировки (SegmentedConcurrentHashMap); 3) Spring: обход прокси при самовызове @Transactional, утечки пула HikariCP; 4) PostgreSQL: MVCC t_xmin/t_xmax, Dead Tuples, vacuum wraparound, SSI write skew; 5) Kafka: zero-copy sendfile, EOS 2PC PID; 6) А-Токен: Waves Enterprise, ГОСТ КС2, SOAP в АБС Equation. Требуй физических причин вместо симптомов. Красные флаги: Поверхностные ответы на уровне синтаксиса без понимания физики (JMM, MVCC, Page Cache).; Использование double или float для денежных сумм вместо BigDecimal.; Внешние сетевые вызовы (HTTP/RPC) внутри @Transactional (удержание коннектов HikariCP).; Незнание устройства платформы «А-Токен» (утверждение, что она построена на Hyperledger вместо Waves Enterprise).; Синхронизация на interned строках или static HashMap без потокобезопасности.. Зеленые сигналы: Рассуждения от первопричины (L1/L2 кэш-линии, JMM StoreLoad барьеры, xmin/xmax, sendfile Zero-Copy).; Владение формулой Литтла (L = λ × W) и официальным расчетом пулов HikariCP.; Архитектурное решение Dual Write через Transactional Outbox + Debezium CDC.; Глубокое понимание специфики блокчейна Waves Enterprise, СКЗИ КриптоПро ГОСТ КС2 и SOAP интеграции с АБС.."
+    },
+    "curatedChallenges": [
+      {
+        "id": "cr-alfa-01",
+        "title": "PaymentController: 8+ скрытых дефектов в REST-контроллере",
+        "category": "code_review",
+        "difficulty": "Senior",
+        "estimatedMinutes": 20,
+        "summary": "Классический собеседовательный контроллер с критическими финтех-уязвимостями.",
+        "keyPoints": [
+          "Static HashMap утечка памяти",
+          "Потеря точности double в деньгах",
+          "Внешний HTTP внутри @Transactional (утечка HikariCP)",
+          "Отправка в Kafka до фиксации транзакции"
+        ]
+      },
+      {
+        "id": "cr-alfa-02",
+        "title": "CalculationService: Ретраи внутри @Transactional и зависание HikariCP",
+        "category": "code_review",
+        "difficulty": "Middle",
+        "estimatedMinutes": 15,
+        "summary": "Антипаттерн @Retryable внутри транзакции, вызывающий голодание пула БД.",
+        "keyPoints": [
+          "Зависание соединений в пуле",
+          "Ретраи транзакций на уровне бизнес-логики",
+          "Преждевременный push событий"
+        ]
+      },
+      {
+        "id": "cr-alfa-03",
+        "title": "OrderProcessingService: Нарушение атомарности Dual Write",
+        "category": "code_review",
+        "difficulty": "Middle",
+        "estimatedMinutes": 20,
+        "summary": "Распределенная несогласованность при совмещении записи в БД и HTTP RPC.",
+        "keyPoints": [
+          "Атомарность распределенных операций",
+          "Паттерн Transactional Outbox",
+          "Идемпотентные потребители событий"
+        ]
+      },
+      {
+        "id": "cr-alfa-04",
+        "title": "AccountLocker: Синхронизация на String.intern() и Deadlock",
+        "category": "code_review",
+        "difficulty": "Middle",
+        "estimatedMinutes": 15,
+        "summary": "Смертельная ловушка синхронизации на строковом пуле JVM.",
+        "keyPoints": [
+          "Deadlock в String Pool",
+          "Опасность интернированных объектов",
+          "Альтернатива: полосковые Striped Locks"
+        ]
+      },
+      {
+        "id": "cr-alfa-05",
+        "title": "CustomerOrderRepository: Hibernate N+1 и антипаттерн EAGER",
+        "category": "code_review",
+        "difficulty": "Middle",
+        "estimatedMinutes": 15,
+        "summary": "Падение производительности СУБД из-за взрывного роста числа SQL-запросов.",
+        "keyPoints": [
+          "N+1 проблема Hibernate",
+          "Опасность FetchType.EAGER",
+          "Решение через @EntityGraph и JOIN FETCH"
+        ]
+      },
+      {
+        "id": "cr-alfa-06",
+        "title": "ExceptionProcessor: Поведение try-catch-finally в байткоде JVM",
+        "category": "code_review",
+        "difficulty": "Middle",
+        "estimatedMinutes": 10,
+        "summary": "Нюансы таблицы исключений JVM ExceptionTable и перетирание return-значений.",
+        "keyPoints": [
+          "Перетирание return в блоке finally",
+          "Проглатывание unchecked исключений",
+          "Поведение JVM стэка операндов"
+        ]
+      },
+      {
+        "id": "lc-alfa-01",
+        "title": "SegmentedConcurrentHashMap: Полосковые блокировки (Striped Locking)",
+        "category": "live_coding",
+        "difficulty": "Senior",
+        "estimatedMinutes": 40,
+        "summary": "Реализация масштабируемой потокобезопасной таблицы на массиве ReentrantLock.",
+        "keyPoints": [
+          "Полосковая синхронизация по хешу",
+          "Volatile видимость чтения без блокировок",
+          "Устранение bottleneck synchronizedMap"
+        ]
+      },
+      {
+        "id": "lc-alfa-02",
+        "title": "BankingStreamProcessor: Агрегация транзакций на Stream API & BigDecimal",
+        "category": "live_coding",
+        "difficulty": "Middle",
+        "estimatedMinutes": 30,
+        "summary": "Высокоточная обработка финансовых проводок без потери копеек.",
+        "keyPoints": [
+          "Исключение float/double в деньгах",
+          "GroupingBy и кастомные Collectors",
+          "Потокобезопасность в parallelStream"
+        ]
+      },
+      {
+        "id": "lld-key-value-cache-ttl",
+        "title": "In-Memory Key-Value Cache с TTL и защитой от Cache Stampede",
+        "category": "live_coding",
+        "difficulty": "Senior",
+        "estimatedMinutes": 45,
+        "summary": "Высоконагруженный локальный кэш с инвалидацией и параллельным доступом.",
+        "keyPoints": [
+          "Атомарный computeIfAbsent",
+          "Защита от эффекта собачьего набега (Stampede)",
+          "Очистка устаревших записей по таймеру"
+        ]
+      },
+      {
+        "id": "lc-alfa-04",
+        "title": "ImmutableAccount: Защитное копирование и контракт equals/hashCode",
+        "category": "live_coding",
+        "difficulty": "Middle",
+        "estimatedMinutes": 25,
+        "summary": "Проектирование 100% иммутабельной сущности счета с коллекциями и датами.",
+        "keyPoints": [
+          "Глубокое защитное копирование (defensive copying)",
+          "Корректный хешкод при коллизиях",
+          "Защита от мутаций через геттеры"
+        ]
+      },
+      {
+        "id": "lc-alfa-05",
+        "title": "PaymentRestController: Jakarta Bean Validation & Mockito ArgumentCaptor",
+        "category": "live_coding",
+        "difficulty": "Middle",
+        "estimatedMinutes": 30,
+        "summary": "Написание чистого Spring REST-контроллера с валидацией и юнит-тестами.",
+        "keyPoints": [
+          "Аннотации @Valid, @Pattern, @Positive",
+          "Перехват DTO через ArgumentCaptor",
+          "Тестирование негативных сценариев с MockMvc"
+        ]
       }
     ]
   }

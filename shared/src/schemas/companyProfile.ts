@@ -155,6 +155,43 @@ export const TakeHomePrCaseSchema = Type.Object({
 });
 export type TakeHomePrCase = Static<typeof TakeHomePrCaseSchema>;
 
+// --- Manifest-Driven Readiness, Curated Challenges & Voice Presets (Spec 44) ---
+
+export const ReadinessCategoryRuleSchema = Type.Object({
+  total: Type.Number({ minimum: 1 }),
+  idPrefixes: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+  exactIds: Type.Optional(Type.Array(Type.String({ minLength: 1 })))
+});
+export type ReadinessCategoryRule = Static<typeof ReadinessCategoryRuleSchema>;
+
+export const CompanyReadinessManifestSchema = Type.Object({
+  questionCatalogFile: Type.Optional(Type.String({ minLength: 1 })),
+  theory: ReadinessCategoryRuleSchema,
+  codeReview: ReadinessCategoryRuleSchema,
+  liveCoding: ReadinessCategoryRuleSchema,
+  sql: ReadinessCategoryRuleSchema,
+  systemDesignTotal: Type.Number({ minimum: 1 })
+});
+export type CompanyReadinessManifest = Static<typeof CompanyReadinessManifestSchema>;
+
+export const CompanyCuratedChallengeItemSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  title: Type.String({ minLength: 1 }),
+  category: Type.Union([Type.Literal('code_review'), Type.Literal('live_coding')]),
+  difficulty: Type.Union([Type.Literal('Middle'), Type.Literal('Senior')]),
+  estimatedMinutes: Type.Number({ minimum: 1 }),
+  summary: Type.String({ minLength: 1 }),
+  keyPoints: Type.Array(Type.String())
+});
+export type CompanyCuratedChallengeItem = Static<typeof CompanyCuratedChallengeItemSchema>;
+
+export const CompanyVoicePresetSchema = Type.Object({
+  topic: Type.String({ minLength: 1 }),
+  initialQuestionText: Type.String({ minLength: 1 }),
+  systemPrompt: Type.String({ minLength: 1 })
+});
+export type CompanyVoicePreset = Static<typeof CompanyVoicePresetSchema>;
+
 export const CompanyProfileSchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   name: Type.String({ minLength: 1 }),
@@ -170,6 +207,10 @@ export const CompanyProfileSchema = Type.Object({
   starScenarios: Type.Optional(Type.Array(StarCaseSchema)),
   talentQGuide: Type.Optional(TalentQGuideSchema),
   takeHomePrCases: Type.Optional(Type.Array(TakeHomePrCaseSchema)),
-  customQuickActionChips: Type.Optional(Type.Array(TutorQuickActionChipSchema))
+  customQuickActionChips: Type.Optional(Type.Array(TutorQuickActionChipSchema)),
+  // Spec 44 Manifest Extensions:
+  readinessConfig: Type.Optional(CompanyReadinessManifestSchema),
+  curatedChallenges: Type.Optional(Type.Array(CompanyCuratedChallengeItemSchema)),
+  voicePreset: Type.Optional(CompanyVoicePresetSchema)
 });
 export type CompanyProfile = Static<typeof CompanyProfileSchema>;
