@@ -16,6 +16,12 @@ export function toRawBuffer(data: RawData): Buffer {
   return Buffer.from(data);
 }
 
+export interface UpstreamTransportPort {
+  connectGemini: (isReconnecting?: boolean) => void;
+  reconnect?: () => void;
+  close?: (code?: number, reason?: string) => void;
+}
+
 export interface CurrentTurnMetrics {
   turnIndex: number;
   candidateSpeechStartedAt?: number;
@@ -54,8 +60,6 @@ export interface ProxySession {
   isOnHold?: boolean;
   lastActivityAt: number;
   heartbeatInterval?: NodeJS.Timeout | null;
-  nudgeWatchdog?: NodeJS.Timeout | null;
-  deadAirWatchdog?: NodeJS.Timeout | null;
   deadAirTimeoutMs?: number;
   watchdogs?: WatchdogManager;
   fsm?: SessionFsm;

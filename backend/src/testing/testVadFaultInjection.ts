@@ -13,7 +13,8 @@ import http from 'http';
 import { ProxySession } from '../services/live/liveSessionTypes';
 import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
 import { LiveClientGuardService } from '../services/live/liveClientGuardService';
-import { handleTurnCommit, armTurnWatchdogs } from '../services/live/liveWsTurnCommitHandler';
+import { SessionTurnState } from '../services/live/SessionTurnState';
+import { WatchdogManager } from '../services/live/WatchdogManager';
 import { LiveStreamSentinel } from '../services/live/LiveStreamSentinel';
 
 interface TestContext {
@@ -110,7 +111,7 @@ async function testUpstreamDeadAirTimeout(): Promise<void> {
   session.isAiGenerating = true;
   session.lastTurnCommitTime = Date.now();
 
-  armTurnWatchdogs(session, session.clientSocket);
+  SessionTurnState.armTurnWatchdogs(session, session.clientSocket);
 
   assert((session.isAiGenerating as boolean) === true, 'Session in isAiGenerating state immediately after turnCommit');
 
@@ -183,13 +184,8 @@ async function testEchoGuardTimeoutExpiry(): Promise<void> {
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 1, 'Echo Guard correctly suppressed mic audio during generation');
   assert(geminiReceived.length === 0, 'No audio forwarded to Gemini during active generation');
 
-  // 2. Dead-Air Watchdog triggers after timeout
-  session.deadAirWatchdog = setTimeout(() => {
-    session.isAiGenerating = false;
-    if (session.currentTurnMetrics) {
-      session.currentTurnMetrics.droppedEchoChunksCount = 0;
-    }
-  }, session.deadAirTimeoutMs);
+  // 2. Dead-Air Watchdog triggers after timeout via unified WatchdogManager
+  WatchdogManager.ensureSessionWatchdogs(session, clientPair.remote).arm(false, session.deadAirTimeoutMs);
 
   await sleep(150);
 
@@ -263,7 +259,7 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
   // 2. Candidate speaks short 1.3s utterance (33 chunks) and commits turn
   session.isAiGenerating = true;
   session.lastTurnCommitTime = Date.now();
-  session.deadAirWatchdog = setTimeout(() => {
+  const recoveryTimer = setTimeout(() => {
     session.isAiGenerating = false;
     session.geminiSocket.send(JSON.stringify({
       clientContent: {
@@ -272,6 +268,7 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
       }
     }));
   }, session.deadAirTimeoutMs);
+  void recoveryTimer;
 
   await sleep(180);
 
@@ -292,6 +289,9 @@ async function testBidirectionalWatchdogSyncContract(): Promise<void> {
   const clientPair = await createSocketPair();
   const geminiPair = await createSocketPair();
 
+  const longTimerWatchdog = new WatchdogManager();
+  longTimerWatchdog.arm(false, 60000);
+
   const session: ProxySession = {
     clientSocket: clientPair.remote,
     geminiSocket: geminiPair.client,
@@ -300,7 +300,7 @@ async function testBidirectionalWatchdogSyncContract(): Promise<void> {
     sessionId: 'test_turn_reset_sync',
     lastActivityAt: Date.now(),
     isAiGenerating: true,
-    deadAirWatchdog: setTimeout(() => {}, 60000), // Long timer
+    watchdogs: longTimerWatchdog,
     currentTurnMetrics: {
       turnIndex: 2,
       vadPauseSettingMs: 1800,
@@ -319,17 +319,14 @@ async function testBidirectionalWatchdogSyncContract(): Promise<void> {
   if (clientMsg.type === 'turn_reset') {
     session.isAiGenerating = false;
     session.currentAiTurnText = '';
-    if (session.deadAirWatchdog) {
-      clearTimeout(session.deadAirWatchdog);
-      session.deadAirWatchdog = null;
-    }
+    session.watchdogs?.disarmAll();
     if (session.currentTurnMetrics) {
       session.currentTurnMetrics.droppedEchoChunksCount = 0;
     }
   }
 
   assert((session.isAiGenerating as boolean) === false, 'turn_reset frame immediately cleared isAiGenerating to false');
-  assert(session.deadAirWatchdog === null, 'turn_reset frame cleared pending deadAirWatchdog');
+  assert(!session.watchdogs?.isArmed(), 'turn_reset frame cleared pending WatchdogManager timers');
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 0, 'turn_reset frame cleared droppedEchoChunksCount');
 
   await cleanupSocketPair(clientPair);
@@ -918,7 +915,7 @@ async function testZeroChunkBargeInRecoveryContract(): Promise<void> {
     lastBargeInEpoch: Date.now() - 500
   };
 
-  const accepted = handleTurnCommit(
+  const accepted = SessionTurnState.handleTurnCommit(
     session,
     { clientContent: { turnComplete: true } },
     false,
@@ -935,10 +932,9 @@ async function testZeroChunkBargeInRecoveryContract(): Promise<void> {
   );
   assert(Boolean(promptSent), 'Synthesized prompt dispatched to Gemini so AI speaks and breaks dead-air deadlock');
   assert(session.isAiGenerating === true, 'session.isAiGenerating set to true for conversational recovery');
-  assert(Boolean(session.deadAirWatchdog), 'deadAirWatchdog armed to protect against upstream hang');
+  assert(Boolean(session.watchdogs?.isArmed()), 'WatchdogManager armed to protect against upstream hang');
 
-  if (session.nudgeWatchdog) clearTimeout(session.nudgeWatchdog);
-  if (session.deadAirWatchdog) clearTimeout(session.deadAirWatchdog);
+  session.watchdogs?.disarmAll();
 
   await cleanupSocketPair(clientPair);
   await cleanupSocketPair(geminiPair);

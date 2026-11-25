@@ -204,10 +204,6 @@ export class LiveToolEngine {
     session.isToolCallPending = true;
     session.lastActivityAt = Date.now();
     session.watchdogs?.disarmAll();
-    if (session.nudgeWatchdog) {
-      clearTimeout(session.nudgeWatchdog);
-      session.nudgeWatchdog = null;
-    }
     console.log('🛠️ Gemini Live emitted Tool Call:', JSON.stringify(functionCalls));
 
     for (const call of functionCalls) {
@@ -249,7 +245,7 @@ export class LiveToolEngine {
         continue;
       }
 
-      // 1. Central Invariant 2.1: Turn 0 Tool Lockdown (Enforced via LiveSessionAggregate)
+      // 1. Central Invariant 2.1: Turn 0 Tool Lockdown (Enforced via SessionTurnState)
       const isBlockedByAggregate = session.aggregate?.canExecuteGradingTools
         ? !session.aggregate.canExecuteGradingTools().allowed
         : !session.hasCandidateResponded;

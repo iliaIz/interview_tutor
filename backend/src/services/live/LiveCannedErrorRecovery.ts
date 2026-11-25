@@ -69,10 +69,7 @@ export class LiveCannedErrorRecovery {
     session.isAiGenerating = true;
     session.firstAudioChunkLogged = false;
 
-    if (session.deadAirWatchdog) {
-      clearTimeout(session.deadAirWatchdog);
-      session.deadAirWatchdog = null;
-    }
+    session.watchdogs?.disarmAll();
     if (session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;

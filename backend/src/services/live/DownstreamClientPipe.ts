@@ -8,10 +8,10 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { handleTurnCommit, armTurnWatchdogs } from './liveWsTurnCommitHandler';
 import { LiveWorkspaceContext } from './LiveWorkspaceContext';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 import { handleGuidedStepControlFrame } from './hrGuidedStepper';
+import { SessionTurnState } from './SessionTurnState';
 
 export interface DownstreamClientPipeOptions {
   session: ProxySession;
@@ -181,14 +181,6 @@ export class DownstreamClientPipe {
       session.currentTurnAudioBytes = 0;
       session.audioChunksCount = 0;
       session.currentAiTurnText = '';
-      if (session.nudgeWatchdog) {
-        clearTimeout(session.nudgeWatchdog);
-        session.nudgeWatchdog = null;
-      }
-      if (session.deadAirWatchdog) {
-        clearTimeout(session.deadAirWatchdog);
-        session.deadAirWatchdog = null;
-      }
       if (session.currentTurnMetrics) {
         session.currentTurnMetrics.droppedEchoChunksCount = 0;
       }
@@ -275,7 +267,7 @@ export class DownstreamClientPipe {
     }
 
     if (!isDeicticFrame && parsed.clientContent?.turnComplete) {
-      const accepted = handleTurnCommit(session, parsed, isBargeIn, clientSocket, turnMode);
+      const accepted = SessionTurnState.handleTurnCommit(session, parsed, isBargeIn, clientSocket, turnMode);
       if (!accepted) return null;
     }
 

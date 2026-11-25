@@ -101,10 +101,6 @@ export class LiveTelemetryAccumulator {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;
     }
-    if (session.deadAirWatchdog) {
-      clearTimeout(session.deadAirWatchdog);
-      session.deadAirWatchdog = null;
-    }
 
     // Seal Canonical Turn Telemetry Event
     const commitTime =
@@ -183,10 +179,6 @@ export class LiveTelemetryAccumulator {
     session.audioChunksCount = 0;
     session.isToolCallPending = false;
     session.watchdogs?.disarmAll();
-    if (session.deadAirWatchdog) {
-      clearTimeout(session.deadAirWatchdog);
-      session.deadAirWatchdog = null;
-    }
     if (session.currentTurnMetrics) {
       session.currentTurnMetrics.wasBargeIn = true;
       if (!session.currentTurnMetrics.bargeInType) {

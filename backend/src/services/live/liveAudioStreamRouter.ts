@@ -237,9 +237,6 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         session.probesCount = (session.probesCount || 0) + 1;
         if (session.watchdogs) session.watchdogs.heartbeat();
         session.fsm?.transition('AI_SPEAKING');
-        if (session.nudgeWatchdog) { clearTimeout(session.nudgeWatchdog); session.nudgeWatchdog = null; }
-        if (session.deadAirWatchdog) { clearTimeout(session.deadAirWatchdog); session.deadAirWatchdog = null; }
-
         if (!session.currentTurnMetrics) {
           session.currentTurnMetrics = {
             turnIndex: session.currentTurnIndex || 0,
@@ -266,7 +263,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       if (outputTranscriptionText) {
         session.currentAiTurnText = (session.currentAiTurnText || '') + outputTranscriptionText;
         LiveCannedErrorRecovery.evaluateAndIntercept(session, clientSocket, session.currentAiTurnText || '', session.currentTurnAudioBytes);
-        if (session.deadAirWatchdog) { clearTimeout(session.deadAirWatchdog); session.deadAirWatchdog = null; }
+        session.watchdogs?.heartbeat();
       }
 
       // 3. Tool Call Cancellation

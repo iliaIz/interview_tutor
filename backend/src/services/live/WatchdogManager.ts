@@ -98,4 +98,48 @@ export class WatchdogManager {
     this.options.onNudge = undefined;
     this.options.onTimeout = undefined;
   }
+
+  /**
+   * Ensures a single unified WatchdogManager owns phase-1 nudge & phase-2 recovery
+   * timers for the given session, eliminating parallel raw NodeJS.Timeout leaks (Spec 46).
+   */
+  public static ensureSessionWatchdogs(
+    session: {
+      watchdogs?: WatchdogManager;
+      isAiGenerating?: boolean;
+      awaitingToolSpeech?: boolean;
+      streamSentinel?: { resetTurnState: () => void };
+      fsm?: { transition: (state: any) => void };
+      currentTurnMetrics?: { droppedEchoChunksCount: number } | null;
+    },
+    clientSocket: { readyState: number; send: (data: string) => void }
+  ): WatchdogManager {
+    if (session.watchdogs) return session.watchdogs;
+    const manager = new WatchdogManager({
+      onNudge: (elapsedMs) => {
+        if ((session.isAiGenerating || session.awaitingToolSpeech) && clientSocket.readyState === 1) {
+          clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
+        }
+      },
+      onTimeout: (reason) => {
+        if (session.isAiGenerating || session.awaitingToolSpeech) {
+          console.warn('⏱️ [DEAD_AIR_WATCHDOG] silence expired with zero response. Reclaiming mic.');
+          session.isAiGenerating = false;
+          session.awaitingToolSpeech = false;
+          session.streamSentinel?.resetTurnState();
+          session.fsm?.transition('CANDIDATE_LISTENING');
+          if (session.currentTurnMetrics) session.currentTurnMetrics.droppedEchoChunksCount = 0;
+          if (clientSocket.readyState === 1) {
+            clientSocket.send(JSON.stringify({
+              type: 'dead_air_recovery',
+              reason: reason || 'upstream_timeout',
+              timestamp: Date.now()
+            }));
+          }
+        }
+      }
+    });
+    session.watchdogs = manager;
+    return manager;
+  }
 }

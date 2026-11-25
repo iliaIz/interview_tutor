@@ -21,14 +21,6 @@ export class LiveClientGuardService {
     session.lastBargeInEpoch = epoch;
 
     session.watchdogs?.disarmAll();
-    if (session.nudgeWatchdog) {
-      clearTimeout(session.nudgeWatchdog);
-      session.nudgeWatchdog = null;
-    }
-    if (session.deadAirWatchdog) {
-      clearTimeout(session.deadAirWatchdog);
-      session.deadAirWatchdog = null;
-    }
 
     if (session.currentTurnMetrics) {
       session.currentTurnMetrics.wasBargeIn = true;

@@ -18,7 +18,7 @@ import {
 } from '@interview-prep/shared';
 import type { ProxySession } from './liveSessionTypes';
 import { getHrQuestion } from './hrContextResolver';
-import { armTurnWatchdogs } from './liveWsTurnCommitHandler';
+import { SessionTurnState } from './SessionTurnState';
 
 export interface HrGuidedSessionState {
   questionId: string;
@@ -351,7 +351,7 @@ export function handleGuidedStepControlFrame(
 
   session.hasCandidateResponded = true;
   session.deadAirGuard?.reset();
-  armTurnWatchdogs(session, clientSocket);
+  SessionTurnState.armTurnWatchdogs(session, clientSocket);
 
   if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN && session.isSetupComplete) {
     session.geminiSocket.send(

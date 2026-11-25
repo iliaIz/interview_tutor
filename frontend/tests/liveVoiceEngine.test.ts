@@ -290,7 +290,7 @@ async function runLiveVoiceEngineTests() {
   // Test 14: Multimodal Whiteboard + Speech Hold (tool_awaiting_speech)
   const { engine: engine6, transport: ws6 } = createHarness();
   let err6: { msg: string; retryable: boolean; code?: string } | null = null;
-  const { engine: engine6WithErr, transport: ws6Err } = createHarness({
+  const { engine: engine6WithErr, transport: ws6Err, audio: audio6Err } = createHarness({
     onError: (msg, retryable, code) => { err6 = { msg, retryable, code }; }
   });
   await engine6WithErr.connect({ sessionId: 'test_sess_6', questionId: 'Q_6', sessionType: 'interview', isResumed: true });
@@ -302,6 +302,7 @@ async function runLiveVoiceEngineTests() {
   });
   ws6Err.emitServerMessage({ type: 'tool_awaiting_speech', tools: ['update_whiteboard'] });
   ws6Err.emitServerMessage({ serverContent: { turnComplete: true } });
+  audio6Err.finishPlayoutDrain();
   assert.strictEqual(engine6WithErr.getSnapshot().internalState, 'AI_THINKING');
   assert.strictEqual(engine6WithErr.getSnapshot().state, 'CONNECTING');
 

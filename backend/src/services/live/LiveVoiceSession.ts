@@ -1,22 +1,23 @@
 /**
  * LiveVoiceSession.ts
- * Authoritative Aggregate Root for Gemini Live Audio Sessions (SPEC-003).
- * Encapsulates session state, SessionFsm, WatchdogManager, and LiveAudioStreamRouter.
- * Eliminates anemic data bag mutations and guarantees Invariant 2.1 & 2.8 enforcement.
- * SLA: <= 300 lines.
+ * Authoritative Aggregate Root for Gemini Live Audio Sessions (SPEC-003 / Spec 46).
+ * Encapsulates SessionTurnState, DownstreamClientPipe, UpstreamTransportPort,
+ * SessionFsm, WatchdogManager, and LiveStreamSentinel.
+ * SLA: <= 260 lines.
  */
 
 import { WebSocket, RawData } from 'ws';
 import http from 'http';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
 import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
+import { LiveSessionBlueprint } from './liveSessionConfigTypes';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { ProxySession, toRawBuffer } from './liveSessionTypes';
-import { createLiveAudioStreamRouter } from './liveAudioStreamRouter';
-import { attachLiveClientFrameHandler } from './liveWsClientFrameHandler';
+import { ProxySession, UpstreamTransportPort, toRawBuffer } from './liveSessionTypes';
+import { createLiveAudioStreamRouter, StreamRouterOptions } from './liveAudioStreamRouter';
+import { DownstreamClientPipe } from './DownstreamClientPipe';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm, LiveSessionState } from './sessionFsm';
-import { LiveSessionAggregate } from './LiveSessionAggregate';
+import { SessionTurnState } from './SessionTurnState';
 import { LiveStreamSentinel } from './LiveStreamSentinel';
 
 export interface SessionStartupOptions {
@@ -25,30 +26,38 @@ export interface SessionStartupOptions {
   request?: http.IncomingMessage;
   earlyQueue?: (Buffer | any)[];
   cleanupEarlyCapture?: () => void;
+  createUpstream?: (options: StreamRouterOptions) => UpstreamTransportPort;
+  blueprint?: LiveSessionBlueprint;
+  blueprintBuilder?: (req: http.IncomingMessage, rawInitFrame?: any) => Promise<LiveSessionBlueprint | null>;
 }
 
 export class LiveVoiceSession {
   private readonly _id: string;
   private readonly _fsm: SessionFsm;
   private readonly _watchdogs: WatchdogManager;
-  private readonly _upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; reconnect?: () => void; close?: (code?: number, reason?: string) => void };
+  private readonly _upstreamRouter: UpstreamTransportPort;
+  private readonly _turnState: SessionTurnState;
   private readonly _session: ProxySession;
   private readonly _clientSocket: WebSocket;
+  private readonly _clientPipe: DownstreamClientPipe;
   private isTerminated: boolean = false;
 
   private constructor(
     id: string,
     fsm: SessionFsm,
     watchdogs: WatchdogManager,
-    session: ProxySession,
+    turnState: SessionTurnState,
     clientSocket: WebSocket,
-    upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; reconnect?: () => void; close?: (code?: number, reason?: string) => void }
+    clientPipe: DownstreamClientPipe,
+    upstreamRouter: UpstreamTransportPort
   ) {
     this._id = id;
     this._fsm = fsm;
     this._watchdogs = watchdogs;
-    this._session = session;
+    this._turnState = turnState;
+    this._session = turnState.proxySession;
     this._clientSocket = clientSocket;
+    this._clientPipe = clientPipe;
     this._upstreamRouter = upstreamRouter;
   }
 
@@ -57,6 +66,7 @@ export class LiveVoiceSession {
   public get state(): LiveSessionState { return this._fsm.state; }
   public get fsm(): SessionFsm { return this._fsm; }
   public get watchdogs(): WatchdogManager { return this._watchdogs; }
+  public get turnState(): SessionTurnState { return this._turnState; }
 
   public static extractEarlySessionInit(earlyQueue?: (Buffer | any)[]): any {
     if (!Array.isArray(earlyQueue) || earlyQueue.length === 0) return undefined;
@@ -83,11 +93,6 @@ export class LiveVoiceSession {
   public static async start(options: SessionStartupOptions): Promise<LiveVoiceSession | null> {
     const { clientSocket, earlyQueue, cleanupEarlyCapture } = options;
     const req = options.req || options.request;
-    if (!req) {
-      if (cleanupEarlyCapture) cleanupEarlyCapture();
-      clientSocket.close(1008, 'Missing HTTP IncomingMessage');
-      return null;
-    }
 
     if ((clientSocket.readyState as number) === WebSocket.CLOSED || (clientSocket.readyState as number) === WebSocket.CLOSING) {
       if (cleanupEarlyCapture) cleanupEarlyCapture();
@@ -95,7 +100,17 @@ export class LiveVoiceSession {
     }
 
     const initialInitFrame = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
-    const blueprint = await LiveSessionBlueprintBuilder.resolveFromRequest(req, initialInitFrame);
+    let blueprint: LiveSessionBlueprint | null = options.blueprint ?? null;
+    if (!blueprint) {
+      if (!req) {
+        if (cleanupEarlyCapture) cleanupEarlyCapture();
+        clientSocket.close(1008, 'Missing HTTP IncomingMessage');
+        return null;
+      }
+      blueprint = options.blueprintBuilder
+        ? await options.blueprintBuilder(req, initialInitFrame)
+        : await LiveSessionBlueprintBuilder.resolveFromRequest(req, initialInitFrame);
+    }
     if (!blueprint) {
       if (cleanupEarlyCapture) cleanupEarlyCapture();
       console.warn('⛔ Unauthorized WebSocket connection attempt rejected.');
@@ -112,14 +127,9 @@ export class LiveVoiceSession {
     console.log(`📡 [LiveVoiceSession] Starting: type=${config.sessionType}, mode=${config.tutorMode}, model=${config.liveModel}`);
 
     const fsm = new SessionFsm('INIT');
-    const watchdogs = new WatchdogManager();
-    const aggregate = new LiveSessionAggregate(config, clientSocket, fsm, watchdogs);
-    const session = aggregate.proxySession;
-    session.aggregate = aggregate;
-    if (config.workspaceManifest) session.workspaceManifest = config.workspaceManifest;
-    if (config.activeCodeArtifact) session.activeCodeArtifact = config.activeCodeArtifact;
-    if (config.academyBridgeContext) session.academyBridgeContext = config.academyBridgeContext;
-    if (config.seniorReview) session.seniorReview = config.seniorReview;
+    const turnState = new SessionTurnState(config, clientSocket, fsm, undefined as any);
+    const session = turnState.proxySession;
+    const watchdogs = WatchdogManager.ensureSessionWatchdogs(session, clientSocket);
 
     let instance: LiveVoiceSession;
     const terminate = (reason: string = 'Normal Closure', code: number = 1000, source: string = 'Session') => {
@@ -129,36 +139,37 @@ export class LiveVoiceSession {
       if (instance) instance.terminate(reason ? reason.toString() : 'StreamRouter terminated', code, source);
     };
 
-    watchdogs.onNudge = (elapsedMs) => {
-      if ((session.isAiGenerating || session.awaitingToolSpeech) && clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
-      }
-    };
-
-    watchdogs.onTimeout = (reason) => {
-      if (session.isAiGenerating || session.awaitingToolSpeech) {
-        console.warn(`⏱️ [DEAD_AIR_WATCHDOG] silence expired with zero response. Reclaiming mic.`);
-        session.isAiGenerating = false;
-        session.awaitingToolSpeech = false;
-        session.streamSentinel?.resetTurnState();
-        fsm.transition('CANDIDATE_LISTENING');
-        if (session.currentTurnMetrics) session.currentTurnMetrics.droppedEchoChunksCount = 0;
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(JSON.stringify({
-            type: 'dead_air_recovery',
-            reason: reason || 'upstream_timeout',
-            timestamp: Date.now()
-          }));
-        }
-      }
-    };
+    const upstreamFactory = options.createUpstream ?? createLiveAudioStreamRouter;
+    const router = upstreamFactory({
+      session,
+      setupMessage: blueprint.buildUpstreamSetup(session.resumptionHandle),
+      upstreamWsUrl: config.upstreamWsUrl,
+      clientSocket,
+      terminate: terminateRouter,
+      sessionId: config.sessionId,
+      questionId: config.questionId,
+      sessionType: config.sessionType,
+      tutorMode: config.tutorMode,
+      bugTitle: config.bugTitle,
+      questionText: config.questionText,
+      topic: config.topic,
+      voiceName: config.voiceName,
+      isRetry: config.isRetry,
+      isResumed: config.isResumed,
+      initialUserMessage: config.initialUserMessage,
+      totalQuestions: config.totalQuestions,
+      questionIndex: config.questionIndex,
+      parsedHints: config.parsedHints,
+      liveCoaching: config.liveCoaching,
+      liveModel: config.liveModel,
+      challengeCategory: config.challengeCategory,
+      challengeTrack: config.challengeTrack
+    });
 
     session.streamSentinel = new LiveStreamSentinel({
       onPhase1ThinkingDelay: (elapsedMs) => {
         if (!session.isTerminated && clientSocket.readyState === WebSocket.OPEN) {
-          try {
-            clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
-          } catch {}
+          try { clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs })); } catch {}
         }
       },
       onPhase2StallRecovery: (reason, consecutiveStalls) => {
@@ -192,35 +203,14 @@ export class LiveVoiceSession {
     }, 15000);
     (session.heartbeatInterval as any)?.unref?.();
 
-    const setupMessage = blueprint.buildUpstreamSetup(session.resumptionHandle);
-
-    const router = createLiveAudioStreamRouter({
+    const clientPipe = new DownstreamClientPipe({
       session,
-      setupMessage,
-      upstreamWsUrl: config.upstreamWsUrl,
       clientSocket,
-      terminate: terminateRouter,
-      sessionId: config.sessionId,
-      questionId: config.questionId,
-      sessionType: config.sessionType,
-      tutorMode: config.tutorMode,
-      bugTitle: config.bugTitle,
-      questionText: config.questionText,
-      topic: config.topic,
-      voiceName: config.voiceName,
-      isRetry: config.isRetry,
-      isResumed: config.isResumed,
-      initialUserMessage: config.initialUserMessage,
-      totalQuestions: config.totalQuestions,
-      questionIndex: config.questionIndex,
-      parsedHints: config.parsedHints,
-      liveCoaching: config.liveCoaching,
-      liveModel: config.liveModel,
-      challengeCategory: config.challengeCategory,
-      challengeTrack: config.challengeTrack
+      turnMode: config.turnMode,
+      terminate: (src, cd, rsn) => instance.terminate(rsn ? rsn.toString() : 'Handler terminated', cd, src)
     });
 
-    instance = new LiveVoiceSession(config.sessionId, fsm, watchdogs, session, clientSocket, router);
+    instance = new LiveVoiceSession(config.sessionId, fsm, watchdogs, turnState, clientSocket, clientPipe, router);
 
     clientSocket.on('close', (code, reason) => instance.terminate(reason ? reason.toString() : 'Client closed', code, 'ClientSocket'));
     clientSocket.on('error', (err) => {
@@ -230,21 +220,20 @@ export class LiveVoiceSession {
 
     router.connectGemini(false);
 
-    attachLiveClientFrameHandler({
-      session,
-      clientSocket,
-      turnMode: config.turnMode,
-      terminate: (src, cd, rsn) => instance.terminate(rsn ? rsn.toString() : 'Handler terminated', cd, src),
-      earlyQueue,
-      cleanupEarlyCapture
-    });
+    if (cleanupEarlyCapture) cleanupEarlyCapture();
+    clientSocket.on('message', (data: RawData) => clientPipe.handleFrame(data));
+    if (Array.isArray(earlyQueue) && earlyQueue.length > 0) {
+      for (const earlyData of earlyQueue) {
+        clientPipe.handleFrame(earlyData);
+      }
+    }
 
     return instance;
   }
 
   public handleClientFrame(raw: RawData): void {
     if (this.isTerminated || this._session.isTerminated) return;
-    this._clientSocket.emit('message', raw, false);
+    this._clientPipe.handleFrame(raw);
   }
 
   public terminate(reason: string = 'Normal Closure', code: number = 1000, source: string = 'Application'): void {
@@ -261,10 +250,6 @@ export class LiveVoiceSession {
       clearInterval(this._session.heartbeatInterval);
       this._session.heartbeatInterval = null;
     }
-    if (this._session.nudgeWatchdog) {
-      clearTimeout(this._session.nudgeWatchdog);
-      this._session.nudgeWatchdog = null;
-    }
     if (this._session.reconnectTimer) {
       clearTimeout(this._session.reconnectTimer);
       this._session.reconnectTimer = null;
@@ -272,10 +257,6 @@ export class LiveVoiceSession {
     if (this._session.toolCallSafetyTimeout) {
       clearTimeout(this._session.toolCallSafetyTimeout);
       this._session.toolCallSafetyTimeout = null;
-    }
-    if (this._session.deadAirWatchdog) {
-      clearTimeout(this._session.deadAirWatchdog);
-      this._session.deadAirWatchdog = null;
     }
     if (this._session.currentAiTurnText && this._session.sessionId) {
       const textToSave = this._session.currentAiTurnText.trim();
@@ -290,9 +271,7 @@ export class LiveVoiceSession {
       this._session.currentAiTurnText = '';
     }
     this._session.frameQueue = [];
-    try {
-      this._upstreamRouter.close?.(code || 1000, reason ? reason.toString() : 'Normal Closure');
-    } catch {}
+    try { this._upstreamRouter.close?.(code || 1000, reason ? reason.toString() : 'Normal Closure'); } catch {}
     try {
       if (this._session.geminiSocket && (this._session.geminiSocket.readyState === WebSocket.OPEN || this._session.geminiSocket.readyState === WebSocket.CONNECTING)) {
         this._session.geminiSocket.close(1000, 'Normal Closure');
