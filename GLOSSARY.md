@@ -51,6 +51,26 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
 - **ChallengeSubmissionRepository:** Persistence owner for coding challenge manifests, canonical challenge identity resolution, and versioned evaluation verdict storage.
 - **Anemic Data Bag:** An anti-pattern where an object exposes dozens of mutable public fields without encapsulation or invariant protection (banned in public interfaces).
 - **Turn 0 Lockdown:** Architectural invariant preventing AI evaluators from submitting grading verdicts before the candidate has spoken during the greeting phase.
+- **LlmGatewayClient:** Single backend outbound AI inference port unifying chat text and structured completions, pre-first-token tutor streaming, speech audio synthesis, and text embeddings over an injectable outbound transport adapter.
+  - *Avoid*: Ad-hoc network client wrappers, per-route retry loops, duplicated host fallback helpers
+  - *Durable Owner*: `backend-ai-gateway` (stateless outbound inference relay delegating key rotation to the proxy gateway)
+  - *Invariants*: All inference traffic traverses one port with caller cancellation propagation and local container failover; transient throttling retries on streams run strictly before emitting the first token byte; non-critical embedding lookups use zero retries and fall back deterministically.
+- **UpstreamLiveChannel:** Single stateful owner of the backend live audio upstream socket satisfying the upstream transport port and encapsulating proactive rotation handoffs, silence clamping, non-speech recovery, and turn telemetry sealing.
+  - *Avoid*: Public socket mutations on shared session bags, circular router and handoff collaborators
+  - *Durable Owner*: `LiveVoiceSession` (per-session live audio channel custody)
+  - *Invariants*: All upstream frame writes pass strictly through the upstream transport port; raw upstream connections never escape the channel; rotation swaps standby connections atomically without dropping active turns or replaying speech.
+- **Slim Live Handshake Barrier:** Deterministic two-phase live session startup invariant where the connection request carries compact routing and calibration scalars while rich scenario, compliance, and whiteboard context arrive once in the opening initialization control frame behind a bounded readiness wait.
+  - *Avoid*: Oversized multi-kilobyte connection requests, duplicated request and frame fields, blind startup queue races
+  - *Durable Owner*: `LiveVoiceSession` and client live transport supervision
+  - *Invariants*: Connection requests remain compact below header overflow bounds; session startup awaits the opening initialization control frame deterministically when flagged before assembling the upstream model configuration.
+- **AudioBackendPort:** Minimal hardware abstraction seam isolating client real-time audio playout queue, gain safety, and physical buffer drain lifecycle from concrete browser audio worklets and mobile single-sink speakers.
+  - *Avoid*: White-box internal worklet inspection in tests, dead speaker-mute or ducking shims
+  - *Durable Owner*: `frontend-audio-playout`
+  - *Invariants*: Dual-sided playout completion fires once per drained turn; tactile barge-in flushes worklet ring buffers while keeping nominal playout gain intact; microphone muting stays independent of AI voice playout.
+- **TopologySimulationKernel:** Pure in-memory System Design queueing simulation and topology linting engine exposing continuous tick metrics, discrete-event scenario evaluation, and structural fault analysis behind a side-effect-free interface shared by thin background hosts.
+  - *Avoid*: Duplicated queueing math across worker scripts, parallel standalone graph analyzers
+  - *Durable Owner*: `frontend-system-design-kernel`
+  - *Invariants*: Cache miss propagation always honors the evaluated cache hit ratio; background hosts hold zero domain math and act strictly as message relays; both simulation modes and topology linting run deterministically without worker mocks.
 
 ### Company Preparation & Relational Data Engines
 - **Arena Pre-Hydration Envelope:** A typed normalization layer in `arenaNavigator.ts` unwrapping backend manifest envelopes (`{ challenge, savedDraft }`) before passing them to arena stores, preventing blank workspaces.
