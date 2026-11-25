@@ -4,23 +4,26 @@
  * Single responsibility: ping/pong cadence & proxy idle protection (< 60 lines).
  */
 
+import { LiveTransportConnection } from './types';
+
 export class LiveHeartbeatController {
   private interval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private getWs: () => WebSocket | null) {}
+  constructor(private getConnection: () => LiveTransportConnection | null) {}
 
   public start(): void {
     this.stop();
     this.interval = setInterval(() => {
-      const ws = this.getWs();
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      const conn = this.getConnection();
+      if (conn && conn.isOpen()) {
         try {
-          ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          conn.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
         } catch {}
       }
     }, 20000);
-    if (this.interval && typeof (this.interval as any).unref === 'function') {
-      (this.interval as any).unref();
+    const timerHandle: unknown = this.interval;
+    if (timerHandle && typeof (timerHandle as { unref?: () => void }).unref === 'function') {
+      (timerHandle as { unref: () => void }).unref();
     }
   }
 
@@ -32,10 +35,10 @@ export class LiveHeartbeatController {
   }
 
   public handleIncomingPing(sentTimestamp?: number): void {
-    const ws = this.getWs();
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    const conn = this.getConnection();
+    if (conn && conn.isOpen()) {
       try {
-        ws.send(JSON.stringify({ type: 'pong', timestamp: sentTimestamp || Date.now() }));
+        conn.send(JSON.stringify({ type: 'pong', timestamp: sentTimestamp || Date.now() }));
       } catch {}
     }
   }

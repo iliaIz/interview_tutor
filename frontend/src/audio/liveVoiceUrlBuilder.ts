@@ -4,7 +4,7 @@
  * Cognitive bounding limit: <= 50 lines.
  */
 
-import { VoiceEngineConfig, LiveSessionInitFrame } from './types';
+import { VoiceEngineConfig, LiveSessionInitFrame, LiveTransportConnection } from './types';
 import { VOICE_DEFAULTS, getCachedRuntimeVoiceConfig } from '../config/voiceDefaults';
 
 export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
@@ -75,8 +75,12 @@ export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
   return `${protocol}//${host}/ws/live?${params.toString()}`;
 }
 
-export function sendLiveSessionInit(ws: WebSocket, cfg: VoiceEngineConfig): void {
-  if (ws.readyState !== WebSocket.OPEN) return;
+function isTransportOpen(conn: LiveTransportConnection | WebSocket): boolean {
+  return 'isOpen' in conn ? conn.isOpen() : conn.readyState === WebSocket.OPEN;
+}
+
+export function sendLiveSessionInit(ws: LiveTransportConnection | WebSocket, cfg: VoiceEngineConfig): void {
+  if (!isTransportOpen(ws)) return;
 
   const initFrame: LiveSessionInitFrame = {
     type: 'session_init',

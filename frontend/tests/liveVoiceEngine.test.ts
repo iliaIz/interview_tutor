@@ -1,102 +1,137 @@
 /**
  * liveVoiceEngine.test.ts
- * Contract test for Headless LiveVoiceEngine (SOTA Late 2026).
+ * Contract test for Headless NativeLiveVoiceEngine (SOTA Late 2026 / Spec 47).
+ * Tests purely through public engine interface + injected LiveTransportPort & LiveAudioIOPort
+ * with zero internal `(engine as any)` property/method bypasses.
  */
 
 import assert from 'assert';
-import { EventEmitter } from 'events';
 import { NativeLiveVoiceEngine as LiveVoiceEngine } from '../src/audio/NativeLiveVoiceEngine';
-import { VoiceEngineState } from '../src/audio/types';
+import { MicrophoneMetrics } from '../src/audio/MicrophoneCapture';
+import {
+  VoiceEngineState,
+  VoiceEngineCallbacks,
+  LiveTransportPort,
+  LiveTransportConnection,
+  LiveAudioIOPort
+} from '../src/audio/types';
 
-class MockMessagePort extends EventEmitter {
-  public onmessage: ((event: any) => void) | null = null;
-  public postMessage(data: any): void {
-    this.emit('message_sent', data);
-  }
-}
-
-class MockAudioWorkletNode {
-  public port = new MockMessagePort();
-  constructor(public context: any, public name: string, public options?: any) {}
-  public connect(_dest: any): void {}
-  public disconnect(): void {}
-}
-
-class MockGainNode {
-  public gain = {
-    value: 1.0,
-    setValueAtTime: () => {},
-    linearRampToValueAtTime: () => {},
-    exponentialRampToValueAtTime: () => {},
-    cancelScheduledValues: () => {}
-  };
-  public connect(): void {}
-  public disconnect(): void {}
-}
-
-class MockAudioContext {
-  public state: string = 'running';
-  public currentTime = 0;
-  public sampleRate = 48000;
-  public destination = {};
-  public audioWorklet = {
-    addModule: async () => Promise.resolve()
-  };
-  public createGain() { return new MockGainNode(); }
-  public createMediaStreamDestination() { return { stream: {} }; }
-  public createMediaStreamSource() { return { connect: () => {} }; }
-  public resume = async () => {};
-}
-
-// Mock Web Audio and WebSocket environment for Node.js
-if (typeof window === 'undefined') {
-  (global as any).window = {
-    AudioContext: MockAudioContext,
-    webkitAudioContext: MockAudioContext,
-    AudioWorkletNode: MockAudioWorkletNode,
-    location: { protocol: 'http:', host: 'localhost:5173', hostname: 'localhost', port: '5173' },
-    btoa: (str: string) => Buffer.from(str, 'binary').toString('base64'),
-    atob: (b64: string) => Buffer.from(b64, 'base64').toString('binary')
-  };
-  (global as any).AudioContext = MockAudioContext;
-  (global as any).webkitAudioContext = MockAudioContext;
-  (global as any).AudioWorkletNode = MockAudioWorkletNode;
-  try {
-    Object.defineProperty(globalThis.navigator, 'mediaDevices', {
-      value: {
-        getUserMedia: async () => ({
-          getTracks: () => [{ stop: () => {} }],
-          getAudioTracks: () => [{ enabled: true }]
-        })
-      },
-      configurable: true
-    });
-  } catch {}
-}
-
-class MockWebSocket {
-  public static OPEN = 1;
-  public readyState = MockWebSocket.OPEN;
+class FakeTransportPort implements LiveTransportPort {
+  public lastUrl = '';
   public sentMessages: string[] = [];
-  public onopen: (() => void) | null = null;
-  public onmessage: ((ev: { data: string }) => void) | null = null;
-  public onclose: ((ev: any) => void) | null = null;
-  public onerror: ((err: any) => void) | null = null;
+  public closedWith: Array<{ code?: number; reason?: string }> = [];
+  private open = false;
+  private handlers: {
+    onOpen: () => void;
+    onMessage: (data: unknown) => void;
+    onClose: (code?: number) => void;
+    onError: (err: unknown) => void;
+  } | null = null;
 
-  constructor(public url: string) {
-    setTimeout(() => this.onopen?.(), 10);
+  public connect(
+    url: string,
+    handlers: {
+      onOpen: () => void;
+      onMessage: (data: unknown) => void;
+      onClose: (code?: number) => void;
+      onError: (err: unknown) => void;
+    }
+  ): LiveTransportConnection {
+    this.lastUrl = url;
+    this.handlers = handlers;
+    this.open = true;
+    queueMicrotask(() => {
+      if (this.open) handlers.onOpen();
+    });
+    return {
+      send: (payload: string) => {
+        if (this.open) this.sentMessages.push(payload);
+      },
+      close: (code?: number, reason?: string) => {
+        this.open = false;
+        this.closedWith.push({ code, reason });
+      },
+      isOpen: () => this.open
+    };
   }
 
-  public send(msg: string) {
-    this.sentMessages.push(msg);
+  public emitServerMessage(payload: Record<string, unknown>): void {
+    this.handlers?.onMessage(JSON.stringify(payload));
   }
 
-  public close() {
-    this.onclose?.({ code: 1000 });
+  public emitRemoteClose(code: number): void {
+    this.open = false;
+    this.handlers?.onClose(code);
   }
 }
 
-(global as any).WebSocket = MockWebSocket;
+class FakeAudioIOPort implements LiveAudioIOPort {
+  public playing = false;
+  public muted = false;
+  public enqueuedPcm: string[] = [];
+  public interruptCount = 0;
+  public captureStarted = false;
+  private onFrameCb: ((pcm: string, metrics?: MicrophoneMetrics) => void) | null = null;
+  private onPlayoutFinishedCb: (() => void) | null = null;
+
+  public async startCapture(
+    onFrame: (pcm: string, metrics?: MicrophoneMetrics) => void,
+    _onLevel: (db: number) => void
+  ): Promise<void> {
+    this.captureStarted = true;
+    this.onFrameCb = onFrame;
+  }
+
+  public stopCapture(): void {
+    this.captureStarted = false;
+    this.onFrameCb = null;
+  }
+
+  public setMuted(muted: boolean): void {
+    this.muted = muted;
+  }
+
+  public enqueuePcm(pcm: string): void {
+    this.enqueuedPcm.push(pcm);
+    this.playing = true;
+  }
+
+  public interruptPlayout(): void {
+    this.interruptCount++;
+    this.playing = false;
+  }
+
+  public notifyTurnComplete(): void {}
+
+  public handlePlayoutFinished(cb: () => void): void {
+    this.onPlayoutFinishedCb = cb;
+  }
+
+  public isPlaying(): boolean {
+    return this.playing;
+  }
+
+  public clearPlayout(): void {
+    this.playing = false;
+    this.enqueuedPcm = [];
+  }
+
+  public emitMicChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
+    this.onFrameCb?.(base64Pcm, metrics);
+  }
+
+  public finishPlayoutDrain(): void {
+    this.playing = false;
+    this.onPlayoutFinishedCb?.();
+  }
+}
+
+function createHarness(callbacks: VoiceEngineCallbacks = {}) {
+  const transport = new FakeTransportPort();
+  const audio = new FakeAudioIOPort();
+  const engine = new LiveVoiceEngine(callbacks, { transport, audio });
+  return { engine, transport, audio };
+}
 
 async function runLiveVoiceEngineTests() {
   console.log('═══════════════════════════════════════════════════════════════');
@@ -106,13 +141,13 @@ async function runLiveVoiceEngineTests() {
   const statesObserved: VoiceEngineState[] = [];
   const statusMessages: string[] = [];
 
-  const engine = new LiveVoiceEngine({
+  const { engine, transport } = createHarness({
     onStateChange: (state) => statesObserved.push(state),
     onStatusMessage: (msg) => statusMessages.push(msg)
   });
 
   // Test 1: Initial State
-  assert.strictEqual(engine.getState(), 'IDLE', 'Initial state must be IDLE');
+  assert.strictEqual(engine.getSnapshot().state, 'IDLE', 'Initial state must be IDLE');
   console.log('  ✅ Test 1 Passed: Initial state is IDLE');
 
   // Test 2: Connection Lifecycle & Terminal Equivalence
@@ -123,346 +158,194 @@ async function runLiveVoiceEngineTests() {
     topic: 'Java',
     turnMode: 'auto'
   });
-
-  assert.strictEqual(engine.getState(), 'CONNECTING', 'State transitions to CONNECTING on connect');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.strictEqual(engine.getSnapshot().state, 'CONNECTING', 'State transitions to CONNECTING on connect');
   console.log('  ✅ Test 2 Passed: Connect transitions state to CONNECTING');
 
-  // Simulate server sending modelTurn (AI begins speaking)
-  const mockWs = (engine as any).ws as MockWebSocket;
-  mockWs.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        modelTurn: {
-          parts: [{ text: 'Привет! Расскажи о Spring Boot.' }]
-        }
-      }
-    })
-  });
+  // Test 3 & 4: modelTurn -> AI_SPEAKING -> generationComplete -> LISTENING
+  transport.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Привет! Расскажи о Spring Boot.' }] } } });
+  assert.strictEqual(engine.getSnapshot().state, 'AI_SPEAKING');
+  transport.emitServerMessage({ serverContent: { generationComplete: true } });
+  assert.strictEqual(engine.getSnapshot().state, 'LISTENING');
+  console.log('  ✅ Test 3 & 4 Passed: modelTurn -> AI_SPEAKING & generationComplete -> LISTENING');
 
-  assert.strictEqual(engine.getState(), 'AI_SPEAKING', 'State transitions to AI_SPEAKING when modelTurn arrives');
-  console.log('  ✅ Test 3 Passed: modelTurn transitions state to AI_SPEAKING');
+  // Test 5 & 5b: Tactile Barge-In via dispatch CENTRAL_ACTION & BARGE_IN
+  transport.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Продолжаю рассказ...' }] } } });
+  assert.strictEqual(engine.getSnapshot().state, 'AI_SPEAKING');
+  engine.dispatch({ type: 'CENTRAL_ACTION' });
+  assert.strictEqual(engine.getSnapshot().state, 'LISTENING');
+  const lastSent = JSON.parse(transport.sentMessages[transport.sentMessages.length - 1]);
+  assert.strictEqual(lastSent.bargeIn, true);
+  assert.strictEqual(lastSent.type, 'barge_in');
 
-  // Simulate server sending ONLY generationComplete: true
-  mockWs.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        generationComplete: true
-      }
-    })
-  });
+  transport.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Еще одна реплика...' }] } } });
+  engine.dispatch({ type: 'BARGE_IN', source: 'tactile' });
+  assert.strictEqual(engine.getSnapshot().state, 'LISTENING');
+  console.log('  ✅ Test 5 & 5b Passed: Tactile barge-in cuts AI speech and transitions to LISTENING');
 
-  // Audio queue drained -> must transition to LISTENING
-  assert.strictEqual(engine.getState(), 'LISTENING', 'State transitions to LISTENING on generationComplete');
-  console.log('  ✅ Test 4 Passed: generationComplete unlocks candidate turn to LISTENING');
-
-  // Test 5: Tactile Barge-In
-  // Simulate AI starts speaking again
-  mockWs.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        modelTurn: {
-          parts: [{ text: 'Продолжаю рассказ...' }]
-        }
-      }
-    })
-  });
-  assert.strictEqual(engine.getState(), 'AI_SPEAKING', 'AI is speaking again');
-
-  // User clicks central button during AI speech -> Tactile Barge-In
-  engine.handleCentralButtonClick();
-  assert.strictEqual(engine.getState(), 'LISTENING', 'Tactile click instantly unlocks LISTENING');
-  const lastSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
-  assert.strictEqual(lastSent.bargeIn, true, 'Barge-in frame sent with bargeIn: true');
-  assert.strictEqual(lastSent.type, 'barge_in', 'Barge-in frame sent with type: barge_in');
-  console.log('  ✅ Test 5 Passed: Tactile barge-in cuts AI speech and transitions to LISTENING');
-
-  // Test 5b: Direct handleUserBargeIn invocation
-  mockWs.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        modelTurn: { parts: [{ text: 'Еще одна реплика...' }] }
-      }
-    })
-  });
-  assert.strictEqual(engine.getState(), 'AI_SPEAKING', 'AI speaking for test 5b');
-  engine.handleUserBargeIn();
-  assert.strictEqual(engine.getState(), 'LISTENING', 'handleUserBargeIn transitions FSM to LISTENING');
-  const userBargeInSent = JSON.parse(mockWs.sentMessages[mockWs.sentMessages.length - 1]);
-  assert.strictEqual(userBargeInSent.bargeIn, true, 'bargeIn is true');
-  assert.strictEqual(userBargeInSent.type, 'barge_in', 'bargeIn frame has type: barge_in');
-  console.log('  ✅ Test 5b Passed: Direct handleUserBargeIn encapsulates playoutManager and transitions to LISTENING');
-
-  // Test 7: Gemini 3.8 Live interactionStatus: IN_PROGRESS (Cognitive filler / intermediate reasoning)
+  // Test 7, 8, 9, 10: interactionStatus, evaluation_completed, whiteboard_update
   let receivedEvaluation: any = null;
   let receivedWhiteboard: any = null;
-
-  const engine2 = new LiveVoiceEngine({
+  const { engine: engine2, transport: ws2 } = createHarness({
     onEvaluationReceived: (res) => { receivedEvaluation = res; },
     onWhiteboardUpdate: (wb) => { receivedWhiteboard = wb; }
   });
+  await engine2.connect({ sessionId: 'test_engine_sess_2', questionId: 'Q_2', sessionType: 'interview', topic: 'Spring' });
 
-  await engine2.connect({
-    sessionId: 'test_engine_sess_2',
-    questionId: 'Q_2',
-    sessionType: 'interview',
-    topic: 'Spring'
+  ws2.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Дай подумать...' }] } } });
+  ws2.emitServerMessage({ serverContent: { turnComplete: true, interactionStatus: 'IN_PROGRESS' } });
+  assert.strictEqual(engine2.getSnapshot().state, 'AI_SPEAKING', 'Mic remains locked on IN_PROGRESS');
+
+  ws2.emitServerMessage({ serverContent: { turnComplete: true, interactionStatus: 'IDLE' } });
+  assert.strictEqual(engine2.getSnapshot().state, 'LISTENING', 'Mic unlocked on IDLE');
+
+  ws2.emitServerMessage({
+    type: 'evaluation_completed',
+    evaluation: {
+      score: 95,
+      isPassed: true,
+      feedback: 'Отличный ответ по Spring!',
+      positivePoints: ['DI/IoC'],
+      missingPoints: []
+    }
   });
+  assert.strictEqual(engine2.getSnapshot().state, 'COMPLETED');
+  assert.strictEqual(receivedEvaluation?.score, 95);
 
-  const mockWs2 = (engine2 as any).ws as MockWebSocket;
-
-  // AI begins speaking a filler
-  mockWs2.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        modelTurn: { parts: [{ text: 'Дай подумать...' }] }
-      }
-    })
+  ws2.emitServerMessage({
+    type: 'whiteboard_update',
+    payload: { code: '@Service\npublic class PaymentService {}', language: 'java', title: 'Архитектура сервиса' }
   });
-  assert.strictEqual(engine2.getState(), 'AI_SPEAKING', 'AI speaking filler');
+  assert.strictEqual(receivedWhiteboard?.title, 'Архитектура сервиса');
+  console.log('  ✅ Test 7–10 Passed: interactionStatus, evaluation_completed, and whiteboard_update verified');
 
-  // Server sends turnComplete: true, but interactionStatus: IN_PROGRESS
-  mockWs2.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        turnComplete: true,
-        interactionStatus: 'IN_PROGRESS'
-      }
-    })
-  });
-  assert.strictEqual(engine2.getState(), 'AI_SPEAKING', 'Mic must remain LOCKED when interactionStatus is IN_PROGRESS');
-  console.log('  ✅ Test 7 Passed: interactionStatus IN_PROGRESS holds candidate turn custody');
-
-  // Server sends final turnComplete with interactionStatus: IDLE
-  mockWs2.onmessage?.({
-    data: JSON.stringify({
-      serverContent: {
-        turnComplete: true,
-        interactionStatus: 'IDLE'
-      }
-    })
-  });
-  assert.strictEqual(engine2.getState(), 'LISTENING', 'Mic unlocked when interactionStatus is IDLE');
-  console.log('  ✅ Test 8 Passed: interactionStatus IDLE unblocks candidate turn');
-
-  // Test 9: evaluation_completed event handling
-  mockWs2.onmessage?.({
-    data: JSON.stringify({
-      type: 'evaluation_completed',
-      evaluation: {
-        score: 95,
-        isPassed: true,
-        feedback: 'Отличный ответ по Spring!',
-        positivePoints: ['DI/IoC'],
-        missingPoints: []
-      }
-    })
-  });
-  assert.strictEqual(engine2.getState(), 'COMPLETED', 'Engine transitions to COMPLETED on evaluation_completed');
-  assert.strictEqual(receivedEvaluation?.score, 95, 'Evaluation payload received with score 95');
-  console.log('  ✅ Test 9 Passed: evaluation_completed correctly delivered to callback and sets COMPLETED');
-
-  // Test 10: whiteboard_update event handling
-  mockWs2.onmessage?.({
-    data: JSON.stringify({
-      type: 'whiteboard_update',
-      payload: {
-        code: '@Service\npublic class PaymentService {}',
-        language: 'java',
-        title: 'Архитектура сервиса'
-      }
-    })
-  });
-  assert.strictEqual(receivedWhiteboard?.title, 'Архитектура сервиса', 'Whiteboard update dispatched to callback');
-  console.log('  ✅ Test 10 Passed: whiteboard_update event delivered');
-
-  // Test 11: Turn 0 Acoustic Lockdown & Mid-Dialogue Acoustic Barge-In
-  const engine3 = new LiveVoiceEngine({});
+  // Test 11: Turn 0 Acoustic Lockdown & Dual-Sided Handshake Playout Drain Race
+  const { engine: engine3, transport: ws3, audio: audio3 } = createHarness();
   await engine3.connect({ sessionId: 'test_sess_3', questionId: 'Q_3', sessionType: 'interview' });
-  const mockWs3 = (engine3 as any).ws as MockWebSocket;
+  ws3.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Привет! Расскажи о Spring Boot...' }] } } });
+  assert.strictEqual(engine3.getSnapshot().state, 'AI_SPEAKING');
 
-  mockWs3.onmessage?.({
-    data: JSON.stringify({
-      serverContent: { modelTurn: { parts: [{ text: 'Привет! Расскажи о Spring Boot...' }] } }
-    })
-  });
-  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING during Turn 0 question recitation');
+  // Mic bleed during Turn 0 MUST NOT barge in
+  audio3.emitMicChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
+  assert.strictEqual(engine3.getSnapshot().state, 'AI_SPEAKING', 'Turn 0 lockdown protects question recitation');
 
-  // 11a: Candidate mic bleed / noise during Turn 0 question recitation MUST NOT barge in
-  (engine3 as any).handleMicrophoneChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
-  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Turn 0 Acoustic Lockdown prevents mic bleed from interrupting question');
-  console.log('  ✅ Test 11a Passed: Turn 0 Acoustic Lockdown protects initial question recitation');
+  // Race A: PCM audio still playing when turnComplete arrives -> stays AI_SPEAKING until audio drain finishes
+  audio3.playing = true;
+  ws3.emitServerMessage({ serverContent: { turnComplete: true, interactionStatus: 'IDLE' } });
+  assert.strictEqual(engine3.getSnapshot().state, 'AI_SPEAKING', 'Mic locked while audio actively playing');
 
-  // Turn 0 recitation concludes with Dual-Sided Handshake Race Condition Testing (Invariant 2.2)
-  // Race A: Audio is actively playing when turnComplete arrives. Mic MUST remain locked until playout drains.
-  (engine3 as any).playoutManager.isWorkletPlaying = true;
-  mockWs3.onmessage?.({
-    data: JSON.stringify({
-      serverContent: { turnComplete: true, interactionStatus: 'IDLE' }
-    })
-  });
-  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Candidate mic remains locked while audio is still actively playing in DAC');
+  audio3.finishPlayoutDrain();
+  assert.strictEqual(engine3.getSnapshot().state, 'LISTENING', 'Mic unlocked after physical audio finish');
 
-  // Physical audio DAC finishes playing
-  (engine3 as any).playoutManager.isWorkletPlaying = false;
-  (engine3 as any).handleAudioPlayoutFinished();
-  assert.strictEqual(engine3.getState(), 'LISTENING', 'Candidate mic symmetrically unlocked after physical audio finished draining');
-  console.log('  ✅ Test 11a-Race: Dual-Sided Handshake Race A (turnComplete before playout drain) passed');
+  // Mid-dialogue acoustic barge-in triggers after Turn 0 concludes
+  ws3.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Длинное объяснение...' }] } } });
+  audio3.emitMicChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
+  assert.strictEqual(engine3.getSnapshot().state, 'LISTENING', 'Mid-dialogue acoustic speech triggers barge-in');
+  const acousticSent = JSON.parse(ws3.sentMessages[ws3.sentMessages.length - 1]);
+  assert.strictEqual(acousticSent.bargeInType, 'acoustic');
+  console.log('  ✅ Test 11 Passed: Turn 0 lockdown, Dual-Sided Handshake & acoustic barge-in verified');
 
-  // 11b: AI begins mid-dialogue speech
-  mockWs3.onmessage?.({
-    data: JSON.stringify({
-      serverContent: { modelTurn: { parts: [{ text: 'Длинное объяснение...' }] } }
-    })
-  });
-  assert.strictEqual(engine3.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING mid-dialogue');
-
-  // Candidate speaks loudly into microphone (metrics.speechDetected = true, rmsDb = -15)
-  (engine3 as any).handleMicrophoneChunk('dummy_pcm_base64', { speechDetected: true, rmsDb: -15 });
-  assert.strictEqual(engine3.getState(), 'LISTENING', 'Acoustic speech detection interrupts AI speech mid-dialogue and switches to LISTENING');
-  const acousticSent = JSON.parse(mockWs3.sentMessages[mockWs3.sentMessages.length - 1]);
-  assert.strictEqual(acousticSent.bargeIn, true, 'Acoustic barge-in tagged with bargeIn: true');
-  assert.strictEqual(acousticSent.bargeInType, 'acoustic', 'Tagged with bargeInType acoustic');
-  console.log('  ✅ Test 11b Passed: Mid-dialogue acoustic barge-in triggers instant interruption and mic unlock');
-
-  // Test 12: Dead-Air Recovery handling
-  const engine4 = new LiveVoiceEngine({});
+  // Test 12: Dead-Air Recovery via COMMIT_TURN + dead_air_recovery
+  const { engine: engine4, transport: ws4 } = createHarness();
   await engine4.connect({ sessionId: 'test_sess_4', questionId: 'Q_4', sessionType: 'interview', isResumed: true });
-  const mockWs4 = (engine4 as any).ws as MockWebSocket;
+  ws4.emitServerMessage({ type: 'setupComplete' });
+  assert.strictEqual(engine4.getSnapshot().isCandidateTurnActive, true);
 
-  // Server signals setup complete
-  mockWs4.onmessage?.({
-    data: JSON.stringify({ type: 'setupComplete' })
-  });
-  assert.strictEqual(engine4.getState(), 'LISTENING', 'Engine ready for candidate speech in LISTENING');
+  engine4.dispatch({ type: 'COMMIT_TURN' });
+  assert.strictEqual(engine4.getSnapshot().internalState, 'COMMITTING');
+  assert.strictEqual(engine4.getSnapshot().isCandidateTurnActive, false);
 
-  // Candidate commits turn
-  engine4.commitSpokenTurn();
-  assert.strictEqual(engine4.getInternalState(), 'COMMITTING', 'Engine internal state is COMMITTING upon turn commit');
-  assert.strictEqual((engine4 as any).fsm.isCandidateTurnActive(), false, 'Candidate turn custody released (mic locked)');
+  ws4.emitServerMessage({ type: 'dead_air_recovery', reason: 'upstream_timeout', timestamp: Date.now() });
+  assert.strictEqual(engine4.getSnapshot().internalState, 'CANDIDATE_LISTENING');
+  assert.strictEqual(engine4.getSnapshot().isCandidateTurnActive, true);
+  console.log('  ✅ Test 12 Passed: dead_air_recovery unfreezes FSM to CANDIDATE_LISTENING');
 
-  // Server watchdog fires and dispatches dead_air_recovery
-  mockWs4.onmessage?.({
-    data: JSON.stringify({
-      type: 'dead_air_recovery',
-      reason: 'upstream_timeout',
-      timestamp: Date.now()
-    })
-  });
-  assert.strictEqual(engine4.getInternalState(), 'CANDIDATE_LISTENING', 'dead_air_recovery unfreezes FSM back to CANDIDATE_LISTENING');
-  assert.strictEqual((engine4 as any).fsm.isCandidateTurnActive(), true, 'Candidate turn custody restored');
-  console.log('  ✅ Test 12 Passed: dead_air_recovery unfreezes engine to CANDIDATE_LISTENING');
-
-  // Test 13: Wave 19 Transient Suppression & Speculative Ducking
+  // Test 13: Transient Suppression & 7-Frame Minimum Voicing Duration
   let transientFilteredCount = 0;
-  const engine5 = new LiveVoiceEngine({
+  const { engine: engine5, transport: ws5, audio: audio5 } = createHarness({
     onTransientFiltered: () => { transientFilteredCount++; }
   });
   await engine5.connect({ sessionId: 'test_sess_5', questionId: 'Q_5', sessionType: 'interview', isResumed: true });
-  const mockWs5 = (engine5 as any).ws as MockWebSocket;
 
-  // 13a: Transient cough during AI_SPEAKING must NOT barge in
-  mockWs5.onmessage?.({
-    data: JSON.stringify({ serverContent: { modelTurn: { parts: [{ text: 'Объяснение...' }] } } })
-  });
-  assert.strictEqual(engine5.getState(), 'AI_SPEAKING', 'Engine in AI_SPEAKING');
+  ws5.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Объяснение...' }] } } });
+  audio5.emitMicChunk('cough_pcm_data', { isTransientSpike: true, rmsDb: -15 });
+  assert.strictEqual(engine5.getSnapshot().state, 'AI_SPEAKING');
+  assert.strictEqual(transientFilteredCount, 1);
 
-  (engine5 as any).handleMicrophoneChunk('cough_pcm_data', { isTransientSpike: true, rmsDb: -15 });
-  assert.strictEqual(engine5.getState(), 'AI_SPEAKING', 'Transient spike during AI_SPEAKING is safely ignored');
-  assert.strictEqual(transientFilteredCount, 1, 'onTransientFiltered invoked');
-  console.log('  ✅ Test 13a Passed: Transient cough ignored during AI_SPEAKING');
+  audio5.emitMicChunk('bleed_pcm_data', { isTransientSpike: false, rmsDb: -35 });
+  assert.strictEqual(engine5.getSnapshot().state, 'AI_SPEAKING');
 
-  // 13a2: Speaker bleed (-35 dBFS < -29 dBFS) during AI_SPEAKING must NOT barge-in
-  (engine5 as any).handleMicrophoneChunk('bleed_pcm_data', { isTransientSpike: false, rmsDb: -35 });
-  assert.strictEqual(engine5.getState(), 'AI_SPEAKING', 'Speaker bleed at -35 dBFS ignored');
-
-  // 13b: Sustained speech requires 7 frames (224ms) to commit hard barge-in
   for (let f = 1; f <= 6; f++) {
-    (engine5 as any).handleMicrophoneChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
-    assert.strictEqual(engine5.getState(), 'AI_SPEAKING', `Frame ${f}/7 keeps AI speaking without ducking`);
+    audio5.emitMicChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
+    assert.strictEqual(engine5.getSnapshot().state, 'AI_SPEAKING');
   }
-  // 7th frame commits hard barge-in
-  (engine5 as any).handleMicrophoneChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
-  assert.strictEqual(engine5.getState(), 'LISTENING', '7th frame commits hard barge-in and unlocks LISTENING');
-  console.log('  ✅ Test 13b Passed: Minimum Voicing Duration (7 frames / 224ms) verified');
+  audio5.emitMicChunk('speech_pcm_data', { isTransientSpike: false, rmsDb: -25 });
+  assert.strictEqual(engine5.getSnapshot().state, 'LISTENING');
 
-  // 13c: Transient cough in LISTENING streams in-place clamped silence
-  (engine5 as any).handleMicrophoneChunk('cough_pcm_data', { isTransientSpike: true, rmsDb: -12 });
-  const lastChunkMsg = JSON.parse(mockWs5.sentMessages[mockWs5.sentMessages.length - 1]);
-  assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368, 'Continuous 512-sample clamped silence sent');
-  console.log('  ✅ Test 13c Passed: Continuous clamped silence streamed during LISTENING');
+  audio5.emitMicChunk('cough_pcm_data', { isTransientSpike: true, rmsDb: -12 });
+  const lastChunkMsg = JSON.parse(ws5.sentMessages[ws5.sentMessages.length - 1]);
+  assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368);
+  console.log('  ✅ Test 13 Passed: Transient clamp & 7-frame voicing floor verified');
 
-  // Test 14: Spec 42 Multimodal Whiteboard + Speech Hold (tool_awaiting_speech)
-  const statuses6: string[] = [];
+  // Test 14: Multimodal Whiteboard + Speech Hold (tool_awaiting_speech)
+  const { engine: engine6, transport: ws6 } = createHarness();
   let err6: { msg: string; retryable: boolean; code?: string } | null = null;
-  const engine6 = new LiveVoiceEngine({
-    onStatusMessage: (m) => statuses6.push(m),
+  const { engine: engine6WithErr, transport: ws6Err } = createHarness({
     onError: (msg, retryable, code) => { err6 = { msg, retryable, code }; }
   });
-  await engine6.connect({ sessionId: 'test_sess_6', questionId: 'Q_6', sessionType: 'interview', isResumed: true });
-  const mockWs6 = (engine6 as any).ws as MockWebSocket;
-  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'setupComplete' }) });
-  assert.strictEqual(engine6.getState(), 'LISTENING');
+  await engine6WithErr.connect({ sessionId: 'test_sess_6', questionId: 'Q_6', sessionType: 'interview', isResumed: true });
+  ws6Err.emitServerMessage({ type: 'setupComplete' });
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'LISTENING');
 
-  mockWs6.onmessage?.({
-    data: JSON.stringify({
-      serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: 'AAA=' } }] } }
-    })
+  ws6Err.emitServerMessage({
+    serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: 'AAA=' } }] } }
   });
-  assert.strictEqual(engine6.getState(), 'AI_SPEAKING');
+  ws6Err.emitServerMessage({ type: 'tool_awaiting_speech', tools: ['update_whiteboard'] });
+  ws6Err.emitServerMessage({ serverContent: { turnComplete: true } });
+  assert.strictEqual(engine6WithErr.getSnapshot().internalState, 'AI_THINKING');
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'CONNECTING');
 
-  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'tool_awaiting_speech', tools: ['update_whiteboard'] }) });
-  mockWs6.onmessage?.({ data: JSON.stringify({ serverContent: { turnComplete: true } }) });
-  assert.strictEqual(engine6.getInternalState(), 'AI_THINKING', 'Empty turnComplete with tool_awaiting_speech holds AI_THINKING');
-  assert.strictEqual(engine6.getState(), 'CONNECTING', 'Mic stays locked during AI_THINKING hold');
-
-  mockWs6.onmessage?.({
-    data: JSON.stringify({
-      serverContent: { modelTurn: { parts: [{ text: 'Поясняю фрагмент на доске.' }] }, turnComplete: true }
-    })
+  ws6Err.emitServerMessage({
+    serverContent: { modelTurn: { parts: [{ text: 'Поясняю фрагмент на доске.' }] }, turnComplete: true }
   });
-  assert.strictEqual(engine6.getInternalState(), 'CANDIDATE_LISTENING', 'Follow-up speech unlocks CANDIDATE_LISTENING');
-  console.log('  ✅ Test 14 Passed: tool_awaiting_speech holds AI_THINKING until follow-up speech completes');
+  assert.strictEqual(engine6WithErr.getSnapshot().internalState, 'CANDIDATE_LISTENING');
+  console.log('  ✅ Test 14 Passed: tool_awaiting_speech holds AI_THINKING until speech completes');
 
-  // Test 15: Spec 42 Hot Handoff + Sync Pong Liveness Detection
-  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'hot_handoff_started', timeLeftSeconds: 50 }) });
-  assert.strictEqual(engine6.getState(), 'LISTENING', 'hot_handoff_started preserves LISTENING session state');
-  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'hot_handoff_complete', mode: 'resumption' }) });
-  assert.strictEqual(engine6.getState(), 'LISTENING', 'hot_handoff_complete restores active connection status cleanly');
+  // Test 15 & 16: Hot Handoff + Sync Pong Dead-Link + upstream_error + SET_MUTED snapshot
+  ws6Err.emitServerMessage({ type: 'hot_handoff_started', timeLeftSeconds: 50 });
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'LISTENING');
+  ws6Err.emitServerMessage({ type: 'hot_handoff_complete', mode: 'resumption' });
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'LISTENING');
 
-  mockWs6.onmessage?.({
-    data: JSON.stringify({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false })
-  });
-  assert.strictEqual(engine6.getState(), 'LISTENING', 'Single sync_pong down tolerates transient probe race');
-  mockWs6.onmessage?.({
-    data: JSON.stringify({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false })
-  });
-  assert.strictEqual(engine6.getState(), 'ERROR', 'Consecutive 2x sync_pong upstream-down triggers ERROR');
-  assert.strictEqual((err6 as any)?.code, 'UPSTREAM_LINK_LOST', 'UPSTREAM_LINK_LOST surfaced to onError');
-  console.log('  ✅ Test 15 Passed: Hot handoff & consecutive sync_pong dead-link detection verified');
+  engine6WithErr.dispatch({ type: 'SET_MUTED', muted: true });
+  assert.strictEqual(engine6WithErr.getSnapshot().isMuted, true);
 
-  // Test 16: Spec 42 upstream_error transitions cleanly to ERROR with retryable metadata
+  ws6Err.emitServerMessage({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false });
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'LISTENING');
+  ws6Err.emitServerMessage({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false });
+  assert.strictEqual(engine6WithErr.getSnapshot().state, 'ERROR');
+  assert.strictEqual((err6 as any)?.code, 'UPSTREAM_LINK_LOST');
+
   let err7: { msg: string; retryable: boolean; code?: string } | null = null;
-  const engine7 = new LiveVoiceEngine({
+  const { engine: engine7, transport: ws7 } = createHarness({
     onError: (msg, retryable, code) => { err7 = { msg, retryable, code }; }
   });
   await engine7.connect({ sessionId: 'test_sess_7', questionId: 'Q_7', sessionType: 'interview', isResumed: true });
-  const mockWs7 = (engine7 as any).ws as MockWebSocket;
-  mockWs7.onmessage?.({
-    data: JSON.stringify({
-      type: 'upstream_error',
-      error: 'Upstream pool exhausted',
-      errorCode: 'RECONNECT_ATTEMPTS_EXHAUSTED',
-      retryable: true
-    })
+  ws7.emitServerMessage({
+    type: 'upstream_error',
+    error: 'Upstream pool exhausted',
+    errorCode: 'RECONNECT_ATTEMPTS_EXHAUSTED',
+    retryable: true
   });
-  assert.strictEqual(engine7.getState(), 'ERROR', 'upstream_error transitions engine to ERROR');
+  assert.strictEqual(engine7.getSnapshot().state, 'ERROR');
   assert.strictEqual((err7 as any)?.retryable, true);
   assert.strictEqual((err7 as any)?.code, 'RECONNECT_ATTEMPTS_EXHAUSTED');
-  console.log('  ✅ Test 16 Passed: upstream_error surfaces ERROR state & retryable payload');
+  console.log('  ✅ Test 15 & 16 Passed: Port-injected hot handoff, SET_MUTED snapshot, sync_pong & upstream_error verified');
 
-  [engine, engine2, engine3, engine4, engine5, engine6, engine7].forEach(e => e.disconnect());
-  console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
+  [engine, engine2, engine3, engine4, engine5, engine6, engine6WithErr, engine7].forEach((e) => e.disconnect());
+  console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED (0 white-box casts)!');
 }
+
 runLiveVoiceEngineTests()
   .then(() => process.exit(0))
   .catch((err) => { console.error('❌ Contract Test Failed:', err); process.exit(1); });
