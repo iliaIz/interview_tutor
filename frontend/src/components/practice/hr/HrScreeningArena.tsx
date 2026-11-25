@@ -47,7 +47,7 @@ export const HrScreeningArena: React.FC = () => {
 
   const {
     state,
-    metrics,
+    vadActive,
     statusMessage,
     dialogueTurns,
     connect,
@@ -59,7 +59,7 @@ export const HrScreeningArena: React.FC = () => {
   const isConnected = state !== 'IDLE' && state !== 'ERROR' && state !== 'COMPLETED';
   const isAiSpeaking = state === 'AI_SPEAKING';
   const isRecording = state === 'LISTENING';
-  const isUserSpeaking = metrics.vadActive;
+  const isUserSpeaking = vadActive;
   const isPauseHolding = state === 'AI_THINKING' || state === 'COMMITTING';
 
   // Load questions catalog on mount

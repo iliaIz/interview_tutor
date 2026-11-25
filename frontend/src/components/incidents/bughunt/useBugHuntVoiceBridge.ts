@@ -39,17 +39,17 @@ export function useBugHuntVoiceBridge(props: UseBugHuntVoiceBridgeProps): UseBug
 
   const [tutorRole, setTutorRole] = useState<TutorRole>('bug_hunt');
   const [inputText, setInputText] = useState('');
-  const [isMuted, setIsMuted] = useState(false);
   const visitedChallengesRef = useRef<Set<string>>(new Set());
 
   const {
     state: voiceState,
-    metrics: voiceMetrics,
+    vadActive,
+    isMuted,
     statusMessage: _voiceStatus,
     dialogueTurns,
     connect: startSession,
     disconnect: disconnectSession,
-    toggleMic: toggleVoiceMic
+    toggleMic
   } = useLiveVoiceSession({
     enableGlobalSelection: true,
     onBugSolved
@@ -58,13 +58,8 @@ export function useBugHuntVoiceBridge(props: UseBugHuntVoiceBridgeProps): UseBug
   const isConnected = voiceState !== 'IDLE' && voiceState !== 'ERROR' && voiceState !== 'COMPLETED';
   const isAiSpeaking = voiceState === 'AI_SPEAKING';
   const isRecording = voiceState === 'LISTENING';
-  const isUserSpeaking = voiceMetrics.vadActive;
+  const isUserSpeaking = vadActive;
   const isPauseHolding = voiceState === 'AI_THINKING' || voiceState === 'COMMITTING';
-
-  const toggleMic = useCallback(() => {
-    setIsMuted((prev) => !prev);
-    toggleVoiceMic();
-  }, [toggleVoiceMic]);
 
   const toggleMute = toggleMic;
 

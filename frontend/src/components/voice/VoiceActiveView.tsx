@@ -10,6 +10,7 @@ import { VoiceVisualizer } from './VoiceVisualizer';
 import { VoiceSubtitles } from './VoiceSubtitles';
 import { VoiceMicButton } from './VoiceMicButton';
 import { VoiceEngineState, DialogueTurnItem } from '../../audio/types';
+import { AudioLevelSubscriber } from '../../audio/useLiveVoiceSession';
 
 export interface VoiceActiveViewProps {
   activeQuestionText: string;
@@ -22,7 +23,8 @@ export interface VoiceActiveViewProps {
   onFinishTutor?: () => void;
   state: VoiceEngineState;
   isMuted: boolean;
-  rmsDb: number;
+  rmsDb?: number;
+  subscribeAudioLevel?: AudioLevelSubscriber;
   isDraining: boolean;
   isTransientFiltered?: boolean;
   statusMessage: string;
@@ -46,6 +48,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
   state,
   isMuted,
   rmsDb,
+  subscribeAudioLevel,
   isDraining,
   isTransientFiltered = false,
   statusMessage,
@@ -103,6 +106,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
       <div className="shrink-0">
         <VoiceVisualizer
           rmsDb={rmsDb}
+          subscribeAudioLevel={subscribeAudioLevel}
           isActive={state === 'AI_SPEAKING' || state === 'LISTENING'}
           color={state === 'AI_SPEAKING' ? 'rose' : 'emerald'}
         />
@@ -117,6 +121,7 @@ export const VoiceActiveView: React.FC<VoiceActiveViewProps> = ({
           state={state}
           isMuted={isMuted}
           rmsDb={rmsDb}
+          subscribeAudioLevel={subscribeAudioLevel}
           isDraining={isDraining}
           isTransientFiltered={isTransientFiltered}
           onClick={onCentralButtonClick}

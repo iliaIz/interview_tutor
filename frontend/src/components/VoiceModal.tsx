@@ -48,7 +48,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = (props) => {
     activeBatchSession,
     clearBatchSession,
     state,
-    metrics,
+    subscribeAudioLevel,
     statusMessage,
     dialogueTurns,
     evaluation,
@@ -119,7 +119,7 @@ export const VoiceModal: React.FC<VoiceModalProps> = (props) => {
             onFinishTutor={handleFinishTutor}
             state={state}
             isMuted={isMuted}
-            rmsDb={metrics.rmsDb}
+            subscribeAudioLevel={subscribeAudioLevel}
             isDraining={false}
             isTransientFiltered={false}
             statusMessage={statusMessage}

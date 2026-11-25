@@ -22,13 +22,23 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     isPauseHolding,
     isError,
     lastError,
-    rmsDb,
     statusMessage,
-    aiTranscript,
-    disconnectSession,
+    disconnect,
+    subscribeAudioLevel,
     startPracticeSession,
-    handleCentralButtonClick
+    handleInteraction
   } = usePracticeVoice();
+
+  const rmsBarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return subscribeAudioLevel((db) => {
+      if (rmsBarRef.current) {
+        const pct = Math.min(100, Math.max(10, ((db + 60) / 45) * 100));
+        rmsBarRef.current.style.width = `${pct}%`;
+      }
+    });
+  }, [subscribeAudioLevel]);
 
   // Auto-start live session ONCE on mount (never loop infinitely on fatal error or manual close)
   useEffect(() => {
@@ -37,12 +47,6 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
       void startPracticeSession();
     }
   }, [isConnected, isError, startPracticeSession]);
-
-  useEffect(() => {
-    if (aiTranscript && onAiTranscriptUpdate) {
-      onAiTranscriptUpdate(aiTranscript);
-    }
-  }, [aiTranscript, onAiTranscriptUpdate]);
 
   const isManualMode = interviewConfig.turnMode === 'manual';
 
@@ -75,7 +79,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         </div>
 
         <button
-          onClick={disconnectSession}
+          onClick={disconnect}
           className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer shrink-0"
           title="Завершить голосовую сессию"
         >
@@ -87,7 +91,7 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
       {/* Central Tactile Circle Button (Tactile Barge-In / Auto-VAD / Commit) */}
       <div className="relative my-4 flex flex-col items-center">
         <button
-          onClick={handleCentralButtonClick}
+          onClick={handleInteraction}
           className={`w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-lg cursor-pointer transform active:scale-95 ${
             isAiSpeaking
               ? 'bg-gradient-to-tr from-pink-500 to-rose-400 text-white ring-8 ring-rose-100 animate-pulse'
@@ -146,12 +150,11 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         {isRecording && !isAiSpeaking && (
           <div className="w-28 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2.5 border border-slate-200">
             <div
+              ref={rmsBarRef}
               className={`h-full transition-all duration-75 rounded-full ${
                 isUserSpeaking ? 'bg-emerald-500' : 'bg-slate-300'
               }`}
-              style={{
-                width: `${Math.min(100, Math.max(10, ((rmsDb + 60) / 45) * 100))}%`
-              }}
+              style={{ width: '10%' }}
             />
           </div>
         )}
@@ -185,16 +188,6 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         )}
       </div>
 
-      {/* Realtime Transcript Box */}
-      {aiTranscript && (
-        <div className="w-full mt-2 p-2.5 rounded-xl bg-white/90 border border-pastel-border/60 text-xs text-slate-700 max-h-24 overflow-y-auto leading-relaxed shadow-2xs">
-          <div className="flex items-center gap-1 text-[10px] font-bold text-pastel-accentRose mb-1">
-            <Sparkles className="w-3 h-3" />
-            <span>Речь ИИ:</span>
-          </div>
-          {aiTranscript}
-        </div>
-      )}
     </div>
   );
 };

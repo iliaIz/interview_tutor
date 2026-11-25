@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { PracticeCatalog } from './PracticeCatalog';
 import { TransactionLabArena } from './TransactionLabArena';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { PracticeVoiceProvider, usePracticeVoice } from './tutor/PracticeVoiceContext';
+import { usePracticeVoice } from './tutor/PracticeVoiceContext';
 import { StudioErrorBoundary } from '../StudioErrorBoundary';
 import { VoiceModal } from '../VoiceModal';
 import { TransactionScenario } from '../../types/transactionLab';
@@ -11,12 +11,12 @@ import { resolveTutorDomain } from './tutor/TutorDomain';
 import { PracticeArenaWorkspace } from './arena/PracticeArenaWorkspace';
 
 const PracticeVoiceDefenseGate: React.FC<{ isVoiceDefenseOpen: boolean }> = ({ isVoiceDefenseOpen }) => {
-  const { isConnected, disconnectSession } = usePracticeVoice();
+  const { isConnected, disconnect } = usePracticeVoice();
   React.useEffect(() => {
     if (isVoiceDefenseOpen && isConnected) {
-      disconnectSession();
+      disconnect();
     }
-  }, [isVoiceDefenseOpen, isConnected, disconnectSession]);
+  }, [isVoiceDefenseOpen, isConnected, disconnect]);
   return null;
 };
 
@@ -55,7 +55,7 @@ export const PracticeArena: React.FC = () => {
 
   if (activeTransactionLabScenarioId !== null) {
     return (
-      <PracticeVoiceProvider>
+      <>
         <PracticeVoiceDefenseGate isVoiceDefenseOpen={isVoiceDefenseOpen} />
         <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
           <TransactionLabArena
@@ -81,7 +81,7 @@ export const PracticeArena: React.FC = () => {
             />
           )}
         </div>
-      </PracticeVoiceProvider>
+      </>
     );
   }
 
@@ -95,9 +95,7 @@ export const PracticeArena: React.FC = () => {
       fallbackDescription="Не удалось отобразить файлы задачи или редактор. Вы можете вернуться к каталогу задач."
       onReset={closePracticeChallenge}
     >
-      <PracticeVoiceProvider>
-        <PracticeArenaWorkspace activePracticeChallenge={activePracticeChallenge} />
-      </PracticeVoiceProvider>
+      <PracticeArenaWorkspace activePracticeChallenge={activePracticeChallenge} />
     </StudioErrorBoundary>
   );
 };

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
-import { useLiveVoiceSession, LiveAudioSessionParams } from '../../../audio/useLiveVoiceSession';
+import { useLiveVoiceSession, AudioLevelSubscriber } from '../../../audio/useLiveVoiceSession';
 import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
@@ -12,19 +12,16 @@ interface PracticeVoiceContextType {
   isMuted: boolean;
   isUserSpeaking: boolean;
   isPauseHolding: boolean;
-  isError?: boolean;
-  lastError?: string | null;
-  rmsDb: number;
+  isError: boolean;
+  lastError: string | null;
   statusMessage: string;
-  aiTranscript: string;
-  startSession: (params: LiveAudioSessionParams) => Promise<void>;
-  disconnectSession: () => void;
+  disconnect: () => void;
   toggleMic: () => void;
-  finishManualTurn: () => void;
+  handleInteraction: () => void;
   sendTextMessage: (text: string, displayText?: string) => void;
+  subscribeAudioLevel: AudioLevelSubscriber;
   startPracticeSession: () => Promise<void>;
   startPracticeSessionWithReview: (focusedFinding?: any) => Promise<void>;
-  handleCentralButtonClick: () => void;
   syncEditorCode?: (code: string, fileName?: string, language?: string, immediate?: boolean) => void;
   injectActiveFocusGroundingFrame?: () => void;
 }
@@ -32,14 +29,13 @@ interface PracticeVoiceContextType {
 const PracticeVoiceContext = createContext<PracticeVoiceContextType | null>(null);
 
 export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const {
-    activePracticeChallenge,
-    practiceWorkspaceFiles,
-    activeWorkspaceFileIndex,
-    activeTransactionLabScenarioId
-  } = useAppStore();
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
+  const activeTransactionLabScenarioId = useAppStore((s) => s.activeTransactionLabScenarioId);
   const { config: interviewConfig } = useInterviewConfig();
-  const { persona: tutorPersona, setModality } = usePracticeTutorStore();
+  const tutorPersona = usePracticeTutorStore((s) => s.persona);
+  const setModality = usePracticeTutorStore((s) => s.setModality);
 
   const session = useLiveVoiceSession({
     onError: (err) => console.error('Practice voice error:', err),
@@ -60,18 +56,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     enableGlobalSelection: true
   });
 
-  const {
-    isConnected,
-    isAiSpeaking,
-    isRecording,
-    startSession,
-    disconnectSession,
-    toggleMic,
-    finishManualTurn,
-    sendTextMessage,
-    handleBargeIn,
-    handleInteraction
-  } = session;
+  const { connect, disconnect, toggleMic, handleInteraction, sendTextMessage, sendCustomFrame, subscribeAudioLevel } = session;
 
   const launchPracticeSession = useCallback(async (seniorReviewPayload?: any) => {
     try {
@@ -90,7 +75,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         seniorReviewPayload,
         academyBreadcrumbContext: state.academyBreadcrumbContext
       });
-      await startSession(params);
+      await connect(params);
       setModality('voice');
     } catch (err) {
       console.error('Failed to start Live Tutor session:', err);
@@ -102,17 +87,14 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     activeTransactionLabScenarioId,
     interviewConfig,
     tutorPersona,
-    startSession,
+    connect,
     setModality
   ]);
 
-  const startPracticeSession = useCallback(async () => {
-    return launchPracticeSession(undefined);
-  }, [launchPracticeSession]);
+  const startPracticeSession = useCallback(async () => launchPracticeSession(undefined), [launchPracticeSession]);
 
   const startPracticeSessionWithReview = useCallback(async (focusedFinding?: any) => {
-    const state = useAppStore.getState();
-    const report = state.activePracticeReport;
+    const report = useAppStore.getState().activePracticeReport;
     const seniorReviewPayload = report ? {
       overallScore: report.scoreBreakdown?.overallScore ?? 0,
       summaryReview: report.scoreBreakdown?.summaryReview || '',
@@ -122,40 +104,28 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     return launchPracticeSession(seniorReviewPayload);
   }, [launchPracticeSession]);
 
-  // SOTA Late 2026: Zero live audio channel pollution. Code is read on-demand via read_file tool.
   const codeSyncDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (codeSyncDebounceRef.current) clearTimeout(codeSyncDebounceRef.current);
-    };
+  useEffect(() => () => {
+    if (codeSyncDebounceRef.current) clearTimeout(codeSyncDebounceRef.current);
   }, []);
 
   const syncEditorCode = useCallback((code: string, fileName?: string, language: string = 'java', immediate: boolean = false) => {
     if (!session.isConnected) return;
-
     if (codeSyncDebounceRef.current) {
       clearTimeout(codeSyncDebounceRef.current);
       codeSyncDebounceRef.current = null;
     }
-
     const performSync = () => {
-      // SOTA Late 2026: Update backend memory for read_file tool resolution.
-      // NEVER inject clientContent text turns into Gemini Live audio stream!
-      session.sendCustomFrame?.({
+      sendCustomFrame({
         type: 'workspace_file_update',
         path: fileName || 'Solution.java',
         content: code,
         language
       });
     };
-
-    if (immediate) {
-      performSync();
-    } else {
-      codeSyncDebounceRef.current = setTimeout(performSync, 1000);
-    }
-  }, [session]);
+    if (immediate) performSync();
+    else codeSyncDebounceRef.current = setTimeout(performSync, 1000);
+  }, [session.isConnected, sendCustomFrame]);
 
   const injectActiveFocusGroundingFrame = useCallback(() => {
     if (!session.isConnected) return;
@@ -163,13 +133,9 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
     if (!current) return;
     const fileName = current.path.split('/').pop() || current.path;
-    session.sendCustomFrame?.({
-      type: 'workspace_active_file_changed',
-      path: fileName
-    });
-  }, [session]);
+    sendCustomFrame({ type: 'workspace_active_file_changed', path: fileName });
+  }, [session.isConnected, sendCustomFrame]);
 
-  // Synchronize external file updates (e.g. from IntelliJ IDEA bridge or Whiteboard)
   useEffect(() => {
     if (!session.isConnected) return;
     const handleWorkspaceFileUpdated = (e: Event) => {
@@ -180,23 +146,28 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
     window.addEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
-    return () => {
-      window.removeEventListener('workspace_file_updated', handleWorkspaceFileUpdated);
-    };
+    return () => { window.removeEventListener('workspace_file_updated', handleWorkspaceFileUpdated); };
   }, [session.isConnected, syncEditorCode]);
-
-  const handleCentralButtonClick = useCallback(() => {
-    handleInteraction();
-  }, [handleInteraction]);
 
   return (
     <PracticeVoiceContext.Provider
       value={{
-        ...session,
+        isConnected: session.isConnected,
+        isAiSpeaking: session.isAiSpeaking,
+        isRecording: session.isRecording,
+        isMuted: session.isMuted,
+        isUserSpeaking: session.isUserSpeaking,
+        isPauseHolding: session.isPauseHolding,
+        isError: session.isError,
+        lastError: session.lastError,
+        statusMessage: session.statusMessage,
+        disconnect,
+        toggleMic,
+        handleInteraction,
         sendTextMessage,
+        subscribeAudioLevel,
         startPracticeSession,
         startPracticeSessionWithReview,
-        handleCentralButtonClick,
         syncEditorCode,
         injectActiveFocusGroundingFrame
       }}
@@ -208,8 +179,6 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const usePracticeVoice = (): PracticeVoiceContextType => {
   const ctx = useContext(PracticeVoiceContext);
-  if (!ctx) {
-    throw new Error('usePracticeVoice must be used within a PracticeVoiceProvider');
-  }
+  if (!ctx) throw new Error('usePracticeVoice must be used within a PracticeVoiceProvider');
   return ctx;
 };

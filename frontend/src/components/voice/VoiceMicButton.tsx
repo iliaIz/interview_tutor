@@ -4,14 +4,16 @@
  * Single responsibility: visual state rendering and tactile interaction trigger.
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Mic, MicOff, Volume2, Sparkles, Loader2, Headphones } from 'lucide-react';
 import { VoiceEngineState } from '../../audio/types';
+import { AudioLevelSubscriber } from '../../audio/useLiveVoiceSession';
 
 export interface VoiceMicButtonProps {
   state: VoiceEngineState;
   isMuted: boolean;
-  rmsDb: number;
+  rmsDb?: number;
+  subscribeAudioLevel?: AudioLevelSubscriber;
   isDraining?: boolean;
   isTransientFiltered?: boolean;
   onClick: () => void;
@@ -21,7 +23,8 @@ export interface VoiceMicButtonProps {
 export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
   state,
   isMuted,
-  rmsDb,
+  rmsDb = -100,
+  subscribeAudioLevel,
   isDraining = false,
   isTransientFiltered = false,
   onClick,
@@ -31,6 +34,17 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
   const isAiSpeaking = state === 'AI_SPEAKING';
   const isListening = state === 'LISTENING';
   const isError = state === 'ERROR';
+  const auraRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!subscribeAudioLevel) return;
+    return subscribeAudioLevel((db) => {
+      if (auraRef.current) {
+        const level = Math.max(0, Math.min(1, (db + 60) / 40));
+        auraRef.current.style.transform = `scale(${isListening ? 1 + level * 0.35 : 1})`;
+      }
+    });
+  }, [subscribeAudioLevel, isListening]);
 
   // Compute aura glow scale based on microphone RMS dB (-100 to 0)
   const normalizedLevel = Math.max(0, Math.min(1, (rmsDb + 60) / 40));
@@ -48,6 +62,7 @@ export const VoiceMicButton: React.FC<VoiceMicButtonProps> = ({
 
       {/* Outer Atmospheric Aura */}
       <div
+        ref={auraRef}
         className={`absolute rounded-full transition-all duration-300 pointer-events-none ${
           isTransientFiltered
             ? 'w-48 h-48 bg-purple-400/35 blur-2xl animate-pulse'

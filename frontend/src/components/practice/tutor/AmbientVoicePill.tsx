@@ -24,11 +24,21 @@ export const AmbientVoicePill: React.FC = () => {
     isPauseHolding,
     isError,
     lastError,
-    rmsDb,
     statusMessage,
-    disconnectSession,
-    handleCentralButtonClick
+    disconnect,
+    handleInteraction,
+    subscribeAudioLevel
   } = usePracticeVoice();
+
+  const rmsBarRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    return subscribeAudioLevel((db) => {
+      if (rmsBarRef.current) {
+        rmsBarRef.current.style.width = `${Math.min(100, Math.max(15, ((db + 60) / 45) * 100))}%`;
+      }
+    });
+  }, [subscribeAudioLevel]);
 
   const { isOpen, toggleOpen } = usePracticeTutorStore();
 
@@ -49,7 +59,7 @@ export const AmbientVoicePill: React.FC = () => {
       >
         {/* Dynamic Glowing Status Circle Button */}
         <button
-          onClick={handleCentralButtonClick}
+          onClick={handleInteraction}
           className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-md ${
             isAiSpeaking
               ? 'bg-gradient-to-tr from-pink-500 to-rose-400 text-white animate-pulse ring-2 ring-rose-400/50'
@@ -106,12 +116,11 @@ export const AmbientVoicePill: React.FC = () => {
             {isRecording && !isAiSpeaking && (
               <div className="w-10 h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div
+                  ref={rmsBarRef}
                   className={`h-full transition-all duration-75 rounded-full ${
                     isUserSpeaking ? 'bg-emerald-400' : 'bg-slate-600'
                   }`}
-                  style={{
-                    width: `${Math.min(100, Math.max(15, ((rmsDb + 60) / 45) * 100))}%`
-                  }}
+                  style={{ width: '15%' }}
                 />
               </div>
             )}
@@ -131,7 +140,7 @@ export const AmbientVoicePill: React.FC = () => {
 
         {/* Disconnect Voice Button */}
         <button
-          onClick={disconnectSession}
+          onClick={disconnect}
           className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition cursor-pointer border border-rose-500/30"
           title="Завершить голосовой вызов"
         >

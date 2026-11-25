@@ -234,14 +234,5 @@ export interface ILiveVoiceEngine {
   disconnect(): void;
   dispatch(command: VoiceEngineCommand): void;
   getSnapshot(): VoiceEngineSnapshot;
-  setMuted(muted: boolean): void;
-  handleCentralButtonClick(): void;
-  handleBargeInInterruption(source?: 'tactile' | 'acoustic'): void;
-  handleUserBargeIn(): void;
-  sendTextMessage(text: string, displayText?: string): void;
-  commitSpokenTurn(): void;
-  sendCustomFrame(frame: unknown): void;
   getState(): VoiceEngineState;
-  getInternalState(): string;
-  getDialogueTurns(): DialogueTurnItem[];
 }

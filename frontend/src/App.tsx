@@ -133,76 +133,76 @@ export const App: React.FC = () => {
       <StudioHeader />
 
       {/* Main Content Area wrapped in Resilient Error Boundary & Suspense */}
-      <StudioErrorBoundary
-        fallbackTitle="Студия временно восстанавливает отображение"
-        fallbackDescription="Произошел сбой при отрисовке модуля. Вы можете повторить попытку или перейти в другой раздел."
-      >
-        <main className="flex-1 flex flex-col">
-          <Suspense fallback={<StudioSuspenseLoader />}>
-            {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
-            
-            {currentStudioTab === 'practice' && <PracticeArena />}
+      <PracticeVoiceProvider>
+        <StudioErrorBoundary
+          fallbackTitle="Студия временно восстанавливает отображение"
+          fallbackDescription="Произошел сбой при отрисовке модуля. Вы можете повторить попытку или перейти в другой раздел."
+        >
+          <main className="flex-1 flex flex-col">
+            <Suspense fallback={<StudioSuspenseLoader />}>
+              {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
+              
+              {currentStudioTab === 'practice' && <PracticeArena />}
 
-            {currentStudioTab === 'hr_screening' && <HrScreeningArena />}
+              {currentStudioTab === 'hr_screening' && <HrScreeningArena />}
 
-            {currentStudioTab === 'live_debug' && <LiveVadDebugStudio />}
+              {currentStudioTab === 'live_debug' && <LiveVadDebugStudio />}
 
-            {currentStudioTab === 'companies' && <CompanyPrepStudio />}
+              {currentStudioTab === 'companies' && <CompanyPrepStudio />}
 
-            {currentStudioTab === 'incidents' && (
-              activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />
-            )}
+              {currentStudioTab === 'incidents' && (
+                activeTopicBugHunt ? <BugHuntArena /> : <BugHuntCatalog />
+              )}
 
-            {currentStudioTab === 'system_design' && (
-              activeSystemDesignScenario ? (
-                activeSystemDesignScenario.canonical_id || activeSystemDesignScenario.studio_2_simulation ? (
-                  <MultiScaleCanvasHub />
+              {currentStudioTab === 'system_design' && (
+                activeSystemDesignScenario ? (
+                  activeSystemDesignScenario.canonical_id || activeSystemDesignScenario.studio_2_simulation ? (
+                    <MultiScaleCanvasHub />
+                  ) : (
+                    <SystemDesignArena />
+                  )
                 ) : (
-                  <SystemDesignArena />
+                  <SystemDesignCatalog />
                 )
-              ) : (
-                <SystemDesignCatalog />
-              )
-            )}
+              )}
 
-            {currentStudioTab === 'triage' && (
-              activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
-            )}
+              {currentStudioTab === 'triage' && (
+                activeTriageIncident ? <IncidentTriageStudio /> : <IncidentTriageCatalog />
+              )}
 
-            {currentStudioTab === 'theory' && (
-              <>
-                {currentView === 'topics' && <TopicSelector />}
-                {currentView === 'questions' && <QuestionExplorer />}
-                {currentView === 'study' && <StudyDeck />}
-                {currentView === 'quiz' && <ExamQuiz />}
-              </>
-            )}
+              {currentStudioTab === 'theory' && (
+                <>
+                  {currentView === 'topics' && <TopicSelector />}
+                  {currentView === 'questions' && <QuestionExplorer />}
+                  {currentView === 'study' && <StudyDeck />}
+                  {currentView === 'quiz' && <ExamQuiz />}
+                </>
+              )}
+            </Suspense>
+          </main>
+        </StudioErrorBoundary>
+
+        {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
+        <StudioErrorBoundary fallbackTitle="Ошибка отображения диалога">
+          <Suspense fallback={null}>
+            <AudioRecapModal />
+            <InterviewReportModal
+              isOpen={Boolean(activeReportModal)}
+              onClose={closeReportModal}
+              report={activeReportModal}
+            />
+            <ProfileEditModal />
+            <AdminInvitesModal />
           </Suspense>
-        </main>
-      </StudioErrorBoundary>
+        </StudioErrorBoundary>
 
-      {/* Audio Modal, Floating Player, Interview Report Modal & Toast Notification */}
-      <StudioErrorBoundary fallbackTitle="Ошибка отображения диалога">
+        <AudioPlayerBar />
+        <Toast />
         <Suspense fallback={null}>
-          <AudioRecapModal />
-          <InterviewReportModal
-            isOpen={Boolean(activeReportModal)}
-            onClose={closeReportModal}
-            report={activeReportModal}
-          />
-          <ProfileEditModal />
-          <AdminInvitesModal />
-        </Suspense>
-      </StudioErrorBoundary>
-
-      <AudioPlayerBar />
-      <Toast />
-      <Suspense fallback={null}>
-        <PracticeVoiceProvider>
           <PracticeTutorDrawer />
           <AmbientVoicePill />
-        </PracticeVoiceProvider>
-      </Suspense>
+        </Suspense>
+      </PracticeVoiceProvider>
 
       {/* Footer */}
       {currentStudioTab !== 'practice' && 

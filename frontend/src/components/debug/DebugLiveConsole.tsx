@@ -127,10 +127,23 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
     session.disconnect();
   };
 
-  const [isMuted, setIsMuted] = useState(false);
+  const rmsBarRef = useRef<HTMLDivElement | null>(null);
+  const rmsLabelRef = useRef<HTMLSpanElement | null>(null);
 
-  // Convert RMS dB (-100 to 0) to 0-100 percentage
-  const rmsPercent = Math.max(0, Math.min(100, Math.round(((session.metrics.rmsDb + 60) / 60) * 100)));
+  useEffect(() => {
+    return session.subscribeAudioLevel((db) => {
+      const pct = Math.max(0, Math.min(100, Math.round(((db + 60) / 60) * 100)));
+      if (rmsBarRef.current) {
+        rmsBarRef.current.style.width = `${pct}%`;
+        rmsBarRef.current.className = `h-full transition-all duration-75 ${
+          pct > 50 ? 'bg-gradient-to-r from-emerald-500 to-rose-500' : 'bg-emerald-500'
+        }`;
+      }
+      if (rmsLabelRef.current) {
+        rmsLabelRef.current.textContent = db > -90 ? `${Math.round(db)} dB` : 'Тишина';
+      }
+    });
+  }, [session.subscribeAudioLevel]);
 
   return (
     <div className="bg-white/80 backdrop-blur-md border border-pastel-rose/80 rounded-3xl p-5 shadow-xl space-y-4">
@@ -167,16 +180,13 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
               </button>
 
               <button
-                onClick={() => {
-                  setIsMuted(!isMuted);
-                  session.toggleMic();
-                }}
-                title={isMuted ? 'Включить микрофон' : 'Заглушить микрофон'}
+                onClick={session.toggleMic}
+                title={session.isMuted ? 'Включить микрофон' : 'Заглушить микрофон'}
                 className={`p-2 rounded-xl transition cursor-pointer ${
-                  isMuted ? 'bg-rose-100 text-rose-700' : 'bg-pastel-bg text-slate-700 hover:bg-pastel-rose/40'
+                  session.isMuted ? 'bg-rose-100 text-rose-700' : 'bg-pastel-bg text-slate-700 hover:bg-pastel-rose/40'
                 }`}
               >
-                {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                {session.isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </button>
 
               <button
@@ -224,14 +234,13 @@ export const DebugLiveConsole: React.FC<DebugLiveConsoleProps> = ({ selectedStep
         <div className="p-2.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border/80 flex flex-col">
           <div className="flex items-center justify-between text-[10px] text-pastel-muted">
             <span>Аудио RMS</span>
-            <span>{session.metrics.rmsDb > -90 ? `${Math.round(session.metrics.rmsDb)} dB` : 'Тишина'}</span>
+            <span ref={rmsLabelRef}>Тишина</span>
           </div>
           <div className="w-full bg-slate-200 h-2 rounded-full mt-1.5 overflow-hidden">
             <div
-              className={`h-full transition-all duration-75 ${
-                rmsPercent > 50 ? 'bg-gradient-to-r from-emerald-500 to-rose-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${rmsPercent}%` }}
+              ref={rmsBarRef}
+              className="h-full transition-all duration-75 bg-emerald-500"
+              style={{ width: '0%' }}
             />
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
   clampClientVadPauseMs
 } from '../src/audio/voiceConfigResolver';
 import { buildLiveVoiceWebSocketUrl } from '../src/audio/liveVoiceUrlBuilder';
+import { buildPracticeSessionParams } from '../src/components/practice/tutor/practiceSessionParamsBuilder';
 import type { InterviewConfig } from '../src/types/interviewConfig';
 import type { RuntimeVoiceConfig } from '../src/config/voiceDefaults';
 
@@ -263,6 +264,57 @@ function runContractTests() {
     assert(wsUrl.includes('vadPauseMs=2400'), 'WS URL carries global vadPauseMs');
     assert(wsUrl.includes('enableSilenceClarification=true'), 'WS URL carries silence clarification');
     assert(wsUrl.includes('strictness=hardcore'), 'WS URL carries strictness');
+  }
+
+  // [Test 6] Practice session params builder synthesizes challenge, active file, revisions, seniorReview & academy bridge
+  console.log('\n[Test 6] Practice Session Params Builder (Spec 47 Pure Extraction)');
+  {
+    const built = buildPracticeSessionParams({
+      activePracticeChallenge: {
+        id: 'rate_limiter',
+        slug: 'rate-limiter',
+        title: 'Token Bucket',
+        category: 'lld_bigtech',
+        track: 'core',
+        badge: 'LLD',
+        difficulty: 'Senior',
+        targetStack: 'Java 21',
+        timeLimitMinutes: 45,
+        shortDescription: 'Distributed limiter',
+        instructionsMarkdown: 'Implement thread-safe limiter',
+        workspaceFiles: []
+      },
+      files: [
+        { path: 'src/Bucket.java', content: 'class Bucket {}', readOnly: false, hidden: false }
+      ],
+      activeFileIndex: 0,
+      activeTransactionLabScenarioId: null,
+      activeArtifact: { id: 'art_1', title: 'Bucket.java', language: 'java', code: 'class Bucket {}' },
+      codeRevisions: [{ id: 'rev_1', label: 'v1' } as any],
+      interviewConfig: {
+        strategy: 'socratic_tutoring',
+        voice: 'Puck',
+        maxProbes: 3,
+        userGender: 'female',
+        turnMode: 'auto',
+        liveModel: 'gemini-live',
+        vadPauseMs: 1800,
+        enableSilenceClarification: true,
+        persona: 'staff_engineer',
+        targetGrade: 'L5_SENIOR',
+        strictness: 'standard',
+        deepDive: false,
+        liveCoaching: true
+      },
+      tutorPersona: 'mentor',
+      seniorReviewPayload: { overallScore: 81, summaryReview: 'Good', findings: [] },
+      academyBreadcrumbContext: { courseId: 'c1', courseTitle: 'Concurrency', stepNumber: 2, stepTitle: 'CAS' }
+    });
+    assert(built.sessionType === 'tutor' && built.tutorMode === 'practice_pair', 'Practice params target practice_pair tutor');
+    assert(built.questionId === 'rate_limiter', 'Practice params attach challenge questionId');
+    assert(built.seniorReview?.overallScore === 81, 'Practice params carry seniorReview');
+    assert(built.academyBridgeContext?.courseId === 'c1', 'Practice params bridge Academy context');
+    assert((built.codeRevisionsSummary?.length ?? 0) === 1, 'Practice params serialize codeRevisionsSummary');
   }
 
   // Summary

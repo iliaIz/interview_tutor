@@ -55,7 +55,7 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
   const {
     isConnected: isVoiceConnected,
     startPracticeSession,
-    disconnectSession: disconnectVoiceSession
+    disconnect: disconnectVoiceSession
   } = usePracticeVoice();
 
   const togglePracticeVoice = useCallback(() => {

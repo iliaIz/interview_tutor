@@ -173,7 +173,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     };
   }
 
-  public commitSpokenTurn(): void {
+  private commitSpokenTurn(): void {
     if (!this.fsm.isCandidateTurnActive()) return;
     this.micDispatcher.resetCounters();
     this.isServerTurnComplete = false;
@@ -185,9 +185,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.recovery.armSafetyTimer(22000);
   }
 
-  public handleUserBargeIn(): void { this.handleBargeInInterruption('tactile'); }
-
-  public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
+  private handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
     this.audio.interruptPlayout();
     this.isServerTurnComplete = true;
     if (this.connection?.isOpen()) {
@@ -196,13 +194,13 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
   }
 
-  public handleCentralButtonClick(): void {
+  private handleCentralButtonClick(): void {
     const pub = this.getState();
-    if (pub === 'AI_SPEAKING') this.handleUserBargeIn();
+    if (pub === 'AI_SPEAKING') this.handleBargeInInterruption('tactile');
     else if (pub === 'LISTENING') this.commitSpokenTurn();
   }
 
-  public sendTextMessage(text: string, displayText?: string): void {
+  private sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
     this.isServerTurnComplete = false;
     this.turnManager.appendTurn('user', displayText || text);
@@ -214,14 +212,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.recovery.armSafetyTimer(22000);
   }
 
-  public sendCustomFrame(frame: unknown): void {
+  private sendCustomFrame(frame: unknown): void {
     if (this.connection?.isOpen()) this.connection.send(JSON.stringify(frame));
   }
 
-  public setMuted(muted: boolean): void { this.isMuted = muted; this.audio.setMuted(muted); }
+  private setMuted(muted: boolean): void { this.isMuted = muted; this.audio.setMuted(muted); }
   public getState(): VoiceEngineState { return this.fsm.getPublicState(); }
-  public getInternalState(): string { return this.fsm.getInternalState(); }
-  public getDialogueTurns(): DialogueTurnItem[] { return this.turnManager.getTurns(); }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     this.micDispatcher.dispatchChunk(

@@ -1,8 +1,8 @@
 /**
  * useLiveVoiceSession.ts
- * Authoritative Unified React hook for NativeLiveVoiceEngine (SOTA Late 2026).
- * Single responsibility: reactive bridge between Headless LiveVoiceEngine and React components.
- * Bounded cognitive size: <= 350 lines (SPEC-002, Ticket #7).
+ * Authoritative React hook bridging Headless NativeLiveVoiceEngine and UI components (Spec 47 <= 250 lines).
+ * Enforces reactive isMuted state, 0Hz parent re-render isolation via subscribeAudioLevel,
+ * and command dispatch through NativeLiveVoiceEngine.dispatch().
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -24,13 +24,6 @@ export interface DialogueTurn {
   id?: string;
   role: 'ai' | 'user' | 'system';
   text: string;
-}
-
-export interface LiveAudioMetrics {
-  rmsDb: number;
-  vadActive: boolean;
-  rttMs: number | null;
-  audioChunksCount: number;
 }
 
 export interface LiveAudioSessionParams {
@@ -113,30 +106,23 @@ export interface UseLiveVoiceSessionOptions {
   enableGlobalSelection?: boolean;
 }
 
+export type AudioLevelSubscriber = (listener: (db: number) => void) => () => void;
+
 export interface UseLiveVoiceSessionReturn {
-  // 1. Single discrete source of truth
   state: VoiceEngineState;
-  // 2. Audio & network telemetry
-  metrics: LiveAudioMetrics;
-  // 3. Status prompt for UI rendering
   statusMessage: string;
-  // 4. Dialogue turns history
   dialogueTurns: DialogueTurnItem[];
-  // 5. Active evaluation scorecard (if emitted)
   activeScorecard: HrScorecard | VoiceEvaluationResult | null;
-  // 6. Primary session lifecycle controls
+  vadActive: boolean;
   connect: (params: LiveAudioSessionParams) => Promise<void>;
   disconnect: () => void;
-  // 7. Physical mic capture toggle (replaces toggleMute/toggleMic duplicates)
   toggleMic: () => void;
-  // 8. Tactile interaction (barge-in if AI speaking; turn commit if candidate speaking)
   handleInteraction: () => void;
-  // 9. Delegation seams for text & custom frames
   sendTextMessage: (text: string, displayText?: string) => void;
   sendCustomFrame: (frame: any) => void;
+  sendCanvasDelta: (delta: any) => void;
+  subscribeAudioLevel: AudioLevelSubscriber;
   engineRef?: React.MutableRefObject<NativeLiveVoiceEngine | null>;
-
-  // Direct boolean & metric projections (eliminates shallow wrapper layer)
   isConnected: boolean;
   isAiSpeaking: boolean;
   isListening: boolean;
@@ -146,52 +132,42 @@ export interface UseLiveVoiceSessionReturn {
   isPauseHolding: boolean;
   isError: boolean;
   lastError: string | null;
-  rmsDb: number;
-  aiTranscript: string;
-  startSession: (params: LiveAudioSessionParams) => Promise<void>;
-  disconnectSession: () => void;
-  finishManualTurn: () => void;
-  handleBargeIn: () => void;
-  handleCentralButtonClick: () => void;
-  sendCanvasDelta: (delta: any) => void;
 }
 
 export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): UseLiveVoiceSessionReturn {
   const optionsRef = useRef(options);
-  useEffect(() => {
-    optionsRef.current = options;
-  }, [options]);
+  useEffect(() => { optionsRef.current = options; }, [options]);
 
   const [state, setState] = useState<VoiceEngineState>('IDLE');
-  const [metrics, setMetrics] = useState<LiveAudioMetrics>({
-    rmsDb: -100,
-    vadActive: false,
-    rttMs: null,
-    audioChunksCount: 0
-  });
-  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [vadActive, setVadActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const [lastError, setLastError] = useState<string | null>(null);
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurnItem[]>([]);
   const [activeScorecard, setActiveScorecard] = useState<HrScorecard | VoiceEvaluationResult | null>(null);
 
   const engineRef = useRef<NativeLiveVoiceEngine | null>(null);
-  const isMutedRef = useRef<boolean>(false);
+  const isMutedRef = useRef(false);
+  const vadActiveRef = useRef(false);
+  const audioLevelListenersRef = useRef(new Set<(db: number) => void>());
 
   if (!engineRef.current) {
     engineRef.current = new NativeLiveVoiceEngine({
       onStateChange: (newState) => {
         setState(newState);
         if (newState === 'IDLE' || newState === 'COMPLETED') {
+          vadActiveRef.current = false;
+          setVadActive(false);
           optionsRef.current.onDisconnect?.();
         }
       },
       onAudioLevel: (db) => {
-        setMetrics((prev) => ({
-          ...prev,
-          rmsDb: db,
-          vadActive: db > -45,
-          audioChunksCount: prev.audioChunksCount + 1
-        }));
+        audioLevelListenersRef.current.forEach((cb) => cb(db));
+        const nextVad = db > -45;
+        if (nextVad !== vadActiveRef.current) {
+          vadActiveRef.current = nextVad;
+          setVadActive(nextVad);
+        }
       },
       onStatusMessage: (msg) => setStatusMessage(msg),
       onDialogueTurnsUpdate: (turns) => setDialogueTurns(turns),
@@ -200,11 +176,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
         optionsRef.current.onEvaluationCompleted?.(res);
       },
       onWhiteboardUpdate: (payload) => {
-        try {
-          useAppStore.getState().setWhiteboardState(payload);
-        } catch (e) {
-          console.warn('[useLiveVoiceSession] Whiteboard store update failed:', e);
-        }
+        try { useAppStore.getState().setWhiteboardState(payload); } catch {}
         optionsRef.current.onWhiteboardUpdate?.(payload);
       },
       onChaosInjected: (payload) => optionsRef.current.onChaosInjected?.(payload),
@@ -212,33 +184,17 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
       onBugSolved: (payload) => optionsRef.current.onBugSolved?.(payload),
       onCandidateObservationRecorded: (payload) => optionsRef.current.onCandidateObservationRecorded?.(payload),
       onHrPhaseTransition: (payload) => {
-        try {
-          useHrSimulatorStore.getState().setPhase(payload.toPhase);
-        } catch (e) {
-          console.warn('[useLiveVoiceSession] HR phase transition update failed:', e);
-        }
+        try { useHrSimulatorStore.getState().setPhase(payload.toPhase); } catch {}
       },
       onHrScorecardReady: (scorecard) => {
         setActiveScorecard(scorecard);
-        try {
-          useHrSimulatorStore.getState().setScorecard(scorecard);
-        } catch (e) {
-          console.warn('[useLiveVoiceSession] HR scorecard update failed:', e);
-        }
+        try { useHrSimulatorStore.getState().setScorecard(scorecard); } catch {}
       },
       onHrTranscriptDelta: (delta) => {
-        try {
-          useHrSimulatorStore.getState().appendTranscriptDelta(delta);
-        } catch (e) {
-          console.warn('[useLiveVoiceSession] HR transcript delta update failed:', e);
-        }
+        try { useHrSimulatorStore.getState().appendTranscriptDelta(delta); } catch {}
       },
       onHrStepState: (stepState) => {
-        try {
-          useHrSimulatorStore.getState().setGuidedStepState(stepState);
-        } catch (e) {
-          console.warn('[useLiveVoiceSession] HR step state update failed:', e);
-        }
+        try { useHrSimulatorStore.getState().setGuidedStepState(stepState); } catch {}
       },
       onError: (err) => {
         setLastError(err);
@@ -247,16 +203,24 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     });
   }
 
+  const subscribeAudioLevel = useCallback<AudioLevelSubscriber>((listener) => {
+    audioLevelListenersRef.current.add(listener);
+    return () => { audioLevelListenersRef.current.delete(listener); };
+  }, []);
+
   const connect = useCallback(async (params: LiveAudioSessionParams) => {
     setActiveScorecard(null);
     setLastError(null);
     setDialogueTurns([]);
-    setMetrics({ rmsDb: -100, vadActive: false, rttMs: null, audioChunksCount: 0 });
+    vadActiveRef.current = false;
+    setVadActive(false);
+    isMutedRef.current = false;
+    setIsMuted(false);
+    engineRef.current?.dispatch({ type: 'SET_MUTED', muted: false });
 
     const config: VoiceEngineConfig = resolveLiveSessionConfig(params, {
-      activeCode: optionsRef.current.getActiveCode?.(),
+      activeCode: optionsRef.current.getActiveCode?.()
     });
-
     await engineRef.current?.connect(config);
     optionsRef.current.onSetupComplete?.();
   }, []);
@@ -266,47 +230,40 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   }, []);
 
   const toggleMic = useCallback(() => {
-    isMutedRef.current = !isMutedRef.current;
-    engineRef.current?.setMuted(isMutedRef.current);
+    const next = !isMutedRef.current;
+    isMutedRef.current = next;
+    setIsMuted(next);
+    engineRef.current?.dispatch({ type: 'SET_MUTED', muted: next });
   }, []);
 
   const handleInteraction = useCallback(() => {
-    engineRef.current?.handleCentralButtonClick();
+    engineRef.current?.dispatch({ type: 'CENTRAL_ACTION' });
   }, []);
 
   const sendTextMessage = useCallback((text: string, displayText?: string) => {
-    engineRef.current?.sendTextMessage(text, displayText);
+    engineRef.current?.dispatch({ type: 'SEND_TEXT', text, displayText });
   }, []);
 
   const sendCustomFrame = useCallback((frame: any) => {
-    engineRef.current?.sendCustomFrame(frame);
+    engineRef.current?.dispatch({ type: 'SEND_FRAME', frame });
   }, []);
 
-  useEffect(() => {
-    return () => {
-      engineRef.current?.disconnect();
-    };
+  const sendCanvasDelta = useCallback((delta: any) => {
+    engineRef.current?.dispatch({ type: 'SEND_FRAME', frame: { type: 'canvas_delta', payload: delta } });
   }, []);
+
+  useEffect(() => () => { engineRef.current?.disconnect(); }, []);
 
   const isConnected = state !== 'IDLE' && state !== 'ERROR' && state !== 'COMPLETED';
   const isAiSpeaking = state === 'AI_SPEAKING';
   const isListening = state === 'LISTENING';
-  const isRecording = isListening;
-  const isUserSpeaking = metrics.vadActive;
-  const isPauseHolding = state === 'AI_THINKING' || state === 'COMMITTING';
-  const isError = state === 'ERROR';
-  const rmsDb = metrics.rmsDb;
-
-  const sendCanvasDelta = useCallback((delta: any) => {
-    engineRef.current?.sendCustomFrame({ type: 'canvas_delta', payload: delta });
-  }, []);
 
   return {
     state,
-    metrics,
     statusMessage,
     lastError,
-    isError,
+    isError: state === 'ERROR',
+    vadActive,
     dialogueTurns,
     activeScorecard,
     connect,
@@ -315,23 +272,15 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     handleInteraction,
     sendTextMessage,
     sendCustomFrame,
+    sendCanvasDelta,
+    subscribeAudioLevel,
     engineRef,
-
-    // Direct projections
     isConnected,
     isAiSpeaking,
     isListening,
-    isRecording,
-    isMuted: isMutedRef.current,
-    isUserSpeaking,
-    isPauseHolding,
-    rmsDb,
-    aiTranscript: '',
-    startSession: connect,
-    disconnectSession: disconnect,
-    finishManualTurn: handleInteraction,
-    handleBargeIn: handleInteraction,
-    handleCentralButtonClick: handleInteraction,
-    sendCanvasDelta
+    isRecording: isListening,
+    isMuted,
+    isUserSpeaking: vadActive,
+    isPauseHolding: state === 'AI_THINKING' || state === 'COMMITTING'
   };
 }

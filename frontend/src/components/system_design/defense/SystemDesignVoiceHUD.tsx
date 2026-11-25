@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
+import { AudioLevelSubscriber } from '../../../audio/useLiveVoiceSession';
 import { 
   Radio, PhoneOff, Mic, MicOff, AlertOctagon, CheckCircle2, 
   Sparkles, ShieldAlert, Cpu, Send, Volume2, ShieldCheck, Flame
@@ -15,6 +16,7 @@ interface SystemDesignVoiceHUDProps {
   isUserSpeaking?: boolean;
   isPauseHolding?: boolean;
   rmsDb?: number;
+  subscribeAudioLevel?: AudioLevelSubscriber;
   onDismissChaos: () => void;
   onToggleMic: () => void;
   onFinishTurn: () => void;
@@ -33,12 +35,24 @@ export const SystemDesignVoiceHUD: React.FC<SystemDesignVoiceHUDProps> = ({
   isUserSpeaking = false,
   isPauseHolding = false,
   rmsDb = -60,
+  subscribeAudioLevel,
   onDismissChaos,
   onToggleMic,
   onFinishTurn,
   onDisconnect,
   onBargeIn
 }) => {
+  const rmsBarRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!subscribeAudioLevel) return;
+    return subscribeAudioLevel((db) => {
+      if (rmsBarRef.current) {
+        rmsBarRef.current.style.width = `${Math.min(100, Math.max(10, ((db + 60) / 40) * 100))}%`;
+      }
+    });
+  }, [subscribeAudioLevel]);
+
   if (!isConnected) return null;
 
   return (
@@ -105,7 +119,8 @@ export const SystemDesignVoiceHUD: React.FC<SystemDesignVoiceHUDProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Слушаю...
                     <span className="w-8 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden inline-block ml-1">
-                      <span 
+                      <span
+                        ref={rmsBarRef}
                         className="block h-full bg-emerald-500 transition-all duration-75"
                         style={{ width: `${Math.min(100, Math.max(10, ((rmsDb + 60) / 40) * 100))}%` }}
                       />

@@ -104,11 +104,10 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
 
   const hasAutoStartedRef = useRef<boolean>(false);
   const isConnectingRef = useRef<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const {
     state,
-    metrics,
+    isMuted,
     statusMessage,
     dialogueTurns,
     activeScorecard,
@@ -116,14 +115,12 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
     disconnect,
     toggleMic,
     handleInteraction,
-    sendCustomFrame
+    sendCustomFrame,
+    subscribeAudioLevel
   } = useLiveVoiceSession();
   const evaluation = activeScorecard as VoiceEvaluationResult | null;
 
-  const handleToggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev);
-    toggleMic();
-  }, [toggleMic]);
+  const handleToggleMute = toggleMic;
 
   const startSessionForIndex = useCallback(async (targetIndex: number, isRetryAttempt = false) => {
     if (isConnectingRef.current) return;
@@ -331,7 +328,7 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
     activeBatchSession,
     clearBatchSession,
     state,
-    metrics,
+    subscribeAudioLevel,
     statusMessage,
     dialogueTurns,
     evaluation,

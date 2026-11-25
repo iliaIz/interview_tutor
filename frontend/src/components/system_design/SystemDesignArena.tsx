@@ -81,7 +81,7 @@ export const SystemDesignArena: React.FC = () => {
     isMuted,
     isUserSpeaking,
     isPauseHolding,
-    rmsDb,
+    subscribeAudioLevel,
     voiceStatus,
     chaosAlert,
     setChaosAlert,
@@ -90,11 +90,10 @@ export const SystemDesignArena: React.FC = () => {
     hiringCommitteePacket,
     setHiringCommitteePacket,
     toggleMic,
-    finishManualTurn,
+    handleInteraction,
     disconnectVoiceSession,
     handleStartVoiceDefense,
-    sendCanvasDelta,
-    handleBargeIn
+    sendCanvasDelta
   } = useSystemDesignVoiceDefense({
     activeScenario: activeSystemDesignScenario,
     architectureMode,
@@ -224,15 +223,15 @@ export const SystemDesignArena: React.FC = () => {
             isMuted={isMuted}
             isUserSpeaking={isUserSpeaking}
             isPauseHolding={isPauseHolding}
-            rmsDb={rmsDb}
+            subscribeAudioLevel={subscribeAudioLevel}
             statusMessage={voiceStatus}
             chaosAlert={chaosAlert}
             observationCount={observations.length}
             onDismissChaos={() => setChaosAlert(null)}
             onToggleMic={toggleMic}
-            onFinishTurn={finishManualTurn}
+            onFinishTurn={handleInteraction}
             onDisconnect={disconnectVoiceSession}
-            onBargeIn={handleBargeIn}
+            onBargeIn={handleInteraction}
           />
         </div>
       )}

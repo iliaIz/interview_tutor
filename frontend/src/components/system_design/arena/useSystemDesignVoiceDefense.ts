@@ -32,14 +32,13 @@ export function useSystemDesignVoiceDefense({
     isMuted,
     isUserSpeaking,
     isPauseHolding,
-    rmsDb,
+    subscribeAudioLevel,
     statusMessage: voiceStatus,
-    startSession: startVoiceSession,
-    disconnectSession: disconnectVoiceSession,
+    connect: startVoiceSession,
+    disconnect: disconnectVoiceSession,
     toggleMic,
-    finishManualTurn,
-    sendCanvasDelta,
-    handleBargeIn
+    handleInteraction,
+    sendCanvasDelta
   } = useLiveVoiceSession({
     getActiveCode: () => {
       return architectureMode === 'canvas'
@@ -145,7 +144,7 @@ export function useSystemDesignVoiceDefense({
     isMuted,
     isUserSpeaking,
     isPauseHolding,
-    rmsDb,
+    subscribeAudioLevel,
     voiceStatus,
     chaosAlert,
     setChaosAlert,
@@ -154,10 +153,9 @@ export function useSystemDesignVoiceDefense({
     hiringCommitteePacket,
     setHiringCommitteePacket,
     toggleMic,
-    finishManualTurn,
+    handleInteraction,
     disconnectVoiceSession,
     handleStartVoiceDefense,
-    sendCanvasDelta,
-    handleBargeIn
+    sendCanvasDelta
   };
 }
