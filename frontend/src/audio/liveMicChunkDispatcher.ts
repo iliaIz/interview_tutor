@@ -7,7 +7,7 @@
  */
 
 import { MicrophoneMetrics } from './MicrophoneCapture';
-import { VoiceEngineState } from './types';
+import { LiveTransportConnection, VoiceEngineState } from './types';
 
 const STATIC_SILENCE_BASE64 = 'A'.repeat(1366) + '==';
 
@@ -33,7 +33,7 @@ export class LiveMicChunkDispatcher {
     isTurn0Lockdown: boolean,
     isSessionReady: boolean,
     _turnMode: 'auto' | 'manual' | undefined,
-    ws: WebSocket | null,
+    connection: LiveTransportConnection | null,
     callbacks: MicDispatcherCallbacks
   ): void {
     if (isMuted || isAudioMutexLocked) return;
@@ -78,16 +78,14 @@ export class LiveMicChunkDispatcher {
     }
 
     // 2. In-Place Clamping for Continuous PCM Streaming during LISTENING (Cloud VAD Protection)
-    // In native Cloud VAD (turnMode === 'auto'), continuous 16kHz PCM audio including ambient silence
-    // streams unhindered to Gemini Live, identical to gemini_live_reference SSOT.
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (connection && connection.isOpen()) {
       if (metrics?.isTransientSpike) {
         callbacks.onTransientFiltered?.();
-        ws.send(JSON.stringify({
+        connection.send(JSON.stringify({
           realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: STATIC_SILENCE_BASE64 } }
         }));
       } else {
-        ws.send(JSON.stringify({
+        connection.send(JSON.stringify({
           realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: base64Pcm } }
         }));
       }

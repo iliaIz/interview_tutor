@@ -14,7 +14,7 @@ import { isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 import { UpstreamGeminiPipe } from './UpstreamGeminiPipe';
 import { LiveDeadAirGuard } from './LiveDeadAirGuard';
-import { LivePromptDirector } from './LivePromptDirector';
+import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
 import { LiveHotHandoffCoordinator } from './LiveHotHandoffCoordinator';
 import { envConfig } from '../../config/env';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
@@ -83,7 +83,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   pipe = new UpstreamGeminiPipe({
     upstreamWsUrl,
     setupMessage,
-    getSetupMessage: () => LivePromptDirector.buildDynamicSetupMessage(setupMessage, session.resumptionHandle),
+    getSetupMessage: () => LiveSessionBlueprintBuilder.buildDynamicSetupMessage(setupMessage, session.resumptionHandle),
     liveModel,
     maxReconnectAttempts: 3,
     onResumptionRejectedBeforeSetup: () => {
@@ -364,7 +364,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     session,
     clientSocket,
     pipe,
-    buildSetupMessage: (handle) => LivePromptDirector.buildDynamicSetupMessage(setupMessage, handle),
+    buildSetupMessage: (handle) => LiveSessionBlueprintBuilder.buildDynamicSetupMessage(setupMessage, handle),
     sendContextReplay: (ws) => dispatchReconnectContextReplay(session, ws, { bugTitle, questionText, topic }),
     flushFrameQueue: flushPendingFrames
   });

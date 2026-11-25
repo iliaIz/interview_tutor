@@ -1,4 +1,9 @@
 import { CodingChallenge } from '../challengeSeedData';
+import type { SandboxExecutionRequest, SandboxExecutionResponse } from './JvmExecutionService';
+import type { MutationExecutionRequest, MutationExecutionResponse } from './JvmMutationEngine';
+import type { JavaStaticAnalysisEngine } from './JavaStaticAnalysisEngine';
+import type { EvaluationRequest, EvaluationResult } from '../codeEvaluatorTypes';
+import type { ChallengeSubmissionRepository } from './ChallengeSubmissionRepository';
 
 /**
  * Stages/Gates executed during the multi-pass challenge evaluation pipeline.
@@ -85,3 +90,54 @@ export interface ChallengeEvaluationInput {
 }
 
 export type EvaluationInput = ChallengeEvaluationInput;
+
+export interface PersistSubmissionParams {
+  challengeId: string;
+  userId: string;
+  files: EvaluationCodeFile[];
+  activePhase: number;
+  status: string;
+  score: number;
+  evaluation: unknown;
+  timeSpentSeconds: number;
+}
+
+export interface CanonicalPersistedEvaluation {
+  schemaVersion: 2;
+  status: 'PASSED' | 'FAILED';
+  compilationStatus: {
+    isCompilable: boolean;
+    syntaxErrors: Array<{ lineNumber: number; errorMessage: string }>;
+  };
+  sandboxResult?: SandboxExecutionResponse;
+  astViolations?: EvaluationAstViolation[];
+  mutationScore?: EvaluationMutationScorePayload;
+  aiFeedback?: EvaluationAiFeedbackPayload;
+  aiEvaluationResult?: EvaluationResult;
+  scoreBreakdown: {
+    overallScore: number;
+    summaryReview: string;
+    [k: string]: unknown;
+  };
+}
+
+export type WorkspaceValidationErrorCode =
+  | 'INVALID_FILES'
+  | 'EMPTY_FILES'
+  | 'MAX_FILES_EXCEEDED'
+  | 'MAX_FILE_BYTES_EXCEEDED';
+
+export interface ValidateWorkspaceFilesOptions {
+  maxFiles?: number;
+  maxFileBytes?: number;
+  allowEmpty?: boolean;
+}
+
+/** Injectable ports for testing ChallengeEvaluationSession deterministically without real JVM/LLM/SQLite. */
+export interface EvaluationSessionPorts {
+  jvmRunner?: (req: SandboxExecutionRequest) => Promise<SandboxExecutionResponse>;
+  mutationRunner?: (req: MutationExecutionRequest) => Promise<MutationExecutionResponse>;
+  staticAnalyzer?: typeof JavaStaticAnalysisEngine.verify;
+  llmJudge?: (req: EvaluationRequest) => Promise<EvaluationResult>;
+  submissionRepo?: Pick<typeof ChallengeSubmissionRepository, 'loadManifest' | 'persistSubmission'>;
+}

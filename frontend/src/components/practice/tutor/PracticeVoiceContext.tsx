@@ -3,10 +3,7 @@ import { useLiveVoiceSession, LiveAudioSessionParams } from '../../../audio/useL
 import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
-import { AudioPlayoutManager } from '../../../services/AudioPlayoutManager';
-import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
-import { resolveTutorDomain } from './TutorDomain';
-import { buildWorkspaceManifest } from '../../../utils/workspaceManifest';
+import { buildPracticeSessionParams } from './practiceSessionParamsBuilder';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -81,98 +78,19 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
       const state = useAppStore.getState();
       const files = state.practiceWorkspaceFiles.length > 0 ? state.practiceWorkspaceFiles : practiceWorkspaceFiles;
       const activeIndex = typeof state.activeWorkspaceFileIndex === 'number' ? state.activeWorkspaceFileIndex : activeWorkspaceFileIndex;
-      const currentFile = files[activeIndex] || files[0];
-
-      const domain = resolveTutorDomain({
-        category: activePracticeChallenge?.category,
-        track: activePracticeChallenge?.track,
-        title: activePracticeChallenge?.title,
-        hasActiveTxScenario: !!activeTransactionLabScenarioId
+      const params = buildPracticeSessionParams({
+        activePracticeChallenge,
+        files,
+        activeFileIndex: activeIndex,
+        activeTransactionLabScenarioId,
+        activeArtifact: selectActiveWhiteboardArtifact(state),
+        codeRevisions: state.codeRevisions || [],
+        interviewConfig,
+        tutorPersona,
+        seniorReviewPayload,
+        academyBreadcrumbContext: state.academyBreadcrumbContext
       });
-
-      const DOMAIN_TOPICS: Record<string, string> = {
-        lld: 'LLD архитектура и чистое проектирование на Java 21',
-        transactions: 'Транзакции Spring Boot, распространение и аномалии БД',
-        concurrency: 'Многопоточность, JMM и Project Loom',
-        refactoring: 'Рефакторинг легаси-кода и швы по Физерсу',
-        java21: 'Идиомы Java 21 LTS (Records, Sealed, Pattern Matching)',
-        testing: 'Юнит-тестирование и мутации Java 21'
-      };
-
-      let topic = DOMAIN_TOPICS[domain] || DOMAIN_TOPICS.testing;
-      let challengeCategory = activePracticeChallenge?.category || domain;
-      let challengeTrack = activePracticeChallenge?.track || domain;
-      let bugTitle = activePracticeChallenge?.title || 'Практическая задача';
-      let bugExplanation = activePracticeChallenge?.instructionsMarkdown || '';
-      let codeSnippet = currentFile?.content || '';
-
-      if (activeTransactionLabScenarioId) {
-        const txScenario =
-          TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) ||
-          TRANSACTION_LAB_SCENARIOS[0];
-        challengeCategory = 'Spring Transactions';
-        challengeTrack = 'spring_transactions';
-        bugTitle = txScenario.title;
-        bugExplanation = txScenario.problemStatement || '';
-        codeSnippet = txScenario.services
-          .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
-          .join('\n\n');
-      }
-
-      const activeArtifact = selectActiveWhiteboardArtifact(state);
-      const revs = state.codeRevisions || [];
-      const revSummary = revs.length > 0 ? revs.map((r) => ({ id: r.id, title: r.title })) : undefined;
-      const workspaceManifest = buildWorkspaceManifest(files, activeIndex);
-      const challengeId = activePracticeChallenge?.id || activePracticeChallenge?.slug || activeTransactionLabScenarioId || '';
-      const practiceSessionId = `session_practice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-
-      await startSession({
-        sessionId: practiceSessionId,
-        questionId: challengeId,
-        sessionType: 'tutor',
-        tutorMode: 'practice_pair',
-        topic,
-        challengeCategory,
-        challengeTrack,
-        challengeDomain: domain,
-        bugTitle,
-        bugExplanation: bugExplanation || activePracticeChallenge?.instructionsMarkdown || activePracticeChallenge?.shortDescription || '',
-        referenceAnswer: activePracticeChallenge?.instructionsMarkdown || bugExplanation || '',
-        codeSnippet,
-        workspaceManifest,
-        activeCodeArtifact: activeArtifact
-          ? {
-              id: activeArtifact.id,
-              title: activeArtifact.title,
-              language: activeArtifact.language,
-              code: activeArtifact.code
-            }
-          : undefined,
-        codeRevisionsSummary: revSummary,
-        voice: interviewConfig.voice,
-        userGender: interviewConfig.userGender,
-        turnMode: interviewConfig.turnMode,
-        liveModel: interviewConfig.liveModel,
-        vadPauseMs: interviewConfig.vadPauseMs,
-        enableSilenceClarification: interviewConfig.enableSilenceClarification,
-        targetGrade: interviewConfig.targetGrade,
-        strictness: interviewConfig.strictness,
-        deepDive: interviewConfig.deepDive,
-        liveCoaching: interviewConfig.liveCoaching,
-        maxProbes: interviewConfig.maxProbes,
-        tutorPersona: seniorReviewPayload ? 'senior_socratic' : tutorPersona,
-        strategy: 'socratic_tutoring',
-        seniorReview: seniorReviewPayload,
-        academyCourse: state.academyBreadcrumbContext?.courseId,
-        academyStep: state.academyBreadcrumbContext ? `step-${state.academyBreadcrumbContext.stepNumber}` : undefined,
-        academyBridgeContext: state.academyBreadcrumbContext ? {
-          courseId: state.academyBreadcrumbContext.courseId,
-          stepId: `step-${state.academyBreadcrumbContext.stepNumber}`,
-          moduleTitle: state.academyBreadcrumbContext.moduleTitle || state.academyBreadcrumbContext.stepTitle,
-          learningObjective: state.academyBreadcrumbContext.learningObjective,
-          targetConcepts: state.academyBreadcrumbContext.targetConcepts
-        } : undefined
-      });
+      await startSession(params);
       setModality('voice');
     } catch (err) {
       console.error('Failed to start Live Tutor session:', err);

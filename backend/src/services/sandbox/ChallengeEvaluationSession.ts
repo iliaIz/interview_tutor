@@ -5,8 +5,6 @@
  * Cognitive Bounding Limit: <= 350 lines (Rule 8 compliant).
  */
 
-import { Statement } from 'better-sqlite3';
-import { db } from '../db';
 import { CodingChallenge } from '../challengeSeedData';
 import {
   EvaluationCodeFile,
@@ -15,9 +13,12 @@ import {
   EvaluationTestResultsPayload,
   EvaluationAstViolation,
   EvaluationMutationScorePayload,
-  EvaluationAiFeedbackPayload
+  EvaluationAiFeedbackPayload,
+  EvaluationSessionPorts,
+  PersistSubmissionParams
 } from './evaluationPipelineTypes';
-import { JvmExecutionService, SandboxExecutionResponse } from './JvmExecutionService';
+import { ChallengeSubmissionRepository } from './ChallengeSubmissionRepository';
+import { JvmExecutionService, MutationExecutionRequest, SandboxExecutionRequest, SandboxExecutionResponse } from './JvmExecutionService';
 import { JavaStaticAnalysisEngine } from './JavaStaticAnalysisEngine';
 import { JvmMutationEngine } from './JvmMutationEngine';
 import { evaluateChallengeSubmission } from '../codeEvaluator';
@@ -30,103 +31,51 @@ export interface TerminalEvaluationVerdict {
 }
 
 export class ChallengeEvaluationSession {
-  private static loadStmt: Statement | null = null;
-  private static resolveIdStmt: Statement | null = null;
-  private static upsertStmt: Statement | null = null;
-
   private terminalVerdict: TerminalEvaluationVerdict | null = null;
+  private readonly ports: EvaluationSessionPorts;
+
+  constructor(ports: EvaluationSessionPorts = {}) {
+    this.ports = ports;
+  }
+
+  public static evaluate(
+    input: ChallengeEvaluationInput,
+    ports?: EvaluationSessionPorts
+  ): AsyncIterable<EvaluationPipelineEvent> {
+    return new ChallengeEvaluationSession(ports).runGates(input);
+  }
 
   public getTerminalVerdict(): TerminalEvaluationVerdict | null {
     return this.terminalVerdict;
   }
 
   public static loadManifest(challengeIdOrSlug: string): CodingChallenge | undefined {
-    try {
-      if (!this.loadStmt) {
-        this.loadStmt = db.prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ? LIMIT 1');
-      }
-      const row = this.loadStmt.get(challengeIdOrSlug, challengeIdOrSlug) as any;
-      if (row?.manifest_json) {
-        return JSON.parse(row.manifest_json);
-      }
-    } catch (err: any) {
-      console.warn(`⚠️ Could not query manifest for challenge ${challengeIdOrSlug}:`, err?.message);
-    }
-    return undefined;
+    return ChallengeSubmissionRepository.loadManifest(challengeIdOrSlug);
   }
 
   public static resolveCanonicalChallengeId(challengeIdOrSlug: string): string {
-    try {
-      if (!this.resolveIdStmt) {
-        this.resolveIdStmt = db.prepare('SELECT id FROM coding_challenges WHERE id = ? OR slug = ? LIMIT 1');
-      }
-      const row = this.resolveIdStmt.get(challengeIdOrSlug, challengeIdOrSlug) as any;
-      if (row?.id) {
-        return row.id;
-      }
-    } catch {}
-    return challengeIdOrSlug;
+    return ChallengeSubmissionRepository.resolveCanonicalChallengeId(challengeIdOrSlug);
   }
 
-  public static persistRecord(params: {
-    challengeId: string;
-    userId: string;
-    files: EvaluationCodeFile[];
-    activePhase: number;
-    status: string;
-    score: number;
-    evaluation: unknown;
-    timeSpentSeconds: number;
-  }): void {
-    const canonicalChallengeId = this.resolveCanonicalChallengeId(params.challengeId);
-    const submissionId = `sub_${canonicalChallengeId}_${params.userId}`;
-
-    if (!this.upsertStmt) {
-      this.upsertStmt = db.prepare(`
-        INSERT INTO coding_submissions (
-          id, challenge_id, user_id, files_json, active_phase, status, score,
-          evaluation_json, time_spent_seconds, updated_at
-        ) VALUES (
-          @id, @challenge_id, @user_id, @files_json, @active_phase, @status, @score,
-          @evaluation_json, @time_spent_seconds, CURRENT_TIMESTAMP
-        )
-        ON CONFLICT(id) DO UPDATE SET
-          files_json = excluded.files_json,
-          active_phase = excluded.active_phase,
-          status = excluded.status,
-          score = excluded.score,
-          evaluation_json = excluded.evaluation_json,
-          time_spent_seconds = excluded.time_spent_seconds,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-    }
-
-    try {
-      this.upsertStmt.run({
-        id: submissionId,
-        challenge_id: canonicalChallengeId,
-        user_id: params.userId,
-        files_json: JSON.stringify(params.files),
-        active_phase: params.activePhase,
-        status: params.status,
-        score: params.score,
-        evaluation_json: JSON.stringify(params.evaluation),
-        time_spent_seconds: params.timeSpentSeconds
-      });
-    } catch (err: any) {
-      console.error('❌ ChallengeEvaluationSession.persistRecord failed:', err?.message);
-      throw err;
-    }
+  public static persistRecord(params: PersistSubmissionParams): void {
+    ChallengeSubmissionRepository.persistSubmission(params);
   }
 
   public async *runGates(input: ChallengeEvaluationInput): AsyncIterable<EvaluationPipelineEvent> {
+    const repo = this.ports.submissionRepo ?? ChallengeSubmissionRepository;
+    const jvmRunner = this.ports.jvmRunner ?? ((req: SandboxExecutionRequest) => JvmExecutionService.execute(req));
+    const staticAnalyzer: typeof JavaStaticAnalysisEngine.verify =
+      this.ports.staticAnalyzer ?? ((f, p) => JavaStaticAnalysisEngine.verify(f, p));
+    const mutationRunner = this.ports.mutationRunner ?? ((req: MutationExecutionRequest) => JvmMutationEngine.execute(req));
+    const llmJudge = this.ports.llmJudge ?? evaluateChallengeSubmission;
+
     const { challengeId, userId = 'default_user' } = input;
     const files: EvaluationCodeFile[] = input.codeFiles || input.files || [];
     const activePhase = input.activePhase ?? 1;
     const timeSpentSeconds = input.timeSpentSeconds ?? 0;
 
     const manifest: CodingChallenge | undefined =
-      input.manifest || (challengeId ? ChallengeEvaluationSession.loadManifest(challengeId) : undefined);
+      input.manifest || (challengeId ? repo.loadManifest(challengeId) : undefined);
 
     if (input.abortSignal?.aborted) return;
 
@@ -136,7 +85,7 @@ export class ChallengeEvaluationSession {
     const isRefactoring = manifest?.category === 'refactoring_kata' || manifest?.category === 'design_patterns';
     let sandboxResult: SandboxExecutionResponse;
     try {
-      sandboxResult = await JvmExecutionService.execute({ challengeId, files, activePhase, isRefactoring });
+      sandboxResult = await jvmRunner({ challengeId, files, activePhase, isRefactoring });
     } catch (err: any) {
       sandboxResult = {
         success: false, isCompilable: false, compilationTimeMs: 0, executionTimeMs: 0,
@@ -159,7 +108,7 @@ export class ChallengeEvaluationSession {
         scoreBreakdown: { overallScore: 0, summaryReview: sandboxResult.error || 'Решение не прошло тесты в JVM песочнице.' }
       };
 
-      ChallengeEvaluationSession.persistRecord({
+      repo.persistSubmission({
         challengeId, userId, files, activePhase, status: 'FAILED', score: 0,
         evaluation: failEval,
         timeSpentSeconds
@@ -185,7 +134,7 @@ export class ChallengeEvaluationSession {
     // Gate 2: AST_INVARIANTS & Static Analysis
     yield { gate: 'AST_INVARIANTS', status: 'RUNNING', progressPercent: 30, timestamp: Date.now() };
     const constraints = (input as any).structuralConstraints || (manifest as any)?.structuralConstraints || (manifest as any)?.designPatternContext?.structuralConstraints;
-    const staticVerdict = JavaStaticAnalysisEngine.verify(files, {
+    const staticVerdict = staticAnalyzer(files, {
       structuralConstraints: constraints,
       isRefactoring,
       enforceTestQuality: true
@@ -209,7 +158,7 @@ export class ChallengeEvaluationSession {
         scoreBreakdown: { overallScore: score, summaryReview: errorMessage }
       };
 
-      ChallengeEvaluationSession.persistRecord({
+      repo.persistSubmission({
         challengeId, userId, files, activePhase, status: 'FAILED', score,
         evaluation: astEval,
         timeSpentSeconds
@@ -239,7 +188,7 @@ export class ChallengeEvaluationSession {
     if (mutants && mutants.length > 0) {
       try {
         const requiredScore = manifest?.requiredMutationScore ?? 75;
-        const mutResult = await JvmMutationEngine.execute({ challengeId, files, mutants, requiredScore });
+        const mutResult = await mutationRunner({ challengeId, files, mutants, requiredScore });
         mutationPassed = mutResult.passedThreshold;
         mutationScorePayload = {
           killedMutants: mutResult.killedCount,
@@ -281,7 +230,7 @@ export class ChallengeEvaluationSession {
         timeLimitMinutes: 60, shortDescription: challengeId, instructionsMarkdown: '', workspaceFiles: []
       };
 
-      aiEvaluationResult = await evaluateChallengeSubmission({
+      aiEvaluationResult = await llmJudge({
         challenge: evaluationChallenge, files, activePhase, timeSpentSeconds, sandboxResult, abortSignal: input.abortSignal
       });
 
@@ -321,7 +270,7 @@ export class ChallengeEvaluationSession {
     };
 
     try {
-      ChallengeEvaluationSession.persistRecord({
+      repo.persistSubmission({
         challengeId, userId, files, activePhase, status: finalStatus, score: finalScore,
         evaluation: { sandboxResult, astViolations, mutationScore: mutationScorePayload, aiFeedback: aiFeedbackPayload, aiEvaluationResult },
         timeSpentSeconds

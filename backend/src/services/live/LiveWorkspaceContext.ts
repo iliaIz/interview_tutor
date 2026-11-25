@@ -1,7 +1,7 @@
 import { db } from '../db';
 import type { Statement } from 'better-sqlite3';
 import { matchWorkspaceFilePath, applyWorkspaceFileUpdate, mergeWorkspaceManifests } from './workspaceManifestStore';
-import { ChallengeResolutionInput, ResolvedChallengeContext } from './liveWsChallengeResolver';
+import { ChallengeResolutionInput, ResolvedChallengeContext } from './liveSessionConfigTypes';
 import { ProxySession } from './liveSessionTypes';
 
 let codingChallengeStmt: Statement | null = null;

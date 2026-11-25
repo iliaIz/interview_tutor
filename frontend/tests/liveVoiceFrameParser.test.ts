@@ -147,7 +147,30 @@ console.log('🧪 Running LiveVoiceFrameParser contract tests...');
     errorCode: 'QUOTA_EXHAUSTED',
     retryable: true
   });
+  assert.deepStrictEqual(errFrame?.controlSignal, {
+    kind: 'upstream_error',
+    payload: { error: 'Quota exhausted across pool', errorCode: 'QUOTA_EXHAUSTED', retryable: true }
+  });
   console.log('  ✅ Test 5 Passed: upstream_error frame parsed with errorCode & retryable flag.');
+}
+
+// Test 6: Closed controlSignal union parses setupComplete, ping, thinking_delay, dead_air_recovery without rawParsed
+{
+  const setup = LiveVoiceFrameParser.parse(JSON.stringify({ setupComplete: true, reconnected: true }));
+  assert.strictEqual(setup?.isSetupComplete, true);
+  assert.strictEqual(setup?.isReconnected, true);
+  assert.deepStrictEqual(setup?.controlSignal, { kind: 'setup_complete', reconnected: true, silent: false });
+
+  const ping = LiveVoiceFrameParser.parse(JSON.stringify({ type: 'ping', timestamp: 12345 }));
+  assert.strictEqual(ping?.isPing, true);
+  assert.strictEqual(ping?.pingTimestamp, 12345);
+  assert.deepStrictEqual(ping?.controlSignal, { kind: 'ping', timestamp: 12345 });
+
+  const deadAir = LiveVoiceFrameParser.parse(JSON.stringify({ type: 'dead_air_recovery', reason: 'timeout' }));
+  assert.strictEqual(deadAir?.isDeadAirRecovery, true);
+  assert.strictEqual(deadAir?.deadAirReason, 'timeout');
+  assert.deepStrictEqual(deadAir?.controlSignal, { kind: 'dead_air_recovery', reason: 'timeout' });
+  console.log('  ✅ Test 6 Passed: Closed controlSignal union verified across setupComplete/ping/dead_air_recovery.');
 }
 
 console.log('🎉 All LiveVoiceFrameParser tests passed successfully!\n');

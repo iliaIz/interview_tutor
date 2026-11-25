@@ -1,11 +1,10 @@
 /**
  * NativeLiveVoiceEngine.ts
  * SOTA Late-2026 Headless Clean Native Voice Engine for Gemini 3.8 Live.
- * Enforces Dual-Sided Handshake, Audio Mutex, and Cloud VAD streaming.
+ * Enforces Dual-Sided Handshake, Audio Mutex, and injectable Transport/Audio ports.
  */
 
-import { AudioPlayoutManager } from '../services/AudioPlayoutManager';
-import { MicrophoneCapture, MicrophoneMetrics } from './MicrophoneCapture';
+import { MicrophoneMetrics } from './MicrophoneCapture';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
 import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
@@ -15,21 +14,24 @@ import { dispatchDomainEvents } from './liveVoiceDomainEvents';
 import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
 import { LiveHeartbeatController } from './LiveHeartbeatController';
 import { LiveVoiceRecoveryController } from './LiveVoiceRecoveryController';
+import { createBrowserAudioIOPort, createBrowserTransportPort } from './browserVoicePorts';
 import {
   VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
-  DialogueTurnItem, ILiveVoiceEngine, VoiceEvaluationResult
+  DialogueTurnItem, ILiveVoiceEngine, VoiceEvaluationResult,
+  LiveTransportConnection, LiveTransportPort, LiveAudioIOPort,
+  VoiceEnginePorts, VoiceEngineCommand, VoiceEngineSnapshot
 } from './types';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private fsm: LiveVoiceStateMachine;
-  private ws: WebSocket | null = null;
+  private transport: LiveTransportPort;
+  private audio: LiveAudioIOPort;
+  private connection: LiveTransportConnection | null = null;
   private config: VoiceEngineConfig | null = null;
-  private playoutManager: AudioPlayoutManager;
-  private micCapture: MicrophoneCapture;
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
   private micDispatcher = new LiveMicChunkDispatcher();
-  private heartbeat = new LiveHeartbeatController(() => this.ws);
+  private heartbeat = new LiveHeartbeatController(() => this.connection);
   private recovery: LiveVoiceRecoveryController;
 
   private isServerTurnComplete = false;
@@ -37,14 +39,17 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private isMuted = false;
   private isTurn0Lockdown = false;
   private isSessionReady = false;
+  private connectEpoch = 0;
   private currentAiTurnAccumulator = '';
   private pendingEvaluation: VoiceEvaluationResult | null = null;
   private hasPendingEvaluationDrain = false;
 
-  constructor(private callbacks: VoiceEngineCallbacks = {}) {
+  constructor(private callbacks: VoiceEngineCallbacks = {}, ports: VoiceEnginePorts = {}) {
     this.fsm = new LiveVoiceStateMachine((pubState) => this.callbacks.onStateChange?.(pubState));
     this.turnManager = new DialogueTurnManager((turns) => this.callbacks.onDialogueTurnsUpdate?.(turns));
-    this.playoutManager = new AudioPlayoutManager();
+    this.transport = ports.transport ?? createBrowserTransportPort();
+    this.audio = ports.audio ?? createBrowserAudioIOPort();
+    this.audio.handlePlayoutFinished(() => this.handleAudioPlayoutFinished());
 
     this.recovery = new LiveVoiceRecoveryController({
       onStatusMessage: (msg) => this.callbacks.onStatusMessage?.(msg),
@@ -56,57 +61,61 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       },
       onDeadAirRecovery: () => this.handleDeadAirRecovery(),
       onFatalError: (msg, retryable, code) => this.handleFatalError(msg, retryable, code),
-      getWebSocket: () => this.ws,
+      getConnection: () => this.connection,
       isSessionReady: () => this.isSessionReady
     });
-
-    this.micCapture = new MicrophoneCapture({
-      onAudioFrame: (base64Pcm, metrics) => this.handleMicrophoneChunk(base64Pcm, metrics),
-      onAudioLevel: (db) => this.callbacks.onAudioLevel?.(db),
-      onError: (err) => this.handleFatalError(err.message, false)
-    });
-
-    this.playoutManager.onPlaybackFinished = () => this.handleAudioPlayoutFinished();
   }
 
   public async connect(config: VoiceEngineConfig): Promise<void> {
     this.disconnect();
+    const epoch = this.connectEpoch;
     this.config = config;
     this.isSessionReady = false;
     this.isAudioMutexLocked = false;
-    this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && (config as any).turn0Lockdown !== false;
+    this.currentAiTurnAccumulator = '';
+    this.isTurn0Lockdown = !config.isResumed && !config.initialUserMessage && config.turn0Lockdown !== false;
     this.fsm.transition({ type: 'CONNECT' });
     this.callbacks.onStatusMessage?.('⚡ Подключение к нативному голосовому шлюзу...');
 
     try {
       void this.wakeLock.acquire();
-      await this.playoutManager.resume();
-      const ctx = this.playoutManager.getContext();
+      this.audio.setMuted(this.isMuted);
+      await this.audio.startCapture(
+        (base64Pcm, metrics) => this.handleMicrophoneChunk(base64Pcm, metrics),
+        (db) => this.callbacks.onAudioLevel?.(db)
+      );
+      if (epoch !== this.connectEpoch) {
+        this.audio.stopCapture();
+        return;
+      }
 
-      await this.micCapture.start(ctx);
-
-      const ws = new WebSocket(buildLiveVoiceWebSocketUrl(config));
-      this.ws = ws;
-
-      ws.onopen = () => {
-        this.heartbeat.start();
-        this.recovery.startSyncProbes();
-        this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
-        sendLiveSessionInit(ws, config);
-      };
-
-      ws.onmessage = (event) => this.handleServerFrame(event.data);
-      ws.onerror = (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err);
-      ws.onclose = (event: CloseEvent) => {
-        this.heartbeat.stop();
-        this.recovery.dispose();
-        this.isSessionReady = false;
-        const curState = this.getState();
-        if (curState !== 'COMPLETED' && curState !== 'IDLE' && curState !== 'ERROR') {
-          this.fsm.transition({ type: 'DISCONNECT' });
-          this.callbacks.onStatusMessage?.(LiveVoiceRecoveryController.formatCloseStatus(event?.code));
+      let conn: LiveTransportConnection | null = null;
+      conn = this.transport.connect(buildLiveVoiceWebSocketUrl(config), {
+        onOpen: () => {
+          if (conn && this.connection !== conn && this.connection === null) {
+            this.connection = conn;
+          }
+          this.heartbeat.start();
+          this.recovery.startSyncProbes();
+          this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
+          if (this.connection) sendLiveSessionInit(this.connection, config);
+        },
+        onMessage: (data) => this.handleServerFrame(data),
+        onError: (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err),
+        onClose: (code) => {
+          if (!conn || this.connection !== conn) return;
+          this.connection = null;
+          this.heartbeat.stop();
+          this.recovery.dispose();
+          this.isSessionReady = false;
+          const curState = this.getState();
+          if (curState !== 'COMPLETED' && curState !== 'IDLE' && curState !== 'ERROR') {
+            this.fsm.transition({ type: 'DISCONNECT' });
+            this.callbacks.onStatusMessage?.(LiveVoiceRecoveryController.formatCloseStatus(code));
+          }
         }
-      };
+      });
+      this.connection = conn;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.handleFatalError(`Не удалось запустить аудио: ${msg}`, true);
@@ -114,6 +123,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   public disconnect(): void {
+    this.connectEpoch++;
     this.teardownTransport();
     this.pendingEvaluation = null;
     this.hasPendingEvaluationDrain = false;
@@ -127,16 +137,40 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.heartbeat.stop();
     this.isSessionReady = false;
 
-    if (this.ws) {
+    const conn = this.connection;
+    this.connection = null;
+    if (conn) {
       try {
-        this.ws.onclose = null;
-        this.ws.close(1000, reason);
+        conn.close(1000, reason);
       } catch {}
-      this.ws = null;
     }
 
-    this.micCapture.stop();
-    this.playoutManager.clearQueue();
+    this.audio.stopCapture();
+    this.audio.clearPlayout();
+  }
+
+  public dispatch(command: VoiceEngineCommand): void {
+    switch (command.type) {
+      case 'COMMIT_TURN': this.commitSpokenTurn(); break;
+      case 'BARGE_IN': this.handleBargeInInterruption(command.source ?? 'tactile'); break;
+      case 'CENTRAL_ACTION': this.handleCentralButtonClick(); break;
+      case 'SEND_TEXT': this.sendTextMessage(command.text, command.displayText); break;
+      case 'SEND_FRAME': this.sendCustomFrame(command.frame); break;
+      case 'SET_MUTED': this.setMuted(command.muted); break;
+    }
+  }
+
+  public getSnapshot(): VoiceEngineSnapshot {
+    return {
+      state: this.fsm.getPublicState(),
+      internalState: this.fsm.getInternalState(),
+      isCandidateTurnActive: this.fsm.isCandidateTurnActive(),
+      isSessionReady: this.isSessionReady,
+      isMuted: this.isMuted,
+      isTurn0Lockdown: this.isTurn0Lockdown,
+      isAudioMutexLocked: this.isAudioMutexLocked,
+      dialogueTurns: this.turnManager.getTurns()
+    };
   }
 
   public commitSpokenTurn(): void {
@@ -144,42 +178,28 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.micDispatcher.resetCounters();
     this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      // SOTA Late 2026 Invariant 1.5 & Rule 2.6: Strict Channel Separation (No Interleaving)
-      // Fast-handoff streams strictly audioStreamEnd without empty clientContent
-      this.ws.send(JSON.stringify({
-        realtimeInput: { audioStreamEnd: true }
-      }));
+    if (this.connection?.isOpen()) {
+      this.connection.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
     this.recovery.armSafetyTimer(22000);
   }
 
-  public handleUserBargeIn(): void {
-    this.handleBargeInInterruption('tactile');
-  }
+  public handleUserBargeIn(): void { this.handleBargeInInterruption('tactile'); }
 
   public handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
-    this.playoutManager.handleInterruption();
+    this.audio.interruptPlayout();
     this.isServerTurnComplete = true;
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: 'barge_in',
-        bargeIn: true,
-        bargeInType: source,
-        source
-      }));
+    if (this.connection?.isOpen()) {
+      this.connection.send(JSON.stringify({ type: 'barge_in', bargeIn: true, bargeInType: source, source }));
     }
     this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
   }
 
   public handleCentralButtonClick(): void {
     const pub = this.getState();
-    if (pub === 'AI_SPEAKING') {
-      this.handleUserBargeIn();
-    } else if (pub === 'LISTENING') {
-      this.commitSpokenTurn();
-    }
+    if (pub === 'AI_SPEAKING') this.handleUserBargeIn();
+    else if (pub === 'LISTENING') this.commitSpokenTurn();
   }
 
   public sendTextMessage(text: string, displayText?: string): void {
@@ -187,96 +207,66 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.isServerTurnComplete = false;
     this.turnManager.appendTurn('user', displayText || text);
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true }
-      }));
+    if (this.connection?.isOpen()) {
+      this.connection.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
     this.recovery.armSafetyTimer(22000);
   }
 
-  public sendCustomFrame(frame: any): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(frame));
-    }
+  public sendCustomFrame(frame: unknown): void {
+    if (this.connection?.isOpen()) this.connection.send(JSON.stringify(frame));
   }
 
-  public setMuted(muted: boolean): void {
-    this.isMuted = muted;
-    this.micCapture.setMuted(muted);
-  }
-
-  public getState(): VoiceEngineState {
-    return this.fsm.getPublicState();
-  }
-
-  public getInternalState(): string {
-    return this.fsm.getInternalState();
-  }
-
-  public getDialogueTurns(): DialogueTurnItem[] {
-    return this.turnManager.getTurns();
-  }
-
+  public setMuted(muted: boolean): void { this.isMuted = muted; this.audio.setMuted(muted); }
+  public getState(): VoiceEngineState { return this.fsm.getPublicState(); }
+  public getInternalState(): string { return this.fsm.getInternalState(); }
+  public getDialogueTurns(): DialogueTurnItem[] { return this.turnManager.getTurns(); }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
     this.micDispatcher.dispatchChunk(
-      base64Pcm,
-      metrics,
-      this.getState(),
-      this.isMuted,
-      this.isAudioMutexLocked,
-      this.isTurn0Lockdown,
-      this.isSessionReady,
-      this.config?.turnMode,
-      this.ws,
+      base64Pcm, metrics, this.getState(), this.isMuted, this.isAudioMutexLocked,
+      this.isTurn0Lockdown, this.isSessionReady, this.config?.turnMode, this.connection,
       {
         onTransientFiltered: () => this.callbacks.onTransientFiltered?.(),
         onBargeIn: (source) => this.handleBargeInInterruption(source),
-        onCommitSpokenTurn: () => this.commitSpokenTurn(),
+        onCommitSpokenTurn: () => this.commitSpokenTurn()
       }
     );
   }
 
-  private handleServerFrame(rawData: any): void {
+  private handleServerFrame(rawData: unknown): void {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
 
-    // Symmetrical Heartbeat Ping/Pong (Spec 16)
-    if (parsed.type === 'ping' || parsed.rawParsed?.type === 'ping') {
-      this.heartbeat.handleIncomingPing(parsed.rawParsed?.timestamp);
+    if (parsed.isPing) {
+      this.heartbeat.handleIncomingPing(parsed.pingTimestamp);
       return;
     }
 
-    // 1. Tool Call Execution & Audio Mutex
-    if (parsed.rawParsed?.type === 'tool_executing' || parsed.type === 'tool_call') {
+    if (parsed.toolLifecycle === 'executing' || Boolean(parsed.toolCallPayload)) {
       this.isAudioMutexLocked = true;
     }
-    if (parsed.rawParsed?.type === 'tool_execution_complete' || parsed.whiteboardPayload) {
+    if (parsed.toolLifecycle === 'complete' || Boolean(parsed.whiteboardPayload)) {
       this.isAudioMutexLocked = false;
     }
 
-    if (this.recovery.handleControlFrame(parsed)) {
-      return;
-    }
+    if (this.recovery.handleControlFrame(parsed)) return;
 
-    if (parsed.type === 'setupComplete') {
+    if (parsed.isSetupComplete) {
       this.isSessionReady = true;
-      if (parsed.rawParsed?.reconnected || parsed.rawParsed?.silent) {
+      if (parsed.isReconnected || parsed.isSilentSetup) {
         this.isTurn0Lockdown = false;
       }
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
-      if (!this.isTurn0Lockdown) {
-        this.unlockCandidateTurn();
-      }
+      if (!this.isTurn0Lockdown) this.unlockCandidateTurn();
       return;
     }
 
     if (parsed.evaluation) {
       this.recovery.clearSafetyTimer();
       this.pendingEvaluation = parsed.evaluation;
-      if (!this.playoutManager.isPlaying() && this.isServerTurnComplete) {
+      if (!this.audio.isPlaying() && this.isServerTurnComplete) {
         this.flushPendingEvaluation();
       } else {
         this.hasPendingEvaluationDrain = true;
@@ -286,7 +276,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
     dispatchDomainEvents(this.callbacks, parsed);
 
-    // 2. Incoming Model Speech / Audio (SOTA Late 2026: Modality Separation)
     if (parsed.hasText) {
       for (const textChunk of parsed.textDeltas) {
         this.currentAiTurnAccumulator += textChunk;
@@ -300,35 +289,32 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.isServerTurnComplete = false;
       this.recovery.setAwaitingToolSpeech(false);
       this.recovery.clearSafetyTimer();
-
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
       for (const pcm of parsed.audioChunks) {
-        this.playoutManager.enqueuePcmChunk(pcm);
+        this.audio.enqueuePcm(pcm);
       }
     }
 
-    // 3. Native Server-Driven Acoustic Barge-In
     if (parsed.isInterrupted) {
-      this.playoutManager.handleInterruption();
+      this.audio.interruptPlayout();
       this.isServerTurnComplete = true;
       this.unlockCandidateTurn();
       return;
     }
 
-    // 4. Turn Completion & Dual-Sided Handshake
     if (parsed.isTurnDone) {
       this.isSessionReady = true;
       if (parsed.interactionStatus === 'IN_PROGRESS') return;
       this.isServerTurnComplete = true;
-      this.playoutManager.notifyTurnComplete();
+      this.audio.notifyTurnComplete();
       this.currentAiTurnAccumulator = '';
 
-      if (this.hasPendingEvaluationDrain && !this.playoutManager.isPlaying() && this.flushPendingEvaluation()) {
+      if (this.hasPendingEvaluationDrain && !this.audio.isPlaying() && this.flushPendingEvaluation()) {
         return;
       }
 
-      if (!this.playoutManager.isPlaying()) {
+      if (!this.audio.isPlaying()) {
         if (this.recovery.isAwaitingToolSpeech()) {
           this.fsm.transition({ type: 'THINKING_START' });
         } else {
@@ -351,9 +337,7 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   }
 
   private handleAudioPlayoutFinished(): void {
-    if (this.hasPendingEvaluationDrain && this.flushPendingEvaluation()) {
-      return;
-    }
+    if (this.hasPendingEvaluationDrain && this.flushPendingEvaluation()) return;
     if (this.isServerTurnComplete) {
       if (this.recovery.isAwaitingToolSpeech()) {
         this.fsm.transition({ type: 'THINKING_START' });

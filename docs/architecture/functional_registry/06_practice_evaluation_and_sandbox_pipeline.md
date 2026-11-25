@@ -170,6 +170,19 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - All files strictly <= 350 lines (Rule 8 compliant).
   - Backward compatibility: voice defense gate, transactions lab arena routing, and challenge initialization preserved identically.
 
+---
+
+### 2.13 `Spec 43 Prefactor (#166): ChallengeSubmissionRepository, validateWorkspaceFiles, EvaluationSessionPorts & skipPreScan`
+- **Location:** [`backend/src/services/sandbox/ChallengeSubmissionRepository.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeSubmissionRepository.ts), [`backend/src/services/sandbox/evaluationPipelineTypes.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/evaluationPipelineTypes.ts), [`backend/src/services/sandbox/ChallengeEvaluationSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeEvaluationSession.ts), [`backend/src/services/sandbox/JvmExecutionService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/JvmExecutionService.ts), [`backend/src/services/sandbox/JvmMutationEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/JvmMutationEngine.ts)
+- **What Was Done:**
+  1. Extracted `ChallengeSubmissionRepository` (`<= 140` lines) with `WeakMap<Database, RepoStatements>` per-database prepared statement caching, `loadManifest`, `resolveCanonicalChallengeId`, and `persistSubmission` writing canonical `CanonicalPersistedEvaluation` (`schemaVersion: 2`) envelopes.
+  2. Extracted shared `validateWorkspaceFiles(files, options)` throwing structured `WorkspaceValidationError` (`statusCode = 400`) for invalid/empty arrays, `> maxFiles` (default `15`), or `content.length > maxFileBytes` (default `200_000`).
+  3. Added `EvaluationSessionPorts` and `ChallengeEvaluationSession.evaluate(input, ports?)` while keeping `loadManifest`, `resolveCanonicalChallengeId`, and `persistRecord` as thin delegators for backwards compatibility until `#167`.
+  4. Added optional `skipPreScan?: boolean` to `SandboxExecutionRequest` and `MutationExecutionRequest` to allow skipping duplicate AST security / test-quality scans once static verification runs upfront.
+- **Invariants:**
+  - Prepared statements are isolated per `better-sqlite3` `Database` instance via `WeakMap`, preventing cross-DB leakage in tests.
+  - Zero behavior regression when `ports` and `skipPreScan` are omitted.
+
 
 
 

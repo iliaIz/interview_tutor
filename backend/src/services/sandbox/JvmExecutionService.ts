@@ -23,6 +23,7 @@ export interface SandboxExecutionRequest {
   activePhase?: number;
   timeoutMs?: number;
   isRefactoring?: boolean;
+  skipPreScan?: boolean;
 }
 
 export interface TestCaseResult {
@@ -70,21 +71,23 @@ export class JvmExecutionService {
     const startTime = Date.now();
 
     // 1. Level 1 Defense: AST Security Pre-Scan
-    const scanResult = AstSecurityScanner.scan(request.files, { isRefactoring: request.isRefactoring });
-    if (!scanResult.isSafe) {
-      const primaryViolation = scanResult.violations[0];
-      return {
-        success: false,
-        isCompilable: false,
-        compilationTimeMs: 0,
-        executionTimeMs: 0,
-        totalDurationMs: Date.now() - startTime,
-        passedCount: 0,
-        failedCount: 1,
-        testResults: [],
-        securityViolations: scanResult.violations,
-        error: `Нарушение политики безопасности: ${primaryViolation.message} (${primaryViolation.file}:${primaryViolation.lineNumber})`
-      };
+    if (!request.skipPreScan) {
+      const scanResult = AstSecurityScanner.scan(request.files, { isRefactoring: request.isRefactoring });
+      if (!scanResult.isSafe) {
+        const primaryViolation = scanResult.violations[0];
+        return {
+          success: false,
+          isCompilable: false,
+          compilationTimeMs: 0,
+          executionTimeMs: 0,
+          totalDurationMs: Date.now() - startTime,
+          passedCount: 0,
+          failedCount: 1,
+          testResults: [],
+          securityViolations: scanResult.violations,
+          error: `Нарушение политики безопасности: ${primaryViolation.message} (${primaryViolation.file}:${primaryViolation.lineNumber})`
+        };
+      }
     }
 
     // 2. Run Compiler (Hot Daemon -> Fallback CLI)

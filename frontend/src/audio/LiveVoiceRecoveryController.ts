@@ -2,17 +2,18 @@
  * LiveVoiceRecoveryController.ts
  * Manages bounded safety timers, upstream sync_ping health probes, and
  * transport recovery/handoff frames for NativeLiveVoiceEngine (Spec 42 / #159).
- * Cognitive Bounding Limit: <= 180 lines (Rule 8 compliant).
+ * Cognitive Bounding Limit: <= 170 lines (Rule 8 compliant).
  */
 
 import { ParsedLiveFrameResult } from './LiveVoiceFrameParser';
+import { LiveTransportConnection } from './types';
 
 export interface RecoveryControllerCallbacks {
   onStatusMessage: (msg: string) => void;
   onDeadAirTimeout: () => void;
   onDeadAirRecovery: () => void;
   onFatalError: (msg: string, retryable: boolean, errorCode?: string) => void;
-  getWebSocket: () => WebSocket | null;
+  getConnection: () => LiveTransportConnection | null;
   isSessionReady: () => boolean;
 }
 
@@ -22,6 +23,7 @@ export class LiveVoiceRecoveryController {
     if (code === 4401) return '⛔ Требуется авторизация для голосовой сессии.';
     return '🔌 Сессия завершена.';
   }
+
   private safetyTimer: ReturnType<typeof setTimeout> | null = null;
   private syncProbeInterval: ReturnType<typeof setInterval> | null = null;
   private awaitingToolSpeech = false;
@@ -57,14 +59,15 @@ export class LiveVoiceRecoveryController {
     this.stopSyncProbes();
     this.consecutiveUpstreamDown = 0;
     this.syncProbeInterval = setInterval(() => {
-      const ws = this.callbacks.getWebSocket();
-      if (!ws || ws.readyState !== 1 || !this.callbacks.isSessionReady()) return;
+      const conn = this.callbacks.getConnection();
+      if (!conn || !conn.isOpen() || !this.callbacks.isSessionReady()) return;
       try {
-        ws.send(JSON.stringify({ type: 'sync_ping', timestamp: Date.now() }));
+        conn.send(JSON.stringify({ type: 'sync_ping', timestamp: Date.now() }));
       } catch {}
     }, 10000);
-    if (this.syncProbeInterval && typeof (this.syncProbeInterval as any).unref === 'function') {
-      (this.syncProbeInterval as any).unref();
+    const timerHandle: unknown = this.syncProbeInterval;
+    if (timerHandle && typeof (timerHandle as { unref?: () => void }).unref === 'function') {
+      (timerHandle as { unref: () => void }).unref();
     }
   }
 
@@ -128,12 +131,12 @@ export class LiveVoiceRecoveryController {
       return true;
     }
 
-    if (parsed.type === 'thinking_delay') {
+    if (parsed.isThinkingDelay) {
       this.callbacks.onStatusMessage('🧠 ИИ обдумывает ответ...');
       return true;
     }
 
-    if (parsed.type === 'dead_air_recovery' || parsed.rawParsed?.type === 'dead_air_recovery') {
+    if (parsed.isDeadAirRecovery) {
       this.callbacks.onDeadAirRecovery();
       return true;
     }

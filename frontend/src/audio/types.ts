@@ -3,6 +3,9 @@
  * Canonical TypeScript types for Headless NativeLiveVoiceEngine (SOTA Late 2026).
  */
 
+import type { MicrophoneMetrics } from './MicrophoneCapture';
+import type { VoiceInternalState } from './LiveVoiceStateMachine';
+
 export type VoiceEngineState =
   | 'IDLE'
   | 'CONNECTING'
@@ -21,34 +24,71 @@ export interface DialogueTurnItem {
   timestamp: number;
 }
 
-export interface VoiceEngineConfig {
-  sessionId: string;
-  questionId: string;
-  topic?: string;
-  questionText?: string;
-  referenceAnswer?: string;
-  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
-  dossierId?: string;
-  targetQuestionId?: string;
-  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal' | 'guided_zero_start';
+export interface CodeArtifactPayload {
+  id: string;
+  title: string;
+  language: string;
+  code: string;
+}
+
+export interface WorkspaceManifestPayload {
+  activeFile?: { path: string; content: string; isReadOnly?: boolean };
+  fileCount?: number;
+  projectTree?: string[];
+  secondaryFiles?: Array<{ path: string; content: string; isReadOnly?: boolean }>;
+  xmlManifest?: string;
+}
+
+export interface AcademyBridgeContextPayload {
+  courseId?: string;
+  stepId?: string;
+  moduleTitle?: string;
+  learningObjective?: string;
+  targetConcepts?: string[];
+}
+
+export interface LiveSessionCommonFields {
   tutorMode?: string;
   voice?: string;
   userGender?: string;
   turnMode?: 'auto' | 'manual';
   liveModel?: string;
   vadPauseMs?: number;
+  enableSilenceClarification?: boolean;
+  topic?: string;
+  questionText?: string;
+  referenceAnswer?: string;
   persona?: string;
-  targetGrade?: string;
   strategy?: string;
+  targetGrade?: string;
   strictness?: string;
   maxProbes?: number;
   deepDive?: boolean;
   liveCoaching?: boolean;
   customPrompt?: string;
-  initialUserMessage?: string;
   questionIndex?: number;
   totalQuestions?: number;
   isRetry?: boolean;
+  activeCodeArtifact?: CodeArtifactPayload;
+  academyBridgeContext?: AcademyBridgeContextPayload;
+  seniorReview?: any;
+  hrMode?: string;
+  dossierId?: string;
+  jobId?: string;
+  hrPersonaId?: string;
+  questionMatrixId?: string;
+  chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
+}
+
+export interface VoiceEngineConfig extends LiveSessionCommonFields {
+  sessionId: string;
+  questionId: string;
+  sessionType: 'interview' | 'tutor' | 'system_design' | 'incident' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
+  targetQuestionId?: string;
+  hrMode?: 'full_screening_simulation' | 'rapid_fire_micro_drill' | 'tutor_rehearsal' | 'guided_zero_start';
+  initialUserMessage?: string;
   isResumed?: boolean;
   bugTitle?: string;
   bugExplanation?: string;
@@ -60,64 +100,19 @@ export interface VoiceEngineConfig {
   challengeCategory?: string;
   challengeTrack?: string;
   challengeDomain?: string;
-  activeCodeArtifact?: {
-    id: string;
-    title: string;
-    language: string;
-    code: string;
-  };
   codeRevisionsSummary?: Array<{ id: string; title: string }>;
-  workspaceManifest?: {
-    activeFile?: { path: string; content: string; isReadOnly?: boolean };
-    fileCount?: number;
-    projectTree?: string[];
-    secondaryFiles?: Array<{ path: string; content: string; isReadOnly?: boolean }>;
-    xmlManifest?: string;
-  };
+  workspaceManifest?: WorkspaceManifestPayload;
   turn0Lockdown?: boolean;
-  enableSilenceClarification?: boolean;
   debugStep?: number;
   temperature?: number;
   academyCourse?: string;
   academyStep?: string;
-  academyBridgeContext?: {
-    courseId?: string;
-    stepId?: string;
-    moduleTitle?: string;
-    learningObjective?: string;
-    targetConcepts?: string[];
-  };
-  seniorReview?: any;
-  jobId?: string;
-  hrPersonaId?: string;
-  questionMatrixId?: string;
-  chunkId?: string;
-  startBeatId?: string;
-  beatScope?: 'all_from_beat' | 'single_beat';
 }
 
-export interface LiveSessionInitFrame {
+export interface LiveSessionInitFrame extends LiveSessionCommonFields {
   type: 'session_init';
   sessionId: string;
   sessionType?: string;
-  tutorMode?: string;
-  voice?: string;
-  userGender?: string;
-  turnMode?: 'auto' | 'manual';
-  liveModel?: string;
-  vadPauseMs?: number;
-  enableSilenceClarification?: boolean;
-  topic?: string;
-  questionText?: string;
-  referenceAnswer?: string;
-  persona?: string;
-  strategy?: string;
-  targetGrade?: string;
-  strictness?: string;
-  maxProbes?: number;
-  deepDive?: boolean;
-  liveCoaching?: boolean;
-  customPrompt?: string;
   challenge?: {
     id?: string;
     title?: string;
@@ -127,39 +122,8 @@ export interface LiveSessionInitFrame {
     instructions?: string;
     activeFilePath?: string;
     activeFileContent?: string;
-    workspaceManifest?: {
-      activeFile?: { path: string; content: string; isReadOnly?: boolean };
-      fileCount?: number;
-      projectTree?: string[];
-      secondaryFiles?: Array<{ path: string; content: string; isReadOnly?: boolean }>;
-      xmlManifest?: string;
-    };
+    workspaceManifest?: WorkspaceManifestPayload;
   };
-  activeCodeArtifact?: {
-    id: string;
-    title: string;
-    language: string;
-    code: string;
-  };
-  academyBridgeContext?: {
-    courseId?: string;
-    stepId?: string;
-    moduleTitle?: string;
-    learningObjective?: string;
-    targetConcepts?: string[];
-  };
-  seniorReview?: any;
-  questionIndex?: number;
-  totalQuestions?: number;
-  isRetry?: boolean;
-  hrMode?: string;
-  dossierId?: string;
-  jobId?: string;
-  hrPersonaId?: string;
-  questionMatrixId?: string;
-  chunkId?: string;
-  startBeatId?: string;
-  beatScope?: 'all_from_beat' | 'single_beat';
 }
 
 export interface VoiceEvaluationResult {
@@ -211,18 +175,73 @@ export interface VoiceEngineCallbacks {
   onHrStepState?: (payload: any) => void;
 }
 
+export interface LiveTransportConnection {
+  send(payload: string): void;
+  close(code?: number, reason?: string): void;
+  isOpen(): boolean;
+}
+
+export interface LiveTransportPort {
+  connect(
+    url: string,
+    handlers: {
+      onOpen: () => void;
+      onMessage: (data: unknown) => void;
+      onClose: (code?: number) => void;
+      onError: (err: unknown) => void;
+    }
+  ): LiveTransportConnection;
+}
+
+export interface LiveAudioIOPort {
+  startCapture(onFrame: (pcm: string, metrics?: MicrophoneMetrics) => void, onLevel: (db: number) => void): Promise<void>;
+  stopCapture(): void;
+  setMuted(muted: boolean): void;
+  enqueuePcm(pcm: string): void;
+  interruptPlayout(): void;
+  notifyTurnComplete(): void;
+  handlePlayoutFinished(cb: () => void): void;
+  isPlaying(): boolean;
+  clearPlayout(): void;
+}
+
+export interface VoiceEnginePorts {
+  transport?: LiveTransportPort;
+  audio?: LiveAudioIOPort;
+}
+
+export type VoiceEngineCommand =
+  | { type: 'COMMIT_TURN' }
+  | { type: 'BARGE_IN'; source?: 'tactile' | 'acoustic' }
+  | { type: 'CENTRAL_ACTION' }
+  | { type: 'SEND_TEXT'; text: string; displayText?: string }
+  | { type: 'SEND_FRAME'; frame: unknown }
+  | { type: 'SET_MUTED'; muted: boolean };
+
+export interface VoiceEngineSnapshot {
+  readonly state: VoiceEngineState;
+  readonly internalState: VoiceInternalState;
+  readonly isCandidateTurnActive: boolean;
+  readonly isSessionReady: boolean;
+  readonly isMuted: boolean;
+  readonly isTurn0Lockdown: boolean;
+  readonly isAudioMutexLocked: boolean;
+  readonly dialogueTurns: readonly DialogueTurnItem[];
+}
+
 export interface ILiveVoiceEngine {
   connect(config: VoiceEngineConfig): Promise<void>;
   disconnect(): void;
+  dispatch(command: VoiceEngineCommand): void;
+  getSnapshot(): VoiceEngineSnapshot;
   setMuted(muted: boolean): void;
   handleCentralButtonClick(): void;
   handleBargeInInterruption(source?: 'tactile' | 'acoustic'): void;
   handleUserBargeIn(): void;
   sendTextMessage(text: string, displayText?: string): void;
   commitSpokenTurn(): void;
-  sendCustomFrame(frame: any): void;
+  sendCustomFrame(frame: unknown): void;
   getState(): VoiceEngineState;
   getInternalState(): string;
   getDialogueTurns(): DialogueTurnItem[];
 }
-
