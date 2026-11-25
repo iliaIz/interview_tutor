@@ -212,6 +212,12 @@ export const HrLearningRungSchema = Type.Union([
 ]);
 export type HrLearningRung = Static<typeof HrLearningRungSchema>;
 
+export const HrBeatScopeSchema = Type.Union([
+  Type.Literal('all_from_beat'),
+  Type.Literal('single_beat')
+]);
+export type HrBeatScope = Static<typeof HrBeatScopeSchema>;
+
 export const HrMicroBeatSchema = Type.Object({
   id: Type.String(),
   chunkId: Type.String(),

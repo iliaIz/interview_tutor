@@ -74,11 +74,18 @@ export interface HrStepControlPayload {
   cueVisible?: boolean;
 }
 
+export interface HrStepBeatSummary {
+  id: string;
+  title: string;
+}
+
 export interface HrStepStatePayload {
   questionId: string;
   beatId: string;
   beatIndex: number;
   totalBeats: number;
+  beatScope: 'all_from_beat' | 'single_beat';
+  beats: HrStepBeatSummary[];
   beatTitle: string;
   chunkId: string;
   rung: 1 | 2 | 3 | 4;

@@ -29,7 +29,7 @@ import { buildMockInterviewLivePrompt } from './liveMockInterviewPromptBuilder';
 import { buildTutorSessionLivePrompt } from './liveTutorSessionPromptBuilder';
 import { buildHrSimulatorSystemPrompt } from './hrPromptBuilder';
 import { getCandidateDossier, getJobContext, getHrQuestion, getHrQuestionChunk } from './hrContextResolver';
-import { resolveQuestionMicroBeats } from './hrGuidedStepper';
+import { resolveGuidedSessionBeats } from './hrGuidedStepper';
 
 export {
   LIVE_TOOL_CAPABILITY_DIRECTIVES,
@@ -61,6 +61,8 @@ export function buildSystemPrompt(params: {
   hrMode?: any;
   questionId?: string;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
   tutorMode?: 'deep_dive' | 'free_chat' | 'socratic' | 'eli5' | 'quick_qa' | 'bug_hunt' | 'practice_pair';
   bugTitle?: string;
   bugExplanation?: string;
@@ -178,7 +180,14 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
     const jobContext = getJobContext();
     const activeQuestion = getHrQuestion((params as any).questionId);
     const activeChunk = (params as any).chunkId ? getHrQuestionChunk((params as any).questionId, (params as any).chunkId) : undefined;
-    const microBeats = hrMode === 'guided_zero_start' ? resolveQuestionMicroBeats(activeQuestion, (params as any).chunkId) : [];
+    const startBeatId = (params as any).startBeatId as string | undefined;
+    const beatScope = ((params as any).beatScope === 'single_beat' ? 'single_beat' : 'all_from_beat') as 'all_from_beat' | 'single_beat';
+    const microBeats = hrMode === 'guided_zero_start'
+      ? resolveGuidedSessionBeats(activeQuestion, { startBeatId, beatScope })
+      : [];
+    const matchedBeatIdx = startBeatId ? microBeats.findIndex((b) => b.id === startBeatId) : -1;
+    const initialBeatIdx = matchedBeatIdx >= 0 ? matchedBeatIdx : 0;
+    const beatOutline = microBeats.map((b, idx) => `${idx + 1}. ${b.title}`).join(' | ');
     return buildHrSimulatorSystemPrompt({
       dossier,
       jobContext,
@@ -186,8 +195,11 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
       personaId: (params.persona as any) || (sessionType === 'hr_tutor' ? 'mentor_coach' : 'friendly_sourcer'),
       activeQuestion,
       activeChunk,
-      activeBeat: microBeats[0],
+      activeBeat: microBeats[initialBeatIdx],
+      beatIndex: initialBeatIdx,
       totalBeats: microBeats.length,
+      beatScope,
+      beatOutline,
       voiceName,
       userGender,
       turnMode

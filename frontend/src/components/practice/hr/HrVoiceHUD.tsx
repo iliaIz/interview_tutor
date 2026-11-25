@@ -80,7 +80,6 @@ export const HrVoiceHUD: React.FC<HrVoiceHUDProps> = ({
   const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
 
   const lastAiTurn = [...dialogueTurns].reverse().find((t) => t.role === 'ai');
-  const activeBeatIds = (activeQuestion?.microBeats || []).map((b) => b.id);
   const masteredIdsForQ = activeQuestion ? masteredBeatsByQuestion[activeQuestion.id] || [] : [];
 
   const persona = PERSONA_CONFIGS[personaId] || PERSONA_CONFIGS.friendly_sourcer;
@@ -203,7 +202,6 @@ export const HrVoiceHUD: React.FC<HrVoiceHUDProps> = ({
       {mode === 'guided_zero_start' && guidedStepState && onStepControl && (
         <HrGuidedLadderBar
           stepState={guidedStepState}
-          beatIds={activeBeatIds}
           masteredBeatIds={masteredIdsForQ}
           onStepControl={onStepControl}
         />

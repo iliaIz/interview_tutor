@@ -180,6 +180,7 @@ export function useStudyAudioPlayer(questionId: string, beats: HrMicroBeat[]) {
     isPlaylistActive,
     pauseCountdownSec,
     errorMsg,
+    stopAllPlayback,
     handlePlayBeatClick,
     handlePlayAll,
     handleNextVariant

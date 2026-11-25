@@ -92,6 +92,8 @@ export interface VoiceEngineConfig {
   hrPersonaId?: string;
   questionMatrixId?: string;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
 }
 
 export interface LiveSessionInitFrame {
@@ -156,6 +158,8 @@ export interface LiveSessionInitFrame {
   hrPersonaId?: string;
   questionMatrixId?: string;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
 }
 
 export interface VoiceEvaluationResult {

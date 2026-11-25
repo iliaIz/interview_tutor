@@ -66,6 +66,8 @@ export interface LiveSessionResolvedConfig extends LiveSessionPromptConfig {
   hrQuestion?: any;
   hrMode?: any;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
   hrPersonaId?: any;
   targetQuestionId?: string;
   resumptionHandle?: string;

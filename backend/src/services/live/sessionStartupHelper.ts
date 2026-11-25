@@ -51,6 +51,8 @@ export function createInitialProxySession(
     sessionType: config.sessionType,
     hrMode: config.hrMode,
     chunkId: config.chunkId,
+    startBeatId: config.startBeatId,
+    beatScope: config.beatScope,
     tutorMode: config.tutorMode,
     liveModel: config.liveModel,
     isUpstreamReconnecting: false,

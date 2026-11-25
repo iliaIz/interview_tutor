@@ -34,9 +34,13 @@ import { HrSessionMode } from '@interview-prep/shared';
 
 interface HrQuestionStudyDeckProps {
   onStartVoiceDrill: (overrideMode?: HrSessionMode) => void;
+  onStartBeatVoice?: (beatId: string) => void;
 }
 
-export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStartVoiceDrill }) => {
+export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({
+  onStartVoiceDrill,
+  onStartBeatVoice
+}) => {
   const activeQuestion = useHrSimulatorStore((state) => state.activeQuestion);
   const nextQuestion = useHrSimulatorStore((state) => state.nextQuestion);
   const prevQuestion = useHrSimulatorStore((state) => state.prevQuestion);
@@ -213,10 +217,11 @@ export const HrQuestionStudyDeck: React.FC<HrQuestionStudyDeckProps> = ({ onStar
             </div>
           )}
 
-          {/* Spec 40: Passive Study Audio Micro-Beats Bar */}
+          {/* Spec 40 & 41: Passive Study Audio Micro-Beats Bar */}
           <HrStudyAudioBar
             question={activeQuestion}
             masteredBeatIds={masteredBeatsByQuestion[activeQuestion.id] || []}
+            onPracticeBeatSingle={onStartBeatVoice}
           />
 
           {/* Action Bridge: 1-Click to Voice Drill */}

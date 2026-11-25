@@ -135,7 +135,9 @@ export class SessionConfigurationResolver {
       academyStep: (query.academyStep as string) || undefined,
       hrMode: (query.hrMode as any) || undefined,
       hrPersonaId: (query.hrPersonaId as any) || undefined,
-      chunkId: (query.chunkId as string) || undefined
+      chunkId: (query.chunkId as string) || undefined,
+      startBeatId: (query.startBeatId as string) || undefined,
+      beatScope: query.beatScope === 'single_beat' ? 'single_beat' : query.beatScope === 'all_from_beat' ? 'all_from_beat' : undefined
     };
 
     SessionConfigurationResolver.mergeInitFrame(config, rawInitFrame);

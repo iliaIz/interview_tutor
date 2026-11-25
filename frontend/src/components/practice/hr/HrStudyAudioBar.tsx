@@ -9,18 +9,21 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Headphones
+  Headphones,
+  Mic
 } from 'lucide-react';
 import { useStudyAudioPlayer } from './useStudyAudioPlayer';
 
 interface HrStudyAudioBarProps {
   question: HrQuestionRubricItem;
   masteredBeatIds?: string[];
+  onPracticeBeatSingle?: (beatId: string) => void;
 }
 
 export const HrStudyAudioBar: React.FC<HrStudyAudioBarProps> = ({
   question,
-  masteredBeatIds = []
+  masteredBeatIds = [],
+  onPracticeBeatSingle
 }) => {
   const beats: HrMicroBeat[] = question.microBeats || [];
   const {
@@ -35,6 +38,7 @@ export const HrStudyAudioBar: React.FC<HrStudyAudioBarProps> = ({
     isPlaylistActive,
     pauseCountdownSec,
     errorMsg,
+    stopAllPlayback,
     handlePlayBeatClick,
     handlePlayAll,
     handleNextVariant
@@ -195,6 +199,20 @@ export const HrStudyAudioBar: React.FC<HrStudyAudioBarProps> = ({
                     )}
                     <span>{isLoading ? 'Синтез...' : isPlaying ? 'Стоп' : 'Слушать'}</span>
                   </button>
+
+                  {onPracticeBeatSingle && (
+                    <button
+                      onClick={() => {
+                        stopAllPlayback();
+                        onPracticeBeatSingle(beat.id);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer"
+                      title="Запустить режим «С нуля (Повтор)» только для этого 1 блока"
+                    >
+                      <Mic className="w-3 h-3" />
+                      <span>Вслух (1 блок)</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -61,6 +61,8 @@ export class LivePromptDirector {
       seniorReview: session.seniorReview,
       questionId: config.questionId,
       chunkId: config.chunkId,
+      startBeatId: config.startBeatId,
+      beatScope: config.beatScope,
       hrMode: config.hrMode
     });
 

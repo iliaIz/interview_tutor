@@ -9,7 +9,8 @@ import { HrScorecardModal } from './HrScorecardModal';
 import { HrQuestionStudyDeck } from './HrQuestionStudyDeck';
 import { HrQuestionSelector } from './HrQuestionSelector';
 import { HrModeSelector } from './HrModeSelector';
-import { HrSessionMode, HrPersonaId, HrQuestionRubricItem, HrStepControlAction, HR_VOICE_EVENTS } from '@interview-prep/shared';
+import { HrScopeSelector } from './HrScopeSelector';
+import { HrSessionMode, HrPersonaId, HrQuestionRubricItem, HrStepControlAction, HrBeatScope, HR_VOICE_EVENTS } from '@interview-prep/shared';
 import {
   Play,
   Briefcase,
@@ -32,6 +33,11 @@ export const HrScreeningArena: React.FC = () => {
   const activeQuestion = useHrSimulatorStore((state) => state.activeQuestion);
   const selectedChunkId = useHrSimulatorStore((state) => state.selectedChunkId);
   const setSelectedChunkId = useHrSimulatorStore((state) => state.setSelectedChunkId);
+  const selectedStartBeatId = useHrSimulatorStore((state) => state.selectedStartBeatId);
+  const setSelectedStartBeatId = useHrSimulatorStore((state) => state.setSelectedStartBeatId);
+  const guidedBeatScope = useHrSimulatorStore((state) => state.guidedBeatScope);
+  const setGuidedBeatScope = useHrSimulatorStore((state) => state.setGuidedBeatScope);
+  const masteredBeatsByQuestion = useHrSimulatorStore((state) => state.masteredBeatsByQuestion);
   const fetchQuestions = useHrSimulatorStore((state) => state.fetchQuestions);
   const storeAnchorCards = useHrSimulatorStore((state) => state.anchorCards);
   const initializeSession = useHrSimulatorStore((state) => state.initializeSession);
@@ -86,7 +92,8 @@ export const HrScreeningArena: React.FC = () => {
 
   const handleStartSimulation = async (
     targetQuestion?: HrQuestionRubricItem,
-    overrideMode?: HrSessionMode
+    overrideMode?: HrSessionMode,
+    guidedOverrides?: { startBeatId?: string | null; beatScope?: HrBeatScope }
   ) => {
     const questionToRun = targetQuestion || activeQuestion;
     if (!questionToRun) return;
@@ -96,13 +103,25 @@ export const HrScreeningArena: React.FC = () => {
       setMode(overrideMode);
     }
 
+    const effectiveScope: HrBeatScope = guidedOverrides?.beatScope ?? guidedBeatScope;
+    const effectiveStartBeatId =
+      guidedOverrides?.startBeatId !== undefined
+        ? guidedOverrides.startBeatId
+        : selectedStartBeatId;
+
+    if (guidedOverrides?.beatScope) setGuidedBeatScope(guidedOverrides.beatScope);
+    if (guidedOverrides?.startBeatId !== undefined) setSelectedStartBeatId(guidedOverrides.startBeatId);
+
     setActiveTab('voice');
     const isCoachMode = effectiveMode === 'tutor_rehearsal' || effectiveMode === 'guided_zero_start';
     const effectivePersona = isCoachMode ? 'mentor_coach' : personaId;
     if (isCoachMode && personaId !== 'mentor_coach') {
       setPersonaId('mentor_coach');
     }
-    initializeSession(effectiveMode, effectivePersona, questionToRun);
+    initializeSession(effectiveMode, effectivePersona, questionToRun, {
+      startBeatId: effectiveStartBeatId,
+      beatScope: effectiveScope
+    });
 
     await connect({
       sessionType: isCoachMode
@@ -118,7 +137,9 @@ export const HrScreeningArena: React.FC = () => {
       questionId: questionToRun.id,
       topic: questionToRun.title,
       questionText: questionToRun.canonicalQuestion,
-      chunkId: selectedChunkId || undefined
+      chunkId: effectiveMode === 'guided_zero_start' ? undefined : selectedChunkId || undefined,
+      startBeatId: effectiveMode === 'guided_zero_start' ? effectiveStartBeatId || undefined : undefined,
+      beatScope: effectiveMode === 'guided_zero_start' ? effectiveScope : undefined
     });
   };
 
@@ -228,7 +249,23 @@ export const HrScreeningArena: React.FC = () => {
         <main className="flex-1 min-w-0 overflow-y-auto px-1">
           {activeTab === 'study' ? (
             /* Tab 1: Pedagogical Worked-Example Study Deck */
-            <HrQuestionStudyDeck onStartVoiceDrill={(overrideMode) => handleStartSimulation(undefined, overrideMode)} />
+            <HrQuestionStudyDeck
+              onStartVoiceDrill={(overrideMode) =>
+                handleStartSimulation(
+                  undefined,
+                  overrideMode,
+                  overrideMode === 'guided_zero_start'
+                    ? { startBeatId: null, beatScope: 'all_from_beat' }
+                    : undefined
+                )
+              }
+              onStartBeatVoice={(beatId) =>
+                handleStartSimulation(undefined, 'guided_zero_start', {
+                  startBeatId: beatId,
+                  beatScope: 'single_beat'
+                })
+              }
+            />
           ) : (
             /* Tab 2: Multimodal Voice Training Arena */
             <div className="w-full max-w-3xl mx-auto py-2">
@@ -246,41 +283,17 @@ export const HrScreeningArena: React.FC = () => {
                     «{activeQuestion?.canonicalQuestion || 'Расскажите о себе.'}»
                   </p>
 
-                  {activeQuestion?.chunks && activeQuestion.chunks.length > 0 && (
-                    <div className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-3 text-left">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
-                        <BookOpen className="w-3 h-3 text-pastel-accentRose" />
-                        Масштаб отработки (Чанкование)
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedChunkId(null)}
-                          className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                            selectedChunkId === null
-                              ? 'bg-pastel-accentRose text-white shadow-2xs'
-                              : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Весь ответ целиком
-                        </button>
-                        {activeQuestion.chunks.map((ch) => (
-                          <button
-                            key={ch.id}
-                            type="button"
-                            onClick={() => setSelectedChunkId(ch.id)}
-                            className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                              selectedChunkId === ch.id
-                                ? 'bg-pastel-accentRose text-white shadow-2xs'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            {ch.title}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <HrScopeSelector
+                    mode={mode}
+                    activeQuestion={activeQuestion}
+                    selectedChunkId={selectedChunkId}
+                    selectedStartBeatId={selectedStartBeatId}
+                    guidedBeatScope={guidedBeatScope}
+                    masteredBeatIds={activeQuestion ? masteredBeatsByQuestion[activeQuestion.id] || [] : []}
+                    onSelectChunkId={setSelectedChunkId}
+                    onSelectStartBeatId={setSelectedStartBeatId}
+                    onSelectGuidedBeatScope={setGuidedBeatScope}
+                  />
 
                   <div className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-5 text-left">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
@@ -288,11 +301,27 @@ export const HrScreeningArena: React.FC = () => {
                       Смысловые якоря ответа
                     </div>
                     <div className="flex flex-wrap gap-1.5 text-xs">
-                      {(storeAnchorCards || []).map((a) => (
-                        <span key={a.id} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700 text-[11px]">
-                          {a.label}
-                        </span>
-                      ))}
+                      {(() => {
+                        const beats = activeQuestion?.microBeats || [];
+                        const activeBeat =
+                          beats.find((b) => b.id === selectedStartBeatId) || beats[0];
+                        const displayAnchors =
+                          mode === 'guided_zero_start' && activeQuestion
+                            ? guidedBeatScope === 'single_beat' && activeBeat
+                              ? (activeQuestion.requiredAnchors || []).filter((a) =>
+                                  activeBeat.anchorIds.includes(a.id)
+                                )
+                              : activeQuestion.requiredAnchors || []
+                            : storeAnchorCards || [];
+                        return displayAnchors.map((a) => (
+                          <span
+                            key={a.id}
+                            className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700 text-[11px]"
+                          >
+                            {a.label}
+                          </span>
+                        ));
+                      })()}
                     </div>
                   </div>
 
@@ -304,11 +333,21 @@ export const HrScreeningArena: React.FC = () => {
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
-                      {mode === 'guided_zero_start'
-                        ? `Начать с нуля (${activeQuestion?.microBeats?.length || 2} микро-блоков)`
-                        : mode === 'tutor_rehearsal'
-                        ? `Начать репетицию (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`
-                        : `Начать созвон (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`}
+                      {(() => {
+                        if (mode !== 'guided_zero_start') {
+                          return mode === 'tutor_rehearsal'
+                            ? `Начать репетицию (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`
+                            : `Начать созвон (${activeQuestion?.targetDurationSec.minSec || 60}–${activeQuestion?.targetDurationSec.maxSec || 80}с)`;
+                        }
+                        const beats = activeQuestion?.microBeats || [];
+                        const idx = selectedStartBeatId
+                          ? Math.max(0, beats.findIndex((b) => b.id === selectedStartBeatId))
+                          : 0;
+                        if (guidedBeatScope === 'single_beat' && beats[idx]) {
+                          return `Отработать только Блок ${idx + 1}: «${beats[idx].title}»`;
+                        }
+                        return `Начать с Блока ${idx + 1} из ${beats.length || 1} (весь маршрут)`;
+                      })()}
                     </span>
                   </button>
                 </div>

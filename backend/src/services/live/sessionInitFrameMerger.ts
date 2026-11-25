@@ -71,5 +71,9 @@ export function mergeInitFrame(config: LiveSessionResolvedConfig, rawInitFrame?:
   if (init.hrMode) config.hrMode = init.hrMode;
   if (init.hrPersonaId) config.hrPersonaId = init.hrPersonaId;
   if (init.chunkId) config.chunkId = init.chunkId;
+  if (init.startBeatId) config.startBeatId = String(init.startBeatId);
+  if (init.beatScope === 'single_beat' || init.beatScope === 'all_from_beat') {
+    config.beatScope = init.beatScope;
+  }
   if (init.sessionId) config.sessionId = init.sessionId;
 }

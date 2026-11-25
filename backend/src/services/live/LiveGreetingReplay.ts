@@ -5,7 +5,7 @@ import { liveSessionRegistry } from './liveSessionRegistry';
 import { getChallengeDomain } from '../../utils/challengeDomain';
 import { getHrQuestion } from './hrContextResolver';
 import {
-  resolveQuestionMicroBeats,
+  resolveGuidedSessionBeats,
   createInitialGuidedState,
   buildStepStatePayload
 } from './hrGuidedStepper';
@@ -91,7 +91,10 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
       clientSocket.send(JSON.stringify({ type: 'upstream_ready' }));
       if (sessionType === 'hr_tutor' && session.hrMode === 'guided_zero_start' && session.hrGuidedState) {
         const activeQuestion = getHrQuestion(session.questionId);
-        const beats = resolveQuestionMicroBeats(activeQuestion, session.chunkId);
+        const beats = resolveGuidedSessionBeats(activeQuestion, {
+          startBeatId: session.startBeatId,
+          beatScope: session.beatScope
+        });
         if (beats.length > 0) {
           clientSocket.send(
             JSON.stringify({
@@ -180,8 +183,14 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   } else if (sessionType === 'hr_tutor') {
     const activeQuestion = getHrQuestion(session.questionId);
     if (session.hrMode === 'guided_zero_start') {
-      const beats = resolveQuestionMicroBeats(activeQuestion, session.chunkId);
-      const initialState = createInitialGuidedState(activeQuestion, session.chunkId);
+      const beats = resolveGuidedSessionBeats(activeQuestion, {
+        startBeatId: session.startBeatId,
+        beatScope: session.beatScope
+      });
+      const initialState = createInitialGuidedState(activeQuestion, {
+        startBeatId: session.startBeatId,
+        beatScope: session.beatScope
+      });
       session.hrGuidedState = initialState;
 
       if (initialState && beats.length > 0) {
@@ -189,8 +198,13 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
         if (clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.send(JSON.stringify({ type: HR_VOICE_EVENTS.HR_STEP_STATE, payload: initPayload }));
         }
-        const firstBeat = beats[0];
-        greetingText = `Привет! Мы учим ответ «с полного нуля» по микро-блокам. Коротко поприветствуй кандидата уверенным теплым голосом тренера Ольги, назови Блок 1 («${firstBeat.title}»), естественно произнеси его первую формулировку своими связками на основе ориентира: «${firstBeat.spokenVariants[0]}» (сохранив точные факты: ${firstBeat.immutableFacts.join(', ')}) и попроси повторить вслух. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
+        const entryBeat = beats[initialState.beatIndex] || beats[0];
+        const beatNumLabel = `${initialState.beatIndex + 1} из ${beats.length}`;
+        const scopeHint =
+          initPayload.beatScope === 'single_beat'
+            ? 'Изолированная тренировка одного блока (разными формулировками).'
+            : `Стартовый блок ${beatNumLabel}.`;
+        greetingText = `Привет! Мы учим ответ «с полного нуля». ${scopeHint} Коротко поприветствуй кандидата уверенным теплым голосом тренера Ольги, назови блок «${entryBeat.title}», естественно произнеси первую формулировку своими связками на основе ориентира: «${entryBeat.spokenVariants[0]}» (сохранив точные факты: ${entryBeat.immutableFacts.join(', ')}) и попроси повторить вслух. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
       } else {
         greetingText = `Привет! Мы начинаем пошаговую тренировку с нуля по вопросу «${activeQuestion?.canonicalQuestion || questionText || 'Расскажите о себе'}». Поприветствуй кандидата и произнеси первую короткую фразу для повтора.`;
       }

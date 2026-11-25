@@ -64,6 +64,8 @@ export interface ProxySession {
   sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   hrMode?: HrSessionMode;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
   hrGuidedState?: HrGuidedSessionState | null;
   tutorMode?: string;
   liveModel?: string;

@@ -27,6 +27,7 @@ const { getLiveToolDeclarations } = require('../dist/services/live/liveToolDecla
 const { HrSimulationOrchestrator } = require('../dist/services/live/HrSimulationOrchestrator');
 const {
   resolveQuestionMicroBeats,
+  resolveGuidedSessionBeats,
   createInitialGuidedState,
   applyGuidedStepAction,
   buildStepStatePayload,
@@ -344,6 +345,113 @@ async function runAllTests() {
     assert.ok(snapshot.activeVariantText.length > 10);
 
     console.log('  ✅ Suite 7 passed: Spec 40 Guided Micro-Chunking FSM, hybrid tools & WS sync verified.');
+  }
+
+  // --------------------------------------------------------------------------
+  // SUITE 8: Spec 41 Beat Selection, Single-Beat Focus Scope & Chunk Isolation
+  // --------------------------------------------------------------------------
+  console.log('\n🔹 [Suite 8] Spec 41: Guided Beat Focus Scope, Entry Index & select_beat Tool');
+  {
+    const dossier = getCandidateDossier();
+    const job = getJobContext();
+    const pitchQ = getHrQuestion('hr_q0_elevator_pitch');
+    const allBeats = resolveQuestionMicroBeats(pitchQ);
+    assert.strictEqual(allBeats.length, 5, 'Pitch question must expose all 5 microBeats');
+
+    // 1. Chunk isolation: resolveGuidedSessionBeats ignores Spec 38 chunks and returns all 5 beats
+    const guidedAllBeats = resolveGuidedSessionBeats(pitchQ, { beatScope: 'all_from_beat' });
+    assert.strictEqual(guidedAllBeats.length, 5, 'guided_zero_start must never be cropped by stale chunkId');
+
+    // 2. Starting on Beat 4 (index 3) preserves all 5 beats and sets beatIndex=3
+    const startFrom4 = createInitialGuidedState(pitchQ, {
+      chunkId: 'chunk_0_1_btlab', // stale chunkId from Rehearsal must not crop guided route
+      startBeatId: allBeats[3].id,
+      beatScope: 'all_from_beat'
+    });
+    assert.strictEqual(startFrom4.beatIndex, 3, 'Must start directly on selected Beat 4 (index 3)');
+    assert.strictEqual(startFrom4.beatScope, 'all_from_beat');
+
+    // Moving past Rung 3 on first beat with empty masteredBeatIds must advance to Beat 5 rather than Rung 4 Snowball
+    let afterRung3 = applyGuidedStepAction(startFrom4, guidedAllBeats, 'next_rung'); // rung 2
+    afterRung3 = applyGuidedStepAction(afterRung3, guidedAllBeats, 'next_rung'); // rung 3
+    afterRung3 = applyGuidedStepAction(afterRung3, guidedAllBeats, 'next_rung'); // next beat (index 4)
+    assert.strictEqual(afterRung3.beatIndex, 4, 'First practiced beat skips Snowball Rung 4 until >= 1 beat mastered');
+    assert.strictEqual(afterRung3.rung, 1);
+
+    // 3. Single-beat isolated mode: strictly 1 beat, cycles Rung 1 -> 2 -> 3 -> 1 without Rung 4
+    const isolatedBeats = resolveGuidedSessionBeats(pitchQ, {
+      startBeatId: allBeats[2].id,
+      beatScope: 'single_beat'
+    });
+    assert.strictEqual(isolatedBeats.length, 1, 'single_beat must resolve strictly 1 beat');
+    assert.strictEqual(isolatedBeats[0].id, allBeats[2].id);
+
+    let isoState = createInitialGuidedState(pitchQ, {
+      startBeatId: allBeats[2].id,
+      beatScope: 'single_beat'
+    });
+    assert.strictEqual(isoState.beatIndex, 0);
+    assert.strictEqual(isoState.beatScope, 'single_beat');
+
+    isoState = applyGuidedStepAction(isoState, isolatedBeats, 'next_rung'); // rung 2
+    isoState = applyGuidedStepAction(isoState, isolatedBeats, 'next_rung'); // rung 3
+    isoState = applyGuidedStepAction(isoState, isolatedBeats, 'next_rung'); // loops to rung 1 with rotated variant
+    assert.strictEqual(isoState.rung, 1, 'single_beat loops back to Rung 1 after Rung 3 (no Rung 4)');
+    assert.ok(isoState.masteredBeatIds.includes(allBeats[2].id), 'Isolated beat marked mastered after Rung 3');
+
+    // 4. Voice tool select_beat switches beatIndex accurately and emits SSOT beats array
+    const isoPayload = buildStepStatePayload(isoState, isolatedBeats, 'session_init');
+    assert.strictEqual(isoPayload.beatScope, 'single_beat');
+    assert.strictEqual(isoPayload.beats.length, 1);
+
+    const mockSession = {
+      questionId: 'hr_q0_elevator_pitch',
+      hrMode: 'guided_zero_start',
+      startBeatId: allBeats[3].id,
+      beatScope: 'all_from_beat',
+      isSetupComplete: true,
+      hasCandidateResponded: true,
+      hrGuidedState: startFrom4
+    };
+    const selectRes = handleAdvanceHrLearningStep({ action: 'select_beat', beatIndex: 4 }, { session: mockSession });
+    assert.strictEqual(selectRes.clientEvent.payload.beatIndex, 4, 'select_beat must jump to requested beatIndex');
+    assert.strictEqual(selectRes.clientEvent.payload.beats.length, 5, 'SSOT beats array must contain all 5 beats');
+
+    // 5. Prompt declarations include select_beat & beatOutline vs isolated notice
+    const guidedTools = getLiveToolDeclarations('hr_tutor', 'deep_dive', 'guided_zero_start');
+    const stepTool = guidedTools.find((t) => t.name === 'advance_hr_learning_step');
+    assert.ok(stepTool.parameters.properties.action.enum.includes('select_beat'), 'Tool must expose select_beat');
+    assert.ok(stepTool.parameters.properties.beatIndex, 'Tool must accept beatIndex');
+
+    const isolatedPrompt = buildHrSimulatorSystemPrompt({
+      dossier,
+      jobContext: job,
+      mode: 'guided_zero_start',
+      personaId: 'mentor_coach',
+      activeQuestion: pitchQ,
+      activeBeat: isolatedBeats[0],
+      beatIndex: 0,
+      totalBeats: 1,
+      beatScope: 'single_beat'
+    });
+    assert.ok(isolatedPrompt.includes('ИЗОЛИРОВАННЫЙ РЕЖИМ'), 'Single-beat prompt must declare isolated mode');
+
+    const routePrompt = buildHrSimulatorSystemPrompt({
+      dossier,
+      jobContext: job,
+      mode: 'guided_zero_start',
+      personaId: 'mentor_coach',
+      activeQuestion: pitchQ,
+      activeBeat: allBeats[3],
+      beatIndex: 3,
+      totalBeats: 5,
+      beatScope: 'all_from_beat',
+      beatOutline: allBeats.map((b, i) => `${i + 1}. ${b.title}`).join(' | ')
+    });
+    assert.ok(routePrompt.includes('АКТИВНЫЙ МИКРО-БЛОК 4/5'), 'Route prompt must announce starting beat index 4/5');
+    assert.ok(routePrompt.includes('Маршрут блоков вопроса'), 'Route prompt must embed compact 1-line beat outline');
+
+    console.log('  ✅ Suite 8 passed: Spec 41 beat focus scope, chunk isolation & SSOT HUD contract verified.');
   }
 
   console.log('\n========================================================================');

@@ -15,7 +15,8 @@ import {
   HrQuestionRubricItem,
   HrTelemetryTick,
   HrScorecard,
-  HrStepStatePayload
+  HrStepStatePayload,
+  HrBeatScope
 } from '@interview-prep/shared';
 import {
   HrMasteredBeatsMap,
@@ -48,8 +49,10 @@ export interface HrSimulatorState {
   fillerWordsSpotted: string[];
   liveCandidateTranscript: string;
 
-  // Spec 40 Guided Micro-Chunking & Mastery Persistence
+  // Spec 40 & 41 Guided Micro-Chunking, Beat Focus Scope & Mastery Persistence
   guidedStepState: HrStepStatePayload | null;
+  selectedStartBeatId: string | null;
+  guidedBeatScope: HrBeatScope;
   masteredBeatsByQuestion: HrMasteredBeatsMap;
 
   // Evaluation & Scorecards
@@ -57,8 +60,15 @@ export interface HrSimulatorState {
   isScorecardOpen: boolean;
 
   // Actions
-  initializeSession: (mode: HrSessionMode, personaId: HrPersonaId, question: HrQuestionRubricItem) => void;
+  initializeSession: (
+    mode: HrSessionMode,
+    personaId: HrPersonaId,
+    question: HrQuestionRubricItem,
+    guidedOpts?: { startBeatId?: string | null; beatScope?: HrBeatScope }
+  ) => void;
   setGuidedStepState: (stepState: HrStepStatePayload) => void;
+  setSelectedStartBeatId: (beatId: string | null) => void;
+  setGuidedBeatScope: (scope: HrBeatScope) => void;
   setPhase: (phase: HrSimulationPhase) => void;
   registerFastKwsHit: (anchorId: string, latencyMs: number) => void;
   reconcileServerHit: (anchorId: string) => void;
@@ -104,12 +114,21 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
   latestScorecard: null,
   isScorecardOpen: false,
   guidedStepState: null,
+  selectedStartBeatId: null,
+  guidedBeatScope: 'all_from_beat',
   masteredBeatsByQuestion: loadMasteredBeatsMap(),
 
-  initializeSession: (mode, personaId, question) => {
-    const chunkId = get().selectedChunkId;
+  initializeSession: (mode, personaId, question, guidedOpts) => {
+    const chunkId = mode === 'guided_zero_start' ? null : get().selectedChunkId;
     let targetAnchors = question.requiredAnchors || [];
-    if (chunkId && question.chunks) {
+    if (mode === 'guided_zero_start') {
+      const effectiveScope = guidedOpts?.beatScope || get().guidedBeatScope;
+      const effectiveBeatId = guidedOpts?.startBeatId !== undefined ? guidedOpts.startBeatId : get().selectedStartBeatId;
+      if (effectiveScope === 'single_beat' && effectiveBeatId && question.microBeats) {
+        const beat = question.microBeats.find((b) => b.id === effectiveBeatId);
+        if (beat) targetAnchors = targetAnchors.filter((a) => beat.anchorIds.includes(a.id));
+      }
+    } else if (chunkId && question.chunks) {
       const chunk = question.chunks.find((c) => c.id === chunkId);
       if (chunk) {
         targetAnchors = targetAnchors.filter((a) => chunk.anchorIds.includes(a.id));
@@ -222,6 +241,9 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       )
     }));
   },
+
+  setSelectedStartBeatId: (beatId) => set({ selectedStartBeatId: beatId }),
+  setGuidedBeatScope: (scope) => set({ guidedBeatScope: scope }),
 
   setScorecard: (scorecard) => {
     const m = get().mode;
@@ -337,6 +359,7 @@ export const useHrSimulatorStore = create<HrSimulatorState>((set, get) => ({
       set({
         selectedQuestionId: found.id,
         selectedChunkId: null,
+        selectedStartBeatId: null,
         activeQuestion: found,
         anchorCards: cards,
         drillAttemptsCount: 1,

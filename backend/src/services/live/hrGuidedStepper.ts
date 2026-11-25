@@ -9,6 +9,7 @@
 import { WebSocket } from 'ws';
 import {
   HR_VOICE_EVENTS,
+  HrBeatScope,
   HrLearningRung,
   HrMicroBeat,
   HrQuestionRubricItem,
@@ -22,6 +23,8 @@ import { armTurnWatchdogs } from './liveWsTurnCommitHandler';
 export interface HrGuidedSessionState {
   questionId: string;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope: HrBeatScope;
   beatIndex: number;
   rung: HrLearningRung;
   variantIndex: number;
@@ -77,18 +80,45 @@ export function resolveQuestionMicroBeats(
   ];
 }
 
+/**
+ * Spec 41 Whole-Part-Whole Beat Resolver for guided_zero_start.
+ * Never crops beats by Spec 38 chunkId; enforces single_beat isolation when requested.
+ */
+export function resolveGuidedSessionBeats(
+  question?: HrQuestionRubricItem,
+  opts?: { startBeatId?: string; beatScope?: HrBeatScope }
+): HrMicroBeat[] {
+  const allBeats = resolveQuestionMicroBeats(question);
+  if (opts?.beatScope === 'single_beat' && opts?.startBeatId) {
+    const matched = allBeats.find((b) => b.id === opts.startBeatId);
+    if (matched) return [matched];
+  }
+  return allBeats;
+}
+
 export function createInitialGuidedState(
   question?: HrQuestionRubricItem,
-  chunkId?: string
+  optsOrChunkId?: string | { chunkId?: string; startBeatId?: string; beatScope?: HrBeatScope }
 ): HrGuidedSessionState | null {
   if (!question) return null;
-  const beats = resolveQuestionMicroBeats(question, chunkId);
+  const opts = typeof optsOrChunkId === 'string' ? { chunkId: optsOrChunkId } : optsOrChunkId || {};
+  const isGuidedOpts = Boolean(opts.startBeatId || opts.beatScope || typeof optsOrChunkId === 'object');
+  const beats = isGuidedOpts
+    ? resolveGuidedSessionBeats(question, { startBeatId: opts.startBeatId, beatScope: opts.beatScope })
+    : resolveQuestionMicroBeats(question, opts.chunkId);
   if (beats.length === 0) return null;
+
+  const matchedIdx = opts.startBeatId ? beats.findIndex((b) => b.id === opts.startBeatId) : -1;
+  const initialIndex = matchedIdx >= 0 ? matchedIdx : 0;
+  const beatScope: HrBeatScope =
+    opts.beatScope === 'single_beat' && beats.length === 1 ? 'single_beat' : 'all_from_beat';
 
   return {
     questionId: question.id,
-    chunkId,
-    beatIndex: 0,
+    chunkId: opts.chunkId,
+    startBeatId: opts.startBeatId,
+    beatScope,
+    beatIndex: initialIndex,
     rung: 1,
     variantIndex: 0,
     cueVisible: true,
@@ -190,7 +220,7 @@ export function applyGuidedStepAction(
           cueVisible: false
         };
       }
-      if (state.rung === 3 && safeIdx >= 1 && beats.length >= 2) {
+      if (state.rung === 3 && beats.length >= 2 && state.masteredBeatIds.length >= 1) {
         return {
           ...state,
           rung: 4,
@@ -230,6 +260,8 @@ export function buildStepStatePayload(
     beatId: beat.id,
     beatIndex: safeIdx,
     totalBeats: beats.length,
+    beatScope: beats.length === 1 ? 'single_beat' : state.beatScope,
+    beats: beats.map((b) => ({ id: b.id, title: b.title })),
     beatTitle: beat.title,
     chunkId: beat.chunkId,
     rung: state.rung,
@@ -289,11 +321,17 @@ export function handleGuidedStepControlFrame(
   if (!CLIENT_STEP_ACTIONS.has(rawAction)) return true;
 
   const question = getHrQuestion(session.questionId);
-  const beats = resolveQuestionMicroBeats(question, session.chunkId);
+  const beats = resolveGuidedSessionBeats(question, {
+    startBeatId: session.startBeatId,
+    beatScope: session.beatScope
+  });
   if (beats.length === 0) return true;
 
   if (!session.hrGuidedState) {
-    session.hrGuidedState = createInitialGuidedState(question, session.chunkId);
+    session.hrGuidedState = createInitialGuidedState(question, {
+      startBeatId: session.startBeatId,
+      beatScope: session.beatScope
+    });
   }
 
   const nextState = applyGuidedStepAction(session.hrGuidedState!, beats, rawAction, {

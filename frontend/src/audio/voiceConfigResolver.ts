@@ -148,6 +148,8 @@ export function resolveLiveSessionConfig(
     hrPersonaId: params.hrPersonaId,
     questionMatrixId: params.questionMatrixId,
     chunkId: params.chunkId,
+    startBeatId: params.startBeatId,
+    beatScope: params.beatScope,
     questionIndex: params.questionIndex,
     totalQuestions: params.totalQuestions,
     isRetry: params.isRetry,

@@ -90,6 +90,8 @@ export interface LiveAudioSessionParams {
   hrPersonaId?: string;
   questionMatrixId?: string;
   chunkId?: string;
+  startBeatId?: string;
+  beatScope?: 'all_from_beat' | 'single_beat';
   questionIndex?: number;
   totalQuestions?: number;
   isRetry?: boolean;

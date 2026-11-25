@@ -8,7 +8,7 @@ import { HR_VOICE_EVENTS, HrScorecard, HrStepControlAction } from '@interview-pr
 import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
 import { getHrQuestion } from './hrContextResolver';
 import {
-  resolveQuestionMicroBeats,
+  resolveGuidedSessionBeats,
   createInitialGuidedState,
   applyGuidedStepAction,
   buildStepStatePayload
@@ -17,8 +17,10 @@ import {
 const VALID_STEP_ACTIONS = new Set<HrStepControlAction>([
   'next_rung',
   'next_beat',
+  'prev_beat',
   'next_variant',
   'repeat_beat',
+  'select_beat',
   'toggle_cue'
 ]);
 
@@ -42,7 +44,10 @@ export function handleAdvanceHrLearningStep(
 ): ToolExecutionResult {
   const { session } = ctx;
   const question = getHrQuestion(session.questionId);
-  const beats = resolveQuestionMicroBeats(question, session.chunkId);
+  const beats = resolveGuidedSessionBeats(question, {
+    startBeatId: session.startBeatId,
+    beatScope: session.beatScope
+  });
 
   if (beats.length === 0) {
     return {
@@ -52,13 +57,17 @@ export function handleAdvanceHrLearningStep(
   }
 
   if (!session.hrGuidedState) {
-    session.hrGuidedState = createInitialGuidedState(question, session.chunkId);
+    session.hrGuidedState = createInitialGuidedState(question, {
+      startBeatId: session.startBeatId,
+      beatScope: session.beatScope
+    });
   }
 
   const rawAction = String(args.action || 'next_rung') as HrStepControlAction;
   const action: HrStepControlAction = VALID_STEP_ACTIONS.has(rawAction) ? rawAction : 'next_rung';
 
   const nextState = applyGuidedStepAction(session.hrGuidedState!, beats, action, {
+    beatIndex: typeof args.beatIndex === 'number' ? args.beatIndex : undefined,
     masteredCurrentBeat: typeof args.masteredCurrentBeat === 'boolean' ? args.masteredCurrentBeat : undefined
   });
   session.hrGuidedState = nextState;

@@ -4,12 +4,11 @@ import { RefreshCw, ArrowRight, RotateCcw, Eye, EyeOff, CheckCircle2, Layers } f
 
 interface HrGuidedLadderBarProps {
   stepState: HrStepStatePayload;
-  beatIds?: string[];
   masteredBeatIds: string[];
   onStepControl: (action: HrStepControlAction, extra?: { beatIndex?: number; cueVisible?: boolean }) => void;
 }
 
-const RUNG_LABELS: Array<{ rung: 1 | 2 | 3 | 4; label: string; desc: string }> = [
+const ALL_RUNG_LABELS: Array<{ rung: 1 | 2 | 3 | 4; label: string; desc: string }> = [
   { rung: 1, label: '1. Эхо-повтор', desc: 'Повторите короткую фразу за тренером' },
   { rung: 2, label: '2. Перефраз', desc: 'Скажите своими связками с теми же фактами' },
   { rung: 3, label: '3. Без шпаргалки', desc: 'Ответьте на вопрос HR по памяти' },
@@ -18,55 +17,59 @@ const RUNG_LABELS: Array<{ rung: 1 | 2 | 3 | 4; label: string; desc: string }> =
 
 export const HrGuidedLadderBar: React.FC<HrGuidedLadderBarProps> = ({
   stepState,
-  beatIds = [],
   masteredBeatIds,
   onStepControl
 }) => {
+  const isSingleBeat = stepState.beatScope === 'single_beat' || stepState.totalBeats <= 1;
+  const visibleRungs = isSingleBeat ? ALL_RUNG_LABELS.slice(0, 3) : ALL_RUNG_LABELS;
+  const sessionBeats = stepState.beats?.length
+    ? stepState.beats
+    : [{ id: stepState.beatId, title: stepState.beatTitle }];
+
   return (
     <div className="w-full rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/60 p-3.5 space-y-3 shadow-2xs">
       {/* Top Row: Beat title + Beat pills */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[11px] font-bold">
             <Layers className="w-3 h-3" />
-            Блок {stepState.beatIndex + 1} / {stepState.totalBeats}
+            {isSingleBeat ? 'Изолированный блок (1/1)' : `Блок ${stepState.beatIndex + 1} / ${stepState.totalBeats}`}
           </span>
           <span className="text-xs font-bold text-slate-800">{stepState.beatTitle}</span>
         </div>
 
-        {/* Clickable Beat Switcher Pills */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {Array.from({ length: stepState.totalBeats }).map((_, idx) => {
-            const isCurrent = idx === stepState.beatIndex;
-            const targetBeatId = beatIds[idx];
-            const isBeatMastered = targetBeatId
-              ? masteredBeatIds.includes(targetBeatId)
-              : isCurrent && masteredBeatIds.includes(stepState.beatId);
+        {/* Clickable Beat Switcher Pills (SSOT from server stepState.beats) */}
+        {!isSingleBeat && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {sessionBeats.map((beat, idx) => {
+              const isCurrent = idx === stepState.beatIndex;
+              const isBeatMastered = masteredBeatIds.includes(beat.id);
 
-            return (
-              <button
-                key={idx}
-                onClick={() => onStepControl('select_beat', { beatIndex: idx })}
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
-                  isCurrent
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xs'
-                    : isBeatMastered
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-                title={`Перейти к блоку ${idx + 1}`}
-              >
-                {isBeatMastered && <CheckCircle2 className="w-2.5 h-2.5" />}
-                <span>{idx + 1}</span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={beat.id}
+                  onClick={() => onStepControl('select_beat', { beatIndex: idx })}
+                  className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                    isCurrent
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xs'
+                      : isBeatMastered
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  title={`Блок ${idx + 1}: ${beat.title}`}
+                >
+                  {isBeatMastered && <CheckCircle2 className="w-2.5 h-2.5" />}
+                  <span>{idx + 1}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Middle Row: 4-Rung Fading Scaffolding Indicator */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-        {RUNG_LABELS.map((item) => {
+      {/* Middle Row: Fading Scaffolding Rungs Indicator */}
+      <div className={`grid gap-1.5 ${isSingleBeat ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        {visibleRungs.map((item) => {
           const isActive = stepState.rung === item.rung;
           const isCompleted = stepState.rung > item.rung;
           return (

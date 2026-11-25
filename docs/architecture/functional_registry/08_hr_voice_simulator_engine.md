@@ -26,6 +26,11 @@ With **Spec 40**, the engine adds cold-start beginner scaffolding without distur
 - **Passive Study Audio Warm-Up (`HrStudyAudioBar.tsx` + `GET /api/hr/study-tts`):** Cached global-voice Gemini TTS playback in the Study Deck with variant cycling, speed control (`0.9x/1.0x/1.15x`), and Phrase -> Pause shadowing mode.
 - **Guided Zero-Start Voice Mode (`guided_zero_start` / «С нуля (Повтор)»):** 4-rung Fading Scaffolding ladder (`Echo-Catch -> Paraphrase Flip -> Naked Recall -> Snowball Bridge`) with hybrid voice progression (`advance_hr_learning_step` tool) and synced UI controls (`HR_STEP_CONTROL` -> `HR_STEP_STATE`), live AI speech subtitles, toggleable cue card, and local mastery tracking.
 
+With **Spec 41**, `guided_zero_start` decouples cleanly from Spec 38 macro-chunks (`chunks`):
+- **Non-Destructive Beat Selection (`HrScopeSelector.tsx`):** Guided mode displays all atomic `microBeats` (5/5 for pitch), lets candidates select any starting beat (`startBeatId`), and explicitly chooses `all_from_beat` vs `single_beat` (focused 3-rung loop without Rung 4 Snowball).
+- **Study Per-Beat Single-Focus Bridge:** `HrStudyAudioBar` exposes 1-click *«Вслух (1 блок)»* launching `single_beat` on that beat, while bottom CTA cleanly enters `all_from_beat` from Beat 1 without inheriting stale `chunkId`.
+- **Voice Direct Jump & SSOT HUD:** `advance_hr_learning_step` exposes `select_beat(beatIndex)` with compact 1-line route context, and `HR_STEP_STATE` carries canonical `beats` + `beatScope` to `HrGuidedLadderBar`.
+
 ---
 
 ## 2. Functions & Components Catalog
@@ -63,6 +68,7 @@ With **Spec 40**, the engine adds cold-start beginner scaffolding without distur
 | **H4: Zero Regressions** | Adding HR session modes and pedagogical components does not affect existing `interview`, `tutor`, or `system_design` modes. | All existing unit tests, prompt tests, tool isolation tests, and playout contracts continue passing 100%. | Validated. Zero regressions across all tracks. |
 | **H5: In-Flight Rehearsal & Chunking (Spec 38)** | Immediate in-flight correction stops bad habits at the syllable level; chunking reduces cognitive load. | Candidate practices isolated 20-30s blocks without scorecard friction, mastering legal citations and metrics. | Validated. Deliberate practice loop established. |
 | **H6: 4-Rung Fading Scaffolding & Paraphrase Diversity (Spec 40)** | Splitting answers into 8–15 word micro-beats across Echo -> Paraphrase -> Naked Recall -> Snowball eliminates zero-start freeze while varying phrasing prevents rote parroting. | 30 vetted micro-beats (3 variants each) across all 13 questions + Study TTS + hybrid `advance_hr_learning_step` / button WS sync verified in CI invariants. | Validated. Guided cold-start ladder & passive audio warm-up operational. |
+| **H7: Whole-Part-Whole Beat Entry & Chunk Isolation (Spec 41)** | Decoupling `guided_zero_start` from `chunks` via `startBeatId` + `beatScope` eliminates silent 5->2 cropping and allows instant single-beat focus from lobby or Study Deck. | Suite 8 verifies 5/5 beat resolution despite stale `chunkId`, `single_beat` 3-rung cycling, and `select_beat(beatIndex)` tool sync. | Validated. Beat map, single-beat Study launch & SSOT HUD active. |
 
 ---
 
@@ -77,3 +83,4 @@ With **Spec 40**, the engine adds cold-start beginner scaffolding without distur
 7. **Scorecard Suppression in Rehearsal (Spec 38):** Mode `tutor_rehearsal` strictly suppresses numerical scorecard tools and evaluation modals.
 8. **Global Auto-VAD, Engine & Voice SSOT Compliance:** `HrScreeningArena`, `HrVoiceHUD`, and `hrPromptBuilder.ts` respect the active global `turnMode`, `liveModel`, `voice`, `vadPauseMs`, `enableSilenceClarification`, and `userGender` via `resolveLiveSessionConfig()`, with no hardcoded `(Aoede)` or forced manual/auto override.
 9. **Hybrid Guided Sync & Non-Parroting Boundary (Spec 40):** `guided_zero_start` also suppresses scorecards, never hardcodes wording parroting on connective glue while locking `immutableFacts` verbatim, keeps `advance_hr_learning_step` gated on Turn 0, and treats `toggle_cue` silently without interrupting Gemini Live.
+10. **Chunk vs Micro-Beat Decoupling (Spec 41):** `resolveGuidedSessionBeats()` ignores `chunkId` in `guided_zero_start`, gating Rung 4 strictly on `beats.length >= 2 && masteredBeatIds.length >= 1`, and broadcasting server SSOT `beats` in `HR_STEP_STATE`.
