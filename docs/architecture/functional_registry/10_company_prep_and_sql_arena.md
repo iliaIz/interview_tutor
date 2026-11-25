@@ -156,6 +156,20 @@ This subsystem introduces company-targeted technical assessment pipelines (start
   - CRI readiness index calculations remain monotonic and accurately reflect stage weights and mastery updates.
   - Copilot state automatically clears on arena unmount to prevent stale context bleeding.
 
+---
+
+### 2.13. Spec 44 Architectural Deepening (`#168–#169`): Manifest Readiness Repository, Tenant Auth & ArenaNavigation Seam
+- **Files Touched:**
+  - `shared/src/schemas/companyProfile.ts`
+  - `backend/src/services/companies/CompanyReadinessRepository.ts`, `backend/src/routes/companies.ts`, `backend/tests/test_company_readiness_repo.js`
+  - `frontend/src/services/arenaNavigator.ts`, `frontend/src/store/slices/academySlice.ts`
+  - `frontend/src/components/companies/hooks/useCompanyStudioSession.ts`, `CompanyPrepStudio.tsx`, `CompanyPrepStudioHeader.tsx`, `CompanyChallengesTab.tsx`, `frontend/src/services/CompanyTrackContextAdapter.ts`
+- **1. What Was Done:**
+  - Added TypeBox `CompanyProfileSchema` validation (`Value.Check`), manifest-driven `readinessConfig` SQL & `questionCatalogFile` loading, and injectable `database` into `CompanyReadinessRepository.ts`; switched `routes/companies.ts` to `getAuthUserId(req)`.
+  - Consolidated academy & company arena transitions behind `ArenaWorkspaceCoordinator` (`arenaNavigator.ts`), replaced hardcoded switch arrays in `useCompanyStudioSession`, `CompanyChallengesTab`, and `CompanyTrackContextAdapter` with manifest data (`curatedChallenges`, `readinessConfig`, `voicePreset`), and cleared completed stage/tab state on company switches.
+- **2. Failure Modes & Invariants:**
+  - `companies` endpoints never default to `'default_user'`; invalid company manifests fail explicit TypeBox validation; switching companies resets `completedCompanyStageIds` to `[]`.
+
 
 
 

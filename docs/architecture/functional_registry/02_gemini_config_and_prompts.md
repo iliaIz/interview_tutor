@@ -182,4 +182,13 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
 - **Invariants:**
   - Early `session_init` frames MUST hydrate `LiveSessionBlueprint` before upstream `setup` is built; `LiveSessionBlueprintBuilder.ts` <= 320 lines.
 
+---
+
+### 2.14 `personas.ts & hrPromptBuilder.ts: Non-Canonical Candidate Dossier Parameterization (Spec 48 / #176)`
+- **Location:** [`personas.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/personas.ts), [`hrPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/hrPromptBuilder.ts)
+- **What Was Done:**
+  1. Added `PersonaCandidateSummary` to `PersonaPromptContext` and extracted `extractCandidateSummary(dossier)` + `buildHrAntiSycophancyDirectives(summary)` inside `hrPromptBuilder.ts`.
+  2. Replaced hardcoded canonical candidate literals (`Илья`, `БТЛаб`, `Краснодар`, `310000`, `422-ФЗ`, `КНД 1122035`) across HR personas and screening/rehearsal/drill prompt sections with parameterized interpolation while preserving backward-compatible defaults on `HR_ANTI_SYCOPHANCY_DIRECTIVES` and direct `verifyPrompts.ts` checks.
+- **Invariants:** Non-canonical `CandidateDossier` fixtures inject 100% of their own identity/salary/location/legal basis without leaking canonical names or figures.
+
 

@@ -183,6 +183,16 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - Prepared statements are isolated per `better-sqlite3` `Database` instance via `WeakMap`, preventing cross-DB leakage in tests.
   - Zero behavior regression when `ports` and `skipPreScan` are omitted.
 
+---
+
+### 2.14 `Spec 43 Completion (#167): Single-Owner Practice SSE & Mutation Step Parity`
+- **Location:** [`practiceSseAdapter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practiceSseAdapter.ts), [`PracticeChallengeCatalog.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/practice/PracticeChallengeCatalog.ts), [`ChallengeEvaluationSession.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/sandbox/ChallengeEvaluationSession.ts), [`useEvaluationPipeline.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/useEvaluationPipeline.ts), [`test_practice_evaluation_session.js`](file:///home/djelu/projects/interview_tutor/backend/tests/test_practice_evaluation_session.js)
+- **What Was Done:**
+  1. Deleted dead pass-through wrappers `ChallengeEvaluationPipeline.ts` and `evaluationPipelinePersistence.ts`; rewired `practiceSseAdapter.ts` directly to `validateWorkspaceFiles` and `ChallengeEvaluationSession` and `PracticeChallengeCatalog` to `ChallengeSubmissionRepository`.
+  2. Emitted Gate 3 `MUTATION_TESTS` `complete` event on clean/partial kills, forwarded `skipPreScan: true` to Gate 3 `mutationRunner`, forwarded `userId` to `evaluateChallengeSubmission` -> `recordNewErrorGap`, and returned HTTP 503 with `canRetryAiOnly: true` on non-SSE retry exhaustion.
+  3. Synchronized frontend `useEvaluationPipeline.ts` (`practiceElapsedSeconds`, `MUTATION_TESTS` stepper/activeError, JSON 503 fallback) and added `test_practice_evaluation_session.js` + Scenario 4 fault injection tests.
+- **Invariants:** Single persistence envelope (`ChallengeSubmissionRepository`), zero duplicate Gate 3 pre-scan AST work, and strict tenant isolation on gap recording.
+
 
 
 
