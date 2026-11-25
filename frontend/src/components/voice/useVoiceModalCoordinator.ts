@@ -36,7 +36,6 @@ export interface UseVoiceModalCoordinatorReturn {
   activeBatchSession: any;
   clearBatchSession: () => void;
   state: any;
-  metrics: any;
   subscribeAudioLevel: (listener: (level: number) => void) => () => void;
   statusMessage: string;
   dialogueTurns: any[];
