@@ -15,6 +15,8 @@ interface PracticeVoiceContextType {
   isMuted: boolean;
   isUserSpeaking: boolean;
   isPauseHolding: boolean;
+  isError?: boolean;
+  lastError?: string | null;
   rmsDb: number;
   statusMessage: string;
   aiTranscript: string;

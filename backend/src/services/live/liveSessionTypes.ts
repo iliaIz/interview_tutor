@@ -6,6 +6,8 @@ import { SessionFsm } from './sessionFsm';
 import type { LiveDeadAirGuard } from './LiveDeadAirGuard';
 import type { ToolAudioMutex } from './ToolAudioMutex';
 import type { SessionResumptionManager } from './SessionResumptionManager';
+import type { LiveHotHandoffCoordinator } from './LiveHotHandoffCoordinator';
+import type { LiveStreamSentinel } from './LiveStreamSentinel';
 import type { HrGuidedSessionState } from './hrGuidedStepper';
 
 export function toRawBuffer(data: RawData): Buffer {
@@ -126,4 +128,7 @@ export interface ProxySession {
   toolAudioMutex?: ToolAudioMutex;
   resumptionManager?: SessionResumptionManager;
   resumptionHandle?: string;
+  hotHandoffCoordinator?: LiveHotHandoffCoordinator;
+  streamSentinel?: LiveStreamSentinel;
+  awaitingToolSpeech?: boolean;
 }

@@ -156,4 +156,16 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
   - `LiveVoiceSession` must never assemble prompt strings or tool declarations manually; all setup messages must route through `LivePromptDirector`.
   - Cognitive bounding: all prompt builder modules <= 350 lines.
 
+---
+
+### 2.12 `liveGeminiConfigBuilder, LivePromptDirector & livePairPrompts: Sliding Window Compression & Canonical Session Resumption (Spec 42 / #155, #157)`
+- **Location:** [`liveGeminiConfigBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveGeminiConfigBuilder.ts), [`LivePromptDirector.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LivePromptDirector.ts), [`livePairPrompts.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/live/livePairPrompts.ts)
+- **What Was Done:**
+  1. Added `contextWindowCompression: { slidingWindow: {} }` inside `buildGeminiLiveSetupPayload` to prevent hard 15-minute context overflow truncation on continuous audio sessions.
+  2. Fixed setup field casing from legacy `setup.sessionResumptionConfig` to Google's canonical `setup.sessionResumption = handle ? { handle } : {}`.
+  3. Added `LivePromptDirector.buildDynamicSetupMessage(baseSetupMessage, resumptionHandle)` so every reconnect and Make-Before-Break handoff injects the latest `resumptionHandle` dynamically instead of reusing stale Turn-0 setup JSON.
+  4. Aligned `livePairPrompts.ts` whiteboard instructions with adaptive `WHEN_IDLE` voice follow-up behavior so the interviewer writes code and explains it in the same turn without asking redundant silent turns.
+- **Invariants:**
+  - Canonical `setup.sessionResumption` and `setup.contextWindowCompression.slidingWindow` must be present in every Gemini Live setup frame (`testGeminiConfigBuilder.ts` enforced).
+
 

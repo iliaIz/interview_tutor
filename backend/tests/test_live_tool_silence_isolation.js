@@ -10,6 +10,7 @@ const http = require('http');
 const assert = require('assert');
 const { WebSocketServer, WebSocket } = require('ws');
 const { createLiveAudioStreamRouter } = require('../dist/services/live/liveAudioStreamRouter');
+const { SessionFsm } = require('../dist/services/live/sessionFsm');
 
 console.log('========================================================================');
 console.log('🧪 SOTA REGRESSION SUITE: TOOL-CALL & SILENCE CLARIFICATION ISOLATION');
@@ -324,8 +325,229 @@ async function runTests() {
     await upstream.close();
   }
 
+  // TEST 4: Adaptive update_whiteboard(write) with 0ms audio uses WHEN_IDLE, emits tool_awaiting_speech, holds AI_THINKING until speech
+  {
+    console.log('[Test 4] Adaptive update_whiteboard(write) with 0 audio uses WHEN_IDLE & holds AI_THINKING until follow-up speech');
+    const clientPair = await createSocketPair();
+    const upstream = await createMockUpstream();
+
+    const fsm = new SessionFsm('AI_SPEAKING');
+    const session = {
+      clientSocket: clientPair.serverSide,
+      geminiSocket: null,
+      isSetupComplete: true,
+      frameQueue: [],
+      sessionId: 'test_wb_when_idle',
+      questionId: 'Q_WB_4',
+      sessionStartedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      hasCandidateResponded: true,
+      currentTurnIndex: 1,
+      currentTurnAudioBytes: 0,
+      enableSilenceClarification: true,
+      fsm
+    };
+
+    const clientReceived = [];
+    clientPair.clientSide.on('message', (raw) => {
+      try { clientReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
+    });
+
+    const router = createLiveAudioStreamRouter({
+      session,
+      setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+      upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
+      clientSocket: clientPair.serverSide,
+      terminate: () => {},
+      sessionId: 'test_wb_when_idle',
+      questionId: 'Q_WB_4',
+      sessionType: 'interview',
+      tutorMode: 'practice_pair',
+      bugTitle: '',
+      questionText: 'Explain ConcurrentHashMap.',
+      topic: 'Java',
+      voiceName: 'Kore',
+      isRetry: false,
+      isResumed: false,
+      initialUserMessage: '',
+      totalQuestions: 5,
+      questionIndex: 0,
+      parsedHints: [],
+      liveCoaching: false,
+      liveModel: 'gemini-live-v3'
+    });
+
+    router.connectGemini();
+    const upstreamSocket = await upstream.waitForConnection();
+
+    const upstreamReceived = [];
+    upstreamSocket.on('message', (raw) => {
+      try { upstreamReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
+    });
+
+    upstreamSocket.send(JSON.stringify({ setupComplete: true }));
+    await new Promise((r) => setTimeout(r, 60));
+
+    upstreamSocket.send(JSON.stringify({
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'wb_call_4',
+            name: 'update_whiteboard',
+            args: { action: 'write', title: 'CHM Buckets', language: 'java', code: 'Node<K,V>[] table;' }
+          }
+        ]
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 80));
+
+    const toolResp = upstreamReceived.find((m) => m.toolResponse);
+    assert(toolResp, 'Upstream should receive toolResponse');
+    assert.strictEqual(toolResp.toolResponse.functionResponses[0].scheduling, 'WHEN_IDLE', 'With 0ms spoken audio, update_whiteboard(write) MUST schedule WHEN_IDLE');
+    assert(clientReceived.some((m) => m.type === 'tool_awaiting_speech'), 'Client MUST receive tool_awaiting_speech');
+    assert.strictEqual(session.awaitingToolSpeech, true, 'session.awaitingToolSpeech MUST be true');
+
+    // Empty turnComplete closing the toolCall turn must keep backend FSM in AI_THINKING
+    upstreamSocket.send(JSON.stringify({
+      serverContent: { turnComplete: true, interactionStatus: 'IDLE' }
+    }));
+    await new Promise((r) => setTimeout(r, 80));
+    assert.strictEqual(fsm.state, 'AI_THINKING', 'Backend FSM must hold AI_THINKING while awaiting whiteboard speech');
+
+    const hasNudge = upstreamReceived.some((m) =>
+      m.clientContent?.turns?.some((t) => t.parts?.some((p) => p.text?.includes('Я тебя не расслышала')))
+    );
+    assert.strictEqual(hasNudge, false, 'Must NOT trigger silence clarification while awaiting tool speech');
+
+    // Now follow-up explanation speech arrives and completes
+    upstreamSocket.send(JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { mimeType: 'audio/pcm;rate=24000', data: Buffer.alloc(4800).toString('base64') } },
+            { text: 'Смотри на массив бакетов.' }
+          ]
+        },
+        turnComplete: true,
+        interactionStatus: 'IDLE'
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 80));
+
+    assert.strictEqual(session.awaitingToolSpeech, false, 'session.awaitingToolSpeech cleared when follow-up speech arrives');
+    assert.strictEqual(fsm.state, 'CANDIDATE_LISTENING', 'FSM unlocks CANDIDATE_LISTENING after follow-up speech');
+    console.log('  ✅ Test 4 Passed: Multimodal whiteboard + speech handoff verified.\n');
+    passed++;
+
+    router.close();
+    await closeSocketPair(clientPair);
+    await upstream.close();
+  }
+
+  // TEST 5: update_whiteboard(clear) OR spokenAudioBytes >= 24000 uses SILENT and omits tool_awaiting_speech
+  {
+    console.log('[Test 5] update_whiteboard(clear) or >= 24000 audio bytes uses SILENT scheduling');
+    const clientPair = await createSocketPair();
+    const upstream = await createMockUpstream();
+
+    const session = {
+      clientSocket: clientPair.serverSide,
+      geminiSocket: null,
+      isSetupComplete: true,
+      frameQueue: [],
+      sessionId: 'test_wb_silent',
+      questionId: 'Q_WB_5',
+      sessionStartedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      hasCandidateResponded: true,
+      currentTurnIndex: 1,
+      currentTurnAudioBytes: 25000 // Already >= 500ms spoken in this turn!
+    };
+
+    const clientReceived = [];
+    clientPair.clientSide.on('message', (raw) => {
+      try { clientReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
+    });
+
+    const router = createLiveAudioStreamRouter({
+      session,
+      setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+      upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
+      clientSocket: clientPair.serverSide,
+      terminate: () => {},
+      sessionId: 'test_wb_silent',
+      questionId: 'Q_WB_5',
+      sessionType: 'interview',
+      tutorMode: 'practice_pair',
+      bugTitle: '',
+      questionText: 'Explain ConcurrentHashMap.',
+      topic: 'Java',
+      voiceName: 'Kore',
+      isRetry: false,
+      isResumed: false,
+      initialUserMessage: '',
+      totalQuestions: 5,
+      questionIndex: 0,
+      parsedHints: [],
+      liveCoaching: false,
+      liveModel: 'gemini-live-v3'
+    });
+
+    router.connectGemini();
+    const upstreamSocket = await upstream.waitForConnection();
+
+    const upstreamReceived = [];
+    upstreamSocket.on('message', (raw) => {
+      try { upstreamReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
+    });
+
+    upstreamSocket.send(JSON.stringify({ setupComplete: true }));
+    await new Promise((r) => setTimeout(r, 60));
+
+    // 5a: write after >= 24000 bytes audio already spoken
+    upstreamSocket.send(JSON.stringify({
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'wb_call_5a',
+            name: 'update_whiteboard',
+            args: { action: 'write', title: 'After Speech', code: 'int x = 1;' }
+          }
+        ]
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 70));
+
+    // 5b: clear with 0 bytes
+    session.currentTurnAudioBytes = 0;
+    upstreamSocket.send(JSON.stringify({
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'wb_call_5b',
+            name: 'update_whiteboard',
+            args: { action: 'clear' }
+          }
+        ]
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 70));
+
+    const resp5a = upstreamReceived.find((m) => m.toolResponse?.functionResponses?.[0]?.id === 'wb_call_5a');
+    const resp5b = upstreamReceived.find((m) => m.toolResponse?.functionResponses?.[0]?.id === 'wb_call_5b');
+    assert.strictEqual(resp5a?.toolResponse?.functionResponses?.[0]?.scheduling, 'SILENT', 'write after >= 24000 bytes must schedule SILENT');
+    assert.strictEqual(resp5b?.toolResponse?.functionResponses?.[0]?.scheduling, 'SILENT', 'clear action must schedule SILENT');
+    assert.strictEqual(clientReceived.some((m) => m.type === 'tool_awaiting_speech'), false, 'SILENT whiteboard calls must NOT emit tool_awaiting_speech');
+    console.log('  ✅ Test 5 Passed: SILENT whiteboard scheduling verified for clear and post-speech writes.\n');
+    passed++;
+
+    router.close();
+    await closeSocketPair(clientPair);
+    await upstream.close();
+  }
+
   console.log(`========================================================================`);
-  console.log(`🎉 ALL ${passed}/3 TOOL-CALL & SILENCE CLARIFICATION TESTS PASSED!`);
+  console.log(`🎉 ALL ${passed}/5 TOOL-CALL & SILENCE CLARIFICATION TESTS PASSED!`);
   console.log(`========================================================================\n`);
   process.exit(0);
 }

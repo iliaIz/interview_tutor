@@ -107,4 +107,47 @@ console.log('🧪 Running LiveVoiceFrameParser contract tests...');
   console.log('  ✅ Test 3 Passed: Pure non-speech frame emits 0 text deltas.');
 }
 
+// Test 4: Spec 42 transport/handoff/tool-sync control frames parse accurately
+{
+  const reconnecting = LiveVoiceFrameParser.parse(
+    JSON.stringify({ type: 'upstream_reconnecting', attempt: 2, maxAttempts: 3, mode: 'reconnect' })
+  );
+  assert.deepStrictEqual(reconnecting?.reconnectPayload, { attempt: 2, maxAttempts: 3, mode: 'reconnect' });
+
+  const handoffStart = LiveVoiceFrameParser.parse(JSON.stringify({ type: 'hot_handoff_started', timeLeftSeconds: 45 }));
+  assert.strictEqual(handoffStart?.hotHandoffState, 'started');
+
+  const handoffDone = LiveVoiceFrameParser.parse(JSON.stringify({ type: 'hot_handoff_complete', mode: 'resumption' }));
+  assert.strictEqual(handoffDone?.hotHandoffState, 'complete');
+
+  const awaitingSpeech = LiveVoiceFrameParser.parse(
+    JSON.stringify({ type: 'tool_awaiting_speech', tools: ['update_whiteboard'] })
+  );
+  assert.strictEqual(awaitingSpeech?.toolAwaitingSpeech, true);
+
+  const pong = LiveVoiceFrameParser.parse(
+    JSON.stringify({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false })
+  );
+  assert.strictEqual(pong?.syncPongPayload?.isUpstreamConnected, false);
+  console.log('  ✅ Test 4 Passed: Transport, handoff, tool_awaiting_speech, and sync_pong frames parsed.');
+}
+
+// Test 5: upstream_error frame parses structured errorPayload
+{
+  const errFrame = LiveVoiceFrameParser.parse(
+    JSON.stringify({
+      type: 'upstream_error',
+      error: 'Quota exhausted across pool',
+      errorCode: 'QUOTA_EXHAUSTED',
+      retryable: true
+    })
+  );
+  assert.deepStrictEqual(errFrame?.errorPayload, {
+    error: 'Quota exhausted across pool',
+    errorCode: 'QUOTA_EXHAUSTED',
+    retryable: true
+  });
+  console.log('  ✅ Test 5 Passed: upstream_error frame parsed with errorCode & retryable flag.');
+}
+
 console.log('🎉 All LiveVoiceFrameParser tests passed successfully!\n');

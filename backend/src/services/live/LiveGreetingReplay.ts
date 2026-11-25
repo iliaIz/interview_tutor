@@ -28,6 +28,41 @@ export interface GreetingReplayOptions {
   challengeTrack?: string;
 }
 
+export function dispatchReconnectContextReplay(
+  session: ProxySession,
+  geminiSocket: WebSocket,
+  opts: { bugTitle?: string; questionText?: string; topic?: string } = {}
+): void {
+  const effectiveTitle = opts.bugTitle || session.bugTitle || opts.questionText || session.questionText || opts.topic || session.topic || 'Текущая тема';
+  const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
+  const recentTurns = (mem?.turns || []).slice(-4);
+
+  if (geminiSocket.readyState === WebSocket.OPEN) {
+    const turnsToSeed: Array<{ role: 'user' | 'model'; parts: [{ text: string }] }> = [];
+
+    for (const t of recentTurns) {
+      turnsToSeed.push({
+        role: t.role,
+        parts: [{ text: t.text }]
+      });
+    }
+
+    turnsToSeed.push({
+      role: 'user',
+      parts: [{
+        text: `[СИСТЕМНОЕ УВЕДОМЛЕНИЕ]: Связь с кандидатом восстановлена после переключения канала. Приветствие Turn 0 УЖЕ БЫЛО ПРОИЗНЕДЕНО РАНЕЕ. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО здороваться заново! Продолжай обсуждение задачи «${effectiveTitle}». Жди следующей реплики кандидата.`
+      }]
+    });
+
+    geminiSocket.send(JSON.stringify({
+      clientContent: {
+        turns: turnsToSeed,
+        turnComplete: false
+      }
+    }));
+  }
+}
+
 /**
  * LiveGreetingReplay (SOTA Late 2026).
  * Handles Turn 0 greeting generation and multi-turn replay upon reconnect.
@@ -55,33 +90,9 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
   if (wasReconnecting) {
     console.log(`🔄 [HOT_RECONNECT] Upstream connected for session ${session.sessionId || 'anon'}. Resuming conversation.`);
 
-    const effectiveTitle = bugTitle || session.bugTitle || questionText || topic;
-    const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
-    const recentTurns = (mem?.turns || []).slice(-4);
-
-    if (geminiSocket.readyState === WebSocket.OPEN) {
-      const turnsToSeed: Array<{ role: 'user' | 'model'; parts: [{ text: string }] }> = [];
-
-      for (const t of recentTurns) {
-        turnsToSeed.push({
-          role: t.role,
-          parts: [{ text: t.text }]
-        });
-      }
-
-      turnsToSeed.push({
-        role: 'user',
-        parts: [{
-          text: `[СИСТЕМНОЕ УВЕДОМЛЕНИЕ]: Связь с кандидатом восстановлена после сетевого сбоя. Приветствие Turn 0 УЖЕ БЫЛО ПРОИЗНЕДЕНО РАНЕЕ. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО здороваться заново! Продолжай обсуждение задачи «${effectiveTitle}». Жди следующей реплики кандидата.`
-        }]
-      });
-
-      geminiSocket.send(JSON.stringify({
-        clientContent: {
-          turns: turnsToSeed,
-          turnComplete: false
-        }
-      }));
+    // Avoid polluting native KV-cache with text replay when cryptographic resumption handle is active
+    if (!session.resumptionHandle) {
+      dispatchReconnectContextReplay(session, geminiSocket, { bugTitle, questionText, topic });
     }
 
     session.isGreetingSent = true;

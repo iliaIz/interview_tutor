@@ -14,6 +14,7 @@ import { ProxySession } from '../services/live/liveSessionTypes';
 import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
 import { LiveClientGuardService } from '../services/live/liveClientGuardService';
 import { handleTurnCommit, armTurnWatchdogs } from '../services/live/liveWsTurnCommitHandler';
+import { LiveStreamSentinel } from '../services/live/LiveStreamSentinel';
 
 interface TestContext {
   passed: number;
@@ -1070,6 +1071,66 @@ async function testNonSpeechTokenInterceptionContract(): Promise<void> {
 }
 
 // =========================================================================
+// TEST 14: Passive Auto-VAD LiveStreamSentinel Zero-False-Alarm & Stall Contract
+// =========================================================================
+async function testStreamSentinelPassiveAutoVad(): Promise<void> {
+  console.log('\n[Test 14] LiveStreamSentinel Passive Auto-VAD (Zero Silent False Alarms + Stall Guard)');
+
+  let phase1Count = 0;
+  let phase2Count = 0;
+  let lastStallReason = '';
+
+  const sentinel = new LiveStreamSentinel({
+    phase1DelayMs: 60,
+    phase2DelayMs: 140,
+    midTurnStallMs: 110,
+    vadSlackMs: 200,
+    onPhase1ThinkingDelay: () => {
+      phase1Count++;
+    },
+    onPhase2StallRecovery: (reason) => {
+      phase2Count++;
+      lastStallReason = reason;
+    }
+  });
+
+  const silentPcm = Buffer.alloc(1024, 0).toString('base64');
+  const speechSamples = new Int16Array(512);
+  for (let i = 0; i < speechSamples.length; i++) {
+    speechSamples[i] = i % 2 === 0 ? 8000 : -8000;
+  }
+  const speechPcm = Buffer.from(speechSamples.buffer).toString('base64');
+
+  // 14a: Silent reading code for 4000ms MUST NOT arm watchdogs
+  for (let t = 0; t <= 4000; t += 100) {
+    sentinel.observeClientAudio(silentPcm, 1000, 'auto', t);
+  }
+  await sleep(160);
+  assert(!sentinel.isPostSpeechArmed(), 'Silent code reading keeps post-speech watchdogs disarmed');
+  assert(phase1Count === 0 && phase2Count === 0, '0 false thinking/recovery alarms during silent reading');
+
+  // 14b: Real speech burst followed by trailing silence > vadPauseMs (1000) + slack (200) arms Phase 1 & Phase 2
+  sentinel.observeClientAudio(speechPcm, 1000, 'auto', 5000);
+  sentinel.observeClientAudio(speechPcm, 1000, 'auto', 5100);
+  sentinel.observeClientAudio(silentPcm, 1000, 'auto', 5200);
+  sentinel.observeClientAudio(silentPcm, 1000, 'auto', 6500);
+  assert(sentinel.isPostSpeechArmed(), 'Post-speech watchdog arms after real speech + trailing silence');
+
+  await sleep(85);
+  assert(phase1Count === 1, 'Phase 1 thinking delay callback fired');
+  await sleep(90);
+  assert(phase2Count === 1 && lastStallReason === 'auto_vad_stream_stall', 'Phase 2 auto_vad_stream_stall recovery fired');
+
+  // 14c: Mid-generation stall guard fires if model starts turn without finishing
+  sentinel.observeUpstreamSignal('model_turn_start', 7000);
+  assert(sentinel.isMidTurnArmed(), 'Mid-turn stall guard armed on model_turn_start');
+  await sleep(150);
+  assert(phase2Count === 2 && lastStallReason === 'mid_generation_stall', 'Mid-generation stall recovery fired on hung turn');
+
+  sentinel.dispose();
+}
+
+// =========================================================================
 // MAIN RUNNER
 // =========================================================================
 async function runAllTests(): Promise<void> {
@@ -1091,6 +1152,7 @@ async function runAllTests(): Promise<void> {
     await testPostBargeInStaleGuardBypassContract();
     await testZeroChunkBargeInRecoveryContract();
     await testNonSpeechTokenInterceptionContract();
+    await testStreamSentinelPassiveAutoVad();
 
     console.log('\n=========================================================================');
     console.log(`Fault-Injection Results: ${ctx.passed} Passed, ${ctx.failed} Failed`);

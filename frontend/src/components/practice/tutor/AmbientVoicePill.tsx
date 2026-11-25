@@ -22,6 +22,8 @@ export const AmbientVoicePill: React.FC = () => {
     isRecording,
     isUserSpeaking,
     isPauseHolding,
+    isError,
+    lastError,
     rmsDb,
     statusMessage,
     disconnectSession,
@@ -30,8 +32,8 @@ export const AmbientVoicePill: React.FC = () => {
 
   const { isOpen, toggleOpen } = usePracticeTutorStore();
 
-  // Only show floating pill if voice session is active and side drawer is closed
-  if (!isConnected || isOpen) return null;
+  // Only show floating pill if voice session is active/errored and side drawer is closed
+  if ((!isConnected && !isError) || isOpen) return null;
 
   return (
     <AnimatePresence>
@@ -81,15 +83,17 @@ export const AmbientVoicePill: React.FC = () => {
         {/* Status Info and Audio Wave */}
         <div className="flex flex-col min-w-0 pr-1">
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className={`w-1.5 h-1.5 rounded-full ${isError ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
             <span className="font-bold text-[11px] text-white truncate max-w-[130px]">
-              AI-Напарник в эфире
+              {isError ? 'Сбой голосовой связи' : 'AI-Напарник в эфире'}
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
-              {isAiSpeaking
+              {isError
+                ? (lastError || statusMessage || 'Откройте панель для повтора')
+                : isAiSpeaking
                 ? 'ИИ говорит вслух...'
                 : isUserSpeaking
                 ? 'Слушаю вас...'

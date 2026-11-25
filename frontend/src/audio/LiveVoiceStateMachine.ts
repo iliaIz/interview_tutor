@@ -144,7 +144,8 @@ export class LiveVoiceStateMachine {
           prev === 'COMMITTING' ||
           prev === 'CANDIDATE_HOLD' ||
           prev === 'CANDIDATE_SPEAKING' ||
-          prev === 'CANDIDATE_LISTENING'
+          prev === 'CANDIDATE_LISTENING' ||
+          (event.type === 'THINKING_START' && (prev === 'AI_SPEAKING' || prev === 'AI_RECITING_QUESTION'))
         ) {
           next = 'AI_THINKING';
         }

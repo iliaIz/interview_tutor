@@ -317,6 +317,18 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
 
 ---
 
+### 2.21 `LiveVoiceFrameParser, LiveVoiceRecoveryController & PracticeVoiceHUD: Transport Visibility & Whiteboard Turn Hold (Spec 42 / #159)`
+- **Location:** [`LiveVoiceFrameParser.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceFrameParser.ts), [`LiveVoiceStateMachine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceStateMachine.ts), [`LiveVoiceRecoveryController.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceRecoveryController.ts), [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts), [`useLiveVoiceSession.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/useLiveVoiceSession.ts), [`PracticeVoiceContext.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceContext.tsx), [`PracticeVoiceHUD.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/PracticeVoiceHUD.tsx), [`AmbientVoicePill.tsx`](file:///home/djelu/projects/interview_tutor/frontend/src/components/practice/tutor/AmbientVoicePill.tsx)
+- **What Was Done:**
+  1. Extracted `LiveVoiceRecoveryController` (155 lines <= 350) managing bounded dead-air/tool-speech safety timers (8s/22s), 10s `sync_ping` upstream link liveness verification (`2x consecutive isUpstreamConnected === false` -> `UPSTREAM_LINK_LOST` error), close status mapping, and `upstream_reconnecting`, `hot_handoff_started`/`complete`, `tool_awaiting_speech`, `thinking_delay`, `dead_air_recovery`, `upstream_error` control frames.
+  2. Extended `LiveVoiceStateMachine` so `THINKING_START` is valid from `AI_SPEAKING` and `AI_RECITING_QUESTION`, letting `NativeLiveVoiceEngine` hold `AI_THINKING` when `tool_awaiting_speech` precedes an empty intermediate `turnComplete`.
+  3. Surfaced `isError` & `lastError` via `useLiveVoiceSession` and `PracticeVoiceContext` into `PracticeVoiceHUD` (with manual `Переподключить` button and single-shot auto-start ref preventing infinite retry loops on `ERROR`) and `AmbientVoicePill`.
+- **Invariants:**
+  - Cognitive bounding: `NativeLiveVoiceEngine.ts` <= 400 lines; `LiveVoiceRecoveryController.ts` <= 350 lines.
+  - Client never silently masks terminal upstream drops as normal session completion.
+
+---
+
 ### 2.20 `Spec 39: LiveMicChunkDispatcher Continuous Cloud VAD Streaming in Auto Mode`
 - **Location:** [`frontend/src/audio/liveMicChunkDispatcher.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/liveMicChunkDispatcher.ts)
 - **What Was Done:**

@@ -11,7 +11,8 @@ import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
  */
 
 export function handleUpdateWhiteboard(
-  args: Record<string, any>
+  args: Record<string, any>,
+  ctx?: ToolExecutionContext
 ): ToolExecutionResult {
   const action = args.action || 'write';
   const title = args.title || (action === 'clear' ? 'Доска очищена' : 'Демонстрация кода');
@@ -19,16 +20,25 @@ export function handleUpdateWhiteboard(
   const code = args.code || '';
   const highlightLines = Array.isArray(args.highlightLines) ? args.highlightLines : [];
   const explanation = args.explanation || '';
+  const spokenAudioBytes = ctx?.session?.currentTurnAudioBytes || 0;
+  const shouldStaySilent = action === 'clear' || spokenAudioBytes >= 24000;
 
-  console.log(`🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length})`);
+  console.log(
+    `🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length}, scheduling: ${shouldStaySilent ? 'SILENT' : 'WHEN_IDLE'})`
+  );
 
   return {
-    result: {
-      status: 'SUCCESS',
-      message: 'Интерактивная доска обновлена на экране кандидата.',
-      directive:
-        'Кратко объясни кандидату суть показанного фрагмента и ответь на его вопрос. Не произноси сервисных фраз вроде "я вывела код на доску" — сразу обсуждай логику и ключевые детали решения.'
-    },
+    result: shouldStaySilent
+      ? {
+          status: 'SUCCESS',
+          message: 'Интерактивная доска обновлена на экране кандидата.'
+        }
+      : {
+          status: 'SUCCESS',
+          message: 'Интерактивная доска обновлена на экране кандидата.',
+          directive:
+            'Сразу голосом на русском языке (в 2-3 предложениях) объясни кандидату логику показанного фрагмента и ответь на его вопрос. Не произноси сервисных фраз вроде «я вывела код на доску».'
+        },
     clientEvent: {
       type: 'whiteboard_update',
       payload: {
@@ -41,7 +51,7 @@ export function handleUpdateWhiteboard(
         updatedAt: Date.now()
       }
     },
-    scheduling: 'SILENT'
+    scheduling: shouldStaySilent ? 'SILENT' : 'WHEN_IDLE'
   };
 }
 

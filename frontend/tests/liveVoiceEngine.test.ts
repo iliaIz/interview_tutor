@@ -390,7 +390,77 @@ async function runLiveVoiceEngineTests() {
   const lastChunkMsg = JSON.parse(mockWs5.sentMessages[mockWs5.sentMessages.length - 1]);
   assert.strictEqual(lastChunkMsg.realtimeInput.audio.data.length, 1368, 'Continuous 512-sample clamped silence sent');
   console.log('  ✅ Test 13c Passed: Continuous clamped silence streamed during LISTENING');
-  [engine, engine2, engine3, engine4, engine5].forEach(e => e.disconnect());
+
+  // Test 14: Spec 42 Multimodal Whiteboard + Speech Hold (tool_awaiting_speech)
+  const statuses6: string[] = [];
+  let err6: { msg: string; retryable: boolean; code?: string } | null = null;
+  const engine6 = new LiveVoiceEngine({
+    onStatusMessage: (m) => statuses6.push(m),
+    onError: (msg, retryable, code) => { err6 = { msg, retryable, code }; }
+  });
+  await engine6.connect({ sessionId: 'test_sess_6', questionId: 'Q_6', sessionType: 'interview', isResumed: true });
+  const mockWs6 = (engine6 as any).ws as MockWebSocket;
+  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'setupComplete' }) });
+  assert.strictEqual(engine6.getState(), 'LISTENING');
+
+  mockWs6.onmessage?.({
+    data: JSON.stringify({
+      serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: 'AAA=' } }] } }
+    })
+  });
+  assert.strictEqual(engine6.getState(), 'AI_SPEAKING');
+
+  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'tool_awaiting_speech', tools: ['update_whiteboard'] }) });
+  mockWs6.onmessage?.({ data: JSON.stringify({ serverContent: { turnComplete: true } }) });
+  assert.strictEqual(engine6.getInternalState(), 'AI_THINKING', 'Empty turnComplete with tool_awaiting_speech holds AI_THINKING');
+  assert.strictEqual(engine6.getState(), 'CONNECTING', 'Mic stays locked during AI_THINKING hold');
+
+  mockWs6.onmessage?.({
+    data: JSON.stringify({
+      serverContent: { modelTurn: { parts: [{ text: 'Поясняю фрагмент на доске.' }] }, turnComplete: true }
+    })
+  });
+  assert.strictEqual(engine6.getInternalState(), 'CANDIDATE_LISTENING', 'Follow-up speech unlocks CANDIDATE_LISTENING');
+  console.log('  ✅ Test 14 Passed: tool_awaiting_speech holds AI_THINKING until follow-up speech completes');
+
+  // Test 15: Spec 42 Hot Handoff + Sync Pong Liveness Detection
+  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'hot_handoff_started', timeLeftSeconds: 50 }) });
+  assert.strictEqual(engine6.getState(), 'LISTENING', 'hot_handoff_started preserves LISTENING session state');
+  mockWs6.onmessage?.({ data: JSON.stringify({ type: 'hot_handoff_complete', mode: 'resumption' }) });
+  assert.strictEqual(engine6.getState(), 'LISTENING', 'hot_handoff_complete restores active connection status cleanly');
+
+  mockWs6.onmessage?.({
+    data: JSON.stringify({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false })
+  });
+  assert.strictEqual(engine6.getState(), 'LISTENING', 'Single sync_pong down tolerates transient probe race');
+  mockWs6.onmessage?.({
+    data: JSON.stringify({ type: 'sync_pong', isUpstreamConnected: false, isUpstreamReconnecting: false, isHandoffActive: false })
+  });
+  assert.strictEqual(engine6.getState(), 'ERROR', 'Consecutive 2x sync_pong upstream-down triggers ERROR');
+  assert.strictEqual((err6 as any)?.code, 'UPSTREAM_LINK_LOST', 'UPSTREAM_LINK_LOST surfaced to onError');
+  console.log('  ✅ Test 15 Passed: Hot handoff & consecutive sync_pong dead-link detection verified');
+
+  // Test 16: Spec 42 upstream_error transitions cleanly to ERROR with retryable metadata
+  let err7: { msg: string; retryable: boolean; code?: string } | null = null;
+  const engine7 = new LiveVoiceEngine({
+    onError: (msg, retryable, code) => { err7 = { msg, retryable, code }; }
+  });
+  await engine7.connect({ sessionId: 'test_sess_7', questionId: 'Q_7', sessionType: 'interview', isResumed: true });
+  const mockWs7 = (engine7 as any).ws as MockWebSocket;
+  mockWs7.onmessage?.({
+    data: JSON.stringify({
+      type: 'upstream_error',
+      error: 'Upstream pool exhausted',
+      errorCode: 'RECONNECT_ATTEMPTS_EXHAUSTED',
+      retryable: true
+    })
+  });
+  assert.strictEqual(engine7.getState(), 'ERROR', 'upstream_error transitions engine to ERROR');
+  assert.strictEqual((err7 as any)?.retryable, true);
+  assert.strictEqual((err7 as any)?.code, 'RECONNECT_ATTEMPTS_EXHAUSTED');
+  console.log('  ✅ Test 16 Passed: upstream_error surfaces ERROR state & retryable payload');
+
+  [engine, engine2, engine3, engine4, engine5, engine6, engine7].forEach(e => e.disconnect());
   console.log('\n🎉 ALL HEADLESS LIVE VOICE ENGINE CONTRACTS SATISFIED!');
 }
 runLiveVoiceEngineTests()

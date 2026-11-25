@@ -344,4 +344,18 @@ Handles bidirectional WebSocket bridge between the candidate browser (`/ws/live`
   - In `turnMode === 'auto'`, audio frames must not be choked before model turn begins.
   - `isAiGenerating` must only be set when upstream modelTurn arrives.
 
+---
+
+### 2.25 `Hot Handoff, Passive Sentinel & Multimodal Whiteboard Synchronization (Spec 42 / #155–#158)`
+- **Location:** [`UpstreamGeminiPipe.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/UpstreamGeminiPipe.ts), [`LiveHotHandoffCoordinator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveHotHandoffCoordinator.ts), [`LiveStreamSentinel.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveStreamSentinel.ts), [`LiveToolEngine.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LiveToolEngine.ts), [`liveWorkspaceHandlers.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveWorkspaceHandlers.ts), [`liveAudioStreamRouter.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/liveAudioStreamRouter.ts), [`sessionFsm.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/sessionFsm.ts)
+- **What Was Done:**
+  1. **GoAway Make-Before-Break Handoff:** `LiveHotHandoffCoordinator` intercepts upstream `goAway`, opens standby Socket B via `UpstreamGeminiPipe.openStandbySocket()`, reuses `session.resumptionHandle` (or falls back to `dispatchReconnectContextReplay` if `key_rotated` / setup rejection occurs), drains active speech cleanly, swaps atomically via `adoptSocket()`, and closes Socket A.
+  2. **Reconnect Unblocking:** `UpstreamGeminiPipe.handleSocketClose()` only suppresses reconnect when `this.isClosed` (explicit app/client teardown); unexpected upstream `1000/1001` or `1008` goAway expiry reconnects automatically and forwards `upstream_error` to client if exhausted.
+  3. **Passive Auto-VAD StreamSentinel:** `LiveStreamSentinel` observes mic PCM RMS + `ACTIVITY_START`/`END` + `inputTranscription` without mutating or cutting continuous audio, arming Phase-1 (7s) / Phase-2 (16s) post-speech watchdogs strictly after candidate speech cessation and a 10s mid-turn generation guard (0 false alarms when reading code silently).
+  4. **Adaptive Multimodal Whiteboard Scheduling:** `handleUpdateWhiteboard` + `LiveToolEngine` use `WHEN_IDLE` with a concise voice directive when `< 24000` bytes (`< 500ms`) were spoken in the current turn (`SILENT` for `clear` or `>= 24000` bytes), emitting `tool_awaiting_speech` and holding `SessionFsm` in `AI_THINKING` under an 8s watchdog until follow-up speech completes. Raw `toolCall` objects are stripped when combined with `serverContent`.
+- **Failure Modes & Invariants:**
+  - `goAway` must never wait for upstream `1008` drop to rotate WebSockets.
+  - `SessionFsm` must allow `AI_THINKING` transitions from `CANDIDATE_LISTENING`, `CANDIDATE_SPEAKING`, and `AI_SPEAKING`.
+  - Combined `serverContent + toolCall` frames never leak raw `toolCall` to the browser.
+
 

@@ -79,6 +79,23 @@ export class LiveDeadAirGuard {
   }
 
   /**
+   * Convenience wrapper inspecting parsed Gemini serverContent.modelTurn parts.
+   */
+  public inspectServerContent(serverContent: any): DeadAirInspectionResult {
+    const parts = serverContent?.modelTurn?.parts;
+    let isSilence = true;
+    if (parts) {
+      for (const part of parts) {
+        if (part.inlineData?.data && LiveDeadAirGuard.calculateBase64PcmRms(part.inlineData.data) > 0.005) {
+          isSilence = false;
+          break;
+        }
+      }
+    }
+    return this.inspectAudioFrame(isSilence);
+  }
+
+  /**
    * Computes Root-Mean-Square (RMS) amplitude of Base64-encoded 16-bit linear PCM.
    */
   public static calculateBase64PcmRms(base64Data: string): number {

@@ -62,3 +62,14 @@ Centralized proxy service running in Docker container `litellm-gateway`. Manages
 - **Rationale & "Why":** Upstream Gemini capacity spikes must not crash proxy processes or freeze downstream client assessment sessions.
 - **Invariants:** Gateway must never throw unhandled python exceptions on upstream timeouts.
 
+---
+
+### 2.5 `live_affinity & websocket_live_proxy(): Sticky Key Affinity, Resumption Shield & Upstream Close Transparency (Spec 42)`
+- **Location:** [`LiteLLM_Proxy/gateway/app/services/live_affinity.py`](file:///home/djelu/projects/LiteLLM_Proxy/gateway/app/services/live_affinity.py), [`LiteLLM_Proxy/gateway/app/routers/live.py`](file:///home/djelu/projects/LiteLLM_Proxy/gateway/app/routers/live.py), [`LiteLLM_Proxy/tests/test_live_ws_affinity_and_close.py`](file:///home/djelu/projects/LiteLLM_Proxy/tests/test_live_ws_affinity_and_close.py)
+- **What Was Done (Commit `5dfafab` on `LiteLLM_Proxy/master`):**
+  1. **Sticky Session-to-Key Affinity:** Added `prioritize_execution_plan_by_affinity()` / `record_affine_key_mask()` keyed by `session_id` (30m TTL) via `InMemoryTTLRedis`, keeping reconnects and `GoAway` handoffs pinned to the same Google API key so server-issued `sessionResumption.handle` remains valid (Google Live handles are key-scoped).
+  2. **Cross-Key Resumption Stripping:** When affinity rotates to a backup key across the 4-key pool, `prepare_live_setup_payload()` strips incompatible foreign `sessionResumption` / `sessionResumptionConfig` handles and emits `{ "type": "key_rotated", "previousKeyMask", "activeKeyMask" }` to `interview_tutor`.
+  3. **Transparent Close Code Propagation:** Added `upstream_closed` JSON frame before websocket close and RFC-6455 close code sanitization (`classify_upstream_termination()`), preserving `1008`/`1011` instead of rewriting upstream drops to blank `1000`.
+- **Verification Note (Empirical):**
+  - Pushed to private repo `iliaIz/LiteLLM_Proxy` (`5dfafab`), where GitHub Actions run `45642648800` failed prior to job start due to account billing quota on private runners (local execution skipped per VPS `AGENTS.md`). Backwards-compatible handling ensures `interview_tutor` operates cleanly both before and after gateway rollout.
+

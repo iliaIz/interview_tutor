@@ -82,7 +82,7 @@ const TOOL_DEFINITIONS: LiveToolDefinition[] = [
   {
     name: 'update_whiteboard',
     handler: handleUpdateWhiteboard,
-    scheduling: 'SILENT',
+    scheduling: 'WHEN_IDLE',
     dedupWindowMs: 3000,
     dedupResponseResult: {
       status: 'SUCCESS',
@@ -228,6 +228,8 @@ export class LiveToolEngine {
       tools: functionCalls.map((fc) => fc.name)
     });
 
+    let awaitingSpeechForTools = false;
+
     for (const call of functionCalls) {
       const definition = LIVE_TOOL_REGISTRY.get(call.name);
 
@@ -277,12 +279,20 @@ export class LiveToolEngine {
 
         if (isDuplicate) {
           console.log(`🔄 Suppressing duplicate ${call.name} call within ${definition.dedupWindowMs}ms`);
+          const dupScheduling: ToolScheduling =
+            call.name === 'update_whiteboard' &&
+            (call.args?.action === 'clear' || (session.currentTurnAudioBytes || 0) >= 24000)
+              ? 'SILENT'
+              : definition.scheduling;
+          if (dupScheduling === 'WHEN_IDLE' && (session.currentTurnAudioBytes || 0) < 24000) {
+            awaitingSpeechForTools = true;
+          }
           this.sendGeminiToolResponse(
             geminiSocket,
             call.id,
             call.name,
             { result: definition.dedupResponseResult || { status: 'SUCCESS', deduplicated: true } },
-            definition.scheduling
+            dupScheduling
           );
           continue;
         }
@@ -303,6 +313,9 @@ export class LiveToolEngine {
         });
 
         const scheduling = outcome.scheduling || definition.scheduling || 'WHEN_IDLE';
+        if (scheduling === 'WHEN_IDLE' && (session.currentTurnAudioBytes || 0) < 24000) {
+          awaitingSpeechForTools = true;
+        }
         this.sendGeminiToolResponse(
           geminiSocket,
           call.id,
@@ -331,6 +344,13 @@ export class LiveToolEngine {
     if (session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;
+    }
+    if (awaitingSpeechForTools) {
+      session.awaitingToolSpeech = true;
+      this.sendClientEvent(clientSocket, {
+        type: 'tool_awaiting_speech',
+        tools: functionCalls.map((fc) => fc.name)
+      });
     }
     this.sendClientEvent(clientSocket, {
       type: 'tool_execution_complete',

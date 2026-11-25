@@ -19,6 +19,7 @@ import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm, LiveSessionState } from './sessionFsm';
 import { createInitialProxySession } from './sessionStartupHelper';
 import { LiveSessionAggregate } from './LiveSessionAggregate';
+import { LiveStreamSentinel } from './LiveStreamSentinel';
 
 export interface SessionStartupOptions {
   clientSocket: WebSocket;
@@ -32,7 +33,7 @@ export class LiveVoiceSession {
   private readonly _id: string;
   private readonly _fsm: SessionFsm;
   private readonly _watchdogs: WatchdogManager;
-  private readonly _upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; close?: (code?: number, reason?: string) => void };
+  private readonly _upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; reconnect?: () => void; close?: (code?: number, reason?: string) => void };
   private readonly _session: ProxySession;
   private readonly _clientSocket: WebSocket;
   private isTerminated: boolean = false;
@@ -43,7 +44,7 @@ export class LiveVoiceSession {
     watchdogs: WatchdogManager,
     session: ProxySession,
     clientSocket: WebSocket,
-    upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; close?: (code?: number, reason?: string) => void }
+    upstreamRouter: { connectGemini: (isReconnecting?: boolean) => void; reconnect?: () => void; close?: (code?: number, reason?: string) => void }
   ) {
     this._id = id;
     this._fsm = fsm;
@@ -103,15 +104,17 @@ export class LiveVoiceSession {
     };
 
     watchdogs.onNudge = (elapsedMs) => {
-      if (session.isAiGenerating && clientSocket.readyState === WebSocket.OPEN) {
+      if ((session.isAiGenerating || session.awaitingToolSpeech) && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
       }
     };
 
     watchdogs.onTimeout = (reason) => {
-      if (session.isAiGenerating) {
+      if (session.isAiGenerating || session.awaitingToolSpeech) {
         console.warn(`⏱️ [DEAD_AIR_WATCHDOG] silence expired with zero response. Reclaiming mic.`);
         session.isAiGenerating = false;
+        session.awaitingToolSpeech = false;
+        session.streamSentinel?.resetTurnState();
         fsm.transition('CANDIDATE_LISTENING');
         if (session.currentTurnMetrics) session.currentTurnMetrics.droppedEchoChunksCount = 0;
         if (clientSocket.readyState === WebSocket.OPEN) {
@@ -123,6 +126,33 @@ export class LiveVoiceSession {
         }
       }
     };
+
+    session.streamSentinel = new LiveStreamSentinel({
+      onPhase1ThinkingDelay: (elapsedMs) => {
+        if (!session.isTerminated && clientSocket.readyState === WebSocket.OPEN) {
+          try {
+            clientSocket.send(JSON.stringify({ type: 'thinking_delay', elapsedMs }));
+          } catch {}
+        }
+      },
+      onPhase2StallRecovery: (reason, consecutiveStalls) => {
+        if (session.isTerminated) return;
+        console.warn(`🛟 [STREAM_SENTINEL] ${reason} detected (stalls=${consecutiveStalls}, session=${config.sessionId}). Recovering turn.`);
+        session.isAiGenerating = false;
+        session.awaitingToolSpeech = false;
+        fsm.transition('CANDIDATE_LISTENING');
+        if (clientSocket.readyState === WebSocket.OPEN) {
+          try {
+            clientSocket.send(JSON.stringify({ type: 'stream_stall_detected', reason, consecutiveStalls }));
+            clientSocket.send(JSON.stringify({ type: 'dead_air_recovery', reason, timestamp: Date.now() }));
+          } catch {}
+        }
+        const upstreamDead = !session.geminiSocket || session.geminiSocket.readyState !== WebSocket.OPEN;
+        if ((upstreamDead || consecutiveStalls >= 2) && !session.hotHandoffCoordinator?.isHandoffActive()) {
+          router.reconnect?.();
+        }
+      }
+    });
 
     session.heartbeatInterval = setInterval(() => {
       if (clientSocket.readyState === WebSocket.OPEN) {
@@ -197,6 +227,8 @@ export class LiveVoiceSession {
     this._session.isTerminated = true;
     this._fsm.transition('TERMINATED');
     this._watchdogs.dispose();
+    this._session.streamSentinel?.dispose();
+    this._session.hotHandoffCoordinator?.dispose();
 
     console.log(`🔌 [LiveVoiceSession] Termination triggered by [${source}], code=${code}, reason=${reason}`);
     if (this._session.heartbeatInterval) {

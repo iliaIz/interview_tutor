@@ -7,13 +7,15 @@
 
 import { WebSocket } from 'ws';
 import { ProxySession } from './liveSessionTypes';
-import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
+import { handleSetupCompleteGreeting, dispatchReconnectContextReplay } from './LiveGreetingReplay';
 import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
 import { LiveToolEngine } from './LiveToolEngine';
 import { isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 import { UpstreamGeminiPipe } from './UpstreamGeminiPipe';
 import { LiveDeadAirGuard } from './LiveDeadAirGuard';
+import { LivePromptDirector } from './LivePromptDirector';
+import { LiveHotHandoffCoordinator } from './LiveHotHandoffCoordinator';
 import { envConfig } from '../../config/env';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
@@ -67,12 +69,27 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
   } = options;
 
   let pipe: UpstreamGeminiPipe;
+  let handoff: LiveHotHandoffCoordinator;
+
+  const flushPendingFrames = (targetSocket: WebSocket) => {
+    while (session.frameQueue.length > 0) {
+      const frame = session.frameQueue.shift();
+      if (frame && targetSocket.readyState === WebSocket.OPEN) {
+        targetSocket.send(frame);
+      }
+    }
+  };
 
   pipe = new UpstreamGeminiPipe({
     upstreamWsUrl,
     setupMessage,
+    getSetupMessage: () => LivePromptDirector.buildDynamicSetupMessage(setupMessage, session.resumptionHandle),
     liveModel,
     maxReconnectAttempts: 3,
+    onResumptionRejectedBeforeSetup: () => {
+      session.resumptionHandle = undefined;
+      session.resumptionManager?.clear();
+    },
     onOpen: (ws) => {
       session.geminiSocket = ws;
     },
@@ -82,13 +99,14 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       session.reconnectAttempts = attempt;
       if (clientSocket.readyState === WebSocket.OPEN) {
         try {
-          clientSocket.send(JSON.stringify({ type: 'upstream_reconnecting', attempt, maxAttempts }));
+          clientSocket.send(JSON.stringify({ type: 'upstream_reconnecting', attempt, maxAttempts, mode: 'reconnect' }));
         } catch {}
       }
     },
     onDisconnect: (source, code, reason, isNonRetryable) => {
       if (session.isTerminated) return;
       session.isAiGenerating = false;
+      session.awaitingToolSpeech = false;
       const reasonStr = reason ? reason.toString() : '';
 
       if (isNonRetryable) {
@@ -96,6 +114,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (clientSocket.readyState === WebSocket.OPEN) {
           try {
             clientSocket.send(JSON.stringify({
+              type: 'upstream_error',
               error: reasonStr || 'Голосовой шлюз отклонил подключение модели.',
               errorCode: session.terminalErrorCode || 'FORBIDDEN_MODEL_ACCESS',
               retryable: false,
@@ -106,6 +125,7 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       } else if (clientSocket.readyState === WebSocket.OPEN) {
         try {
           clientSocket.send(JSON.stringify({
+            type: 'upstream_error',
             error: 'Голосовой шлюз временно недоступен после повторных попыток переподключения.',
             errorCode: 'RECONNECT_ATTEMPTS_EXHAUSTED',
             retryable: false
@@ -154,13 +174,14 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         if (!isResumed && !wasReconnecting) {
           session.frameQueue = [];
         } else {
-          while (session.frameQueue.length > 0) {
-            const frame = session.frameQueue.shift();
-            if (frame && geminiSocket.readyState === WebSocket.OPEN) {
-              geminiSocket.send(frame);
-            }
-          }
+          flushPendingFrames(geminiSocket);
         }
+      }
+
+      // 1.4 Proactive GoAway Hot Handoff (Spec 42 / #156)
+      if (parsed.goAway) {
+        handoff.handleGoAway(parsed.goAway);
+        return;
       }
 
       // 1.5 Session Resumption Handle Tracking (SOTA Late 2026)
@@ -171,36 +192,26 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
       }
 
+      // 1.55 Passive Auto-VAD Upstream Activity & Input Transcript Signals
+      const vaSignal = parsed.serverContent?.voiceActivity;
+      if (vaSignal === 'ACTIVITY_START') session.streamSentinel?.observeUpstreamSignal('activity_start');
+      else if (vaSignal === 'ACTIVITY_END') session.streamSentinel?.observeUpstreamSignal('activity_end');
+      if (parsed.serverContent?.inputTranscription || parsed.serverContent?.input_transcription) {
+        session.streamSentinel?.observeUpstreamSignal('input_transcription');
+      }
+
       // 1.6 LiveDeadAirGuard Vocoder Stall & Digital Silence Clamping (SOTA Late 2026)
       let isDeadAirSuppressed = false;
       if (session.deadAirGuard && parsed.serverContent) {
-        const parts = parsed.serverContent.modelTurn?.parts;
-        let isSilence = true;
-        if (parts) {
-          for (const part of parts) {
-            if (part.inlineData?.data) {
-              const rms = LiveDeadAirGuard.calculateBase64PcmRms(part.inlineData.data);
-              if (rms > 0.005) {
-                isSilence = false;
-              }
-            }
-          }
-        }
-        const inspection = session.deadAirGuard.inspectAudioFrame(isSilence);
+        const inspection = session.deadAirGuard.inspectServerContent(parsed.serverContent);
         if (inspection.synthesizeTurnComplete) {
           console.warn('🛑 [DEAD_AIR_GUARD] Clamped vocoder trailing silence (>=2000ms). Synthesizing turnComplete.');
-          if (session.watchdogs) session.watchdogs.disarmAll();
+          session.watchdogs?.disarmAll();
           session.fsm?.transition('CANDIDATE_LISTENING');
           session.isAiGenerating = false;
           session.deadAirGuard.reset();
-          const clampedTurn = {
-            serverContent: {
-              turnComplete: true,
-              deadAirClamped: true
-            }
-          };
           if (clientSocket.readyState === WebSocket.OPEN) {
-            clientSocket.send(JSON.stringify(clampedTurn));
+            clientSocket.send(JSON.stringify({ serverContent: { turnComplete: true, deadAirClamped: true } }));
           }
           LiveTelemetryAccumulator.sealTurnComplete(session, clientSocket, liveModel);
           return;
@@ -213,7 +224,10 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
       // 2. Model Turn & Output Transcription
       if (parsed.serverContent?.modelTurn) {
         session.isAiGenerating = true;
+        session.awaitingToolSpeech = false;
         session.isToolCallPending = false;
+        const hasAudioPart = Boolean(parsed.serverContent.modelTurn.parts?.some((p: any) => p.inlineData || p.inline_data));
+        session.streamSentinel?.observeUpstreamSignal(hasAudioPart ? 'model_audio_chunk' : 'model_text_or_thought');
         if (session.toolCallSafetyTimeout) {
           clearTimeout(session.toolCallSafetyTimeout);
           session.toolCallSafetyTimeout = null;
@@ -271,10 +285,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
           parsedHints,
           liveCoaching
         });
+        if (session.awaitingToolSpeech) {
+          session.streamSentinel?.observeUpstreamSignal('tool_call_when_idle');
+        }
       }
 
       // 5. Barge-In Interruption
       if (parsed.serverContent?.interrupted) {
+        session.awaitingToolSpeech = false;
+        session.streamSentinel?.observeUpstreamSignal('interrupted');
         LiveTelemetryAccumulator.handleBargeIn(session);
       }
 
@@ -284,8 +303,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         session.deadAirGuard?.reset();
         const isInteractionIdle = !parsed.serverContent.interactionStatus || parsed.serverContent.interactionStatus === 'IDLE';
         if (isInteractionIdle) {
-          if (session.watchdogs) session.watchdogs.disarmAll();
-          session.fsm?.transition('CANDIDATE_LISTENING');
+          if (session.awaitingToolSpeech) {
+            if (session.watchdogs) session.watchdogs.arm(false, 8000);
+            session.fsm?.transition('AI_THINKING');
+            session.streamSentinel?.observeUpstreamSignal('tool_call_when_idle');
+          } else {
+            if (session.watchdogs) session.watchdogs.disarmAll();
+            session.fsm?.transition('CANDIDATE_LISTENING');
+            session.streamSentinel?.observeUpstreamSignal('turn_complete');
+          }
 
           if (!session.isAiGenerating && (session.currentTurnAudioBytes || 0) === 0 && (session.aiPlayoutEstimatedEndEpoch || 0) > Date.now()) {
             return;
@@ -315,9 +341,15 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
         }
       }
 
-      // SOTA Late 2026 Protocol Normalization: guarantee turnComplete is present downstream
+      // SOTA Late 2026 Protocol Normalization: guarantee turnComplete without leaking raw toolCall after completion
       if (parsed?.serverContent?.generationComplete && !parsed.serverContent?.turnComplete) {
         parsed.serverContent.turnComplete = true;
+      }
+      if (isToolCallProcessed && parsed.toolCall) {
+        const sanitized = { ...parsed };
+        delete sanitized.toolCall;
+        str = JSON.stringify(sanitized);
+      } else if (parsed?.serverContent?.generationComplete) {
         str = JSON.stringify(parsed);
       }
 
@@ -328,11 +360,27 @@ export function createLiveAudioStreamRouter(options: StreamRouterOptions) {
     }
   });
 
+  handoff = new LiveHotHandoffCoordinator({
+    session,
+    clientSocket,
+    pipe,
+    buildSetupMessage: (handle) => LivePromptDirector.buildDynamicSetupMessage(setupMessage, handle),
+    sendContextReplay: (ws) => dispatchReconnectContextReplay(session, ws, { bugTitle, questionText, topic }),
+    flushFrameQueue: flushPendingFrames
+  });
+  session.hotHandoffCoordinator = handoff;
+
   return {
     connectGemini: (isInternalReconnect = false) => {
       pipe.connect(isInternalReconnect);
     },
+    reconnect: () => {
+      session.isUpstreamReconnecting = true;
+      session.isSetupComplete = false;
+      pipe.connect(true);
+    },
     close: (code?: number, reason?: string) => {
+      handoff.dispose();
       pipe.close(code, reason);
     }
   };

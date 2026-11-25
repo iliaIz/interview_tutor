@@ -45,9 +45,9 @@ export class SessionFsm {
       case 'INIT':
         return to === 'AI_SPEAKING' || to === 'CANDIDATE_LISTENING' || to === 'COMMITTING';
       case 'CANDIDATE_LISTENING':
-        return to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING' || to === 'AI_SPEAKING';
+        return to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING' || to === 'AI_THINKING' || to === 'AI_SPEAKING';
       case 'CANDIDATE_SPEAKING':
-        return to === 'COMMITTING' || to === 'CANDIDATE_LISTENING' || to === 'AI_SPEAKING';
+        return to === 'COMMITTING' || to === 'CANDIDATE_LISTENING' || to === 'AI_THINKING' || to === 'AI_SPEAKING';
       case 'COMMITTING':
         // Trap-free: Must transition to AI_THINKING, or recover directly to CANDIDATE_LISTENING / AI_SPEAKING
         return to === 'AI_THINKING' || to === 'CANDIDATE_LISTENING' || to === 'AI_SPEAKING';
@@ -55,7 +55,7 @@ export class SessionFsm {
         // Trap-free: Transitions to AI_SPEAKING, or reclaims mic (CANDIDATE_LISTENING) on timeout/barge-in
         return to === 'AI_SPEAKING' || to === 'CANDIDATE_LISTENING';
       case 'AI_SPEAKING':
-        return to === 'CANDIDATE_LISTENING' || to === 'CANDIDATE_SPEAKING' || to === 'COMMITTING';
+        return to === 'CANDIDATE_LISTENING' || to === 'CANDIDATE_SPEAKING' || to === 'AI_THINKING' || to === 'COMMITTING';
       default:
         return false;
     }

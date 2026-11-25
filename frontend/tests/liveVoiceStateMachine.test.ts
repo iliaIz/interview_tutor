@@ -95,6 +95,21 @@ assert.strictEqual(recoveryFsm.getInternalState(), 'CANDIDATE_LISTENING', 'COMMI
 assert.strictEqual(recoveryFsm.getPublicState(), 'LISTENING');
 console.log('  ✅ Playout finish from COMMITTING verified');
 
+// 5d. Spec 42: THINKING_START from AI_SPEAKING / AI_RECITING_QUESTION holds AI_THINKING until follow-up speech
+const wbFsm = new LiveVoiceStateMachine();
+wbFsm.transition({ type: 'CONNECT' });
+wbFsm.transition({ type: 'SETUP_COMPLETE', isTurn0: false });
+wbFsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
+assert.strictEqual(wbFsm.getInternalState(), 'AI_SPEAKING');
+assert.strictEqual(wbFsm.transition({ type: 'THINKING_START' }), true, 'THINKING_START must be allowed from AI_SPEAKING');
+assert.strictEqual(wbFsm.getInternalState(), 'AI_THINKING');
+assert.strictEqual(wbFsm.getPublicState(), 'CONNECTING', 'Public state must hold CONNECTING while awaiting whiteboard speech follow-up');
+assert.strictEqual(wbFsm.transition({ type: 'FIRST_AUDIO_RECEIVED' }), true, 'Follow-up speech transitions AI_THINKING -> AI_SPEAKING');
+assert.strictEqual(wbFsm.getInternalState(), 'AI_SPEAKING');
+wbFsm.transition({ type: 'PLAYOUT_FINISHED' });
+assert.strictEqual(wbFsm.getInternalState(), 'CANDIDATE_LISTENING');
+console.log('  ✅ Whiteboard THINKING_START -> AI_THINKING -> AI_SPEAKING -> CANDIDATE_LISTENING verified');
+
 // 6. Evaluation Termination
 assert.strictEqual(fsm.transition({ type: 'COMMIT_TRIGGERED' }), true);
 assert.strictEqual(fsm.transition({ type: 'EVALUATION_COMPLETED' }), true);

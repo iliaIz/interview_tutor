@@ -11,6 +11,7 @@ import http from 'http';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
 import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
 import { ProxySession } from '../services/live/liveSessionTypes';
+import { SessionResumptionManager } from '../services/live/SessionResumptionManager';
 
 interface AssertionContext {
   passed: number;
@@ -565,6 +566,327 @@ async function testGenerationCompleteNormalization(): Promise<void> {
   await teardownUpstreamServer(upstreamServer, upstreamWss, session);
 }
 
+function createQueuedUpstreamHarness() {
+  const upstreamServer = http.createServer();
+  const upstreamWss = new WebSocketServer({ server: upstreamServer });
+  const pendingWaiters: Array<(entry: { ws: WebSocket; setupPromise: Promise<any> }) => void> = [];
+  const arrived: Array<{ ws: WebSocket; setupPromise: Promise<any> }> = [];
+
+  upstreamWss.on('connection', (ws) => {
+    const setupPromise = new Promise<any>((resolve) => {
+      ws.once('message', (raw) => {
+        try {
+          resolve(JSON.parse(raw.toString('utf8')));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    const entry = { ws, setupPromise };
+    const waiter = pendingWaiters.shift();
+    if (waiter) waiter(entry);
+    else arrived.push(entry);
+  });
+
+  const nextConnection = (timeoutMs = 4500) =>
+    new Promise<{ ws: WebSocket; setupPromise: Promise<any> }>((resolve, reject) => {
+      const queued = arrived.shift();
+      if (queued) {
+        resolve(queued);
+        return;
+      }
+      const timer = setTimeout(() => reject(new Error(`Timed out waiting for upstream WS after ${timeoutMs}ms`)), timeoutMs);
+      pendingWaiters.push((entry) => {
+        clearTimeout(timer);
+        resolve(entry);
+      });
+    });
+
+  return { upstreamServer, upstreamWss, nextConnection };
+}
+
+async function testProactiveGoAwayHotHandoff(): Promise<void> {
+  console.log('\n[Test 5] Spec 42 Proactive GoAway Make-Before-Break Hot Handoff');
+  const clientPair = await createMockSocketPair();
+  const { upstreamServer, upstreamWss, nextConnection } = createQueuedUpstreamHarness();
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  const session: ProxySession = {
+    clientSocket: clientPair.serverSide,
+    geminiSocket: null as any,
+    isSetupComplete: false,
+    sessionId: 'test_router_goaway',
+    questionId: 'Q_GOAWAY',
+    isAiGenerating: false,
+    isToolCallPending: false,
+    frameQueue: [],
+    turnTelemetryHistory: [],
+    sessionStartedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    currentTurnIndex: 0,
+    resumptionManager: new SessionResumptionManager()
+  };
+
+  const clientFrames: any[] = [];
+  clientPair.clientSide.on('message', (data) => {
+    try { clientFrames.push(JSON.parse(data.toString())); } catch {}
+  });
+
+  const router = createLiveAudioStreamRouter({
+    session,
+    setupMessage: { setup: { model: 'models/gemini-live-v3', sessionResumption: {} } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.serverSide,
+    terminate: () => {},
+    sessionId: 'test_router_goaway',
+    questionId: 'Q_GOAWAY',
+    sessionType: 'interview',
+    tutorMode: 'practice_pair',
+    bugTitle: '',
+    questionText: 'Explain ConcurrentHashMap.',
+    topic: 'Java',
+    voiceName: 'Kore',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 5,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini(false);
+  const connA = await nextConnection();
+  await connA.setupPromise;
+  connA.ws.send(JSON.stringify({ setupComplete: {} }));
+  await sleep(30);
+  connA.ws.send(JSON.stringify({ sessionResumptionUpdate: { newHandle: 'handle_xyz_789', resumable: true } }));
+  await sleep(30);
+  assert(session.resumptionHandle === 'handle_xyz_789', 'Router tracks active sessionResumptionUpdate handle');
+
+  let socketAClosed = false;
+  const socketAClosePromise = new Promise<void>((resolve) => {
+    connA.ws.once('close', () => {
+      socketAClosed = true;
+      resolve();
+    });
+  });
+
+  connA.ws.send(JSON.stringify({ goAway: { timeLeft: '45s' } }));
+  const connB = await nextConnection();
+  const setupB = await connB.setupPromise;
+
+  assert(
+    clientFrames.some((f) => f.type === 'hot_handoff_started' && f.timeLeftSeconds === 45),
+    'Client notified with hot_handoff_started'
+  );
+  assert(
+    setupB?.setup?.sessionResumption?.handle === 'handle_xyz_789',
+    'Standby Socket B injects latest resumption handle into dynamic setup'
+  );
+
+  connB.ws.send(JSON.stringify({ setupComplete: {} }));
+  await Promise.all([socketAClosePromise, sleep(80)]);
+
+  assert(socketAClosed, 'Socket A cleanly closed after atomic handoff adoption');
+  assert(
+    clientFrames.some((f) => f.type === 'hot_handoff_complete' && f.mode === 'resumption'),
+    'Client notified with hot_handoff_complete (mode=resumption)'
+  );
+
+  connB.ws.send(JSON.stringify({
+    serverContent: { modelTurn: { parts: [{ text: 'Пост-handoff ответ.' }] }, turnComplete: true }
+  }));
+  await sleep(50);
+  assert(
+    clientFrames.some((f) => f.serverContent?.modelTurn?.parts?.some((p: any) => p.text === 'Пост-handoff ответ.')),
+    'Traffic flows seamlessly through Socket B after handoff'
+  );
+
+  router.close();
+  await closeMockSocketPair(clientPair);
+  await teardownUpstreamServer(upstreamServer, upstreamWss, session);
+}
+
+async function testUnexpectedCode1000ReconnectAndKeyRotation(): Promise<void> {
+  console.log('\n[Test 6] Spec 42 Unexpected Code 1000 Reconnect + Cross-Key Resumption Strip');
+  const clientPair = await createMockSocketPair();
+  const { upstreamServer, upstreamWss, nextConnection } = createQueuedUpstreamHarness();
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  const session: ProxySession = {
+    clientSocket: clientPair.serverSide,
+    geminiSocket: null as any,
+    isSetupComplete: false,
+    sessionId: 'test_router_reconnect_rot',
+    questionId: 'Q_ROT',
+    isAiGenerating: false,
+    isToolCallPending: false,
+    frameQueue: [],
+    turnTelemetryHistory: [],
+    sessionStartedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    currentTurnIndex: 0,
+    resumptionManager: new SessionResumptionManager()
+  };
+
+  const clientFrames: any[] = [];
+  clientPair.clientSide.on('message', (data) => {
+    try { clientFrames.push(JSON.parse(data.toString())); } catch {}
+  });
+
+  const router = createLiveAudioStreamRouter({
+    session,
+    setupMessage: { setup: { model: 'models/gemini-live-v3', sessionResumption: {} } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.serverSide,
+    terminate: () => {},
+    sessionId: 'test_router_reconnect_rot',
+    questionId: 'Q_ROT',
+    sessionType: 'interview',
+    tutorMode: 'practice_pair',
+    bugTitle: '',
+    questionText: 'Explain GC.',
+    topic: 'Java',
+    voiceName: 'Kore',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 5,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini(false);
+  const connA = await nextConnection();
+  await connA.setupPromise;
+  connA.ws.send(JSON.stringify({ setupComplete: {} }));
+  await sleep(30);
+  connA.ws.send(JSON.stringify({ sessionResumptionUpdate: { newHandle: 'stale_handle_1', resumable: true } }));
+  await sleep(30);
+
+  // Unexpected upstream closure with RFC code 1000 MUST reconnect when !isClosed
+  connA.ws.close(1000, 'Upstream session limit');
+  const connB = await nextConnection(4500);
+  const setupB = await connB.setupPromise;
+
+  assert(
+    clientFrames.some((f) => f.type === 'upstream_reconnecting'),
+    'Unexpected upstream code 1000 triggers upstream_reconnecting when pipe not closed'
+  );
+  assert(
+    setupB?.setup?.sessionResumption?.handle === 'stale_handle_1',
+    'Reconnect attempt 1 reuses stored resumption handle'
+  );
+
+  // Proxy rotates key & emits key_rotated + closes pre-setup
+  connB.ws.send(JSON.stringify({ type: 'key_rotated', previousKeyMask: '...1111', activeKeyMask: '...2222' }));
+  await sleep(30);
+  assert(!session.resumptionHandle, 'key_rotated clears local stale resumption handle');
+
+  connB.ws.close(1008, 'Resumption handle rejected on backup key');
+  const connC = await nextConnection(4500);
+  const setupC = await connC.setupPromise;
+  assert(
+    !setupC?.setup?.sessionResumption?.handle,
+    'Clean fallback reconnect omits foreign resumption handle after key_rotated'
+  );
+
+  connC.ws.send(JSON.stringify({ setupComplete: {} }));
+  await sleep(40);
+  assert(session.isUpstreamReconnecting === false, 'Fallback Socket C completes setup cleanly');
+
+  router.close();
+  await closeMockSocketPair(clientPair);
+  await teardownUpstreamServer(upstreamServer, upstreamWss, session);
+}
+
+async function testCombinedToolCallAndServerContentStripping(): Promise<void> {
+  console.log('\n[Test 7] Spec 42 Combined serverContent + toolCall Frame Stripping');
+  const clientPair = await createMockSocketPair();
+  const { upstreamServer, upstreamWss, nextConnection } = createQueuedUpstreamHarness();
+  await new Promise<void>((resolve) => upstreamServer.listen(0, '127.0.0.1', () => resolve()));
+  const upstreamPort = (upstreamServer.address() as any).port;
+
+  const session: ProxySession = {
+    clientSocket: clientPair.serverSide,
+    geminiSocket: null as any,
+    isSetupComplete: true,
+    sessionId: 'test_router_strip_tc',
+    questionId: 'Q_STRIP',
+    isAiGenerating: false,
+    isToolCallPending: false,
+    frameQueue: [],
+    turnTelemetryHistory: [],
+    sessionStartedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    currentTurnIndex: 1,
+    hasCandidateResponded: true
+  };
+
+  const clientFrames: any[] = [];
+  clientPair.clientSide.on('message', (data) => {
+    try { clientFrames.push(JSON.parse(data.toString())); } catch {}
+  });
+
+  const router = createLiveAudioStreamRouter({
+    session,
+    setupMessage: { setup: { model: 'models/gemini-live-v3' } },
+    upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
+    clientSocket: clientPair.serverSide,
+    terminate: () => {},
+    sessionId: 'test_router_strip_tc',
+    questionId: 'Q_STRIP',
+    sessionType: 'interview',
+    tutorMode: 'practice_pair',
+    bugTitle: '',
+    questionText: 'Explain MVCC.',
+    topic: 'PostgreSQL',
+    voiceName: 'Kore',
+    isRetry: false,
+    isResumed: false,
+    initialUserMessage: '',
+    totalQuestions: 5,
+    questionIndex: 0,
+    parsedHints: [],
+    liveCoaching: false,
+    liveModel: 'gemini-live-v3'
+  });
+
+  router.connectGemini(false);
+  const conn = await nextConnection();
+  await conn.setupPromise;
+  conn.ws.send(JSON.stringify({ setupComplete: {} }));
+  await sleep(40);
+
+  conn.ws.send(JSON.stringify({
+    serverContent: {
+      modelTurn: { parts: [{ text: 'Смотри схему.' }] },
+      turnComplete: true
+    },
+    toolCall: {
+      functionCalls: [
+        { id: 'wb_strip_1', name: 'update_whiteboard', args: { action: 'write', code: 'SELECT xmin FROM t;' } }
+      ]
+    }
+  }));
+  await sleep(80);
+
+  const forwardedServerContent = clientFrames.find((f) => f.serverContent?.modelTurn);
+  assert(Boolean(forwardedServerContent), 'serverContent part forwarded to client');
+  assert(!forwardedServerContent?.toolCall, 'Raw toolCall stripped from forwarded serverContent frame');
+  assert(clientFrames.some((f) => f.type === 'whiteboard_update'), 'Domain whiteboard_update event delivered');
+
+  router.close();
+  await closeMockSocketPair(clientPair);
+  await teardownUpstreamServer(upstreamServer, upstreamWss, session);
+}
+
 // =========================================================================
 // MAIN RUNNER
 // =========================================================================
@@ -577,6 +899,9 @@ export async function runStreamRouterMockTests(): Promise<boolean> {
   await testMultiTurnStreamRouter();
   await testBargeInFlagging();
   await testGenerationCompleteNormalization();
+  await testProactiveGoAwayHotHandoff();
+  await testUnexpectedCode1000ReconnectAndKeyRotation();
+  await testCombinedToolCallAndServerContentStripping();
 
   console.log('\n═══════════════════════════════════════════════════════════════');
   console.log(`  SUMMARY: ${ctx.passed} Passed | ${ctx.failed} Failed`);

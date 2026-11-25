@@ -133,6 +133,8 @@ export class DownstreamClientPipe {
           type: 'sync_pong',
           isSetupComplete: session.isSetupComplete,
           isUpstreamReconnecting: session.isUpstreamReconnecting,
+          isUpstreamConnected: Boolean(session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN),
+          isHandoffActive: Boolean(session.hotHandoffCoordinator?.isHandoffActive()),
           isToolCallPending: session.isToolCallPending,
           timestamp: Date.now()
         }));
@@ -170,8 +172,10 @@ export class DownstreamClientPipe {
     const { session } = this;
     if (parsed.type === 'turn_reset') {
       session.isAiGenerating = false;
+      session.awaitingToolSpeech = false;
       session.watchdogs?.disarmAll();
       session.deadAirGuard?.reset();
+      session.streamSentinel?.resetTurnState();
       session.fsm?.transition('CANDIDATE_LISTENING');
       session.aiPlayoutEstimatedEndEpoch = 0;
       session.currentTurnAudioBytes = 0;
@@ -300,6 +304,7 @@ export class DownstreamClientPipe {
       const audioData = parsed.realtime_input?.audio?.data || parsed.realtimeInput?.audio?.data || parsed.realtimeInput?.mediaChunks?.[0]?.data;
       const mimeType = parsed.realtime_input?.audio?.mimeType || parsed.realtimeInput?.audio?.mimeType || 'audio/pcm;rate=16000';
       if (audioData) {
+        session.streamSentinel?.observeClientAudio(audioData, session.vadPauseMs || DEFAULT_VAD_PAUSE_MS, turnMode);
         return Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType, data: audioData } } }));
       }
     } else if (parsed.realtimeInput?.audioStreamEnd || parsed.realtime_input?.audio_stream_end) {

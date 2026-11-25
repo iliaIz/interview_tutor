@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { usePracticeVoice } from './PracticeVoiceContext';
 import { useAppStore } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { VOICE_DEFAULTS } from '../../../config/voiceDefaults';
-import { Mic, MicOff, Volume2, PhoneOff, Radio, Sparkles, Send, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Volume2, PhoneOff, Radio, Sparkles, Send, Loader2, RefreshCw } from 'lucide-react';
 
 interface PracticeVoiceHUDProps {
   onAiTranscriptUpdate?: (transcript: string) => void;
@@ -11,6 +11,7 @@ interface PracticeVoiceHUDProps {
 
 export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscriptUpdate }) => {
   const { config: interviewConfig } = useInterviewConfig();
+  const hasAutoStartedRef = useRef(false);
 
   const {
     isConnected,
@@ -19,6 +20,8 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     isMuted,
     isUserSpeaking,
     isPauseHolding,
+    isError,
+    lastError,
     rmsDb,
     statusMessage,
     aiTranscript,
@@ -27,12 +30,13 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
     handleCentralButtonClick
   } = usePracticeVoice();
 
-  // Auto-start live session on mount if not yet connected
+  // Auto-start live session ONCE on mount (never loop infinitely on fatal error or manual close)
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && !isError && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
       void startPracticeSession();
     }
-  }, [isConnected, startPracticeSession]);
+  }, [isConnected, isError, startPracticeSession]);
 
   useEffect(() => {
     if (aiTranscript && onAiTranscriptUpdate) {
@@ -153,10 +157,12 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
         )}
 
         <span className="text-xs font-semibold text-slate-600 mt-2 text-center max-w-[280px]">
-          {isAiSpeaking
+          {isError
+            ? (lastError || statusMessage || 'Соединение прервано')
+            : isAiSpeaking
             ? 'ИИ говорит вслух (нажмите, чтобы перебить)'
             : isPauseHolding
-            ? 'Пауза: ИИ осмысливает ваш ответ...'
+            ? (statusMessage || 'Пауза: ИИ осмысливает ваш ответ...')
             : isUserSpeaking
             ? 'Вы говорите (голос передается напарнику)...'
             : isRecording
@@ -165,8 +171,18 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
               : `Говорите свободно, пауза ${((interviewConfig.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs) / 1000).toFixed(1)}с запустит ответ`
             : isConnected
             ? statusMessage
-            : 'Подключение к аудио-шлюзу...'}
+            : (statusMessage || 'Подключение к аудио-шлюзу...')}
         </span>
+
+        {!isConnected && (
+          <button
+            onClick={() => void startPracticeSession()}
+            className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pastel-accentRose text-white text-[11px] font-bold shadow-xs hover:opacity-90 transition cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Переподключить</span>
+          </button>
+        )}
       </div>
 
       {/* Realtime Transcript Box */}

@@ -86,10 +86,17 @@ export class LiveTelemetryAccumulator {
     session.audioChunksCount = 0;
     console.log(`🔊 [PHYSICAL_PLAYOUT_ESTIMATE] Audio total: ${totalDurationMs}ms, remaining playout: ${remainingDurationMs}ms (bytes: ${audioBytes}). Gated until +450ms reverb.`);
 
-    if (session.watchdogs) {
-      session.watchdogs.disarmAll();
+    if (session.awaitingToolSpeech) {
+      if (session.watchdogs) {
+        session.watchdogs.arm(false, 8000);
+      }
+      session.fsm?.transition('AI_THINKING');
+    } else {
+      if (session.watchdogs) {
+        session.watchdogs.disarmAll();
+      }
+      session.fsm?.transition('CANDIDATE_LISTENING');
     }
-    session.fsm?.transition('CANDIDATE_LISTENING');
     if (session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;

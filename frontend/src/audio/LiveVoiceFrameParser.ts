@@ -35,6 +35,12 @@ export interface ParsedLiveFrameResult {
   hrScorecardPayload?: any;
   hrTranscriptDelta?: string;
   hrStepStatePayload?: any;
+  reconnectPayload?: { attempt?: number; maxAttempts?: number; mode?: string };
+  hotHandoffState?: 'started' | 'complete';
+  toolAwaitingSpeech?: boolean;
+  isStreamRecovery?: boolean;
+  syncPongPayload?: { isUpstreamConnected?: boolean; isUpstreamReconnecting?: boolean; isHandoffActive?: boolean };
+  errorPayload?: { error: string; errorCode?: string; retryable: boolean };
   rawParsed?: any;
 }
 
@@ -115,6 +121,44 @@ export class LiveVoiceFrameParser {
 
       if (data.type === 'hr_step_state') {
         result.hrStepStatePayload = data.payload || data;
+        return result;
+      }
+
+      if (data.type === 'upstream_reconnecting') {
+        result.reconnectPayload = {
+          attempt: data.attempt,
+          maxAttempts: data.maxAttempts,
+          mode: data.mode
+        };
+        return result;
+      }
+
+      if (data.type === 'hot_handoff_started' || data.type === 'hot_handoff_complete') {
+        result.hotHandoffState = data.type === 'hot_handoff_started' ? 'started' : 'complete';
+        return result;
+      }
+
+      if (data.type === 'tool_awaiting_speech') {
+        result.toolAwaitingSpeech = true;
+        return result;
+      }
+
+      if (data.type === 'stream_recovery' || data.type === 'stream_stall_detected') {
+        result.isStreamRecovery = true;
+        return result;
+      }
+
+      if (data.type === 'sync_pong') {
+        result.syncPongPayload = data;
+        return result;
+      }
+
+      if (data.type === 'upstream_error' || (typeof data.error === 'string' && data.error.length > 0)) {
+        result.errorPayload = {
+          error: String(data.error || 'Сбой голосового шлюза'),
+          errorCode: data.errorCode,
+          retryable: Boolean(data.retryable)
+        };
         return result;
       }
 

@@ -144,6 +144,8 @@ export interface UseLiveVoiceSessionReturn {
   isMuted: boolean;
   isUserSpeaking: boolean;
   isPauseHolding: boolean;
+  isError: boolean;
+  lastError: string | null;
   rmsDb: number;
   aiTranscript: string;
   startSession: (params: LiveAudioSessionParams) => Promise<void>;
@@ -168,6 +170,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     audioChunksCount: 0
   });
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [lastError, setLastError] = useState<string | null>(null);
   const [dialogueTurns, setDialogueTurns] = useState<DialogueTurnItem[]>([]);
   const [activeScorecard, setActiveScorecard] = useState<HrScorecard | VoiceEvaluationResult | null>(null);
 
@@ -238,6 +241,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
         }
       },
       onError: (err) => {
+        setLastError(err);
         optionsRef.current.onError?.(err);
       }
     });
@@ -245,6 +249,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
 
   const connect = useCallback(async (params: LiveAudioSessionParams) => {
     setActiveScorecard(null);
+    setLastError(null);
     setDialogueTurns([]);
     setMetrics({ rmsDb: -100, vadActive: false, rttMs: null, audioChunksCount: 0 });
 
@@ -289,6 +294,7 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
   const isRecording = isListening;
   const isUserSpeaking = metrics.vadActive;
   const isPauseHolding = state === 'AI_THINKING' || state === 'COMMITTING';
+  const isError = state === 'ERROR';
   const rmsDb = metrics.rmsDb;
 
   const sendCanvasDelta = useCallback((delta: any) => {
@@ -299,6 +305,8 @@ export function useLiveVoiceSession(options: UseLiveVoiceSessionOptions = {}): U
     state,
     metrics,
     statusMessage,
+    lastError,
+    isError,
     dialogueTurns,
     activeScorecard,
     connect,
