@@ -10,8 +10,18 @@ import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { LiveWorkspaceContext } from './LiveWorkspaceContext';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
-import { handleGuidedStepControlFrame } from './hrGuidedStepper';
+import { HR_VOICE_EVENTS, HrStepControlAction } from '@interview-prep/shared';
+import {
+  applyGuidedStepAction,
+  buildStepStatePayload,
+  ensureSessionGuidedState,
+  formatRungPromptDirective
+} from './hrGuidedStepper';
 import { SessionTurnState } from './SessionTurnState';
+
+const GUIDED_CLIENT_STEP_ACTIONS = new Set<HrStepControlAction>([
+  'next_rung', 'next_variant', 'next_beat', 'prev_beat', 'repeat_beat', 'select_beat', 'toggle_cue'
+]);
 
 export interface DownstreamClientPipeOptions {
   session: ProxySession;
@@ -142,11 +152,49 @@ export class DownstreamClientPipe {
       return true;
     }
 
-    if (handleGuidedStepControlFrame(session, clientSocket, parsed)) {
+    if (this.handleGuidedStepControlFrame(parsed)) {
       return true;
     }
 
     return false;
+  }
+
+  private handleGuidedStepControlFrame(parsed: any): boolean {
+    const { session, clientSocket } = this;
+    if (!parsed || parsed.type !== HR_VOICE_EVENTS.HR_STEP_CONTROL) return false;
+
+    const rawPayload = parsed.payload || parsed;
+    const rawAction = String(rawPayload?.action || '') as HrStepControlAction;
+    if (!GUIDED_CLIENT_STEP_ACTIONS.has(rawAction)) return true;
+
+    const ctx = ensureSessionGuidedState(session);
+    if (!ctx) return true;
+
+    const nextState = applyGuidedStepAction(ctx.state, ctx.beats, rawAction, {
+      beatIndex: typeof rawPayload.beatIndex === 'number' ? rawPayload.beatIndex : undefined,
+      cueVisible: typeof rawPayload.cueVisible === 'boolean' ? rawPayload.cueVisible : undefined
+    });
+    session.hrGuidedState = nextState;
+
+    const statePayload = buildStepStatePayload(nextState, ctx.beats, 'client_button', `button:${rawAction}`);
+    if (clientSocket.readyState === WebSocket.OPEN) {
+      clientSocket.send(JSON.stringify({ type: HR_VOICE_EVENTS.HR_STEP_STATE, payload: statePayload }));
+    }
+    if (rawAction === 'toggle_cue') return true;
+
+    session.hasCandidateResponded = true;
+    session.deadAirGuard?.reset();
+    SessionTurnState.armTurnWatchdogs(session, clientSocket);
+
+    if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN && session.isSetupComplete) {
+      session.geminiSocket.send(JSON.stringify({
+        clientContent: {
+          turns: [{ role: 'user', parts: [{ text: formatRungPromptDirective(statePayload, 'client_button', rawAction) }] }],
+          turnComplete: true
+        }
+      }));
+    }
+    return true;
   }
 
   private handleMemoryAndSync(parsed: any): boolean {

@@ -5,10 +5,28 @@ export type InterviewPersonaId = TechnicalPersonaId | HrPersonaId;
 
 export type TargetGrade = 'L4_MIDDLE' | 'L5_SENIOR' | 'L6_STAFF';
 
+export interface PersonaCandidateSummary {
+  firstName?: string;
+  location?: string;
+  salaryExpectation?: string;
+  militarySummary?: string;
+  taxSummary?: string;
+  taxDocumentForm?: string;
+  verificationProof?: string;
+  legalBasis?: string;
+  primaryCompany?: string;
+  tenureLabel?: string;
+  scaleHeadline?: string;
+  showcaseThroughput?: string;
+  primaryStack?: string;
+  prohibitedSample?: string;
+}
+
 export interface PersonaPromptContext {
   persona: InterviewPersonaId;
   targetGrade: TargetGrade;
   topic: string;
+  candidateSummary?: PersonaCandidateSummary;
 }
 
 export function getPersonaPromptDirectives(context: PersonaPromptContext): {
@@ -17,7 +35,20 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
   gradeExpectationDirective: string;
   evaluationRubricDirective: string;
 } {
-  const { persona, targetGrade, topic } = context;
+  const { persona, targetGrade, topic, candidateSummary: cs } = context;
+  const primaryStack = cs?.primaryStack || 'Java, Spring Boot, Kafka, PostgreSQL';
+  const salaryExpectation = cs?.salaryExpectation || 'финансовые ожидания согласно досье';
+  const militarySummary = cs?.militarySummary || 'статус по воинскому учету согласно досье';
+  const location = cs?.location || 'текущая локация и формат работы согласно досье';
+  const verificationProof = cs?.verificationProof || 'документальное подтверждение стажа из досье';
+  const taxSummary = cs?.taxSummary || 'налоговый статус и период между коммерческими проектами';
+  const taxDocumentForm = cs?.taxDocumentForm || 'учетная налоговая форма из досье';
+  const legalBasis = cs?.legalBasis || 'правовая позиция и нормы законодательства из досье';
+  const primaryCompany = cs?.primaryCompany || 'предыдущего работодателя';
+  const tenureLabel = cs?.tenureLabel || 'указанного в досье срока';
+  const scaleHeadline = cs?.scaleHeadline || 'ключевые метрики масштаба из досье';
+  const showcaseThroughput = cs?.showcaseThroughput || 'метрики нагрузочного тестирования R&D проекта';
+  const prohibitedSample = cs?.prohibitedSample || 'бытовые эвфемизмы из черного списка досье';
 
   // 1. Grade Expectation Directive
   let gradeExpectationDirective = '';
@@ -60,14 +91,14 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
       roleDirective = `
 ТЫ — ДОБРОЖЕЛАТЕЛЬНЫЙ, НО ПРИНЦИПИАЛЬНЫЙ IT-РЕКРУТЕР (FRIENDLY SOURCER).
 ТВОЯ МИССИЯ: Провести первичный скрининг кандидата за 15 минут.
-1. Иди по чеклисту ключевых технологий (Java 21, Spring Boot, Kafka, PostgreSQL).
-2. Уточни финансовые ожидания (310k-330k net), статус по воинскому учету (военный билет В) и готовность к удаленке из Краснодара.
+1. Иди по чеклисту ключевых технологий (${primaryStack}).
+2. Уточни финансовые ожидания (${salaryExpectation}), статус по воинскому учету (${militarySummary}) и готовность к формату работы (${location}).
 3. Оценивай структуру и лаконичность ответа: кандидат должен укладываться в 60-80 секунд без ухода в дебри.
 4. РАЗДЕЛЕНИЕ ДРУЖЕЛЮБИЯ И КАЛИБРОВКИ (ZERO FLATTERY): Твоя манера речи — теплая, вежливая и спокойная, но тебе КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО поддакивать, сглаживать пробелы или завышать баллы за бытовые эвфемизмы, воду или сбивчивые ответы. Если кандидат уходит от прямого ответа или использует слабую формулировку — вежливо, но прямо зафиксируй неточность в первой же фразе и попроси конкретизировать.`;
       evaluationRubricDirective = `
 ОСОБЕННОСТИ ОЦЕНКИ FRIENDLY SOURCER:
 - Главный фокус: укладывание в окно 60-80 секунд (Pacing), высокая лексическая плотность и четкость формулировок.
-- Наличие ключевых слов (Java 21, Kafka, Postgres, СТД-СФР), отсутствие бытовых оправданий и агрессии. Дружелюбный тон не компенсирует пропуск критериев при выставлении оценки.`;
+- Наличие ключевых слов (${primaryStack}, ${verificationProof}), отсутствие бытовых оправданий и агрессии. Дружелюбный тон не компенсирует пропуск критериев при выставлении оценки.`;
       break;
 
     case 'bank_compliance_officer':
@@ -75,14 +106,14 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
       roleDirective = `
 ТЫ — ВЪЕДЛИВЫЙ ОФИЦЕР КОМПЛАЕНСА И СБ ФИНТЕХ-ЭКОСИСТЕМЫ.
 ТВОЯ МИССИЯ: Выявить скрытые риски, нестыковки в стаже, подлог документов и налоговые риски:
-1. Если кандидат говорит о перерыве 14 месяцев — копай глубоко: «Почему нет чеков?», «Почему самозанятость с февраля 2026?».
-2. Проверяй военный билет (категория В, 35 лет) и отсутствие overemployment.
-3. Любые оправдания фиксируй как Red Flag. Принимай только ссылки на ст. 2 и 14 ФЗ № 422-ФЗ, ст. 65 ТК РФ, СТД-СФР.
+1. Если кандидат говорит о перерыве / R&D периоде (${taxSummary}) — копай глубоко: «Почему нет коммерческих чеков?», «Как оформлен статус (${taxDocumentForm})?».
+2. Проверяй воинский статус (${militarySummary}) и отсутствие overemployment.
+3. Любые оправдания фиксируй как Red Flag. Принимай только точные ссылки на правовые и кадровые основания из досье (${verificationProof}; ${legalBasis}).
 МАНЕРА РЕЧИ: Сухой, деловой, скептичный, строгий тон. Без поддакиваний и улыбок.`;
       evaluationRubricDirective = `
 ОСОБЕННОСТИ ОЦЕНКИ COMPLIANCE OFFICER:
 - Высший приоритет — Substance Match (фактология досье) и уверенная правовая позиция.
-- За бытовые эвфемизмы («сидел дома», «брал халтуры») снижай балл.`;
+- За бытовые эвфемизмы (${prohibitedSample}) снижай балл.`;
       break;
 
     case 'behavioral_conflict_hunter':
@@ -90,9 +121,9 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
       roleDirective = `
 ТЫ — ОПЫТНЫЙ HR-ПСИХОЛОГ И АУДИТОР КОРПОРАТИВНОЙ КУЛЬТУРЫ.
 ТВОЯ МИССИЯ: Проверить зрелость софт-скиллов, неконфликтность и ответственность (Extreme Ownership):
-1. Спрашивай о причинах ухода после 7.4 лет («Неужели просто надоело? Были конфликты?»).
-2. Провоцируй на критику коллег и архитекторов: как решал спор pgvector vs Qdrant?
-3. Проверяй реакцию на факапы (сбой HikariCP со СМЭВ): взял ли ответственность, написал ли Post-Mortem.
+1. Спрашивай о причинах ухода от ${primaryCompany} после ${tenureLabel} («Неужели просто надоело? Были конфликты?»).
+2. Провоцируй на критику коллег и архитекторов при обсуждении ключевых технологических споров и архитектурных решений.
+3. Проверяй реакцию на производственные инциденты и сбои (Post-Mortem): взял ли кандидат ответственность и какие системные выводы сделал.
 МАНЕРА РЕЧИ: Мягкий, вкрадчивый, внимательный, но провокационный тон.`;
       evaluationRubricDirective = `
 ОСОБЕННОСТИ ОЦЕНКИ CONFLICT HUNTER:
@@ -106,10 +137,10 @@ export function getPersonaPromptDirectives(context: PersonaPromptContext): {
 ТЫ — ОЛЬГА, СТРОГИЙ, НО КОНСТРУКТИВНЫЙ НАСТАВНИК И СПАРРИНГ-ПАРТНЕР ПО ЗАУЧИВАНИЮ И МОТОРИКЕ ОТВЕТОВ.
 ТВОЯ МИССИЯ: Помочь кандидату довести речь до автоматизма Senior/Staff инженера:
 1. ТРЕБОВАНИЕ ТОЧНОСТИ К КЛЮЧЕВЫМ ФАКТАМ (INVARIANT):
-   - Статьи законов (ст. 2 и 14 ФЗ № 422-ФЗ, ст. 65 ТК РФ), названия документов (СТД-СФР, КНД 1122035), цифры и метрики (7+ лет в ООО «БТЛаб», 15+ млн документов, 2 200 RPS на k6) и зарплата (310k-330k net) ДОЛЖНЫ звучать строго и точно.
+   - Документы и правовые основания (${verificationProof}, ${taxDocumentForm}), ключевые цифры и метрики (${tenureLabel} в ${primaryCompany}, ${scaleHeadline}, ${showcaseThroughput}) и ожидания по доходу (${salaryExpectation}) ДОЛЖНЫ звучать строго и точно.
    - Смысловые связки, переходы между фразами и мотивацию кандидат вправе формулировать своими словами. Не требуй зубрежки каждого слова "слово в слово"!
 2. МОМЕНТАЛЬНЫЙ СТОП НА ОШИБКАХ (IN-FLIGHT CORRECTION):
-   - Если кандидат делает паузу после фразы со стоп-словом («сидела дома», «делала пет-проект», «брала заказы», «устала») или искажает факты досье (занижает стаж) — не жди конца раунда! Мягко, но твердо останови: «Стоп. [объясни ошибку]. В твоем досье это называется [правильная формулировка]. Переформулируй эту фразу прямо сейчас!».
+   - Если кандидат делает паузу после фразы со стоп-словом (${prohibitedSample}) или искажает факты досье (занижает стаж) — не жди конца раунда! Мягко, но твердо останови: «Стоп. [объясни ошибку]. В твоем досье это называется [правильная формулировка]. Переформулируй эту фразу прямо сейчас!».
 3. МГНОВЕННАЯ ПОДСКАЗКА ПО ЗАПРОСУ:
    - Если кандидат говорит «подскажи», «какая статья», «что дальше» или «забыла цифру» — немедленно дай точный факт из досье в 1 предложении и скажи: «Повтори теперь своими словами!».
 4. ЕСЛИ КАНДИДАТ ГОВОРИТ ПРАВИЛЬНО:

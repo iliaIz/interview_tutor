@@ -1,14 +1,10 @@
 /**
  * hrGuidedStepper.ts
- * Pure deterministic Finite State Machine for Spec 40 Guided Micro-Chunking ("С нуля").
- * Manages 4-rung Fading Scaffolding progression, anti-parroting variant rotation,
- * and bidirectional synchronization between voice tools and UI step controls.
- * Bounded cognitive size: <= 180 lines (Rule 8 compliant).
+ * Pure deterministic Finite State Machine & SSOT Directive Builder for Spec 40/41 Guided Micro-Chunking ("С нуля").
+ * Zero WebSocket / transport coupling (Spec 48 <= 230 lines).
  */
 
-import { WebSocket } from 'ws';
 import {
-  HR_VOICE_EVENTS,
   HrBeatScope,
   HrLearningRung,
   HrMicroBeat,
@@ -16,9 +12,7 @@ import {
   HrStepControlAction,
   HrStepStatePayload
 } from '@interview-prep/shared';
-import type { ProxySession } from './liveSessionTypes';
 import { getHrQuestion } from './hrContextResolver';
-import { SessionTurnState } from './SessionTurnState';
 
 export interface HrGuidedSessionState {
   questionId: string;
@@ -38,17 +32,12 @@ export interface GuidedStepActionOptions {
   masteredCurrentBeat?: boolean;
 }
 
-/**
- * Resolves the active ordered micro-beats for a question, optionally filtered by chunkId.
- * Falls back cleanly to a synthesized micro-beat if a minimal test fixture lacks explicit beats.
- */
 export function resolveQuestionMicroBeats(
   question?: HrQuestionRubricItem,
   chunkId?: string
 ): HrMicroBeat[] {
   if (!question) return [];
   const rawBeats = Array.isArray(question.microBeats) ? question.microBeats : [];
-
   if (rawBeats.length > 0) {
     if (!chunkId) return rawBeats;
     const chunkBeats = rawBeats.filter((b) => b.chunkId === chunkId);
@@ -61,29 +50,22 @@ export function resolveQuestionMicroBeats(
     .filter((a) => fallbackAnchors.length === 0 || fallbackAnchors.includes(a.id))
     .slice(0, 3)
     .map((a) => a.label);
-
   const summary = question.referenceAnswer.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
   const firstSentence = summary[0] || question.canonicalQuestion;
   const secondSentence = summary[1] || firstSentence;
 
-  return [
-    {
-      id: `${question.id}_fallback_beat_1`,
-      chunkId: chunk?.id || 'default',
-      title: chunk?.title || question.title,
-      anchorIds: fallbackAnchors,
-      immutableFacts: anchorLabels.length > 0 ? anchorLabels : [question.title],
-      spokenVariants: [firstSentence, secondSentence],
-      hrTriggerPrompt: question.canonicalQuestion,
-      cueHints: anchorLabels.length > 0 ? anchorLabels : [question.title]
-    }
-  ];
+  return [{
+    id: `${question.id}_fallback_beat_1`,
+    chunkId: chunk?.id || 'default',
+    title: chunk?.title || question.title,
+    anchorIds: fallbackAnchors,
+    immutableFacts: anchorLabels.length > 0 ? anchorLabels : [question.title],
+    spokenVariants: [firstSentence, secondSentence],
+    hrTriggerPrompt: question.canonicalQuestion,
+    cueHints: anchorLabels.length > 0 ? anchorLabels : [question.title]
+  }];
 }
 
-/**
- * Spec 41 Whole-Part-Whole Beat Resolver for guided_zero_start.
- * Never crops beats by Spec 38 chunkId; enforces single_beat isolation when requested.
- */
 export function resolveGuidedSessionBeats(
   question?: HrQuestionRubricItem,
   opts?: { startBeatId?: string; beatScope?: HrBeatScope }
@@ -126,13 +108,36 @@ export function createInitialGuidedState(
   };
 }
 
+export function ensureSessionGuidedState(
+  session: {
+    questionId?: string;
+    startBeatId?: string;
+    beatScope?: HrBeatScope;
+    hrGuidedState?: HrGuidedSessionState | null;
+  },
+  explicitQuestion?: HrQuestionRubricItem
+): { state: HrGuidedSessionState; beats: HrMicroBeat[]; question: HrQuestionRubricItem } | null {
+  const question = explicitQuestion || getHrQuestion(session.questionId);
+  const beats = resolveGuidedSessionBeats(question, {
+    startBeatId: session.startBeatId,
+    beatScope: session.beatScope
+  });
+  if (beats.length === 0) return null;
+
+  if (!session.hrGuidedState) {
+    session.hrGuidedState = createInitialGuidedState(question, {
+      startBeatId: session.startBeatId,
+      beatScope: session.beatScope
+    });
+  }
+  if (!session.hrGuidedState) return null;
+  return { state: session.hrGuidedState, beats, question };
+}
+
 function withMasteredBeat(mastered: string[], beatId: string): string[] {
   return mastered.includes(beatId) ? mastered : [...mastered, beatId];
 }
 
-/**
- * Pure transition reducer executing one voice- or UI-driven learning step.
- */
 export function applyGuidedStepAction(
   state: HrGuidedSessionState,
   beats: HrMicroBeat[],
@@ -140,106 +145,33 @@ export function applyGuidedStepAction(
   opts: GuidedStepActionOptions = {}
 ): HrGuidedSessionState {
   if (beats.length === 0) return state;
-
   const safeIdx = Math.max(0, Math.min(beats.length - 1, state.beatIndex));
   const currentBeat = beats[safeIdx];
   const variantCount = Math.max(1, currentBeat.spokenVariants.length);
 
   switch (action) {
     case 'toggle_cue':
-      return {
-        ...state,
-        cueVisible: typeof opts.cueVisible === 'boolean' ? opts.cueVisible : !state.cueVisible
-      };
-
+      return { ...state, cueVisible: typeof opts.cueVisible === 'boolean' ? opts.cueVisible : !state.cueVisible };
     case 'next_variant':
-      return {
-        ...state,
-        variantIndex: (state.variantIndex + 1) % variantCount
-      };
-
+      return { ...state, variantIndex: (state.variantIndex + 1) % variantCount };
     case 'repeat_beat':
-      return {
-        ...state,
-        rung: 1,
-        cueVisible: true,
-        variantIndex: (state.variantIndex + 1) % variantCount
-      };
-
-    case 'prev_beat': {
-      const prevIdx = Math.max(0, safeIdx - 1);
-      return {
-        ...state,
-        beatIndex: prevIdx,
-        rung: 1,
-        variantIndex: 0,
-        cueVisible: true
-      };
-    }
-
+      return { ...state, rung: 1, cueVisible: true, variantIndex: (state.variantIndex + 1) % variantCount };
+    case 'prev_beat':
+      return { ...state, beatIndex: Math.max(0, safeIdx - 1), rung: 1, variantIndex: 0, cueVisible: true };
     case 'select_beat': {
       const requested = typeof opts.beatIndex === 'number' ? opts.beatIndex : safeIdx;
-      const clamped = Math.max(0, Math.min(beats.length - 1, requested));
-      return {
-        ...state,
-        beatIndex: clamped,
-        rung: 1,
-        variantIndex: 0,
-        cueVisible: true
-      };
+      return { ...state, beatIndex: Math.max(0, Math.min(beats.length - 1, requested)), rung: 1, variantIndex: 0, cueVisible: true };
     }
-
     case 'next_beat': {
-      const mastered =
-        opts.masteredCurrentBeat !== false
-          ? withMasteredBeat(state.masteredBeatIds, currentBeat.id)
-          : state.masteredBeatIds;
-      const nextIdx = (safeIdx + 1) % beats.length;
-      return {
-        ...state,
-        beatIndex: nextIdx,
-        rung: 1,
-        variantIndex: 0,
-        cueVisible: true,
-        masteredBeatIds: mastered
-      };
+      const mastered = opts.masteredCurrentBeat !== false ? withMasteredBeat(state.masteredBeatIds, currentBeat.id) : state.masteredBeatIds;
+      return { ...state, beatIndex: (safeIdx + 1) % beats.length, rung: 1, variantIndex: 0, cueVisible: true, masteredBeatIds: mastered };
     }
-
     case 'next_rung': {
-      if (state.rung === 1) {
-        return {
-          ...state,
-          rung: 2,
-          variantIndex: (state.variantIndex + 1) % variantCount
-        };
-      }
-      if (state.rung === 2) {
-        return {
-          ...state,
-          rung: 3,
-          cueVisible: false
-        };
-      }
-      if (state.rung === 3 && beats.length >= 2 && state.masteredBeatIds.length >= 1) {
-        return {
-          ...state,
-          rung: 4,
-          cueVisible: false
-        };
-      }
-      const mastered =
-        opts.masteredCurrentBeat !== false
-          ? withMasteredBeat(state.masteredBeatIds, currentBeat.id)
-          : state.masteredBeatIds;
-      const nextIdx = (safeIdx + 1) % beats.length;
-      return {
-        ...state,
-        beatIndex: nextIdx,
-        rung: 1,
-        variantIndex: 0,
-        cueVisible: true,
-        masteredBeatIds: mastered
-      };
+      if (state.rung === 1) return { ...state, rung: 2, variantIndex: (state.variantIndex + 1) % variantCount };
+      if (state.rung === 2) return { ...state, rung: 3, cueVisible: false };
+      if (state.rung === 3 && beats.length >= 2 && state.masteredBeatIds.length >= 1) return { ...state, rung: 4, cueVisible: false };
+      const mastered = opts.masteredCurrentBeat !== false ? withMasteredBeat(state.masteredBeatIds, currentBeat.id) : state.masteredBeatIds;
+      return { ...state, beatIndex: (safeIdx + 1) % beats.length, rung: 1, variantIndex: 0, cueVisible: true, masteredBeatIds: mastered };
     }
   }
 }
@@ -278,92 +210,35 @@ export function buildStepStatePayload(
   };
 }
 
-const CLIENT_STEP_ACTIONS = new Set<HrStepControlAction>([
-  'next_rung',
-  'next_variant',
-  'next_beat',
-  'prev_beat',
-  'repeat_beat',
-  'select_beat',
-  'toggle_cue'
-]);
-
-function buildButtonNudgeText(payload: HrStepStatePayload, action: HrStepControlAction): string {
+/**
+ * Unified SSOT phrasing directive generator for Turn 0 greetings, voice tools, and UI step buttons (Spec 48).
+ */
+export function formatRungPromptDirective(
+  payload: HrStepStatePayload,
+  source: 'turn0_greeting' | 'ai_tool' | 'client_button',
+  action?: HrStepControlAction
+): string {
   const facts = payload.immutableFacts.join(', ');
+  if (source === 'turn0_greeting') {
+    const scopeHint = payload.beatScope === 'single_beat'
+      ? 'Изолированная тренировка одного блока (разными формулировками).'
+      : `Стартовый блок ${payload.beatIndex + 1} из ${payload.totalBeats}.`;
+    return `Привет! Мы учим ответ «с полного нуля». ${scopeHint} Коротко поприветствуй кандидата уверенным теплым голосом тренера Ольги, назови блок «${payload.beatTitle}», естественно произнеси первую формулировку своими связками на основе ориентира: «${payload.activeVariantText}» (сохранив точные факты: ${facts}) и попроси повторить вслух. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
+  }
   if (action === 'next_variant') {
     return `[КАНДИДАТ НАЖАЛ «ДРУГОЙ ВАРИАНТ»]: Озвучь блок «${payload.beatTitle}» совершенно другими связками на основе: «${payload.activeVariantText}», строго сохранив факты (${facts}), и попроси кандидата повторить.`;
   }
+  const prefix = source === 'client_button'
+    ? `[КАНДИДАТ ПЕРЕКЛЮЧИЛ ШАГ НА БЛОК ${payload.beatIndex + 1}/${payload.totalBeats}: «${payload.beatTitle}»]: `
+    : '';
   if (payload.rung === 1) {
-    return `[КАНДИДАТ ПЕРЕКЛЮЧИЛСЯ НА БЛОК ${payload.beatIndex + 1}/${payload.totalBeats}: «${payload.beatTitle}», СТУПЕНЬ 1 ЭХО-ПОВТОР]: Произнеси естественную короткую фразу по ориентиру «${payload.activeVariantText}» с точными фактами (${facts}) и предложи повторить.`;
+    return `${prefix}Ступень 1 (Эхо-повтор), блок «${payload.beatTitle}». Произнеси естественной речью (не дословно как робот!) короткую фразу 8–15 слов по смыслу варианта: «${payload.activeVariantText}», обязательно сохранив точные факты (${facts}). Попроси кандидата повторить.`;
   }
   if (payload.rung === 2) {
-    return `[КАНДИДАТ ПЕРЕШЕЛ НА СТУПЕНЬ 2 (СВОЙ ПЕРЕФРАЗ) для «${payload.beatTitle}»]: Попроси кандидата сказать эту мысль другими словами своими связками, сохранив факты (${facts}).`;
+    return `${prefix}Ступень 2 (Свой перефраз), блок «${payload.beatTitle}». Скажи иначе или попроси кандидата переформулировать эту мысль СВОИМИ словами (другими связками!), строго сохранив факты: ${facts}. Ориентир нового варианта: «${payload.activeVariantText}».`;
   }
   if (payload.rung === 3) {
-    return `[КАНДИДАТ ПЕРЕШЕЛ НА СТУПЕНЬ 3 (БЕЗ ПОДСКАЗКИ)]: Задай реалистичный вопрос рекрутера: «${payload.hrTriggerPrompt}» без спойлеров и выслушай ответ.`;
+    return `${prefix}Ступень 3 (Без подсказки — шпаргалка скрыта!). Задай кандидату реалистичный вопрос рекрутера: «${payload.hrTriggerPrompt}» — НЕ подсказывай ответ заранее, дай вспомнить и произнести по памяти.`;
   }
-  return `[КАНДИДАТ ПЕРЕШЕЛ НА СТУПЕНЬ 4 (СБОРКА — СНЕЖНЫЙ КОМ)]: Попроси соединить предыдущие блоки и «${payload.beatTitle}» в единый связный ответ (20–30 сек) с фактами (${facts}).`;
+  return `${prefix}Ступень 4 (Сборка — Снежный ком!). Предложи кандидату плавно соединить предыдущие освоенные блоки и блок «${payload.beatTitle}» в один связный ответ на 20–30 секунд с сохранением всех фактов (${facts}).`;
 }
-
-/**
- * Handles upstream HR_STEP_CONTROL WebSocket frames sent by UI buttons.
- * Updates session state cleanly and synchronizes Gemini Live unless toggle_cue is silent.
- */
-export function handleGuidedStepControlFrame(
-  session: ProxySession,
-  clientSocket: WebSocket,
-  parsed: any
-): boolean {
-  if (!parsed || parsed.type !== HR_VOICE_EVENTS.HR_STEP_CONTROL) return false;
-
-  const rawPayload = parsed.payload || parsed;
-  const rawAction = String(rawPayload?.action || '') as HrStepControlAction;
-  if (!CLIENT_STEP_ACTIONS.has(rawAction)) return true;
-
-  const question = getHrQuestion(session.questionId);
-  const beats = resolveGuidedSessionBeats(question, {
-    startBeatId: session.startBeatId,
-    beatScope: session.beatScope
-  });
-  if (beats.length === 0) return true;
-
-  if (!session.hrGuidedState) {
-    session.hrGuidedState = createInitialGuidedState(question, {
-      startBeatId: session.startBeatId,
-      beatScope: session.beatScope
-    });
-  }
-
-  const nextState = applyGuidedStepAction(session.hrGuidedState!, beats, rawAction, {
-    beatIndex: typeof rawPayload.beatIndex === 'number' ? rawPayload.beatIndex : undefined,
-    cueVisible: typeof rawPayload.cueVisible === 'boolean' ? rawPayload.cueVisible : undefined
-  });
-  session.hrGuidedState = nextState;
-
-  const statePayload = buildStepStatePayload(nextState, beats, 'client_button', `button:${rawAction}`);
-  if (clientSocket.readyState === WebSocket.OPEN) {
-    clientSocket.send(JSON.stringify({ type: HR_VOICE_EVENTS.HR_STEP_STATE, payload: statePayload }));
-  }
-
-  if (rawAction === 'toggle_cue') {
-    return true;
-  }
-
-  session.hasCandidateResponded = true;
-  session.deadAirGuard?.reset();
-  SessionTurnState.armTurnWatchdogs(session, clientSocket);
-
-  if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN && session.isSetupComplete) {
-    session.geminiSocket.send(
-      JSON.stringify({
-        clientContent: {
-          turns: [{ role: 'user', parts: [{ text: buildButtonNudgeText(statePayload, rawAction) }] }],
-          turnComplete: true
-        }
-      })
-    );
-  }
-
-  return true;
-}
-

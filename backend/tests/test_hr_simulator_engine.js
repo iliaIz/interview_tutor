@@ -24,16 +24,20 @@ const {
 } = require('../dist/services/live/hrPromptBuilder');
 
 const { getLiveToolDeclarations } = require('../dist/services/live/liveToolDeclarations');
-const { HrSimulationOrchestrator } = require('../dist/services/live/HrSimulationOrchestrator');
+const { DownstreamClientPipe } = require('../dist/services/live/DownstreamClientPipe');
 const {
   resolveQuestionMicroBeats,
   resolveGuidedSessionBeats,
   createInitialGuidedState,
   applyGuidedStepAction,
   buildStepStatePayload,
-  handleGuidedStepControlFrame
+  formatRungPromptDirective
 } = require('../dist/services/live/hrGuidedStepper');
-const { handleAdvanceHrLearningStep } = require('../dist/services/live/liveHrToolDispatcher');
+const {
+  handleAdvanceHrLearningStep,
+  handleEmitHrRoundEvaluation,
+  handleSubmitHrEvaluation
+} = require('../dist/services/live/liveHrToolDispatcher');
 
 console.log('========================================================================');
 console.log('🧪 SOTA HR VOICE SIMULATOR ENGINE INVARIANT & CONTRACT TEST SUITE');
@@ -161,44 +165,110 @@ async function runAllTests() {
   }
 
   // --------------------------------------------------------------------------
-  // SUITE 5: Deterministic FSM & Pacing Watchdog
+  // SUITE 5: Spec 48 Unified HR Pipe, Live Telemetry & Dossier Parameterization
   // --------------------------------------------------------------------------
-  console.log('\n🔹 [Suite 5] HrSimulationOrchestrator FSM & Pacing Watchdog');
+  console.log('\n🔹 [Suite 5] Spec 48 Unified HR Pipe, Live Telemetry & Non-Canonical Dossier');
   {
-    let lastDispatchedFrame = null;
-    let lastToolResponse = null;
-
-    const mockWs = {
-      readyState: 1, // OPEN
-      send: (str) => {
-        lastDispatchedFrame = JSON.parse(str);
+    // 1. Live telemetry scorecard metrics derived from real session turn/session metrics (no hardcoded constants)
+    const drillRes = handleEmitHrRoundEvaluation(
+      { overallScore: 88, pacingScore: 90, actionableCritique: 'Четкий ритм.' },
+      {
+        session: {
+          sessionId: 'sess_metrics_01',
+          questionId: 'hr_q0_elevator_pitch',
+          currentTurnMetrics: { speechDurationMs: 42300 }
+        }
       }
-    };
+    );
+    assert.strictEqual(drillRes.clientEvent.type, 'hr_scorecard_ready');
+    assert.strictEqual(drillRes.clientEvent.payload.turnDurationSec, 42, 'Drill duration must derive from speechDurationMs');
+    assert.strictEqual(drillRes.clientEvent.payload.averageWpm, 123, 'WPM must derive from pacingScore telemetry formula');
 
-    const mockUpstream = {
-      readyState: 1,
-      send: (str) => {
-        lastToolResponse = JSON.parse(str);
+    const fullRes = handleSubmitHrEvaluation(
+      { overallScore: 91, pacingScore: 95, spokenFeedback: 'Уверенный финал.' },
+      {
+        session: {
+          sessionId: 'sess_metrics_02',
+          sessionStartedAt: Date.now() - 120000,
+          turnTelemetryHistory: [{ speechDurationMs: 28000 }, { speechDurationMs: 35000 }]
+        }
       }
+    );
+    assert.strictEqual(fullRes.clientEvent.payload.turnDurationSec, 63, 'Full screening duration must sum recorded speech telemetry');
+    assert.strictEqual(fullRes.clientEvent.payload.averageWpm, 125, 'Full screening WPM must compute dynamically');
+
+    // 2. Custom non-canonical dossier parameterization (zero Ilya / BTLab / Krasnodar / 310k leaks)
+    const customDossier = {
+      dossierId: 'custom_staff_maria',
+      fullName: 'Мария Соколова',
+      age: 31,
+      targetRole: 'Staff Backend Engineer',
+      totalExperienceYears: 9,
+      location: 'г. Казань',
+      remotePolicy: '100_percent_remote_rf',
+      careerTracks: [
+        {
+          id: 'quant_core',
+          companyAlias: 'ООО «Квант»',
+          role: 'Staff Java Engineer',
+          startDate: '2021-01',
+          endDate: '2025-12',
+          durationMonths: 60,
+          isOfficialRecord: true,
+          verificationProof: 'Трудовая книжка РФ',
+          scaleMetrics: ['40M пользователей'],
+          primaryStack: ['Java 21', 'ClickHouse', 'gRPC'],
+          exitReason: 'Завершение программы трансформации ядра',
+          achievements: ['Снижение p99 до 12 мс']
+        }
+      ],
+      compliance: {
+        military: { category: 'D', inReserve: false, exemptByAge: true, ticketOnHands: false, description: 'Не военнообязанная' },
+        taxStatus: 'ip_contractor',
+        taxRegistrationDate: '2025-09',
+        taxDocumentForm: 'УСН 6% выписка',
+        receiptsAvailable: true,
+        receiptsLegalJustification: 'Оформление строго по НК РФ гл. 26.2',
+        citizenship: 'Гражданка РФ',
+        taxResidency: 'Налоговый резидент РФ (Казань)'
+      },
+      financials: {
+        targetSalaryNet: 450000,
+        currency: 'RUB',
+        taxFormat: 'tk_rf',
+        probationDiscountAcceptable: false,
+        parallelOffersStatus: 'Рассматриваю два финальных предложения',
+        noticePeriodDays: 14
+      },
+      showcase: {
+        name: 'Streaming Risk Ledger',
+        repoUrl: 'https://github.com/example/risk-ledger',
+        isOpenSource: true,
+        topology: 'Single-Binary Core',
+        rpsSustained: 5400,
+        p95LatencyMs: 9.2,
+        keyPatterns: ['LMAX Disruptor', 'Append-Only Log'],
+        testParity: '100% Testcontainers'
+      },
+      prohibitedPhrases: ['брала халтурки', 'сидела без дела']
     };
-
-    const orchestrator = new HrSimulationOrchestrator({
-      session: { sessionId: 'test_sess_01' },
-      clientSocket: mockWs,
-      geminiSocket: mockUpstream,
-      mode: 'full_screening_simulation'
-    });
-
-    assert.strictEqual(orchestrator.getCurrentPhase(), 'phase1_small_talk');
-
-    // Transition phase via orchestrator
-    orchestrator.transitionToPhase('phase2_elevator_pitch', 'Small talk concluded cleanly');
-    assert.strictEqual(orchestrator.getCurrentPhase(), 'phase2_elevator_pitch');
-    assert.strictEqual(lastDispatchedFrame.type, 'hr_phase_transition');
-    assert.strictEqual(lastDispatchedFrame.payload.toPhase, 'phase2_elevator_pitch');
-
-    orchestrator.destroy();
-    console.log('  ✅ Suite 5 passed: Orchestrator state machine & phase dispatch verified.');
+    const job = getJobContext();
+    for (const pId of ['friendly_sourcer', 'bank_compliance_officer', 'behavioral_conflict_hunter', 'mentor_coach']) {
+      const customPrompt = buildHrSimulatorSystemPrompt({
+        dossier: customDossier,
+        jobContext: job,
+        mode: pId === 'mentor_coach' ? 'tutor_rehearsal' : 'full_screening_simulation',
+        personaId: pId
+      });
+      assert.ok(customPrompt.includes('Мария'), `[${pId}] Custom dossier name must be injected`);
+      assert.ok(customPrompt.includes('450000'), `[${pId}] Custom dossier salary must be injected`);
+      assert.ok(customPrompt.includes('Казань'), `[${pId}] Custom dossier location must be injected`);
+      assert.ok(!customPrompt.includes('Илья'), `[${pId}] Custom prompt must NOT leak canonical name`);
+      assert.ok(!customPrompt.includes('БТЛаб'), `[${pId}] Custom prompt must NOT leak canonical company`);
+      assert.ok(!customPrompt.includes('Краснодар'), `[${pId}] Custom prompt must NOT leak canonical location`);
+      assert.ok(!customPrompt.includes('310000'), `[${pId}] Custom prompt must NOT leak canonical salary`);
+    }
+    console.log('  ✅ Suite 5 passed: Spec 48 telemetry calculation and non-canonical dossier parameterization verified.');
   }
 
   // --------------------------------------------------------------------------
@@ -324,23 +394,35 @@ async function runAllTests() {
     assert.strictEqual(toolRes.clientEvent.payload.source, 'ai_tool');
 
     // Silent toggle_cue must update client state WITHOUT sending clientContent turn to Gemini
+    const clientPipe = new DownstreamClientPipe({
+      session: mockSession,
+      clientSocket: mockSession.clientSocket,
+      turnMode: 'manual',
+      terminate: () => {}
+    });
     const prevGeminiCount = mockGeminiFrames.length;
-    const handledSilent = handleGuidedStepControlFrame(mockSession, mockSession.clientSocket, {
+    clientPipe.handleFrame(Buffer.from(JSON.stringify({
       type: 'hr_step_control',
       payload: { action: 'toggle_cue', cueVisible: false }
-    });
-    assert.strictEqual(handledSilent, true);
+    })));
+    assert.strictEqual(mockClientFrames[mockClientFrames.length - 1].type, 'hr_step_state');
+    assert.strictEqual(mockClientFrames[mockClientFrames.length - 1].payload.cueVisible, false);
     assert.strictEqual(mockGeminiFrames.length, prevGeminiCount, 'toggle_cue must NOT interrupt Gemini Live');
 
-    // Next button frame must both emit HR_STEP_STATE and nudge Gemini Live
-    handleGuidedStepControlFrame(mockSession, mockSession.clientSocket, {
+    // Next button frame must emit HR_STEP_STATE and send unified formatRungPromptDirective to Gemini Live
+    clientPipe.handleFrame(Buffer.from(JSON.stringify({
       type: 'hr_step_control',
       payload: { action: 'next_variant' }
-    });
-    if (mockSession.nudgeWatchdog) clearTimeout(mockSession.nudgeWatchdog);
-    if (mockSession.deadAirWatchdog) clearTimeout(mockSession.deadAirWatchdog);
+    })));
+    mockSession.watchdogs?.disarmAll();
     assert.strictEqual(mockGeminiFrames.length, prevGeminiCount + 1, 'next_variant button must sync Gemini Live');
     assert.strictEqual(mockClientFrames[mockClientFrames.length - 1].payload.source, 'client_button');
+    const latestPayload = mockClientFrames[mockClientFrames.length - 1].payload;
+    assert.strictEqual(
+      mockGeminiFrames[mockGeminiFrames.length - 1].clientContent.turns[0].parts[0].text,
+      formatRungPromptDirective(latestPayload, 'client_button', 'next_variant'),
+      'Upstream button frame must match formatRungPromptDirective SSOT'
+    );
 
     const snapshot = buildStepStatePayload(mockSession.hrGuidedState, beats, 'client_button');
     assert.ok(snapshot.activeVariantText.length > 10);

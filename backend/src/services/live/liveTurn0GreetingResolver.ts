@@ -1,6 +1,11 @@
 import { getChallengeDomain } from '../../utils/challengeDomain';
 import { getHrQuestion } from './hrContextResolver';
-import { resolveGuidedSessionBeats, createInitialGuidedState } from './hrGuidedStepper';
+import {
+  resolveGuidedSessionBeats,
+  createInitialGuidedState,
+  buildStepStatePayload,
+  formatRungPromptDirective
+} from './hrGuidedStepper';
 import { ResolveTurn0GreetingOptions } from './liveSessionConfigTypes';
 
 /**
@@ -53,11 +58,8 @@ export function resolveTurn0GreetingText(opts: ResolveTurn0GreetingOptions): str
       const beats = resolveGuidedSessionBeats(activeQuestion, beatOpts);
       const state = opts.hrGuidedState ?? createInitialGuidedState(activeQuestion, beatOpts);
       if (state && beats.length > 0) {
-        const entryBeat = beats[state.beatIndex] || beats[0];
-        const scopeHint = (beats.length === 1 ? 'single_beat' : state.beatScope) === 'single_beat'
-          ? 'Изолированная тренировка одного блока (разными формулировками).'
-          : `Стартовый блок ${state.beatIndex + 1} из ${beats.length}.`;
-        return `Привет! Мы учим ответ «с полного нуля». ${scopeHint} Коротко поприветствуй кандидата уверенным теплым голосом тренера Ольги, назови блок «${entryBeat.title}», естественно произнеси первую формулировку своими связками на основе ориентира: «${entryBeat.spokenVariants[0]}» (сохранив точные факты: ${entryBeat.immutableFacts.join(', ')}) и попроси повторить вслух. (ВАЖНО: сейчас Turn 0 — НЕ вызывай никаких инструментов!).`;
+        const payload = buildStepStatePayload(state, beats, 'session_init');
+        return formatRungPromptDirective(payload, 'turn0_greeting');
       }
       return `Привет! Мы начинаем пошаговую тренировку с нуля по вопросу «${activeQuestion?.canonicalQuestion || qText || 'Расскажите о себе'}». Поприветствуй кандидата и произнеси первую короткую фразу для повтора.`;
     }

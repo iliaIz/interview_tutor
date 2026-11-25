@@ -12,6 +12,7 @@ import {
   JobContext,
   JobContextSchema,
   HrQuestionRubricItem,
+  HrQuestionRubricItemSchema,
   HrQuestionChunk,
   Value
 } from '@interview-prep/shared';
@@ -85,6 +86,10 @@ function initCache(): HrContextCache {
   const questionsPath = path.join(FIXTURES_DIR, 'canonicalQuestionMatrix.json');
   const rawQuestions = loadJsonFile<HrQuestionRubricItem[]>(questionsPath);
   for (const q of rawQuestions) {
+    if (!Value.Check(HrQuestionRubricItemSchema, q)) {
+      const errors = [...Value.Errors(HrQuestionRubricItemSchema, q)];
+      throw new Error(`[HR_SCHEMA_ERROR] HR question "${(q as any)?.id || 'unknown'}" failed validation: ${JSON.stringify(errors[0])}`);
+    }
     questions.set(q.id, q);
   }
 

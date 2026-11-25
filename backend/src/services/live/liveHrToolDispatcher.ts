@@ -6,12 +6,11 @@
 
 import { HR_VOICE_EVENTS, HrScorecard, HrStepControlAction } from '@interview-prep/shared';
 import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
-import { getHrQuestion } from './hrContextResolver';
 import {
-  resolveGuidedSessionBeats,
-  createInitialGuidedState,
   applyGuidedStepAction,
-  buildStepStatePayload
+  buildStepStatePayload,
+  ensureSessionGuidedState,
+  formatRungPromptDirective
 } from './hrGuidedStepper';
 
 const VALID_STEP_ACTIONS = new Set<HrStepControlAction>([
@@ -24,55 +23,30 @@ const VALID_STEP_ACTIONS = new Set<HrStepControlAction>([
   'toggle_cue'
 ]);
 
-function buildGuidedToolDirective(payload: ReturnType<typeof buildStepStatePayload>): string {
-  const facts = payload.immutableFacts.join(', ');
-  if (payload.rung === 1) {
-    return `Ступень 1 (Эхо-повтор), блок «${payload.beatTitle}». Произнеси естественной речью (не дословно как робот!) короткую фразу 8–15 слов по смыслу варианта: «${payload.activeVariantText}», обязательно сохранив точные факты (${facts}). Попроси кандидата повторить.`;
-  }
-  if (payload.rung === 2) {
-    return `Ступень 2 (Свой перефраз), блок «${payload.beatTitle}». Скажи иначе или попроси кандидата переформулировать эту мысль СВОИМИ словами (другими связками!), строго сохранив факты: ${facts}. Ориентир нового варианта: «${payload.activeVariantText}».`;
-  }
-  if (payload.rung === 3) {
-    return `Ступень 3 (Без подсказки — шпаргалка скрыта!). Задай кандидату реалистичный вопрос рекрутера: «${payload.hrTriggerPrompt}» — НЕ подсказывай ответ заранее, дай вспомнить и произнести по памяти.`;
-  }
-  return `Ступень 4 (Сборка — Снежный ком!). Предложи кандидату плавно соединить предыдущие освоенные блоки и блок «${payload.beatTitle}» в один связный ответ на 20–30 секунд с сохранением всех фактов (${facts}).`;
-}
-
 export function handleAdvanceHrLearningStep(
   args: Record<string, any>,
   ctx: ToolExecutionContext
 ): ToolExecutionResult {
   const { session } = ctx;
-  const question = getHrQuestion(session.questionId);
-  const beats = resolveGuidedSessionBeats(question, {
-    startBeatId: session.startBeatId,
-    beatScope: session.beatScope
-  });
+  const guided = ensureSessionGuidedState(session);
 
-  if (beats.length === 0) {
+  if (!guided) {
     return {
       result: { status: 'ERROR', message: 'Микро-блоки для вопроса не найдены.' },
       scheduling: 'WHEN_IDLE'
     };
   }
 
-  if (!session.hrGuidedState) {
-    session.hrGuidedState = createInitialGuidedState(question, {
-      startBeatId: session.startBeatId,
-      beatScope: session.beatScope
-    });
-  }
-
   const rawAction = String(args.action || 'next_rung') as HrStepControlAction;
   const action: HrStepControlAction = VALID_STEP_ACTIONS.has(rawAction) ? rawAction : 'next_rung';
 
-  const nextState = applyGuidedStepAction(session.hrGuidedState!, beats, action, {
+  const nextState = applyGuidedStepAction(guided.state, guided.beats, action, {
     beatIndex: typeof args.beatIndex === 'number' ? args.beatIndex : undefined,
     masteredCurrentBeat: typeof args.masteredCurrentBeat === 'boolean' ? args.masteredCurrentBeat : undefined
   });
   session.hrGuidedState = nextState;
 
-  const payload = buildStepStatePayload(nextState, beats, 'ai_tool', args.reason ? String(args.reason) : undefined);
+  const payload = buildStepStatePayload(nextState, guided.beats, 'ai_tool', args.reason ? String(args.reason) : undefined);
 
   console.log(
     `🪜 [HR_GUIDED] Tool ${action}: beat=${payload.beatIndex + 1}/${payload.totalBeats} (${payload.beatId}), rung=${payload.rung}, var=${payload.variantIndex}`
@@ -85,7 +59,7 @@ export function handleAdvanceHrLearningStep(
       beatTitle: payload.beatTitle,
       rung: payload.rung,
       cueVisible: payload.cueVisible,
-      directive: buildGuidedToolDirective(payload)
+      directive: formatRungPromptDirective(payload, 'ai_tool', action)
     },
     clientEvent: {
       type: HR_VOICE_EVENTS.HR_STEP_STATE,
@@ -141,6 +115,21 @@ export function handleEmitHrRoundEvaluation(
 
   console.log(`🎯 [HR_DRILL_EVAL] Question: ${questionId} | Score: ${overallScore} | Passed: ${passed} | Next: ${nextAction}`);
 
+  const speechMs = session.currentTurnMetrics?.speechDurationMs
+    ?? (session.currentTurnMetrics?.candidateSpeechEndedAt && session.currentTurnMetrics?.candidateSpeechStartedAt
+      ? session.currentTurnMetrics.candidateSpeechEndedAt - session.currentTurnMetrics.candidateSpeechStartedAt
+      : undefined);
+  const turnDurationSec = typeof args.turnDurationSec === 'number' && Number.isFinite(args.turnDurationSec)
+    ? Math.max(1, Math.round(args.turnDurationSec))
+    : speechMs && speechMs > 0
+    ? Math.max(1, Math.round(speechMs / 1000))
+    : 0;
+  const averageWpm = typeof args.averageWpm === 'number' && Number.isFinite(args.averageWpm)
+    ? Math.max(0, Math.round(args.averageWpm))
+    : Math.max(80, Math.min(180, Math.round(115 + (pacingScore - 70) * 0.4)));
+  const fillerWordsSpotted = Array.isArray(args.fillerWordsSpotted) ? args.fillerWordsSpotted.map(String) : [];
+  const anchorsHit = Array.isArray(args.anchorsHit) ? args.anchorsHit.map(String) : [];
+
   const scorecard: HrScorecard = {
     sessionId: session.sessionId || 'hr_session',
     turnId: `turn_${Date.now()}`,
@@ -154,10 +143,10 @@ export function handleEmitHrRoundEvaluation(
       pacingScore,
       deliveryConfidence
     },
-    turnDurationSec: 75,
-    averageWpm: 125,
-    fillerWordsSpotted: [],
-    anchorsHit: [],
+    turnDurationSec,
+    averageWpm,
+    fillerWordsSpotted,
+    anchorsHit,
     anchorsMissed: missedAnchors,
     actionableCritique,
     nextAction
@@ -195,6 +184,18 @@ export function handleSubmitHrEvaluation(
 
   console.log(`📋 [HR_SIMULATION_SUMMARY] Full screening evaluated: ${overallScore}/100 (Passed: ${passed})`);
 
+  const sessionDurationSec = session.sessionStartedAt
+    ? Math.max(1, Math.round((Date.now() - session.sessionStartedAt) / 1000))
+    : 0;
+  const totalSpeechMs = Array.isArray(session.turnTelemetryHistory)
+    ? session.turnTelemetryHistory.reduce((acc: number, t: any) => acc + (t.speechDurationMs || 0), 0)
+    : 0;
+  const measuredDurationSec = totalSpeechMs > 0 ? Math.round(totalSpeechMs / 1000) : sessionDurationSec;
+  const averageWpm = typeof args.averageWpm === 'number' && Number.isFinite(args.averageWpm)
+    ? Math.max(0, Math.round(args.averageWpm))
+    : Math.max(80, Math.min(180, Math.round(115 + (pacingScore - 70) * 0.4)));
+  const fillerWordsSpotted = Array.isArray(args.fillerWordsSpotted) ? args.fillerWordsSpotted.map(String) : [];
+
   const scorecard: HrScorecard = {
     sessionId: session.sessionId || 'hr_sim_session',
     turnId: `sim_turn_${Date.now()}`,
@@ -208,9 +209,9 @@ export function handleSubmitHrEvaluation(
       pacingScore,
       deliveryConfidence
     },
-    turnDurationSec: 900,
-    averageWpm: 122,
-    fillerWordsSpotted: [],
+    turnDurationSec: measuredDurationSec,
+    averageWpm,
+    fillerWordsSpotted,
     anchorsHit: strengths,
     anchorsMissed: redFlags,
     actionableCritique: spokenFeedback,
