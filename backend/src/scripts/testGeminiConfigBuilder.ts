@@ -99,6 +99,34 @@ const fallbackSetup = buildGeminiLiveSetupMessage({
 
 assert(fallbackSetup.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Kore', 'Invalid voice safely falls back to canonical Kore');
 
+// Test 6+: Canonical contextWindowCompression & sessionResumption wire fields (Spec 42)
+assert(
+  Boolean(standardSetup.setup.contextWindowCompression?.slidingWindow),
+  'Setup includes contextWindowCompression.slidingWindow to bypass 15-min ceiling'
+);
+assert(
+  standardSetup.setup.sessionResumptionConfig === undefined,
+  'Legacy sessionResumptionConfig field is eliminated'
+);
+
+const resumedSetup = buildGeminiLiveSetupMessage({
+  liveModel: 'gemini-live-v3',
+  voiceName: 'Kore',
+  systemPromptText: 'Prompt',
+  sessionType: 'tutor',
+  strategy: 'socratic_tutoring',
+  normalizedTools: [],
+  resumptionHandle: 'crypto_handle_spec42'
+});
+assert(
+  resumedSetup.setup.sessionResumption?.handle === 'crypto_handle_spec42',
+  'Resumed setup sets canonical setup.sessionResumption.handle'
+);
+assert(
+  resumedSetup.setup.sessionResumptionConfig === undefined,
+  'Resumed setup omits legacy sessionResumptionConfig field'
+);
+
 // Test 6: Low temperature clamp for vocoder stability (Spec 17)
 const clampedSetup = buildGeminiLiveSetupMessage({
   liveModel: 'gemini-live-v3',

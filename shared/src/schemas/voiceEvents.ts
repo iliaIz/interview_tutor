@@ -9,6 +9,13 @@ export const LIVE_VOICE_EVENTS = {
   SETUP_COMPLETE: 'setupComplete',
   UPSTREAM_READY: 'upstream_ready',
   UPSTREAM_RECONNECTING: 'upstream_reconnecting',
+  UPSTREAM_CLOSED: 'upstream_closed',
+  UPSTREAM_ERROR: 'upstream_error',
+  KEY_ROTATED: 'key_rotated',
+  HOT_HANDOFF_STARTED: 'hot_handoff_started',
+  HOT_HANDOFF_COMPLETE: 'hot_handoff_complete',
+  TOOL_AWAITING_SPEECH: 'tool_awaiting_speech',
+  STREAM_STALL_DETECTED: 'stream_stall_detected',
   EVALUATION_COMPLETED: 'evaluation_completed',
   EVALUATION_LEGACY: 'evaluation',
   WHITEBOARD_UPDATE: 'whiteboard_update',
@@ -18,6 +25,7 @@ export const LIVE_VOICE_EVENTS = {
   TURN_TELEMETRY: 'turn_telemetry',
   PONG: 'pong',
   PONG_ACK: 'pong_ack',
+  SYNC_PONG: 'sync_pong',
 
   // Upstream from Client -> Gateway
   BARGE_IN: 'barge_in',

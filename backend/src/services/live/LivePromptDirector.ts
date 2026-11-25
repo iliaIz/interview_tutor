@@ -87,4 +87,27 @@ export class LivePromptDirector {
       setupMessage
     };
   }
+
+  /**
+   * Produces a fresh setup payload incorporating latest cryptographic resumption handle
+   * (or stripping stale handles during cross-key fallback) while preserving compression.
+   */
+  static buildDynamicSetupMessage(baseSetupMessage: any, resumptionHandle?: string): any {
+    const baseSetup = baseSetupMessage?.setup || {};
+    const nextSetup: any = {
+      ...baseSetup,
+      contextWindowCompression: baseSetup.contextWindowCompression || {
+        slidingWindow: {}
+      }
+    };
+    delete nextSetup.sessionResumptionConfig;
+
+    if (resumptionHandle) {
+      nextSetup.sessionResumption = { handle: resumptionHandle };
+    } else {
+      delete nextSetup.sessionResumption;
+    }
+
+    return { setup: nextSetup };
+  }
 }

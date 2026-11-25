@@ -98,12 +98,15 @@ export function buildGeminiLiveSetupMessage(opts: BuildGeminiSetupOptions): any 
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      realtimeInputConfig
+      realtimeInputConfig,
+      contextWindowCompression: {
+        slidingWindow: {}
+      }
     }
   };
 
   if (opts.resumptionHandle) {
-    setupMessage.setup.sessionResumptionConfig = {
+    setupMessage.setup.sessionResumption = {
       handle: opts.resumptionHandle
     };
   }

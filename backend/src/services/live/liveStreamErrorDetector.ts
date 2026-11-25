@@ -6,17 +6,39 @@
  */
 
 export function isNonRetryableUpstreamError(text?: string, code?: number): boolean {
-  if (code === 1000 || code === 1001 || code === 1008 || code === 4001 || code === 4003 || code === 4403) return true;
-  if (!text) return false;
-  const lower = text.toLowerCase();
-  return (
+  if (code === 4001 || code === 4003 || code === 4403 || code === 4401) return true;
+  const lower = (text || '').toLowerCase();
+
+  if (
     lower.includes('forbidden') ||
     lower.includes('invalid or blocked virtual key') ||
     lower.includes('unauthorized') ||
     lower.includes('not allowed') ||
     lower.includes('no active models or api keys') ||
     lower.includes('thinking level must be specified')
-  );
+  ) {
+    return true;
+  }
+
+  if (code === 1008) {
+    const isResumableLifecycle =
+      !lower ||
+      lower.includes('goaway') ||
+      lower.includes('session durat') ||
+      lower.includes('inactivity') ||
+      lower.includes('expired') ||
+      lower.includes('resum') ||
+      lower.includes('try again');
+    if (isResumableLifecycle) return false;
+    return (
+      lower.includes('invalid argument') ||
+      lower.includes('permission') ||
+      lower.includes('api key') ||
+      lower.includes('unsupported')
+    );
+  }
+
+  return false;
 }
 
 export const CANNED_ERROR_PATTERNS = [
