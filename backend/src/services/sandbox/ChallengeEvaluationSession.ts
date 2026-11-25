@@ -207,7 +207,7 @@ export class ChallengeEvaluationSession {
           };
           repo.persistSubmission({
             challengeId, userId, files, activePhase, status: 'FAILED', score: mutResult.mutationScore,
-            evaluation: { sandboxResult, astViolations, mutationScore: mutationScorePayload, ...mutEval },
+            evaluation: { sandboxResult, astViolations, ...mutEval },
             timeSpentSeconds
           });
           this.terminalVerdict = { status: 'FAILED', score: mutResult.mutationScore, evaluation: mutEval, timeSpentSeconds };
