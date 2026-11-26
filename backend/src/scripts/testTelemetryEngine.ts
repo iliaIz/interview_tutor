@@ -8,6 +8,7 @@
 
 import { TurnTelemetryEvent, VOICE_TELEMETRY_SLA } from '@interview-prep/shared';
 import { CurrentTurnMetrics, ProxySession } from '../services/live/liveSessionTypes';
+import { LiveTelemetryAccumulator } from '../services/live/LiveTelemetryAccumulator';
 
 interface AssertionContext {
   passed: number;
@@ -30,46 +31,33 @@ function assert(condition: boolean, testName: string, detail?: string): void {
 }
 
 /**
- * Helper: Simulates the turn sealing logic from liveAudioStreamRouter.ts
+ * Delegates directly to production LiveTelemetryAccumulator.sealTurnComplete (Spec 51 / #188).
  */
 export function sealTurnTelemetry(
   session: Partial<ProxySession>,
   commitTime: number,
   liveModel: string = 'gemini-live-v3'
 ): TurnTelemetryEvent {
-  const metrics = session.currentTurnMetrics;
-  const effectiveCommitTime = commitTime || session.lastTurnCommitTime || metrics?.candidateSpeechEndedAt || session.lastActivityAt || Date.now();
-
-  const ttfrMs = metrics?.firstThoughtAt ? Math.max(0, metrics.firstThoughtAt - effectiveCommitTime) : null;
-  const ttftMs = metrics?.firstTextAt ? Math.max(0, metrics.firstTextAt - effectiveCommitTime) : null;
-  const ttfaMs = metrics?.firstAudioAt ? Math.max(0, metrics.firstAudioAt - effectiveCommitTime) : null;
-
-  // 24kHz 16-bit mono = 48000 bytes/sec
-  const audioDurationMs = metrics ? Math.round((metrics.audioBytesReceived / 48000) * 1000) : 0;
-  const textChars = (session.currentAiTurnText || '').length;
-  const echoLeakageDroppedMs = (metrics?.droppedEchoChunksCount || 0) * 40;
-
-  return {
-    turnId: `turn_${session.sessionId || 'anon'}_${metrics?.turnIndex || 0}_${Date.now()}`,
-    sessionId: session.sessionId || 'anon',
-    turnIndex: metrics?.turnIndex || 0,
-    speaker: 'model',
-    vadPauseSettingMs: session.vadPauseMs || 1800,
-    speechDurationMs: metrics?.speechDurationMs || 0,
-    ttfrMs,
-    ttftMs,
-    ttfaMs,
-    ttfpMs: null,
-    audioTextSkewMs: null,
-    audioDurationMs,
-    textChars,
-    echoLeakageDroppedMs,
-    networkRttMs: metrics?.lastRttMs ?? session.lastRttMs ?? null,
-    modelName: liveModel,
-    wasBargeIn: metrics?.wasBargeIn || false,
-    bargeInType: metrics?.bargeInType || null,
-    createdAt: Date.now()
-  };
+  const emitted: TurnTelemetryEvent[] = [];
+  const mockClientSocket = {
+    readyState: 1,
+    send: (raw: string) => {
+      try {
+        const msg = JSON.parse(raw);
+        if (msg.type === 'turn_telemetry') emitted.push(msg.data);
+      } catch {}
+    }
+  } as any;
+  const fullSession: ProxySession = Object.assign(session, {
+    clientSocket: mockClientSocket,
+    frameQueue: session.frameQueue || [],
+    lastActivityAt: session.lastActivityAt || commitTime || Date.now(),
+    isAiGenerating: true,
+    isSetupComplete: true,
+    lastTurnCommitTime: commitTime || session.lastTurnCommitTime
+  });
+  LiveTelemetryAccumulator.sealTurnComplete(fullSession, mockClientSocket, liveModel);
+  return emitted[0] || fullSession.turnTelemetryHistory![fullSession.turnTelemetryHistory!.length - 1];
 }
 
 // =========================================================================

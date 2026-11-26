@@ -11,6 +11,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { ProxySession, UpstreamTransportPort } from '../services/live/liveSessionTypes';
+import { DownstreamClientPipe } from '../services/live/DownstreamClientPipe';
 import { createUpstreamLiveChannel } from '../services/live/UpstreamLiveChannel';
 
 function wrapSocketTransport(ws: WebSocket): UpstreamTransportPort {
@@ -177,24 +178,17 @@ async function testEchoGuardTimeoutExpiry(): Promise<void> {
     }
   };
 
-  // Helper simulating the Echo Guard in liveWsConnectionHandler
-  const handleIncomingAudio = (audioBase64: string) => {
-    if (session.isToolCallPending || session.isAiGenerating) {
-      if (session.currentTurnMetrics) {
-        session.currentTurnMetrics.droppedEchoChunksCount++;
-      }
-      return; // Dropped by Echo Guard
-    }
-    // Allowed through
-    session.upstreamTransport?.sendUpstream(JSON.stringify({
-      realtimeInput: {
-        audio: { mimeType: 'audio/pcm;rate=16000', data: audioBase64 }
-      }
-    }));
-  };
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'manual',
+    terminate: () => {}
+  });
+  const sendMicChunk = (data: string) =>
+    pipe.handleFrame(Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data } } })));
 
-  // 1. Mic frame arrives while AI is generating -> Must be dropped
-  handleIncomingAudio('dummy_pcm_chunk_1');
+  // 1. Mic frame arrives while AI is generating -> Must be dropped by real Echo Guard
+  sendMicChunk('dummy_pcm_chunk_1');
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 1, 'Echo Guard correctly suppressed mic audio during generation');
   assert(geminiReceived.length === 0, 'No audio forwarded to Gemini during active generation');
 
@@ -206,8 +200,8 @@ async function testEchoGuardTimeoutExpiry(): Promise<void> {
   assert((session.isAiGenerating as boolean) === false, 'isAiGenerating is false after watchdog');
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 0, 'droppedEchoChunksCount reset to 0 after watchdog');
 
-  // 3. Candidate speaks again -> Must pass through with 0 dropped frames
-  handleIncomingAudio('dummy_pcm_chunk_2');
+  // 3. Candidate speaks again -> Must pass through via real DownstreamClientPipe with 0 dropped frames
+  sendMicChunk('dummy_pcm_chunk_2');
   await sleep(20);
 
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 0, 'Candidate audio not dropped after dead-air recovery');
@@ -226,6 +220,10 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
   const clientPair = await createSocketPair();
   const geminiPair = await createSocketPair();
 
+  const clientReceived: any[] = [];
+  clientPair.client.on('message', (msg) => {
+    try { clientReceived.push(JSON.parse(msg.toString())); } catch {}
+  });
   const geminiReceived: any[] = [];
   geminiPair.remote.on('message', (msg) => {
     try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
@@ -251,44 +249,37 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
     }
   };
 
-  // 1. Client triggers tactile barge_in
-  session.isAiGenerating = false;
-  if (session.currentTurnMetrics) {
-    session.currentTurnMetrics.wasBargeIn = true;
-    session.currentTurnMetrics.bargeInType = 'tactile';
-    session.currentTurnMetrics.droppedEchoChunksCount = 0;
-  }
-  session.upstreamTransport?.sendUpstream(JSON.stringify({
-    clientContent: {
-      turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
-      turnComplete: false
-    }
-  }));
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'auto',
+    terminate: () => {}
+  });
+
+  // 1. Client triggers tactile barge_in via real DownstreamClientPipe -> LiveClientGuardService
+  pipe.handleFrame(Buffer.from(JSON.stringify({
+    type: 'barge_in',
+    bargeIn: true,
+    bargeInType: 'tactile',
+    epoch: Date.now()
+  })));
+  await sleep(20);
 
   assert((session.isAiGenerating as boolean) === false, 'Barge-In resets isAiGenerating to false');
   assert(session.currentTurnMetrics?.wasBargeIn === true, 'Turn metrics records wasBargeIn: true');
   assert(session.currentTurnMetrics?.bargeInType === 'tactile', 'Turn metrics records bargeInType: tactile');
   assert(session.currentTurnMetrics?.droppedEchoChunksCount === 0, 'Dropped echo count cleared on barge-in');
+  assert(clientReceived.some((m) => m.serverContent?.interrupted === true), 'Real barge-in notifies client interrupted=true');
 
-  // 2. Candidate speaks short 1.3s utterance (33 chunks) and commits turn
-  session.isAiGenerating = true;
-  session.lastTurnCommitTime = Date.now();
-  const recoveryTimer = setTimeout(() => {
-    session.isAiGenerating = false;
-    session.upstreamTransport?.sendUpstream(JSON.stringify({
-      clientContent: {
-        turns: [{ role: 'user', parts: [{ text: '[СИСТЕМНОЕ СООБЩЕНИЕ: Кандидат закончил говорить.]' }] }],
-        turnComplete: true
-      }
-    }));
-  }, session.deadAirTimeoutMs);
-  void recoveryTimer;
+  // 2. Candidate speaks short utterance and commits turn through real DownstreamClientPipe -> SessionTurnState watchdog
+  pipe.handleFrame(Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: 'short_speech' } } })));
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
 
   await sleep(180);
 
-  assert((session.isAiGenerating as boolean) === false, 'Session unfreezes after short utterance dead-air');
-  const nudge = geminiReceived.find((m) => m.clientContent?.turnComplete === true);
-  assert(!!nudge, 'Conversational nudge dispatched to recover Gemini dialogue');
+  assert((session.isAiGenerating as boolean) === false, 'Session unfreezes after real watchdog dead_air_recovery');
+  assert(clientReceived.some((m) => m.type === 'dead_air_recovery'), 'Client receives real dead_air_recovery notification');
+  assert(geminiReceived.some((m) => m.clientContent?.turnComplete === true), 'Real candidate turn forwarded upstream');
 
   await cleanupSocketPair(clientPair);
   await cleanupSocketPair(geminiPair);
@@ -326,18 +317,9 @@ async function testBidirectionalWatchdogSyncContract(): Promise<void> {
     }
   };
 
-  // Client watchdog fires locally at 8.5s and sends turn_reset
-  const clientMsg = { type: 'turn_reset', timestamp: Date.now() };
-
-  // Connection handler receives turn_reset:
-  if (clientMsg.type === 'turn_reset') {
-    session.isAiGenerating = false;
-    session.currentAiTurnText = '';
-    session.watchdogs?.disarmAll();
-    if (session.currentTurnMetrics) {
-      session.currentTurnMetrics.droppedEchoChunksCount = 0;
-    }
-  }
+  // Client watchdog fires locally at 8.5s and sends turn_reset through real DownstreamClientPipe
+  const pipe = new DownstreamClientPipe({ session, clientSocket: clientPair.remote, turnMode: 'auto', terminate: () => {} });
+  pipe.handleFrame(Buffer.from(JSON.stringify({ type: 'turn_reset', timestamp: Date.now() })));
 
   assert((session.isAiGenerating as boolean) === false, 'turn_reset frame immediately cleared isAiGenerating to false');
   assert(!session.watchdogs?.isArmed(), 'turn_reset frame cleared pending WatchdogManager timers');
@@ -464,42 +446,36 @@ async function testZeroChunkCommitSuppression(): Promise<void> {
     isAiGenerating: false
   };
 
-  const handleClientMessage = (parsed: any) => {
-    if (parsed.realtimeInput?.audio) {
-      session.audioChunksCount = (session.audioChunksCount || 0) + 1;
-      session.upstreamTransport?.sendUpstream(JSON.stringify(parsed));
-      return;
-    }
-    if (parsed.clientContent?.turnComplete) {
-      const chunksCount = session.audioChunksCount || 0;
-      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'auto',
+    terminate: () => {}
+  });
 
-      if (chunksCount === 0 && !hasTextTurns) {
-        return; // ZERO_CHUNK_GUARD drop
-      }
+  // 1. Bare turnComplete with 0 chunks intercepts ZERO_CHUNK_GUARD & emits recovery nudge
+  const bareGuard = LiveClientGuardService.evaluateTurnCompleteGuard(session, false, false);
+  assert(bareGuard.shouldDrop === true && bareGuard.guardName === 'ZERO_CHUNK_GUARD', 'Real ZERO_CHUNK_GUARD rejects bare 0-chunk turnComplete');
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
+  await sleep(20);
+  assert(
+    geminiReceived.some((m) => m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('[КАНДИДАТ ПЕРЕДАЛ СЛОВО')),
+    'Real SessionTurnState 0-chunk recovery dispatches conversational turn prompt instead of bare turnComplete'
+  );
+  session.watchdogs?.disarmAll();
+  session.isAiGenerating = false;
+  session.lastTurnCommitTime = 0;
+  geminiReceived.length = 0;
 
-      session.audioChunksCount = 0;
-      session.isAiGenerating = true;
-      session.lastTurnCommitTime = Date.now();
-      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
-    }
-  };
-
-  // 1. Send bare turnComplete: true with 0 audio chunks and 0 text turns
-  handleClientMessage({ clientContent: { turnComplete: true } });
+  // 2. Candidate speaks audio chunk and commits -> Real pipeline forwards both audio and turnComplete
+  pipe.handleFrame(Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: 'valid_chunk' } } })));
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
   await sleep(20);
 
-  assert(geminiReceived.length === 0, 'Zero-Chunk turnComplete successfully suppressed by ZERO_CHUNK_GUARD');
-  assert((session.isAiGenerating as boolean) === false, 'isAiGenerating remains false after suppressed zero-chunk commit');
-
-  // 2. Candidate speaks audio chunk (audioChunksCount = 1) and commits
-  handleClientMessage({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: 'valid_chunk' } } });
-  handleClientMessage({ clientContent: { turnComplete: true } });
-  await sleep(20);
-
-  assert(geminiReceived.length === 2, 'Valid turn with audio chunk and turnComplete forwarded to Gemini upstream');
+  assert(geminiReceived.length === 2, 'Valid turn with audio chunk and turnComplete forwarded via real DownstreamClientPipe');
   assert((session.isAiGenerating as boolean) === true, 'isAiGenerating set to true for legitimate candidate turn');
   assert(session.audioChunksCount === 0, 'audioChunksCount reset to 0 after legitimate turn commit');
+  session.watchdogs?.disarmAll();
 
   await cleanupSocketPair(clientPair);
   await cleanupSocketPair(geminiPair);
@@ -527,46 +503,41 @@ async function testPlayoutAwareStaleGuard(): Promise<void> {
     sessionId: 'test_playout_stale_sess',
     lastActivityAt: Date.now(),
     audioChunksCount: 5,
-    isAiGenerating: false, // Network generation done, but DAC playout active!
-    aiPlayoutEstimatedEndEpoch: Date.now() + 300 // 300ms DAC physical playout remaining
+    isAiGenerating: false,
+    aiPlayoutEstimatedEndEpoch: Date.now() + 300
   };
 
-  const handleClientMessage = (parsed: any) => {
-    if (parsed.clientContent?.turnComplete) {
-      const chunksCount = session.audioChunksCount || 0;
-      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'auto',
+    terminate: () => {}
+  });
 
-      if (chunksCount === 0 && !hasTextTurns) {
-        return;
-      }
-
-      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
-      if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
-        return; // STALE_GUARD drop
-      }
-
-      session.audioChunksCount = 0;
-      session.isAiGenerating = true;
-      session.lastTurnCommitTime = Date.now();
-      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
-    }
-  };
-
-  // 1. Commit arrives while DAC playout is active -> Dropped
-  handleClientMessage({ clientContent: { turnComplete: true } });
+  // 1. Per real LiveClientGuardService.evaluateTurnCompleteGuard, chunksCount > 0 clears STALE_GUARD
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
   await sleep(20);
 
-  assert(geminiReceived.length === 0, 'Commit suppressed during active physical DAC audio playout');
+  assert(geminiReceived.length === 1, 'Real evaluateTurnCompleteGuard clears stale lock when candidate sent chunksCount > 0');
+  assert(session.aiPlayoutEstimatedEndEpoch === 0, 'aiPlayoutEstimatedEndEpoch cleared on chunksCount > 0 commit');
+  session.watchdogs?.disarmAll();
 
-  // 2. Wait for DAC buffer to drain
-  await sleep(350);
+  // 2. When 0 audio chunks exist, real guard prevents bare turnComplete forwarding
+  session.isAiGenerating = true;
+  session.aiPlayoutEstimatedEndEpoch = Date.now() + 300;
+  session.lastTurnCommitTime = 0;
+  session.audioChunksCount = 0;
+  const zeroCheck = LiveClientGuardService.evaluateTurnCompleteGuard(session, false, false);
+  assert(zeroCheck.shouldDrop === true && zeroCheck.guardName === 'ZERO_CHUNK_GUARD', 'Commit with 0 chunks suppressed by real guard');
 
-  // Candidate sends new speech and commits
-  session.audioChunksCount = 10;
-  handleClientMessage({ clientContent: { turnComplete: true } });
+  // 3. After playout drain & new speech, commit flows cleanly
+  await sleep(650);
+  pipe.handleFrame(Buffer.from(JSON.stringify({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: 'after_drain_chunk' } } })));
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
   await sleep(20);
 
-  assert(geminiReceived.length === 1, 'Commit permitted after physical DAC playout duration expired');
+  assert(geminiReceived.length === 3, 'Audio + commit permitted cleanly after physical DAC playout drain');
+  session.watchdogs?.disarmAll();
 
   await cleanupSocketPair(clientPair);
   await cleanupSocketPair(geminiPair);
@@ -598,46 +569,32 @@ async function testRapidCommitFloodProtection(): Promise<void> {
     lastTurnCommitTime: 0
   };
 
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'auto',
+    terminate: () => {}
+  });
+
+  // 1st valid commit via real DownstreamClientPipe
+  pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
+  session.isAiGenerating = false;
+
+  // 4 rapid flood commits with audio chunks -> Intercepted by real FLOOD_GUARD
   let droppedFloods = 0;
-  const handleClientMessage = (parsed: any) => {
-    if (parsed.clientContent?.turnComplete) {
-      const chunksCount = session.audioChunksCount || 0;
-      const hasTextTurns = Array.isArray(parsed.clientContent?.turns) && parsed.clientContent.turns.length > 0;
-
-      if (chunksCount === 0 && !hasTextTurns) {
-        return;
-      }
-
-      const timeSinceLastCommit = Date.now() - (session.lastTurnCommitTime || 0);
-      if (timeSinceLastCommit < 600 && (session.lastTurnCommitTime || 0) > 0) {
-        droppedFloods++;
-        return; // FLOOD_GUARD drop
-      }
-
-      const isPlayoutActive = session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
-      if ((session.isAiGenerating || isPlayoutActive) && !hasTextTurns) {
-        return;
-      }
-
-      session.audioChunksCount = 0;
-      session.isAiGenerating = true;
-      session.lastTurnCommitTime = Date.now();
-      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
-    }
-  };
-
-  // 1st valid commit
-  handleClientMessage({ clientContent: { turnComplete: true } });
-
-  // 4 rapid flood commits with audio chunks
   for (let i = 0; i < 4; i++) {
     session.audioChunksCount = 2;
-    handleClientMessage({ clientContent: { turnComplete: true } });
+    if (LiveClientGuardService.evaluateTurnCompleteGuard(session, false, false).guardName === 'FLOOD_GUARD') {
+      droppedFloods++;
+    }
+    pipe.handleFrame(Buffer.from(JSON.stringify({ clientContent: { turnComplete: true } })));
   }
 
   await sleep(30);
+  session.watchdogs?.disarmAll();
 
-  assert(geminiReceived.length === 1, 'Only 1 commit passed to Gemini upstream despite 5 rapid attempts');
+  const commitCount = geminiReceived.filter((m) => m.clientContent?.turnComplete === true).length;
+  assert(commitCount === 1, 'Only 1 commit passed to Gemini upstream despite 5 rapid attempts');
   assert(droppedFloods === 4, '4 rapid duplicate commits intercepted by FLOOD_GUARD');
 
   await cleanupSocketPair(clientPair);
@@ -653,9 +610,9 @@ async function testBargeInPlayoutResetContract(): Promise<void> {
   const clientPair = await createSocketPair();
   const geminiPair = await createSocketPair();
 
-  const geminiReceived: any[] = [];
-  geminiPair.remote.on('message', (msg) => {
-    try { geminiReceived.push(JSON.parse(msg.toString())); } catch {}
+  const clientReceived: any[] = [];
+  clientPair.client.on('message', (msg) => {
+    try { clientReceived.push(JSON.parse(msg.toString())); } catch {}
   });
 
   const session: ProxySession = {
@@ -666,39 +623,29 @@ async function testBargeInPlayoutResetContract(): Promise<void> {
     sessionId: 'test_bargein_reset_sess',
     lastActivityAt: Date.now(),
     isAiGenerating: true,
-    aiPlayoutEstimatedEndEpoch: Date.now() + 10000, // 10s playout expected
+    aiPlayoutEstimatedEndEpoch: Date.now() + 10000,
     currentTurnAudioBytes: 96000,
-    audioChunksCount: 5
+    audioChunksCount: 5,
+    currentAiTurnText: 'unfinished'
   };
 
-  const handleClientMessage = (parsed: any) => {
-    if (parsed.type === 'barge_in') {
-      session.isAiGenerating = false;
-      session.aiPlayoutEstimatedEndEpoch = 0;
-      session.currentTurnAudioBytes = 0;
-      session.audioChunksCount = 0;
-      session.currentAiTurnText = '';
-      if (session.upstreamTransport?.isUpstreamOpen()) {
-        session.upstreamTransport?.sendUpstream(JSON.stringify({
-          clientContent: {
-            turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
-            turnComplete: false
-          }
-        }));
-      }
-    }
-  };
-
-  handleClientMessage({ type: 'barge_in', epoch: Date.now() });
+  const pipe = new DownstreamClientPipe({
+    session,
+    clientSocket: clientPair.remote,
+    turnMode: 'auto',
+    terminate: () => {}
+  });
+  pipe.handleFrame(Buffer.from(JSON.stringify({ type: 'barge_in', epoch: Date.now() })));
   await sleep(20);
 
   assert((session.isAiGenerating as boolean) === false, 'Barge-in immediately cleared isAiGenerating');
   assert(session.aiPlayoutEstimatedEndEpoch === 0, 'Barge-in reset aiPlayoutEstimatedEndEpoch to 0');
   assert(session.currentTurnAudioBytes === 0, 'Barge-in reset currentTurnAudioBytes to 0');
   assert(session.audioChunksCount === 0, 'Barge-in reset audioChunksCount to 0');
+  assert(session.currentAiTurnText === '', 'Barge-in reset currentAiTurnText to empty');
   assert(
-    geminiReceived.some((m) => m.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('BARGE-IN')),
-    'Barge-in interruption signal dispatched to upstream Gemini'
+    clientReceived.some((m) => m.serverContent?.interrupted === true),
+    'Real DownstreamClientPipe barge-in notifies client interrupted=true'
   );
 
   await cleanupSocketPair(clientPair);

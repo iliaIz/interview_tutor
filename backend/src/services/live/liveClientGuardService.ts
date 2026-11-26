@@ -115,6 +115,9 @@ export class LiveClientGuardService {
     // (thinking/synthesizing), trailing mic audio or ambient silence must NOT stream
     // upstream to prevent speech interruption conflicts.
     if (session.isAiGenerating) {
+      if (session.currentTurnMetrics) {
+        session.currentTurnMetrics.droppedEchoChunksCount = (session.currentTurnMetrics.droppedEchoChunksCount || 0) + 1;
+      }
       return true;
     }
 

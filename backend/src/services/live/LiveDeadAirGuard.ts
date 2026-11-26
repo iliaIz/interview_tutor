@@ -34,8 +34,8 @@ export class LiveDeadAirGuard {
    * Inspects incoming audio chunk payload from Gemini upstream.
    * @param isZeroEnergy true if incoming PCM is digital silence / below noise floor
    */
-  public inspectAudioFrame(isZeroEnergy: boolean): DeadAirInspectionResult {
-    const now = Date.now();
+  public inspectAudioFrame(isZeroEnergy: boolean, nowMs: number = Date.now()): DeadAirInspectionResult {
+    const now = nowMs;
 
     if (!isZeroEnergy) {
       // Real speech audio is flowing
