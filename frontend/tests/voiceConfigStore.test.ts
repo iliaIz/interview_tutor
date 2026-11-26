@@ -9,6 +9,8 @@
  */
 
 import assert from 'assert';
+import { createJSONStorage } from 'zustand/middleware';
+import { useAppStore } from '../src/store/useAppStore';
 import {
   VOICE_CONFIG_STORAGE_KEY,
   StoragePort,
@@ -243,6 +245,88 @@ async function runVoiceConfigStoreTests() {
     assert.strictEqual(store.getState().config.voice, 'Kore', 'Clearing v2 key resets to default voice');
     assert.strictEqual(store.getState().explicitLiveModel, false, 'Clearing v2 key resets explicitLiveModel');
     console.log('  ✅ Passed: Cross-tab handleStorageSync');
+  }
+
+  // [Test 6] Pruned questionsSlice / uiSlice / useAppStore Initial & Rehydrated State in Node
+  console.log('\n[Test 6] Pruned questionsSlice & useAppStore Rehydration');
+  {
+    const initialAppState = useAppStore.getState();
+    const initialRaw = initialAppState as unknown as Record<string, unknown>;
+    assert.strictEqual('shuffleMap' in initialRaw, false, 'shuffleMap is removed from useAppStore');
+    assert.strictEqual('batchSizeMap' in initialRaw, false, 'batchSizeMap is removed from useAppStore');
+    assert.strictEqual('toggleShuffle' in initialRaw, false, 'toggleShuffle action is removed from useAppStore');
+    assert.strictEqual('setBatchSize' in initialRaw, false, 'setBatchSize action is removed from useAppStore');
+    assert.strictEqual('runtimeConfig' in initialRaw, false, 'runtimeConfig is removed from uiSlice/useAppStore');
+    assert.strictEqual('fetchRuntimeConfig' in initialRaw, false, 'fetchRuntimeConfig is removed from uiSlice/useAppStore');
+
+    initialAppState.updateTopicProgress('concurrency', 'q_mem_1', true, 10);
+    const topicProg = useAppStore.getState().topicsProgress.concurrency as unknown as Record<string, unknown>;
+    assert.ok(topicProg, 'updateTopicProgress populates topicsProgress');
+    assert.strictEqual('shuffle' in topicProg, false, 'TopicProgress omits dead shuffle field');
+    assert.strictEqual('batchSize' in topicProg, false, 'TopicProgress omits dead batchSize field');
+
+    const persistOpts = useAppStore.persist.getOptions();
+    type PersistedAppSlice = ReturnType<NonNullable<typeof persistOpts.partialize>>;
+    const prevStorage = persistOpts.storage;
+    const rawStorageMap = new Map<string, string>();
+    const sampleQ = { id: 'q_mem_1', global_id: 1, num: 1, topic: 'concurrency', question: 'What is JMM?', answer: 'Memory model' };
+    rawStorageMap.set(
+      'interview-prep-storage-v2',
+      JSON.stringify({
+        state: {
+          currentView: 'study', selectedTopicId: 'concurrency', selectedTopicName: 'Concurrency',
+          shuffleMap: { java: true, concurrency: true }, batchSizeMap: { java: 15, concurrency: 20 },
+          topicsProgress: { java: { topicId: 'java', completedCount: 4 } },
+          cheatSheetBookmarks: [{ id: 'bm_1', title: 'Volatile & JMM', createdAt: '2026-01-01T00:00:00.000Z' }],
+          evaluationsMap: {
+            q_mem_1: {
+              id: 'ev_1', questionId: 'q_mem_1', topic: 'concurrency', mode: 'voice',
+              score: 94, isPassed: true, positivePoints: ['Happens-Before'], missingPoints: [], feedback: 'Strong answer'
+            }
+          },
+          topicAccessMap: { concurrency: { lastAccessedAt: 1700000000000, count: 3 } },
+          currentBatch: [sampleQ], currentQuestionIndex: 7,
+          activeBatchSession: {
+            sessionId: 'batch_sess_1', topicId: 'concurrency', topicName: 'Concurrency',
+            questions: [sampleQ], currentIndex: 0, results: { q_mem_1: { score: 94 } },
+            startedAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', isComplete: false
+          }
+        },
+        version: 0
+      })
+    );
+
+    const mockPersistStorage = createJSONStorage<PersistedAppSlice>(() => ({
+      getItem: (name: string) => rawStorageMap.get(name) ?? null,
+      setItem: (name: string, value: string) => { rawStorageMap.set(name, value); },
+      removeItem: (name: string) => { rawStorageMap.delete(name); }
+    }));
+
+    try {
+      useAppStore.persist.setOptions({ storage: mockPersistStorage });
+      await useAppStore.persist.rehydrate();
+
+      const rehydratedState = useAppStore.getState();
+      const rehydratedRaw = rehydratedState as unknown as Record<string, unknown>;
+      assert.strictEqual('shuffleMap' in rehydratedRaw, false, 'Rehydration strips legacy shuffleMap');
+      assert.strictEqual('batchSizeMap' in rehydratedRaw, false, 'Rehydration strips legacy batchSizeMap');
+      assert.deepStrictEqual(rehydratedState.topicsProgress, {}, 'Rehydration resets transient topicsProgress');
+      assert.strictEqual(rehydratedState.cheatSheetBookmarks.length, 1, 'Rehydration preserves cheatSheetBookmarks');
+      assert.strictEqual(rehydratedState.cheatSheetBookmarks[0].id, 'bm_1', 'Preserved bookmark id matches');
+      assert.strictEqual(rehydratedState.evaluationsMap.q_mem_1?.score, 94, 'Rehydration preserves evaluationsMap');
+      assert.strictEqual(rehydratedState.activeBatchSession?.sessionId, 'batch_sess_1', 'Rehydration preserves activeBatchSession');
+      assert.strictEqual(rehydratedState.topicAccessMap.concurrency?.count, 3, 'Rehydration preserves topicAccessMap');
+      assert.strictEqual(rehydratedState.currentQuestionIndex, 0, 'Rehydration clamps out-of-bounds question index');
+
+      const partialized = persistOpts.partialize!(rehydratedState) as unknown as Record<string, unknown>;
+      assert.strictEqual('shuffleMap' in partialized, false, 'partialize excludes shuffleMap');
+      assert.strictEqual('batchSizeMap' in partialized, false, 'partialize excludes batchSizeMap');
+      assert.ok(Array.isArray(partialized.cheatSheetBookmarks), 'partialize retains cheatSheetBookmarks');
+      assert.ok(partialized.activeBatchSession, 'partialize retains activeBatchSession');
+    } finally {
+      useAppStore.persist.setOptions({ storage: prevStorage });
+    }
+    console.log('  ✅ Passed: pruned questionsSlice & useAppStore rehydration');
   }
 
   console.log('\n🎉 ALL SPEC 59 VOICE CONFIG STORE CONTRACT TESTS PASSED!');

@@ -12,7 +12,6 @@ import { FsrsQueueItemDTO } from '../../types/fsrs';
 export function useTopicCatalog() {
   const {
     startStudyWithQuestions,
-    shuffleMap,
     topicsProgress,
     syncTopicProgress,
     resetTopicProgress,
@@ -89,7 +88,7 @@ export function useTopicCatalog() {
     }
 
     try {
-      const isShuffle = isGlobalShuffle || shuffleMap[topicId] || false;
+      const isShuffle = isGlobalShuffle;
       const res = await fetch(`/api/topics/${topicId}/questions`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -125,7 +124,7 @@ export function useTopicCatalog() {
     } finally {
       setStartingTopicId(null);
     }
-  }, [isGlobalShuffle, shuffleMap, topicsProgress, resetTopicProgress, showToast, startStudyWithQuestions]);
+  }, [isGlobalShuffle, topicsProgress, resetTopicProgress, showToast, startStudyWithQuestions]);
 
   const handleStartBlitzReview = useCallback((queueItems: FsrsQueueItemDTO[]) => {
     if (!queueItems || queueItems.length === 0) return;

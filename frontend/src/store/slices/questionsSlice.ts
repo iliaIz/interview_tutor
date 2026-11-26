@@ -23,8 +23,6 @@ export interface TopicProgress {
   completedCount: number;
   masteredCount: number;
   percentage: number;
-  shuffle: boolean;
-  batchSize: number;
   completedIds: string[];
   masteredIds: string[];
 }
@@ -85,8 +83,6 @@ export interface QuestionsSlice {
   selectedTopicName: string | null;
   currentBatch: Question[];
   currentQuestionIndex: number;
-  shuffleMap: Record<string, boolean>;
-  batchSizeMap: Record<string, number>;
   topicsProgress: Record<string, TopicProgress>;
   topicAccessMap: Record<string, TopicAccessMeta>;
   activeBatchSession: ActiveBatchSession | null;
@@ -101,8 +97,6 @@ export interface QuestionsSlice {
   openTopicQuestions: (topicId: string, topicName: string) => void;
   startStudyWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
   startQuizWithQuestions: (topicId: string, topicName: string, questions: Question[]) => void;
-  toggleShuffle: (topicId: string) => void;
-  setBatchSize: (topicId: string, size: number) => void;
   updateTopicProgress: (topicId: string, completedId: string, isMastered: boolean, totalQuestions?: number) => void;
   syncTopicProgress: (topicId: string, completedCount: number, percentage: number, total?: number) => void;
   resetTopicProgress: (topicId: string) => void;
@@ -124,8 +118,6 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
   selectedTopicName: null,
   currentBatch: [],
   currentQuestionIndex: 0,
-  shuffleMap: { java: false, spring: false, hibernate: false, docker: false },
-  batchSizeMap: { java: 5, spring: 5, hibernate: 5, docker: 5 },
   topicsProgress: {},
   topicAccessMap: {},
   activeBatchSession: null,
@@ -143,55 +135,31 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
 
   openTopicQuestions: (topicId, topicName) => {
     get().recordTopicAccess(topicId);
-    set({
-      selectedTopicId: topicId,
-      selectedTopicName: topicName,
-      currentView: 'questions'
-    });
+    set({ selectedTopicId: topicId, selectedTopicName: topicName, currentView: 'questions' });
   },
 
   startStudyWithQuestions: (topicId, topicName, questions) => {
     get().recordTopicAccess(topicId);
     set({
-      selectedTopicId: topicId,
-      selectedTopicName: topicName,
-      currentBatch: questions,
-      currentQuestionIndex: 0,
-      currentView: 'study'
+      selectedTopicId: topicId, selectedTopicName: topicName,
+      currentBatch: questions, currentQuestionIndex: 0, currentView: 'study'
     });
   },
 
   startQuizWithQuestions: (topicId, topicName, questions) => {
     get().recordTopicAccess(topicId);
     set({
-      selectedTopicId: topicId,
-      selectedTopicName: topicName,
-      currentBatch: questions,
-      currentQuestionIndex: 0,
-      currentView: 'quiz'
+      selectedTopicId: topicId, selectedTopicName: topicName,
+      currentBatch: questions, currentQuestionIndex: 0, currentView: 'quiz'
     });
   },
-
-  toggleShuffle: (topicId) => set((state: any) => ({
-    shuffleMap: { ...state.shuffleMap, [topicId]: !state.shuffleMap[topicId] }
-  })),
-
-  setBatchSize: (topicId, size) => set((state: any) => ({
-    batchSizeMap: { ...state.batchSizeMap, [topicId]: size }
-  })),
 
   recordTopicAccess: (topicId) => {
     if (!topicId) return;
     set((state: any) => {
       const prev = state.topicAccessMap[topicId] || { lastAccessedAt: 0, count: 0 };
       return {
-        topicAccessMap: {
-          ...state.topicAccessMap,
-          [topicId]: {
-            lastAccessedAt: Date.now(),
-            count: prev.count + 1
-          }
-        }
+        topicAccessMap: { ...state.topicAccessMap, [topicId]: { lastAccessedAt: Date.now(), count: prev.count + 1 } }
       };
     });
   },
@@ -279,7 +247,7 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
   updateTopicProgress: (topicId, completedId, isMastered, totalQuestions) => set((state: any) => {
     const prev = state.topicsProgress[topicId] || {
       topicId, name: topicId, total: totalQuestions || 27, completedCount: 0, masteredCount: 0,
-      percentage: 0, shuffle: false, batchSize: 5, completedIds: [], masteredIds: []
+      percentage: 0, completedIds: [], masteredIds: []
     };
     const completedIds = Array.from(new Set([...prev.completedIds, completedId]));
     const masteredIds = isMastered
@@ -293,13 +261,8 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
       topicsProgress: {
         ...state.topicsProgress,
         [topicId]: {
-          ...prev,
-          total: effectiveTotal,
-          completedIds,
-          masteredIds,
-          completedCount: completedIds.length,
-          masteredCount: masteredIds.length,
-          percentage
+          ...prev, total: effectiveTotal, completedIds, masteredIds,
+          completedCount: completedIds.length, masteredCount: masteredIds.length, percentage
         }
       }
     };
@@ -308,17 +271,12 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
   syncTopicProgress: (topicId, completedCount, percentage, total) => set((state: any) => {
     const prev = state.topicsProgress[topicId] || {
       topicId, name: topicId, total: total || 27, completedCount: 0, masteredCount: 0,
-      percentage: 0, shuffle: false, batchSize: 5, completedIds: [], masteredIds: []
+      percentage: 0, completedIds: [], masteredIds: []
     };
     return {
       topicsProgress: {
         ...state.topicsProgress,
-        [topicId]: {
-          ...prev,
-          completedCount,
-          percentage,
-          total: total || prev.total || 27
-        }
+        [topicId]: { ...prev, completedCount, percentage, total: total || prev.total || 27 }
       }
     };
   }),
@@ -329,14 +287,7 @@ export const createQuestionsSlice: StateCreator<any, [], [], QuestionsSlice> = (
     return {
       topicsProgress: {
         ...state.topicsProgress,
-        [topicId]: {
-          ...prev,
-          completedIds: [],
-          masteredIds: [],
-          completedCount: 0,
-          masteredCount: 0,
-          percentage: 0
-        }
+        [topicId]: { ...prev, completedIds: [], masteredIds: [], completedCount: 0, masteredCount: 0, percentage: 0 }
       }
     };
   })

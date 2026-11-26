@@ -9,53 +9,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import {
-  UiSlice,
-  StudioTab,
-  ActiveAudioJob,
-  ToastNotification,
-  SystemHealth,
-  RecapTarget,
-  createUiSlice
-} from './slices/uiSlice';
-
-import {
-  QuestionsSlice,
-  Question,
-  TopicProgress,
-  CheatSheetBookmark,
-  QuestionEvaluationSummary,
-  TopicAccessMeta,
-  ActiveBatchSession,
-  createQuestionsSlice
-} from './slices/questionsSlice';
-
-import {
-  AcademySlice,
-  AcademyBreadcrumbContext,
-  createAcademySlice
-} from './slices/academySlice';
-
-import {
-  WhiteboardSlice,
-  WhiteboardState,
-  CodeArtifactRevision,
-  ActiveWhiteboardArtifact,
-  selectActiveWhiteboardArtifact,
-  pruneCodeRevisionsWithNonEviction,
-  createWhiteboardSlice
-} from './slices/whiteboardSlice';
-
-import {
-  PracticeSlice,
-  createPracticeSlice
-} from './slices/practiceSlice';
-
-import {
-  CompanySlice,
-  CompanySubTab,
-  createCompanySlice
-} from './slices/companySlice';
+import { UiSlice, StudioTab, ActiveAudioJob, ToastNotification, SystemHealth, RecapTarget, createUiSlice } from './slices/uiSlice';
+import { QuestionsSlice, Question, TopicProgress, CheatSheetBookmark, QuestionEvaluationSummary, TopicAccessMeta, ActiveBatchSession, createQuestionsSlice } from './slices/questionsSlice';
+import { AcademySlice, AcademyBreadcrumbContext, createAcademySlice } from './slices/academySlice';
+import { WhiteboardSlice, WhiteboardState, CodeArtifactRevision, ActiveWhiteboardArtifact, selectActiveWhiteboardArtifact, pruneCodeRevisionsWithNonEviction, createWhiteboardSlice } from './slices/whiteboardSlice';
+import { PracticeSlice, createPracticeSlice } from './slices/practiceSlice';
+import { CompanySlice, CompanySubTab, createCompanySlice } from './slices/companySlice';
 
 // Re-export all domain types and canonical selectors for existing consumers
 export type {
@@ -105,8 +64,6 @@ export const useAppStore = create<AppState>()(
         selectedTopicId: state.selectedTopicId,
         selectedTopicName: state.selectedTopicName,
         activeAcademyCourseId: state.activeAcademyCourseId,
-        shuffleMap: state.shuffleMap,
-        batchSizeMap: state.batchSizeMap,
         evaluationsMap: state.evaluationsMap,
         cheatSheetBookmarks: state.cheatSheetBookmarks,
         topicAccessMap: state.topicAccessMap,
@@ -115,6 +72,14 @@ export const useAppStore = create<AppState>()(
         currentQuestionIndex: state.currentQuestionIndex,
         activeBatchSession: state.activeBatchSession
       }),
+      merge: (persistedState, currentState) => {
+        const incoming = (persistedState && typeof persistedState === 'object')
+          ? { ...(persistedState as Record<string, unknown>) }
+          : {};
+        delete incoming.shuffleMap;
+        delete incoming.batchSizeMap;
+        return { ...currentState, ...incoming } as AppState;
+      },
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.topicsProgress = {};

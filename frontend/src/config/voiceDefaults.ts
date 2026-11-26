@@ -125,13 +125,3 @@ export function getVadPresetOptions(presetsMs?: readonly number[]): VadPresetOpt
     desc: VAD_PRESET_DESCRIPTIONS[ms] || `${ms} мс`,
   }));
 }
-
-let cachedRuntimeVoiceConfig: RuntimeVoiceConfig | null = null;
-
-export function setCachedRuntimeVoiceConfig(cfg: RuntimeVoiceConfig | null): void {
-  cachedRuntimeVoiceConfig = cfg;
-}
-
-export function getCachedRuntimeVoiceConfig(): RuntimeVoiceConfig | null {
-  return cachedRuntimeVoiceConfig;
-}
