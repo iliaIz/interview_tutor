@@ -11,7 +11,7 @@ Eliminate four verified structural and correctness defects in persistence initia
 1. Fix the confirmed `DP-01..DP-07 -> LLD-xx` task-code clobbering bug in `dbSeedCatalogs.ts` where running `seedCodingChallenges()` after `seedNextGenCatalogs()` matches `track != 'testing_mutation'` on Design Pattern katas and creates 7 numbering gaps in `LLD-01..LLD-100`.
 2. Remove 4 unguarded auth `DELETE` statements (`user_sessions`, `ws_tickets`, `invite_tokens`, `users`) executed silently on every module import inside `dbIndexes.ts:runSchemaMigrations`.
 3. Decouple SQLite construction from module-load side effects (`db.ts`, 48L) via `DatabaseBootstrap.init(database)` so tests bind `:memory:` DBs cleanly without mutating `data/interview.db`.
-4. Externalize **12,897 lines** of static TypeScript coding/mutation challenge blobs (`challengeSeedData.ts` 934L, `additionalChallenges.ts` 1,179L, `mutationChallenges/*` 10,775L) into TypeBox-validated JSON catalogs under `backend/json/` validated against a unified `CodingChallengeSchema` in `@interview-prep/shared`, cutting `dbSchema.ts` (357L) and `dbSeedCatalogs.ts` (351L) below 350L and eliminating V8/TSC heap bloat on the 1.8 GB VPS.
+4. Externalize **12,897 lines** of static TypeScript coding/mutation challenge blobs (`challengeSeedData.ts` 934L, `additionalChallenges.ts` 1,179L, `mutationChallenges/*` 10,775L) into TypeBox-validated JSON catalogs under root `json/` validated against a unified `CodingChallengeSchema` in `@interview-prep/shared`, cutting `dbSchema.ts` (357L) and `dbSeedCatalogs.ts` (351L) below 350L and eliminating V8/TSC heap bloat on the 1.8 GB VPS.
 
 ---
 
@@ -28,7 +28,7 @@ Eliminate four verified structural and correctness defects in persistence initia
   - `CatalogSeeder.seedAllCatalogs(db, catalogDir?)` (`backend/src/services/db/CatalogSeeder.ts`)
   - `loadCodingChallengeCatalogs()` (`backend/src/services/db/ChallengeCatalogLoader.ts`)
   - `CodingChallengeSchema` (`shared/src/schemas/codingChallenge.ts`)
-- **Real-Wire / Local-Substitutable:** Ephemeral `:memory:` SQLite `Database` in unit tests; TypeBox `Value.Check` on every JSON catalog file in `backend/json/`.
+- **Real-Wire / Local-Substitutable:** Ephemeral `:memory:` SQLite `Database` in unit tests; TypeBox `Value.Check` on every JSON catalog file in root `json/`.
 - **Verification Command (CI):** `npm run test:practice:task-codes && npm run test:practice:mutation-challenges && npm run test:companies && npm run test:practice:ast-verifier && npm run build`.
 
 ---
@@ -65,7 +65,7 @@ export const CodingChallengeSchema = Type.Object({
 
 ## 5. Storage & Zero-Downtime Migration Contract
 - **Expand-Migrate-Contract Phasing:**
-  1. **Expand:** Add `CodingChallengeSchema` (`shared`), `DatabaseBootstrap`, `CatalogSeeder`, `ChallengeCatalogLoader`, and exported `backend/json/{base_challenges,additional_lld_challenges,mutation_challenges}.json` (plus move `dbSchema` / `dbIndexes` cleanly under `<= 350L`). Existing `db.ts` remains a thin backward-compatible singleton facade over `DatabaseBootstrap` for untouched importers while tests use `:memory:` directly.
+  1. **Expand:** Add `CodingChallengeSchema` (`shared`), `DatabaseBootstrap`, `CatalogSeeder`, `ChallengeCatalogLoader`, and exported root `json/{base_challenges,additional_lld_challenges,mutation_challenges}.json` (plus move `dbSchema` / `dbIndexes` cleanly under `<= 350L`). Existing `db.ts` remains a thin backward-compatible singleton facade over `DatabaseBootstrap` for untouched importers while tests use `:memory:` directly.
   2. **Contract (once `practiceTutor.ts` removes `ALL_MUTATION_CHALLENGES` import in Spec 58 / prerequisite):** Delete `challengeSeedData.ts`, `additionalChallenges.ts`, `additionalMutationChallenges.ts`, and `mutationChallenges/*` (except thin `CodingChallenge` type re-export in `@interview-prep/shared` / `ChallengeCatalogLoader.ts`), and switch `verify_starter_workspaces_integrity.js`, `verify_all_mutation_challenges.js`, and non-CI catalog scripts onto `ChallengeCatalogLoader` + `Value.Check`.
 
 ---
