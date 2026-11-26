@@ -31,6 +31,25 @@ export type GatewayUnavailableReason =
   | 'upstream_timeout'
   | 'schema_parse_error';
 
+const GATEWAY_ERROR_DEFAULTS: Record<GatewayUnavailableReason, { message: string; minRetrySec: number }> = {
+  rate_limit_exceeded: {
+    message: 'Достигнут кратковременный лимит запросов к ИИ-модели (Rate Limit). Автоматический повтор через несколько секунд.',
+    minRetrySec: 6
+  },
+  proxy_unreachable: {
+    message: 'Локальный шлюз LiteLLM временно недоступен (Docker контейнер перезапускается или обновляет сетевой маршрут).',
+    minRetrySec: 4
+  },
+  upstream_timeout: {
+    message: 'Время ожидания ответа ИИ-модели превысило допустимый лимит (сетевой таймаут).',
+    minRetrySec: 5
+  },
+  schema_parse_error: {
+    message: 'ИИ-модель вернула неполный ответ. Повторный запрос восстановит корректную генерацию.',
+    minRetrySec: 3
+  }
+};
+
 export class LlmGatewayUnavailableError extends Error {
   public readonly category = 'transient';
   public readonly reason: GatewayUnavailableReason;
@@ -40,51 +59,21 @@ export class LlmGatewayUnavailableError extends Error {
   public readonly availableBankCount = 70;
 
   constructor(reason: GatewayUnavailableReason, technicalDetail?: string, retryAfterSeconds = 15) {
-    let userMsg = 'ИИ-модель перегружена или шлюз временно недоступен. Мы автоматически восстанавливаем связь.';
-    let retryAfter = retryAfterSeconds;
-
-    if (reason === 'rate_limit_exceeded') {
-      userMsg = 'Достигнут кратковременный лимит запросов к ИИ-модели (Rate Limit). Автоматический повтор через несколько секунд.';
-      retryAfter = Math.max(6, retryAfterSeconds);
-    } else if (reason === 'proxy_unreachable') {
-      userMsg = 'Локальный шлюз LiteLLM временно недоступен (Docker контейнер перезапускается или обновляет сетевой маршрут).';
-      retryAfter = Math.max(4, retryAfterSeconds);
-    } else if (reason === 'upstream_timeout') {
-      userMsg = 'Время ожидания ответа ИИ-модели превысило допустимый лимит (сетевой таймаут).';
-      retryAfter = Math.max(5, retryAfterSeconds);
-    } else if (reason === 'schema_parse_error') {
-      userMsg = 'ИИ-модель вернула неполный ответ. Повторный запрос восстановит корректную генерацию.';
-      retryAfter = Math.max(3, retryAfterSeconds);
-    }
-
+    const meta = GATEWAY_ERROR_DEFAULTS[reason];
+    const userMsg = meta?.message || 'ИИ-модель перегружена или шлюз временно недоступен. Мы автоматически восстанавливаем связь.';
     super(technicalDetail || userMsg);
     this.name = 'LlmGatewayUnavailableError';
     this.reason = reason;
     this.userMessage = userMsg;
-    this.retryAfterSeconds = retryAfter;
+    this.retryAfterSeconds = Math.max(meta?.minRetrySec ?? 1, retryAfterSeconds);
   }
 }
 
-export interface HttpTransportRequest {
-  url: string;
-  headers: Record<string, string>;
-  body: string;
-  signal?: AbortSignal;
-}
-
-export interface HttpTransportPort {
-  postJson(req: HttpTransportRequest): Promise<globalThis.Response>;
-}
+export interface HttpTransportRequest { url: string; headers: Record<string, string>; body: string; signal?: AbortSignal }
+export interface HttpTransportPort { postJson(req: HttpTransportRequest): Promise<globalThis.Response> }
 
 export const FetchTransportAdapter: HttpTransportPort = {
-  postJson(req: HttpTransportRequest): Promise<globalThis.Response> {
-    return globalThis.fetch(req.url, {
-      method: 'POST',
-      headers: req.headers,
-      body: req.body,
-      signal: req.signal
-    });
-  }
+  postJson: (req) => globalThis.fetch(req.url, { method: 'POST', headers: req.headers, body: req.body, signal: req.signal })
 };
 
 const DEFAULT_RETRY_STATUSES = [429, 500, 502, 503, 504];
@@ -150,49 +139,27 @@ export class LlmGatewayClient {
   }
 
   public async synthesizeSpeech(input: {
-    text: string;
-    voice: string;
-    model?: string;
-    responseFormat?: 'mp3' | 'pcm' | 'wav';
-    speed?: number;
-    timeoutMs?: number;
-    maxRetries?: number;
-    abortSignal?: AbortSignal;
+    text: string; voice: string; model?: string; responseFormat?: 'mp3' | 'pcm' | 'wav';
+    speed?: number; timeoutMs?: number; maxRetries?: number; abortSignal?: AbortSignal;
   }): Promise<Buffer> {
     const payload: Record<string, any> = {
-      model: input.model || envConfig.models.tts,
-      input: input.text,
-      voice: input.voice,
-      response_format: input.responseFormat || 'wav'
+      model: input.model || envConfig.models.tts, input: input.text,
+      voice: input.voice, response_format: input.responseFormat || 'wav',
+      ...(typeof input.speed === 'number' ? { speed: input.speed } : {})
     };
-    if (typeof input.speed === 'number') payload.speed = input.speed;
-
     const res = await this.requestWithFailover(
-      envConfig.proxy.speechUrl,
-      JSON.stringify(payload),
-      input.maxRetries ?? 3,
-      input.timeoutMs ?? 45_000,
-      input.abortSignal
+      envConfig.proxy.speechUrl, JSON.stringify(payload), input.maxRetries ?? 3, input.timeoutMs ?? 45_000, input.abortSignal
     );
     return Buffer.from(await res.arrayBuffer());
   }
 
   public async embed(input: {
-    input: string;
-    model?: string;
-    timeoutMs?: number;
-    maxRetries?: number;
-    abortSignal?: AbortSignal;
+    input: string; model?: string; timeoutMs?: number; maxRetries?: number; abortSignal?: AbortSignal;
   }): Promise<Float32Array> {
     const res = await this.requestWithFailover(
       envConfig.proxy.embeddingsUrl,
-      JSON.stringify({
-        model: input.model || envConfig.models.embedding,
-        input: input.input
-      }),
-      input.maxRetries ?? 0,
-      input.timeoutMs ?? 4_000,
-      input.abortSignal
+      JSON.stringify({ model: input.model || envConfig.models.embedding, input: input.input }),
+      input.maxRetries ?? 0, input.timeoutMs ?? 4_000, input.abortSignal
     );
     const data: any = await res.json();
     const rawVector = data?.data?.[0]?.embedding;
@@ -325,40 +292,31 @@ export class LlmGatewayClient {
   }
 
   private static mapStatusError(status: number, errText: string): Error {
-    if (status === 429) {
-      return new LlmGatewayUnavailableError('rate_limit_exceeded', `Upstream rate limit exhausted (HTTP 429): ${errText}`, 30);
-    }
-    if (status === 502 || status === 503) {
-      return new LlmGatewayUnavailableError('proxy_unreachable', `LiteLLM Gateway unavailable (HTTP ${status}): ${errText}`, 20);
-    }
-    if (status === 504) {
-      return new LlmGatewayUnavailableError('upstream_timeout', `LiteLLM Gateway timeout (HTTP 504): ${errText}`, 10);
-    }
+    const statusMap: Record<number, [GatewayUnavailableReason, number, string]> = {
+      429: ['rate_limit_exceeded', 30, 'Upstream rate limit exhausted'],
+      502: ['proxy_unreachable', 20, 'LiteLLM Gateway unavailable'],
+      503: ['proxy_unreachable', 20, 'LiteLLM Gateway unavailable'],
+      504: ['upstream_timeout', 10, 'LiteLLM Gateway timeout']
+    };
+    const match = statusMap[status];
+    if (match) return new LlmGatewayUnavailableError(match[0], `${match[2]} (HTTP ${status}): ${errText}`, match[1]);
     return new Error(`LiteLLM Proxy HTTP ${status}: ${errText}`);
   }
 
   public static parseJsonWithRepair<T = any>(raw: string): T {
-    let cleaned = (raw || '').trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-    cleaned = cleaned.trim();
-
+    let cleaned = (raw || '').trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/, '')
+      .replace(/\s*```$/, '')
+      .trim();
     try {
       return JSON.parse(cleaned);
     } catch {
       const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
       if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch {}
+        try { return JSON.parse(jsonMatch[0]); } catch {}
       }
-      throw new LlmGatewayUnavailableError(
-        'schema_parse_error',
-        `Failed to parse valid JSON from LLM output: ${cleaned.slice(0, 100)}...`
-      );
+      throw new LlmGatewayUnavailableError('schema_parse_error', `Failed to parse valid JSON from LLM output: ${cleaned.slice(0, 100)}...`);
     }
   }
 }
