@@ -120,7 +120,7 @@ export class LiveWorkspaceStore {
         try {
           const parsed = JSON.parse(cRow.manifest_json);
           if (Array.isArray(parsed.workspaceFiles) && parsed.workspaceFiles.length > 0) {
-            const visible = parsed.workspaceFiles.filter((f: any) => !f.hidden);
+            const visible = parsed.workspaceFiles.filter((f: any) => !f.hidden) as Array<{ path: string; content: string; readOnly?: boolean }>;
             const matched = activeFilePath ? resolveWorkspaceFileMatch(visible, activeFilePath).match : null;
             const active = matched || visible.find((f: any) => !f.readOnly) || visible[0];
             const mapped = visible.map((f: any) => ({ path: f.path, content: f.content, isReadOnly: Boolean(f.readOnly) }));

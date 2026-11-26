@@ -117,8 +117,9 @@ export function createDefaultToolPersistencePort(deps: {
         if (!row?.manifest_json) return null;
         const parsed = JSON.parse(row.manifest_json);
         if (!Array.isArray(parsed.workspaceFiles)) return null;
-        const hit = resolveWorkspaceFileMatch(parsed.workspaceFiles, filePath).match;
-        return hit ? { path: hit.path, content: hit.content } : null;
+        const workspaceFiles = parsed.workspaceFiles as Array<{ path?: string; content?: string }>;
+        const hit = resolveWorkspaceFileMatch(workspaceFiles, filePath).match;
+        return hit?.path && typeof hit.content === 'string' ? { path: hit.path, content: hit.content } : null;
       } catch {
         return null;
       }
