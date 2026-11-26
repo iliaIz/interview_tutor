@@ -1,7 +1,7 @@
 /**
  * CascadedTurnEngine.ts
  * Deep domain module for turn-based interview & tutoring evaluation (SPEC-27).
- * Encapsulates STT, Prompt Injection defense, Epistemic Triage, LLM reasoning via LlmExecutionEngine,
+ * Encapsulates STT, Prompt Injection defense, Epistemic Triage, LLM reasoning via LlmGatewayClient,
  * TTS speech clamping, and CandidateMemoryAggregate persistence.
  * Cognitive Bounding SLA: <= 350 lines (Rule 8).
  */

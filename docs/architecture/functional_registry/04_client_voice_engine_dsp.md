@@ -207,3 +207,14 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   3. Updated `liveVoiceEngine.test.ts` (`audio6Err.finishPlayoutDrain()` Dual-Sided Handshake check) and `liveAudioSessionContracts.test.ts` (`buildPracticeSessionParams`).
 - **Invariants:** 60fps audio meter animation drives DOM refs via `subscribeAudioLevel` without React state churn; single `PracticeVoiceProvider` owns practice/design/defense voice lifecycle.
 
+---
+
+### 2.23 `AudioPlayoutManager(AudioBackendPort), LiveTransportSupervisor, MicBargeInGate & 4-Slice LiveVoiceFrameParser (Spec 50 & 53 / #186, #191, #192)`
+- **Location:** [`AudioPlayoutManager.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/AudioPlayoutManager.ts), [`LiveTransportSupervisor.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveTransportSupervisor.ts), [`MicBargeInGate.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/MicBargeInGate.ts), [`LiveVoiceFrameParser.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/LiveVoiceFrameParser.ts), [`NativeLiveVoiceEngine.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/audio/NativeLiveVoiceEngine.ts), [`audioPlayoutContracts.test.ts`](file:///home/djelu/projects/interview_tutor/frontend/tests/audioPlayoutContracts.test.ts)
+- **What Was Done:**
+  1. **Deep Playout & Port Injection (`#186`):** Deleted 3 dead audio modules (`audioChimes`, `audioBufferPlayback`, `audioDuckingController`), 11 unused methods, and unwired `setMuted`/`isMuted`; folded `audioContextHolder`, `audioWorkletFactory`, `audioSinkRouting`, and `audioPcmCodec` into `AudioPlayoutManager(backendPort?: AudioBackendPort)` (`<= 380L`, with `drainWorklet()` on port) and rewrote `audioPlayoutContracts.test.ts` with `FakeAudioBackendPort` (zero `(playout as any)` casts).
+  2. **Discriminated Frame Parser (`#191`):** Narrowed `LiveVoiceFrameParser` (`<= 250L`) from 39 flat booleans to 4 tagged slices (`control`, `domainEvents`, `modelTurn`, `toolLifecycle`) and absorbed `liveVoiceDomainEvents.ts`.
+  3. **Transport Supervisor & Slim Handshake (`#192`):** Collapsed `liveVoiceUrlBuilder.ts`, `LiveHeartbeatController.ts`, and `LiveVoiceRecoveryController.ts` into `LiveTransportSupervisor` (`<= 240L`), emitting `<400B` `?awaitInit=1` WS URLs with zero duplicate keys while routing rich/HR payloads exclusively via `session_init`; narrowed `liveMicChunkDispatcher` into `MicBargeInGate(snapshot)` (`<= 80L`) preserving continuous Auto-VAD PCM & `-29 dBFS` 7-frame echo immunity.
+- **Invariants:** Output `setMuted` no longer silently drops AI speech without gain change; WebSocket URL strictly `<400` bytes; `NativeLiveVoiceEngine <= 340L`.
+
+

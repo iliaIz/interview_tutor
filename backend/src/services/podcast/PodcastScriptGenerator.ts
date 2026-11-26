@@ -1,6 +1,6 @@
 /**
  * PodcastScriptGenerator.ts
- * Generates structured dialogue scripts for audio recaps using LlmExecutionEngine (SPEC-27).
+ * Generates structured dialogue scripts for audio recaps using LlmGatewayClient (SPEC-27).
  * Cognitive Bounding SLA: <= 200 lines (Rule 8 compliant).
  */
 

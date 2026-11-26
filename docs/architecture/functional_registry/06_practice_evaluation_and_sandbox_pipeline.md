@@ -193,6 +193,16 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   3. Synchronized frontend `useEvaluationPipeline.ts` (`practiceElapsedSeconds`, `MUTATION_TESTS` stepper/activeError, JSON 503 fallback) and added `test_practice_evaluation_session.js` + Scenario 4 fault injection tests.
 - **Invariants:** Single persistence envelope (`ChallengeSubmissionRepository`), zero duplicate Gate 3 pre-scan AST work, and strict tenant isolation on gap recording.
 
+---
+
+### 2.15 `LlmGatewayClient(HttpTransportPort) & TopologySimulationKernel (Spec 49 & 52 / #183, #184, #185, #189)`
+- **Location:** [`LlmGatewayClient.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/LlmGatewayClient.ts), [`SystemDesignProbeGateway.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/SystemDesignProbeGateway.ts), [`systemDesignEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/systemDesignEvaluator.ts), [`dynamicTaskGenerator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/dynamicTaskGenerator.ts), [`practiceTutor.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practiceTutor.ts), [`triage.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/triage.ts), [`TopologySimulationKernel.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/system_design/simulation/TopologySimulationKernel.ts), [`topologySpofLinter.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/system_design/simulation/linter/topologySpofLinter.ts), [`desScenarioRunner.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/workers/des/desScenarioRunner.ts)
+- **What Was Done:**
+  1. **Unified AI Gateway Client (`#183`–`#185`):** Created instantiable `LlmGatewayClient(HttpTransportPort)` (`<= 325L`) handling `completeText`, `completeJson`, `streamChat` (pre-first-byte Full-Jitter retry & `host.docker.internal -> localhost` failover), `synthesizeSpeech`, and `embed`. Migrated all backend evaluators, tutors, podcast TTS, cascaded voice, and vector embeddings (`maxRetries: 0, timeoutMs: 4000` with deterministic hash fallback); bound Express request `close` `AbortSignal` across `/api/practice-tutor/*` (`/chat`, `/hint`, `/rule-grounding`) and `/api/triage/*`; deleted `LlmExecutionEngine.ts`, `httpRetry.ts`, and `callLiteLlm` while preserving `LlmGatewayUnavailableError` re-export in `dynamicTaskGenerator.ts`.
+  2. **Pure Topology Simulation Kernel (`#189`):** Unified continuous tick physics (`LoadSimulationWorker`), discrete-event simulation (`desSimulator.worker` + `desScenarioRunner`), and Tarjan/DFS SPOF linting (`topologySpofLinter`, deleting `spofAnalyzer.ts`) in-process; fixed `engineEval.cacheHitRatio` override omission during DES scenario runs; added `test_llm_gateway_client.js` (`InMemoryTransportAdapter`) and `topologySimulationKernel.test.ts` to CI suites.
+- **Invariants:** Zero production callers bypass `LlmGatewayClient`; `streamChat` never retries or replays deltas after first SSE byte is yielded; Web Workers act solely as thin postMessage hosts over `TopologySimulationKernel`.
+
+
 
 
 

@@ -1,7 +1,7 @@
 /**
  * codeEvaluator.ts
  * Practice Code Evaluation Judge (SOTA Late 2026).
- * Conducts Gate 4 Senior AI audit via LlmExecutionEngine.
+ * Conducts Gate 4 Senior AI audit via LlmGatewayClient.
  * Enforces Invariant 1 (LiteLLM Proxy Centralization) and Invariant 5 (Zero-Phantom Full-Jitter Retry).
  * Cognitive Bounding Limit: <= 350 lines (Rule 8 compliant).
  */

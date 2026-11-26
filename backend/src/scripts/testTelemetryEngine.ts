@@ -74,20 +74,11 @@ function testStandardTurnLifecycle(): void {
   const audioBytes = 48000 * 2; // 2 seconds of 24kHz audio (96000 bytes)
 
   const metrics: CurrentTurnMetrics = {
-    turnIndex: 1,
-    candidateSpeechStartedAt: tStart,
-    candidateSpeechEndedAt: tCommit,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: tCommit - tStart,
-    firstThoughtAt: tThought,
-    firstTextAt: tText,
-    firstAudioAt: tAudio,
-    audioBytesReceived: audioBytes,
-    textChars: 120,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null,
-    lastRttMs: 45
+    turnIndex: 1, candidateSpeechStartedAt: tStart, candidateSpeechEndedAt: tCommit,
+    vadPauseSettingMs: 1800, speechDurationMs: tCommit - tStart,
+    firstThoughtAt: tThought, firstTextAt: tText, firstAudioAt: tAudio,
+    audioBytesReceived: audioBytes, textChars: 120, droppedEchoChunksCount: 0,
+    wasBargeIn: false, bargeInType: null, lastRttMs: 45
   };
 
   const session: Partial<ProxySession> = {
@@ -124,20 +115,11 @@ function testTurn0GreetingInvariant(): void {
 
   // In Turn 0, candidate speech duration is 0
   const turn0Metrics: CurrentTurnMetrics = {
-    turnIndex: 0,
-    candidateSpeechStartedAt: tSessionSetup,
-    candidateSpeechEndedAt: tSessionSetup,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: 0,
-    firstThoughtAt: tThought,
-    firstTextAt: tText,
-    firstAudioAt: tAudio,
-    audioBytesReceived: audioBytes,
-    textChars: 85,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null,
-    lastRttMs: null
+    turnIndex: 0, candidateSpeechStartedAt: tSessionSetup, candidateSpeechEndedAt: tSessionSetup,
+    vadPauseSettingMs: 1800, speechDurationMs: 0,
+    firstThoughtAt: tThought, firstTextAt: tText, firstAudioAt: tAudio,
+    audioBytesReceived: audioBytes, textChars: 85, droppedEchoChunksCount: 0,
+    wasBargeIn: false, bargeInType: null, lastRttMs: null
   };
 
   const session: Partial<ProxySession> = {
@@ -169,19 +151,10 @@ function testMultiTurnStateIsolation(): void {
   // Turn 1 completes
   const t1Commit = 30000;
   const turn1Metrics: CurrentTurnMetrics = {
-    turnIndex: 1,
-    candidateSpeechStartedAt: 25000,
-    candidateSpeechEndedAt: t1Commit,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: 5000,
-    firstThoughtAt: 30200,
-    firstTextAt: 30450,
-    firstAudioAt: 30700,
-    audioBytesReceived: 48000,
-    textChars: 90,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null
+    turnIndex: 1, candidateSpeechStartedAt: 25000, candidateSpeechEndedAt: t1Commit,
+    vadPauseSettingMs: 1800, speechDurationMs: 5000,
+    firstThoughtAt: 30200, firstTextAt: 30450, firstAudioAt: 30700,
+    audioBytesReceived: 48000, textChars: 90, droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
   };
 
   const session: Partial<ProxySession> = {
@@ -204,19 +177,10 @@ function testMultiTurnStateIsolation(): void {
 
   // Clean re-initialization for Turn 2
   const turn2Metrics: CurrentTurnMetrics = {
-    turnIndex: 2,
-    candidateSpeechStartedAt: t2Start,
-    candidateSpeechEndedAt: t2Commit,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: t2Commit - t2Start,
-    firstThoughtAt: t2Thought,
-    firstTextAt: t2Text,
-    firstAudioAt: t2Audio,
-    audioBytesReceived: 48000 * 1.5,
-    textChars: 65,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null
+    turnIndex: 2, candidateSpeechStartedAt: t2Start, candidateSpeechEndedAt: t2Commit,
+    vadPauseSettingMs: 1800, speechDurationMs: t2Commit - t2Start,
+    firstThoughtAt: t2Thought, firstTextAt: t2Text, firstAudioAt: t2Audio,
+    audioBytesReceived: 48000 * 1.5, textChars: 65, droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
   };
 
   session.currentTurnIndex = 2;
@@ -244,19 +208,10 @@ function testExtendedThinkingDwellTime(): void {
   const tAudio = 62400;   // TTFA = 2400ms
 
   const metrics: CurrentTurnMetrics = {
-    turnIndex: 3,
-    candidateSpeechStartedAt: 55000,
-    candidateSpeechEndedAt: tCommit,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: 5000,
-    firstThoughtAt: tThought,
-    firstTextAt: tText,
-    firstAudioAt: tAudio,
-    audioBytesReceived: 48000,
-    textChars: 40,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null
+    turnIndex: 3, candidateSpeechStartedAt: 55000, candidateSpeechEndedAt: tCommit,
+    vadPauseSettingMs: 1800, speechDurationMs: 5000,
+    firstThoughtAt: tThought, firstTextAt: tText, firstAudioAt: tAudio,
+    audioBytesReceived: 48000, textChars: 40, droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
   };
 
   const session: Partial<ProxySession> = {
@@ -287,18 +242,11 @@ function testTactileBargeIn(): void {
   const partialAudioBytes = 16800;
 
   const metrics: CurrentTurnMetrics = {
-    turnIndex: 4,
-    candidateSpeechStartedAt: 65000,
-    candidateSpeechEndedAt: tCommit,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: 5000,
-    firstAudioAt: tAudio,
-    firstTextAt: 70600,
-    audioBytesReceived: partialAudioBytes,
-    textChars: 30,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: true,
-    bargeInType: 'tactile'
+    turnIndex: 4, candidateSpeechStartedAt: 65000, candidateSpeechEndedAt: tCommit,
+    vadPauseSettingMs: 1800, speechDurationMs: 5000,
+    firstAudioAt: tAudio, firstTextAt: 70600,
+    audioBytesReceived: partialAudioBytes, textChars: 30, droppedEchoChunksCount: 0,
+    wasBargeIn: true, bargeInType: 'tactile'
   };
 
   const session: Partial<ProxySession> = {
@@ -321,18 +269,11 @@ function testHalfDuplexEchoSuppression(): void {
   console.log('\n[Test 6] Half-Duplex Echo Suppression & Dropped Chunks');
 
   const metrics: CurrentTurnMetrics = {
-    turnIndex: 5,
-    candidateSpeechStartedAt: 80000,
-    candidateSpeechEndedAt: 83000,
-    vadPauseSettingMs: 1800,
-    speechDurationMs: 3000,
-    firstAudioAt: 83800,
-    firstTextAt: 83600,
-    audioBytesReceived: 48000 * 4,
-    textChars: 150,
-    droppedEchoChunksCount: 25, // 25 chunks * 40ms = 1000ms of mic audio suppressed
-    wasBargeIn: false,
-    bargeInType: null
+    turnIndex: 5, candidateSpeechStartedAt: 80000, candidateSpeechEndedAt: 83000,
+    vadPauseSettingMs: 1800, speechDurationMs: 3000,
+    firstAudioAt: 83800, firstTextAt: 83600,
+    audioBytesReceived: 48000 * 4, textChars: 150, droppedEchoChunksCount: 25,
+    wasBargeIn: false, bargeInType: null
   };
 
   const session: Partial<ProxySession> = {

@@ -178,27 +178,17 @@ export class LiveVoiceFrameParser {
       const text = decodeFrameText(rawData);
       if (text === null) return null;
       const data = JSON.parse(text) as RawServerFrame;
-
       const control = parseControlSignal(data);
       const kind: LiveFrameType =
-        data.type === 'setupComplete' || data.setupComplete !== undefined
-          ? 'setupComplete'
-          : typeof data.type === 'string'
-            ? (KNOWN_FRAME_TYPES.has(data.type) ? (data.type as LiveFrameType) : 'unknown')
-            : data.serverContent
-              ? 'model_turn'
-              : 'unknown';
-
+        data.type === 'setupComplete' || data.setupComplete !== undefined ? 'setupComplete'
+          : typeof data.type === 'string' ? (KNOWN_FRAME_TYPES.has(data.type) ? (data.type as LiveFrameType) : 'unknown')
+            : data.serverContent ? 'model_turn' : 'unknown';
       const toolLifecycle = control?.kind === 'tool_lifecycle' ? control.phase : undefined;
       if (control) return { kind, control, domainEvents: [], toolLifecycle };
-
       const domainBuilder = data.type ? DOMAIN_BUILDERS[data.type] : undefined;
       if (domainBuilder) return { kind, domainEvents: [domainBuilder(data)] };
-
       return { kind, domainEvents: [], modelTurn: parseModelTurn(data.serverContent) };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 }
 
