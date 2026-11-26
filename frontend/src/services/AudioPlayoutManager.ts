@@ -5,7 +5,7 @@
 
 export interface AudioBackendPort {
   readonly isMobile: boolean;
-  ensureGraph(): { sampleRate: number; state: 'suspended' | 'running' | 'closed' };
+  ensureGraph(): { sampleRate: number; state: AudioContextState };
   resumeContext(): Promise<void>;
   getRawContext(): AudioContext;
   setNominalGain(value: number): void;
@@ -139,7 +139,7 @@ class BrowserAudioBackendPort implements AudioBackendPort {
     return this.workletInitPromise;
   }
 
-  public ensureGraph(): { sampleRate: number; state: 'suspended' | 'running' | 'closed' } {
+  public ensureGraph(): { sampleRate: number; state: AudioContextState } {
     if (!this.context || this.context.state === 'closed') {
       this.masterGain = null;
       this.workletNode = null;
@@ -158,7 +158,7 @@ class BrowserAudioBackendPort implements AudioBackendPort {
       src.connect(this.mediaStreamDest || ctx.destination);
       src.start(0);
     } catch {}
-    if (ctx.state === 'suspended') {
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
       await ctx.resume().catch((err) => console.warn('AudioContext resume warning:', err));
     }
     await this.initWorklet(ctx);
@@ -293,7 +293,7 @@ export class AudioPlayoutManager {
     if (!float32Samples) return;
 
     const { state } = this.backend.ensureGraph();
-    if (state === 'suspended') {
+    if (state === 'suspended' || state === 'interrupted') {
       this.pendingSamples.push(float32Samples);
       void this.resume();
       return;

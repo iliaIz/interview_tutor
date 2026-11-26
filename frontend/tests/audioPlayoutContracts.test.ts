@@ -9,7 +9,7 @@ import { AudioPlayoutManager, AudioBackendPort } from '../src/services/AudioPlay
 
 class FakeAudioBackendPort implements AudioBackendPort {
   public readonly isMobile = false;
-  public state: 'suspended' | 'running' | 'closed' = 'running';
+  public state: AudioContextState = 'running';
   public gain = 1.5;
   public postedChunks: Float32Array[] = [];
   public flushCount = 0;
@@ -18,7 +18,7 @@ class FakeAudioBackendPort implements AudioBackendPort {
   private readyListener?: () => void;
   private drainedListener?: () => void;
 
-  public ensureGraph(): { sampleRate: number; state: 'suspended' | 'running' | 'closed' } {
+  public ensureGraph(): { sampleRate: number; state: AudioContextState } {
     return { sampleRate: 24000, state: this.state };
   }
 
