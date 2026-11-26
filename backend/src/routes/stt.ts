@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { transcribeWithDeepgram } from '../services/deepgramService';
-import { db } from '../services/db';
+import { getAuthUserId } from '../middleware/auth';
+import { questionEvaluationRepository } from '../services/evaluation/QuestionEvaluationRepository';
 
 const router = Router();
 const STORAGE_DIR = process.env.STORAGE_DIR || path.join(process.cwd(), 'storage');
@@ -76,19 +77,11 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       audioPath = fileName;
       console.log(`💾 Saved candidate audio recording to storage: ${fileName} (${wavBuffer.length} bytes)`);
 
-      // Auto-link audio_path in question_evaluations if evaluation record already exists
+      // Auto-link audio_path in question_evaluations scoped by authenticated user_id
       if (questionId) {
         try {
-          const updateStmt = db.prepare(`
-            UPDATE question_evaluations
-            SET audio_path = @audioPath, updated_at = CURRENT_TIMESTAMP
-            WHERE id = (
-              SELECT id FROM question_evaluations
-              WHERE question_id = @questionId
-              ORDER BY created_at DESC LIMIT 1
-            )
-          `);
-          updateStmt.run({ audioPath, questionId });
+          const userId = getAuthUserId(req);
+          questionEvaluationRepository.updateEvaluationAudioPath(questionId, userId, audioPath);
         } catch {}
       }
     } catch (saveErr) {
