@@ -9,10 +9,8 @@ import {
   liveSessionRegistry,
   getOrCreateSessionMemory
 } from './live/liveSessionRegistry';
-import {
-  extractDefaultAnchors,
-  buildSystemPrompt
-} from './live/livePromptBuilder';
+import { extractDefaultAnchors } from './live/liveRubricBuilder';
+import { buildSystemPrompt } from './live/LivePromptComposer';
 import { getLiveToolDeclarations } from './live/liveToolDeclarations';
 import { LiveToolEngine } from './live/LiveToolEngine';
 

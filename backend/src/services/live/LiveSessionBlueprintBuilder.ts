@@ -8,11 +8,14 @@ import {
   sanitizeVoiceName,
   clampVadPauseMs
 } from '../../config/liveDefaults';
+import { isHrSessionType } from '@interview-prep/shared';
 import { authService } from '../authService';
 import { parseCookies } from '../../middleware/auth';
 import { findRelevantCandidateGaps, getUserProfile, CandidateGap } from '../vectorMemoryService';
 import { TargetGrade } from '../../prompts/personas';
-import { buildSystemPrompt, extractDefaultAnchors } from './livePromptBuilder';
+import { composeLiveSystemPrompt, PreResolvedHrContext } from './LivePromptComposer';
+import { extractDefaultAnchors } from './liveRubricBuilder';
+import { resolvePreResolvedHrContext } from './hrContextResolver';
 import { getLiveToolDeclarations } from './liveToolDeclarations';
 import { buildGeminiLiveSetupMessage } from './liveGeminiConfigBuilder';
 import { LiveWorkspaceContext } from './LiveWorkspaceContext';
@@ -185,7 +188,7 @@ export class LiveSessionBlueprintBuilder {
     if (config.referenceAnswer && config.referenceAnswer.length > 20000) {
       config.referenceAnswer = config.referenceAnswer.slice(0, 20000);
     }
-    if (config.anchors.length === 0) {
+    if (!isHrSessionType(config.sessionType) && config.anchors.length === 0) {
       config.anchors = config.promptConfig.anchors = extractDefaultAnchors(config.referenceAnswer, config.questionText);
     }
     const cleanProxyWs = envConfig.proxy.baseUrl.replace(/^http/, 'ws');
@@ -199,16 +202,28 @@ export class LiveSessionBlueprintBuilder {
     config.candidateGaps = candidateGaps;
     config.relevantGapIds = candidateGaps.map((g) => g.id);
 
-    const systemPromptText = buildSystemPrompt({
-      ...config,
-      hints: config.parsedHints,
-      targetSeniority: config.userProfile?.targetSeniority,
-      primaryStack: config.userProfile?.primaryStack,
-      workspaceManifest: config.workspaceManifest || config.manifest,
-      dossierId: config.dossierId,
-      jobId: config.jobId,
-      academyBridgeContext: config.academyBridgeContext || (config.academyCourse ? { courseId: config.academyCourse, stepId: config.academyStep } : undefined)
-    });
+    let hrContext: PreResolvedHrContext | undefined;
+    if (isHrSessionType(config.sessionType)) {
+      const resolveHr = deps.resolveHrContext || resolvePreResolvedHrContext;
+      hrContext = resolveHr({
+        dossierId: config.dossierId,
+        jobId: config.jobId,
+        questionId: config.questionId,
+        chunkId: config.chunkId,
+        questionMatrixId: config.questionMatrixId
+      });
+    }
+
+    const systemPromptText = composeLiveSystemPrompt(
+      {
+        ...config,
+        hints: config.parsedHints,
+        primaryStack: config.userProfile?.primaryStack,
+        workspaceManifest: config.workspaceManifest || config.manifest,
+        academyBridgeContext: config.academyBridgeContext || (config.academyCourse ? { courseId: config.academyCourse, stepId: config.academyStep } : undefined)
+      },
+      hrContext
+    );
     const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode, config.hrMode);
     const baseSetupMessage = buildGeminiLiveSetupMessage({
       liveModel: config.liveModel, voiceName: config.voiceName, systemPromptText,
@@ -230,7 +245,7 @@ export class LiveSessionBlueprintBuilder {
           initialUserMessage: config.initialUserMessage, challengeCategory: config.challengeCategory,
           challengeTrack: config.challengeTrack, seniorReview: runtime?.seniorReview ?? config.seniorReview,
           hrMode: config.hrMode, startBeatId: config.startBeatId, beatScope: config.beatScope,
-          hrGuidedState: runtime?.hrGuidedState, hrQuestion: runtime?.hrQuestion, replayOverride: runtime?.replayOverride
+          hrGuidedState: runtime?.hrGuidedState, hrQuestion: runtime?.hrQuestion ?? hrContext?.question, replayOverride: runtime?.replayOverride
         })
     };
   }
