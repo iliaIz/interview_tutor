@@ -1,5 +1,4 @@
 import { InterviewProfile, InterviewConfig } from '../types/interviewConfig';
-import { VOICE_DEFAULTS, getCachedRuntimeVoiceConfig } from '../config/voiceDefaults';
 
 export const BUILT_IN_PROFILES: InterviewProfile[] = [
   // 1. Адаптивное зондирование — Стандарт
@@ -80,10 +79,10 @@ export const BUILT_IN_PROFILES: InterviewProfile[] = [
 ];
 
 const STORAGE_KEY = 'interview_prep_profiles_v1';
-const ACTIVE_CONFIG_KEY = 'interview_prep_active_config_v1';
 
 export function getCachedProfiles(): InterviewProfile[] {
   try {
+    if (typeof localStorage === 'undefined') return BUILT_IN_PROFILES;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return BUILT_IN_PROFILES;
     const userProfiles: InterviewProfile[] = JSON.parse(raw);
@@ -163,126 +162,5 @@ export async function deleteUserProfile(profileId: string): Promise<void> {
     });
   } catch (err) {
     console.error('Error deleting profile from SQLite DB:', err);
-  }
-}
-
-const EXPLICIT_LIVE_MODEL_KEY = 'interview_live_model_explicit';
-
-export function hasExplicitLiveModelPreference(): boolean {
-  try {
-    if (localStorage.getItem(EXPLICIT_LIVE_MODEL_KEY) === 'true') {
-      return true;
-    }
-    const saved = localStorage.getItem('interview_live_model');
-    return Boolean(saved && saved !== VOICE_DEFAULTS.liveModel);
-  } catch {
-    return false;
-  }
-}
-
-export function setExplicitLiveModelPreference(modelId: string): void {
-  try {
-    localStorage.setItem('interview_live_model', modelId);
-    localStorage.setItem(EXPLICIT_LIVE_MODEL_KEY, 'true');
-  } catch {}
-}
-
-export function getActiveConfig(): InterviewConfig {
-  const runtimeDefaultModel =
-    getCachedRuntimeVoiceConfig()?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
-
-  let userGender = VOICE_DEFAULTS.userGender as any;
-  let turnMode = VOICE_DEFAULTS.turnMode as any;
-  let liveModel = runtimeDefaultModel;
-  let vadPauseMs = VOICE_DEFAULTS.vadPauseMs;
-  let enableSilenceClarification = VOICE_DEFAULTS.enableSilenceClarification;
-  let alwaysShowPreflight = false;
-  let studyModality = 'voice' as any;
-  let strictness = VOICE_DEFAULTS.strictness as any;
-
-  try {
-    userGender = (localStorage.getItem('interview_user_gender') as any) || VOICE_DEFAULTS.userGender;
-    turnMode = (localStorage.getItem('interview_turn_mode') as any) || VOICE_DEFAULTS.turnMode;
-    const savedModel = localStorage.getItem('interview_live_model');
-    liveModel = hasExplicitLiveModelPreference() && savedModel ? savedModel : runtimeDefaultModel;
-    const savedVadPause = Number(localStorage.getItem('interview_vad_pause_ms'));
-    vadPauseMs = Number.isFinite(savedVadPause) && savedVadPause > 0 ? savedVadPause : VOICE_DEFAULTS.vadPauseMs;
-    enableSilenceClarification = localStorage.getItem('interview_silence_clarification') === 'true';
-    alwaysShowPreflight = localStorage.getItem('interview_always_show_preflight') === 'true';
-    studyModality = (localStorage.getItem('interview_study_modality') as any) || 'voice';
-    strictness = (localStorage.getItem('interview_strictness_level') as any) || VOICE_DEFAULTS.strictness;
-
-    const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const explicitModel = hasExplicitLiveModelPreference() ? (parsed.liveModel || liveModel) : runtimeDefaultModel;
-      return {
-        ...parsed,
-        userGender: parsed.userGender || userGender,
-        turnMode: parsed.turnMode || turnMode,
-        liveModel: explicitModel,
-        vadPauseMs: typeof parsed.vadPauseMs === 'number' && parsed.vadPauseMs > 0 ? parsed.vadPauseMs : vadPauseMs,
-        enableSilenceClarification: typeof parsed.enableSilenceClarification === 'boolean'
-          ? parsed.enableSilenceClarification
-          : enableSilenceClarification,
-        alwaysShowPreflight: typeof parsed.alwaysShowPreflight === 'boolean' ? parsed.alwaysShowPreflight : alwaysShowPreflight,
-        studyModality: parsed.studyModality || studyModality,
-        strictness: parsed.strictness || strictness
-      };
-    }
-  } catch {}
-  return {
-    ...BUILT_IN_PROFILES[0].config,
-    userGender,
-    turnMode,
-    liveModel,
-    vadPauseMs,
-    enableSilenceClarification,
-    alwaysShowPreflight,
-    studyModality,
-    strictness
-  };
-}
-
-export function saveActiveConfig(config: InterviewConfig): void {
-  try {
-    let previousLiveModel: string | undefined;
-    try {
-      const prevRaw = localStorage.getItem(ACTIVE_CONFIG_KEY);
-      if (prevRaw) {
-        previousLiveModel = JSON.parse(prevRaw)?.liveModel;
-      }
-    } catch {}
-
-    if (config.userGender) {
-      localStorage.setItem('interview_user_gender', config.userGender);
-    }
-    if (config.turnMode) {
-      localStorage.setItem('interview_turn_mode', config.turnMode);
-    }
-    if (config.liveModel && (hasExplicitLiveModelPreference() || (previousLiveModel && config.liveModel !== previousLiveModel))) {
-      setExplicitLiveModelPreference(config.liveModel);
-    }
-    if (typeof config.vadPauseMs === 'number' && Number.isFinite(config.vadPauseMs)) {
-      localStorage.setItem('interview_vad_pause_ms', String(config.vadPauseMs));
-    }
-    if (typeof config.enableSilenceClarification === 'boolean') {
-      localStorage.setItem('interview_silence_clarification', String(config.enableSilenceClarification));
-    }
-    if (typeof config.alwaysShowPreflight === 'boolean') {
-      localStorage.setItem('interview_always_show_preflight', String(config.alwaysShowPreflight));
-    }
-    if (config.studyModality) {
-      localStorage.setItem('interview_study_modality', config.studyModality);
-    }
-    if (config.strictness) {
-      localStorage.setItem('interview_strictness_level', config.strictness);
-    }
-    localStorage.setItem(ACTIVE_CONFIG_KEY, JSON.stringify(config));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('interview_config_updated', { detail: config }));
-    }
-  } catch (err) {
-    console.error('Error saving active config:', err);
   }
 }

@@ -31,7 +31,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = (props) => {
     setBatchResults,
     textInput,
     setTextInput,
-    setIsSettingsOpen,
     isCribSheetOpen,
     setIsCribSheetOpen,
     isWhiteboardOpen,
@@ -103,7 +102,6 @@ export const VoiceModal: React.FC<VoiceModalProps> = (props) => {
             }}
             startLiveInterview={() => void startSessionForIndex(activeBatchIndex, false)}
             systemHealth={{ isAiReady: true }}
-            setIsSettingsOpen={setIsSettingsOpen}
           />
         )}
 

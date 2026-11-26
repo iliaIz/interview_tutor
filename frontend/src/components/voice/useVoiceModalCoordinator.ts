@@ -17,8 +17,6 @@ export interface UseVoiceModalCoordinatorReturn {
   setBatchResults: React.Dispatch<React.SetStateAction<Record<string, VoiceEvaluationResult>>>;
   textInput: string;
   setTextInput: (text: string) => void;
-  isSettingsOpen: boolean;
-  setIsSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isCribSheetOpen: boolean;
   setIsCribSheetOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isWhiteboardOpen: boolean;
@@ -78,7 +76,6 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
   const [activeBatchIndex, setActiveBatchIndex] = useState<number>(initialQuestionIndex);
   const [batchResults, setBatchResults] = useState<Record<string, VoiceEvaluationResult>>({});
   const [textInput, setTextInput] = useState<string>('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCribSheetOpen, setIsCribSheetOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -309,8 +306,6 @@ export function useVoiceModalCoordinator(props: VoiceModalProps): UseVoiceModalC
     setBatchResults,
     textInput,
     setTextInput,
-    isSettingsOpen,
-    setIsSettingsOpen,
     isCribSheetOpen,
     setIsCribSheetOpen,
     isWhiteboardOpen,

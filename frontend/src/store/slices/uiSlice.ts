@@ -6,10 +6,6 @@
 
 import { StateCreator } from 'zustand';
 import { ProductionIncident } from '../../types/nextgen';
-import {
-  RuntimeVoiceConfig,
-  setCachedRuntimeVoiceConfig
-} from '../../config/voiceDefaults';
 
 export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage' | 'hr_screening' | 'live_debug' | 'companies';
 
@@ -67,8 +63,6 @@ export interface UiSlice {
 
   systemHealth: SystemHealth;
   checkHealth: () => Promise<void>;
-  runtimeConfig: RuntimeVoiceConfig | null;
-  fetchRuntimeConfig: () => Promise<void>;
 
   activeToast: ToastNotification | null;
   showToast: (notification: Omit<ToastNotification, 'id'>) => void;
@@ -147,24 +141,6 @@ export const createUiSlice: StateCreator<any, [], [], UiSlice> = (set, get) => (
     status: 'checking',
     isAiReady: false,
     message: 'Проверка готовности AI шлюза...'
-  },
-
-  runtimeConfig: null,
-
-  fetchRuntimeConfig: async () => {
-    try {
-      const res = await fetch('/api/config');
-      if (res.ok) {
-        const data = (await res.json()) as RuntimeVoiceConfig;
-        setCachedRuntimeVoiceConfig(data);
-        set({ runtimeConfig: data });
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('interview_runtime_config_updated', { detail: data }));
-        }
-      }
-    } catch (err) {
-      console.warn('[uiSlice] Failed to fetch /api/config runtime voice defaults:', err);
-    }
   },
 
   checkHealth: async () => {

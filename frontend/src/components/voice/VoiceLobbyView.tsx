@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, FastForward, Play, Loader2, Settings2 } from 'lucide-react';
+import { Sparkles, FastForward, Play, Loader2 } from 'lucide-react';
 import { InterviewConfig } from '../../types/interviewConfig';
 import { PersonaSelector } from '../PersonaSelector';
 import { AudioPlayoutManager } from '../../services/AudioPlayoutManager';
@@ -19,7 +19,6 @@ export interface VoiceLobbyViewProps {
   handleStartFresh: () => void;
   startLiveInterview: () => void;
   systemHealth: { isAiReady: boolean };
-  setIsSettingsOpen: (open: boolean) => void;
 }
 
 export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
@@ -34,8 +33,7 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
   handleResumeSession,
   handleStartFresh,
   startLiveInterview,
-  systemHealth,
-  setIsSettingsOpen
+  systemHealth
 }) => {
   return (
     <div className="my-6 flex flex-col items-center justify-center text-center space-y-5">
@@ -112,7 +110,7 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
         </div>
       )}
 
-      {/* Action Buttons: START + SETTINGS */}
+      {/* Action Button: START */}
       <div className="w-full max-w-sm space-y-2.5">
         <button
           type="button"
@@ -138,15 +136,6 @@ export const VoiceLobbyView: React.FC<VoiceLobbyViewProps> = ({
               </span>
             </>
           )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsSettingsOpen(true)}
-          className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pastel-card border border-pastel-border text-pastel-text text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:border-pastel-accentViolet/50 group"
-        >
-          <Settings2 className="w-4 h-4 text-pastel-accentViolet group-hover:rotate-45 transition-transform" />
-          <span>⚙️ Все настройки (Режим, голос, стратегия, VAD)</span>
         </button>
       </div>
     </div>

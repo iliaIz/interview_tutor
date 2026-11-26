@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import { InterviewConfig, InterviewProfile } from '../types/interviewConfig';
-import { RuntimeVoiceConfig, setCachedRuntimeVoiceConfig } from '../config/voiceDefaults';
+import { RuntimeVoiceConfig } from '../config/voiceDefaults';
 import { BUILT_IN_PROFILES, getCachedProfiles } from '../services/profileStorage';
 import {
   VOICE_CONFIG_STORAGE_KEY,
@@ -106,7 +106,6 @@ export function createVoiceConfigStore(
         if (!data) return null;
 
         const resolved = data;
-        setCachedRuntimeVoiceConfig(resolved);
         set((state) => {
           const defaultModel = resolved.models?.defaultLiveModel;
           const nextConfig = !state.explicitLiveModel && defaultModel

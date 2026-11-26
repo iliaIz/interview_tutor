@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Settings2 } from 'lucide-react';
 import {
-  InterviewConfig,
   InterviewProfile,
   GeminiVoiceName
 } from '../types/interviewConfig';
@@ -27,8 +26,6 @@ import { VoicePromptInspectorSection } from './voice/settings/VoicePromptInspect
 interface VoiceSettingsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  config?: InterviewConfig;
-  onChangeConfig?: (newConfig: InterviewConfig) => void;
   questionText?: string;
   referenceAnswer?: string;
 }
@@ -36,14 +33,10 @@ interface VoiceSettingsDrawerProps {
 export const VoiceSettingsDrawer: React.FC<VoiceSettingsDrawerProps> = ({
   isOpen,
   onClose,
-  config: propConfig,
-  onChangeConfig: propOnChangeConfig,
   questionText = 'Расскажите о вашем опыте в backend-разработке.',
   referenceAnswer = ''
 }) => {
-  const hookConfig = useInterviewConfig();
-  const config = propConfig || hookConfig.config;
-  const onChangeConfig = propOnChangeConfig || hookConfig.setConfig;
+  const { config, setConfig: onChangeConfig } = useInterviewConfig();
 
   const [profiles, setProfiles] = useState<InterviewProfile[]>(getCachedProfiles());
   const [previewingVoice, setPreviewingVoice] = useState<GeminiVoiceName | null>(null);
