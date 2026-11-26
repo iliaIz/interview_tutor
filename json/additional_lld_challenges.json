@@ -1,0 +1,431 @@
+[
+  {
+    "id": "mc_key_value_cache_lru",
+    "slug": "key-value-cache-lru-ttl",
+    "title": "Thread-Safe Key-Value Cache with TTL & LRU Eviction",
+    "category": "machine_coding",
+    "badge": "⚡ Machine Coding (LLD)",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ReentrantReadWriteLock, O(1) Eviction",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Спроектируйте быстрый потокобезопасный Key-Value кэш со стратегией вытеснения LRU за O(1) и автоматическим истечением по TTL.",
+    "instructionsMarkdown": "# Key-Value Cache with TTL & LRU Eviction\n\n## Бизнес-контекст\nРазработайте высокопроизводительный in-memory кэш для микросервиса каталога товаров. Кэш должен выдерживать параллельное чтение и запись, не допуская утечек памяти.\n\n## Требования:\n1. Реализуйте `Cache<K, V>` в `LruCache.java` с поддержкой методов `get(K key)`, `put(K key, V value, long ttlMs)`, `remove(K key)`, `size()`.\n2. **Алгоритм LRU за O(1):** При превышении емкости (`capacity`) наиболее давно использовавшийся элемент должен удаляться за константное время.\n3. **Потокобезопасность:** Используйте `ReentrantReadWriteLock` для поддержки множественных одновременных читателей без блокировки.\n4. **Учет времени:** Внедрите `java.time.Clock` через конструктор для детерминированного тестирования истечения TTL.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/cache/Cache.java",
+        "content": "package com.assessment.cache;\n\nimport java.time.Clock;\nimport java.util.Optional;\n\npublic class LruCache<K, V> implements Cache<K, V> {\n    private final int capacity;\n    private final Clock clock;\n\n    public LruCache(int capacity, Clock clock) {\n        this.capacity = capacity;\n        this.clock = clock;\n    }\n\n    public LruCache(int capacity) {\n        this(capacity, Clock.systemUTC());\n    }\n\n    @Override\n    public Optional<V> get(K key) {\n        // TODO: Реализуйте потокобезопасное чтение с обновлением LRU позиции и проверкой TTL\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    @Override\n    public void put(K key, V value, long ttlMs) {\n        // TODO: Реализуйте запись с LRU вытеснением за O(1) и фиксацией времени истечения по clock\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    @Override\n    public boolean remove(K key) {\n        // TODO: Реализуйте удаление элемента за O(1)\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    @Override\n    public int size() {\n        // TODO: Верните текущее количество неистекших элементов в кэше\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/cache/LruCacheTest.java",
+        "content": "package com.assessment.cache;\n\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\n\npublic class LruCacheTest {\n    public void testLruEviction() {\n        Clock clock = Clock.fixed(Instant.ofEpochMilli(1000), ZoneId.of(\"UTC\"));\n        LruCache<String, Integer> cache = new LruCache<>(2, clock);\n        cache.put(\"a\", 1, 10000);\n        cache.put(\"b\", 2, 10000);\n        cache.get(\"a\"); // a becomes most recently used\n        cache.put(\"c\", 3, 10000); // b should be evicted\n\n        if (cache.get(\"b\").isPresent()) {\n            throw new AssertionError(\"Key 'b' should have been evicted by LRU\");\n        }\n        if (!cache.get(\"a\").isPresent() || cache.get(\"a\").get() != 1) {\n            throw new AssertionError(\"Key 'a' should still be in cache\");\n        }\n    }\n\n    public void testTtlExpiration() {\n        Instant now = Instant.ofEpochMilli(1000);\n        Clock clock1 = Clock.fixed(now, ZoneId.of(\"UTC\"));\n        LruCache<String, String> cache = new LruCache<>(5, clock1);\n        cache.put(\"temp\", \"val\", 500); // expires at 1500\n\n        // Advance clock by 600ms\n        Clock clock2 = Clock.fixed(now.plusMillis(600), ZoneId.of(\"UTC\"));\n        LruCache<String, String> cacheExpired = new LruCache<>(5, clock2);\n        cacheExpired.put(\"k\", \"v\", 100);\n    }\n\n    public void testConcurrentReadWriteSafety() {\n        Clock clock = Clock.systemUTC();\n        LruCache<String, Integer> cache = new LruCache<>(100, clock);\n        // Will be executed by the 100-thread blast harness\n        cache.put(\"key\", 42, 60000);\n        cache.get(\"key\");\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_discount_promo_engine",
+    "slug": "discount-promo-engine",
+    "title": "Dynamic Discount & Promo Code Engine",
+    "category": "machine_coding",
+    "badge": "💳 FinTech / E-Commerce",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, BigDecimal Banker's Rounding, Chain of Responsibility",
+    "timeLimitMinutes": 40,
+    "shortDescription": "Реализуйте гибкий движок применения купонов и накопительных скидок с защитой от отрицательных сумм и финансовой точностью HALF_EVEN.",
+    "instructionsMarkdown": "# Dynamic Discount & Promo Code Engine\n\n## Бизнес-контекст\nСервис корзины интернет-магазина применяет правила скидок:\n1. Процентные скидки (например, 15% на категорию).\n2. Фиксированные купоны (например, -500 руб при заказе от 3000 руб).\n3. Персональные кэшбэки.\n\n## Требования:\n- Все денежные расчеты СТРОГО через `BigDecimal` с масштабом 2 знака и `RoundingMode.HALF_EVEN`. Использование `double` или `float` запрещено.\n- Итоговая стоимость заказа не может быть меньше 0.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/discount/Order.java",
+        "content": "package com.assessment.discount;\n\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\n\npublic class DiscountEngine {\n    public static final RoundingMode FINANCIAL_ROUNDING = RoundingMode.HALF_EVEN;\n\n    public BigDecimal calculateFinalPrice(Order order) {\n        // TODO: Реализуйте расчет скидок (SALE10: 10%, FIXED50: 50.00) с финансовым округлением HALF_EVEN\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/discount/DiscountEngineTest.java",
+        "content": "package com.assessment.discount;\n\nimport java.math.BigDecimal;\nimport java.util.List;\n\npublic class DiscountEngineTest {\n    public void testPercentageAndFixedDiscount() {\n        DiscountEngine engine = new DiscountEngine();\n        Order order = new Order(\"ord-1\", new BigDecimal(\"100.00\"), List.of(\"SALE10\", \"FIXED50\"));\n        BigDecimal finalPrice = engine.calculateFinalPrice(order);\n\n        // 100 - 10 = 90; 90 - 50 = 40.00\n        if (finalPrice.compareTo(new BigDecimal(\"40.00\")) != 0) {\n            throw new AssertionError(\"Expected 40.00, got: \" + finalPrice);\n        }\n    }\n\n    public void testNonNegativeFloor() {\n        DiscountEngine engine = new DiscountEngine();\n        Order order = new Order(\"ord-2\", new BigDecimal(\"30.00\"), List.of(\"FIXED50\"));\n        BigDecimal finalPrice = engine.calculateFinalPrice(order);\n\n        if (finalPrice.compareTo(BigDecimal.ZERO) != 0) {\n            throw new AssertionError(\"Price should not fall below 0.00, got: \" + finalPrice);\n        }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.1,
+      "architectureAndCleanCode": 0.3,
+      "modernIdioms": 0.2
+    }
+  },
+  {
+    "id": "mc_circuit_breaker_resilience",
+    "slug": "circuit-breaker-resilience",
+    "title": "Resilient Circuit Breaker State Machine",
+    "category": "machine_coding",
+    "badge": "🛡️ Resilience / SRE",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, AtomicReference, Sliding Window BitSet",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Спроектируйте потокобезопасный автомат состояний Circuit Breaker (CLOSED, OPEN, HALF_OPEN) с поддержкой sliding failure rate.",
+    "instructionsMarkdown": "# Resilient Circuit Breaker State Machine\n\n## Бизнес-контекст\nРеализуйте паттерн Circuit Breaker в стиле Resilience4j для защиты микросервисов от каскадных сбоев.\n\n## Переходы автомата:\n1. **CLOSED:** Запросы пропускаются. При достижении порога ошибок (> 50% в окне из 10 запросов) переходит в **OPEN**.\n2. **OPEN:** Запросы сразу реджектятся исключением `CallNotPermittedException` без вызова целевой службы. Спустя `waitDurationInOpenMs` переходит в **HALF_OPEN**.\n3. **HALF_OPEN:** Пропускает пробные запросы. При успешных ответах возвращается в **CLOSED**, при ошибке — снова в **OPEN**.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/resilience/CircuitBreaker.java",
+        "content": "package com.assessment.resilience;\n\nimport java.util.function.Supplier;\n\npublic class CircuitBreaker {\n    public enum State { CLOSED, OPEN, HALF_OPEN }\n\n    private final int slidingWindowSize;\n    private final double failureRateThreshold;\n    private final long waitDurationInOpenMs;\n\n    public CircuitBreaker(int slidingWindowSize, double failureRateThreshold, long waitDurationInOpenMs) {\n        this.slidingWindowSize = slidingWindowSize;\n        this.failureRateThreshold = failureRateThreshold;\n        this.waitDurationInOpenMs = waitDurationInOpenMs;\n    }\n\n    public <T> T execute(Supplier<T> action) {\n        // TODO: Реализуйте защиту от каскадных сбоев, учет ошибок и переключение состояний CLOSED -> OPEN -> HALF_OPEN\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public State getState() {\n        // TODO: Верните текущее состояние CircuitBreaker\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/resilience/CircuitBreakerTest.java",
+        "content": "package com.assessment.resilience;\n\npublic class CircuitBreakerTest {\n    public void testClosedToOpenTransition() {\n        CircuitBreaker cb = new CircuitBreaker(5, 0.5, 500);\n        if (cb.getState() != CircuitBreaker.State.CLOSED) {\n            throw new AssertionError(\"Initial state must be CLOSED\");\n        }\n\n        try {\n            cb.execute(() -> { throw new RuntimeException(\"Downstream error\"); });\n        } catch (Exception ignored) {}\n\n        if (cb.getState() != CircuitBreaker.State.OPEN) {\n            throw new AssertionError(\"Expected OPEN state after failure\");\n        }\n    }\n\n    public void testConcurrentExecutionSafety() {\n        CircuitBreaker cb = new CircuitBreaker(10, 0.5, 1000);\n        cb.execute(() -> \"OK\");\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_inventory_reservation_deadlock_free",
+    "slug": "inventory-reservation-deadlock-free",
+    "title": "Deadlock-Free Real-Time Inventory Reservation",
+    "category": "machine_coding",
+    "badge": "🔒 Concurrency & Transactions",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Lock Ordering min(id1, id2), Atomic Integer",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Реализуйте резервирование корзины из нескольких товаров с гарантированной защитой от взаимных блокировок (Deadlock-Free Lock Ordering).",
+    "instructionsMarkdown": "# Deadlock-Free Inventory Reservation\n\n## Бизнес-контекст\nПри одновременной покупке наборов товаров разными пользователями (Пользователь 1: [Товар А, Товар Б]; Пользователь 2: [Товар Б, Товар А]) наивная блокировка объектов приводит к классическому дедлоку.\n\n## Требование:\nРеализуйте метод `reserveCart(List<String> productIds, int quantity)` с упорядоченным захватом локов по их лексикографическому ключу (`productIds.sort()`), гарантируя полное отсутствие дедлоков при 100 параллельных потоках.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/inventory/InventoryManager.java",
+        "content": "package com.assessment.inventory;\n\nimport java.util.List;\n\npublic class InventoryManager {\n\n    public void addStock(String productId, int quantity) {\n        // TODO: Потокобезопасно добавьте остатки товара на склад\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public boolean reserveCart(List<String> productIds, int quantity) {\n        // TODO: Реализуйте атомарное бронирование корзины с детерминированным порядком блокировок для предотвращения Deadlock\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public int getStock(String productId) {\n        // TODO: Верните текущий остаток товара на складе\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/inventory/InventoryManagerTest.java",
+        "content": "package com.assessment.inventory;\n\nimport java.util.List;\n\npublic class InventoryManagerTest {\n    public void testBasicReservation() {\n        InventoryManager manager = new InventoryManager();\n        manager.addStock(\"prod-1\", 10);\n        manager.addStock(\"prod-2\", 10);\n\n        boolean success = manager.reserveCart(List.of(\"prod-1\", \"prod-2\"), 3);\n        if (!success) throw new AssertionError(\"Reservation should succeed\");\n        if (manager.getStock(\"prod-1\") != 7) throw new AssertionError(\"Stock prod-1 should be 7\");\n    }\n\n    public void testConcurrentStressDeadlockFree() {\n        InventoryManager manager = new InventoryManager();\n        manager.addStock(\"item-A\", 1000);\n        manager.addStock(\"item-B\", 1000);\n\n        // 100 threads will concurrently lock in reverse order [A, B] and [B, A]\n        manager.reserveCart(List.of(\"item-A\", \"item-B\"), 1);\n        manager.reserveCart(List.of(\"item-B\", \"item-A\"), 1);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.3,
+      "concurrencySafety": 0.45,
+      "architectureAndCleanCode": 0.15,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_thread_safe_event_bus",
+    "slug": "thread-safe-event-bus",
+    "title": "In-Memory Thread-Safe Event Bus with Topic Subscriptions",
+    "category": "machine_coding",
+    "badge": "📨 Messaging & Concurrency",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, CopyOnWriteArrayList, ConcurrentHashMap",
+    "timeLimitMinutes": 40,
+    "shortDescription": "Реализуйте локальный потокобезопасный брокер событий Pub-Sub с изоляцией подписчиков и потокобезопасной рассылкой.",
+    "instructionsMarkdown": "# Thread-Safe Event Bus / Pub-Sub\n\n## Требования:\n1. Реализовать методы `subscribe(String topic, Consumer<Event> listener)`, `publish(String topic, Event event)`, `unsubscribe(...)`.\n2. Потокобезопасность: Подписчики могут динамически подписываться и отписываться во время активной рассылки сообщений без `ConcurrentModificationException`.\n3. Ошибка в одном подписчике не должна прерывать доставку остальным подписчикам топика.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/pubsub/EventBus.java",
+        "content": "package com.assessment.pubsub;\n\nimport java.util.function.Consumer;\n\npublic class EventBus {\n\n    public void subscribe(String topic, Consumer<String> subscriber) {\n        // TODO: Потокобезопасно подпишите обработчик на топик\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public void publish(String topic, String message) {\n        // TODO: Опубликуйте сообщение всем подписчикам топика без блокировки всей шины\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public int getSubscriberCount(String topic) {\n        // TODO: Верните количество активных подписчиков на топик\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/pubsub/EventBusTest.java",
+        "content": "package com.assessment.pubsub;\n\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class EventBusTest {\n    public void testPubSubDelivery() {\n        EventBus bus = new EventBus();\n        AtomicInteger counter = new AtomicInteger(0);\n\n        bus.subscribe(\"orders\", event -> counter.incrementAndGet());\n        bus.publish(\"orders\", \"order_created\");\n\n        if (counter.get() != 1) {\n            throw new AssertionError(\"Expected 1 event delivered, got: \" + counter.get());\n        }\n    }\n\n    public void testConcurrentPublishSubscribe() {\n        EventBus bus = new EventBus();\n        bus.subscribe(\"telemetry\", msg -> {});\n        bus.publish(\"telemetry\", \"metric=1\");\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_notification_dedup_pipeline",
+    "slug": "notification-filtering-deduplication",
+    "title": "Notification Filtering & Deduplication Engine",
+    "category": "machine_coding",
+    "badge": "🔔 Pipeline & Deduplication",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Pipeline Pattern, ConcurrentHashMap, Clock Injection",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Спроектируйте пайплайн фильтрации и дедупликации уведомлений с временным скользящим окном и детерминированным Clock.",
+    "instructionsMarkdown": "# Notification Filtering & Deduplication Engine\n\n## Бизнес-контекст\nСервис рассылки отправляет миллионы пушей, SMS и email. При сбоях upstream-сервисы могут повторно слать те же уведомления.\nНеобходимо фильтровать дубликаты в пределах временного окна (например, 5 секунд) по ключу `userId:channel:content`.\n\n## Требования:\n1. Пайплайн обработки `NotificationPipeline` с цепочкой `NotificationFilter`.\n2. Фильтр дедупликации `DeduplicationFilter` на базе `ConcurrentHashMap` с внедрением `Clock` для детерминированного тестирования.\n3. Потокобезопасность при параллельном поступлении дублей от 100 потоков.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/notification/Notification.java",
+        "content": "package com.assessment.notification;\n\nimport java.time.Clock;\n\npublic class NotificationPipeline {\n    private final long dedupWindowMs;\n    private final Clock clock;\n\n    public NotificationPipeline(long dedupWindowMs, Clock clock) {\n        this.dedupWindowMs = dedupWindowMs;\n        this.clock = clock;\n    }\n\n    public void registerFilter(NotificationFilter filter) {\n        // TODO: Зарегистрируйте фильтр в цепочке обработки\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public boolean process(Notification notification) {\n        // TODO: Выполните дедупликацию уведомлений в скользящем окне и прогон через зарегистрированные фильтры\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/notification/NotificationPipelineTest.java",
+        "content": "package com.assessment.notification;\n\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\n\npublic class NotificationPipelineTest {\n    public void testDeduplicationWithinWindow() {\n        Clock clock = Clock.fixed(Instant.ofEpochMilli(1000), ZoneId.of(\"UTC\"));\n        NotificationPipeline pipeline = new NotificationPipeline();\n        pipeline.addFilter(new NotificationPipeline.DeduplicationFilter(5000, clock));\n\n        Notification n1 = new Notification(\"1\", \"user-1\", \"EMAIL\", \"Order Placed\", 1000);\n        Notification n2 = new Notification(\"2\", \"user-1\", \"EMAIL\", \"Order Placed\", 1000);\n\n        if (!pipeline.process(n1)) throw new AssertionError(\"Первое уведомление должно быть отправлено\");\n        if (pipeline.process(n2)) throw new AssertionError(\"Дубликат в окне 5с должен быть отфильтрован\");\n    }\n\n    public void testConcurrentDeduplicationStress() {\n        Clock clock = Clock.systemUTC();\n        NotificationPipeline pipeline = new NotificationPipeline();\n        pipeline.addFilter(new NotificationPipeline.DeduplicationFilter(10000, clock));\n        Notification n = new Notification(\"id\", \"user-stress\", \"PUSH\", \"Alert\", System.currentTimeMillis());\n        pipeline.process(n);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_task_scheduler_priority_queue",
+    "slug": "task-scheduler-priority-queue",
+    "title": "Distributed-Ready Task Scheduler with Priorities & Clock",
+    "category": "machine_coding",
+    "badge": "⏱️ Scheduling & Concurrency",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, PriorityBlockingQueue, Clock Injection, Worker Pool",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Реализуйте планировщик задач с учетом приоритетов и времени наступления на базе PriorityBlockingQueue с Fixed Clock.",
+    "instructionsMarkdown": "# Task Scheduler with Priorities & Clock\n\n## Бизнес-контекст\nРазработайте планировщик отложенных задач. Задачи должны выполняться по наступлению времени `executeAtMillis`. Если у нескольких задач наступило время запуска, первой должна выполняться задача с наивысшим приоритетом.\n\n## Требования:\n1. Задачи хранятся в `PriorityBlockingQueue<ScheduledTask>`.\n2. Внедрение `java.time.Clock` для воспроизводимости в тестах.\n3. Метод `executeDueTasks()` выполняет все наступившие задачи и возвращает их ID.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/scheduler/ScheduledTask.java",
+        "content": "package com.assessment.scheduler;\n\npublic class TaskScheduler {\n\n    public void schedule(ScheduledTask task) {\n        // TODO: Потокобезопасно добавьте задачу в очередь с приоритетом\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public ScheduledTask pollNext() {\n        // TODO: Извлеките задачу с наивысшим приоритетом, готовой к выполнению\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public int pendingTasksCount() {\n        // TODO: Верните количество задач, ожидающих выполнения\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/scheduler/TaskSchedulerTest.java",
+        "content": "package com.assessment.scheduler;\n\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\nimport java.util.List;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class TaskSchedulerTest {\n    public void testPriorityOrdering() {\n        Instant t0 = Instant.ofEpochMilli(5000);\n        Clock clock = Clock.fixed(t0, ZoneId.of(\"UTC\"));\n        TaskScheduler scheduler = new TaskScheduler(clock);\n\n        AtomicInteger marker = new AtomicInteger(0);\n        scheduler.schedule(new ScheduledTask(\"low-prio\", 1, 4000, () -> marker.addAndGet(1)));\n        scheduler.schedule(new ScheduledTask(\"high-prio\", 10, 4500, () -> marker.addAndGet(10)));\n\n        List<String> executed = scheduler.executeDueTasks();\n        if (executed.size() != 2) throw new AssertionError(\"Ожидалось 2 выполненные задачи\");\n        if (!\"high-prio\".equals(executed.get(0))) throw new AssertionError(\"Задача с высоким приоритетом должна выполниться первой\");\n    }\n\n    public void testConcurrentSchedulingStress() {\n        Clock clock = Clock.systemUTC();\n        TaskScheduler scheduler = new TaskScheduler(clock);\n        scheduler.schedule(new ScheduledTask(\"stress-task\", 5, System.currentTimeMillis(), () -> {}));\n        scheduler.executeDueTasks();\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_parking_lot_manager",
+    "slug": "parking-lot-manager",
+    "title": "Multi-Floor Parking Lot & Locker Manager",
+    "category": "machine_coding",
+    "badge": "🚗 Concurrency & State",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, ReentrantLock per Floor, Strategy Pattern",
+    "timeLimitMinutes": 40,
+    "shortDescription": "Реализуйте управление парковочными местами на нескольких этажах с изоляцией блокировок по этажам.",
+    "instructionsMarkdown": "# Multi-Floor Parking Lot Manager\n\n## Бизнес-контекст\nРазработайте систему учета занятости парковочных мест в многоэтажном паркинге.\nКаждый этаж управляется отдельным замком `ReentrantLock`, предотвращая блокировку других этажей при парковке машины.\n\n## Требования:\n1. Захват места `park(vehicleId, type)` и освобождение `leave(vehicleId)`.\n2. Защита от овербукинга при одновременных заездах.\n3. Независимые блокировки по этажам для максимальной параллельности.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/parking/VehicleType.java",
+        "content": "package com.assessment.parking;\n\nimport java.util.Map;\nimport java.util.Optional;\n\npublic class ParkingLotManager {\n\n    public ParkingLotManager(Map<VehicleType, Integer> capacityConfig) {\n        // TODO: Инициализируйте парковочные места по типам транспорта\n    }\n\n    public Optional<String> park(VehicleType type, String licensePlate) {\n        // TODO: Припаркуйте автомобиль на подходящее место и верните ID парковочного талона\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public boolean leave(String ticketId) {\n        // TODO: Освободите парковочное место по талону\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public int getAvailableSpots(VehicleType type) {\n        // TODO: Верните количество свободных мест для указанного типа транспорта\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/parking/ParkingLotManagerTest.java",
+        "content": "package com.assessment.parking;\n\nimport java.util.Optional;\n\npublic class ParkingLotManagerTest {\n    public void testParkAndLeave() {\n        ParkingLotManager manager = new ParkingLotManager(2, 5);\n        Optional<ParkingSpot> spot = manager.park(\"CAR-1\", VehicleType.COMPACT);\n        if (spot.isEmpty()) throw new AssertionError(\"Должно быть найдено свободное место\");\n        if (manager.getAvailableSpots(1) != 4) throw new AssertionError(\"На этаже 1 должно остаться 4 места\");\n\n        boolean left = manager.leave(\"CAR-1\");\n        if (!left) throw new AssertionError(\"Автомобиль CAR-1 должен успешно покинуть парковку\");\n        if (manager.getAvailableSpots(1) != 5) throw new AssertionError(\"На этаже 1 должно снова стать 5 мест\");\n    }\n\n    public void testConcurrentParkingStress() {\n        ParkingLotManager manager = new ParkingLotManager(1, 200);\n        manager.park(\"v-\" + Thread.currentThread().getId(), VehicleType.COMPACT);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_order_state_machine",
+    "slug": "order-state-machine",
+    "title": "Atomic Order State Machine with Guarded Transitions",
+    "category": "machine_coding",
+    "badge": "📦 State Pattern & CAS",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, AtomicReference, Switch Pattern Matching, CAS",
+    "timeLimitMinutes": 35,
+    "shortDescription": "Реализуйте конечный автомат жизненного цикла заказа с атомарным CAS-переходом состояний и защитой инвариантов.",
+    "instructionsMarkdown": "# Atomic Order State Machine\n\n## Бизнес-контекст\nЗаказ проходит жизненный цикл: `CREATED -> PAYMENT_PENDING -> PAID -> SHIPPED -> DELIVERED`, либо может быть отменен (`CANCELLED`) до отгрузки.\nНедопустимые переходы (например, отмена после доставки) должны отклоняться.\n\n## Требования:\n1. Атомарное изменение состояния через `AtomicReference<OrderState>`.\n2. Метод `transitionTo(OrderState target)` возвращает `true`, если переход допустим и успешно применен, иначе `false`.\n3. Потокобезопасность без глобальных блокировок на базе CAS-цикла.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/order/OrderState.java",
+        "content": "package com.assessment.order;\n\npublic class OrderStateMachine {\n    private final String orderId;\n\n    public OrderStateMachine(String orderId) {\n        this.orderId = orderId;\n    }\n\n    public boolean transition(OrderState nextState) {\n        // TODO: Потокобезопасно выполните валидированный переход в следующее состояние заказа\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public OrderState getCurrentState() {\n        // TODO: Верните текущее состояние заказа\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public String getOrderId() {\n        return orderId;\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/order/OrderStateMachineTest.java",
+        "content": "package com.assessment.order;\n\npublic class OrderStateMachineTest {\n    public void testValidAndInvalidTransitions() {\n        OrderStateMachine sm = new OrderStateMachine(\"ord-1\");\n        if (!sm.transitionTo(OrderState.PAYMENT_PENDING)) throw new AssertionError(\"CREATED -> PAYMENT_PENDING failed\");\n        if (!sm.transitionTo(OrderState.PAID)) throw new AssertionError(\"PAYMENT_PENDING -> PAID failed\");\n        if (!sm.transitionTo(OrderState.SHIPPED)) throw new AssertionError(\"PAID -> SHIPPED failed\");\n        if (!sm.transitionTo(OrderState.DELIVERED)) throw new AssertionError(\"SHIPPED -> DELIVERED failed\");\n        if (sm.transitionTo(OrderState.CANCELLED)) throw new AssertionError(\"DELIVERED -> CANCELLED must be rejected\");\n    }\n\n    public void testConcurrentTransitionStress() {\n        OrderStateMachine sm = new OrderStateMachine(\"ord-stress\");\n        sm.transitionTo(OrderState.PAYMENT_PENDING);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.3,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_url_shortener_analytics",
+    "slug": "url-shortener-analytics",
+    "title": "High-Throughput URL Shortener with Analytics & TTL",
+    "category": "machine_coding",
+    "badge": "🔗 Base62 & Counters",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Base62, LongAdder, Clock Injection, ConcurrentHashMap",
+    "timeLimitMinutes": 40,
+    "shortDescription": "Реализуйте сервис сокращения ссылок с кодированием Base62, учетом кликов через LongAdder и истечением по TTL.",
+    "instructionsMarkdown": "# High-Throughput URL Shortener with Analytics & TTL\n\n## Бизнес-контекст\nРазработайте ядро сервиса сокращения ссылок (аналог bit.ly). Сервис должен генерировать уникальные Base62 коды, поддерживать время жизни (TTL) и шардированный счетчик переходов (`LongAdder`).\n\n## Требования:\n1. Генерация Base62 кода из монотонно растущего счетчика.\n2. Внедрение `java.time.Clock` для детерминированной проверки истечения TTL.\n3. Шардированный счетчик переходов без узкого места синхронизации.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/urlshortener/Base62.java",
+        "content": "package com.assessment.urlshortener;\n\nimport java.time.Clock;\nimport java.util.Optional;\n\npublic class UrlShortener {\n    private final Clock clock;\n\n    public UrlShortener(Clock clock) {\n        this.clock = clock;\n    }\n\n    public String shorten(String url, long ttlMs) {\n        // TODO: Сгенерируйте Base62 короткий код для URL с учетом TTL по Clock\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public Optional<String> resolve(String code) {\n        // TODO: Разрешите короткий код в оригинальный URL с проверкой истечения срока и инкрементом счетчика переходов\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public long getClicks(String code) {\n        // TODO: Верните статистику переходов по короткому коду\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/urlshortener/UrlShortenerTest.java",
+        "content": "package com.assessment.urlshortener;\n\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\nimport java.util.Optional;\n\npublic class UrlShortenerTest {\n    public void testShortenAndResolve() {\n        Clock clock = Clock.fixed(Instant.ofEpochMilli(1000), ZoneId.of(\"UTC\"));\n        UrlShortener shortener = new UrlShortener(clock);\n        String code = shortener.shorten(\"https://google.com\", 60000);\n        Optional<String> url = shortener.resolve(code);\n        if (url.isEmpty() || !url.get().equals(\"https://google.com\")) {\n            throw new AssertionError(\"Resolved URL mismatch\");\n        }\n        if (shortener.getClicks(code) != 1) {\n            throw new AssertionError(\"Click counter should be 1\");\n        }\n    }\n\n    public void testConcurrentClicksStress() {\n        Clock clock = Clock.systemUTC();\n        UrlShortener shortener = new UrlShortener(clock);\n        String code = shortener.shorten(\"https://example.org\", 60000);\n        shortener.resolve(code);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_tagged_metric_aggregator",
+    "slug": "tagged-metric-aggregator",
+    "title": "High-Frequency Tagged Metric Aggregator",
+    "category": "machine_coding",
+    "badge": "📊 Telemetry & Percentiles",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Percentile Calculation, ConcurrentHashMap, Sliding Window",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Реализуйте агрегатор метрик реального времени с расчетом перцентилей p50, p95, p99 и фильтрацией по тегам.",
+    "instructionsMarkdown": "# Tagged Metric Aggregator\n\n## Бизнес-контекст\nСервис мониторинга принимает телеметрию от сотен микросервисов с тегами (`service`, `region`, `status`).\nНеобходимо поддерживать расчет перцентилей p50, p95, p99 с фильтрацией по комбинациям тегов.\n\n## Требования:\n1. Запись семпла метрики: `record(MetricSample sample)`.\n2. Расчет перцентилей: `getPercentile(metricName, tags, percentile)`.\n3. Потокобезопасность при высокочастотной записи.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/metrics/MetricSample.java",
+        "content": "package com.assessment.metrics;\n\nimport java.util.Map;\n\npublic class MetricAggregator {\n\n    public void record(MetricSample sample) {\n        // TODO: Потокобезопасно запишите метрику с учетом тегов\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public double getPercentile(String name, Map<String, String> tags, double percentile) {\n        // TODO: Рассчитайте заданный перцентиль (например, p95, p99) для метрики с фильтрацией по тегам\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/metrics/MetricAggregatorTest.java",
+        "content": "package com.assessment.metrics;\n\nimport java.util.Map;\n\npublic class MetricAggregatorTest {\n    public void testPercentileCalculation() {\n        MetricAggregator agg = new MetricAggregator();\n        Map<String, String> tags = Map.of(\"service\", \"payment\");\n        for (int i = 1; i <= 100; i++) {\n            agg.record(new MetricSample(\"latency\", tags, i, System.currentTimeMillis()));\n        }\n\n        double p50 = agg.getPercentile(\"latency\", tags, 50.0);\n        double p99 = agg.getPercentile(\"latency\", tags, 99.0);\n\n        if (Math.abs(p50 - 50.0) > 1.0) throw new AssertionError(\"p50 expected ~50, got \" + p50);\n        if (Math.abs(p99 - 99.0) > 1.0) throw new AssertionError(\"p99 expected ~99, got \" + p99);\n    }\n\n    public void testConcurrentMetricsStress() {\n        MetricAggregator agg = new MetricAggregator();\n        agg.record(new MetricSample(\"rps\", Map.of(\"env\", \"prod\"), 100.0, System.currentTimeMillis()));\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_concurrent_leaderboard",
+    "slug": "concurrent-leaderboard",
+    "title": "Real-Time Gaming Leaderboard Engine with O(log N) Rank",
+    "category": "machine_coding",
+    "badge": "🏆 SkipList & Rank Lookup",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, ConcurrentSkipListMap, O(log N) Ranking",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Реализуйте турнирную таблицу игроков в реальном времени с быстрым пересчетом ранга за O(log N).",
+    "instructionsMarkdown": "# Real-Time Gaming Leaderboard Engine\n\n## Бизнес-контекст\nВ мультиплеерной игре тысячи игроков одновременно набирают очки. Необходимо мгновенно отдавать текущий ранг игрока и топ-N лидеров.\n\n## Требования:\n1. Обновление счета: `updateScore(playerId, scoreDelta)`.\n2. Определение ранга: `getRank(playerId)` (1-based, 1 = лучший счет).\n3. Топ лидеров: `getTopPlayers(limit)`.\n4. Потокобезопасность без блокировок чтения.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/leaderboard/Leaderboard.java",
+        "content": "package com.assessment.leaderboard;\n\nimport java.util.List;\n\npublic class Leaderboard {\n\n    public synchronized void updateScore(String playerId, long scoreDelta) {\n        // TODO: Потокобезопасно обновите счет игрока на scoreDelta\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public synchronized int getRank(String playerId) {\n        // TODO: Верните текущий ранг игрока (1-based)\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n\n    public List<String> getTopPlayers(int limit) {\n        // TODO: Верните список топ N игроков по очкам\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/leaderboard/LeaderboardTest.java",
+        "content": "package com.assessment.leaderboard;\n\nimport java.util.List;\n\npublic class LeaderboardTest {\n    public void testRankAndTopPlayers() {\n        Leaderboard lb = new Leaderboard();\n        lb.updateScore(\"alice\", 100);\n        lb.updateScore(\"bob\", 200);\n        lb.updateScore(\"carol\", 150);\n\n        if (lb.getRank(\"bob\") != 1) throw new AssertionError(\"Bob должен быть на 1 месте\");\n        if (lb.getRank(\"carol\") != 2) throw new AssertionError(\"Carol должна быть на 2 месте\");\n        if (lb.getRank(\"alice\") != 3) throw new AssertionError(\"Alice должна быть на 3 месте\");\n\n        List<String> top2 = lb.getTopPlayers(2);\n        if (top2.size() != 2 || !top2.contains(\"bob\") || !top2.contains(\"carol\")) {\n            throw new AssertionError(\"В топ-2 должны войти bob и carol\");\n        }\n    }\n\n    public void testConcurrentLeaderboardStress() {\n        Leaderboard lb = new Leaderboard();\n        lb.updateScore(\"stress-player\", 1);\n        lb.getRank(\"stress-player\");\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_elevator_control_system",
+    "slug": "elevator-control-system",
+    "title": "Multi-Car Elevator Dispatcher with SCAN Algorithm",
+    "category": "machine_coding",
+    "badge": "🛗 State & SCAN Algorithm",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, SCAN Algorithm, Dispatcher Queue, State Pattern",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Спроектируйте контроллер группы лифтов с алгоритмом SCAN для минимизации холостого хода и ожидания пассажиров.",
+    "instructionsMarkdown": "# Multi-Car Elevator Dispatcher with SCAN Algorithm\n\n## Бизнес-контекст\nЗдание оборудовано группой лифтов. Диспетчер распределяет вызовы пассажиров к ближайшему лифту, двигающемуся в попутном направлении (алгоритм SCAN / Elevator Algorithm).\n\n## Требования:\n1. Алгоритм SCAN: кабина обслуживает этажи по ходу текущего направления (`UP`/`DOWN`), пока есть заявки, затем меняет направление.\n2. Диспетчер `ElevatorDispatcher` выбирает наименее загруженную или ближайшую кабину.\n3. Потокобезопасный прием заявок от нескольких пассажиров.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/elevator/Direction.java",
+        "content": "package com.assessment.elevator;\n\nimport java.util.List;\n\npublic class ElevatorDispatcher {\n    private final List<ElevatorCar> cars;\n\n    public ElevatorDispatcher(List<ElevatorCar> cars) {\n        this.cars = cars;\n    }\n\n    public ElevatorCar dispatch(int floor) {\n        // TODO: Выберите оптимальный лифт по алгоритму SCAN / LOOK и направьте на вызов\n        throw new UnsupportedOperationException(\"Not implemented yet\");\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/elevator/ElevatorControlTest.java",
+        "content": "package com.assessment.elevator;\n\nimport java.util.List;\n\npublic class ElevatorControlTest {\n    public void testScanAlgorithm() {\n        ElevatorCar car = new ElevatorCar(1);\n        car.requestFloor(5);\n        car.requestFloor(3);\n        car.step(); // moves to 3 (first on way up)\n        if (car.getCurrentFloor() != 3) throw new AssertionError(\"Expected floor 3, got \" + car.getCurrentFloor());\n        car.step(); // moves to 5\n        if (car.getCurrentFloor() != 5) throw new AssertionError(\"Expected floor 5, got \" + car.getCurrentFloor());\n    }\n\n    public void testDispatcher() {\n        ElevatorCar car1 = new ElevatorCar(1);\n        ElevatorCar car2 = new ElevatorCar(10);\n        ElevatorDispatcher dispatcher = new ElevatorDispatcher(List.of(car1, car2));\n\n        ElevatorCar chosen = dispatcher.dispatch(2);\n        if (chosen != car1) throw new AssertionError(\"Car 1 should be chosen for floor 2\");\n    }\n\n    public void testConcurrentRequestsStress() {\n        ElevatorCar car = new ElevatorCar(1);\n        car.requestFloor(7);\n        car.step();\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.35,
+      "architectureAndCleanCode": 0.2,
+      "modernIdioms": 0.1
+    }
+  }
+]
