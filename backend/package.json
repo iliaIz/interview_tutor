@@ -34,7 +34,7 @@
     "test:practice:task-codes": "node tests/test_practice_task_codes.js && node tests/test_catalog_path_resolver.js && node tests/verify_starter_workspaces_integrity.js && node tests/test_catalog_seeder_bootstrap.js",
     "test:practice:starter-integrity": "node tests/verify_starter_workspaces_integrity.js",
     "test:catalog-paths": "node tests/test_catalog_path_resolver.js",
-    "test:tutor:normalizers": "node tests/test_polymorphic_tutor_normalizers.js",
+    "test:tutor:normalizers": "node tests/test_polymorphic_tutor_normalizers.js && node tests/test_polymorphic_prompt_builder.js && node tests/verify_practice_tutor.js && node tests/test_practice_tutor_routes.js",
     "test:practice:mutation-challenges": "node tests/verify_all_mutation_challenges.js",
     "test:practice:scanner": "ts-node src/scripts/testTestQualityScanner.ts",
     "test:practice:ast-verifier": "ts-node src/scripts/testRefactoringAstVerifier.ts",

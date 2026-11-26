@@ -99,6 +99,7 @@ jobs:
         run: |
           npm run test:practice:resilience
           node tests/test_practice_evaluate_sse.js
+          npm run test:tutor:normalizers
 
       - name: Run Practice Task Codes & Catalog Integrity Tests
         working-directory: backend
