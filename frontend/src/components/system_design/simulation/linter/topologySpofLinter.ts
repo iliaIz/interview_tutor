@@ -103,6 +103,10 @@ function computeSpofMap(nodes: GraphNodeLike[], edges: GraphEdgeLike[]): Map<str
 
   const canAllIngressReachStorageWithout = (excludedId: string): boolean => {
     if (ingressIds.size === 0 || storageIds.size === 0) return true;
+    // If the excluded node is the sole ingress entry point, removing it disconnects all traffic from storage.
+    if (ingressIds.has(excludedId) && ingressIds.size === 1) {
+      return storageIds.size === 1 && storageIds.has(excludedId);
+    }
     for (const ingressId of ingressIds) {
       if (ingressId === excludedId) continue;
       const visited = new Set<string>([excludedId, ingressId]);
