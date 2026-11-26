@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
 import { UiSlice, StudioTab, ActiveAudioJob, ToastNotification, SystemHealth, RecapTarget, createUiSlice } from './slices/uiSlice';
 import { QuestionsSlice, Question, TopicProgress, CheatSheetBookmark, QuestionEvaluationSummary, TopicAccessMeta, ActiveBatchSession, createQuestionsSlice } from './slices/questionsSlice';
@@ -46,6 +46,29 @@ export { selectActiveWhiteboardArtifact, pruneCodeRevisionsWithNonEviction };
 
 export type AppState = UiSlice & QuestionsSlice & AcademySlice & WhiteboardSlice & PracticeSlice & CompanySlice;
 
+type PersistedAppState = Pick<
+  AppState,
+  | 'currentStudioTab'
+  | 'currentView'
+  | 'selectedTopicId'
+  | 'selectedTopicName'
+  | 'activeAcademyCourseId'
+  | 'evaluationsMap'
+  | 'cheatSheetBookmarks'
+  | 'topicAccessMap'
+  | 'codeRevisions'
+  | 'currentBatch'
+  | 'currentQuestionIndex'
+  | 'activeBatchSession'
+>;
+
+// Provides SSR/Node-safe fallback so Zustand always attaches store.persist APIs outside the DOM.
+const noopStateStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (...a) => ({
@@ -58,7 +81,10 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'interview-prep-storage-v2',
-      partialize: (state) => ({
+      storage: createJSONStorage<PersistedAppState>(() =>
+        typeof localStorage !== 'undefined' ? localStorage : noopStateStorage
+      ),
+      partialize: (state): PersistedAppState => ({
         currentStudioTab: state.currentStudioTab,
         currentView: state.currentView,
         selectedTopicId: state.selectedTopicId,
