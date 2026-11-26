@@ -6,14 +6,15 @@
  * Cognitive Bounding SLA: <= 350 lines (Rule 8).
  */
 
-import { db } from '../db';
 import { envConfig } from '../../config/env';
 import { llmGateway } from '../LlmGatewayClient';
 import { transcribeWithDeepgram } from '../deepgramService';
 import { synthesizeTTSWithRetry } from '../podcast';
-import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
 import { getOrCreateSessionMemory } from '../geminiLiveProxy';
-import { recordEvaluationAndSyncProgress } from '../progressService';
+import {
+  questionEvaluationService,
+  mergeFaangScorecard
+} from '../evaluation/QuestionEvaluationService';
 import {
   InterviewPersonaId,
   TargetGrade,
@@ -226,57 +227,28 @@ ${decisionRules}
         missingPoints: reasoningResult.missingPoints || []
       });
 
-      faangScorecard = (reasoningResult.faangScorecard && reasoningResult.faangScorecard.dimensionScores)
-        ? {
-            ...calculatedScorecard,
-            ...reasoningResult.faangScorecard,
-            dimensionScores: {
-              ...calculatedScorecard.dimensionScores,
-              ...reasoningResult.faangScorecard.dimensionScores
-            }
-          }
-        : calculatedScorecard;
+      faangScorecard = mergeFaangScorecard(calculatedScorecard, reasoningResult.faangScorecard);
 
       if (questionId && topic) {
         try {
-          const questionExists = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId);
-          if (questionExists) {
-            const syncResult = recordEvaluationAndSyncProgress({
-              userId,
-              questionId,
-              topic,
-              mode: 'voice',
-              score: reasoningResult.score || 0,
-              isPassed: !!reasoningResult.isPassed,
-              positivePoints: reasoningResult.positivePoints || [],
-              missingPoints: reasoningResult.missingPoints || [],
-              feedback: reasoningResult.feedback || '',
-              speechCoaching: { faangScorecard },
-              userAnswer: candidateText,
-              transcript: candidateText,
-              audioMetrics: { strategy, voice, cascaded: true, persona, targetGrade }
-            });
-            progressSummary = syncResult.progress;
-
-            try {
-              decayResult = await applyKnowledgeDecay({
-                questionId,
-                topic,
-                assistanceLevel: reasoningResult.isPassed ? ((reasoningResult.score ?? 0) >= 85 ? 'solo' : 'guided') : 'relapse'
-              });
-            } catch {}
-
-            if (!reasoningResult.isPassed && reasoningResult.missingPoints && reasoningResult.missingPoints.length > 0) {
-              try {
-                void recordNewErrorGap({
-                  questionId,
-                  topic,
-                  errorConcept: reasoningResult.missingPoints[0],
-                  initialDeficit: 1.0
-                });
-              } catch {}
-            }
-          }
+          const outcome = await questionEvaluationService.recordOutcome({
+            userId,
+            questionId,
+            topic,
+            mode: 'voice',
+            score: reasoningResult.score || 0,
+            isPassed: !!reasoningResult.isPassed,
+            positivePoints: reasoningResult.positivePoints || [],
+            missingPoints: reasoningResult.missingPoints || [],
+            feedback: reasoningResult.feedback || '',
+            speechCoaching: { faangScorecard },
+            faangScorecard,
+            userAnswer: candidateText,
+            transcript: candidateText,
+            audioMetrics: { strategy, voice, cascaded: true, persona, targetGrade }
+          });
+          progressSummary = outcome.progress;
+          decayResult = outcome.knowledgeUpdate;
         } catch (dbErr) {
           console.warn('Failed to persist evaluation to SQLite in CascadedTurnEngine:', dbErr);
         }

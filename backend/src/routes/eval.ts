@@ -1,10 +1,7 @@
 import { Router } from 'express';
-import { db } from '../services/db';
-import { evaluateAnswerWithGemini } from '../services/geminiText';
-import { applyKnowledgeDecay, recordNewErrorGap } from '../services/vectorMemoryService';
-import { TOPIC_MAP, TOPIC_DEFINITIONS } from '../services/topics';
 import { getAuthUserId } from '../middleware/auth';
-import { recordEvaluationAndSyncProgress } from '../services/progressService';
+import { LlmGatewayUnavailableError } from '../services/LlmGatewayClient';
+import { questionEvaluationService } from '../services/evaluation/QuestionEvaluationService';
 
 const router = Router();
 
@@ -25,6 +22,11 @@ export interface SaveEvaluationPayload {
 
 // POST /api/eval - Evaluate user text answer using Gemini and persist to SQLite
 router.post('/', async (req, res) => {
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
+  });
+
   try {
     const userId = getAuthUserId(req);
     const { questionId, topic, question, referenceAnswer, userAnswer, userGender } = req.body;
@@ -33,13 +35,18 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters: question, referenceAnswer, userAnswer' });
     }
 
-    const evaluation = await evaluateAnswerWithGemini(question, referenceAnswer, userAnswer, userGender || 'female');
+    const evaluation = await questionEvaluationService.evaluateTextAnswer({
+      question,
+      referenceAnswer,
+      userAnswer,
+      userGender: userGender || 'female',
+      abortSignal: abortController.signal
+    });
 
-    // If questionId and topic are provided, persist evaluation and atomically sync progress
     let decayResult = null;
     let progressSummary = null;
     if (questionId && topic) {
-      const { progress } = recordEvaluationAndSyncProgress({
+      const outcome = await questionEvaluationService.recordOutcome({
         userId,
         questionId,
         topic,
@@ -51,28 +58,8 @@ router.post('/', async (req, res) => {
         feedback: evaluation.feedback,
         userAnswer: userAnswer || ''
       });
-      progressSummary = progress;
-
-      // Apply Knowledge Decay
-      try {
-        decayResult = await applyKnowledgeDecay({
-          questionId,
-          topic,
-          assistanceLevel: evaluation.isPassed ? (evaluation.score >= 85 ? 'solo' : 'guided') : 'relapse'
-        });
-      } catch (e) {}
-
-      // Record new gap if failed
-      if (!evaluation.isPassed && evaluation.missingPoints && evaluation.missingPoints.length > 0) {
-        try {
-          void recordNewErrorGap({
-            questionId,
-            topic,
-            errorConcept: evaluation.missingPoints[0],
-            initialDeficit: 1.0
-          });
-        } catch (e) {}
-      }
+      decayResult = outcome.knowledgeUpdate;
+      progressSummary = outcome.progress;
     }
 
     res.json({
@@ -81,6 +68,20 @@ router.post('/', async (req, res) => {
       progress: progressSummary
     });
   } catch (error: any) {
+    if ((req as any).signal?.aborted || error?.name === 'AbortError') {
+      return res.status(499).end();
+    }
+    if (error instanceof LlmGatewayUnavailableError) {
+      const status = error.reason === 'rate_limit_exceeded' ? 429 : 503;
+      res.setHeader('Retry-After', String(error.retryAfterSeconds));
+      return res.status(status).json({
+        error: error.userMessage || error.message,
+        reason: error.reason,
+        category: error.category,
+        retryAfterSeconds: error.retryAfterSeconds,
+        healthEndpoint: error.healthEndpoint
+      });
+    }
     console.error('Error in /api/eval route:', error);
     res.status(500).json({ error: error.message || 'Failed to evaluate answer' });
   }
@@ -113,7 +114,7 @@ router.post('/save', async (req, res) => {
     const numScore = Math.round(Number(score));
     const passedBool = isPassed !== undefined ? !!isPassed : numScore >= 70;
 
-    const { evalId, progress } = recordEvaluationAndSyncProgress({
+    const outcome = await questionEvaluationService.recordOutcome({
       userId,
       questionId,
       topic,
@@ -132,10 +133,11 @@ router.post('/save', async (req, res) => {
 
     res.json({
       success: true,
-      id: evalId,
+      id: outcome.evalId,
       score: numScore,
       isPassed: passedBool,
-      progress,
+      progress: outcome.progress,
+      knowledgeUpdate: outcome.knowledgeUpdate,
       message: 'Evaluation saved and progress synchronized successfully'
     });
   } catch (error: any) {
@@ -147,44 +149,14 @@ router.post('/save', async (req, res) => {
 // GET /api/eval/latest/:questionId - Get the latest detailed report for a question
 router.get('/latest/:questionId', (req, res) => {
   try {
-    const { questionId } = req.params;
+    const userId = getAuthUserId(req);
+    const report = questionEvaluationService.getLatestEvaluation(req.params.questionId, userId);
 
-    const stmt = db.prepare(`
-      SELECT * FROM question_evaluations
-      WHERE question_id = ?
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-
-    const row = stmt.get(questionId) as any;
-
-    if (!row) {
+    if (!report) {
       return res.status(404).json({ error: 'No evaluation found for this question' });
     }
 
-    res.json({
-      id: row.id,
-      questionId: row.question_id,
-      topic: row.topic,
-      mode: row.mode,
-      score: row.score,
-      isPassed: Boolean(row.is_passed),
-      positivePoints: JSON.parse(row.positive_points || '[]'),
-      missingPoints: JSON.parse(row.missing_points || '[]'),
-      feedback: row.feedback,
-      userAnswer: row.user_answer,
-      transcript: row.transcript,
-      audioMetrics: JSON.parse(row.audio_metrics || 'null'),
-      turnTelemetry: (() => {
-        try {
-          return row.turn_telemetry ? JSON.parse(row.turn_telemetry) : [];
-        } catch {
-          return [];
-        }
-      })(),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    });
+    res.json(report);
   } catch (error: any) {
     console.error('Error in /api/eval/latest/:questionId:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch evaluation report' });
@@ -195,42 +167,7 @@ router.get('/latest/:questionId', (req, res) => {
 router.get('/topic/:topicId', (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const topicId = req.params.topicId.toLowerCase();
-    const dbTopicName = TOPIC_MAP[topicId] || topicId;
-
-    const stmt = db.prepare(`
-      SELECT 
-        qe.question_id as questionId,
-        qe.score,
-        qe.is_passed as isPassed,
-        qe.mode,
-        qe.created_at as createdAt,
-        qe.feedback,
-        qe.positive_points as positivePoints,
-        qe.missing_points as missingPoints
-      FROM question_evaluations qe
-      INNER JOIN (
-        SELECT question_id, MAX(created_at) as max_created
-        FROM question_evaluations
-        WHERE (user_id = ? OR user_id = 'default_user') AND (topic = ? OR topic = ?)
-        GROUP BY question_id
-      ) latest ON qe.question_id = latest.question_id AND qe.created_at = latest.max_created
-      WHERE (qe.user_id = ? OR qe.user_id = 'default_user') AND (qe.topic = ? OR qe.topic = ?)
-    `);
-
-    const rows = stmt.all(userId, dbTopicName, topicId, userId, dbTopicName, topicId) as any[];
-
-    const summaries = rows.map(r => ({
-      questionId: r.questionId,
-      score: r.score,
-      isPassed: Boolean(r.isPassed),
-      mode: r.mode,
-      createdAt: r.createdAt,
-      feedback: r.feedback,
-      positivePoints: JSON.parse(r.positivePoints || '[]'),
-      missingPoints: JSON.parse(r.missingPoints || '[]')
-    }));
-
+    const summaries = questionEvaluationService.getTopicSummaries(req.params.topicId, userId);
     res.json(summaries);
   } catch (error: any) {
     console.error('Error in /api/eval/topic/:topicId:', error);

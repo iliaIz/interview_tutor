@@ -38,12 +38,22 @@ export interface ReviewEvent {
   isPassed?: boolean;
   missingPoints?: string[];
   feedback?: string;
+  assistanceLevelOverride?: 'solo' | 'guided' | 'assisted' | 'relapse';
+  resolvedGapIds?: string[];
 }
 
 export class CandidateMemoryAggregate {
   private static instance: CandidateMemoryAggregate | null = null;
-  private readonly cardRepo = FsrsCardRepository.getInstance();
-  private readonly deficitRepo = CandidateDeficitMemoryRepository.getInstance();
+  private readonly cardRepo: FsrsCardRepository;
+  private readonly deficitRepo: CandidateDeficitMemoryRepository;
+
+  constructor(
+    cardRepo: FsrsCardRepository = FsrsCardRepository.getInstance(),
+    deficitRepo: CandidateDeficitMemoryRepository = CandidateDeficitMemoryRepository.getInstance()
+  ) {
+    this.cardRepo = cardRepo;
+    this.deficitRepo = deficitRepo;
+  }
 
   public static getInstance(): CandidateMemoryAggregate {
     if (!this.instance) {
@@ -60,8 +70,9 @@ export class CandidateMemoryAggregate {
     card: FsrsCardRecord;
     propagatedCount: number;
     propagatedNeighbors: NeighborPropagationResult[];
+    knowledgeUpdate: { updatedGaps: any[]; masteredCount: number };
   }> {
-    const userId = event.userId || 'default_user';
+    const userId = event.userId?.trim() || 'default_user';
     const result = await this.cardRepo.updateFsrsCardState({
       userId,
       questionId: event.questionId,
@@ -69,15 +80,18 @@ export class CandidateMemoryAggregate {
       isPassed: event.isPassed
     });
 
-    const assistanceLevel = event.isPassed && event.score >= 75 ? 'solo' : event.score >= 50 ? 'guided' : 'relapse';
-    await this.deficitRepo.applyKnowledgeDecay({
+    const isPassed = event.isPassed ?? event.score >= 70;
+    const assistanceLevel = event.assistanceLevelOverride
+      ?? (isPassed ? (event.score >= 85 ? 'solo' : 'guided') : 'relapse');
+    const knowledgeUpdate = await this.deficitRepo.applyKnowledgeDecay({
       userId,
       questionId: event.questionId,
       topic: event.topic,
-      assistanceLevel
+      assistanceLevel,
+      resolvedGapIds: event.resolvedGapIds
     });
 
-    if (event.missingPoints && event.missingPoints.length > 0 && event.score < 75) {
+    if (!isPassed && event.missingPoints && event.missingPoints.length > 0) {
       for (const gapText of event.missingPoints.slice(0, 3)) {
         await this.deficitRepo.recordNewErrorGap({
           userId,
@@ -89,7 +103,10 @@ export class CandidateMemoryAggregate {
       }
     }
 
-    return result;
+    return {
+      ...result,
+      knowledgeUpdate
+    };
   }
 
   public async updateFsrsCardState(params: Parameters<FsrsCardRepository['updateFsrsCardState']>[0]) {
