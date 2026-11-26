@@ -11,7 +11,7 @@ import {
   resolveEffectiveLiveModel,
   clampClientVadPauseMs
 } from '../src/audio/voiceConfigResolver';
-import { buildLiveVoiceWebSocketUrl } from '../src/audio/liveVoiceUrlBuilder';
+import { buildLiveVoiceWebSocketUrl } from '../src/audio/LiveTransportSupervisor';
 import { buildPracticeSessionParams } from '../src/components/practice/tutor/practiceSessionParamsBuilder';
 import type { InterviewConfig } from '../src/types/interviewConfig';
 import type { RuntimeVoiceConfig } from '../src/config/voiceDefaults';
@@ -257,13 +257,22 @@ function runContractTests() {
     assert(fallbackDynamicModel === 'gemini-custom-live', 'Stale/unexplicit model yields to /api/config defaultLiveModel');
     assert(clampClientVadPauseMs(3000, runtimeCfg) === 2500, 'Client VAD pause clamps safely at 2500ms');
 
-    const wsUrl = buildLiveVoiceWebSocketUrl(resolved);
+    const wsUrl = buildLiveVoiceWebSocketUrl({
+      ...resolved,
+      questionText: 'Long question text should travel only via session_init',
+      customPrompt: 'Very long custom prompt override',
+      hrMode: 'guided_zero_start',
+      dossierId: 'canonical_senior_java'
+    });
     assert(wsUrl.includes('voice=Aoede'), 'WS URL carries global voice');
     assert(wsUrl.includes('turnMode=auto'), 'WS URL carries global turnMode');
     assert(wsUrl.includes('liveModel=gemini-live-v2'), 'WS URL carries global liveModel');
     assert(wsUrl.includes('vadPauseMs=2400'), 'WS URL carries global vadPauseMs');
     assert(wsUrl.includes('enableSilenceClarification=true'), 'WS URL carries silence clarification');
     assert(wsUrl.includes('strictness=hardcore'), 'WS URL carries strictness');
+    assert(wsUrl.includes('awaitInit=1'), 'Slim WS URL signals ?awaitInit=1 handshake barrier');
+    assert(Buffer.byteLength(wsUrl, 'utf8') < 400, `Slim WS URL stays <400B (${Buffer.byteLength(wsUrl, 'utf8')}B)`);
+    assert(!wsUrl.includes('hrMode=') && !wsUrl.includes('dossierId=') && !wsUrl.includes('questionText='), 'Rich/HR fields omitted from slim URL query string');
   }
 
   // [Test 6] Practice session params builder synthesizes challenge, active file, revisions, seniorReview & academy bridge

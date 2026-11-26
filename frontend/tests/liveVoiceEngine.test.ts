@@ -150,17 +150,27 @@ async function runLiveVoiceEngineTests() {
   assert.strictEqual(engine.getSnapshot().state, 'IDLE', 'Initial state must be IDLE');
   console.log('  ✅ Test 1 Passed: Initial state is IDLE');
 
-  // Test 2: Connection Lifecycle & Terminal Equivalence
+  // Test 2: Connection Lifecycle, Slim Handshake URL & Terminal Equivalence
   await engine.connect({
     sessionId: 'test_engine_sess_1',
     questionId: 'Q_1',
     sessionType: 'interview',
     topic: 'Java',
-    turnMode: 'auto'
+    turnMode: 'auto',
+    questionText: 'Verbose interview question shipped via session_init only',
+    hrMode: 'guided_zero_start',
+    dossierId: 'canonical_senior_java'
   });
   await new Promise((r) => setTimeout(r, 10));
   assert.strictEqual(engine.getSnapshot().state, 'CONNECTING', 'State transitions to CONNECTING on connect');
-  console.log('  ✅ Test 2 Passed: Connect transitions state to CONNECTING');
+  assert.ok(transport.lastUrl.includes('awaitInit=1'), 'Engine opens WS with ?awaitInit=1 handshake barrier');
+  assert.ok(Buffer.byteLength(transport.lastUrl, 'utf8') < 400, 'Slim WS URL stays under 400 bytes');
+  assert.ok(!transport.lastUrl.includes('dossierId='), 'HR dossierId excluded from slim WS URL');
+  const sentInit = JSON.parse(transport.sentMessages[0]);
+  assert.strictEqual(sentInit.type, 'session_init');
+  assert.strictEqual(sentInit.dossierId, 'canonical_senior_java');
+  assert.strictEqual(sentInit.hrMode, 'guided_zero_start');
+  console.log('  ✅ Test 2 Passed: Connect opens Slim URL & ships rich context in session_init');
 
   // Test 3 & 4: modelTurn -> AI_SPEAKING -> generationComplete -> LISTENING
   transport.emitServerMessage({ serverContent: { modelTurn: { parts: [{ text: 'Привет! Расскажи о Spring Boot.' }] } } });

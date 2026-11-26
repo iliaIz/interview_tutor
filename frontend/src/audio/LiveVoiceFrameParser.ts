@@ -1,56 +1,26 @@
 /**
- * LiveVoiceFrameParser.ts
- * SOTA Late-2026 Discriminated Protocol Frame Parser for Gemini 3.8 Live & LiteLLM Gateway.
- * Exposes 4 tagged slices (control, domainEvents, modelTurn, toolLifecycle) & domain dispatcher.
+ * LiveVoiceFrameParser.ts — SOTA Late-2026 Discriminated Protocol Frame Parser (Spec 53 / <= 250L).
+ * Emits 4 tagged slices (control, domainEvents, modelTurn, toolLifecycle) & domain dispatcher.
  */
 
 import { VoiceEngineCallbacks, VoiceEvaluationResult } from './types';
 
 export type LiveControlFrameKind =
-  | 'ping'
-  | 'setupComplete'
-  | 'tool_executing'
-  | 'tool_execution_complete'
-  | 'thinking_delay'
-  | 'dead_air_recovery'
-  | 'upstream_reconnecting'
-  | 'hot_handoff_started'
-  | 'hot_handoff_complete'
-  | 'tool_awaiting_speech'
-  | 'stream_recovery'
-  | 'stream_stall_detected'
-  | 'sync_pong'
-  | 'upstream_error';
+  | 'ping' | 'setupComplete' | 'tool_executing' | 'tool_execution_complete'
+  | 'thinking_delay' | 'dead_air_recovery' | 'upstream_reconnecting'
+  | 'hot_handoff_started' | 'hot_handoff_complete' | 'tool_awaiting_speech'
+  | 'stream_recovery' | 'stream_stall_detected' | 'sync_pong' | 'upstream_error';
 
 export type LiveDomainFrameKind =
-  | 'evaluation_completed'
-  | 'evaluation'
-  | 'whiteboard_update'
-  | 'chaos_injected'
-  | 'hiring_committee_verdict'
-  | 'bug_solved'
-  | 'candidate_observation_recorded'
-  | 'candidate_observation'
-  | 'smell_discovered'
-  | 'tool_call'
-  | 'hr_phase_transition'
-  | 'hr_scorecard_ready'
-  | 'hr_user_transcript_delta'
-  | 'hr_step_state';
+  | 'evaluation_completed' | 'evaluation' | 'whiteboard_update' | 'chaos_injected'
+  | 'hiring_committee_verdict' | 'bug_solved' | 'candidate_observation_recorded'
+  | 'candidate_observation' | 'smell_discovered' | 'tool_call'
+  | 'hr_phase_transition' | 'hr_scorecard_ready' | 'hr_user_transcript_delta' | 'hr_step_state';
 
 export type LiveFrameType = LiveControlFrameKind | LiveDomainFrameKind | 'model_turn' | 'unknown';
 
-export interface SyncPongPayload {
-  isUpstreamConnected?: boolean;
-  isUpstreamReconnecting?: boolean;
-  isHandoffActive?: boolean;
-}
-
-export interface UpstreamErrorPayload {
-  error: string;
-  errorCode?: string;
-  retryable: boolean;
-}
+export interface SyncPongPayload { isUpstreamConnected?: boolean; isUpstreamReconnecting?: boolean; isHandoffActive?: boolean; }
+export interface UpstreamErrorPayload { error: string; errorCode?: string; retryable: boolean; }
 
 export type LiveControlSignal =
   | { kind: 'ping'; timestamp?: number }
@@ -142,7 +112,29 @@ const KNOWN_FRAME_TYPES = new Set<string>([
   'hr_scorecard_ready', 'hr_user_transcript_delta', 'hr_step_state'
 ]);
 
-const DOMAIN_EVENT_BUILDERS: Record<string, (data: RawServerFrame) => LiveDomainEvent> = {
+const CONTROL_BUILDERS: Record<string, (d: RawServerFrame) => LiveControlSignal> = {
+  ping: (d) => ({ kind: 'ping', timestamp: typeof d.timestamp === 'number' ? d.timestamp : undefined }),
+  tool_executing: () => ({ kind: 'tool_lifecycle', phase: 'executing' }),
+  tool_execution_complete: () => ({ kind: 'tool_lifecycle', phase: 'complete' }),
+  thinking_delay: () => ({ kind: 'thinking_delay' }),
+  dead_air_recovery: (d) => ({ kind: 'dead_air_recovery', reason: typeof d.reason === 'string' ? d.reason : undefined }),
+  upstream_reconnecting: (d) => ({ kind: 'upstream_reconnecting', attempt: d.attempt, maxAttempts: d.maxAttempts, mode: d.mode }),
+  hot_handoff_started: () => ({ kind: 'hot_handoff', state: 'started' }),
+  hot_handoff_complete: () => ({ kind: 'hot_handoff', state: 'complete' }),
+  tool_awaiting_speech: () => ({ kind: 'tool_awaiting_speech' }),
+  stream_recovery: () => ({ kind: 'stream_recovery' }),
+  stream_stall_detected: () => ({ kind: 'stream_recovery' }),
+  sync_pong: (d) => ({
+    kind: 'sync_pong',
+    payload: { isUpstreamConnected: d.isUpstreamConnected, isUpstreamReconnecting: d.isUpstreamReconnecting, isHandoffActive: d.isHandoffActive }
+  }),
+  upstream_error: (d) => ({
+    kind: 'upstream_error',
+    payload: { error: String(d.error || 'Сбой голосового шлюза'), errorCode: d.errorCode, retryable: Boolean(d.retryable) }
+  })
+};
+
+const DOMAIN_BUILDERS: Record<string, (d: RawServerFrame) => LiveDomainEvent> = {
   evaluation_completed: (d) => ({ kind: 'evaluation', payload: (d.evaluation || d.payload) as VoiceEvaluationResult }),
   evaluation: (d) => ({ kind: 'evaluation', payload: (d.evaluation || d.payload) as VoiceEvaluationResult }),
   whiteboard_update: (d) => ({ kind: 'whiteboard_update', payload: d.payload }),
@@ -200,11 +192,10 @@ export class LiveVoiceFrameParser {
       const toolLifecycle = control?.kind === 'tool_lifecycle' ? control.phase : undefined;
       if (control) return { kind, control, domainEvents: [], toolLifecycle };
 
-      const domainBuilder = data.type ? DOMAIN_EVENT_BUILDERS[data.type] : undefined;
+      const domainBuilder = data.type ? DOMAIN_BUILDERS[data.type] : undefined;
       if (domainBuilder) return { kind, domainEvents: [domainBuilder(data)] };
 
-      const modelTurn = parseModelTurn(data.serverContent);
-      return { kind, domainEvents: [], modelTurn };
+      return { kind, domainEvents: [], modelTurn: parseModelTurn(data.serverContent) };
     } catch {
       return null;
     }
@@ -224,31 +215,12 @@ function parseControlSignal(data: RawServerFrame): LiveControlSignal | undefined
   if (data.type === 'setupComplete' || data.setupComplete !== undefined) {
     return { kind: 'setup_complete', reconnected: Boolean(data.reconnected), silent: Boolean(data.silent) };
   }
-  switch (data.type) {
-    case 'ping': return { kind: 'ping', timestamp: typeof data.timestamp === 'number' ? data.timestamp : undefined };
-    case 'tool_executing': return { kind: 'tool_lifecycle', phase: 'executing' };
-    case 'tool_execution_complete': return { kind: 'tool_lifecycle', phase: 'complete' };
-    case 'thinking_delay': return { kind: 'thinking_delay' };
-    case 'dead_air_recovery': return { kind: 'dead_air_recovery', reason: typeof data.reason === 'string' ? data.reason : undefined };
-    case 'upstream_reconnecting': return { kind: 'upstream_reconnecting', attempt: data.attempt, maxAttempts: data.maxAttempts, mode: data.mode };
-    case 'hot_handoff_started': return { kind: 'hot_handoff', state: 'started' };
-    case 'hot_handoff_complete': return { kind: 'hot_handoff', state: 'complete' };
-    case 'tool_awaiting_speech': return { kind: 'tool_awaiting_speech' };
-    case 'stream_recovery':
-    case 'stream_stall_detected': return { kind: 'stream_recovery' };
-    case 'sync_pong':
-      return {
-        kind: 'sync_pong',
-        payload: { isUpstreamConnected: data.isUpstreamConnected, isUpstreamReconnecting: data.isUpstreamReconnecting, isHandoffActive: data.isHandoffActive }
-      };
-    case 'upstream_error':
-      return { kind: 'upstream_error', payload: { error: String(data.error || 'Сбой голосового шлюза'), errorCode: data.errorCode, retryable: Boolean(data.retryable) } };
-    default:
-      if (typeof data.error === 'string' && data.error.length > 0) {
-        return { kind: 'upstream_error', payload: { error: data.error, errorCode: data.errorCode, retryable: Boolean(data.retryable) } };
-      }
-      return undefined;
+  const builder = data.type ? CONTROL_BUILDERS[data.type] : undefined;
+  if (builder) return builder(data);
+  if (typeof data.error === 'string' && data.error.length > 0) {
+    return { kind: 'upstream_error', payload: { error: data.error, errorCode: data.errorCode, retryable: Boolean(data.retryable) } };
   }
+  return undefined;
 }
 
 function parseModelTurn(sc?: RawServerFrame['serverContent']): LiveModelTurnSlice | undefined {
@@ -277,10 +249,6 @@ function parseModelTurn(sc?: RawServerFrame['serverContent']): LiveModelTurnSlic
 
 function appendCleanText(rawText: unknown, target: string[]): void {
   if (typeof rawText !== 'string' || rawText.length === 0) return;
-  const clean = rawText
-    .replace(/<no\s*speech>/gi, '')
-    .replace(/\{pause\}/gi, '')
-    .replace(/\[no\s*speech\]/gi, '')
-    .replace(/<pause>/gi, '');
+  const clean = rawText.replace(/<no\s*speech>|\{pause\}|\[no\s*speech\]|<pause>/gi, '');
   if (clean.length > 0) target.push(clean);
 }

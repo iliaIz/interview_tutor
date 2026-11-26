@@ -80,6 +80,8 @@ export interface LiveSessionCommonFields {
   chunkId?: string;
   startBeatId?: string;
   beatScope?: 'all_from_beat' | 'single_beat';
+  academyCourse?: string;
+  academyStep?: string;
 }
 
 export interface VoiceEngineConfig extends LiveSessionCommonFields {
@@ -105,8 +107,6 @@ export interface VoiceEngineConfig extends LiveSessionCommonFields {
   turn0Lockdown?: boolean;
   debugStep?: number;
   temperature?: number;
-  academyCourse?: string;
-  academyStep?: string;
 }
 
 export interface LiveSessionInitFrame extends LiveSessionCommonFields {

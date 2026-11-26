@@ -1,24 +1,21 @@
 /**
- * NativeLiveVoiceEngine.ts
- * SOTA Late-2026 Headless Clean Native Voice Engine for Gemini 3.8 Live.
- * Enforces Dual-Sided Handshake, Audio Mutex, and injectable Transport/Audio ports.
+ * NativeLiveVoiceEngine.ts — Headless Native Voice Engine for Gemini 3.8 Live (Spec 53 / <= 300L).
+ * Enforces Dual-Sided Handshake, Audio Mutex, Slim WS Handshake (?awaitInit=1), and Port seams.
  */
 
 import { MicrophoneMetrics } from './MicrophoneCapture';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
 import { LiveVoiceFrameParser, LiveDomainEvent, dispatchDomainEvents } from './LiveVoiceFrameParser';
-import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
+import { LiveTransportSupervisor } from './LiveTransportSupervisor';
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
-import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
-import { LiveHeartbeatController } from './LiveHeartbeatController';
-import { LiveVoiceRecoveryController } from './LiveVoiceRecoveryController';
+import { MicBargeInGate } from './MicBargeInGate';
 import { createBrowserAudioIOPort, createBrowserTransportPort } from './browserVoicePorts';
 import {
   VoiceEngineState, VoiceEngineConfig, VoiceEngineCallbacks,
-  DialogueTurnItem, ILiveVoiceEngine, VoiceEvaluationResult,
-  LiveTransportConnection, LiveTransportPort, LiveAudioIOPort,
-  VoiceEnginePorts, VoiceEngineCommand, VoiceEngineSnapshot
+  ILiveVoiceEngine, VoiceEvaluationResult, LiveTransportConnection,
+  LiveTransportPort, LiveAudioIOPort, VoiceEnginePorts,
+  VoiceEngineCommand, VoiceEngineSnapshot
 } from './types';
 
 export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
@@ -26,12 +23,10 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private transport: LiveTransportPort;
   private audio: LiveAudioIOPort;
   private connection: LiveTransportConnection | null = null;
-  private config: VoiceEngineConfig | null = null;
   private turnManager: DialogueTurnManager;
   private wakeLock = new WakeLockManager();
-  private micDispatcher = new LiveMicChunkDispatcher();
-  private heartbeat = new LiveHeartbeatController(() => this.connection);
-  private recovery: LiveVoiceRecoveryController;
+  private micGate = new MicBargeInGate();
+  private supervisor: LiveTransportSupervisor;
 
   private isServerTurnComplete = false;
   private isAudioMutexLocked = false;
@@ -50,13 +45,11 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.audio = ports.audio ?? createBrowserAudioIOPort();
     this.audio.handlePlayoutFinished(() => this.handleAudioPlayoutFinished());
 
-    this.recovery = new LiveVoiceRecoveryController({
+    this.supervisor = new LiveTransportSupervisor({
       onStatusMessage: (msg) => this.callbacks.onStatusMessage?.(msg),
       onDeadAirTimeout: () => {
         const state = this.fsm.getInternalState();
-        if (state === 'COMMITTING' || state === 'AI_THINKING') {
-          this.handleDeadAirRecovery();
-        }
+        if (state === 'COMMITTING' || state === 'AI_THINKING') this.handleDeadAirRecovery();
       },
       onDeadAirRecovery: () => this.handleDeadAirRecovery(),
       onFatalError: (msg, retryable, code) => this.handleFatalError(msg, retryable, code),
@@ -68,7 +61,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   public async connect(config: VoiceEngineConfig): Promise<void> {
     this.disconnect();
     const epoch = this.connectEpoch;
-    this.config = config;
     this.isSessionReady = false;
     this.isAudioMutexLocked = false;
     this.currentAiTurnAccumulator = '';
@@ -83,34 +75,26 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
         (base64Pcm, metrics) => this.handleMicrophoneChunk(base64Pcm, metrics),
         (db) => this.callbacks.onAudioLevel?.(db)
       );
-      if (epoch !== this.connectEpoch) {
-        this.audio.stopCapture();
-        return;
-      }
+      if (epoch !== this.connectEpoch) { this.audio.stopCapture(); return; }
 
       let conn: LiveTransportConnection | null = null;
-      conn = this.transport.connect(buildLiveVoiceWebSocketUrl(config), {
+      conn = this.transport.connect(LiveTransportSupervisor.buildWsUrl(config), {
         onOpen: () => {
-          if (conn && this.connection !== conn && this.connection === null) {
-            this.connection = conn;
-          }
-          this.heartbeat.start();
-          this.recovery.startSyncProbes();
+          if (conn && this.connection === null) this.connection = conn;
+          this.supervisor.onTransportOpen(config);
           this.callbacks.onStatusMessage?.('🔊 Ожидание приветствия...');
-          if (this.connection) sendLiveSessionInit(this.connection, config);
         },
         onMessage: (data) => this.handleServerFrame(data),
         onError: (err) => console.error('[NativeLiveVoiceEngine] WebSocket error:', err),
         onClose: (code) => {
           if (!conn || this.connection !== conn) return;
           this.connection = null;
-          this.heartbeat.stop();
-          this.recovery.dispose();
+          this.supervisor.dispose();
           this.isSessionReady = false;
           const curState = this.getState();
           if (curState !== 'COMPLETED' && curState !== 'IDLE' && curState !== 'ERROR') {
             this.fsm.transition({ type: 'DISCONNECT' });
-            this.callbacks.onStatusMessage?.(LiveVoiceRecoveryController.formatCloseStatus(code));
+            this.callbacks.onStatusMessage?.(LiveTransportSupervisor.formatCloseStatus(code));
           }
         }
       });
@@ -132,18 +116,13 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
 
   private teardownTransport(reason = 'Normal Closure'): void {
     this.wakeLock.release();
-    this.recovery.dispose();
-    this.heartbeat.stop();
+    this.supervisor.dispose();
     this.isSessionReady = false;
-
     const conn = this.connection;
     this.connection = null;
     if (conn) {
-      try {
-        conn.close(1000, reason);
-      } catch {}
+      try { conn.close(1000, reason); } catch {}
     }
-
     this.audio.stopCapture();
     this.audio.clearPlayout();
   }
@@ -152,10 +131,13 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     switch (command.type) {
       case 'COMMIT_TURN': this.commitSpokenTurn(); break;
       case 'BARGE_IN': this.handleBargeInInterruption(command.source ?? 'tactile'); break;
-      case 'CENTRAL_ACTION': this.handleCentralButtonClick(); break;
+      case 'CENTRAL_ACTION':
+        if (this.getState() === 'AI_SPEAKING') this.handleBargeInInterruption('tactile');
+        else if (this.getState() === 'LISTENING') this.commitSpokenTurn();
+        break;
       case 'SEND_TEXT': this.sendTextMessage(command.text, command.displayText); break;
-      case 'SEND_FRAME': this.sendCustomFrame(command.frame); break;
-      case 'SET_MUTED': this.setMuted(command.muted); break;
+      case 'SEND_FRAME': if (this.connection?.isOpen()) this.connection.send(JSON.stringify(command.frame)); break;
+      case 'SET_MUTED': this.isMuted = command.muted; this.audio.setMuted(command.muted); break;
     }
   }
 
@@ -172,16 +154,16 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     };
   }
 
+  public getState(): VoiceEngineState { return this.fsm.getPublicState(); }
+
   private commitSpokenTurn(): void {
     if (!this.fsm.isCandidateTurnActive()) return;
-    this.micDispatcher.resetCounters();
+    this.micGate.resetCounters();
     this.isServerTurnComplete = false;
     this.fsm.transition({ type: 'COMMIT_TRIGGERED' });
-    if (this.connection?.isOpen()) {
-      this.connection.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
-    }
+    if (this.connection?.isOpen()) this.connection.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
     this.callbacks.onStatusMessage?.('🧠 ИИ формулирует ответ...');
-    this.recovery.armSafetyTimer(22000);
+    this.supervisor.armSafetyTimer(22000);
   }
 
   private handleBargeInInterruption(source: 'tactile' | 'acoustic' = 'tactile'): void {
@@ -193,12 +175,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     this.resetTurnCustody({ type: 'BARGE_IN_TRIGGERED', source }, '🎙️ Перебивание активно: говорите в микрофон...');
   }
 
-  private handleCentralButtonClick(): void {
-    const pub = this.getState();
-    if (pub === 'AI_SPEAKING') this.handleBargeInInterruption('tactile');
-    else if (pub === 'LISTENING') this.commitSpokenTurn();
-  }
-
   private sendTextMessage(text: string, displayText?: string): void {
     if (!text.trim()) return;
     this.isServerTurnComplete = false;
@@ -208,24 +184,24 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.connection.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }));
     }
     this.callbacks.onStatusMessage?.('🧠 ИИ отвечает...');
-    this.recovery.armSafetyTimer(22000);
+    this.supervisor.armSafetyTimer(22000);
   }
-
-  private sendCustomFrame(frame: unknown): void {
-    if (this.connection?.isOpen()) this.connection.send(JSON.stringify(frame));
-  }
-
-  private setMuted(muted: boolean): void { this.isMuted = muted; this.audio.setMuted(muted); }
-  public getState(): VoiceEngineState { return this.fsm.getPublicState(); }
 
   private handleMicrophoneChunk(base64Pcm: string, metrics?: MicrophoneMetrics): void {
-    this.micDispatcher.dispatchChunk(
-      base64Pcm, metrics, this.getState(), this.isMuted, this.isAudioMutexLocked,
-      this.isTurn0Lockdown, this.isSessionReady, this.config?.turnMode, this.connection,
+    this.micGate.processChunk(
+      base64Pcm,
+      metrics,
+      {
+        state: this.getState(),
+        isMuted: this.isMuted,
+        isAudioMutexLocked: this.isAudioMutexLocked,
+        isTurn0Lockdown: this.isTurn0Lockdown,
+        isSessionReady: this.isSessionReady,
+        connection: this.connection
+      },
       {
         onTransientFiltered: () => this.callbacks.onTransientFiltered?.(),
-        onBargeIn: (source) => this.handleBargeInInterruption(source),
-        onCommitSpokenTurn: () => this.commitSpokenTurn()
+        onBargeIn: (source) => this.handleBargeInInterruption(source)
       }
     );
   }
@@ -234,11 +210,6 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
 
-    if (parsed.control?.kind === 'ping') {
-      this.heartbeat.handleIncomingPing(parsed.control.timestamp);
-      return;
-    }
-
     if (parsed.toolLifecycle === 'executing' || parsed.domainEvents.some((e) => e.kind === 'tool_call')) {
       this.isAudioMutexLocked = true;
     }
@@ -246,13 +217,11 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.isAudioMutexLocked = false;
     }
 
-    if (this.recovery.handleControlFrame(parsed)) return;
+    if (parsed.control && this.supervisor.handleControlSignal(parsed.control)) return;
 
     if (parsed.control?.kind === 'setup_complete') {
       this.isSessionReady = true;
-      if (parsed.control.reconnected || parsed.control.silent) {
-        this.isTurn0Lockdown = false;
-      }
+      if (parsed.control.reconnected || parsed.control.silent) this.isTurn0Lockdown = false;
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
       if (!this.isTurn0Lockdown) this.unlockCandidateTurn();
       return;
@@ -262,13 +231,10 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       (e): e is Extract<LiveDomainEvent, { kind: 'evaluation' }> => e.kind === 'evaluation'
     );
     if (evalEvent) {
-      this.recovery.clearSafetyTimer();
+      this.supervisor.clearSafetyTimer();
       this.pendingEvaluation = evalEvent.payload;
-      if (!this.audio.isPlaying() && this.isServerTurnComplete) {
-        this.flushPendingEvaluation();
-      } else {
-        this.hasPendingEvaluationDrain = true;
-      }
+      if (!this.audio.isPlaying() && this.isServerTurnComplete) this.flushPendingEvaluation();
+      else this.hasPendingEvaluationDrain = true;
       return;
     }
 
@@ -291,13 +257,11 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     if ((turn.hasAudio && turn.audioChunks.length > 0) || turn.hasModelTurn) {
       this.isSessionReady = true;
       this.isServerTurnComplete = false;
-      this.recovery.setAwaitingToolSpeech(false);
-      this.recovery.clearSafetyTimer();
+      this.supervisor.setAwaitingToolSpeech(false);
+      this.supervisor.clearSafetyTimer();
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
-      for (const pcm of turn.audioChunks) {
-        this.audio.enqueuePcm(pcm);
-      }
+      for (const pcm of turn.audioChunks) this.audio.enqueuePcm(pcm);
     }
 
     if (turn.isInterrupted) {
@@ -314,16 +278,11 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       this.audio.notifyTurnComplete();
       this.currentAiTurnAccumulator = '';
 
-      if (this.hasPendingEvaluationDrain && !this.audio.isPlaying() && this.flushPendingEvaluation()) {
-        return;
-      }
+      if (this.hasPendingEvaluationDrain && !this.audio.isPlaying() && this.flushPendingEvaluation()) return;
 
       if (!this.audio.isPlaying()) {
-        if (this.recovery.isAwaitingToolSpeech()) {
-          this.fsm.transition({ type: 'THINKING_START' });
-        } else {
-          this.unlockCandidateTurn();
-        }
+        if (this.supervisor.isAwaitingToolSpeech()) this.fsm.transition({ type: 'THINKING_START' });
+        else this.unlockCandidateTurn();
       } else {
         this.callbacks.onDrainingStateChange?.(true);
       }
@@ -343,11 +302,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
   private handleAudioPlayoutFinished(): void {
     if (this.hasPendingEvaluationDrain && this.flushPendingEvaluation()) return;
     if (this.isServerTurnComplete) {
-      if (this.recovery.isAwaitingToolSpeech()) {
-        this.fsm.transition({ type: 'THINKING_START' });
-      } else {
-        this.unlockCandidateTurn();
-      }
+      if (this.supervisor.isAwaitingToolSpeech()) this.fsm.transition({ type: 'THINKING_START' });
+      else this.unlockCandidateTurn();
     }
   }
 
@@ -364,8 +320,8 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     msg: string
   ): void {
     this.isTurn0Lockdown = false;
-    this.recovery.setAwaitingToolSpeech(false);
-    this.recovery.clearSafetyTimer();
+    this.supervisor.setAwaitingToolSpeech(false);
+    this.supervisor.clearSafetyTimer();
     this.isAudioMutexLocked = false;
     this.callbacks.onDrainingStateChange?.(false);
     this.fsm.transition(event);
