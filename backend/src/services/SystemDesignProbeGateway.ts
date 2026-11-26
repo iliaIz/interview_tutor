@@ -52,7 +52,7 @@ export class SystemDesignProbeGateway {
       candidateNotes
     });
 
-    const messages = [
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
       ...(conversationHistory || []),
       { role: 'user', content: wrapUntrustedContext('user_message', userMessage) }

@@ -317,15 +317,9 @@ function testEdgeCases(): void {
     sessionId: 'sess_text_only',
     currentAiTurnText: 'Whiteboard updated.',
     currentTurnMetrics: {
-      turnIndex: 6,
-      speechDurationMs: 1000,
-      vadPauseSettingMs: 1800,
-      firstTextAt: 100500,
-      audioBytesReceived: 0, // No audio
-      textChars: 19,
-      droppedEchoChunksCount: 0,
-      wasBargeIn: false,
-      bargeInType: null
+      turnIndex: 6, speechDurationMs: 1000, vadPauseSettingMs: 1800,
+      firstTextAt: 100500, audioBytesReceived: 0, textChars: 19,
+      droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
     }
   };
   const textOnlyEvent = sealTurnTelemetry(textOnlySession, 100000);
@@ -338,15 +332,9 @@ function testEdgeCases(): void {
     sessionId: 'sess_audio_only',
     currentAiTurnText: '',
     currentTurnMetrics: {
-      turnIndex: 7,
-      speechDurationMs: 1500,
-      vadPauseSettingMs: 1800,
-      firstAudioAt: 200800,
-      audioBytesReceived: 24000, // 500ms audio
-      textChars: 0,
-      droppedEchoChunksCount: 0,
-      wasBargeIn: false,
-      bargeInType: null
+      turnIndex: 7, speechDurationMs: 1500, vadPauseSettingMs: 1800,
+      firstAudioAt: 200800, audioBytesReceived: 24000, textChars: 0,
+      droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
     }
   };
   const audioOnlyEvent = sealTurnTelemetry(audioOnlySession, 200000);
@@ -356,15 +344,9 @@ function testEdgeCases(): void {
 
   // 3. System clock backward jitter (negative clamping guard)
   const jitterMetrics: CurrentTurnMetrics = {
-    turnIndex: 8,
-    speechDurationMs: 1000,
-    vadPauseSettingMs: 1800,
-    firstAudioAt: 299900, // 100ms BEFORE commitTime due to clock drift
-    audioBytesReceived: 1000,
-    textChars: 10,
-    droppedEchoChunksCount: 0,
-    wasBargeIn: false,
-    bargeInType: null
+    turnIndex: 8, speechDurationMs: 1000, vadPauseSettingMs: 1800,
+    firstAudioAt: 299900, audioBytesReceived: 1000, textChars: 10,
+    droppedEchoChunksCount: 0, wasBargeIn: false, bargeInType: null
   };
   const jitterEvent = sealTurnTelemetry({ currentTurnMetrics: jitterMetrics }, 300000);
   assert(jitterEvent.ttfaMs === 0, 'Clock jitter is safely clamped to 0ms (no negative latency)', `Got ${jitterEvent.ttfaMs}`);

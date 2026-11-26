@@ -97,10 +97,8 @@ triageRouter.post('/evaluate', async (req: Request, res: Response) => {
     });
 
     const abortController = new AbortController();
-    let clientClosed = false;
-    req.on('close', () => {
-      clientClosed = true;
-      abortController.abort();
+    res.on('close', () => {
+      if (!res.writableEnded) abortController.abort();
     });
 
     const parsed = await llmGateway.completeJson({
@@ -169,10 +167,8 @@ triageRouter.post('/probe', async (req: Request, res: Response) => {
     ];
 
     const abortController = new AbortController();
-    let clientClosed = false;
-    req.on('close', () => {
-      clientClosed = true;
-      abortController.abort();
+    res.on('close', () => {
+      if (!res.writableEnded) abortController.abort();
     });
 
     const reply = (await llmGateway.completeText({

@@ -13,7 +13,7 @@ export type ReasoningPresetKey = keyof typeof REASONING_PRESETS;
 export interface LlmExecutionOptions {
   systemPrompt?: string;
   userPrompt?: string;
-  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  messages?: Array<{ role: 'system' | 'user' | 'assistant' | (string & {}); content: string }>;
   model?: string;
   presetKey?: ReasoningPresetKey;
   temperature?: number;

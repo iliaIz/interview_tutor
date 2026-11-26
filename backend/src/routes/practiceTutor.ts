@@ -37,8 +37,8 @@ router.get('/refactoring-compass-rules', (_req: Request, res: Response) => res.j
 // POST /api/practice-tutor/chat
 router.post('/chat', async (req: Request, res: Response): Promise<void> => {
   const abortController = new AbortController();
-  req.on('close', () => {
-    abortController.abort();
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
   });
 
   try {
@@ -173,7 +173,9 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
 // POST /api/practice-tutor/hint (Progressive Hint Ladder Tiers 0..4)
 router.post('/hint', async (req: Request, res: Response): Promise<void> => {
   const abortController = new AbortController();
-  req.on('close', () => abortController.abort());
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
+  });
   try {
     const {
       hintTier = 1,
@@ -238,7 +240,9 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
 // POST /api/practice-tutor/rule-grounding (Testing Compass 5 Golden Rules)
 router.post('/rule-grounding', async (req: Request, res: Response): Promise<void> => {
   const abortController = new AbortController();
-  req.on('close', () => abortController.abort());
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
+  });
   try {
     const {
       ruleId,
