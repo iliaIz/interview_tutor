@@ -8,7 +8,7 @@ import { WebSocket, RawData } from 'ws';
 import { ProxySession, toRawBuffer } from './liveSessionTypes';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { LiveWorkspaceContext } from './LiveWorkspaceContext';
+import { LiveWorkspaceStore } from './LiveWorkspaceStore';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 import { HR_VOICE_EVENTS, HrStepControlAction } from '@interview-prep/shared';
 import {
@@ -66,7 +66,7 @@ export class DownstreamClientPipe {
         return;
       }
 
-      if (LiveWorkspaceContext.applyClientFrame(session, parsed)) {
+      if (LiveWorkspaceStore.applyClientFrame(session, parsed)) {
         return;
       }
 
@@ -281,10 +281,12 @@ export class DownstreamClientPipe {
     const { session, clientSocket, turnMode } = this;
 
     if (parsed.clientContent?.turns) {
-      session.isToolCallPending = false;
-      if (session.toolCallSafetyTimeout) {
-        clearTimeout(session.toolCallSafetyTimeout);
-        session.toolCallSafetyTimeout = null;
+      if (!session.toolAudioMutex?.shouldGateMicAudio()) {
+        session.isToolCallPending = false;
+        if (session.toolCallSafetyTimeout) {
+          clearTimeout(session.toolCallSafetyTimeout);
+          session.toolCallSafetyTimeout = null;
+        }
       }
       if (session.sessionId) {
         for (const turn of parsed.clientContent.turns) {

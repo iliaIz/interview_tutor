@@ -187,9 +187,9 @@ export class LiveVoiceSession {
     console.log(`📡 [LiveVoiceSession] Starting: type=${config.sessionType}, mode=${config.tutorMode}, model=${config.liveModel}`);
 
     const fsm = new SessionFsm('INIT');
-    const turnState = new SessionTurnState(config, clientSocket, fsm, undefined as any);
+    const turnState = new SessionTurnState(config, clientSocket, fsm);
     const session = turnState.proxySession;
-    const watchdogs = WatchdogManager.ensureSessionWatchdogs(session, clientSocket);
+    const watchdogs = turnState.watchdogs;
 
     let instance: LiveVoiceSession;
     const terminate = (reason: string = 'Normal Closure', code: number = 1000, source: string = 'Session') => {

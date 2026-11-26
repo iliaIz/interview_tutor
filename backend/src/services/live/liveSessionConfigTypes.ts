@@ -26,6 +26,7 @@ export interface ChallengeResolutionInput {
   queryChallengeCategory?: string;
   queryChallengeTrack?: string;
   queryActiveFilePath?: string;
+  sessionType?: string;
 }
 
 export interface ResolvedChallengeContext {

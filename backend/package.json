@@ -39,7 +39,7 @@
     "test:practice:scanner": "ts-node src/scripts/testTestQualityScanner.ts",
     "test:practice:ast-verifier": "ts-node src/scripts/testRefactoringAstVerifier.ts",
     "pretest:live:tool-isolation": "npm run build",
-    "test:live:tool-isolation": "node tests/test_live_tool_silence_isolation.js && node tests/test_spec37_deadair_mutex_resumption.js",
+    "test:live:tool-isolation": "node tests/test_live_tool_silence_isolation.js && node tests/test_spec37_deadair_mutex_resumption.js && node tests/test_live_tool_executor_workspace.js",
     "verify-hygiene": "ts-node ../scripts/verify_file_hygiene.ts",
     "test:hr": "node tests/test_hr_routes.js && node tests/test_hr_simulator_engine.js && node tests/test_hr_acoustic_canary.js",
     "test:companies": "node tests/test_company_profile_schema.js && node tests/test_company_readiness_repo.js"

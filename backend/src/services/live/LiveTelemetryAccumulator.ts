@@ -73,7 +73,9 @@ export class LiveTelemetryAccumulator {
     console.log(`🏁 [MODEL_TURN_COMPLETE] Upstream Gemini terminal turn generation complete (session: ${session.sessionId || 'anon'})`);
     session.isAiGenerating = false;
     session.firstAudioChunkLogged = false;
-    session.isToolCallPending = false;
+    if (!session.toolAudioMutex?.shouldGateMicAudio()) {
+      session.isToolCallPending = false;
+    }
 
     // Calculate physical playout drain epoch (+450ms reverb cooldown)
     const audioBytes = session.currentTurnAudioBytes || 0;
@@ -97,7 +99,7 @@ export class LiveTelemetryAccumulator {
       }
       session.fsm?.transition('CANDIDATE_LISTENING');
     }
-    if (session.toolCallSafetyTimeout) {
+    if (!session.toolAudioMutex?.shouldGateMicAudio() && session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;
     }
@@ -177,7 +179,9 @@ export class LiveTelemetryAccumulator {
     session.currentTurnAudioBytes = 0;
     session.firstAudioChunkTime = undefined;
     session.audioChunksCount = 0;
-    session.isToolCallPending = false;
+    if (!session.toolAudioMutex?.shouldGateMicAudio()) {
+      session.isToolCallPending = false;
+    }
     session.watchdogs?.disarmAll();
     if (session.currentTurnMetrics) {
       session.currentTurnMetrics.wasBargeIn = true;
@@ -185,7 +189,7 @@ export class LiveTelemetryAccumulator {
         session.currentTurnMetrics.bargeInType = 'acoustic';
       }
     }
-    if (session.toolCallSafetyTimeout) {
+    if (!session.toolAudioMutex?.shouldGateMicAudio() && session.toolCallSafetyTimeout) {
       clearTimeout(session.toolCallSafetyTimeout);
       session.toolCallSafetyTimeout = null;
     }

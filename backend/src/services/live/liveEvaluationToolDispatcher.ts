@@ -1,16 +1,16 @@
-import { db } from '../db';
-import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
-import { recordEvaluationAndSyncProgress } from '../progressService';
+import { normalizeUserId } from '../evaluation/QuestionEvaluationRepository';
+import { mergeFaangScorecard } from '../evaluation/QuestionEvaluationService';
 import { calculateFaangScorecard } from '../../prompts/personas';
 import { buildWeightedRubric } from './liveRubricBuilder';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
+import { ToolExecutionContext, ToolExecutionResult } from './LiveToolExecutor';
 
 export async function handleSubmitInterviewEvaluation(
   args: Record<string, any>,
   ctx: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const { session, liveCoaching } = ctx;
+  const userId = normalizeUserId(session.userId);
 
   const score = typeof args.score === 'number' ? Math.max(0, Math.min(100, Math.round(args.score))) : 70;
   const isPassed = typeof args.isPassed === 'boolean' ? args.isPassed : score >= 70;
@@ -19,32 +19,22 @@ export async function handleSubmitInterviewEvaluation(
   const feedback = typeof args.spokenFeedback === 'string' ? args.spokenFeedback : (args.feedback || 'Ответ принят.');
   const questionType = args.questionType || 'definitional';
   const speechCoaching = args.speechCoaching || null;
-
-  const rawCriteriaBreakdown = Array.isArray(args.criteriaBreakdown) ? args.criteriaBreakdown : [];
-  const rawDeductions = Array.isArray(args.deductions) ? args.deductions : [];
   const upgradeSnippet = typeof args.upgradeSnippet === 'string' ? args.upgradeSnippet : '';
 
-  let criteriaBreakdown = rawCriteriaBreakdown;
+  let criteriaBreakdown = Array.isArray(args.criteriaBreakdown) ? args.criteriaBreakdown : [];
   if (criteriaBreakdown.length === 0) {
     const defaultRubric = buildWeightedRubric(session.referenceAnswer || '', session.questionText || '');
     let remainingScore = score;
     criteriaBreakdown = defaultRubric.map((r, idx) => {
-      let earned = 0;
-      if (remainingScore >= r.weight) {
-        earned = r.weight;
-        remainingScore -= r.weight;
-      } else {
-        earned = remainingScore;
-        remainingScore = 0;
-      }
+      const earned = remainingScore >= r.weight ? r.weight : remainingScore;
+      remainingScore = Math.max(0, remainingScore - earned);
       const isFull = earned === r.weight;
-      const isZero = earned === 0;
       return {
         id: r.id,
         title: r.title,
         maxPoints: r.weight,
         earnedPoints: earned,
-        status: isFull ? 'covered' : (isZero ? 'missed' : 'partial'),
+        status: isFull ? 'covered' : (earned === 0 ? 'missed' : 'partial'),
         probeAssisted: (session.probesCount || 0) > 0 && !isFull && earned > 0,
         evidence: isFull ? 'Критерий раскрыт в ответе' : undefined,
         gap: isFull ? undefined : (missingPoints[idx] || `Недостаточно полно раскрыты ${r.title.toLowerCase()}`)
@@ -53,7 +43,7 @@ export async function handleSubmitInterviewEvaluation(
   }
 
   const totalLostPoints = Math.max(0, 100 - score);
-  let deductions = rawDeductions;
+  let deductions = Array.isArray(args.deductions) ? args.deductions : [];
   if (totalLostPoints > 0 && deductions.length === 0) {
     const gapCriteria = criteriaBreakdown.filter((c: any) => (c.maxPoints - c.earnedPoints) > 0);
     if (gapCriteria.length > 0) {
@@ -90,91 +80,7 @@ export async function handleSubmitInterviewEvaluation(
     missingPoints,
     questionType
   });
-
-  const faangScorecard = args.faangScorecard
-    ? {
-        ...calculatedScorecard,
-        ...args.faangScorecard,
-        dimensionScores: {
-          ...calculatedScorecard.dimensionScores,
-          ...(args.faangScorecard.dimensionScores || {})
-        }
-      }
-    : calculatedScorecard;
-
-  let savedEvalId = '';
-  if (session.questionId) {
-    try {
-      const mem = session.sessionId ? getOrCreateSessionMemory(session.sessionId, session.questionId || '') : null;
-      const dialogueTranscript =
-        mem && mem.turns && mem.turns.length > 0
-          ? mem.turns.map((t) => `${t.role === 'user' ? 'Кандидат' : 'Интервьюер'}: ${t.text}`).join('\n\n')
-          : session.turnTelemetryHistory && session.turnTelemetryHistory.length > 0
-            ? session.turnTelemetryHistory.map((t) => `Turn ${t.turnIndex} (${t.speaker}): duration ${t.speechDurationMs}ms`).join('\n')
-            : 'Устный диалог в Gemini Live';
-
-      const syncResult = recordEvaluationAndSyncProgress({
-        userId: session.userId || 'default_user',
-        questionId: session.questionId,
-        topic: session.topic || 'General',
-        mode: 'voice',
-        score,
-        isPassed,
-        positivePoints,
-        missingPoints,
-        feedback,
-        speechCoaching: {
-          ...(speechCoaching || {}),
-          questionType,
-          faangScorecard,
-          criteriaBreakdown,
-          deductions,
-          upgradeSnippet
-        },
-        turnTelemetry: session.turnTelemetryHistory || [],
-        transcript: dialogueTranscript,
-        userAnswer: dialogueTranscript
-      });
-      savedEvalId = syncResult.evalId;
-      console.log(`💾 Live evaluation saved & progress synced to DB: ${savedEvalId} (Score: ${score}, Topic: ${syncResult.progress.topic}, Percentage: ${syncResult.progress.percentage}%)`);
-    } catch (dbErr) {
-      console.error('Error saving Live evaluation to DB:', dbErr);
-    }
-
-    try {
-      const aliasRow = db.prepare('SELECT canonical_id FROM system_design_aliases WHERE alias = ?').get(session.questionId) as any;
-      const canonicalId = aliasRow ? aliasRow.canonical_id : session.questionId;
-      const manifestRow = db.prepare('SELECT canonical_id FROM system_design_manifests WHERE canonical_id = ?').get(canonicalId) as any;
-      if (manifestRow) {
-        const ledgerId = `prog_live_${canonicalId}_${session.userId || 'default_user'}_${Date.now()}`;
-        const status = isPassed ? 'PASSED' : 'FAILED';
-        db.prepare(`
-          INSERT INTO user_progress_ledger (
-            id, user_id, canonical_id, studio_stage, status, score, artifacts_json, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
-          ledgerId,
-          session.userId || 'default_user',
-          canonicalId,
-          'STUDIO_3_DEFENSE',
-          status,
-          score,
-          JSON.stringify({
-            savedEvalId,
-            feedback,
-            positivePoints,
-            missingPoints,
-            faangScorecard,
-            criteriaBreakdown,
-            deductions
-          })
-        );
-        console.log(`📊 [Ledger] Live evaluation persisted to user_progress_ledger: ${ledgerId} (${status}, score: ${score})`);
-      }
-    } catch (ledgerErr) {
-      console.warn('⚠️ [Ledger] Could not persist live evaluation to user_progress_ledger:', ledgerErr);
-    }
-  }
+  const faangScorecard = mergeFaangScorecard(calculatedScorecard, args.faangScorecard);
 
   const probes = session.probesCount || 0;
   let assistanceLevel: 'solo' | 'guided' | 'assisted' | 'relapse' = 'solo';
@@ -190,31 +96,50 @@ export async function handleSubmitInterviewEvaluation(
     assistanceLevel = 'relapse';
   }
 
+  let savedEvalId = '';
   let decayResult: any = null;
-  try {
-    decayResult = await applyKnowledgeDecay({
-      userId: session.userId || 'anonymous',
-      questionId: session.questionId,
-      topic: session.topic || 'General',
-      assistanceLevel,
-      resolvedGapIds: session.relevantGapIds
-    });
-    console.log(`🧠 Knowledge decay applied (${assistanceLevel}):`, JSON.stringify(decayResult));
-  } catch (decayErr) {
-    console.error('Error applying knowledge decay:', decayErr);
-  }
-
-  if (!isPassed && missingPoints.length > 0) {
+  if (session.questionId && ctx.persistencePort) {
     try {
-      void recordNewErrorGap({
-        userId: session.userId || 'anonymous',
+      const mem = session.sessionId ? getOrCreateSessionMemory(session.sessionId, session.questionId) : null;
+      const dialogueTranscript =
+        mem && mem.turns && mem.turns.length > 0
+          ? mem.turns.map((t) => `${t.role === 'user' ? 'Кандидат' : 'Интервьюер'}: ${t.text}`).join('\n\n')
+          : session.turnTelemetryHistory && session.turnTelemetryHistory.length > 0
+            ? session.turnTelemetryHistory.map((t) => `Turn ${t.turnIndex} (${t.speaker}): duration ${t.speechDurationMs}ms`).join('\n')
+            : 'Устный диалог в Gemini Live';
+
+      const saved = await ctx.persistencePort.saveEvaluationOutcome({
+        userId,
         questionId: session.questionId,
         topic: session.topic || 'General',
-        errorConcept: missingPoints[0],
-        initialDeficit: 1.0
+        questionText: session.questionText,
+        referenceAnswer: session.referenceAnswer,
+        mode: 'voice',
+        score,
+        isPassed,
+        positivePoints,
+        missingPoints,
+        feedback,
+        faangScorecard,
+        speechCoaching: {
+          ...(speechCoaching || {}),
+          questionType,
+          faangScorecard,
+          criteriaBreakdown,
+          deductions,
+          upgradeSnippet
+        },
+        turnTelemetry: session.turnTelemetryHistory || [],
+        transcript: dialogueTranscript,
+        userAnswer: dialogueTranscript,
+        assistanceLevelOverride: assistanceLevel,
+        resolvedGapIds: session.relevantGapIds
       });
-    } catch (recErr) {
-      console.warn('Could not record new gap:', recErr);
+      savedEvalId = saved.evaluationId;
+      decayResult = saved.knowledgeUpdate ?? (saved.deltaProgress as any)?.knowledgeUpdate ?? null;
+      console.log(`💾 Live evaluation saved via ToolPersistencePort: ${savedEvalId} (Score: ${score}, User: ${userId})`);
+    } catch (dbErr) {
+      console.error('Error saving Live evaluation via ToolPersistencePort:', dbErr);
     }
   }
 

@@ -12,7 +12,7 @@ import {
 import { extractDefaultAnchors } from './live/liveRubricBuilder';
 import { buildSystemPrompt } from './live/livePromptBuilder';
 import { getLiveToolDeclarations } from './live/liveToolDeclarations';
-import { LiveToolEngine } from './live/LiveToolEngine';
+import { LiveToolExecutor, LiveToolEngine } from './live/LiveToolExecutor';
 
 export {
   LiveTurn,
@@ -22,6 +22,7 @@ export {
   extractDefaultAnchors,
   buildSystemPrompt,
   getLiveToolDeclarations,
+  LiveToolExecutor,
   LiveToolEngine
 };
 
