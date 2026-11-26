@@ -29,7 +29,12 @@ export {
   CompassRule
 };
 
-export type TutorPersona = 'junior_explainer' | 'middle_scaffold' | 'senior_socratic' | 'faang_interviewer';
+export type TutorPersona =
+  | 'junior_explainer'
+  | 'middle_scaffold'
+  | 'senior_socratic'
+  | 'faang_interviewer'
+  | 'company_interviewer';
 
 export type HintTier = 0 | 1 | 2 | 3 | 4;
 
@@ -47,10 +52,10 @@ export interface PracticeTutorContext {
   survivingMutants?: Array<{
     id: string;
     name: string;
-    description: string;
+    description?: string;
     file: string;
     line: number;
-    mutatedContent: string;
+    mutatedContent?: string;
   }>;
   compilerError?: string;
   testFailureMessage?: string;
@@ -137,7 +142,7 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
   // 2. Hint Ladder Directive (Domain-Adaptive Socratic Guidance)
   const hintLadderDirective = buildHintLadderDirective(domainFlags, hintTier);
 
-  // 3. Compass Rule Grounding
+  // 3. Compass Rule Grounding (domain-preferred with cross-compass fallback)
   let compassDirective = '';
   const activeRulesMap = isTx
     ? TRANSACTION_COMPASS_RULES
@@ -148,8 +153,22 @@ export function buildPracticeTutorSystemPrompt(context: PracticeTutorContext): s
     : isLld
     ? LLD_COMPASS_RULES
     : TESTING_COMPASS_RULES;
-  if (activeCompassRuleId && activeRulesMap[activeCompassRuleId]) {
-    const rule = activeRulesMap[activeCompassRuleId];
+  let rule: CompassRule | undefined;
+  if (activeCompassRuleId) {
+    const candidateMaps = [
+      activeRulesMap,
+      TESTING_COMPASS_RULES,
+      LLD_COMPASS_RULES,
+      TRANSACTION_COMPASS_RULES,
+      CONCURRENCY_COMPASS_RULES,
+      REFACTORING_COMPASS_RULES
+    ];
+    for (const ruleMap of candidateMaps) {
+      rule = ruleMap[activeCompassRuleId] || Object.values(ruleMap).find((r) => r.id === activeCompassRuleId);
+      if (rule) break;
+    }
+  }
+  if (rule) {
     compassDirective = `
 АКТИВНОЕ ПРАВИЛО КОМПАСА:
 Правило: "${rule.name}"
@@ -172,10 +191,10 @@ ${survivingMutants
   .map(
     (m, idx) => `
 [Мутант #${idx + 1}] ID: ${m.id} (${m.name})
-Описание: ${m.description}
+Описание: ${m.description || ''}
 Файл: ${m.file} (строка ${m.line})
 Мутированный фрагмент:
-${m.mutatedContent}
+${m.mutatedContent || ''}
 `
   )
   .join('\n')}`;

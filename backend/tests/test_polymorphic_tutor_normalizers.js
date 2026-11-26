@@ -1,8 +1,11 @@
 const assert = require('assert');
 const {
+  Value,
+  TutorActiveContextSchema,
   normalizeSqlArenaContext,
   normalizeCompanyContext,
-  normalizePracticeContext
+  normalizePracticeContext,
+  normalizeSystemDesignContext
 } = require('../../shared/dist');
 
 console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
@@ -140,8 +143,70 @@ console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
   assert.strictEqual(context.entityTitle, 'IBAN Validation ISO 13616');
   assert.strictEqual(context.runtimeError, 'Expected true, got false');
   assert.strictEqual(context.quickActionChips.length, 3);
+  assert.ok(Value.Check(TutorActiveContextSchema, context), 'Basic Practice context must pass TutorActiveContextSchema');
 
-  console.log('✅ normalizePracticeContext: PASSED');
+  const richPracticePayload = {
+    ...mockPracticePayload,
+    persona: 'senior_socratic',
+    assistanceLevel: 3,
+    selectedCodeSnippet: 'return mod97 == 1;',
+    cursorLine: 42,
+    cursorColumn: 17,
+    survivingMutants: [
+      { id: 'm1', name: 'BoundaryMutator', description: 'mod97 >= 1', file: 'IbanValidator.java', line: 42, mutatedContent: 'return mod97 >= 1;' }
+    ],
+    activeCompassRuleId: 'MUTANT_ADVERSARY',
+    activeWhiteboardSnippet: { title: 'ISO 13616 Trace', code: 'int rem = 0;', language: 'java' },
+    workspaceManifest: {
+      activeFile: { path: 'src/main/java/IbanValidator.java', content: 'class IbanValidator {}' },
+      secondaryFiles: [{ path: 'src/test/java/IbanValidatorTest.java', content: 'class IbanValidatorTest {}' }],
+      projectTree: ['src/main/java/IbanValidator.java', 'src/test/java/IbanValidatorTest.java'],
+      xmlManifest: '<workspace_manifest />'
+    },
+    academyBridgeContext: {
+      courseId: 'java-senior-sprint',
+      stepId: 'step-3',
+      moduleTitle: 'Modular Arithmetic',
+      learningObjective: 'Prevent integer overflow',
+      targetConcepts: ['Streaming mod 97', 'Boundary testing']
+    },
+    hintTier: 2
+  };
+
+  const richContext = normalizePracticeContext(richPracticePayload);
+  assert.strictEqual(richContext.persona, 'senior_socratic');
+  assert.strictEqual(richContext.assistanceLevel, 3);
+  assert.strictEqual(richContext.selectedCodeSnippet, 'return mod97 == 1;');
+  assert.strictEqual(richContext.cursorLine, 42);
+  assert.strictEqual(richContext.cursorColumn, 17);
+  assert.strictEqual(richContext.survivingMutants.length, 1);
+  assert.strictEqual(richContext.activeCompassRuleId, 'MUTANT_ADVERSARY');
+  assert.strictEqual(richContext.activeWhiteboardSnippet.title, 'ISO 13616 Trace');
+  assert.strictEqual(richContext.workspaceManifest.projectTree.length, 2);
+  assert.strictEqual(richContext.academyBridgeContext.moduleTitle, 'Modular Arithmetic');
+  assert.strictEqual(richContext.hintTier, 2);
+  assert.strictEqual(richContext.kataInstructions, mockPracticePayload.kataInstructions);
+  assert.ok(Value.Check(TutorActiveContextSchema, richContext), 'Rich Practice context must pass TutorActiveContextSchema');
+
+  console.log('✅ normalizePracticeContext: PASSED (legacy minimal + full Spec 58 fields)');
+}
+
+// 4. Test System Design Context Normalizer + Schema check across arenas
+{
+  const sdContext = normalizeSystemDesignContext({
+    scenarioId: 'sd-rate-limiter',
+    scenarioTitle: 'Distributed Rate Limiter',
+    targetLevel: 'L5_SENIOR',
+    activeStudioTab: 'runtime',
+    activeCodeSnippet: 'public class TokenBucket {}',
+    activeFilePath: 'src/main/java/TokenBucket.java',
+    topologySummary: 'gateway -> redis_cluster',
+    capacityMathSummary: '100k RPS',
+    companyContextName: 'BigTech Core'
+  });
+  assert.strictEqual(sdContext.arena, 'system_design');
+  assert.ok(Value.Check(TutorActiveContextSchema, sdContext), 'System Design context must pass TutorActiveContextSchema');
+  console.log('✅ normalizeSystemDesignContext + schema parity: PASSED');
 }
 
 console.log('🎉 All Polymorphic Tutor Normalizer tests passed deterministically in 0ms!');

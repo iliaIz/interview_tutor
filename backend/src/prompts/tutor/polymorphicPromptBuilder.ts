@@ -1,14 +1,17 @@
 import { TutorActiveContext } from '@interview-prep/shared';
 import { ANTI_SYCOPHANCY_DIRECTIVES } from '../core/antiSycophancy';
 import { wrapUntrustedContext } from '../core/sandboxDirectives';
+import {
+  buildPracticeTutorSystemPrompt,
+  HintTier,
+  PracticeTutorContext
+} from '../practiceTutorPrompts';
 
 /**
  * polymorphicPromptBuilder.ts
  * SSOT Socratic Prompt Engine for Cross-Arena Copilot (Pillar 11).
- * Generates domain-calibrated system prompts for SQL Arena, Companies, and Incident Triage.
- * Enforces Epistemic Triage: two-tier separation between psychological respect
- * and rigorous technical demarcation (no sycophancy, zero false praise).
- * File length limit: <= 350 lines (Rule 8).
+ * Generates domain-calibrated system prompts across Practice, SQL Arena, Companies, System Design, and Incidents.
+ * File length limit: <= 180 lines (Spec 58 / Rule 8).
  */
 
 const POLYMORPHIC_EPISTEMIC_FOOTER = `
@@ -22,23 +25,39 @@ const POLYMORPHIC_EPISTEMIC_FOOTER = `
 `.trim();
 
 export function buildPolymorphicTutorSystemPrompt(context: TutorActiveContext): string {
-  if (context.arena === 'sql_arena') {
-    return buildSqlArenaTutorPrompt(context);
+  if (context.arena === 'practice') {
+    const practiceCtx: PracticeTutorContext = {
+      persona: context.persona,
+      assistanceLevel: context.assistanceLevel,
+      kataTitle: context.entityTitle,
+      kataCategory: context.domain,
+      kataInstructions: context.kataInstructions ?? context.instructions ?? '',
+      activeFilePath: context.activeFilePath || 'src/test/java/ExampleTest.java',
+      activeFileContent: context.activeCodeOrQuery || '',
+      selectedCodeSnippet: context.selectedCodeSnippet,
+      cursorLine: context.cursorLine,
+      cursorColumn: context.cursorColumn,
+      survivingMutants: context.survivingMutants as PracticeTutorContext['survivingMutants'],
+      compilerError: context.compilerError,
+      testFailureMessage: context.runtimeError,
+      activeCompassRuleId: context.activeCompassRuleId,
+      activeWhiteboardSnippet: context.activeWhiteboardSnippet,
+      hintTier: context.hintTier as HintTier | undefined,
+      workspaceManifest: context.workspaceManifest,
+      academyBridgeContext: context.academyBridgeContext
+    };
+    return buildPracticeTutorSystemPrompt(practiceCtx);
   }
-
-  if (context.arena === 'companies') {
-    return buildCompanyStudioTutorPrompt(context);
-  }
-
-  // Fallback for general enterprise coaching
+  if (context.arena === 'sql_arena') return buildSqlArenaTutorPrompt(context);
+  if (context.arena === 'companies') return buildCompanyStudioTutorPrompt(context);
+  if (context.arena === 'system_design') return buildSystemDesignTutorPrompt(context);
   return buildGeneralEnterpriseTutorPrompt(context);
 }
 
 function buildSqlArenaTutorPrompt(context: TutorActiveContext): string {
-  const diffSummary = context.executionDiff
-    ? `Пропущено строк: ${context.executionDiff.missingRowsCount ?? 0}, Лишних строк: ${context.executionDiff.unexpectedRowsCount ?? 0}${
-        context.executionDiff.mismatchSample ? `\nПример расхождения: ${context.executionDiff.mismatchSample}` : ''
-      }`
+  const diff = context.executionDiff;
+  const diffSummary = diff
+    ? `Пропущено строк: ${diff.missingRowsCount ?? 0}, Лишних строк: ${diff.unexpectedRowsCount ?? 0}${diff.mismatchSample ? `\nПример расхождения: ${diff.mismatchSample}` : ''}`
     : 'Запрос еще не выполнялся или совпал с эталоном.';
 
   return `Ты — ведущий эксперт по реляционным базам данных и PostgreSQL 16, выступающий в роли Socratic AI-напарника (Co-Pilot).
@@ -79,16 +98,9 @@ ${POLYMORPHIC_EPISTEMIC_FOOTER}`;
 function buildCompanyStudioTutorPrompt(context: TutorActiveContext): string {
   const company = context.companyContext;
   const companyName = company?.companyName || 'Целевая компания';
-  const metrics = company?.cultureMetrics && company.cultureMetrics.length > 0
-    ? company.cultureMetrics.join(', ')
-    : 'TTM, DORA Metrics, Reliability';
-  const redFlags = company?.redFlags && company.redFlags.length > 0
-    ? company.redFlags.map((f) => `• ❌ ${f}`).join('\n')
-    : '• ❌ Игнорирование краевых случаев и инвариантов';
-  const greenFlags = company?.greenFlags && company.greenFlags.length > 0
-    ? company.greenFlags.map((f) => `• ✅ ${f}`).join('\n')
-    : '• ✅ Доказательное тестирование и контроль контрактов';
-
+  const metrics = company?.cultureMetrics?.length ? company.cultureMetrics.join(', ') : 'TTM, DORA Metrics, Reliability';
+  const redFlags = company?.redFlags?.length ? company.redFlags.map((f) => `• ❌ ${f}`).join('\n') : '• ❌ Игнорирование краевых случаев и инвариантов';
+  const greenFlags = company?.greenFlags?.length ? company.greenFlags.map((f) => `• ✅ ${f}`).join('\n') : '• ✅ Доказательное тестирование и контроль контрактов';
   const takeHomeSection = company?.takeHomeContext
     ? `\n4. **Тестовое задание (${company.takeHomeContext.title}):** ${company.takeHomeContext.prAntiPatternsSummary}.`
     : '';
@@ -120,12 +132,41 @@ ${ANTI_SYCOPHANCY_DIRECTIVES}
 ${POLYMORPHIC_EPISTEMIC_FOOTER}`;
 }
 
-function buildGeneralEnterpriseTutorPrompt(context: TutorActiveContext): string {
-  return `Ты — Socratic AI Pair-Programmer уровня Staff Engineer.
-Твоя задача — помогать кандидату осваивать сложные распределенные системы, Spring Boot 3/4, Java 21 и базы данных через объективную инженерную обратную связь.
+function buildSystemDesignTutorPrompt(context: TutorActiveContext): string {
+  const companyLine = context.companyContext?.companyName
+    ? `\n- Целевой трек / компания: ${context.companyContext.companyName}${context.companyContext.stageTitle ? ` (${context.companyContext.stageTitle})` : ''}`
+    : '';
+  const codeBlock = context.activeCodeOrQuery
+    ? `\n\n### АКТИВНЫЙ КОД / СХЕМА (${context.activeFilePath || 'src/main/java/Service.java'}):\n${wrapUntrustedContext('system_design_code', context.activeCodeOrQuery)}`
+    : '';
+  return `Ты — Staff Distributed Systems Architect & System Design Bar-Raiser.
+Помогай кандидату проектировать high-load системы и диагностировать дефекты через Socratic-диалог.
 
-- Фокус: ${context.entityTitle} (${context.domain})
-- Уровень помощи: ${context.assistanceLevel} из 4
+### КОНТЕКСТ СЦЕНАРИЯ:
+- Сценарий: ${context.entityTitle} (${context.domain}), Уровень помощи: ${context.assistanceLevel} из 4${companyLine}
+- Контекст студии:
+${wrapUntrustedContext('system_design_instructions', context.instructions || 'Архитектурный разбор сценария')}${codeBlock}
+
+### ПРАВИЛА ПЕДАГОГИЧЕСКОГО ПОВЕДЕНИЯ:
+1. Проверяй расчеты емкости (Peak RPS, bandwidth, storage, Replication Factor 3x, IOPS) без ложного согласия при ошибке порядка величин.
+2. Анализируй SPOF, консистентность (CAP/PACELC), шардирование, бэкпрешер и идемпотентность.
+3. По дефектам в Java-коде Студии 1 указывай на коренную причину, не выдавая готовый патч целиком.
+
+${ANTI_SYCOPHANCY_DIRECTIVES}
+
+${POLYMORPHIC_EPISTEMIC_FOOTER}`;
+}
+
+function buildGeneralEnterpriseTutorPrompt(context: TutorActiveContext): string {
+  const companyLine = context.companyContext?.companyName ? `\n- Компания: ${context.companyContext.companyName}` : '';
+  const codeSection = context.activeCodeOrQuery
+    ? `\n- Активный файл (${context.activeFilePath || 'workspace'}):\n${wrapUntrustedContext('enterprise_code', context.activeCodeOrQuery)}`
+    : '';
+  const errorSection = context.runtimeError || context.compilerError ? `\n- Ошибка / сигнал:\n${context.runtimeError || context.compilerError}` : '';
+  const instrSection = context.instructions ? `\n- Контекст:\n${wrapUntrustedContext('enterprise_instructions', context.instructions)}` : '';
+  return `Ты — Socratic AI Pair-Programmer уровня Staff Engineer.
+Помогай кандидату осваивать распределенные системы, Spring Boot 3/4, Java 21, инциденты и БД.
+- Фокус: ${context.entityTitle} (${context.domain}), Уровень помощи: ${context.assistanceLevel} из 4${companyLine}${instrSection}${codeSection}${errorSection}
 
 ${ANTI_SYCOPHANCY_DIRECTIVES}
 

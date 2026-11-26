@@ -1,11 +1,16 @@
 const assert = require('assert');
 const {
   normalizeSqlArenaContext,
-  normalizeCompanyContext
+  normalizeCompanyContext,
+  normalizeSystemDesignContext,
+  normalizePracticeContext
 } = require('../../shared/dist');
 const {
   buildPolymorphicTutorSystemPrompt
 } = require('../dist/prompts/tutor/polymorphicPromptBuilder');
+const {
+  buildPracticeTutorSystemPrompt
+} = require('../dist/prompts/practiceTutorPrompts');
 
 console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
 
@@ -97,6 +102,93 @@ console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
   assert.ok(!genericPrompt.includes('носков'), 'Must not leak socks');
 
   console.log('✅ buildCompanyStudioTutorPrompt: PASSED (both custom and agnostic profiles)');
+}
+
+// 3. Test System Design prompt generation (preserves code, path, instructions, companyContext)
+{
+  const sdContext = normalizeSystemDesignContext({
+    scenarioId: 'sd-atm-dispenser',
+    scenarioTitle: 'ATM Cash Dispenser',
+    targetLevel: 'L5_SENIOR',
+    activeStudioTab: 'runtime',
+    activeCodeSnippet: 'public DispenseResult withdraw(long id) { return null; }',
+    activeFilePath: 'src/main/java/AtmDispenserService.java',
+    fadedBug: { lineNumber: 12, description: 'Greedy bill failure', bugPattern: 'GREEDY_FALLACY' },
+    topologySummary: 'atm -> dispenser -> ledger',
+    capacityMathSummary: '2500 RPS peak',
+    companyContextName: 'Raiffeisen FinTech'
+  });
+  const prompt = buildPolymorphicTutorSystemPrompt(sdContext);
+  assert.ok(prompt.includes('ATM Cash Dispenser'), 'System Design prompt must include title');
+  assert.ok(prompt.includes('src/main/java/AtmDispenserService.java'), 'System Design prompt must preserve activeFilePath');
+  assert.ok(prompt.includes('public DispenseResult withdraw(long id)'), 'System Design prompt must preserve activeCodeOrQuery');
+  assert.ok(prompt.includes('2500 RPS peak'), 'System Design prompt must preserve instructions capacity math');
+  assert.ok(prompt.includes('Raiffeisen FinTech'), 'System Design prompt must preserve companyContext');
+  assert.ok(!prompt.includes('undefined'), 'System Design prompt must never leak undefined');
+  console.log('✅ buildSystemDesignTutorPrompt: PASSED');
+}
+
+// 4. Test Practice arena routing & company_interviewer persona parity
+{
+  const practiceCtx = normalizePracticeContext({
+    kataId: 'kata-stamped',
+    kataTitle: 'Concurrent Order Book',
+    kataCategory: 'Concurrency Lab',
+    kataInstructions: 'Implement StampedLock optimistic read.',
+    activeFilePath: 'src/main/java/OrderBook.java',
+    activeFileContent: 'class OrderBook { long stamp = lock.tryOptimisticRead(); }',
+    selectedCodeSnippet: 'lock.tryOptimisticRead()',
+    cursorLine: 18,
+    activeCompassRuleId: 'STAMPED_LOCK_OPTIMISTIC',
+    activeWhiteboardSnippet: { title: 'Lock Diagram', code: 'validate(stamp)', language: 'java' },
+    academyBridgeContext: { moduleTitle: 'StampedLock Lab', learningObjective: 'Avoid write starvation', targetConcepts: ['StampedLock'] },
+    hintTier: 2,
+    persona: 'company_interviewer',
+    assistanceLevel: 3
+  });
+  const polyPracticePrompt = buildPolymorphicTutorSystemPrompt(practiceCtx);
+  assert.ok(polyPracticePrompt.includes('Concurrent Order Book'));
+  assert.ok(polyPracticePrompt.includes('lock.tryOptimisticRead()'));
+  assert.ok(polyPracticePrompt.includes('Оптимистичные Чтения с StampedLock'));
+  assert.ok(polyPracticePrompt.includes('StampedLock Lab'));
+  assert.ok(!polyPracticePrompt.includes('undefined'), 'Practice prompt must not leak undefined');
+
+  for (const cat of ['Low-Level Design (LLD)', 'Testing & Mutation Katas']) {
+    const p = buildPracticeTutorSystemPrompt({
+      persona: 'company_interviewer',
+      assistanceLevel: 3,
+      kataTitle: 'Ledger Transfer',
+      kataCategory: cat,
+      kataInstructions: 'Check BigDecimal and locks',
+      activeFilePath: 'src/main/java/Transfer.java',
+      activeFileContent: 'class Transfer {}'
+    });
+    assert.ok(p.length > 200 && !p.includes('undefined'), `company_interviewer directive must be defined for ${cat}`);
+  }
+  console.log('✅ Practice arena & company_interviewer persona directives: PASSED');
+}
+
+// 5. Test Incidents arena fallback preserves instructions, code, runtimeError, companyContext
+{
+  const incPrompt = buildPolymorphicTutorSystemPrompt({
+    arena: 'incidents',
+    entityId: 'inc-oom-01',
+    entityTitle: 'HikariCP Pool Exhaustion',
+    domain: 'Production SRE Triage',
+    persona: 'senior_socratic',
+    assistanceLevel: 3,
+    activeFilePath: 'src/main/java/PaymentService.java',
+    activeCodeOrQuery: '@Transactional public void pay() { restClient.call(); }',
+    instructions: 'p99 latency spiked to 30s',
+    runtimeError: 'SQLTransientConnectionException: Connection is not available',
+    companyContext: { companyId: 'fin', companyName: 'FinCore' },
+    quickActionChips: []
+  });
+  assert.ok(incPrompt.includes('HikariCP Pool Exhaustion'));
+  assert.ok(incPrompt.includes('restClient.call()'));
+  assert.ok(incPrompt.includes('SQLTransientConnectionException'));
+  assert.ok(incPrompt.includes('FinCore'));
+  console.log('✅ Incidents arena prompt preservation: PASSED');
 }
 
 console.log('🎉 All Polymorphic Prompt Builder tests passed deterministically in 0ms!');

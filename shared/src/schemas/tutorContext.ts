@@ -66,6 +66,35 @@ export const TutorChatMessageSchema = Type.Object({
 });
 export type TutorChatMessage = Static<typeof TutorChatMessageSchema>;
 
+export const TutorWhiteboardSnippetSchema = Type.Object({
+  title: Type.String(),
+  code: Type.String(),
+  language: Type.String()
+});
+export type TutorWhiteboardSnippet = Static<typeof TutorWhiteboardSnippetSchema>;
+
+export const TutorWorkspaceManifestSchema = Type.Object(
+  {
+    activeFile: Type.Optional(Type.Object({ path: Type.String(), content: Type.String() }, { additionalProperties: true })),
+    secondaryFiles: Type.Optional(
+      Type.Array(Type.Object({ path: Type.String(), content: Type.String() }, { additionalProperties: true }))
+    ),
+    projectTree: Type.Optional(Type.Array(Type.String())),
+    xmlManifest: Type.Optional(Type.String())
+  },
+  { additionalProperties: true }
+);
+export type TutorWorkspaceManifest = Static<typeof TutorWorkspaceManifestSchema>;
+
+export const TutorAcademyBridgeContextSchema = Type.Object({
+  courseId: Type.Optional(Type.String()),
+  stepId: Type.Optional(Type.String()),
+  moduleTitle: Type.Optional(Type.String()),
+  learningObjective: Type.Optional(Type.String()),
+  targetConcepts: Type.Optional(Type.Array(Type.String()))
+});
+export type TutorAcademyBridgeContext = Static<typeof TutorAcademyBridgeContextSchema>;
+
 export const TutorActiveContextSchema = Type.Object({
   arena: TutorArenaType,
   entityId: Type.String({ minLength: 1 }),
@@ -79,6 +108,16 @@ export const TutorActiveContextSchema = Type.Object({
   activeFilePath: Type.Optional(Type.String()),
   schemaOrDdl: Type.Optional(Type.String()),
   instructions: Type.Optional(Type.String()),
+  kataInstructions: Type.Optional(Type.String()),
+  selectedCodeSnippet: Type.Optional(Type.String()),
+  cursorLine: Type.Optional(Type.Number()),
+  cursorColumn: Type.Optional(Type.Number()),
+  survivingMutants: Type.Optional(Type.Array(Type.Any())),
+  activeCompassRuleId: Type.Optional(Type.String()),
+  activeWhiteboardSnippet: Type.Optional(TutorWhiteboardSnippetSchema),
+  workspaceManifest: Type.Optional(TutorWorkspaceManifestSchema),
+  academyBridgeContext: Type.Optional(TutorAcademyBridgeContextSchema),
+  hintTier: Type.Optional(Type.Number({ minimum: 0, maximum: 4 })),
 
   // Real-Time Execution Feedback
   compilerError: Type.Optional(Type.String()),

@@ -9,6 +9,7 @@ export * from './schemas/sqlChallenge';
 export * from './schemas/companyProfile';
 export * from './schemas/tutorContext';
 export * from './schemas/tutorNormalizer';
+export * from './schemas/tutorPracticeNormalizer';
 export * from './validation/celEvaluator';
 export * from './validation/invariantEngine';
 export { evaluateCel } from './validation/celEvaluator';
