@@ -1,0 +1,334 @@
+[
+  {
+    "id": "mc_rate_limiter_token_bucket",
+    "slug": "rate-limiter-token-bucket",
+    "title": "In-Memory Thread-Safe Rate Limiter",
+    "category": "machine_coding",
+    "badge": "⚡ Machine Coding (LLD)",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Concurrency Primitives, Virtual Threads Safe",
+    "timeLimitMinutes": 60,
+    "shortDescription": "Спроектируйте высокопроизводительный потокобезопасный ограничитель частоты запросов (Token Bucket / Sliding Window) с поддержкой burst capacity и ленивого пополнения.",
+    "instructionsMarkdown": "# In-Memory Thread-Safe Rate Limiter (LLD)\n\n## Бизнес-контекст\nВы разрабатываете критический компонент API Gateway, через который проходит до 100 000 rps. Необходимо ограничить доступ клиентов (по `clientId` или IP) в соответствии с заданными лимитами.\n\n## Требования к реализации:\n1. Реализовать интерфейс `RateLimiterStrategy` для алгоритма **Token Bucket** в `TokenBucketStrategy.java`.\n2. Поддерживать настраиваемую емкость (`capacity`) и скорость пополнения токенов (`refillRatePerSecond`).\n3. **Потокобезопасность:** Решение должно корректно работать при одновременных запросах от сотен виртуальных потоков (Virtual Threads) без грубых блокировок всего класса.\n4. **Ленивое пополнение (Lazy Refill):** Вместо сотен фоновых таймеров используйте вычисление прошедшего времени (`elapsedTime`) при поступлении запроса.\n5. Обеспечить корректную работу метода `allowRequest(String clientId, int tokens)`.\n\n## Фаза 2 (OCP Shift на 45-й минуте):\nСистема должна поддерживать динамические тарифы (Free, Pro, Enterprise) с разными лимитами без изменения существующего интерфейса.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/ratelimiter/contract/RateLimiter.java",
+        "content": "package com.assessment.ratelimiter.contract;\n\npublic interface RateLimiter {\n    /**\n     * Checks if the client is allowed to consume the requested tokens.\n     * @param clientId unique client identifier\n     * @param tokens number of tokens requested (usually 1)\n     * @return true if request is permitted, false if rate limit exceeded\n     */\n    boolean allowRequest(String clientId, int tokens);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/ratelimiter/contract/RateLimiterStrategy.java",
+        "content": "package com.assessment.ratelimiter.contract;\n\npublic interface RateLimiterStrategy {\n    boolean tryAcquire(String clientId, int tokens);\n    void updateLimits(long capacity, double refillRatePerSecond);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/ratelimiter/model/TokenBucket.java",
+        "content": "package com.assessment.ratelimiter.model;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\npublic record TokenBucket(\n    long capacity,\n    double refillRatePerSecond,\n    AtomicLong currentTokens,\n    AtomicLong lastRefillTimestampNanos\n) {\n    public static TokenBucket create(long capacity, double refillRatePerSecond) {\n        return new TokenBucket(\n            capacity,\n            refillRatePerSecond,\n            new AtomicLong(capacity),\n            new AtomicLong(System.nanoTime())\n        );\n    }\n}",
+        "readOnly": false,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/ratelimiter/service/TokenBucketStrategy.java",
+        "content": "package com.assessment.ratelimiter.service;\n\nimport com.assessment.ratelimiter.contract.RateLimiterStrategy;\nimport com.assessment.ratelimiter.model.TokenBucket;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.ConcurrentMap;\n\npublic class TokenBucketStrategy implements RateLimiterStrategy {\n    private final ConcurrentMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();\n    private volatile long capacity;\n    private volatile double refillRatePerSecond;\n\n    public TokenBucketStrategy(long capacity, double refillRatePerSecond) {\n        this.capacity = capacity;\n        this.refillRatePerSecond = refillRatePerSecond;\n    }\n\n    @Override\n    public boolean tryAcquire(String clientId, int tokens) {\n        // TODO: Implement lazy refill and atomic token decrement under concurrency\n        TokenBucket bucket = buckets.computeIfAbsent(clientId, id -> TokenBucket.create(capacity, refillRatePerSecond));\n        \n        // Write your thread-safe token acquisition logic here:\n        return true;\n    }\n\n    @Override\n    public void updateLimits(long capacity, double refillRatePerSecond) {\n        this.capacity = capacity;\n        this.refillRatePerSecond = refillRatePerSecond;\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/ratelimiter/TokenBucketStrategyTest.java",
+        "content": "package com.assessment.ratelimiter;\n\nimport com.assessment.ratelimiter.service.TokenBucketStrategy;\n\npublic class TokenBucketStrategyTest {\n    public void testBasicAcquire() {\n        TokenBucketStrategy strategy = new TokenBucketStrategy(10, 5);\n        if (!strategy.tryAcquire(\"client-1\", 1)) {\n            throw new AssertionError(\"Should allow initial request\");\n        }\n    }\n\n    public void testConcurrentAcquireStress() {\n        TokenBucketStrategy strategy = new TokenBucketStrategy(1000, 100);\n        strategy.tryAcquire(\"stress-client\", 1);\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "phasedRequirements": [
+      {
+        "phase": 2,
+        "unlockTimeMinutes": 45,
+        "title": "Phase 2: Dynamic Tiered Policies (Free, Pro, Enterprise)",
+        "descriptionMarkdown": "Расширьте сервис для поддержки тарифов: Free (10 rps), Pro (100 rps), Enterprise (1000 rps + burst 2x). Существующие контракты не должны быть сломаны.",
+        "addedFiles": [
+          {
+            "path": "src/main/java/com/assessment/ratelimiter/contract/ClientTierPolicy.java",
+            "content": "package com.assessment.ratelimiter.contract;\n\npublic enum ClientTier { FREE, PRO, ENTERPRISE }\n\npublic interface ClientTierPolicy {\n    long getCapacityForTier(ClientTier tier);\n    double getRefillRateForTier(ClientTier tier);\n}",
+            "readOnly": true,
+            "hidden": false
+          }
+        ],
+        "testCases": [
+          {
+            "id": "TC_PHASE2_TIERED_LIMIT",
+            "name": "Verify Enterprise Tier 10x capacity under load",
+            "phase": 2,
+            "weight": 25,
+            "timeoutMs": 1500,
+            "isHidden": false
+          }
+        ]
+      }
+    ],
+    "concurrencyConfig": {
+      "enabled": true,
+      "useVirtualThreads": true,
+      "concurrentThreadCount": 1000,
+      "executionTimeoutMs": 3000,
+      "detectCarrierThreadPinning": true,
+      "detectThreadLeaks": true,
+      "stressLoopCount": 10000
+    },
+    "idiomRequirements": {
+      "requireRecords": true,
+      "disallowSynchronizedKeyword": true
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.25,
+      "architectureAndCleanCode": 0.25,
+      "modernIdioms": 0.15
+    }
+  },
+  {
+    "id": "kata_gilded_rose",
+    "slug": "gilded-rose-refactoring-kata",
+    "title": "Gilded Rose Refactoring Kata",
+    "category": "refactoring_kata",
+    "badge": "🛡️ Refactoring Kata",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, OOP Polymorphism, Characterization Approval Tests",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Рефакторинг классического запутанного легаси-кода с глубокой вложенностью. Замените conditional complexity на полиморфизм и добавьте категорию \"Conjured\" без нарушения контрактов.",
+    "instructionsMarkdown": "# Gilded Rose Refactoring Kata\n\n## Легенда\nДобро пожаловать в команду трактира Gilded Rose! Все товары имеют свойство `sellIn` (срок реализации) и `quality` (качество).\nМетод `updateQuality()` ежедневно обновляет показатели всех товаров.\n\n## Правила системы:\n* В конце каждого дня оба значения снижаются.\n* После истечения срока годности качество падает в 2 раза быстрее.\n* Качество никогда не может быть отрицательным и не превышает 50 (кроме легендарного `Sulfuras`, качество которого всегда 80).\n* `Aged Brie` увеличивает качество со временем.\n* `Backstage passes` увеличивают качество на 2, если осталось $le 10$ дней, на 3, если $le 5$ дней, и обнуляется после концерта.\n\n## Новая задача:\nДобавить новый тип товара: **\"Conjured\"** (Магические предметы теряют качество в два раза быстрее обычных товаров).\n\n## Архитектурные ограничения:\n1. Запрещено менять структуру класса `Item` (он принадлежит злому гоблину в углу).\n2. Замените запутанный клубок `if/else` на чистый полиморфизм (Strategy / Factory).\n3. Проверьте сохранность поведения через Golden Master Snapshot.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/gildedrose/Item.java",
+        "content": "package com.assessment.gildedrose;\n\npublic class Item {\n    public String name;\n    public int sellIn;\n    public int quality;\n\n    public Item(String name, int sellIn, int quality) {\n        this.name = name;\n        this.sellIn = sellIn;\n        this.quality = quality;\n    }\n\n    @Override\n    public String toString() {\n        return this.name + \", \" + this.sellIn + \", \" + this.quality;\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/gildedrose/GildedRose.java",
+        "content": "package com.assessment.gildedrose;\n\npublic class GildedRose {\n    Item[] items;\n\n    public GildedRose(Item[] items) {\n        this.items = items;\n    }\n\n    public void updateQuality() {\n        for (int i = 0; i < items.length; i++) {\n            if (!items[i].name.equals(\"Aged Brie\")\n                    && !items[i].name.equals(\"Backstage passes to a TAFKAL80ETC concert\")) {\n                if (items[i].quality > 0) {\n                    if (!items[i].name.equals(\"Sulfuras, Hand of Ragnaros\")) {\n                        items[i].quality = items[i].quality - 1;\n                    }\n                }\n            } else {\n                if (items[i].quality < 50) {\n                    items[i].quality = items[i].quality + 1;\n\n                    if (items[i].name.equals(\"Backstage passes to a TAFKAL80ETC concert\")) {\n                        if (items[i].sellIn < 11) {\n                            if (items[i].quality < 50) {\n                                items[i].quality = items[i].quality + 1;\n                            }\n                        }\n\n                        if (items[i].sellIn < 6) {\n                            if (items[i].quality < 50) {\n                                items[i].quality = items[i].quality + 1;\n                            }\n                        }\n                    }\n                }\n            }\n\n            if (!items[i].name.equals(\"Sulfuras, Hand of Ragnaros\")) {\n                items[i].sellIn = items[i].sellIn - 1;\n            }\n\n            if (items[i].sellIn < 0) {\n                if (!items[i].name.equals(\"Aged Brie\")) {\n                    if (!items[i].name.equals(\"Backstage passes to a TAFKAL80ETC concert\")) {\n                        if (items[i].quality > 0) {\n                            if (!items[i].name.equals(\"Sulfuras, Hand of Ragnaros\")) {\n                                items[i].quality = items[i].quality - 1;\n                            }\n                        }\n                    } else {\n                        items[i].quality = items[i].quality - items[i].quality;\n                    }\n                } else {\n                    if (items[i].quality < 50) {\n                        items[i].quality = items[i].quality + 1;\n                    }\n                }\n            }\n        }\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "goldenMasterConfig": {
+      "enabled": true,
+      "approvedSnapshotPath": ".approved.txt",
+      "receivedSnapshotPath": ".received.txt",
+      "snapshotGeneratorClass": "GildedRoseTest",
+      "simulatedIterations": 30,
+      "ignoreLineEndings": true,
+      "sampleBaselineText": "Day 0:\n+5 Dexterity Vest, 10, 20\nAged Brie, 2, 0\nElixir of the Mongoose, 5, 7\nSulfuras, Hand of Ragnaros, 0, 80\nBackstage passes to a TAFKAL80ETC concert, 15, 20\n\nDay 1:\n+5 Dexterity Vest, 9, 19\nAged Brie, 1, 1\nElixir of the Mongoose, 4, 6\nSulfuras, Hand of Ragnaros, 0, 80\nBackstage passes to a TAFKAL80ETC concert, 14, 21"
+    },
+    "allowedPublicSignatureChanges": 0,
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.0,
+      "architectureAndCleanCode": 0.45,
+      "modernIdioms": 0.15
+    }
+  },
+  {
+    "id": "kata_trip_service",
+    "slug": "trip-service-legacy-seams",
+    "title": "Trip Service Legacy Decoupling Kata",
+    "category": "refactoring_kata",
+    "badge": "🔬 Seam Pattern Kata",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Unit Testing, Seam Technique (Subclass and Override)",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Изолируйте статические зависимости базы данных и HTTP-сессии (UserSession, TripDAO) без изменения публичного API с помощью техники архитектурных швов (Seams).",
+    "instructionsMarkdown": "# Trip Service Legacy Decoupling Kata (Sandro Mancuso)\n\n## Проблема\nКласс `TripService` жестко привязан к статическим синглтонам `UserSession.getInstance().getLoggedUser()` и `TripDAO.findTripsByUser(user)`. Попытка запустить модульный тест вызывает `CollaboratorCallException`, так как тестовое окружение не имеет доступа к БД и веб-сессиям.\n\n## Задача:\n1. Покрыть метод `getTripsByUser(User user)` модульными тестами.\n2. **Правило швов (Seam Technique):** Запрещено использовать PowerMock или рефлексию. Выделите приватные обращения к статическим методам в защищенные (`protected`) методы в `TripService`.\n3. Создайте тестовый подкласс `TestableTripService` в тестах, переопределяющий эти швы.\n4. Проведите полный рефакторинг `TripService` на внедрение зависимостей через конструктор (Dependency Injection), сохранив конструктор по умолчанию для обратной совместимости.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/tripservice/User.java",
+        "content": "package com.assessment.tripservice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\npublic class User {\n    private final List<Trip> trips = new ArrayList<>();\n    private final List<User> friends = new ArrayList<>();\n\n    public List<User> getFriends() { return friends; }\n    public void addFriend(User user) { friends.add(user); }\n    public List<Trip> trips() { return trips; }\n    public void addTrip(Trip trip) { trips.add(trip); }\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/tripservice/Trip.java",
+        "content": "package com.assessment.tripservice;\n\npublic record Trip(String destination) {}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/tripservice/TripService.java",
+        "content": "package com.assessment.tripservice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\npublic class TripService {\n\n    public List<Trip> getTripsByUser(User user) throws UserNotLoggedInException {\n        List<Trip> tripList = new ArrayList<>();\n        User loggedUser = UserSession.getInstance().getLoggedUser();\n        boolean isFriend = false;\n        if (loggedUser != null) {\n            for (User friend : user.getFriends()) {\n                if (friend.equals(loggedUser)) {\n                    isFriend = true;\n                    break;\n                }\n            }\n            if (isFriend) {\n                tripList = TripDAO.findTripsByUser(user);\n            }\n            return tripList;\n        } else {\n            throw new UserNotLoggedInException();\n        }\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "enforceSeamValidation": true,
+    "allowedPublicSignatureChanges": 0,
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.0,
+      "architectureAndCleanCode": 0.45,
+      "modernIdioms": 0.15
+    }
+  },
+  {
+    "id": "lab_virtual_threads_pinning",
+    "slug": "virtual-threads-carrier-pinning",
+    "title": "Virtual Thread Carrier Pinning & JMM Lab",
+    "category": "concurrency_lab",
+    "badge": "🧵 Concurrency Lab",
+    "difficulty": "Lead",
+    "targetStack": "Java 21 LTS, Project Loom, JMM Memory Safety, Lock-Free Primitives",
+    "timeLimitMinutes": 45,
+    "shortDescription": "Устраните блокировку системных несущих потоков (Carrier Thread Pinning) и гонки данных в высоконагруженном транзакционном сервисе на Java 21.",
+    "instructionsMarkdown": "# Virtual Thread Carrier Pinning & JMM Concurrency Lab\n\n## Описание дефекта\nСервис `PaymentAuditService` обрабатывает транзакции с использованием виртуальных потоков Java 21 (`Executors.newVirtualThreadPerTaskExecutor()`). \nОднако при нагрузке 500 rps задержка p99 подскочила с 5 мс до 4500 мс, а системный пул ForkJoinPool перестал отвечать.\n\n## Причина сбоя:\n1. Метод `processPayment` содержит блок `synchronized (this)`, внутри которого вызывается блокирующий HTTP-запрос аудита. Это намертво привязывает (pins) виртуальный поток к ОС-потоку carrier.\n2. Поле `totalVolume` инкрементируется через `totalVolume += amount` без атомарности и `volatile`, что приводит к потере финансового баланса.\n\n## Ваша задача:\n1. Заменить `synchronized` на `ReentrantLock` для защиты только критической секции памяти (исключив блокирующий I/O из-под лок).\n2. Заменить примитивные поля на `DoubleAdder` или `AtomicReference` для потокобезопасного учета.\n3. Обеспечить корректную работу при 1000 одновременных вызовов.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/concurrency/PaymentAuditService.java",
+        "content": "package com.assessment.concurrency;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\npublic class PaymentAuditService {\n    private double totalVolume = 0.0;\n    private long transactionCount = 0;\n\n    public void processPayment(String transactionId, double amount) {\n        // DEFECT: Synchronized block wrapping blocking remote call (Carrier Pinning)\n        synchronized (this) {\n            simulateRemoteAuditHttpCall(transactionId);\n            this.totalVolume += amount;\n            this.transactionCount++;\n        }\n    }\n\n    private void simulateRemoteAuditHttpCall(String txId) {\n        try {\n            Thread.sleep(20); // Simulates 20ms network latency\n        } catch (InterruptedException e) {\n            Thread.currentThread().interrupt();\n        }\n    }\n\n    public double getTotalVolume() { return totalVolume; }\n    public long getTransactionCount() { return transactionCount; }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "concurrencyConfig": {
+      "enabled": true,
+      "useVirtualThreads": true,
+      "concurrentThreadCount": 1000,
+      "executionTimeoutMs": 2500,
+      "detectCarrierThreadPinning": true,
+      "detectThreadLeaks": true,
+      "stressLoopCount": 50000
+    },
+    "idiomRequirements": {
+      "disallowSynchronizedKeyword": true
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.3,
+      "concurrencySafety": 0.45,
+      "architectureAndCleanCode": 0.15,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_flash_sale_engine",
+    "slug": "flash-sale-deal-engine",
+    "title": "Flash Sale Engine & Inventory Reservation",
+    "category": "machine_coding",
+    "badge": "💳 FinTech & E-Commerce",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, State Pattern, Optimistic Locks, TTL Expiry Sweeps",
+    "timeLimitMinutes": 60,
+    "shortDescription": "Спроектируйте движок мгновенных распродаж (Flash Deals): резервирование остатков с защитой от овербукинга, валидация временного окна и автоматический возврат невыкупленных броней.",
+    "instructionsMarkdown": "# Flash Sale Deal Engine & Inventory Reservation (LLD)\n\n## Бизнес-требования:\n1. Создание сделки (`createDeal`): товар, начальное количество, скидочная цена, время старта и окончания.\n2. Заявка на покупку (`claimDeal`): пользователь может зарезервировать только 1 шт товара. Если остаток 0 или сделка не активна — отклонить.\n3. Потокобезопасность: При одновременном обращении 5000 покупателей на 50 доступных единиц товара овербукинг строго запрещен (ровно 50 успешных заявок).\n4. Резервация действует 10 минут. Если заказ не оплачен, остаток возвращается в общий пул.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/flashsale/contract/FlashSaleService.java",
+        "content": "package com.assessment.flashsale.contract;\n\npublic interface FlashSaleService {\n    boolean createDeal(String dealId, String productId, int totalStock, long durationSeconds);\n    boolean claimDeal(String dealId, String userId);\n    int getAvailableStock(String dealId);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/flashsale/service/FlashSaleServiceImpl.java",
+        "content": "package com.assessment.flashsale.service;\n\nimport com.assessment.flashsale.contract.FlashSaleService;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.ConcurrentMap;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class FlashSaleServiceImpl implements FlashSaleService {\n    private final ConcurrentMap<String, AtomicInteger> stockMap = new ConcurrentHashMap<>();\n    private final ConcurrentMap<String, ConcurrentHashMap<String, Boolean>> userClaims = new ConcurrentHashMap<>();\n\n    @Override\n    public boolean createDeal(String dealId, String productId, int totalStock, long durationSeconds) {\n        stockMap.put(dealId, new AtomicInteger(totalStock));\n        userClaims.put(dealId, new ConcurrentHashMap<>());\n        return true;\n    }\n\n    @Override\n    public boolean claimDeal(String dealId, String userId) {\n        // TODO: Implement atomic claim with user deduplication and no overselling\n        AtomicInteger stock = stockMap.get(dealId);\n        if (stock == null) return false;\n        \n        ConcurrentHashMap<String, Boolean> claims = userClaims.get(dealId);\n        if (claims.putIfAbsent(userId, Boolean.TRUE) != null) {\n            return false; // User already claimed\n        }\n\n        int remaining = stock.decrementAndGet();\n        if (remaining < 0) {\n            stock.incrementAndGet(); // rollback\n            claims.remove(userId);\n            return false;\n        }\n        return true;\n    }\n\n    @Override\n    public int getAvailableStock(String dealId) {\n        AtomicInteger stock = stockMap.get(dealId);\n        return stock != null ? Math.max(0, stock.get()) : 0;\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/flashsale/FlashSaleServiceTest.java",
+        "content": "package com.assessment.flashsale;\n\nimport com.assessment.flashsale.service.FlashSaleServiceImpl;\n\npublic class FlashSaleServiceTest {\n    public void testClaimDeal() {\n        FlashSaleServiceImpl service = new FlashSaleServiceImpl();\n        service.createDeal(\"deal-1\", \"prod-1\", 5, 3600);\n        if (!service.claimDeal(\"deal-1\", \"user-1\")) {\n            throw new AssertionError(\"First claim should succeed\");\n        }\n        if (service.claimDeal(\"deal-1\", \"user-1\")) {\n            throw new AssertionError(\"Duplicate claim by same user should fail\");\n        }\n        if (service.getAvailableStock(\"deal-1\") != 4) {\n            throw new AssertionError(\"Stock should be 4\");\n        }\n    }\n\n    public void testConcurrentClaimStress() {\n        FlashSaleServiceImpl service = new FlashSaleServiceImpl();\n        service.createDeal(\"deal-stress\", \"prod-s\", 1000, 3600);\n        service.claimDeal(\"deal-stress\", \"u-\" + Thread.currentThread().getId());\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "concurrencyConfig": {
+      "enabled": true,
+      "useVirtualThreads": true,
+      "concurrentThreadCount": 500,
+      "executionTimeoutMs": 3000,
+      "detectCarrierThreadPinning": true,
+      "detectThreadLeaks": true,
+      "stressLoopCount": 20000
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.35,
+      "concurrencySafety": 0.3,
+      "architectureAndCleanCode": 0.25,
+      "modernIdioms": 0.1
+    }
+  },
+  {
+    "id": "mc_splitwise_system",
+    "slug": "splitwise-expense-sharing",
+    "title": "Splitwise (Expense Sharing & Debt Simplification)",
+    "category": "machine_coding",
+    "badge": "👥 LLD Domain Modeling",
+    "difficulty": "Senior",
+    "targetStack": "Java 21 LTS, Strategy Pattern, Graph Simplification, BigDecimal",
+    "timeLimitMinutes": 75,
+    "shortDescription": "Спроектируйте систему совместного учета расходов (Equal, Exact, Percentage splits) с алгоритмом упрощения графа взаимных долгов и защитой от ошибок округления.",
+    "instructionsMarkdown": "# Splitwise Expense Sharing System (LLD)\n\n## Требования:\n1. Поддержка трех стратегий разделения расходов (`SplitStrategy`):\n   - **EQUAL:** сумма делится поровну между всеми участниками.\n   - **EXACT:** каждый платит точную сумму (сумма долей обязана совпадать с общим чеком).\n   - **PERCENT:** доли в процентах (сумма процентов обязана быть ровно 100.0%).\n2. **Точность вычислений:** Исключить ошибки округления с плавающей точкой с помощью `BigDecimal` (`RoundingMode.HALF_UP`).\n3. **Упрощение взаимозадолженностей (Debt Simplification):** Свернуть циклические долги (если А должен Б $10, а Б должен В $10, то А должен напрямую В $10).",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/splitwise/contract/SplitStrategy.java",
+        "content": "package com.assessment.splitwise.contract;\n\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\n\npublic interface SplitStrategy {\n    Map<String, BigDecimal> calculateSplits(BigDecimal totalAmount, List<String> userIds, Map<String, Object> params);\n}",
+        "readOnly": true,
+        "hidden": false
+      },
+      {
+        "path": "src/main/java/com/assessment/splitwise/service/EqualSplitStrategy.java",
+        "content": "package com.assessment.splitwise.service;\n\nimport com.assessment.splitwise.contract.SplitStrategy;\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class EqualSplitStrategy implements SplitStrategy {\n    @Override\n    public Map<String, BigDecimal> calculateSplits(BigDecimal totalAmount, List<String> userIds, Map<String, Object> params) {\n        Map<String, BigDecimal> result = new HashMap<>();\n        if (userIds.isEmpty()) return result;\n\n        BigDecimal count = BigDecimal.valueOf(userIds.size());\n        BigDecimal share = totalAmount.divide(count, 2, RoundingMode.HALF_UP);\n        \n        for (String user : userIds) {\n            result.put(user, share);\n        }\n        return result;\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      },
+      {
+        "path": "src/test/java/com/assessment/splitwise/SplitwiseTest.java",
+        "content": "package com.assessment.splitwise;\n\nimport com.assessment.splitwise.service.EqualSplitStrategy;\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\n\npublic class SplitwiseTest {\n    public void testEqualSplit() {\n        EqualSplitStrategy strategy = new EqualSplitStrategy();\n        Map<String, BigDecimal> splits = strategy.calculateSplits(\n            new BigDecimal(\"100.00\"),\n            List.of(\"Alice\", \"Bob\", \"Charlie\", \"David\"),\n            Map.of()\n        );\n        if (splits.size() != 4) throw new AssertionError(\"Expected 4 splits\");\n        if (splits.get(\"Alice\").compareTo(new BigDecimal(\"25.00\")) != 0) {\n            throw new AssertionError(\"Expected 25.00 for Alice\");\n        }\n    }\n}",
+        "readOnly": true,
+        "hidden": false
+      }
+    ],
+    "scoringWeights": {
+      "functionalCorrectness": 0.4,
+      "concurrencySafety": 0.1,
+      "architectureAndCleanCode": 0.35,
+      "modernIdioms": 0.15
+    }
+  },
+  {
+    "id": "lab_java21_modern_idioms",
+    "slug": "java21-modern-idioms-lab",
+    "title": "Modern Java 21 Idioms Lab",
+    "category": "java21_idioms",
+    "badge": "✨ Java 21 Modernization",
+    "difficulty": "Middle",
+    "targetStack": "Java 21 LTS, Sealed Interfaces, Record Patterns, Sequenced Collections",
+    "timeLimitMinutes": 30,
+    "shortDescription": "Рефакторинг устаревшего императивного кода Java 8 на современные конструкции Java 21: исчерпывающий switch по sealed-иерархиям, деконструкция Record Patterns и методы SequencedCollection.",
+    "instructionsMarkdown": "# Modern Java 21 Idioms Lab\n\n## Задача:\nЗамените устаревший спагетти-код с ручным приведением типов `(Order) obj`, проверками `instanceof` и громоздкими классами данных на чистые идиомы Java 21:\n1. Замените POJO-классы событий на **Java Records**.\n2. Создайте запечатанный интерфейс `sealed interface PaymentEvent permits ...`.\n3. Реализуйте исчерпывающее сопоставление с шаблоном (**Pattern Matching in switch**) с деконструкцией записей (`case CardPayment(var cardNo, var amount)`).\n4. Используйте `SequencedCollection` (`getFirst()`, `getLast()`) вместо громоздкого `list.get(list.size() - 1)`.",
+    "workspaceFiles": [
+      {
+        "path": "src/main/java/com/assessment/idioms/EventProcessor.java",
+        "content": "package com.assessment.idioms;\n\nimport java.util.List;\n\npublic class EventProcessor {\n\n    // TODO: Refactor using Sealed Interfaces and Record Patterns\n    public String formatPaymentReceipt(Object event) {\n        if (event instanceof CardEvent) {\n            CardEvent ce = (CardEvent) event;\n            return \"Card: \" + ce.getCardNumber() + \", Amount: \" + ce.getAmount();\n        } else if (event instanceof CryptoEvent) {\n            CryptoEvent cye = (CryptoEvent) event;\n            return \"Crypto: \" + cye.getWallet() + \", Coin: \" + cye.getCoin();\n        }\n        return \"Unknown payment\";\n    }\n\n    public static class CardEvent {\n        private final String cardNumber;\n        private final double amount;\n        public CardEvent(String cardNumber, double amount) { this.cardNumber = cardNumber; this.amount = amount; }\n        public String getCardNumber() { return cardNumber; }\n        public double getAmount() { return amount; }\n    }\n\n    public static class CryptoEvent {\n        private final String wallet;\n        private final String coin;\n        public CryptoEvent(String wallet, String coin) { this.wallet = wallet; this.coin = coin; }\n        public String getWallet() { return wallet; }\n        public String getCoin() { return coin; }\n    }\n}",
+        "readOnly": false,
+        "hidden": false,
+        "isMainEntryPoint": true
+      }
+    ],
+    "idiomRequirements": {
+      "requireRecords": true,
+      "requireSealedClasses": true,
+      "requirePatternMatching": true
+    },
+    "scoringWeights": {
+      "functionalCorrectness": 0.3,
+      "concurrencySafety": 0.0,
+      "architectureAndCleanCode": 0.3,
+      "modernIdioms": 0.4
+    }
+  }
+]

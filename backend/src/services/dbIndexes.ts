@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 
 /**
  * Composite Query Indexes and Schema Migrations (SSOT: 00_CORE_INFRASTRUCTURE_AND_SECURITY.md).
+ * Non-destructive additive migrations only; explicit auth cleanup lives in DatabaseBootstrap.
  * Cognitive bounding limit: <= 350 lines.
  */
 
@@ -58,13 +59,4 @@ export function runSchemaMigrations(db: Database.Database) {
   safeAddColumn('question_evaluations', 'audio_path', 'TEXT');
   safeAddColumn('bug_challenges', 'tech_stack_json', 'TEXT');
   safeAddColumn('bug_challenges', 'production_context_json', 'TEXT');
-
-  try {
-    db.exec(`
-      DELETE FROM user_sessions WHERE user_id IN (SELECT user_id FROM invite_tokens WHERE is_active = 0);
-      DELETE FROM ws_tickets WHERE user_id IN (SELECT user_id FROM invite_tokens WHERE is_active = 0);
-      DELETE FROM invite_tokens WHERE is_active = 0;
-      DELETE FROM users WHERE id NOT IN (SELECT user_id FROM invite_tokens) AND id != 'user_master';
-    `);
-  } catch {}
 }

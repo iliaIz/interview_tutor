@@ -29,7 +29,8 @@ import {
   seedDefaultProfiles, 
   seedCodingChallenges, 
   seedNextGenCatalogs,
-  seedMasterInviteCode
+  seedMasterInviteCode,
+  cleanupInactiveInvites
 } from './services/db';
 import { setupLiveWebSocketProxy } from './services/geminiLiveProxy';
 import { envConfig } from './config/env';
@@ -139,6 +140,7 @@ seedDefaultProfiles();
 seedCodingChallenges();
 seedNextGenCatalogs();
 seedMasterInviteCode();
+cleanupInactiveInvites();
 
 
 
