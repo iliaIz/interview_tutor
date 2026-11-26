@@ -1,8 +1,6 @@
 /**
- * UpstreamLiveChannel.ts
- * Deep WebSocket custody channel implementing UpstreamTransportPort (Spec 51 / #187).
- * Unifies upstream WebSocket connection, Full-Jitter reconnection backoff, standby
- * Make-Before-Break GoAway rotation, and inbound pipeline delegation with zero leaked geminiSocket.
+ * UpstreamLiveChannel.ts — Deep WebSocket custody channel implementing UpstreamTransportPort (Spec 51 / #187).
+ * Unifies upstream connection, Full-Jitter reconnects, GoAway Make-Before-Break rotation, & pipeline delegation.
  */
 
 import { WebSocket, RawData } from 'ws';
@@ -31,11 +29,7 @@ export function parseGoAwayTimeLeftSeconds(timeLeft: unknown, fallbackSeconds = 
 function wrapOneShotSocketPort(ws: WebSocket): UpstreamTransportPort {
   return {
     connect: () => {},
-    sendUpstream: (payload) => {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(payload);
-      return true;
-    },
+    sendUpstream: (p) => (ws.readyState === WebSocket.OPEN ? (ws.send(p), true) : false),
     isUpstreamOpen: () => ws.readyState === WebSocket.OPEN,
     reconnect: () => {},
     close: () => {}
@@ -130,10 +124,7 @@ export class UpstreamLiveChannel implements UpstreamTransportPort {
     this.handoffInProgress = false;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     this.cleanupStandby();
-    if (this.socket) {
-      this.detachAndCloseSocket(this.socket, code, reason);
-      this.socket = null;
-    }
+    if (this.socket) { this.detachAndCloseSocket(this.socket, code, reason); this.socket = null; }
   }
 
   private flushPendingFrames(): void {
@@ -195,20 +186,16 @@ export class UpstreamLiveChannel implements UpstreamTransportPort {
       this.pipeline.handleDisconnect(source, effectiveCode, reasonStr ? Buffer.from(reasonStr) : reason, isNonRetryable);
       return;
     }
-
     this.reconnectAttempts += 1;
-    const baseDelay = 1200 * Math.pow(1.5, this.reconnectAttempts - 1);
-    const backoffDelay = Math.min(4500, Math.floor(baseDelay + Math.random() * 800));
-    console.log(`⏱️ Upstream hot reconnect scheduled: ${backoffDelay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}, code=${effectiveCode}, reason="${reasonStr.slice(0, 80)}")`);
+    const backoffDelay = Math.min(4500, Math.floor(1200 * Math.pow(1.5, this.reconnectAttempts - 1) + Math.random() * 800));
+    console.log(`⏱️ Upstream hot reconnect scheduled: ${backoffDelay}ms (${this.reconnectAttempts}/${this.maxReconnectAttempts}, code=${effectiveCode})`);
     this.scheduleReconnect(backoffDelay);
   }
 
   private scheduleReconnect(delayMs: number): void {
     this.pipeline.handleReconnecting(this.reconnectAttempts, this.maxReconnectAttempts);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => {
-      if (!this.isClosed) this.connect(true);
-    }, delayMs);
+    this.reconnectTimer = setTimeout(() => { if (!this.isClosed) this.connect(true); }, delayMs);
   }
 
   private handleGoAway(goAwayPayload: any): void {

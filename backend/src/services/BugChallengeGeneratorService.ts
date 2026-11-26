@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { db } from './db';
 import { TOPIC_MAP } from './topics';
-import { LlmExecutionEngine, LlmGatewayUnavailableError } from './LlmExecutionEngine';
+import { llmGateway, LlmGatewayUnavailableError } from './LlmGatewayClient';
 import { wrapUntrustedContext } from '../prompts/core/sandboxDirectives';
 import { ANTI_SYCOPHANCY_DIRECTIVES } from '../prompts/core/antiSycophancy';
 import {
@@ -156,7 +156,7 @@ ${contextInfo}
   try {
     console.log(`🐛 Generating bug challenge via LiteLLM Proxy [Topic: ${topicName}, Preset: ${preset}, Stack: ${stackProfileKey}, Diff: ${difficulty}]...`);
     
-    const parsed = await LlmExecutionEngine.executeJson<any>({
+    const parsed = await llmGateway.completeJson<any>({
       systemPrompt,
       userPrompt: prompt,
       presetKey: 'deepIncidentSynthesis',

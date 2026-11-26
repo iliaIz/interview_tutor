@@ -2,6 +2,7 @@ import { db } from './db';
 import { envConfig } from '../config/env';
 import { buildSystemDesignEvaluationPrompt } from '../prompts/systemDesign/systemDesignPrompts';
 import { resolveScenarioManifest, resolveCanonicalId } from './scenarioResolver';
+import { llmGateway } from './LlmGatewayClient';
 
 export interface EvaluationPayload {
   scenarioId: string;
@@ -83,35 +84,14 @@ export async function evaluateSystemDesign(
       barRaiserFeedback: payload.barRaiserFeedback || 'Защита сценария успешно зарегистрирована.'
     };
   } else {
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${proxyApiKey}`
-      },
-      signal: abortSignal,
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.2
-      })
+    parsed = await llmGateway.completeJson({
+      userPrompt: prompt,
+      model: envConfig.models.text,
+      temperature: 0.2,
+      maxRetries: 2,
+      timeoutMs: 45_000,
+      abortSignal
     });
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    let content = data.choices?.[0]?.message?.content || '{}';
-    if (typeof content === 'string') {
-      content = content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    }
-    parsed = JSON.parse(content);
   }
 
   const submissionId = `sd_${scenarioId}_${userId}_${Date.now()}`;

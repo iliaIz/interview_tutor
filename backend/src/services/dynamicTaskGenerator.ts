@@ -38,7 +38,7 @@ export interface DynamicTaskResult {
   evaluationCriteria: string[];
 }
 
-import { LlmGatewayUnavailableError, GatewayUnavailableReason } from './LlmExecutionEngine';
+import { llmGateway, LlmGatewayUnavailableError, GatewayUnavailableReason } from './LlmGatewayClient';
 export { LlmGatewayUnavailableError, GatewayUnavailableReason };
 
 export class DynamicTaskGenerator {
@@ -85,90 +85,26 @@ export class DynamicTaskGenerator {
   "evaluationCriteria": ["Исключение блокировок", "Zero-allocation", "Потокобезопасность"]
 }`;
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.fast;
+    const parsed = await llmGateway.completeJson<any>({
+      userPrompt: prompt,
+      model: envConfig.models.fast,
+      temperature: 0.4,
+      maxRetries: 2,
+      timeoutMs: 12_000
+    });
 
-    const maxRetries = 2; // 3 total attempts
-    let lastError: any = null;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (attempt > 0) {
-        // Full Jitter Exponential Backoff: random(0, min(2500, base * 1.8^attempt))
-        const backoffCapMs = 2500;
-        const calculatedBackoff = Math.floor(800 * Math.pow(1.8, attempt));
-        const delayWithJitter = Math.floor(Math.random() * Math.min(backoffCapMs, calculatedBackoff));
-        console.log(`⏱️ LLM Transient retry attempt ${attempt}/${maxRetries} after ${delayWithJitter}ms jitter delay...`);
-        await new Promise((resolve) => setTimeout(resolve, delayWithJitter));
-      }
-
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s circuit timeout
-
-        const response = await fetch(endpointUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${proxyApiKey}`
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.4
-          }),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.status === 429) {
-          lastError = new LlmGatewayUnavailableError('rate_limit_exceeded', `HTTP 429 from ${endpointUrl}`);
-          continue; // retry
-        }
-
-        if (response.status >= 500) {
-          lastError = new LlmGatewayUnavailableError('upstream_timeout', `HTTP ${response.status} from ${endpointUrl}`);
-          continue; // retry
-        }
-
-        if (!response.ok) {
-          throw new Error(`Proxy returned HTTP ${response.status}: ${await response.text()}`);
-        }
-
-        const data = await response.json();
-        const rawContent = data.choices?.[0]?.message?.content?.trim() || '';
-        const cleanedJson = rawContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-
-        try {
-          const parsed = JSON.parse(cleanedJson);
-          return {
-            id: taskId,
-            title: parsed.title || 'Dynamic Production Incident Kata',
-            domain,
-            difficulty,
-            archetype: archetype || 'CustomIncident',
-            scenario: parsed.scenario || 'Real-world production performance kata',
-            naiveCode: parsed.naiveCode || '// Naive implementation',
-            goldenMaster: parsed.goldenMaster || '// Golden Master solution',
-            testSuite: parsed.testSuite || '// Verification test',
-            astRules: parsed.astRules || ['no-antipatterns'],
-            evaluationCriteria: parsed.evaluationCriteria || ['Correctness', 'Performance']
-          };
-        } catch (jsonErr: any) {
-          lastError = new LlmGatewayUnavailableError('schema_parse_error', jsonErr.message);
-          continue; // retry
-        }
-      } catch (fetchErr: any) {
-        if (fetchErr.name === 'AbortError') {
-          lastError = new LlmGatewayUnavailableError('upstream_timeout', 'Request timed out after 12s');
-        } else {
-          lastError = new LlmGatewayUnavailableError('proxy_unreachable', fetchErr.message || 'Connection refused');
-        }
-      }
-    }
-
-    // If all retries exhausted, throw structured error (No silent fake fallback)
-    throw lastError || new LlmGatewayUnavailableError('proxy_unreachable', 'All generation retries failed');
+    return {
+      id: taskId,
+      title: parsed.title || 'Dynamic Production Incident Kata',
+      domain,
+      difficulty,
+      archetype: archetype || 'CustomIncident',
+      scenario: parsed.scenario || 'Real-world production performance kata',
+      naiveCode: parsed.naiveCode || '// Naive implementation',
+      goldenMaster: parsed.goldenMaster || '// Golden Master solution',
+      testSuite: parsed.testSuite || '// Verification test',
+      astRules: parsed.astRules || ['no-antipatterns'],
+      evaluationCriteria: parsed.evaluationCriteria || ['Correctness', 'Performance']
+    };
   }
 }

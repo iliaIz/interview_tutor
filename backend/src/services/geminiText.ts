@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { LlmExecutionEngine } from './LlmExecutionEngine';
+import { llmGateway } from './LlmGatewayClient';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
 import { ANTI_SYCOPHANCY_DIRECTIVES, EPISTEMIC_BENEVOLENCE_AXIOM } from '../prompts/core/antiSycophancy';
 dotenv.config();
@@ -61,7 +61,7 @@ ${referenceAnswer}
 ${wrapUntrustedContext('candidate_answer', userAnswer)}`;
 
   try {
-    const parsed = await LlmExecutionEngine.executeJson<any>({
+    const parsed = await llmGateway.completeJson<any>({
       systemPrompt,
       userPrompt: prompt,
       presetKey: 'conceptualGrading',

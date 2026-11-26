@@ -10,7 +10,7 @@ import { preProcessWorkspaceFiles } from './astAnalyzer';
 import { CodingChallenge } from './challengeSeedData';
 import { recordNewErrorGap } from './vectorMemoryService';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
-import { LlmExecutionEngine } from './LlmExecutionEngine';
+import { llmGateway } from './LlmGatewayClient';
 import { EVALUATION_JSON_SCHEMA, ConcurrencyFinding, normalizeConcurrencyFindings } from './codeEvaluatorSchema';
 import { EvaluationRequest, TestCaseResult, EvaluationResult } from './codeEvaluatorTypes';
 import { wrapUntrustedContext, PROMPT_INJECTION_DEFENSE_DIRECTIVE } from '../prompts/core/sandboxDirectives';
@@ -183,7 +183,7 @@ ${sandboxProofXml}
 ${codeXml}
 </evaluation_request>`;
 
-  const evalData = await LlmExecutionEngine.executeJson<any>({
+  const evalData = await llmGateway.completeJson<any>({
     presetKey: 'codeAudit',
     systemPrompt: systemInstruction,
     userPrompt,

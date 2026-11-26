@@ -5,6 +5,7 @@ import {
 } from '../prompts/systemDesign/systemDesignPrompts';
 import { wrapUntrustedContext } from '../prompts/core/sandboxDirectives';
 import { resolveScenarioManifest } from './scenarioResolver';
+import { llmGateway } from './LlmGatewayClient';
 
 export interface SystemDesignProbeParams {
   scenarioId?: string;
@@ -57,54 +58,18 @@ export class SystemDesignProbeGateway {
       { role: 'user', content: wrapUntrustedContext('user_message', userMessage) }
     ];
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
-    let response: any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages,
-          temperature: mode === 'deep_dive' ? 0.4 : mode === 'socratic' ? 0.7 : 0.6,
-          max_tokens: 1000
-        })
-      });
-    } catch (err: any) {
-      if (endpointUrl.includes('host.docker.internal')) {
-        const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-        response = await fetch(localUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${proxyApiKey}`
-          },
-          signal,
-          body: JSON.stringify({
-            model: modelName,
-            messages,
-            temperature: mode === 'deep_dive' ? 0.4 : mode === 'socratic' ? 0.7 : 0.6,
-            max_tokens: 1000
-          })
-        });
-      } else {
-        throw err;
-      }
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Не удалось сформировать ответ тьютора. Попробуйте уточнить вопрос.';
-    return { reply, mode };
+    const reply = await llmGateway.completeText({
+      messages,
+      model: envConfig.models.text,
+      temperature: mode === 'deep_dive' ? 0.4 : mode === 'socratic' ? 0.7 : 0.6,
+      maxTokens: 1000,
+      maxRetries: 2,
+      timeoutMs: 45_000,
+      abortSignal: signal
+    });
+    return {
+      reply: reply || 'Не удалось сформировать ответ тьютора. Попробуйте уточнить вопрос.',
+      mode
+    };
   }
 }

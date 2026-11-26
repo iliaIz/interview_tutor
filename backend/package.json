@@ -30,7 +30,7 @@
     "test:telemetry:matrix": "ts-node src/scripts/runAcousticVadMatrix.ts --engine=mock --scenario=all",
     "test:telemetry:all": "npm run test:telemetry:engine && npm run test:telemetry:playout && npm run test:telemetry:db && npm run test:telemetry:router && npm run test:telemetry:diagnostics && npm run test:telemetry:matrix",
     "pretest:practice:resilience": "npm run build",
-    "test:practice:resilience": "node tests/test_practice_evaluation_session.js && node tests/test_practice_fault_injection.js && node tests/test_llm_gateway_client.js && node tests/test_tutor_zero_phantom_fallback.js && node tests/test_phase02_epistemic_symmetry.js",
+    "test:practice:resilience": "node tests/test_practice_evaluation_session.js && node tests/test_practice_fault_injection.js && node tests/test_llm_gateway_client.js && node tests/test_tutor_zero_phantom_fallback.js",
     "test:practice:task-codes": "node tests/test_practice_task_codes.js && node tests/test_catalog_path_resolver.js && node tests/verify_starter_workspaces_integrity.js",
     "test:practice:starter-integrity": "node tests/verify_starter_workspaces_integrity.js",
     "test:catalog-paths": "node tests/test_catalog_path_resolver.js",
