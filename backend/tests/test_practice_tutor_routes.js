@@ -44,10 +44,10 @@ function seedInMemoryChallenge() {
     workspaceFiles: [{ path: 'src/test/java/com/curriculum/spec58/Spec58GuardTest.java', content: CANONICAL_GUARD_TEST }]
   };
   db.prepare(
-    'INSERT INTO coding_challenges (id, slug, title, category, track, badge, difficulty, short_description, instructions_markdown, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO coding_challenges (id, slug, title, category, track, badge, difficulty, target_stack, short_description, instructions_markdown, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     manifest.id, manifest.slug, manifest.title, manifest.category, 'testing_mutation',
-    manifest.badge, manifest.difficulty, manifest.shortDescription, manifest.instructionsMarkdown, JSON.stringify(manifest)
+    manifest.badge, manifest.difficulty, 'Java 21 LTS', manifest.shortDescription, manifest.instructionsMarkdown, JSON.stringify(manifest)
   );
 }
 
