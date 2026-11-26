@@ -26,23 +26,23 @@ function testLiveDeadAirGuard() {
   assert.strictEqual(res.suppressFrame, false);
   assert.strictEqual(res.synthesizeTurnComplete, false);
 
-  // Silence begins (500ms elapsed) -> normal pass-through
+  // Silence begins at 2500ms (0ms elapsed silence) -> normal pass-through
   res = guard.inspectAudioFrame(true, 2500);
   assert.strictEqual(res.suppressFrame, false);
   assert.strictEqual(res.synthesizeTurnComplete, false);
 
-  // Silence continues (1300ms elapsed >= 1200ms) -> suppress frame
-  res = guard.inspectAudioFrame(true, 3300);
+  // Silence continues (1300ms elapsed since 2500ms >= 1200ms) -> suppress frame
+  res = guard.inspectAudioFrame(true, 3800);
   assert.strictEqual(res.suppressFrame, true);
   assert.strictEqual(res.synthesizeTurnComplete, false);
 
-  // Silence continues (2100ms elapsed >= 2000ms) -> clamp turnComplete!
-  res = guard.inspectAudioFrame(true, 4100);
+  // Silence continues (2100ms elapsed since 2500ms >= 2000ms) -> clamp turnComplete!
+  res = guard.inspectAudioFrame(true, 4600);
   assert.strictEqual(res.suppressFrame, true);
   assert.strictEqual(res.synthesizeTurnComplete, true);
 
   // Subsequent frames after clamp remain unclamped until new speech
-  res = guard.inspectAudioFrame(true, 4200);
+  res = guard.inspectAudioFrame(true, 4700);
   assert.strictEqual(res.suppressFrame, false);
   assert.strictEqual(res.synthesizeTurnComplete, false);
 
