@@ -172,6 +172,9 @@ export class LiveSessionBlueprintBuilder {
       academyStep: params.academyStep,
       hrMode: params.hrMode,
       hrPersonaId: params.hrPersonaId,
+      dossierId: params.dossierId,
+      jobId: params.jobId,
+      questionMatrixId: params.questionMatrixId,
       chunkId: params.chunkId,
       startBeatId: params.startBeatId,
       beatScope: params.beatScope,
@@ -202,6 +205,8 @@ export class LiveSessionBlueprintBuilder {
       targetSeniority: config.userProfile?.targetSeniority,
       primaryStack: config.userProfile?.primaryStack,
       workspaceManifest: config.workspaceManifest || config.manifest,
+      dossierId: config.dossierId,
+      jobId: config.jobId,
       academyBridgeContext: config.academyBridgeContext || (config.academyCourse ? { courseId: config.academyCourse, stepId: config.academyStep } : undefined)
     });
     const toolDeclarations = getLiveToolDeclarations(config.sessionType, config.tutorMode, config.hrMode);

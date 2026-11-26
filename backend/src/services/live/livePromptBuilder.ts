@@ -57,6 +57,8 @@ export function buildSystemPrompt(params: {
   sessionType?: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor' | string;
   candidateDossier?: any;
   jobContext?: any;
+  dossierId?: string;
+  jobId?: string;
   hrQuestion?: any;
   hrMode?: any;
   questionId?: string;
@@ -176,8 +178,8 @@ ${(codeRevisionsSummary && codeRevisionsSummary.length > 1) ? `\nДРУГИЕ В
   // === HR VOICE SIMULATOR & REHEARSAL TUTOR SESSION ===
   if (isHrSessionType(sessionType)) {
     const hrMode = params.hrMode || (sessionType === 'hr_simulation' ? 'full_screening_simulation' : (sessionType === 'hr_tutor' ? 'tutor_rehearsal' : 'rapid_fire_micro_drill'));
-    const dossier = getCandidateDossier();
-    const jobContext = getJobContext();
+    const dossier = getCandidateDossier((params as any).dossierId);
+    const jobContext = getJobContext((params as any).jobId);
     const activeQuestion = getHrQuestion((params as any).questionId);
     const activeChunk = (params as any).chunkId ? getHrQuestionChunk((params as any).questionId, (params as any).chunkId) : undefined;
     const startBeatId = (params as any).startBeatId as string | undefined;

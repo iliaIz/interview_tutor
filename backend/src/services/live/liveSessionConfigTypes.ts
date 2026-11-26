@@ -104,6 +104,9 @@ export interface LiveSessionResolvedConfig extends LiveSessionPromptConfig {
   jobContext?: any;
   hrQuestion?: any;
   hrMode?: any;
+  dossierId?: string;
+  jobId?: string;
+  questionMatrixId?: string;
   chunkId?: string;
   startBeatId?: string;
   beatScope?: 'all_from_beat' | 'single_beat';
@@ -215,6 +218,9 @@ export interface LiveSessionBlueprintParams {
   debugStep?: number;
   hrMode?: any;
   hrPersonaId?: any;
+  dossierId?: string;
+  jobId?: string;
+  questionMatrixId?: string;
   chunkId?: string;
   startBeatId?: string;
   beatScope?: 'all_from_beat' | 'single_beat';

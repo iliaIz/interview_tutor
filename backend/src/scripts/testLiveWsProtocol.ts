@@ -11,6 +11,7 @@
 import { DownstreamClientPipe } from '../services/live/DownstreamClientPipe';
 import { LiveVoiceSession } from '../services/live/LiveVoiceSession';
 import { LiveSessionBlueprintBuilder } from '../services/live/LiveSessionBlueprintBuilder';
+import { mergeInitFrameIntoConfig } from '../services/live/liveBlueprintParamParser';
 import { SessionTurnState } from '../services/live/SessionTurnState';
 import { EventEmitter } from 'events';
 
@@ -127,6 +128,80 @@ async function runTests() {
   liveSession!.terminate('Spec46TestComplete', 1000, 'UnitTest');
   assert(upstreamClosed, 'LiveVoiceSession.terminate closes injected UpstreamTransportPort');
   assert(!liveSession!.watchdogs.isArmed(), 'LiveVoiceSession.terminate disposes WatchdogManager cleanly');
+
+  // --- Suite 3: Spec 53 Slim Handshake Barrier (?awaitInit=1) + HR context mapping ---
+  const delayedClient = new EventEmitter() as any;
+  delayedClient.readyState = 1;
+  delayedClient.send = () => {};
+  delayedClient.close = () => {};
+  const delayedEarlyQueue: any[] = [];
+  let receivedInitFrame: any = null;
+  const barrierStartedAt = Date.now();
+  setTimeout(() => {
+    delayedClient.emit(
+      'message',
+      Buffer.from(JSON.stringify({
+        type: 'session_init',
+        sessionId: 'spec53_barrier_sess',
+        dossierId: 'dossier_abc',
+        jobId: 'job_xyz',
+        questionMatrixId: 'matrix_9',
+        hrMode: 'guided_zero_start'
+      }))
+    );
+  }, 15);
+
+  const barrierSession = await LiveVoiceSession.start({
+    clientSocket: delayedClient,
+    req: { url: '/ws/live?sessionId=spec53_barrier_sess&awaitInit=1' } as any,
+    earlyQueue: delayedEarlyQueue,
+    initWaitTimeoutMs: 150,
+    blueprintBuilder: async (_req, rawInitFrame) => {
+      receivedInitFrame = rawInitFrame;
+      return blueprint;
+    },
+    createUpstream: (opts) => {
+      opts.session.isSetupComplete = true;
+      return { connectGemini: () => {}, close: () => {} };
+    }
+  });
+  const barrierElapsed = Date.now() - barrierStartedAt;
+  assert(Boolean(barrierSession), 'Spec 53 ?awaitInit=1 barrier initializes cleanly after deferred session_init');
+  assert(receivedInitFrame?.dossierId === 'dossier_abc' && receivedInitFrame?.questionMatrixId === 'matrix_9', 'Spec 53 ?awaitInit=1 barrier receives deferred session_init before blueprint build');
+  assert(barrierElapsed < 120, `Spec 53 ?awaitInit=1 wakes immediately upon session_init arrival (${barrierElapsed}ms < 120ms)`);
+  barrierSession!.terminate('Spec53BarrierTestComplete', 1000, 'UnitTest');
+
+  const mergedConfig: any = { ...blueprint.config, promptConfig: { ...blueprint.config.promptConfig } };
+  mergeInitFrameIntoConfig(mergedConfig, receivedInitFrame);
+  assert(
+    mergedConfig.dossierId === 'dossier_abc' &&
+      mergedConfig.jobId === 'job_xyz' &&
+      mergedConfig.questionMatrixId === 'matrix_9' &&
+      mergedConfig.hrMode === 'guided_zero_start',
+    'mergeInitFrameIntoConfig maps dossierId, jobId, questionMatrixId, and hrMode'
+  );
+
+  const timeoutClient = new EventEmitter() as any;
+  timeoutClient.readyState = 1;
+  timeoutClient.send = () => {};
+  timeoutClient.close = () => {};
+  let timeoutInitFrame: any = 'not-called';
+  const timeoutSession = await LiveVoiceSession.start({
+    clientSocket: timeoutClient,
+    req: { url: '/ws/live?sessionId=spec53_timeout&awaitInit=1' } as any,
+    earlyQueue: [],
+    initWaitTimeoutMs: 25,
+    blueprintBuilder: async (_req, rawInitFrame) => {
+      timeoutInitFrame = rawInitFrame;
+      return blueprint;
+    },
+    createUpstream: (opts) => {
+      opts.session.isSetupComplete = true;
+      return { connectGemini: () => {}, close: () => {} };
+    }
+  });
+  assert(Boolean(timeoutSession) && timeoutInitFrame === undefined, 'Spec 53 ?awaitInit=1 timeout degrades gracefully without failing handshake');
+  timeoutSession!.terminate('Spec53TimeoutTestComplete', 1000, 'UnitTest');
 
   console.log('\n🎉 All Live WebSocket Protocol & Session Port tests passed successfully!');
 }

@@ -8,6 +8,7 @@
 
 import { WebSocket, RawData } from 'ws';
 import http from 'http';
+import url from 'url';
 import { isLanguageDrifted } from '../../prompts/core/languageDirectives';
 import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
 import { LiveSessionBlueprint } from './liveSessionConfigTypes';
@@ -29,6 +30,7 @@ export interface SessionStartupOptions {
   createUpstream?: (options: StreamRouterOptions) => UpstreamTransportPort;
   blueprint?: LiveSessionBlueprint;
   blueprintBuilder?: (req: http.IncomingMessage, rawInitFrame?: any) => Promise<LiveSessionBlueprint | null>;
+  initWaitTimeoutMs?: number;
 }
 
 export class LiveVoiceSession {
@@ -68,26 +70,73 @@ export class LiveVoiceSession {
   public get watchdogs(): WatchdogManager { return this._watchdogs; }
   public get turnState(): SessionTurnState { return this._turnState; }
 
+  private static parseSessionInitFrame(item: any): any | undefined {
+    if (!item) return undefined;
+    try {
+      let parsed: any = item;
+      if (typeof item === 'string') {
+        parsed = JSON.parse(item);
+      } else if (Buffer.isBuffer(item) || Array.isArray(item) || item instanceof ArrayBuffer) {
+        parsed = JSON.parse(toRawBuffer(item).toString('utf8'));
+      } else if (ArrayBuffer.isView(item)) {
+        parsed = JSON.parse(Buffer.from(item.buffer, item.byteOffset, item.byteLength).toString('utf8'));
+      }
+      return parsed && typeof parsed === 'object' && parsed.type === 'session_init' ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   public static extractEarlySessionInit(earlyQueue?: (Buffer | any)[]): any {
     if (!Array.isArray(earlyQueue) || earlyQueue.length === 0) return undefined;
     let latestInit: any;
     for (const item of earlyQueue) {
-      if (!item) continue;
-      try {
-        let parsed: any = item;
-        if (typeof item === 'string') {
-          parsed = JSON.parse(item);
-        } else if (Buffer.isBuffer(item) || Array.isArray(item) || item instanceof ArrayBuffer) {
-          parsed = JSON.parse(toRawBuffer(item).toString('utf8'));
-        } else if (ArrayBuffer.isView(item)) {
-          parsed = JSON.parse(Buffer.from(item.buffer, item.byteOffset, item.byteLength).toString('utf8'));
-        }
-        if (parsed && typeof parsed === 'object' && parsed.type === 'session_init') {
-          latestInit = parsed;
-        }
-      } catch {}
+      const parsed = LiveVoiceSession.parseSessionInitFrame(item);
+      if (parsed) latestInit = parsed;
     }
     return latestInit;
+  }
+
+  private static shouldAwaitInit(req?: http.IncomingMessage): boolean {
+    if (!req?.url) return false;
+    try {
+      return url.parse(req.url, true).query?.awaitInit === '1';
+    } catch {
+      return req.url.includes('awaitInit=1');
+    }
+  }
+
+  private static waitForSessionInit(
+    clientSocket: WebSocket,
+    earlyQueue?: (Buffer | any)[],
+    timeoutMs: number = 150
+  ): Promise<any | undefined> {
+    const existing = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
+    if (existing) return Promise.resolve(existing);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (frame?: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clientSocket.off('message', onMessage);
+        clientSocket.off('close', onClose);
+        resolve(frame ?? LiveVoiceSession.extractEarlySessionInit(earlyQueue));
+      };
+      const onMessage = (data: RawData) => {
+        if (Array.isArray(earlyQueue) && earlyQueue.length < 50 && earlyQueue[earlyQueue.length - 1] !== data) {
+          earlyQueue.push(data);
+        }
+        const parsed = LiveVoiceSession.parseSessionInitFrame(data);
+        if (parsed) finish(parsed);
+      };
+      const onClose = () => finish(undefined);
+      const timer = setTimeout(() => finish(undefined), Math.max(1, timeoutMs));
+      (timer as any)?.unref?.();
+      clientSocket.on('message', onMessage);
+      clientSocket.on('close', onClose);
+    });
   }
 
   public static async start(options: SessionStartupOptions): Promise<LiveVoiceSession | null> {
@@ -99,7 +148,18 @@ export class LiveVoiceSession {
       return null;
     }
 
-    const initialInitFrame = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
+    let initialInitFrame = LiveVoiceSession.extractEarlySessionInit(earlyQueue);
+    if (!initialInitFrame && !options.blueprint && LiveVoiceSession.shouldAwaitInit(req)) {
+      initialInitFrame = await LiveVoiceSession.waitForSessionInit(
+        clientSocket,
+        earlyQueue,
+        options.initWaitTimeoutMs ?? 150
+      );
+      if ((clientSocket.readyState as number) === WebSocket.CLOSED || (clientSocket.readyState as number) === WebSocket.CLOSING) {
+        if (cleanupEarlyCapture) cleanupEarlyCapture();
+        return null;
+      }
+    }
     let blueprint: LiveSessionBlueprint | null = options.blueprint ?? null;
     if (!blueprint) {
       if (!req) {

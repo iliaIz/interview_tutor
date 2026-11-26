@@ -88,6 +88,9 @@ export function parseQueryToBlueprintParams(
     academyStep: (query.academyStep as string) || undefined,
     hrMode: (query.hrMode as any) || undefined,
     hrPersonaId: (query.hrPersonaId as any) || undefined,
+    dossierId: (query.dossierId as string) || undefined,
+    jobId: (query.jobId as string) || undefined,
+    questionMatrixId: (query.questionMatrixId as string) || undefined,
     chunkId: (query.chunkId as string) || undefined,
     startBeatId: (query.startBeatId as string) || undefined,
     beatScope: query.beatScope === 'single_beat' ? 'single_beat' : query.beatScope === 'all_from_beat' ? 'all_from_beat' : undefined,
@@ -152,6 +155,9 @@ export function mergeInitFrameIntoConfig(config: LiveSessionResolvedConfig, rawI
   if (typeof init.isResumed === 'boolean') config.isResumed = init.isResumed;
   if (init.hrMode) config.hrMode = init.hrMode;
   if (init.hrPersonaId) config.hrPersonaId = init.hrPersonaId;
+  if (init.dossierId) config.dossierId = String(init.dossierId);
+  if (init.jobId) config.jobId = String(init.jobId);
+  if (init.questionMatrixId) config.questionMatrixId = String(init.questionMatrixId);
   if (init.chunkId) config.chunkId = init.chunkId;
   if (init.startBeatId) config.startBeatId = String(init.startBeatId);
   if (init.beatScope === 'single_beat' || init.beatScope === 'all_from_beat') config.beatScope = init.beatScope;
