@@ -7,6 +7,7 @@
 
 import { db } from '../db';
 import { envConfig } from '../../config/env';
+import { llmGateway } from '../LlmGatewayClient';
 
 export interface CachedQuestionEmbedding {
   questionId: string;
@@ -71,38 +72,20 @@ export async function embedText(text: string): Promise<Float32Array> {
     return textEmbeddingCache.get(normalized)!;
   }
 
-  const cleanProxyBase = envConfig.proxy.baseUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-  const embeddingModel = envConfig.models.embedding;
-
   try {
-    const res = await fetch(`${cleanProxyBase}/v1/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${proxyApiKey}`
-      },
-      body: JSON.stringify({
-        model: embeddingModel,
-        input: normalized
-      }),
-      signal: AbortSignal.timeout(4000)
+    const floatArray = await llmGateway.embed({
+      input: normalized,
+      model: envConfig.models.embedding,
+      maxRetries: 0,
+      timeoutMs: 4_000
     });
-
-    if (res.ok) {
-      const data = await res.json();
-      const rawVector = data?.data?.[0]?.embedding;
-      if (Array.isArray(rawVector) && rawVector.length > 0) {
-        const floatArray = new Float32Array(rawVector);
-        while (textEmbeddingCache.size >= 500) {
-          const firstKey = textEmbeddingCache.keys().next().value;
-          if (firstKey) textEmbeddingCache.delete(firstKey);
-          else break;
-        }
-        textEmbeddingCache.set(normalized, floatArray);
-        return floatArray;
-      }
+    while (textEmbeddingCache.size >= 500) {
+      const firstKey = textEmbeddingCache.keys().next().value;
+      if (firstKey) textEmbeddingCache.delete(firstKey);
+      else break;
     }
+    textEmbeddingCache.set(normalized, floatArray);
+    return floatArray;
   } catch (err: any) {
     console.warn(`Vector embedding generation failed for "${normalized.slice(0, 30)}...":`, err.message);
   }

@@ -7,7 +7,7 @@
 
 import { envConfig } from '../../config/env';
 import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../../config/liveDefaults';
-import { LlmExecutionEngine } from '../LlmExecutionEngine';
+import { llmGateway } from '../LlmGatewayClient';
 import { synthesizeTTSWithRetry } from '../podcast';
 
 export interface GreetingInput {
@@ -89,7 +89,7 @@ ${genderDirective}
 - Выдай ТОЛЬКО текст реплики для озвучивания, без кавычек и мета-тегов.`;
     }
 
-    const rawText = await LlmExecutionEngine.executeText({
+    const rawText = await llmGateway.completeText({
       userPrompt: greetingPrompt,
       model: envConfig.models.fast,
       temperature: 0.3,

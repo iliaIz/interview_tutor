@@ -8,7 +8,7 @@
 
 import { db } from '../db';
 import { envConfig } from '../../config/env';
-import { LlmExecutionEngine } from '../LlmExecutionEngine';
+import { llmGateway } from '../LlmGatewayClient';
 import { transcribeWithDeepgram } from '../deepgramService';
 import { synthesizeTTSWithRetry } from '../podcast';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
@@ -192,7 +192,7 @@ ${decisionRules}
       { role: 'user', content: wrappedCandidateText }
     ];
 
-    const reasoningResult = await LlmExecutionEngine.executeJson<TurnReasoningResult>({
+    const reasoningResult = await llmGateway.completeJson<TurnReasoningResult>({
       messages: conversationTurns,
       model: envConfig.models.fast,
       temperature: 0.3,

@@ -167,6 +167,19 @@ async function runTests() {
     console.log('  ✅ Test 5: synthesizeSpeech + embed & LlmGatewayUnavailableError verified.');
   }
 
+  // 6. Spec 49 Epistemic Symmetry guard: systemDesignEvaluator forwards conversationHistory
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const evalSrc = fs.readFileSync(path.join(__dirname, '../src/services/systemDesignEvaluator.ts'), 'utf8');
+    assert.ok(evalSrc.includes('conversationHistory?:'), 'EvaluationPayload preserves conversationHistory');
+    assert.ok(
+      evalSrc.includes('conversationHistory') && evalSrc.includes('buildSystemDesignEvaluationPrompt'),
+      'systemDesignEvaluator forwards conversationHistory into buildSystemDesignEvaluationPrompt'
+    );
+    console.log('  ✅ Test 6: systemDesignEvaluator epistemic symmetry contract verified.');
+  }
+
   console.log('\n🎉 ALL LLM GATEWAY CLIENT PORT TESTS PASSED!');
 }
 

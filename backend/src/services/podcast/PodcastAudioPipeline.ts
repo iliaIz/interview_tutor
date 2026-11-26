@@ -9,6 +9,7 @@
 import { spawn } from 'child_process';
 import { Readable } from 'stream';
 import { envConfig } from '../../config/env';
+import { llmGateway } from '../LlmGatewayClient';
 import { DEFAULT_VOICE_NAME, sanitizeVoiceName } from '../../config/liveDefaults';
 
 export interface WavInfo {
@@ -187,32 +188,14 @@ export class OpusEncoderService {
 
 export async function synthesizeTTSBuffer(text: string, voice: string = DEFAULT_VOICE_NAME): Promise<Buffer> {
   const validVoice = sanitizeVoiceName(voice, DEFAULT_VOICE_NAME);
-
-  const speechUrl = envConfig.proxy.speechUrl;
-  const proxyApiKey = envConfig.proxy.apiKey;
-  const ttsModel = envConfig.models.tts;
-
-  const res = await fetch(speechUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${proxyApiKey}`,
-    },
-    body: JSON.stringify({
-      model: ttsModel,
-      input: text,
-      voice: validVoice,
-      response_format: 'wav'
-    })
+  return llmGateway.synthesizeSpeech({
+    text,
+    voice: validVoice,
+    model: envConfig.models.tts,
+    responseFormat: 'wav',
+    maxRetries: 0,
+    timeoutMs: 45_000
   });
-
-  if (!res.ok) {
-    const errTxt = await res.text();
-    throw new Error(`Ошибка синтеза речи через LiteLLM Gateway (${res.status}): ${errTxt}`);
-  }
-
-  const arrayBuf = await res.arrayBuffer();
-  return Buffer.from(arrayBuf);
 }
 
 export async function synthesizeTTSWithRetry(

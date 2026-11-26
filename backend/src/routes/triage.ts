@@ -6,6 +6,7 @@ import {
   buildTriageProbePrompt
 } from '../prompts/triage/triagePrompts';
 import { wrapUntrustedContext } from '../prompts/core/sandboxDirectives';
+import { llmGateway } from '../services/LlmGatewayClient';
 
 export const triageRouter = Router();
 
@@ -95,50 +96,21 @@ triageRouter.post('/evaluate', async (req: Request, res: Response) => {
       investigationDigest
     });
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
+    let clientClosed = false;
     req.on('close', () => {
-      clearTimeout(timeoutId);
+      clientClosed = true;
       abortController.abort();
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessageContent }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.2
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    let content = (data.choices?.[0]?.message?.content || '{}').trim();
-    if (content.startsWith('```')) {
-      content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    }
-    const parsed = JSON.parse(content);
+    const parsed = await llmGateway.completeJson({
+      systemPrompt,
+      userPrompt: userMessageContent,
+      model: envConfig.models.text,
+      temperature: 0.2,
+      timeoutMs: 45_000,
+      abortSignal: abortController.signal
+    });
 
     // Persist triage evaluation attempt
     try {
@@ -196,46 +168,25 @@ triageRouter.post('/probe', async (req: Request, res: Response) => {
       { role: 'user', content: wrapUntrustedContext('incident_commander_inquiry', userMessage) }
     ];
 
-    const endpointUrl = envConfig.proxy.chatUrl;
-    const proxyApiKey = envConfig.proxy.apiKey;
-    const modelName = envConfig.models.text;
-
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45_000);
+    let clientClosed = false;
     req.on('close', () => {
-      clearTimeout(timeoutId);
+      clientClosed = true;
       abortController.abort();
     });
 
-    let response: Response | any;
-    try {
-      response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${proxyApiKey}`
-        },
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: modelName,
-          messages,
-          temperature: 0.6,
-          max_tokens: 800
-        })
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      throw new Error(`LLM Gateway HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Что показывает дамп потоков относительно состояния рабочих воркеров?';
+    const reply = (await llmGateway.completeText({
+      messages,
+      model: envConfig.models.text,
+      temperature: 0.6,
+      maxTokens: 800,
+      timeoutMs: 45_000,
+      abortSignal: abortController.signal
+    })) || 'Что показывает дамп потоков относительно состояния рабочих воркеров?';
     res.json({ reply });
   } catch (err: any) {
+    if (err?.name === 'AbortError' && res.writableEnded) return;
     console.error('Triage probe error:', err);
-    res.status(500).json({ error: 'Failed to communicate with Incident Commander', message: err.message });
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to communicate with Incident Commander', message: err.message });
   }
 });

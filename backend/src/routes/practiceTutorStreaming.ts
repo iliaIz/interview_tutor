@@ -1,39 +1,20 @@
 import { Response } from 'express';
-import { envConfig } from '../config/env';
 import { TreeEditDistanceGuard } from '../services/sandbox/TreeEditDistanceGuard';
 
 /**
  * practiceTutorStreaming.ts
- * Streaming transport and LiteLLM Proxy connector for Socratic Tutor.
- * Decouples SSE reader, buffering, and AST solution guarding from express routes.
- * File length limit: <= 350 lines (Rule 8).
+ * Streaming SSE writer & AST solution guard for Socratic Tutor over LlmGatewayClient (Spec 49).
  */
 
-export async function callLiteLlm(payload: any, abortSignal?: AbortSignal): Promise<globalThis.Response> {
-  const endpointUrl = envConfig.proxy.chatUrl;
-  const init = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${envConfig.proxy.apiKey}` },
-    signal: abortSignal,
-    body: JSON.stringify(payload)
-  };
-  try {
-    return await fetch(endpointUrl, init);
-  } catch (err: any) {
-    if (endpointUrl.includes('host.docker.internal')) {
-      const localUrl = endpointUrl.replace('host.docker.internal', 'localhost');
-      console.log(`🔄 Retrying LiteLLM Proxy with local URL: ${localUrl}`);
-      return await fetch(localUrl, init);
-    }
-    throw err;
-  }
-}
-
 export async function streamTutorSse(
-  upstreamRes: globalThis.Response,
+  deltaStream: AsyncIterable<string>,
   res: Response,
   options: { targetSolutions: string[]; isSocratic: boolean }
 ): Promise<void> {
+  // Pull first chunk BEFORE flushing HTTP 200 SSE headers so pre-stream 429/503 errors can return JSON status cleanly
+  const iterator = deltaStream[Symbol.asyncIterator]();
+  const firstStep = await iterator.next();
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
@@ -42,44 +23,25 @@ export async function streamTutorSse(
   });
   res.flushHeaders();
 
-  const reader = upstreamRes.body?.getReader();
-  if (!reader) {
-    res.write(`data: ${JSON.stringify({ error: 'No readable stream available' })}\n\n`);
-    res.end();
-    return;
-  }
-
-  const decoder = new TextDecoder('utf-8');
+  const resWithFlush = res as unknown as { flush?: () => void };
   let accumulatedContent = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  const emitDelta = (delta: string) => {
+    if (!delta) return;
+    accumulatedContent += delta;
+    res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+    resWithFlush.flush?.();
+  };
 
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith('data:')) continue;
-      if (trimmed === 'data: [DONE]') continue;
-
-      try {
-        const json = JSON.parse(trimmed.slice(5).trim());
-        const delta = json.choices?.[0]?.delta?.content || '';
-        if (delta) {
-          accumulatedContent += delta;
-          res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-          const resWithFlush = res as unknown as { flush?: () => void };
-          if (typeof resWithFlush.flush === 'function') resWithFlush.flush();
-        }
-      } catch {
-        // ignore chunk parse errors
-      }
+  if (!firstStep.done) {
+    emitDelta(firstStep.value);
+    while (true) {
+      const step = await iterator.next();
+      if (step.done) break;
+      emitDelta(step.value);
     }
   }
 
-  // Final Post-Stream AST check on accumulated text
   const finalGuard = TreeEditDistanceGuard.guardResponse(accumulatedContent, options.targetSolutions, {
     leakThreshold: 0.40,
     isSocraticEnforced: options.isSocratic

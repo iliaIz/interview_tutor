@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { envConfig } from '../config/env';
-import { REASONING_PRESETS, buildReasoningExtraBody } from '../config/reasoning';
 import { TreeEditDistanceGuard } from '../services/sandbox/TreeEditDistanceGuard';
 import {
   buildPracticeTutorSystemPrompt,
@@ -14,7 +13,8 @@ import {
   PracticeTutorContext
 } from '../prompts/practiceTutorPrompts';
 import { buildPolymorphicTutorSystemPrompt } from '../prompts/tutor/polymorphicPromptBuilder';
-import { callLiteLlm, streamTutorSse } from './practiceTutorStreaming';
+import { streamTutorSse } from './practiceTutorStreaming';
+import { llmGateway, LlmGatewayUnavailableError } from '../services/LlmGatewayClient';
 import { ALL_MUTATION_CHALLENGES } from '../services/mutationChallenges';
 import { db } from '../services/db';
 import { pruneTutorContext } from '../services/practiceContextPruner';
@@ -124,39 +124,25 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
     }
 
     const isSocratic = persona === 'senior_socratic' || persona === 'faang_interviewer' || assistanceLevel >= 3;
-
-    const requestPayload = {
+    const chatMessages = [
+      { role: 'system' as const, content: systemPrompt },
+      ...pruned.prunedMessages.map((m: any) => ({ role: m.role, content: m.content }))
+    ];
+    const execOpts = {
+      messages: chatMessages,
       model: envConfig.models.text,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...pruned.prunedMessages.map((m: any) => ({ role: m.role, content: m.content }))
-      ],
       temperature: isSocratic ? 0.2 : 0.4,
-      max_tokens: 1500,
-      stream: Boolean(stream),
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
+      maxTokens: 1500,
+      presetKey: 'deepIncidentSynthesis' as const,
+      abortSignal: abortController.signal
     };
 
-    const upstreamRes = await callLiteLlm(requestPayload, abortController.signal);
-
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => 'Unknown LiteLLM error');
-      res.status(upstreamRes.status).json({
-        error: `LiteLLM Proxy error (${upstreamRes.status}): ${errText}`,
-        isGatewayUnavailable: upstreamRes.status === 503 || upstreamRes.status === 429
-      });
-      return;
-    }
-
     if (!stream) {
-      const data: any = await upstreamRes.json();
-      let rawText = data.choices?.[0]?.message?.content || '';
-
+      const rawText = await llmGateway.completeText(execOpts);
       const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
         leakThreshold: 0.40,
         isSocraticEnforced: isSocratic
       });
-
       res.json({
         content: guardResult.redactedText,
         leakDetected: guardResult.leakDetected,
@@ -165,18 +151,20 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Streaming SSE Response via practiceTutorStreaming
-    await streamTutorSse(upstreamRes, res, { targetSolutions, isSocratic });
+    await streamTutorSse(llmGateway.streamChat(execOpts), res, { targetSolutions, isSocratic });
 
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      return;
-    }
+    if (err.name === 'AbortError') return;
     console.error('Error in /api/practice-tutor/chat:', err);
     if (!res.headersSent) {
+      if (err instanceof LlmGatewayUnavailableError) {
+        const status = err.reason === 'rate_limit_exceeded' ? 429 : 503;
+        res.status(status).json({ error: err.userMessage, isGatewayUnavailable: true });
+        return;
+      }
       res.status(500).json({ error: err.message || 'Internal tutor error' });
     } else {
-      res.write(`data: ${JSON.stringify({ error: err.message || 'Stream error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: err instanceof LlmGatewayUnavailableError ? err.userMessage : (err.message || 'Stream error') })}\n\n`);
       res.end();
     }
   }
@@ -184,6 +172,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/practice-tutor/hint (Progressive Hint Ladder Tiers 0..4)
 router.post('/hint', async (req: Request, res: Response): Promise<void> => {
+  const abortController = new AbortController();
+  req.on('close', () => abortController.abort());
   try {
     const {
       hintTier = 1,
@@ -217,26 +207,15 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
     const systemPrompt = buildPracticeTutorSystemPrompt(context);
     const userPrompt = `Мне нужна подсказка уровня ${hintTier} по модели RIPR для решения этой задачи. Пожалуйста, дай четкий педагогический совет без списывания.`;
 
-    const requestPayload = {
+    const rawText = await llmGateway.completeText({
+      systemPrompt,
+      userPrompt,
       model: envConfig.models.text,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
       temperature: 0.2,
-      max_tokens: 800,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
-    };
-
-    const upstreamRes = await callLiteLlm(requestPayload);
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => 'Error');
-      res.status(upstreamRes.status).json({ error: errText });
-      return;
-    }
-
-    const data: any = await upstreamRes.json();
-    const rawText = data.choices?.[0]?.message?.content || '';
+      maxTokens: 800,
+      presetKey: 'deepIncidentSynthesis',
+      abortSignal: abortController.signal
+    });
 
     const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
     const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
@@ -250,6 +229,7 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
       leakDetected: guardResult.leakDetected
     });
   } catch (err: any) {
+    if (err.name === 'AbortError') return;
     console.error('Error in /api/practice-tutor/hint:', err);
     res.status(500).json({ error: err.message || 'Failed to generate hint' });
   }
@@ -257,6 +237,8 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/practice-tutor/rule-grounding (Testing Compass 5 Golden Rules)
 router.post('/rule-grounding', async (req: Request, res: Response): Promise<void> => {
+  const abortController = new AbortController();
+  req.on('close', () => abortController.abort());
   try {
     const {
       ruleId,
@@ -288,26 +270,15 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
     const systemPrompt = buildPracticeTutorSystemPrompt(context);
     const userPrompt = `Проверь мой код на соответствие правилу Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
 
-    const requestPayload = {
+    const rawText = await llmGateway.completeText({
+      systemPrompt,
+      userPrompt,
       model: envConfig.models.text,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
       temperature: 0.2,
-      max_tokens: 1000,
-      extra_body: buildReasoningExtraBody(REASONING_PRESETS.deepIncidentSynthesis)
-    };
-
-    const upstreamRes = await callLiteLlm(requestPayload);
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => 'Error');
-      res.status(upstreamRes.status).json({ error: errText });
-      return;
-    }
-
-    const data: any = await upstreamRes.json();
-    const rawText = data.choices?.[0]?.message?.content || '';
+      maxTokens: 1000,
+      presetKey: 'deepIncidentSynthesis',
+      abortSignal: abortController.signal
+    });
 
     res.json({
       ruleId,
@@ -315,6 +286,7 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
       content: rawText
     });
   } catch (err: any) {
+    if (err.name === 'AbortError') return;
     console.error('Error in /api/practice-tutor/rule-grounding:', err);
     res.status(500).json({ error: err.message || 'Failed to ground rule' });
   }

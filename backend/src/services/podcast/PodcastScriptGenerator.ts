@@ -6,7 +6,7 @@
 
 import { db } from '../db';
 import { envConfig } from '../../config/env';
-import { LlmExecutionEngine } from '../LlmExecutionEngine';
+import { llmGateway } from '../LlmGatewayClient';
 
 export interface GeneratePodcastOptions {
   questionIds?: string[];
@@ -112,7 +112,7 @@ ${userPrompt}
 Исходный материал для разбора:
 ${text}`;
 
-  const parsed = await LlmExecutionEngine.executeJson<{ name_of_guest: string; dialogue: DialogueItem[] }>({
+  const parsed = await llmGateway.completeJson<{ name_of_guest: string; dialogue: DialogueItem[] }>({
     userPrompt: scriptPrompt,
     model: envConfig.models.text,
     presetKey: 'podcastDramaturgy',
