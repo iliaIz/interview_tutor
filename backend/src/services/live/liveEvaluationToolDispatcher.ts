@@ -2,7 +2,7 @@ import { db } from '../db';
 import { applyKnowledgeDecay, recordNewErrorGap } from '../vectorMemoryService';
 import { recordEvaluationAndSyncProgress } from '../progressService';
 import { calculateFaangScorecard } from '../../prompts/personas';
-import { buildWeightedRubric } from './livePromptBuilder';
+import { buildWeightedRubric } from './liveRubricBuilder';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
 

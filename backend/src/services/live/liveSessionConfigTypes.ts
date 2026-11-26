@@ -4,6 +4,7 @@ import { TargetGrade } from '../../prompts/personas';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
 import { CandidateGap, findRelevantCandidateGaps, getUserProfile } from '../vectorMemoryService';
 import type { HrGuidedSessionState } from './hrGuidedStepper';
+import type { PreResolvedHrContext } from './LivePromptComposer';
 
 export interface AuthenticatedWsUser {
   id: string;
@@ -137,6 +138,13 @@ export interface BlueprintDependencies {
   findGaps?: typeof findRelevantCandidateGaps;
   getUserProfile?: typeof getUserProfile;
   resolveChallenge?: (input: ChallengeResolutionInput) => ResolvedChallengeContext;
+  resolveHrContext?: (input: {
+    dossierId?: string;
+    jobId?: string;
+    questionId?: string;
+    chunkId?: string;
+    questionMatrixId?: string;
+  }) => PreResolvedHrContext;
 }
 
 export interface ResolveTurn0GreetingOptions {
