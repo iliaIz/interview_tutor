@@ -83,6 +83,9 @@ export async function handleReadFile(
     const matchRes = resolveWorkspaceFileMatch(candidates, rawPath);
     if (matchRes.match) {
       foundContent = matchRes.match.content;
+      if (args.markActive === true) {
+        applyWorkspaceFileUpdate(session, matchRes.match.path, foundContent, { markActive: true });
+      }
     } else if (matchRes.ambiguous) {
       ambiguousMatches = matchRes.matches.map((m) => m.path);
     }
