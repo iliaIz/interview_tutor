@@ -1,6 +1,6 @@
 import React from 'react';
 import { InterviewConfig } from '../../../types/interviewConfig';
-import { useAppStore } from '../../../store/useAppStore';
+import { useVoiceConfigStore } from '../../../store/useVoiceConfigStore';
 import { VOICE_DEFAULTS, getVadPresetOptions } from '../../../config/voiceDefaults';
 
 interface VoiceVadPauseSectionProps {
@@ -12,7 +12,7 @@ export const VoiceVadPauseSection: React.FC<VoiceVadPauseSectionProps> = ({
   config,
   onChangeConfig
 }) => {
-  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const runtimeConfig = useVoiceConfigStore((s) => s.runtimeConfig);
   const presets = getVadPresetOptions(runtimeConfig?.vad?.presetsMs);
   const currentPauseMs = config.vadPauseMs ?? runtimeConfig?.defaults?.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs;
 

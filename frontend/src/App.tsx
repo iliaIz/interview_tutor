@@ -42,48 +42,49 @@ const StudioSuspenseLoader: React.FC = () => (
 );
 
 import { useAuthStore } from './store/useAuthStore';
+import { useVoiceConfigStore } from './store/useVoiceConfigStore';
 
 export const App: React.FC = () => {
-  const { currentUser, isAuthChecking, checkAuthSession } = useAuthStore();
-  const {
-    currentStudioTab,
-    currentView,
-    systemHealth,
-    checkHealth,
-    fetchRuntimeConfig,
-    activeReportModal,
-    closeReportModal,
-    activeTopicBugHunt,
-    closeTopicBugHunt,
-    activeSystemDesignScenario,
-    activeTriageIncident
-  } = useAppStore();
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const isAuthChecking = useAuthStore((s) => s.isAuthChecking);
+  const currentStudioTab = useAppStore((s) => s.currentStudioTab);
+  const currentView = useAppStore((s) => s.currentView);
+  const isAiReady = useAppStore((s) => s.systemHealth.isAiReady);
+  const checkHealth = useAppStore((s) => s.checkHealth);
+  const activeReportModal = useAppStore((s) => s.activeReportModal);
+  const closeReportModal = useAppStore((s) => s.closeReportModal);
+  const activeTopicBugHunt = useAppStore((s) => s.activeTopicBugHunt);
+  const activeSystemDesignScenario = useAppStore((s) => s.activeSystemDesignScenario);
+  const activeTriageIncident = useAppStore((s) => s.activeTriageIncident);
 
   React.useEffect(() => {
-    // Initial Auth, Health & Dynamic Voice Config Discovery
-    checkAuthSession();
-    checkHealth();
-    fetchRuntimeConfig();
+    // Initial Auth, Health & Dynamic Voice Config Discovery (mount-only)
+    void useAuthStore.getState().checkAuthSession();
+    void useVoiceConfigStore.getState().fetchRuntimeConfig();
+    void useAppStore.getState().checkHealth();
+  }, []);
 
+  React.useEffect(() => {
     // SOTA 2026 Page Visibility Aware Poller (Saves battery & mobile cellular data)
-    let intervalId: any = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const startPolling = () => {
       if (intervalId) clearInterval(intervalId);
-      const pollMs = systemHealth.isAiReady ? 30000 : 3000;
+      const pollMs = isAiReady ? 30000 : 3000;
       intervalId = setInterval(() => {
         if (document.visibilityState === 'visible') {
-          checkHealth();
+          void checkHealth();
         }
       }, pollMs);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkHealth();
+        void checkHealth();
         startPolling();
-      } else {
-        if (intervalId) clearInterval(intervalId);
+      } else if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
       }
     };
 
@@ -94,7 +95,7 @@ export const App: React.FC = () => {
       if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [systemHealth.isAiReady]);
+  }, [isAiReady, checkHealth]);
 
   // 1. Loading state during initial session verification (zero-flicker: skipped if cached user exists)
   if (isAuthChecking && !currentUser) {

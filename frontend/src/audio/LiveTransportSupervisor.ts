@@ -3,16 +3,21 @@
  * Merges liveVoiceUrlBuilder, LiveHeartbeatController, and LiveVoiceRecoveryController behind one cohesive seam.
  */
 
-import { VOICE_DEFAULTS, getCachedRuntimeVoiceConfig } from '../config/voiceDefaults';
+import { RuntimeVoiceConfig, VOICE_DEFAULTS } from '../config/voiceDefaults';
+import { useVoiceConfigStore } from '../store/useVoiceConfigStore';
 import { LiveControlSignal } from './LiveVoiceFrameParser';
 import { LiveSessionInitFrame, LiveTransportConnection, VoiceEngineConfig } from './types';
 
-export function buildLiveVoiceWebSocketUrl(cfg: VoiceEngineConfig): string {
+export function buildLiveVoiceWebSocketUrl(
+  cfg: VoiceEngineConfig,
+  runtimeOverride?: RuntimeVoiceConfig | null
+): string {
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = typeof window !== 'undefined'
     ? (window.location.port === '8090' ? `${window.location.hostname}:8091` : window.location.host)
     : 'localhost:5000';
-  const runtimeDefaults = getCachedRuntimeVoiceConfig();
+  const runtimeDefaults =
+    runtimeOverride !== undefined ? runtimeOverride : useVoiceConfigStore.getState().runtimeConfig;
   const resolvedDefaultModel = runtimeDefaults?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
 
   const params = new URLSearchParams({

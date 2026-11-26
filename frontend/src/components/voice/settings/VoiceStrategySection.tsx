@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck, GraduationCap, Scale, Sparkles } from 'lucide-react';
-import { InterviewConfig } from '../../../types/interviewConfig';
+import { InterviewConfig, StrictnessLevel } from '../../../types/interviewConfig';
 
 interface VoiceStrategySectionProps {
   config: InterviewConfig;
@@ -109,10 +109,7 @@ export const VoiceStrategySection: React.FC<VoiceStrategySectionProps> = ({
               <button
                 key={level.id}
                 type="button"
-                onClick={() => {
-                  localStorage.setItem('interview_strictness_level', level.id);
-                  onChangeConfig({ ...config, strictness: level.id as any });
-                }}
+                onClick={() => onChangeConfig({ ...config, strictness: level.id as StrictnessLevel })}
                 className={`p-3 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
                   isSelected
                     ? level.id === 'learning'
@@ -161,7 +158,6 @@ export const VoiceStrategySection: React.FC<VoiceStrategySectionProps> = ({
                 type="button"
                 onClick={() => {
                   const newGender = g.id as 'female' | 'male' | 'neutral';
-                  localStorage.setItem('interview_user_gender', newGender);
                   onChangeConfig({ ...config, userGender: newGender });
                 }}
                 className={`p-2 rounded-xl text-center border transition-all cursor-pointer ${
@@ -201,10 +197,7 @@ export const VoiceStrategySection: React.FC<VoiceStrategySectionProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
             type="button"
-            onClick={() => {
-              localStorage.setItem('interview_study_modality', 'voice');
-              onChangeConfig({ ...config, studyModality: 'voice' });
-            }}
+            onClick={() => onChangeConfig({ ...config, studyModality: 'voice' })}
             className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
               (config.studyModality || 'voice') === 'voice'
                 ? 'bg-gradient-to-r from-pastel-accentRose/10 to-pastel-accentViolet/10 border-pastel-accentViolet ring-1 ring-pastel-accentViolet/40 shadow-xs'
@@ -221,10 +214,7 @@ export const VoiceStrategySection: React.FC<VoiceStrategySectionProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              localStorage.setItem('interview_study_modality', 'text');
-              onChangeConfig({ ...config, studyModality: 'text' });
-            }}
+            onClick={() => onChangeConfig({ ...config, studyModality: 'text' })}
             className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
               config.studyModality === 'text'
                 ? 'bg-blue-50/80 border-blue-400 ring-1 ring-blue-400/40 shadow-xs'

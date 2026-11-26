@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { DEBUG_STEPS, DebugStepDef } from './debugStepDefinitions';
 import { Code2, Copy, Check, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { useInterviewConfig } from '../../hooks/useInterviewConfig';
-import { useAppStore } from '../../store/useAppStore';
+import { useVoiceConfigStore } from '../../store/useVoiceConfigStore';
 import { VOICE_DEFAULTS } from '../../config/voiceDefaults';
 import { resolveEffectiveLiveModel } from '../../audio/voiceConfigResolver';
 
@@ -19,11 +19,12 @@ export const DebugConfigInspector: React.FC<DebugConfigInspectorProps> = ({ sele
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'payload' | 'capabilities'>('payload');
   const { config: interviewConfig } = useInterviewConfig();
-  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const runtimeConfig = useVoiceConfigStore((s) => s.runtimeConfig);
+  const explicitLiveModel = useVoiceConfigStore((s) => s.explicitLiveModel);
 
   const stepDef = DEBUG_STEPS.find((s) => s.step === selectedStep) || DEBUG_STEPS[0];
   const activeVoice = interviewConfig.voice || VOICE_DEFAULTS.voice;
-  const activeModel = resolveEffectiveLiveModel(interviewConfig, runtimeConfig);
+  const activeModel = resolveEffectiveLiveModel(interviewConfig, runtimeConfig, undefined, explicitLiveModel);
   const activeVadPauseMs = interviewConfig.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs;
   const activeTurnMode = interviewConfig.turnMode || VOICE_DEFAULTS.turnMode;
 

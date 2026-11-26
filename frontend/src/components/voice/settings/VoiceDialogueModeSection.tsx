@@ -1,10 +1,9 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { InterviewConfig } from '../../../types/interviewConfig';
-import { useAppStore } from '../../../store/useAppStore';
+import { useVoiceConfigStore } from '../../../store/useVoiceConfigStore';
 import { VOICE_DEFAULTS, getLiveModelUiMeta } from '../../../config/voiceDefaults';
 import { resolveEffectiveLiveModel } from '../../../audio/voiceConfigResolver';
-import { setExplicitLiveModelPreference } from '../../../services/profileStorage';
 
 interface VoiceDialogueModeSectionProps {
   config: InterviewConfig;
@@ -15,12 +14,14 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
   config,
   onChangeConfig
 }) => {
-  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const runtimeConfig = useVoiceConfigStore((s) => s.runtimeConfig);
+  const explicitLiveModel = useVoiceConfigStore((s) => s.explicitLiveModel);
+  const setExplicitLiveModel = useVoiceConfigStore((s) => s.setExplicitLiveModel);
   const supportedModels = runtimeConfig?.models?.supportedLiveModels?.length
     ? runtimeConfig.models.supportedLiveModels
     : [...VOICE_DEFAULTS.supportedLiveModels];
   const defaultRuntimeModel = runtimeConfig?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
-  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig);
+  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig, undefined, explicitLiveModel);
   return (
     <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5">
       <div className="flex items-center justify-between">
@@ -41,10 +42,7 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <button
           type="button"
-          onClick={() => {
-            localStorage.setItem('interview_turn_mode', 'manual');
-            onChangeConfig({ ...config, turnMode: 'manual' });
-          }}
+          onClick={() => onChangeConfig({ ...config, turnMode: 'manual' })}
           className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
             (config.turnMode || 'manual') === 'manual'
               ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400/40 shadow-xs'
@@ -61,10 +59,7 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
 
         <button
           type="button"
-          onClick={() => {
-            localStorage.setItem('interview_turn_mode', 'auto');
-            onChangeConfig({ ...config, turnMode: 'auto' });
-          }}
+          onClick={() => onChangeConfig({ ...config, turnMode: 'auto' })}
           className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
             config.turnMode === 'auto'
               ? 'bg-gradient-to-r from-pastel-accentRose/10 to-pastel-accentViolet/10 border-pastel-accentViolet ring-1 ring-pastel-accentViolet/40 shadow-xs'
@@ -94,7 +89,7 @@ export const VoiceDialogueModeSection: React.FC<VoiceDialogueModeSectionProps> =
                 key={modelId}
                 type="button"
                 onClick={() => {
-                  setExplicitLiveModelPreference(modelId);
+                  setExplicitLiveModel(true);
                   onChangeConfig({ ...config, liveModel: modelId });
                 }}
                 className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
