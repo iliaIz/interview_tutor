@@ -151,7 +151,9 @@ export function applyWorkspaceFileUpdate(
   if (!Array.isArray(m.secondaryFiles)) m.secondaryFiles = [];
   if (!Array.isArray(m.projectTree)) m.projectTree = [];
 
-  const existingFile = resolveWorkspaceFileMatch(m.files, trimmedPath).match;
+  const files = m.files as Array<{ path?: string; content?: string; isReadOnly?: boolean; readOnly?: boolean }>;
+  const secondaryFiles = m.secondaryFiles as Array<{ path?: string; content?: string; isReadOnly?: boolean; readOnly?: boolean }>;
+  const existingFile = resolveWorkspaceFileMatch(files, trimmedPath).match;
   const resolvedPath = existingFile?.path || trimmedPath;
   const resolvedRo = Boolean(existingFile?.isReadOnly ?? existingFile?.readOnly ?? options.isReadOnly);
 
@@ -161,7 +163,7 @@ export function applyWorkspaceFileUpdate(
     m.files.push({ path: resolvedPath, content, isReadOnly: resolvedRo });
   }
 
-  const secFile = resolveWorkspaceFileMatch(m.secondaryFiles, resolvedPath).match;
+  const secFile = resolveWorkspaceFileMatch(secondaryFiles, resolvedPath).match;
   if (secFile) secFile.content = content;
 
   const activeNorm = normalizeWorkspacePath(m.activeFile?.path);
