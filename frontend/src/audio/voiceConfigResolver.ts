@@ -2,25 +2,23 @@
  * voiceConfigResolver.ts
  * Pure headless Single Source of Truth (SSOT) merger for Live Voice sessions.
  * Hydrates every AI dialogue entry point with active global settings & backend /api/config defaults.
- * Cognitive Bounding Limit: <= 140 lines (Rule 8 compliant).
+ * Cognitive Bounding Limit: <= 180 lines (Rule 8 compliant).
  */
 
 import { InterviewConfig } from '../types/interviewConfig';
-import {
-  VOICE_DEFAULTS,
-  RuntimeVoiceConfig,
-  getCachedRuntimeVoiceConfig
-} from '../config/voiceDefaults';
-import { getActiveConfig } from '../services/profileStorage';
+import { VOICE_DEFAULTS, RuntimeVoiceConfig } from '../config/voiceDefaults';
+import { useVoiceConfigStore } from '../store/useVoiceConfigStore';
 import type { LiveAudioSessionParams } from './useLiveVoiceSession';
 import type { VoiceEngineConfig } from './types';
 
 export function resolveEffectiveLiveModel(
   globalConfig: InterviewConfig,
   runtime?: RuntimeVoiceConfig | null,
-  explicitOverride?: string
+  explicitOverride?: string,
+  explicitLiveModel?: boolean
 ): string {
-  const effectiveRuntime = runtime ?? getCachedRuntimeVoiceConfig();
+  const storeState = useVoiceConfigStore.getState();
+  const effectiveRuntime = runtime !== undefined ? runtime : storeState.runtimeConfig;
   const supported = effectiveRuntime?.models?.supportedLiveModels;
   const runtimeDefault = effectiveRuntime?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
 
@@ -29,6 +27,11 @@ export function resolveEffectiveLiveModel(
       return explicitOverride;
     }
     return runtimeDefault;
+  }
+
+  const respectConfiguredModel = explicitLiveModel ?? true;
+  if (!respectConfiguredModel && effectiveRuntime?.models?.defaultLiveModel) {
+    return effectiveRuntime.models.defaultLiveModel;
   }
 
   const candidate = globalConfig.liveModel;
@@ -45,7 +48,7 @@ export function clampClientVadPauseMs(
   rawValue: unknown,
   runtime?: RuntimeVoiceConfig | null
 ): number {
-  const effectiveRuntime = runtime ?? getCachedRuntimeVoiceConfig();
+  const effectiveRuntime = runtime !== undefined ? runtime : useVoiceConfigStore.getState().runtimeConfig;
   const minMs = effectiveRuntime?.vad?.minMs ?? VOICE_DEFAULTS.minVadPauseMs;
   const maxMs = effectiveRuntime?.vad?.maxMs ?? VOICE_DEFAULTS.maxVadPauseMs;
   const defaultMs = effectiveRuntime?.defaults?.vadPauseMs ?? VOICE_DEFAULTS.vadPauseMs;
@@ -58,14 +61,17 @@ export interface ResolveLiveConfigOptions {
   activeCode?: string;
   globalConfig?: InterviewConfig;
   runtimeConfig?: RuntimeVoiceConfig | null;
+  explicitLiveModel?: boolean;
 }
 
 export function resolveLiveSessionConfig(
   params: LiveAudioSessionParams,
   options: ResolveLiveConfigOptions = {}
 ): VoiceEngineConfig {
-  const globalConfig = options.globalConfig ?? getActiveConfig();
-  const runtime = options.runtimeConfig ?? getCachedRuntimeVoiceConfig();
+  const storeState = useVoiceConfigStore.getState();
+  const globalConfig = options.globalConfig ?? storeState.config;
+  const runtime = options.runtimeConfig !== undefined ? options.runtimeConfig : storeState.runtimeConfig;
+  const explicitLiveModel = options.explicitLiveModel ?? (options.globalConfig ? true : storeState.explicitLiveModel);
 
   const effectiveVoice =
     params.voice ||
@@ -86,7 +92,8 @@ export function resolveLiveSessionConfig(
   const effectiveLiveModel = resolveEffectiveLiveModel(
     globalConfig,
     runtime,
-    params.liveModel
+    params.liveModel,
+    explicitLiveModel
   );
 
   const effectiveVadPauseMs = clampClientVadPauseMs(

@@ -4,14 +4,13 @@ import {
 } from 'lucide-react';
 import { AVAILABLE_VOICES, GeminiVoiceName, UserGender } from '../../../types/interviewConfig';
 import { TargetGrade } from '../../../types/personas';
-import { useAppStore } from '../../../store/useAppStore';
+import { useVoiceConfigStore } from '../../../store/useVoiceConfigStore';
 import {
   VOICE_DEFAULTS,
   getLiveModelUiMeta,
   getVadPresetOptions
 } from '../../../config/voiceDefaults';
 import { resolveEffectiveLiveModel } from '../../../audio/voiceConfigResolver';
-import { setExplicitLiveModelPreference } from '../../../services/profileStorage';
 
 export interface GlobalAudioDrawerContentProps {
   turnMode: 'auto' | 'manual';
@@ -36,12 +35,14 @@ export const GlobalAudioDrawerContent: React.FC<GlobalAudioDrawerContentProps> =
   onPlayPreview,
   onOpenAdvanced
 }) => {
-  const runtimeConfig = useAppStore((s) => s.runtimeConfig);
+  const runtimeConfig = useVoiceConfigStore((s) => s.runtimeConfig);
+  const explicitLiveModel = useVoiceConfigStore((s) => s.explicitLiveModel);
+  const setExplicitLiveModel = useVoiceConfigStore((s) => s.setExplicitLiveModel);
   const supportedModels = runtimeConfig?.models?.supportedLiveModels?.length
     ? runtimeConfig.models.supportedLiveModels
     : [...VOICE_DEFAULTS.supportedLiveModels];
   const defaultRuntimeModel = runtimeConfig?.models?.defaultLiveModel || VOICE_DEFAULTS.liveModel;
-  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig);
+  const activeLiveModel = resolveEffectiveLiveModel(config, runtimeConfig, undefined, explicitLiveModel);
   const vadPresets = getVadPresetOptions(runtimeConfig?.vad?.presetsMs);
   return (
     <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-white/95 backdrop-blur-xl border border-pastel-border/90 rounded-3xl p-4 sm:p-5 shadow-2xl z-50 font-sans space-y-4 animate-in fade-in zoom-in-95 duration-150 text-slate-800">
@@ -118,7 +119,7 @@ export const GlobalAudioDrawerContent: React.FC<GlobalAudioDrawerContentProps> =
                   key={modelId}
                   type="button"
                   onClick={() => {
-                    setExplicitLiveModelPreference(modelId);
+                    setExplicitLiveModel(true);
                     updateConfig({ liveModel: modelId });
                   }}
                   title={meta.description}

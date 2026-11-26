@@ -1,54 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { InterviewConfig } from '../types/interviewConfig';
-import { getActiveConfig, saveActiveConfig } from '../services/profileStorage';
+import { useVoiceConfigStore } from '../store/useVoiceConfigStore';
 
 /**
- * Custom hook providing a reactive, globally synchronized InterviewConfig.
- * Subscribes to window 'interview_config_updated' and 'storage' events
- * so any update in the header pill, settings drawer, or lobby immediately
- * synchronizes across all mounted components.
+ * Thin React facade over useVoiceConfigStore (Spec 59).
+ * Preserves { config, updateConfig, setConfig } without local state,
+ * CustomEvent buses, or side effects inside React state updaters.
  */
 export function useInterviewConfig() {
-  const [config, setConfigState] = useState<InterviewConfig>(() => getActiveConfig());
-
-  useEffect(() => {
-    const handleUpdate = (e?: Event) => {
-      const customEvent = e as CustomEvent<InterviewConfig> | undefined;
-      if (customEvent?.detail) {
-        setConfigState(customEvent.detail);
-      } else {
-        setConfigState(getActiveConfig());
-      }
-    };
-
-    const handleRuntimeUpdate = () => {
-      setConfigState(getActiveConfig());
-    };
-
-    window.addEventListener('interview_config_updated', handleUpdate);
-    window.addEventListener('interview_runtime_config_updated', handleRuntimeUpdate);
-    window.addEventListener('storage', handleUpdate);
-
-    return () => {
-      window.removeEventListener('interview_config_updated', handleUpdate);
-      window.removeEventListener('interview_runtime_config_updated', handleRuntimeUpdate);
-      window.removeEventListener('storage', handleUpdate);
-    };
-  }, []);
-
-  const updateConfig = useCallback((patch: Partial<InterviewConfig>) => {
-    setConfigState((prev) => {
-      const base = { ...getActiveConfig(), ...prev };
-      const next = { ...base, ...patch };
-      saveActiveConfig(next);
-      return next;
-    });
-  }, []);
-
-  const setConfig = useCallback((newConfig: InterviewConfig) => {
-    setConfigState(newConfig);
-    saveActiveConfig(newConfig);
-  }, []);
+  const config = useVoiceConfigStore((s) => s.config);
+  const updateConfig = useVoiceConfigStore((s) => s.updateConfig);
+  const setConfig = useVoiceConfigStore((s) => s.setConfig);
 
   return {
     config,
