@@ -71,6 +71,26 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
   - *Avoid*: Duplicated queueing math across worker scripts, parallel standalone graph analyzers
   - *Durable Owner*: `frontend-system-design-kernel`
   - *Invariants*: Cache miss propagation always honors the evaluated cache hit ratio; background hosts hold zero domain math and act strictly as message relays; both simulation modes and topology linting run deterministically without worker mocks.
+- **QuestionEvaluationService:** Deep conceptual Q&A grading and outcome persistence coordinator decoupling `LlmGatewayClient` text judging from atomic `QuestionEvaluationRepository` persistence, FSRS-5 scheduling, deficit decay, and error-gap recording under normalized multi-tenant `userId`.
+  - *Avoid*: Duplicated 3-step memory cascades across HTTP routes and voice tools, `'anonymous'` vs `'default_user'` tenant mismatches
+  - *Durable Owner*: `backend-evaluation-pipeline`
+  - *Invariants*: Evaluation persistence, FSRS update, deficit decay, and gap creation always share one canonical `userId`; voice tool handlers invoke persistence without pulling in HTTP text-judging prompts.
+- **LivePromptComposer:** Pure declarative live voice system-prompt builder taking pre-resolved session configuration and optional `PreResolvedHrContext`, eliminating synchronous disk I/O at composition time.
+  - *Avoid*: 50-field untyped parameter bags, single-caller prompt pass-throughs, silent tool-directive omissions in mock branches
+  - *Durable Owner*: `LiveSessionBlueprintBuilder`
+  - *Invariants*: All mock-interview branches (including `socratic_tutoring` and `customPromptOverride`) emit both Turn 0 Lockdown and `LIVE_TOOL_CAPABILITY_DIRECTIVES`; composer runs zero filesystem reads.
+- **CatalogSeeder & DatabaseBootstrap:** Explicit SQLite lifecycle initializer and single-transaction catalog seeder validating externalized JSON coding/mutation challenges against shared `CodingChallengeSchema` with disjoint `TST` / `DP` / `LLD` task-code partitioning.
+  - *Avoid*: Import-time auth deletions inside index helpers, looping task-code updates that overwrite `DP-xx` with `LLD-xx`, huge inline TS seed blobs pinned in V8 heap
+  - *Durable Owner*: `backend-catalog-persistence`
+  - *Invariants*: Repeated catalog seeding preserves `DP-01..DP-N`, `TST-01..TST-N`, and contiguous `LLD-01..LLD-N` idempotently; `:memory:` test DBs initialize cleanly without disk side effects.
+- **TutorTransportPort:** Injectable client-side AI Copilot transport abstraction unifying `streamChat`, `fetchHint`, and `groundRule` onto one canonical `TutorActiveContext` envelope with `AbortSignal` propagation and live persona forwarding.
+  - *Avoid*: Dual legacy vs polymorphic request builders, hardcoded `'middle_scaffold', 2` hint parameters, uncancellable hint/grounding requests
+  - *Durable Owner*: `usePracticeTutorStore`
+  - *Invariants*: All 5 arenas emit and consume `TutorActiveContext`; all 5 compass rule catalogs resolve identically on frontend and backend with AST leak guarding.
+- **useVoiceConfigStore:** Single consolidated Zustand store and versioned storage adapter unifying runtime voice config and persisted client preferences while eliminating `CustomEvent` buses and module-global caches.
+  - *Avoid*: Render-phase `localStorage`/event side effects inside React `setState` updaters, 10 fragmented `localStorage` keys
+  - *Durable Owner*: `frontend-voice-config`
+  - *Invariants*: Legacy v1 keys migrate once deterministically on hydration; browser storage access stays guarded for headless Node contract tests.
 
 ### Company Preparation & Relational Data Engines
 - **Arena Pre-Hydration Envelope:** A typed normalization layer in `arenaNavigator.ts` unwrapping backend manifest envelopes (`{ challenge, savedDraft }`) before passing them to arena stores, preventing blank workspaces.
