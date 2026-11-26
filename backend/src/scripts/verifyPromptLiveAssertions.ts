@@ -7,11 +7,11 @@
 import { PromptRegistry } from '../prompts';
 import {
   composeLiveSystemPrompt,
-  buildSystemPrompt,
   LIVE_TOOL_CAPABILITY_DIRECTIVES,
   buildLiveToolCapabilityDirectives,
   PreResolvedHrContext
 } from '../services/live/LivePromptComposer';
+import { buildSystemPrompt } from '../services/live/livePromptBuilder';
 import { envConfig } from '../config/env';
 import { getLiveToolDeclarations } from '../services/live/liveToolDeclarations';
 import {

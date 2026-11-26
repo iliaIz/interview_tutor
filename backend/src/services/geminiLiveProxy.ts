@@ -10,7 +10,7 @@ import {
   getOrCreateSessionMemory
 } from './live/liveSessionRegistry';
 import { extractDefaultAnchors } from './live/liveRubricBuilder';
-import { buildSystemPrompt } from './live/LivePromptComposer';
+import { buildSystemPrompt } from './live/livePromptBuilder';
 import { getLiveToolDeclarations } from './live/liveToolDeclarations';
 import { LiveToolEngine } from './live/LiveToolEngine';
 
