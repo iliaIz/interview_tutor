@@ -1,21 +1,15 @@
 import { create } from 'zustand';
-import { TutorActiveContext } from '@interview-prep/shared';
-import { MutantDefinition } from '../types/practice';
+import {
+  TutorActiveContext,
+  TutorPersona,
+  normalizePracticeContext
+} from '@interview-prep/shared';
 import { TutorDomain } from '../components/practice/tutor/TutorDomain';
 import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
-import {
-  TutorContextInput,
-  streamTutorChat,
-  fetchTutorHint,
-  fetchTutorRuleGrounding
-} from './tutorTransport';
+import { TutorTransportPort, httpTutorTransport } from './tutorTransport';
 
-export type TutorPersona =
-  | 'junior_explainer'
-  | 'middle_scaffold'
-  | 'senior_socratic'
-  | 'faang_interviewer'
-  | 'company_interviewer';
+export type { TutorPersona };
+export type AssistanceLevel = 1 | 2 | 3 | 4;
 
 export interface TutorMessage {
   id: string;
@@ -24,35 +18,6 @@ export interface TutorMessage {
   timestamp: number;
   leakDetected?: boolean;
   similarity?: number;
-}
-
-export interface PracticeTutorContextPayload {
-  kataId: string;
-  kataTitle: string;
-  kataCategory: string;
-  kataInstructions: string;
-  activeFilePath: string;
-  activeFileContent: string;
-  selectedCodeSnippet?: string;
-  cursorLine?: number;
-  cursorColumn?: number;
-  survivingMutants?: MutantDefinition[];
-  compilerError?: string;
-  testFailureMessage?: string;
-  activeCompassRuleId?: string;
-  activeWhiteboardSnippet?: {
-    title: string;
-    code: string;
-    language: string;
-  };
-  workspaceManifest?: any;
-  academyBridgeContext?: {
-    courseId?: string;
-    stepId?: string;
-    moduleTitle?: string;
-    learningObjective?: string;
-    targetConcepts?: string[];
-  };
 }
 
 export interface PracticeTutorState {
@@ -82,243 +47,313 @@ export interface PracticeTutorState {
   initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => void;
   abortGeneration: () => void;
 
-  sendMessage: (text: string, context?: TutorContextInput) => Promise<void>;
-  requestHint: (hintTier: number, context?: TutorContextInput) => Promise<void>;
-  groundRule: (ruleId: string, context?: TutorContextInput) => Promise<void>;
+  sendMessage: (text: string, context?: TutorActiveContext) => Promise<void>;
+  requestHint: (hintTier: number, context?: TutorActiveContext) => Promise<void>;
+  groundRule: (ruleId: string, context?: TutorActiveContext) => Promise<void>;
 }
 
-export const usePracticeTutorStore = create<PracticeTutorState>((set, get) => ({
-  isOpen: false,
-  isCompassOpen: false,
-  activeCompassRuleId: null,
-  modality: 'text',
-  persona: 'middle_scaffold',
-  assistanceLevel: 2,
-  messages: [
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: getDomainWelcomeMessage('testing'),
-      timestamp: Date.now()
-    }
-  ],
-  isLoading: false,
-  currentStreamingText: '',
-  abortController: null,
-  activeContext: null,
+const ASSISTANCE_TO_PERSONA: Record<number, TutorPersona> = {
+  1: 'junior_explainer',
+  2: 'middle_scaffold',
+  3: 'senior_socratic',
+  4: 'faang_interviewer'
+};
 
-  toggleOpen: (open) => set((state) => ({ isOpen: open !== undefined ? open : !state.isOpen })),
-  toggleCompass: (open) => set((state) => ({ isCompassOpen: open !== undefined ? open : !state.isCompassOpen })),
-  setActiveCompassRuleId: (ruleId) => set({ activeCompassRuleId: ruleId }),
-  setModality: (modality) => set({ modality }),
-  setPersona: (persona) => set({ persona }),
-  setActiveContext: (activeContext) => set({ activeContext }),
+function resolveTargetContext(
+  provided: TutorActiveContext | undefined,
+  activeContext: TutorActiveContext | null,
+  persona: TutorPersona,
+  assistanceLevel: number,
+  patch?: { hintTier?: number; activeCompassRuleId?: string }
+): TutorActiveContext {
+  const base =
+    provided ||
+    activeContext ||
+    normalizePracticeContext({
+      kataId: 'practice-kata',
+      kataTitle: 'Practice Kata',
+      persona,
+      assistanceLevel
+    });
 
-  setAssistanceLevel: (level) => {
-    let persona: TutorPersona = 'middle_scaffold';
-    if (level === 1) persona = 'junior_explainer';
-    else if (level === 2) persona = 'middle_scaffold';
-    else if (level === 3) persona = 'senior_socratic';
-    else if (level === 4) persona = 'faang_interviewer';
-    set({ assistanceLevel: level, persona });
-  },
+  return {
+    ...base,
+    persona,
+    assistanceLevel,
+    ...(patch?.hintTier !== undefined ? { hintTier: patch.hintTier } : {}),
+    ...(patch?.activeCompassRuleId !== undefined ? { activeCompassRuleId: patch.activeCompassRuleId } : {})
+  };
+}
 
-  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
-    const welcome = getDomainWelcomeMessage(domain, challengeTitle);
-    set({
+export const DEFAULT_TUTOR_TRANSPORT: TutorTransportPort = httpTutorTransport;
+let activeSingletonTransport: TutorTransportPort = DEFAULT_TUTOR_TRANSPORT;
+
+export function setTutorTransportPort(transport: TutorTransportPort): void {
+  activeSingletonTransport = transport;
+}
+
+const singletonTransportProxy: TutorTransportPort = {
+  streamChat: (opts) => activeSingletonTransport.streamChat(opts),
+  fetchHint: (ctx, persona, lvl, signal) => activeSingletonTransport.fetchHint(ctx, persona, lvl, signal),
+  groundRule: (ruleId, ctx, persona, lvl, signal) => activeSingletonTransport.groundRule(ruleId, ctx, persona, lvl, signal)
+};
+
+export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT_TUTOR_TRANSPORT) {
+  return create<PracticeTutorState>((set, get) => {
+    const startAbortableTurn = (
+      userContent: string,
+      extraState?: Partial<PracticeTutorState>
+    ): { controller: AbortController; messages: TutorMessage[] } => {
+      get().abortGeneration();
+      const userMessage: TutorMessage = {
+        id: `usr_${Date.now()}`,
+        role: 'user',
+        content: userContent,
+        timestamp: Date.now()
+      };
+      const controller = new AbortController();
+      const nextMessages = [...get().messages, userMessage];
+      set({
+        messages: nextMessages,
+        isLoading: true,
+        isOpen: true,
+        currentStreamingText: '',
+        abortController: controller,
+        ...extraState
+      });
+      return { controller, messages: nextMessages };
+    };
+
+    const completeTurn = (controller: AbortController, assistantMessage: TutorMessage) => {
+      if (controller.signal.aborted || get().abortController !== controller) return;
+      set((state) => ({
+        messages: [...state.messages, assistantMessage],
+        isLoading: false,
+        currentStreamingText: '',
+        abortController: null
+      }));
+    };
+
+    const failTurn = (controller: AbortController, err: any, prefix: string, fallback: string) => {
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        if (get().abortController === controller) {
+          set({ abortController: null, isLoading: false, currentStreamingText: '' });
+        }
+        return;
+      }
+      if (get().abortController !== controller) return;
+      console.error(`[TutorStore] ${prefix}:`, err);
+      const errorMessage: TutorMessage = {
+        id: `err_${Date.now()}`,
+        role: 'system',
+        content: `⚠️ ${prefix}: ${err?.message || fallback}`,
+        timestamp: Date.now()
+      };
+      set((state) => ({
+        messages: [...state.messages, errorMessage],
+        isLoading: false,
+        currentStreamingText: '',
+        abortController: null
+      }));
+    };
+
+    return {
+      isOpen: false,
+      isCompassOpen: false,
+      activeCompassRuleId: null,
+      modality: 'text',
+      persona: 'middle_scaffold',
+      assistanceLevel: 2,
       messages: [
         {
-          id: `welcome_${Date.now()}`,
+          id: 'welcome',
           role: 'assistant',
-          content: welcome,
+          content: getDomainWelcomeMessage('testing'),
           timestamp: Date.now()
         }
       ],
+      isLoading: false,
       currentStreamingText: '',
-      isLoading: false
-    });
-  },
+      abortController: null,
+      activeContext: null,
 
-  clearMessages: () =>
-    set({
-      messages: [
-        {
-          id: `welcome_${Date.now()}`,
-          role: 'assistant',
-          content: 'История очищена. Задай новый вопрос по коду или выбери быструю подсказку!',
-          timestamp: Date.now()
+      toggleOpen: (open) => set((state) => ({ isOpen: open !== undefined ? open : !state.isOpen })),
+      toggleCompass: (open) => set((state) => ({ isCompassOpen: open !== undefined ? open : !state.isCompassOpen })),
+      setActiveCompassRuleId: (ruleId) => set({ activeCompassRuleId: ruleId }),
+      setModality: (modality) => set({ modality }),
+
+      setPersona: (persona) =>
+        set((state) => ({
+          persona,
+          activeContext: state.activeContext ? { ...state.activeContext, persona } : null
+        })),
+
+      setAssistanceLevel: (level) => {
+        const persona: TutorPersona = ASSISTANCE_TO_PERSONA[level] || 'middle_scaffold';
+        set((state) => ({
+          assistanceLevel: level,
+          persona,
+          activeContext: state.activeContext
+            ? { ...state.activeContext, assistanceLevel: level, persona }
+            : null
+        }));
+      },
+
+      setActiveContext: (activeContext) =>
+        set((state) => {
+          if (!activeContext) {
+            return { activeContext: null };
+          }
+          const isContextSwitch =
+            !state.activeContext ||
+            state.activeContext.arena !== activeContext.arena ||
+            state.activeContext.entityId !== activeContext.entityId;
+          if (isContextSwitch) {
+            return {
+              activeContext,
+              persona: activeContext.persona,
+              assistanceLevel: activeContext.assistanceLevel
+            };
+          }
+          return {
+            activeContext: {
+              ...activeContext,
+              persona: state.persona,
+              assistanceLevel: state.assistanceLevel
+            }
+          };
+        }),
+
+      initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
+        get().abortGeneration();
+        const welcome = getDomainWelcomeMessage(domain, challengeTitle);
+        const resetCompanyPersona = get().persona === 'company_interviewer';
+        set({
+          activeContext: null,
+          activeCompassRuleId: null,
+          ...(resetCompanyPersona ? { persona: 'middle_scaffold', assistanceLevel: 2 } : {}),
+          messages: [
+            {
+              id: `welcome_${Date.now()}`,
+              role: 'assistant',
+              content: welcome,
+              timestamp: Date.now()
+            }
+          ],
+          currentStreamingText: '',
+          isLoading: false
+        });
+      },
+
+      clearMessages: () =>
+        set({
+          messages: [
+            {
+              id: `welcome_${Date.now()}`,
+              role: 'assistant',
+              content: 'История очищена. Задай новый вопрос по коду или выбери быструю подсказку!',
+              timestamp: Date.now()
+            }
+          ]
+        }),
+
+      abortGeneration: () => {
+        const { abortController } = get();
+        if (abortController) {
+          abortController.abort();
+          set({ abortController: null, isLoading: false, currentStreamingText: '' });
         }
-      ]
-    }),
+      },
 
-  abortGeneration: () => {
-    const { abortController } = get();
-    if (abortController) {
-      abortController.abort();
-      set({ abortController: null, isLoading: false, currentStreamingText: '' });
-    }
-  },
+      sendMessage: async (text: string, context?: TutorActiveContext) => {
+        const { persona, assistanceLevel, activeContext } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel);
+        const { controller, messages } = startAbortableTurn(text);
+        let streamedText = '';
+        let doneMeta: { leakDetected?: boolean; maxSimilarity?: number } = {};
 
-  sendMessage: async (text: string, context?: TutorContextInput) => {
-    const { persona, assistanceLevel, messages, activeContext, abortGeneration } = get();
-    abortGeneration();
+        try {
+          const result = await transport.streamChat({
+            persona,
+            assistanceLevel,
+            messages: messages.map((m) => ({ role: m.role, content: m.content })),
+            context: targetContext,
+            signal: controller.signal,
+            onChunk: (delta) => {
+              streamedText = delta;
+              if (get().abortController === controller) {
+                set({ currentStreamingText: delta });
+              }
+            },
+            onDone: (meta) => {
+              doneMeta = meta;
+            }
+          });
 
-    const targetContext = context || activeContext || undefined;
-    const userMessage: TutorMessage = {
-      id: `usr_${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: Date.now()
+          completeTurn(controller, {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: result?.fullText ?? streamedText,
+            timestamp: Date.now(),
+            leakDetected: result?.leakDetected ?? Boolean(doneMeta.leakDetected),
+            similarity: result?.similarity ?? doneMeta.maxSimilarity ?? 0
+          });
+        } catch (err: any) {
+          failTurn(controller, err, 'Не удалось получить ответ', 'Ошибка связи с напарником');
+        }
+      },
+
+      requestHint: async (hintTier: number, context?: TutorActiveContext) => {
+        const { persona, assistanceLevel, activeContext } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, { hintTier });
+        const { controller } = startAbortableTurn(`💡 Запрос подсказки уровня ${hintTier} (Socratic Scaffold)`);
+
+        try {
+          const data = await transport.fetchHint(targetContext, persona, assistanceLevel, controller.signal);
+          completeTurn(controller, {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: data.content,
+            timestamp: Date.now(),
+            leakDetected: data.leakDetected
+          });
+        } catch (err: any) {
+          failTurn(controller, err, 'Не удалось получить подсказку', 'Ошибка');
+        }
+      },
+
+      groundRule: async (ruleId: string, context?: TutorActiveContext) => {
+        const { persona, assistanceLevel, activeContext } = get();
+        const targetContext = resolveTargetContext(
+          context,
+          activeContext,
+          persona,
+          assistanceLevel,
+          { activeCompassRuleId: ruleId }
+        );
+        const { controller } = startAbortableTurn(
+          `🧭 Проверка кода по правилу Компаса: ${ruleId}`,
+          { isCompassOpen: false, activeCompassRuleId: ruleId }
+        );
+
+        try {
+          const data = await transport.groundRule(ruleId, targetContext, persona, assistanceLevel, controller.signal);
+          completeTurn(controller, {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: data.content,
+            timestamp: Date.now(),
+            leakDetected: data.leakDetected
+          });
+        } catch (err: any) {
+          failTurn(controller, err, 'Ошибка проверки правила', 'Ошибка');
+        }
+      }
     };
+  });
+}
 
-    const newMessages = [...messages, userMessage];
-    set({
-      messages: newMessages,
-      isLoading: true,
-      isOpen: true,
-      currentStreamingText: ''
-    });
-
-    const controller = new AbortController();
-    set({ abortController: controller });
-
-    try {
-      const result = await streamTutorChat({
-        persona,
-        assistanceLevel,
-        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-        context: targetContext,
-        signal: controller.signal,
-        onChunk: (delta) => set({ currentStreamingText: delta })
-      });
-
-      const assistantMessage: TutorMessage = {
-        id: `ast_${Date.now()}`,
-        role: 'assistant',
-        content: result.fullText,
-        timestamp: Date.now(),
-        leakDetected: result.leakDetected,
-        similarity: result.similarity
-      };
-
-      set((state) => ({
-        messages: [...state.messages, assistantMessage],
-        isLoading: false,
-        currentStreamingText: '',
-        abortController: null
-      }));
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      console.error('[TutorStore] Send error:', err);
-      const errorMessage: TutorMessage = {
-        id: `err_${Date.now()}`,
-        role: 'system',
-        content: `⚠️ Не удалось получить ответ: ${err.message || 'Ошибка связи с напарником'}`,
-        timestamp: Date.now()
-      };
-      set((state) => ({
-        messages: [...state.messages, errorMessage],
-        isLoading: false,
-        currentStreamingText: '',
-        abortController: null
-      }));
-    }
-  },
-
-  requestHint: async (hintTier: number, context?: TutorContextInput) => {
-    const { abortGeneration, activeContext } = get();
-    abortGeneration();
-
-    const targetContext = context || activeContext || undefined;
-    const userMessage: TutorMessage = {
-      id: `usr_${Date.now()}`,
-      role: 'user',
-      content: `💡 Запрос подсказки уровня ${hintTier} (Socratic Scaffold)`,
-      timestamp: Date.now()
-    };
-
-    set((state) => ({
-      messages: [...state.messages, userMessage],
-      isLoading: true,
-      isOpen: true,
-      currentStreamingText: ''
-    }));
-
-    try {
-      const data = await fetchTutorHint(hintTier, targetContext);
-      const assistantMessage: TutorMessage = {
-        id: `ast_${Date.now()}`,
-        role: 'assistant',
-        content: data.content,
-        timestamp: Date.now(),
-        leakDetected: data.leakDetected
-      };
-      set((state) => ({
-        messages: [...state.messages, assistantMessage],
-        isLoading: false
-      }));
-    } catch (err: any) {
-      console.error('[TutorStore] Hint error:', err);
-      const errorMessage: TutorMessage = {
-        id: `err_${Date.now()}`,
-        role: 'system',
-        content: `⚠️ Не удалось получить подсказку: ${err.message || 'Ошибка'}`,
-        timestamp: Date.now()
-      };
-      set((state) => ({
-        messages: [...state.messages, errorMessage],
-        isLoading: false
-      }));
-    }
-  },
-
-  groundRule: async (ruleId: string, context?: TutorContextInput) => {
-    const { abortGeneration, activeContext } = get();
-    abortGeneration();
-
-    const targetContext = context || activeContext || undefined;
-    const userMessage: TutorMessage = {
-      id: `usr_${Date.now()}`,
-      role: 'user',
-      content: `🧭 Проверка кода по правилу Тестинг-Компаса: ${ruleId}`,
-      timestamp: Date.now()
-    };
-
-    set((state) => ({
-      messages: [...state.messages, userMessage],
-      isLoading: true,
-      isOpen: true,
-      isCompassOpen: false,
-      currentStreamingText: ''
-    }));
-
-    try {
-      const data = await fetchTutorRuleGrounding(ruleId, targetContext);
-      const assistantMessage: TutorMessage = {
-        id: `ast_${Date.now()}`,
-        role: 'assistant',
-        content: data.content,
-        timestamp: Date.now()
-      };
-      set((state) => ({
-        messages: [...state.messages, assistantMessage],
-        isLoading: false
-      }));
-    } catch (err: any) {
-      console.error('[TutorStore] Rule grounding error:', err);
-      const errorMessage: TutorMessage = {
-        id: `err_${Date.now()}`,
-        role: 'system',
-        content: `⚠️ Ошибка проверки правила: ${err.message || 'Ошибка'}`,
-        timestamp: Date.now()
-      };
-      set((state) => ({
-        messages: [...state.messages, errorMessage],
-        isLoading: false
-      }));
-    }
-  }
-}));
+export const usePracticeTutorStore = createPracticeTutorStore(singletonTransportProxy);
 
 // Pillar 11 SSOT alias for Omnipresent Copilot
 export const useTutorStore = usePracticeTutorStore;

@@ -191,4 +191,14 @@ Constructs the canonical Google Gemini Live protocol `setup` payload sent upon W
   2. Replaced hardcoded canonical candidate literals (`Илья`, `БТЛаб`, `Краснодар`, `310000`, `422-ФЗ`, `КНД 1122035`) across HR personas and screening/rehearsal/drill prompt sections with parameterized interpolation while preserving backward-compatible defaults on `HR_ANTI_SYCOPHANCY_DIRECTIVES` and direct `verifyPrompts.ts` checks.
 - **Invariants:** Non-canonical `CandidateDossier` fixtures inject 100% of their own identity/salary/location/legal basis without leaking canonical names or figures.
 
+---
+
+### 2.15 `LivePromptComposer, polymorphicPromptBuilder & CompassRuleResolver: Mode Templates, Turn 0 Lockdown & Rule Grounding (Specs 55 & 58 / #201, #205)`
+- **Location:** [`livePromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptBuilder.ts), [`LivePromptComposer.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/LivePromptComposer.ts), [`livePromptModeTemplates.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/live/livePromptModeTemplates.ts), [`polymorphicPromptBuilder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/prompts/tutor/polymorphicPromptBuilder.ts), [`compassRuleResolver.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/compassRuleResolver.ts)
+- **What Was Done:**
+  1. Reduced `livePromptBuilder.ts` to a 48L facade over `LivePromptComposer` (`<= 310L`) and `livePromptModeTemplates` (`<= 260L`), deleting 5 fragmented builder modules while ensuring `LIVE_TOOL_CAPABILITY_DIRECTIVES` and Turn 0 `submit_interview_evaluation` prohibition apply uniformly across `socratic_tutoring + mentor` and `customPromptOverride`.
+  2. Expanded `compassRuleResolver.ts` across all 5 Practice compass rule maps with canonical & legacy alias normalization (`STAMPED_LOCK_OPTIMISTIC`, `DISRUPTOR_LOCK_FREE`, `REPLACE_CONDITIONAL_WITH_POLYMORPHISM`, `SMELL_REMEDIATION`), and updated `polymorphicPromptBuilder` for enriched `TutorActiveContext` fields.
+- **Invariants:** Zero `toolResponse`/Turn-0 lockdown regressions across custom or mentor sessions; `verifyPrompts.ts` (split into text + live assertions) validates all prompt contracts.
+
+
 

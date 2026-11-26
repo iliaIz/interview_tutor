@@ -202,6 +202,17 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   2. **Pure Topology Simulation Kernel (`#189`):** Unified continuous tick physics (`LoadSimulationWorker`), discrete-event simulation (`desSimulator.worker` + `desScenarioRunner`), and Tarjan/DFS SPOF linting (`topologySpofLinter`, deleting `spofAnalyzer.ts`) in-process; fixed `engineEval.cacheHitRatio` override omission during DES scenario runs; added `test_llm_gateway_client.js` (`InMemoryTransportAdapter`) and `topologySimulationKernel.test.ts` to CI suites.
 - **Invariants:** Zero production callers bypass `LlmGatewayClient`; `streamChat` never retries or replays deltas after first SSE byte is yielded; Web Workers act solely as thin postMessage hosts over `TopologySimulationKernel`.
 
+---
+
+### 2.16 `QuestionEvaluationService, CatalogSeeder & Injectable TutorTransportPort (Specs 54, 57, 58 / #200, #202, #205, #207, #208)`
+- **Location:** [`QuestionEvaluationService.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/evaluation/QuestionEvaluationService.ts), [`QuestionEvaluationRepository.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/evaluation/QuestionEvaluationRepository.ts), [`DatabaseBootstrap.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/db/DatabaseBootstrap.ts), [`ChallengeCatalogLoader.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/db/ChallengeCatalogLoader.ts), [`CatalogSeeder.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/db/CatalogSeeder.ts), [`practiceTutor.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practiceTutor.ts), [`tutorTransport.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/tutorTransport.ts), [`usePracticeTutorStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/usePracticeTutorStore.ts)
+- **What Was Done:**
+  1. **Evaluation & Memory Ownership (`#200`):** Extracted `QuestionEvaluationService` + `QuestionEvaluationRepository`, slimmed `geminiText.ts` & `progressService.ts` to shims, enforced tenant `userId` isolation, propagated HTTP 429/503, and wired Express `res.on('close')` aborts on `/api/eval`.
+  2. **Atomic JSON Catalog Seeding (`#202`, `#207`):** Migrated 12,157L static TS challenge seeds into TypeBox `CodingChallengeSchema`-validated root `json/` catalogs loaded by `ChallengeCatalogLoader` / `CatalogSeeder`, moved hidden auth cleanups out of `dbIndexes.ts` into `cleanupInactiveInvites()`, eliminated `DP-01..07 -> LLD` clobbering, updated CI/non-CI verifier scripts, and deleted legacy TS seed files.
+  3. **Injectable Tutor Transport & Unified ActiveContext (`#205`, `#208`):** Introduced `normalizePracticeContext` & `TutorTransportPort` (`FakeTutorTransportPort` verified in `tutorTransportStore.test.ts`), removed `isPolymorphic` & `'middle_scaffold', 2` hardcodes, fixed `arena: 'practice'`, 429/503 propagation, compass rule IDs (`STAMPED_LOCK_OPTIMISTIC`, `DISRUPTOR_LOCK_FREE`, `REPLACE_CONDITIONAL_WITH_POLYMORPHISM`, `SMELL_REMEDIATION`), `TreeEditDistanceGuard` on hints, and `abortGeneration()` across hints/grounding.
+- **Invariants:** All 142 challenges pass `CodingChallengeSchema`; `PracticeChallengeCatalog` & CI verifiers read `json/` SSOT; `PracticeTutorContextPayload` is purged.
+
+
 
 
 

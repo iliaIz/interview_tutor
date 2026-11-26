@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { usePracticeTutorStore, TutorPersona } from '../../../store/usePracticeTutorStore';
-import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
+import type { TutorPersona } from '@interview-prep/shared';
+import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
+import { useAppStore } from '../../../store/useAppStore';
 import { HintTiersDropdown } from './HintTiersDropdown';
 import { TutorQuickActionChips } from './TutorQuickActionChips';
 import { TutorMessageList } from './TutorMessageList';
 import { TutorInputFooter } from './TutorInputFooter';
 import { resolveTutorDomain } from './TutorDomain';
-import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
-import { buildWorkspaceManifest } from '../../../utils/workspaceManifest';
+import { buildLivePracticeContext } from './practiceContextBuilder';
 import { X, MessageSquare, Mic, Bot } from 'lucide-react';
 
 const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
@@ -15,164 +15,59 @@ const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
   middle_scaffold: { name: 'Middle Peer-Programmer', badge: '🟡 L2: Коллега' },
   senior_socratic: { name: 'Senior Socratic', badge: '🟣 L3: Сократ' },
   faang_interviewer: { name: 'FAANG Staff Interviewer', badge: '🔴 L4: Архитектор' },
-  company_interviewer: { name: 'Raiffeisen Bar-Raiser', badge: '🏦 L5: Product Engineer Lead' },
+  company_interviewer: { name: 'Company Bar-Raiser', badge: '🏦 L5: Product Engineer Lead' }
 };
 
-export const PracticeTutorDrawer: React.FC = () => {
-  const {
-    isOpen,
-    toggleOpen,
-    toggleCompass,
-    modality,
-    setModality,
-    persona,
-    setPersona,
-    assistanceLevel,
-    setAssistanceLevel,
-    messages,
-    isLoading,
-    currentStreamingText,
-    sendMessage,
-    requestHint,
-    abortGeneration,
-    clearMessages,
-    activeContext,
-  } = usePracticeTutorStore();
+const PracticeTutorDrawerContent: React.FC = () => {
+  const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
+  const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
+  const modality = usePracticeTutorStore((s) => s.modality);
+  const setModality = usePracticeTutorStore((s) => s.setModality);
+  const persona = usePracticeTutorStore((s) => s.persona);
+  const assistanceLevel = usePracticeTutorStore((s) => s.assistanceLevel);
+  const setAssistanceLevel = usePracticeTutorStore((s) => s.setAssistanceLevel);
+  const messages = usePracticeTutorStore((s) => s.messages);
+  const isLoading = usePracticeTutorStore((s) => s.isLoading);
+  const currentStreamingText = usePracticeTutorStore((s) => s.currentStreamingText);
+  const sendMessage = usePracticeTutorStore((s) => s.sendMessage);
+  const requestHint = usePracticeTutorStore((s) => s.requestHint);
+  const abortGeneration = usePracticeTutorStore((s) => s.abortGeneration);
+  const clearMessages = usePracticeTutorStore((s) => s.clearMessages);
+  const activeContext = usePracticeTutorStore((s) => s.activeContext);
 
-  const {
-    activePracticeChallenge,
-    practiceWorkspaceFiles,
-    activeWorkspaceFileIndex,
-    activeTransactionLabScenarioId,
-    latestSandboxResult,
-    latestMutationResult,
-    latestTxEvaluation,
-    academyBreadcrumbContext,
-  } = useAppStore();
+  const activeChallengeCategory = useAppStore((s) => s.activePracticeChallenge?.category || '');
+  const activeChallengeTrack = useAppStore((s) => s.activePracticeChallenge?.track || '');
+  const activeChallengeTitle = useAppStore((s) => s.activePracticeChallenge?.title || '');
+  const hasActiveTxScenario = useAppStore((s) => Boolean(s.activeTransactionLabScenarioId));
 
   const [inputVal, setInputVal] = useState('');
 
-  const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
-
-  if (!isOpen) return null;
-
-  const txScenario = activeTransactionLabScenarioId
-    ? (TRANSACTION_LAB_SCENARIOS.find((s) => s.id === activeTransactionLabScenarioId) || TRANSACTION_LAB_SCENARIOS[0])
-    : null;
-
   const domain = resolveTutorDomain({
-    category: activePracticeChallenge?.category || '',
-    track: activePracticeChallenge?.track || '',
-    title: activePracticeChallenge?.title || '',
-    hasActiveTxScenario: !!activeTransactionLabScenarioId,
+    category: activeChallengeCategory,
+    track: activeChallengeTrack,
+    title: activeChallengeTitle,
+    hasActiveTxScenario
   });
 
-  // Format real-time compiler errors
-  let compilerError: string | undefined = undefined;
-  if (latestSandboxResult && !latestSandboxResult.isCompilable) {
-    if (latestSandboxResult.syntaxErrors && latestSandboxResult.syntaxErrors.length > 0) {
-      compilerError = latestSandboxResult.syntaxErrors
-        .map((e) => `Строка ${e.lineNumber}: ${e.errorMessage}`)
-        .join('\n');
-    } else if (latestSandboxResult.error) {
-      compilerError = latestSandboxResult.error;
-    }
-  }
+  const companyName = activeContext?.companyContext?.companyName;
+  const personaLabel =
+    persona === 'company_interviewer' && companyName
+      ? `${companyName} Bar-Raiser`
+      : PERSONA_LABELS[persona].name;
 
-  // Collect failure context
-  const failureParts: string[] = [];
-  if (latestSandboxResult) {
-    const failedTests = latestSandboxResult.testResults?.filter((t) => t.status !== 'PASSED') || [];
-    if (failedTests.length > 0) {
-      failureParts.push(
-        `Упавшие тесты (${failedTests.length}/${latestSandboxResult.testResults.length}):\n` +
-          failedTests.map((t) => `• [${t.testName}] ${t.failureReason || 'провален'}`).join('\n')
-      );
-    }
-    if (latestSandboxResult.concurrencyHarness?.deadlockDetected)
-      failureParts.push('⚠️ КРИТИЧЕСКАЯ ОШИБКА: Обнаружен взаимный дедлок потоков (Deadlock Detected).');
-    if (latestSandboxResult.concurrencyHarness?.raceConditionDetected)
-      failureParts.push('⚠️ ВНИМАНИЕ: Обнаружено состояние гонки данных (Race Condition Detected).');
-  }
-  if (latestMutationResult) {
-    if (!latestMutationResult.baselinePassed) {
-      failureParts.push(`⚠️ Baseline упал: ${latestMutationResult.error || 'Тесты не прошли даже на исходном сервисе'}`);
-    } else if (!latestMutationResult.passedThreshold) {
-      failureParts.push(
-        `⚠️ Мутации выжили: скор ${latestMutationResult.mutationScore.toFixed(0)}% (требуется >= ${latestMutationResult.requiredScore}%). Выжило мутантов: ${latestMutationResult.survivedCount} из ${latestMutationResult.totalMutants}.`
-      );
-    }
-  }
-  if (latestTxEvaluation && !latestTxEvaluation.isPassed) {
-    failureParts.push(
-      `⚠️ Архитектурные дефекты транзакций (Оценка: ${latestTxEvaluation.overallScore}/100):\n${latestTxEvaluation.summary}`
-    );
-    const methodViolations = Object.values(latestTxEvaluation.methodResults || {}).flatMap((m) =>
-      m.violations.map((v) => `• Метод ${m.methodId}: ${v}`)
-    );
-    if (methodViolations.length > 0) failureParts.push(methodViolations.join('\n'));
-  }
-
-  const currentContext = {
-    kataId: txScenario?.id || activePracticeChallenge?.id || 'kata',
-    kataTitle:
-      txScenario?.title ||
-      activePracticeChallenge?.title ||
-      (domain === 'lld' ? 'LLD Architecture Challenge'
-        : domain === 'transactions' ? 'Spring Transactions Challenge'
-        : 'Testing Kata'),
-    kataCategory:
-      txScenario
-        ? 'Spring Transactions'
-        : activePracticeChallenge?.category ||
-          (domain === 'lld' ? 'Low-Level Design (LLD)'
-            : domain === 'transactions' ? 'Transactions'
-            : 'Testing Kata'),
-    kataInstructions:
-      txScenario?.problemStatement ||
-      activePracticeChallenge?.instructionsMarkdown ||
-      activePracticeChallenge?.scenarioMarkdown ||
-      activePracticeChallenge?.shortDescription ||
-      '',
-    activeFilePath:
-      txScenario
-        ? `${txScenario.services[0]?.className}.java`
-        : currentFile?.path || (domain === 'lld' ? 'src/main/java/Service.java' : 'src/test/java/Test.java'),
-    activeFileContent:
-      txScenario
-        ? txScenario.services
-            .map((s) => `// ${s.className}\n` + s.methods.map((m) => m.codeSnippet).join('\n\n'))
-            .join('\n\n')
-        : currentFile?.content || '',
-    survivingMutants: activePracticeChallenge?.mutants,
-    compilerError,
-    testFailureMessage: failureParts.length > 0 ? failureParts.join('\n\n') : undefined,
-    activeWhiteboardSnippet: (() => {
-      const wb = selectActiveWhiteboardArtifact(useAppStore.getState());
-      if (wb?.code && wb.code.trim().length > 0)
-        return { title: wb.title, code: wb.code, language: wb.language };
-      return undefined;
-    })(),
-    workspaceManifest: buildWorkspaceManifest(practiceWorkspaceFiles, activeWorkspaceFileIndex),
-    academyBridgeContext: academyBreadcrumbContext ? {
-      courseId: academyBreadcrumbContext.courseId,
-      stepId: `step-${academyBreadcrumbContext.stepNumber}`,
-      moduleTitle: academyBreadcrumbContext.moduleTitle || academyBreadcrumbContext.stepTitle,
-      learningObjective: academyBreadcrumbContext.learningObjective,
-      targetConcepts: academyBreadcrumbContext.targetConcepts
-    } : undefined,
-  };
+  // Reads fresh workspace/editor state only on explicit user action dispatch.
+  const resolveDispatchContext = () =>
+    activeContext || buildLivePracticeContext(useAppStore.getState(), domain, persona, assistanceLevel);
 
   const handleSend = () => {
     if (!inputVal.trim() || isLoading) return;
     const text = inputVal;
     setInputVal('');
-    sendMessage(text, activeContext || currentContext);
+    void sendMessage(text, resolveDispatchContext());
   };
 
   return (
     <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[420px] bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
-      {/* Drawer Header */}
       <div className="px-4 py-3 border-b border-pastel-border/70 bg-gradient-to-r from-[#FFF0F5] via-white to-pastel-lavender/30 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
           <div className="w-8 h-8 rounded-xl bg-pastel-accentRose/10 border border-pastel-accentRose/30 flex items-center justify-center shrink-0">
@@ -187,8 +82,8 @@ export const PracticeTutorDrawer: React.FC = () => {
                 {activeContext?.arena === 'sql_arena'
                   ? '🐘 PostgreSQL 16'
                   : activeContext?.arena === 'companies'
-                  ? '🏦 Product Engineer'
-                  : PERSONA_LABELS[persona].badge}
+                    ? `🏦 ${companyName || 'Product Engineer'}`
+                    : PERSONA_LABELS[persona].badge}
               </span>
             </div>
             <p className="text-[10px] text-slate-500 truncate">
@@ -230,11 +125,10 @@ export const PracticeTutorDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Scaffolding Persona & Assistance Level Controls */}
       <div className="px-4 py-2 border-b border-pastel-border/50 bg-slate-50/50 flex flex-col gap-1.5 shrink-0">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Степень подсказок:</span>
-          <span className="text-[11px] font-semibold text-slate-600">{PERSONA_LABELS[persona].name}</span>
+          <span className="text-[11px] font-semibold text-slate-600">{personaLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           {[1, 2, 3, 4].map((lvl) => (
@@ -253,15 +147,17 @@ export const PracticeTutorDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Action Chips Bar */}
       <div className="px-3 py-2 border-b border-pastel-border/40 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0 no-scrollbar">
         {!activeContext && (
-          <HintTiersDropdown domain={domain} onSelectTier={(tier) => requestHint(tier, currentContext)} />
+          <HintTiersDropdown
+            domain={domain}
+            onSelectTier={(tier) => void requestHint(tier, resolveDispatchContext())}
+          />
         )}
         <TutorQuickActionChips
           domain={domain}
           customChips={activeContext?.quickActionChips}
-          onSendMessage={(text) => sendMessage(text, activeContext || currentContext)}
+          onSendMessage={(text) => void sendMessage(text, resolveDispatchContext())}
           onOpenCompass={() => toggleCompass(true)}
         />
       </div>
@@ -284,4 +180,10 @@ export const PracticeTutorDrawer: React.FC = () => {
       />
     </div>
   );
+};
+
+export const PracticeTutorDrawer: React.FC = () => {
+  const isOpen = usePracticeTutorStore((s) => s.isOpen);
+  if (!isOpen) return null;
+  return <PracticeTutorDrawerContent />;
 };

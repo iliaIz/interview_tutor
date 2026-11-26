@@ -217,4 +217,14 @@ Client-side Web Audio DSP, AudioWorklet ring buffers, speech capture, audio play
   3. **Transport Supervisor & Slim Handshake (`#192`):** Collapsed `liveVoiceUrlBuilder.ts`, `LiveHeartbeatController.ts`, and `LiveVoiceRecoveryController.ts` into `LiveTransportSupervisor` (`<= 240L`), emitting `<400B` `?awaitInit=1` WS URLs with zero duplicate keys while routing rich/HR payloads exclusively via `session_init`; narrowed `liveMicChunkDispatcher` into `MicBargeInGate(snapshot)` (`<= 80L`) preserving continuous Auto-VAD PCM & `-29 dBFS` 7-frame echo immunity.
 - **Invariants:** Output `setMuted` no longer silently drops AI speech without gain change; WebSocket URL strictly `<400` bytes; `NativeLiveVoiceEngine <= 340L`.
 
+---
+
+### 2.24 `useVoiceConfigStore, voiceConfigStorage & useAppStore SSR Storage: Single-Source Voice Persistence (Spec 59 / #203, #206)`
+- **Location:** [`voiceConfigStorage.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/services/voiceConfigStorage.ts), [`useVoiceConfigStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/useVoiceConfigStore.ts), [`useInterviewConfig.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/hooks/useInterviewConfig.ts), [`useAppStore.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/useAppStore.ts), [`uiSlice.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/slices/uiSlice.ts), [`questionsSlice.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/store/slices/questionsSlice.ts), [`voiceConfigStore.test.ts`](file:///home/djelu/projects/interview_tutor/frontend/tests/voiceConfigStore.test.ts)
+- **What Was Done:**
+  1. Consolidated 10 legacy `localStorage` voice keys, `cachedRuntimeVoiceConfig` global, and `CustomEvent` broadcasts into single-key `'interview_voice_config_v2'` Zustand store (`useVoiceConfigStore`, cross-tab `storage` listener, explicit `explicitLiveModel` runtime override guard); thinned `useInterviewConfig.ts` to 18L facade and stripped `runtimeConfig` / dead `shuffleMap` & `batchSizeMap` from `uiSlice` and `questionsSlice`.
+  2. Added `noopStateStorage` fallback in `useAppStore.ts` so Zustand v5 always attaches `.persist` APIs safely in SSR/Node tests without DOM `localStorage`.
+- **Invariants:** Explicit user model choices survive `/api/config` hydration; cross-tab sync performs zero redundant writes; `useAppStore.persist` is functional in Node tests (`voiceConfigStore.test.ts`).
+
+
 

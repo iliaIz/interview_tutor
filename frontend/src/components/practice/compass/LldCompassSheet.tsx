@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import {
@@ -155,8 +156,12 @@ const RuleCard: React.FC<RuleCardProps> = ({
 };
 
 export const LldCompassSheet: React.FC = () => {
-  const { isCompassOpen, toggleCompass, groundRule } = usePracticeTutorStore();
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const isCompassOpen = usePracticeTutorStore((s) => s.isCompassOpen);
+  const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
+  const groundRule = usePracticeTutorStore((s) => s.groundRule);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
 
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
@@ -173,17 +178,20 @@ export const LldCompassSheet: React.FC = () => {
   if (!isCompassOpen) return null;
 
   const handleApplyRule = (ruleId: string) => {
-    const context = {
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    const context = normalizePracticeContext({
       kataId: activePracticeChallenge?.id || 'lld-kata',
       kataTitle: activePracticeChallenge?.title || 'LLD Architecture Challenge',
       kataCategory: activePracticeChallenge?.category || 'Low-Level Design (LLD)',
       kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
       activeFilePath: currentFile?.path || 'src/main/java/Service.java',
       activeFileContent: currentFile?.content || '',
-      activeCompassRuleId: ruleId
-    };
+      activeCompassRuleId: ruleId,
+      persona,
+      assistanceLevel
+    });
 
-    groundRule(ruleId, context);
+    void groundRule(ruleId, context);
   };
 
   return (

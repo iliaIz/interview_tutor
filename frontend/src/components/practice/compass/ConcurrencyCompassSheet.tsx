@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import {
@@ -68,21 +69,21 @@ const CONCURRENCY_RULE_CARDS: Array<Omit<RuleCardProps, 'onApply'>> = [
     ]
   },
   {
-    id: 'DEADLOCK_FREE_HIERARCHY',
-    name: '4. Иерархия Захвата Замков (No Deadlocks)',
-    badge: 'Защита от дедлоков',
+    id: 'STAMPED_LOCK_OPTIMISTIC',
+    name: '4. Оптимистичные Чтения с StampedLock',
+    badge: 'Оптимистичная блокировка',
     badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
     icon: <Lock className="w-5 h-5 text-rose-600" />,
-    shortFormula: 'Захватывайте замки строго в порядке возрастания ID: min(id1, id2) -> max(id1, id2).',
-    fullPrinciple: 'При параллельной обработке двух ресурсов встречные потоки неизбежно вызывают циклический дедлок. Сортировка ID перед захватом гарантирует ацикличность графа ожидания ресурсов. Всегда оборачивайте unlock() в блок finally.',
+    shortFormula: 'tryOptimisticRead() исключает contention при доминировании операций чтения над записью.',
+    fullPrinciple: 'ReentrantReadWriteLock страдает от write-starvation и накладных расходов на счетчики читателей. StampedLock предоставляет tryOptimisticRead с валидацией штампа (validate), не блокируя писателей.',
     checklist: [
-      'Сортируются ли ключи ресурсов перед захватом блокировок?',
-      'Гарантирован ли вызов unlock() в блоке finally?',
-      'Используется ли tryLock(timeout) в сценариях с риском зависания?'
+      'Используется ли tryOptimisticRead с последующей проверкой validate(stamp)?',
+      'Предусмотрен ли фоллбэк на readLock при невалидном штампе?',
+      'Учитывается ли, что StampedLock не является реентерабельным?'
     ]
   },
   {
-    id: 'LOCK_FREE_DISRUPTOR',
+    id: 'DISRUPTOR_LOCK_FREE',
     name: '5. Неблокирующие Очереди и Память CPU',
     badge: 'High-Load & Cache Lines',
     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -152,8 +153,13 @@ const RuleCard: React.FC<RuleCardProps> = ({
 };
 
 export const ConcurrencyCompassSheet: React.FC = () => {
-  const { isCompassOpen, toggleCompass, groundRule, toggleOpen } = usePracticeTutorStore();
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const isCompassOpen = usePracticeTutorStore((s) => s.isCompassOpen);
+  const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
+  const groundRule = usePracticeTutorStore((s) => s.groundRule);
+  const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -177,17 +183,20 @@ export const ConcurrencyCompassSheet: React.FC = () => {
     toggleCompass(false);
     toggleOpen(true);
 
-    const context = {
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    const context = normalizePracticeContext({
       kataId: activePracticeChallenge?.id || 'concurrency',
       kataTitle: activePracticeChallenge?.title || 'Concurrency & Loom Challenge',
       kataCategory: 'Concurrency Lab',
       kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
       activeFilePath: currentFile?.path || 'src/main/java/ConcurrentService.java',
       activeFileContent: currentFile?.content || '',
-      activeCompassRuleId: ruleId
-    };
+      activeCompassRuleId: ruleId,
+      persona,
+      assistanceLevel
+    });
 
-    groundRule(ruleId, context);
+    void groundRule(ruleId, context);
   };
 
   return (

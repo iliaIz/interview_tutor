@@ -23,6 +23,7 @@ import { TransactionVerdictCard } from './TransactionVerdictCard';
 import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { WhiteboardDrawer } from '../WhiteboardDrawer';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
 import { usePracticeVoice } from './tutor/PracticeVoiceContext';
@@ -197,16 +198,19 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
 
   const handleAskTutorAboutRule = useCallback((ruleTitle: string, ruleSummary: string) => {
     toggleOpen(true);
-    sendMessage(
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    void sendMessage(
       `Разъясни подробно правило транзакций «${ruleTitle}»:\n${ruleSummary}\nКак это связано с текущим сценарием «${scenario.title}»?`,
-      {
+      normalizePracticeContext({
         kataId: scenario.id,
         kataTitle: scenario.title,
         kataCategory: 'Spring Transactions',
         kataInstructions: scenario.problemStatement,
         activeFilePath: 'src/main/java/TransactionScenario.java',
-        activeFileContent: scenario.services.map((s) => s.methods.map((m) => m.codeSnippet).join('\n')).join('\n')
-      }
+        activeFileContent: scenario.services.map((s) => s.methods.map((m) => m.codeSnippet).join('\n')).join('\n'),
+        persona,
+        assistanceLevel
+      })
     );
   }, [scenario, sendMessage, toggleOpen]);
 

@@ -17,6 +17,7 @@ import {
   Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
 import { useAppStore } from '../../store/useAppStore';
 import { MutantDiffInspector } from './MutantDiffInspector';
@@ -39,23 +40,28 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
     ? 'from-amber-500 to-yellow-500 text-amber-400'
     : 'from-rose-500 to-pink-500 text-rose-400';
 
-  const { sendMessage } = usePracticeTutorStore();
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const sendMessage = usePracticeTutorStore((s) => s.sendMessage);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
   const handleAskTutorAboutMutant = (mutant: MutantResult) => {
-    sendMessage(
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    void sendMessage(
       `Мутант "${mutant.name}" (${mutant.id}) выжил в файле ${mutant.file} на строке ${mutant.line}.\n` +
       `Объясни, почему текущие тесты его не поймали и какое граничное условие или проверку AssertJ нужно добавить?`,
-      {
+      normalizePracticeContext({
         kataId: activePracticeChallenge?.id || 'kata',
         kataTitle: activePracticeChallenge?.title || 'Testing Kata',
         kataCategory: activePracticeChallenge?.category || 'Testing & Mutation',
         kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
         activeFilePath: currentFile?.path || 'src/test/java/Test.java',
         activeFileContent: currentFile?.content || '',
-        survivingMutants: activePracticeChallenge?.mutants
-      }
+        survivingMutants: activePracticeChallenge?.mutants,
+        persona,
+        assistanceLevel
+      })
     );
   };
 

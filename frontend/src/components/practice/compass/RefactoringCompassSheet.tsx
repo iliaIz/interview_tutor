@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import {
@@ -68,7 +69,7 @@ const REFACTORING_RULE_CARDS: Array<Omit<RuleCardProps, 'onApply'>> = [
     ]
   },
   {
-    id: 'REPLACE_CONDITIONAL_POLYMORPHISM',
+    id: 'REPLACE_CONDITIONAL_WITH_POLYMORPHISM',
     name: '4. Замена Ветвлений на Полиморфизм',
     badge: 'Чистая архитектура',
     badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -82,7 +83,7 @@ const REFACTORING_RULE_CARDS: Array<Omit<RuleCardProps, 'onApply'>> = [
     ]
   },
   {
-    id: 'SMELL_REMEDIATION_DEMETER',
+    id: 'SMELL_REMEDIATION',
     name: '5. Ликвидация Запахов Кода и Закон Деметры',
     badge: 'Code Smells',
     badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -152,8 +153,13 @@ const RuleCard: React.FC<RuleCardProps> = ({
 };
 
 export const RefactoringCompassSheet: React.FC = () => {
-  const { isCompassOpen, toggleCompass, groundRule, toggleOpen } = usePracticeTutorStore();
-  const { activePracticeChallenge, practiceWorkspaceFiles, activeWorkspaceFileIndex } = useAppStore();
+  const isCompassOpen = usePracticeTutorStore((s) => s.isCompassOpen);
+  const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
+  const groundRule = usePracticeTutorStore((s) => s.groundRule);
+  const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -177,17 +183,20 @@ export const RefactoringCompassSheet: React.FC = () => {
     toggleCompass(false);
     toggleOpen(true);
 
-    const context = {
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    const context = normalizePracticeContext({
       kataId: activePracticeChallenge?.id || 'refactoring',
       kataTitle: activePracticeChallenge?.title || 'Refactoring Kata',
       kataCategory: 'Refactoring Katas',
       kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
       activeFilePath: currentFile?.path || 'src/main/java/LegacyService.java',
       activeFileContent: currentFile?.content || '',
-      activeCompassRuleId: ruleId
-    };
+      activeCompassRuleId: ruleId,
+      persona,
+      assistanceLevel
+    });
 
-    groundRule(ruleId, context);
+    void groundRule(ruleId, context);
   };
 
   return (

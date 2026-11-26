@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { normalizePracticeContext } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { TestingCompassRadar } from './TestingCompassRadar';
@@ -100,12 +101,12 @@ const RULE_CARDS: Array<Omit<RuleCardProps, 'onApply'>> = [
 ];
 
 export const TestingCompassSheet: React.FC = () => {
-  const { isCompassOpen, toggleCompass, groundRule } = usePracticeTutorStore();
-  const {
-    activePracticeChallenge,
-    practiceWorkspaceFiles,
-    activeWorkspaceFileIndex
-  } = useAppStore();
+  const isCompassOpen = usePracticeTutorStore((s) => s.isCompassOpen);
+  const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
+  const groundRule = usePracticeTutorStore((s) => s.groundRule);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const practiceWorkspaceFiles = useAppStore((s) => s.practiceWorkspaceFiles);
+  const activeWorkspaceFileIndex = useAppStore((s) => s.activeWorkspaceFileIndex);
 
   // Close on Escape
   useEffect(() => {
@@ -123,15 +124,22 @@ export const TestingCompassSheet: React.FC = () => {
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
   const handleApplyRule = (ruleId: string) => {
-    groundRule(ruleId, {
-      kataId: activePracticeChallenge?.id || 'kata',
-      kataTitle: activePracticeChallenge?.title || 'Testing Kata',
-      kataCategory: activePracticeChallenge?.category || 'Testing & Mutation',
-      kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
-      activeFilePath: currentFile?.path || 'src/test/java/Test.java',
-      activeFileContent: currentFile?.content || '',
-      survivingMutants: activePracticeChallenge?.mutants
-    });
+    const { persona, assistanceLevel } = usePracticeTutorStore.getState();
+    void groundRule(
+      ruleId,
+      normalizePracticeContext({
+        kataId: activePracticeChallenge?.id || 'kata',
+        kataTitle: activePracticeChallenge?.title || 'Testing Kata',
+        kataCategory: activePracticeChallenge?.category || 'Testing & Mutation',
+        kataInstructions: activePracticeChallenge?.instructionsMarkdown || '',
+        activeFilePath: currentFile?.path || 'src/test/java/Test.java',
+        activeFileContent: currentFile?.content || '',
+        survivingMutants: activePracticeChallenge?.mutants,
+        activeCompassRuleId: ruleId,
+        persona,
+        assistanceLevel
+      })
+    );
   };
 
   return (

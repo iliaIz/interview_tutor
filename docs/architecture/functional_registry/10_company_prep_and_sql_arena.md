@@ -170,6 +170,17 @@ This subsystem introduces company-targeted technical assessment pipelines (start
 - **2. Failure Modes & Invariants:**
   - `companies` endpoints never default to `'default_user'`; invalid company manifests fail explicit TypeBox validation; switching companies resets `completedCompanyStageIds` to `[]`.
 
+---
+
+### 2.14. Spec 58 (`#208`): Company Context Normalization, Dynamic Bar-Raiser & Atomic Drawer Selectors
+- **Files Touched:** `frontend/src/services/CompanyTrackContextAdapter.ts`, `frontend/src/components/companies/hooks/useCompanyStudioSession.ts`, `frontend/src/components/practice/tutor/PracticeTutorDrawer.tsx`, `frontend/src/components/practice/tutor/practiceContextBuilder.ts`.
+- **1. What Was Done:**
+  - Rebuilt `CompanyTrackContextAdapter.createTheoryQuestionContext` over shared `normalizeCompanyContext`, ensuring full red/green/take-home context parity without manual duplication.
+  - Hardened `useCompanyStudioSession` to clear stale `activeContext` on missing profiles and keep `sql_arena` context isolated across tab transitions.
+  - Slimmed `PracticeTutorDrawer.tsx` (`189L <= 270L`) using an `isOpen` mount guard + atomic selectors + lazy `buildLivePracticeContext` dispatch evaluation + dynamic `${companyName} Bar-Raiser` labeling.
+- **2. Invariants:** Closed `PracticeTutorDrawer` never subscribes to keystroke or sandbox state; hardcoded bank labels never override active `companyContext.companyName`.
+
+
 
 
 

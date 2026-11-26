@@ -100,7 +100,11 @@ export function useCompanyStudioSession(): UseCompanyStudioSessionReturn {
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
 
   useEffect(() => {
-    if (profile && activeCompanySubTab !== 'sql_arena') {
+    if (!profile) {
+      setActiveContext(null);
+      return;
+    }
+    if (activeCompanySubTab !== 'sql_arena') {
       setActiveContext(
         normalizeCompanyContext({
           profile,

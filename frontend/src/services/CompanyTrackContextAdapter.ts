@@ -4,7 +4,12 @@
  * Adheres strictly to ADR 0003, ADR 0004, and Rule 8 file hygiene (<= 200 lines).
  */
 
-import { TutorActiveContext, TutorQuickActionChip, CompanyProfile } from '@interview-prep/shared';
+import {
+  TutorActiveContext,
+  TutorQuickActionChip,
+  CompanyProfile,
+  normalizeCompanyContext
+} from '@interview-prep/shared';
 
 export interface CompanyQuestionSummary {
   id: string;
@@ -58,32 +63,22 @@ export class CompanyTrackContextAdapter {
       }
     ];
 
-    return {
-      arena: 'companies',
-      entityId: `${company.id}:${question.id}`,
-      entityTitle: question.question,
-      domain: `${company.name}: ${question.module || question.topic}`,
-      persona: 'company_interviewer',
-      assistanceLevel: 3,
-      instructions: `Вопрос из программы ${company.name}: «${question.question}» (${question.topic}).\nЭталонный ответ: ${question.answer || ''}${probeStr}${redFlagsStr}`,
-      companyContext: {
-        companyId: company.id,
-        companyName: company.name,
-        stageTitle: question.module || question.topic,
-        cultureMetrics: company.culture?.metricsFocus,
-        redFlags: company.culture?.redFlags,
-        greenFlags: company.culture?.greenFlags,
-        takeHomeContext: company.takeHomePrCases && company.takeHomePrCases.length > 0
-          ? {
-              title: `Take-Home Lab (${company.name})`,
-              prAntiPatternsSummary: company.takeHomePrCases
-                .map((c) => c.title || '')
-                .filter(Boolean)
-                .slice(0, 3)
-                .join(', ')
-            }
-          : undefined
+    const instructions = `Вопрос из программы ${company.name}: «${question.question}» (${question.topic}).\nЭталонный ответ: ${question.answer || ''}${probeStr}${redFlagsStr}`;
+    const base = normalizeCompanyContext({
+      profile: company,
+      activeStage: {
+        id: question.id,
+        title: question.module || question.topic,
+        description: instructions
       },
+      activeTaskTitle: question.question
+    });
+
+    return {
+      ...base,
+      entityId: `${company.id}:${question.id}`,
+      domain: `${company.name}: ${question.module || question.topic}`,
+      instructions,
       quickActionChips: chips
     };
   }

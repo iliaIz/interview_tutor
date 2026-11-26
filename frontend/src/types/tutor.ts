@@ -3,11 +3,9 @@
  * Synthesized from Wave 4 Deep Research: Multimodal Socratic Curriculum Routing
  */
 
-export type TutorPersona =
-  | 'junior_explainer'
-  | 'middle_scaffold'
-  | 'senior_socratic'
-  | 'faang_interviewer';
+import type { TutorPersona } from '@interview-prep/shared';
+
+export type { TutorPersona };
 
 export type TutorArenaId =
   | 'testing'
