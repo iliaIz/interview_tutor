@@ -81,18 +81,6 @@ export interface CompanyStudioSpokePayload {
   activeTaskTitle?: string;
 }
 
-export interface PracticeSpokePayload {
-  kataId: string;
-  kataTitle: string;
-  kataCategory?: string;
-  kataInstructions?: string;
-  activeFilePath?: string;
-  activeFileContent?: string;
-  compilerError?: string;
-  testFailureMessage?: string;
-  assistanceLevel?: number;
-}
-
 /**
  * Normalizes SQL Arena workspace into canonical TutorActiveContext.
  */
@@ -190,44 +178,6 @@ export function normalizeCompanyContext(payload: CompanyStudioSpokePayload): Tut
           }
         : undefined
     },
-    quickActionChips
-  };
-}
-
-/**
- * Normalizes Practice Workspace into canonical TutorActiveContext.
- */
-export function normalizePracticeContext(payload: PracticeSpokePayload): TutorActiveContext {
-  const quickActionChips: TutorQuickActionChip[] = [
-    {
-      id: 'socratic_hint',
-      label: '💡 Socratic Намёк',
-      promptMessage: 'Дай Socratic-намёк на нарушение инварианта в коде, не раскрывая готовое решение.'
-    },
-    {
-      id: 'mutation_kill',
-      label: '🎯 Как убить мутанта?',
-      promptMessage: 'Объясни структуру выжившего мутанта и какой граничный тест необходим для его уничтожения.'
-    },
-    {
-      id: 'ast_structure',
-      label: '🧩 Архитектурный паттерн',
-      promptMessage: 'Какой архитектурный паттерн или рефакторинг здесь наиболее уместен?'
-    }
-  ];
-
-  return {
-    arena: 'practice',
-    entityId: payload.kataId,
-    entityTitle: payload.kataTitle,
-    domain: payload.kataCategory || 'Testing & Mutation Katas',
-    persona: 'middle_scaffold',
-    assistanceLevel: payload.assistanceLevel || 2,
-    activeFilePath: payload.activeFilePath,
-    activeCodeOrQuery: payload.activeFileContent,
-    instructions: payload.kataInstructions || '',
-    compilerError: payload.compilerError,
-    runtimeError: payload.testFailureMessage,
     quickActionChips
   };
 }

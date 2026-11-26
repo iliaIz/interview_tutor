@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { CodingChallenge } from '@interview-prep/shared';
 import { envConfig } from '../config/env';
 import { TreeEditDistanceGuard } from '../services/sandbox/TreeEditDistanceGuard';
 import {
@@ -8,23 +9,141 @@ import {
   TRANSACTION_COMPASS_RULES,
   CONCURRENCY_COMPASS_RULES,
   REFACTORING_COMPASS_RULES,
-  TutorPersona,
-  HintTier,
-  PracticeTutorContext
+  CompassRule,
+  HintTier
 } from '../prompts/practiceTutorPrompts';
 import { buildPolymorphicTutorSystemPrompt } from '../prompts/tutor/polymorphicPromptBuilder';
 import { streamTutorSse } from './practiceTutorStreaming';
 import { llmGateway, LlmGatewayUnavailableError } from '../services/LlmGatewayClient';
-import { ALL_MUTATION_CHALLENGES } from '../services/mutationChallenges';
-import { db } from '../services/db';
-import { pruneTutorContext } from '../services/practiceContextPruner';
+import { db, ChallengeCatalogLoader } from '../services/db';
+import {
+  resolveTutorRouteContext,
+  toPracticeTutorContext,
+  ResolvedTutorRouteContext
+} from './tutorContextResolver';
+import { resolveCompassRule } from './compassRuleResolver';
+
+export { resolveTutorRouteContext } from './tutorContextResolver';
 
 const router = Router();
+let cachedMutationCatalog: CodingChallenge[] | null = null;
 
-// Cache of solution sources per challenge for the AST guard
+function extractSolutionsFromManifest(manifest: any): string[] {
+  const refFiles = Array.isArray(manifest?.referenceSolutionFiles)
+    ? manifest.referenceSolutionFiles
+        .map((f: any) => f?.content)
+        .filter((c: any): c is string => typeof c === 'string' && c.length > 0)
+    : [];
+  const testFiles = Array.isArray(manifest?.workspaceFiles)
+    ? manifest.workspaceFiles
+        .filter((f: any) => typeof f?.path === 'string' && f.path.includes('Test.java'))
+        .map((f: any) => f?.content)
+        .filter((c: any): c is string => typeof c === 'string' && c.length > 0)
+    : [];
+  return Array.from(new Set([...refFiles, ...testFiles]));
+}
+
 function getChallengeCanonicalSolutions(challengeId: string): string[] {
-  const challenge = ALL_MUTATION_CHALLENGES.find((c) => c.id === challengeId);
-  return challenge ? challenge.workspaceFiles.filter((f) => f.path.includes('Test.java')).map((f) => f.content) : [];
+  if (!challengeId) return [];
+  try {
+    const row = db
+      .prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?')
+      .get(challengeId, challengeId) as { manifest_json?: string } | undefined;
+    if (row?.manifest_json) {
+      return extractSolutionsFromManifest(JSON.parse(row.manifest_json));
+    }
+  } catch (err) {
+    console.warn('[practiceTutor] Failed to read canonical solutions from SQLite:', err);
+  }
+  try {
+    if (!cachedMutationCatalog) {
+      cachedMutationCatalog = ChallengeCatalogLoader.loadMutationChallenges();
+    }
+    const challenge = cachedMutationCatalog.find((c) => c.id === challengeId || c.slug === challengeId);
+    return challenge ? extractSolutionsFromManifest(challenge) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Context pruning (pruneTutorContext) and academyBridgeContext normalization run inside resolveTutorRouteContext
+function hydrateAndBuildPrompt(
+  resolved: ResolvedTutorRouteContext,
+  opts: { hintTier?: HintTier; activeCompassRuleId?: string; fallbackCategory?: string; extraRule?: CompassRule } = {}
+): { systemPrompt: string; targetSolutions: string[] } {
+  if (!resolved.isPracticeArena) {
+    let prompt = buildPolymorphicTutorSystemPrompt(resolved.context);
+    if (resolved.pruned.earlierTurnsSummary) {
+      prompt += `\n\n=== РЕЗЮМЕ РАННЕГО ДИАЛОГА (СЖАТЫЙ КОНТЕКСТ) ===\n${resolved.pruned.earlierTurnsSummary}`;
+    }
+    if (resolved.pruned.academyDirectives) {
+      prompt += `\n\n${resolved.pruned.academyDirectives}`;
+    }
+    if (opts.hintTier !== undefined) {
+      prompt += `\n\nРЕЖИМ ПОДСКАЗКИ: УРОВЕНЬ ${opts.hintTier}. Дай сфокусированную Socratic-подсказку без раскрытия готового решения.`;
+    }
+    if (opts.extraRule) {
+      prompt += `\n\nАКТИВНОЕ ПРАВИЛО КОМПАСА: "${opts.extraRule.name}" — ${opts.extraRule.shortFormula}`;
+    }
+    return { systemPrompt: prompt, targetSolutions: [] };
+  }
+
+  let resolvedInstructions = resolved.context.instructions || '';
+  let resolvedTitle = resolved.context.entityTitle;
+  let resolvedCategory = resolved.context.domain;
+
+  if (resolved.rawEntityId && (!resolvedInstructions || resolvedInstructions.trim().length < 20)) {
+    try {
+      const row = db
+        .prepare('SELECT title, category, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?')
+        .get(resolved.rawEntityId, resolved.rawEntityId) as any;
+      if (row) {
+        resolvedInstructions = row.instructions_markdown || row.short_description || '';
+        if (!resolvedTitle || resolvedTitle === resolved.rawEntityId) resolvedTitle = row.title;
+        if (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas') resolvedCategory = row.category;
+      }
+    } catch (dbErr) {
+      console.warn('[practiceTutor] Failed to hydrate kata instructions from SQLite:', dbErr);
+    }
+  }
+
+  if (opts.fallbackCategory && (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas')) {
+    resolvedCategory = opts.fallbackCategory;
+  }
+
+  const practiceContext = toPracticeTutorContext(resolved, {
+    kataTitle: resolvedTitle,
+    kataCategory: resolvedCategory,
+    kataInstructions: resolvedInstructions,
+    hintTier: opts.hintTier,
+    activeCompassRuleId: opts.activeCompassRuleId
+  });
+
+  return {
+    systemPrompt: buildPracticeTutorSystemPrompt(practiceContext),
+    targetSolutions: resolved.rawEntityId ? getChallengeCanonicalSolutions(resolved.rawEntityId) : []
+  };
+}
+
+function handleTutorRouteError(err: any, res: Response, routeLabel: string, fallbackMessage: string): void {
+  if (err?.name === 'AbortError') return;
+  console.error(`Error in /api/practice-tutor/${routeLabel}:`, err);
+  if (res.headersSent) {
+    res.write(`data: ${JSON.stringify({ error: err instanceof LlmGatewayUnavailableError ? err.userMessage : (err?.message || 'Stream error') })}\n\n`);
+    res.end();
+    return;
+  }
+  if (err instanceof LlmGatewayUnavailableError || err?.name === 'LlmGatewayUnavailableError') {
+    const status = err.reason === 'rate_limit_exceeded' ? 429 : 503;
+    res.status(status).json({
+      error: err.userMessage,
+      isGatewayUnavailable: true,
+      reason: err.reason,
+      retryAfterSeconds: err.retryAfterSeconds
+    });
+    return;
+  }
+  res.status(500).json({ error: err?.message || fallbackMessage });
 }
 
 // GET /api/practice-tutor/*compass-rules
@@ -42,91 +161,14 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
   });
 
   try {
-    const {
-      persona = 'middle_scaffold',
-      assistanceLevel = 2,
-      kataId,
-      kataTitle,
-      kataCategory = 'Testing & Mutation Katas',
-      kataInstructions = '',
-      activeFilePath,
-      activeFileContent,
-      selectedCodeSnippet,
-      cursorLine,
-      cursorColumn,
-      survivingMutants,
-      compilerError,
-      testFailureMessage,
-      activeCompassRuleId,
-      activeWhiteboardSnippet,
-      workspaceManifest,
-      messages = [],
-      academyBridgeContext,
-      stream = true
-    } = req.body;
-
-    const isPolymorphic = Boolean(req.body.arena && req.body.arena !== 'practice');
-    let systemPrompt: string;
-    let targetSolutions: string[] = [];
-
-    // Gate 04: Token Budgeting & Sliding Window Pruning
-    const pruned = pruneTutorContext({
-      messages,
-      activeFilePath,
-      activeFileContent,
-      workspaceManifest,
-      academyBridgeContext
-    });
-
-    if (isPolymorphic) {
-      systemPrompt = buildPolymorphicTutorSystemPrompt(req.body);
-    } else {
-      let resolvedInstructions = (kataInstructions as string) || '';
-      let resolvedTitle = (kataTitle as string) || kataId || '';
-      let resolvedCategory = (kataCategory as string) || 'Testing & Mutation Katas';
-
-      if (kataId && (!resolvedInstructions || resolvedInstructions.trim().length < 20)) {
-        try {
-          const row = db.prepare('SELECT title, category, short_description, instructions_markdown FROM coding_challenges WHERE id = ? OR slug = ?').get(kataId, kataId) as any;
-          if (row) {
-            resolvedInstructions = row.instructions_markdown || row.short_description || '';
-            if (!resolvedTitle || resolvedTitle === kataId) resolvedTitle = row.title;
-            if (!resolvedCategory || resolvedCategory === 'Testing & Mutation Katas') resolvedCategory = row.category;
-          }
-        } catch (dbErr) {
-          console.warn('[practiceTutor] Failed to hydrate kata instructions from SQLite:', dbErr);
-        }
-      }
-
-      const context: PracticeTutorContext = {
-        persona: persona as TutorPersona,
-        assistanceLevel: Number(assistanceLevel),
-        kataTitle: resolvedTitle,
-        kataCategory: resolvedCategory,
-        kataInstructions: resolvedInstructions,
-        activeFilePath: activeFilePath || 'src/test/java/ExampleTest.java',
-        activeFileContent: activeFileContent || '',
-        selectedCodeSnippet,
-        cursorLine,
-        cursorColumn,
-        survivingMutants,
-        compilerError,
-        testFailureMessage,
-        activeCompassRuleId,
-        activeWhiteboardSnippet,
-        workspaceManifest: pruned.prunedXmlManifest ? { xmlManifest: pruned.prunedXmlManifest } : workspaceManifest,
-        academyBridgeContext,
-        earlierTurnsSummary: pruned.earlierTurnsSummary
-      };
-
-      systemPrompt = buildPracticeTutorSystemPrompt(context);
-      targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
-    }
-
+    const resolved = resolveTutorRouteContext(req.body);
+    const { systemPrompt, targetSolutions } = hydrateAndBuildPrompt(resolved);
+    const { persona, assistanceLevel } = resolved.context;
     const isSocratic = persona === 'senior_socratic' || persona === 'faang_interviewer' || assistanceLevel >= 3;
+
     const chatMessages = [
       { role: 'system' as const, content: systemPrompt },
-      ...pruned.prunedMessages.map((m: any) => ({ role: m.role, content: m.content }))
+      ...resolved.pruned.prunedMessages.map((m) => ({ role: m.role, content: m.content }))
     ];
     const execOpts = {
       messages: chatMessages,
@@ -137,7 +179,7 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       abortSignal: abortController.signal
     };
 
-    if (!stream) {
+    if (!resolved.stream) {
       const rawText = await llmGateway.completeText(execOpts);
       const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
         leakThreshold: 0.40,
@@ -152,21 +194,8 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
     }
 
     await streamTutorSse(llmGateway.streamChat(execOpts), res, { targetSolutions, isSocratic });
-
   } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    console.error('Error in /api/practice-tutor/chat:', err);
-    if (!res.headersSent) {
-      if (err instanceof LlmGatewayUnavailableError) {
-        const status = err.reason === 'rate_limit_exceeded' ? 429 : 503;
-        res.status(status).json({ error: err.userMessage, isGatewayUnavailable: true });
-        return;
-      }
-      res.status(500).json({ error: err.message || 'Internal tutor error' });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: err instanceof LlmGatewayUnavailableError ? err.userMessage : (err.message || 'Stream error') })}\n\n`);
-      res.end();
-    }
+    handleTutorRouteError(err, res, 'chat', 'Internal tutor error');
   }
 });
 
@@ -176,37 +205,11 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
   });
+
   try {
-    const {
-      hintTier = 1,
-      kataId,
-      kataTitle,
-      kataCategory,
-      kataInstructions,
-      activeFilePath,
-      activeFileContent,
-      survivingMutants,
-      compilerError,
-      testFailureMessage,
-      activeWhiteboardSnippet
-    } = req.body;
-
-    const context: PracticeTutorContext = {
-      persona: 'middle_scaffold',
-      assistanceLevel: 2,
-      kataTitle: kataTitle || kataId,
-      kataCategory: kataCategory || 'Testing & Mutation Katas',
-      kataInstructions: kataInstructions || '',
-      activeFilePath: activeFilePath || 'src/test/java/Test.java',
-      activeFileContent: activeFileContent || '',
-      survivingMutants,
-      compilerError,
-      testFailureMessage,
-      activeWhiteboardSnippet,
-      hintTier: Number(hintTier) as HintTier
-    };
-
-    const systemPrompt = buildPracticeTutorSystemPrompt(context);
+    const resolved = resolveTutorRouteContext(req.body);
+    const hintTier = Number(req.body?.hintTier ?? resolved.context.hintTier ?? 1);
+    const { systemPrompt, targetSolutions } = hydrateAndBuildPrompt(resolved, { hintTier: hintTier as HintTier });
     const userPrompt = `Мне нужна подсказка уровня ${hintTier} по модели RIPR для решения этой задачи. Пожалуйста, дай четкий педагогический совет без списывания.`;
 
     const rawText = await llmGateway.completeText({
@@ -219,60 +222,43 @@ router.post('/hint', async (req: Request, res: Response): Promise<void> => {
       abortSignal: abortController.signal
     });
 
-    const targetSolutions = kataId ? getChallengeCanonicalSolutions(kataId) : [];
     const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
       leakThreshold: 0.40,
       isSocraticEnforced: true
     });
 
     res.json({
-      hintTier: Number(hintTier),
+      hintTier,
       content: guardResult.redactedText,
       leakDetected: guardResult.leakDetected
     });
   } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    console.error('Error in /api/practice-tutor/hint:', err);
-    res.status(500).json({ error: err.message || 'Failed to generate hint' });
+    handleTutorRouteError(err, res, 'hint', 'Failed to generate hint');
   }
 });
 
-// POST /api/practice-tutor/rule-grounding (Testing Compass 5 Golden Rules)
+// POST /api/practice-tutor/rule-grounding (All 5 Domain Compasses)
 router.post('/rule-grounding', async (req: Request, res: Response): Promise<void> => {
   const abortController = new AbortController();
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
   });
-  try {
-    const {
-      ruleId,
-      kataId,
-      kataTitle,
-      activeFilePath,
-      activeFileContent,
-      survivingMutants
-    } = req.body;
 
-    const rule = LLD_COMPASS_RULES[ruleId] || TESTING_COMPASS_RULES[ruleId];
-    if (!rule) {
+  try {
+    const resolved = resolveTutorRouteContext(req.body);
+    const ruleId = String(req.body?.ruleId || resolved.context.activeCompassRuleId || '');
+    const matched = resolveCompassRule(ruleId);
+    if (!matched) {
       res.status(400).json({ error: `Unknown ruleId: ${ruleId}` });
       return;
     }
 
-    const context: PracticeTutorContext = {
-      persona: 'middle_scaffold',
-      assistanceLevel: 2,
-      kataTitle: kataTitle || kataId,
-      kataCategory: req.body.kataCategory || (LLD_COMPASS_RULES[ruleId] ? 'Low-Level Design (LLD)' : 'Testing & Mutation Katas'),
-      kataInstructions: '',
-      activeFilePath: activeFilePath || 'src/test/java/Test.java',
-      activeFileContent: activeFileContent || '',
-      survivingMutants,
-      activeCompassRuleId: ruleId
-    };
-
-    const systemPrompt = buildPracticeTutorSystemPrompt(context);
-    const userPrompt = `Проверь мой код на соответствие правилу Компаса "${rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
+    const { systemPrompt, targetSolutions } = hydrateAndBuildPrompt(resolved, {
+      activeCompassRuleId: matched.resolvedRuleId,
+      fallbackCategory: matched.defaultCategory,
+      extraRule: matched.rule
+    });
+    const userPrompt = `Проверь мой код на соответствие правилу Компаса "${matched.rule.name}". Укажи, где в моем коде есть расхождения с этим правилом и как их устранить.`;
 
     const rawText = await llmGateway.completeText({
       systemPrompt,
@@ -284,15 +270,19 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
       abortSignal: abortController.signal
     });
 
+    const guardResult = TreeEditDistanceGuard.guardResponse(rawText, targetSolutions, {
+      leakThreshold: 0.40,
+      isSocraticEnforced: true
+    });
+
     res.json({
       ruleId,
-      ruleName: rule.name,
-      content: rawText
+      ruleName: matched.rule.name,
+      content: guardResult.redactedText,
+      leakDetected: guardResult.leakDetected
     });
   } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    console.error('Error in /api/practice-tutor/rule-grounding:', err);
-    res.status(500).json({ error: err.message || 'Failed to ground rule' });
+    handleTutorRouteError(err, res, 'rule-grounding', 'Failed to ground rule');
   }
 });
 
