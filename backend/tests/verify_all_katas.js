@@ -1,7 +1,8 @@
-const { SEEDED_CHALLENGES } = require('../dist/services/challengeSeedData');
+const { ChallengeCatalogLoader } = require('../dist/services/db/ChallengeCatalogLoader');
 const { JvmExecutionService } = require('../dist/services/sandbox/JvmExecutionService');
 
 async function testAllKatas() {
+  const SEEDED_CHALLENGES = ChallengeCatalogLoader.loadLegacySeededChallenges();
   console.log('Testing all challenges in In-Memory Java 21 Sandbox...');
   let successCount = 0;
   let failedCount = 0;

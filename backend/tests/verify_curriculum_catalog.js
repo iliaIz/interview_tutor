@@ -1,8 +1,11 @@
 const { JvmExecutionService } = require('../dist/services/sandbox/JvmExecutionService');
-const { L0_PRIMITIVES_CHALLENGES, L1_REVERSE_TESTING_CHALLENGES } = require('../dist/services/mutationChallenges');
+const { ChallengeCatalogLoader } = require('../dist/services/db/ChallengeCatalogLoader');
 
 async function verifyCurriculum() {
   console.log('🧪 VERIFYING CURRICULUM LADDER (L0 Primitives & L1 Reverse Testing)...');
+  const mutationCatalog = ChallengeCatalogLoader.loadMutationChallenges();
+  const L0_PRIMITIVES_CHALLENGES = mutationCatalog.filter(c => c.id.startsWith('kata_prim_'));
+  const L1_REVERSE_TESTING_CHALLENGES = mutationCatalog.filter(c => c.id.startsWith('kata_rev_'));
   const allKatas = [...L0_PRIMITIVES_CHALLENGES, ...L1_REVERSE_TESTING_CHALLENGES];
   console.log(`Total tasks to verify: ${allKatas.length}`);
 

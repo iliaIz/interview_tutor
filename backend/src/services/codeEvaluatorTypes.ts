@@ -1,4 +1,4 @@
-import { CodingChallenge } from './challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 import { ConcurrencyFinding } from './codeEvaluatorSchema';
 

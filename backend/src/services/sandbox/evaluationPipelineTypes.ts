@@ -1,4 +1,4 @@
-import { CodingChallenge } from '../challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import type { SandboxExecutionRequest, SandboxExecutionResponse } from './JvmExecutionService';
 import type { MutationExecutionRequest, MutationExecutionResponse } from './JvmMutationEngine';
 import type { JavaStaticAnalysisEngine } from './JavaStaticAnalysisEngine';

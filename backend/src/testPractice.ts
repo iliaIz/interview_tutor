@@ -1,12 +1,20 @@
-import { db, seedCodingChallenges } from './services/db';
+import { db, seedCodingChallenges, ChallengeCatalogLoader } from './services/db';
 import { preProcessWorkspaceFiles } from './services/astAnalyzer';
-import { SEEDED_CHALLENGES } from './services/challengeSeedData';
 
 async function testBackendServices() {
-  console.log('--- 1. Testing DB Seeding ---');
+  console.log('--- 1. Testing DB Seeding & JSON Catalog Integrity ---');
+  const legacyCatalog = ChallengeCatalogLoader.loadLegacySeededChallenges();
+  console.log(`Validated Legacy JSON Catalog Count: ${legacyCatalog.length}`);
+  if (legacyCatalog.length !== 62) {
+    throw new Error(`Expected 62 legacy JSON challenges, got ${legacyCatalog.length}`);
+  }
+
   seedCodingChallenges();
   const countRow = db.prepare('SELECT COUNT(*) as count FROM coding_challenges').get() as { count: number };
   console.log(`Seeded Challenges Count: ${countRow.count}`);
+  if (countRow.count < legacyCatalog.length) {
+    throw new Error(`Expected at least ${legacyCatalog.length} seeded challenges in DB, got ${countRow.count}`);
+  }
 
   console.log('\n--- 2. Testing AST Analyzer & Comment Stripper ---');
   const sampleMaliciousCode = `

@@ -5,7 +5,7 @@
  * Cognitive Bounding Limit: <= 350 lines (Rule 8 compliant).
  */
 
-import { CodingChallenge } from '../challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import {
   EvaluationCodeFile,
   ChallengeEvaluationInput,

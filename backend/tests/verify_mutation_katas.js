@@ -10,8 +10,7 @@
 
 const { JvmExecutionService } = require('../dist/services/sandbox/JvmExecutionService');
 const { TestQualityScanner } = require('../dist/services/sandbox/TestQualityScanner');
-const { MUTATION_TESTING_CHALLENGES } = require('../dist/services/mutationChallenges');
-const { ADDITIONAL_MUTATION_CHALLENGES } = require('../dist/services/additionalMutationChallenges');
+const { ChallengeCatalogLoader } = require('../dist/services/db/ChallengeCatalogLoader');
 
 async function runMasterVerification() {
   console.log('========================================================================');
@@ -41,7 +40,7 @@ async function runMasterVerification() {
     throw new Error('TestQualityScanner failed to flag test without assertions');
   }
 
-  const allTestingKatas = [...MUTATION_TESTING_CHALLENGES, ...ADDITIONAL_MUTATION_CHALLENGES];
+  const allTestingKatas = ChallengeCatalogLoader.loadMutationChallenges();
   console.log(`\n--- 2. Verifying ${allTestingKatas.length} Seeded Testing & Mutation Katas in JVM Sandbox ---`);
 
   let allPassed = true;
@@ -102,7 +101,7 @@ async function runMasterVerification() {
     throw new Error('One or more mutation katas failed baseline verification!');
   }
 
-  console.log('\n🎉 ALL 30 TESTING & MUTATION KATAS AND AST GUARDS VERIFIED SUCCESSFULLY!');
+  console.log(`\n🎉 ALL ${allTestingKatas.length} TESTING & MUTATION KATAS AND AST GUARDS VERIFIED SUCCESSFULLY!`);
 }
 
 runMasterVerification().catch(err => {

@@ -7,7 +7,7 @@
  */
 
 import { preProcessWorkspaceFiles } from './astAnalyzer';
-import { CodingChallenge } from './challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import { recordNewErrorGap } from './vectorMemoryService';
 import { SandboxExecutionResponse } from './sandbox/JvmExecutionService';
 import { llmGateway } from './LlmGatewayClient';

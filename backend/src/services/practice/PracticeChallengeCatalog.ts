@@ -6,7 +6,7 @@
  */
 
 import { db } from '../db';
-import { CodingChallenge } from '../challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import { ChallengeSubmissionRepository, validateWorkspaceFiles } from '../sandbox/ChallengeSubmissionRepository';
 import { buildChallengeZipPackage } from '../mavenScaffoldGenerator';
 import { fetchSpringTransactionChallenges, fetchSpringTransactionManifest } from '../practiceTxCatalogService';

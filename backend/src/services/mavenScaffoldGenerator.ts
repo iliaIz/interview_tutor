@@ -5,7 +5,7 @@
  */
 
 import fs from 'node:fs';
-import { CodingChallenge } from './challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import { createZipArchive, ZipEntry } from './zipGenerator';
 import { BRIDGE_MJS_TEMPLATE } from './bridgeMjsTemplate';
 import { WS_SERVER_MJS_TEMPLATE } from './wsServerMjsTemplate';

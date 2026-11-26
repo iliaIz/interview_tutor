@@ -6,7 +6,7 @@
 
 import Database, { Statement } from 'better-sqlite3';
 import { db } from '../db';
-import type { CodingChallenge } from '../challengeSeedData';
+import type { CodingChallenge } from '@interview-prep/shared';
 import type { SandboxExecutionResponse } from './JvmExecutionService';
 import type { EvaluationResult } from '../codeEvaluatorTypes';
 import type {
