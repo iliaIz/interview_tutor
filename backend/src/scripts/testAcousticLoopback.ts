@@ -117,7 +117,17 @@ async function runAcousticLoopbackSimulation(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: {
+      connect: () => {},
+      sendUpstream: (payload) => {
+        if (geminiPair.client.readyState !== WebSocket.OPEN) return false;
+        geminiPair.client.send(payload);
+        return true;
+      },
+      isUpstreamOpen: () => geminiPair.client.readyState === WebSocket.OPEN,
+      reconnect: () => {},
+      close: () => {}
+    },
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_acoustic_loopback',
@@ -146,7 +156,7 @@ async function runAcousticLoopbackSimulation(): Promise<void> {
       session.currentTurnAudioBytes = 0;
       session.audioChunksCount = 0;
       session.lastTurnCommitTime = 0;
-      session.geminiSocket.send(JSON.stringify({
+      session.upstreamTransport?.sendUpstream(JSON.stringify({
         clientContent: {
           turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
           turnComplete: false
@@ -165,7 +175,7 @@ async function runAcousticLoopbackSimulation(): Promise<void> {
         return;
       }
       session.audioChunksCount = (session.audioChunksCount || 0) + 1;
-      session.geminiSocket.send(JSON.stringify(parsed));
+      session.upstreamTransport?.sendUpstream(JSON.stringify(parsed));
       return;
     }
 
@@ -193,7 +203,7 @@ async function runAcousticLoopbackSimulation(): Promise<void> {
       session.audioChunksCount = 0;
       session.isAiGenerating = true;
       session.lastTurnCommitTime = Date.now();
-      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
     }
   };
 

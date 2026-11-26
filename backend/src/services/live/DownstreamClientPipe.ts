@@ -143,8 +143,8 @@ export class DownstreamClientPipe {
           type: 'sync_pong',
           isSetupComplete: session.isSetupComplete,
           isUpstreamReconnecting: session.isUpstreamReconnecting,
-          isUpstreamConnected: Boolean(session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN),
-          isHandoffActive: Boolean(session.hotHandoffCoordinator?.isHandoffActive()),
+          isUpstreamConnected: Boolean(session.upstreamTransport?.isUpstreamOpen()),
+          isHandoffActive: Boolean(session.upstreamTransport?.isHandoffActive?.()),
           isToolCallPending: session.isToolCallPending,
           timestamp: Date.now()
         }));
@@ -186,8 +186,8 @@ export class DownstreamClientPipe {
     session.deadAirGuard?.reset();
     SessionTurnState.armTurnWatchdogs(session, clientSocket);
 
-    if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN && session.isSetupComplete) {
-      session.geminiSocket.send(JSON.stringify({
+    if (session.isSetupComplete && session.upstreamTransport?.isUpstreamOpen()) {
+      session.upstreamTransport.sendUpstream(JSON.stringify({
         clientContent: {
           turns: [{ role: 'user', parts: [{ text: formatRungPromptDirective(statePayload, 'client_button', rawAction) }] }],
           turnComplete: true
@@ -255,7 +255,7 @@ export class DownstreamClientPipe {
       session.currentGraphIr = parsed.payload.graphIr;
     }
 
-    if (session.isSetupComplete && session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
+    if (session.isSetupComplete && session.upstreamTransport?.isUpstreamOpen()) {
       let deicticContent = '';
       if (parsed.payload?.graphIr) {
         const summary = parsed.payload.mutationSummary ? `${parsed.payload.mutationSummary}\n` : '';
@@ -267,7 +267,7 @@ export class DownstreamClientPipe {
             : 'Кандидат внёс изменения в архитектурный граф на холсте');
       }
 
-      session.geminiSocket.send(JSON.stringify({
+      session.upstreamTransport.sendUpstream(JSON.stringify({
         clientContent: {
           turns: [{ role: 'user', parts: [{ text: `[CANVAS_DEICTIC_CONTEXT (ЯЗЫК: РУССКИЙ): ${deicticContent}]` }] }],
           turnComplete: false
@@ -372,9 +372,7 @@ export class DownstreamClientPipe {
         return;
       }
 
-      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-        session.geminiSocket.send(payloadBuffer);
-      }
+      session.upstreamTransport?.sendUpstream(payloadBuffer);
     }
   }
 }

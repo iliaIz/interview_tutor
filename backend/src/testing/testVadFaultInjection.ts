@@ -10,8 +10,22 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
-import { ProxySession } from '../services/live/liveSessionTypes';
-import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
+import { ProxySession, UpstreamTransportPort } from '../services/live/liveSessionTypes';
+import { createUpstreamLiveChannel } from '../services/live/UpstreamLiveChannel';
+
+function wrapSocketTransport(ws: WebSocket): UpstreamTransportPort {
+  return {
+    connect: () => {},
+    sendUpstream: (payload) => {
+      if (ws.readyState !== WebSocket.OPEN) return false;
+      ws.send(payload);
+      return true;
+    },
+    isUpstreamOpen: () => ws.readyState === WebSocket.OPEN,
+    reconnect: () => {},
+    close: () => {}
+  };
+}
 import { LiveClientGuardService } from '../services/live/liveClientGuardService';
 import { SessionTurnState } from '../services/live/SessionTurnState';
 import { WatchdogManager } from '../services/live/WatchdogManager';
@@ -99,7 +113,7 @@ async function testUpstreamDeadAirTimeout(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_dead_air_sess',
@@ -145,7 +159,7 @@ async function testEchoGuardTimeoutExpiry(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_echo_guard_sess',
@@ -172,7 +186,7 @@ async function testEchoGuardTimeoutExpiry(): Promise<void> {
       return; // Dropped by Echo Guard
     }
     // Allowed through
-    session.geminiSocket.send(JSON.stringify({
+    session.upstreamTransport?.sendUpstream(JSON.stringify({
       realtimeInput: {
         audio: { mimeType: 'audio/pcm;rate=16000', data: audioBase64 }
       }
@@ -219,7 +233,7 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_barge_in_recovery',
@@ -244,7 +258,7 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
     session.currentTurnMetrics.bargeInType = 'tactile';
     session.currentTurnMetrics.droppedEchoChunksCount = 0;
   }
-  session.geminiSocket.send(JSON.stringify({
+  session.upstreamTransport?.sendUpstream(JSON.stringify({
     clientContent: {
       turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
       turnComplete: false
@@ -261,7 +275,7 @@ async function testBargeInShortUtteranceRecovery(): Promise<void> {
   session.lastTurnCommitTime = Date.now();
   const recoveryTimer = setTimeout(() => {
     session.isAiGenerating = false;
-    session.geminiSocket.send(JSON.stringify({
+    session.upstreamTransport?.sendUpstream(JSON.stringify({
       clientContent: {
         turns: [{ role: 'user', parts: [{ text: '[СИСТЕМНОЕ СООБЩЕНИЕ: Кандидат закончил говорить.]' }] }],
         turnComplete: true
@@ -294,7 +308,7 @@ async function testBidirectionalWatchdogSyncContract(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_turn_reset_sync',
@@ -356,7 +370,6 @@ async function testToolCallAnchorNormalization(): Promise<void> {
   const sessionStartedAt = Date.now() - 782000; // Simulated session started 13 minutes ago
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: null as any,
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_tool_anchor_sess',
@@ -365,7 +378,7 @@ async function testToolCallAnchorNormalization(): Promise<void> {
     currentTurnIndex: 3
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -389,7 +402,7 @@ async function testToolCallAnchorNormalization(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   const upstreamSocket = await upstreamConnectedPromise;
 
   // Simulate tool call execution finishing 200ms ago:
@@ -442,7 +455,7 @@ async function testZeroChunkCommitSuppression(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_zero_chunk_sess',
@@ -454,7 +467,7 @@ async function testZeroChunkCommitSuppression(): Promise<void> {
   const handleClientMessage = (parsed: any) => {
     if (parsed.realtimeInput?.audio) {
       session.audioChunksCount = (session.audioChunksCount || 0) + 1;
-      session.geminiSocket.send(JSON.stringify(parsed));
+      session.upstreamTransport?.sendUpstream(JSON.stringify(parsed));
       return;
     }
     if (parsed.clientContent?.turnComplete) {
@@ -468,7 +481,7 @@ async function testZeroChunkCommitSuppression(): Promise<void> {
       session.audioChunksCount = 0;
       session.isAiGenerating = true;
       session.lastTurnCommitTime = Date.now();
-      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
     }
   };
 
@@ -508,7 +521,7 @@ async function testPlayoutAwareStaleGuard(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_playout_stale_sess',
@@ -535,7 +548,7 @@ async function testPlayoutAwareStaleGuard(): Promise<void> {
       session.audioChunksCount = 0;
       session.isAiGenerating = true;
       session.lastTurnCommitTime = Date.now();
-      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
     }
   };
 
@@ -575,7 +588,7 @@ async function testRapidCommitFloodProtection(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_flood_sess',
@@ -609,7 +622,7 @@ async function testRapidCommitFloodProtection(): Promise<void> {
       session.audioChunksCount = 0;
       session.isAiGenerating = true;
       session.lastTurnCommitTime = Date.now();
-      session.geminiSocket.send(JSON.stringify({ clientContent: parsed.clientContent }));
+      session.upstreamTransport?.sendUpstream(JSON.stringify({ clientContent: parsed.clientContent }));
     }
   };
 
@@ -647,7 +660,7 @@ async function testBargeInPlayoutResetContract(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_bargein_reset_sess',
@@ -665,8 +678,8 @@ async function testBargeInPlayoutResetContract(): Promise<void> {
       session.currentTurnAudioBytes = 0;
       session.audioChunksCount = 0;
       session.currentAiTurnText = '';
-      if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-        session.geminiSocket.send(JSON.stringify({
+      if (session.upstreamTransport?.isUpstreamOpen()) {
+        session.upstreamTransport?.sendUpstream(JSON.stringify({
           clientContent: {
             turns: [{ role: 'user', parts: [{ text: '[КАНДИДАТ ПРЕРВАЛ РЕЧЬ (BARGE-IN)]' }] }],
             turnComplete: false
@@ -721,7 +734,6 @@ async function testAcousticCircuitBreakerSuppression(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: null as any,
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_canned_circuit_breaker_sess',
@@ -730,7 +742,7 @@ async function testAcousticCircuitBreakerSuppression(): Promise<void> {
     currentTurnIndex: 1
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -754,7 +766,7 @@ async function testAcousticCircuitBreakerSuppression(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   const upstreamSocket = await upstreamConnectedPromise;
   upstreamSocket.on('message', (msg) => {
     try { upstreamReceived.push(JSON.parse(msg.toString())); } catch {}
@@ -868,7 +880,7 @@ async function testPostBargeInStaleGuardBypassContract(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_bargein_stale_bypass_sess',
@@ -905,7 +917,7 @@ async function testZeroChunkBargeInRecoveryContract(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: geminiPair.client,
+    upstreamTransport: wrapSocketTransport(geminiPair.client),
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_zero_chunk_bargein_sess',
@@ -968,7 +980,6 @@ async function testNonSpeechTokenInterceptionContract(): Promise<void> {
   const upstreamReceived: any[] = [];
   const routerSession: ProxySession = {
     clientSocket: clientPair.remote,
-    geminiSocket: null as any,
     isSetupComplete: false,
     frameQueue: [],
     sessionId: 'test_nonspeech_sess',
@@ -978,7 +989,7 @@ async function testNonSpeechTokenInterceptionContract(): Promise<void> {
     isAiGenerating: false
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session: routerSession,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -1002,7 +1013,7 @@ async function testNonSpeechTokenInterceptionContract(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini();
+  router.connect();
   await upstreamSocketPromise;
 
   upstreamSocket.on('message', (msg) => {

@@ -9,7 +9,7 @@
 const http = require('http');
 const assert = require('assert');
 const { WebSocketServer, WebSocket } = require('ws');
-const { createLiveAudioStreamRouter } = require('../dist/services/live/liveAudioStreamRouter');
+const { createUpstreamLiveChannel } = require('../dist/services/live/UpstreamLiveChannel');
 const { SessionFsm } = require('../dist/services/live/sessionFsm');
 
 console.log('========================================================================');
@@ -76,7 +76,6 @@ async function runTests() {
 
     const session = {
       clientSocket: clientPair.serverSide,
-      geminiSocket: null,
       isSetupComplete: true,
       frameQueue: [],
       sessionId: 'test_tool_isolation_sess',
@@ -88,7 +87,7 @@ async function runTests() {
       enableSilenceClarification: true // Even if enabled, tool call must exempt!
     };
 
-    const router = createLiveAudioStreamRouter({
+    const router = createUpstreamLiveChannel({
       session,
       setupMessage: { setup: { model: 'models/gemini-live-v3' } },
       upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
@@ -112,7 +111,7 @@ async function runTests() {
       liveModel: 'gemini-live-v3'
     });
 
-    router.connectGemini();
+    router.connect();
     const upstreamSocket = await upstream.waitForConnection();
 
     const upstreamReceivedMessages = [];
@@ -175,7 +174,6 @@ async function runTests() {
 
     const session = {
       clientSocket: clientPair.serverSide,
-      geminiSocket: null,
       isSetupComplete: true,
       frameQueue: [],
       sessionId: 'test_silence_suppressed',
@@ -187,7 +185,7 @@ async function runTests() {
       enableSilenceClarification: false // Default production invariant!
     };
 
-    const router = createLiveAudioStreamRouter({
+    const router = createUpstreamLiveChannel({
       session,
       setupMessage: { setup: { model: 'models/gemini-live-v3' } },
       upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
@@ -211,7 +209,7 @@ async function runTests() {
       liveModel: 'gemini-live-v3'
     });
 
-    router.connectGemini();
+    router.connect();
     const upstreamSocket = await upstream.waitForConnection();
 
     const upstreamReceivedMessages = [];
@@ -254,7 +252,6 @@ async function runTests() {
 
     const session = {
       clientSocket: clientPair.serverSide,
-      geminiSocket: null,
       isSetupComplete: true,
       frameQueue: [],
       sessionId: 'test_silence_enabled',
@@ -266,7 +263,7 @@ async function runTests() {
       enableSilenceClarification: true // Explicitly enabled by user!
     };
 
-    const router = createLiveAudioStreamRouter({
+    const router = createUpstreamLiveChannel({
       session,
       setupMessage: { setup: { model: 'models/gemini-live-v3' } },
       upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
@@ -290,7 +287,7 @@ async function runTests() {
       liveModel: 'gemini-live-v3'
     });
 
-    router.connectGemini();
+    router.connect();
     const upstreamSocket = await upstream.waitForConnection();
 
     const upstreamReceivedMessages = [];
@@ -334,7 +331,6 @@ async function runTests() {
     const fsm = new SessionFsm('AI_SPEAKING');
     const session = {
       clientSocket: clientPair.serverSide,
-      geminiSocket: null,
       isSetupComplete: true,
       frameQueue: [],
       sessionId: 'test_wb_when_idle',
@@ -353,7 +349,7 @@ async function runTests() {
       try { clientReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
     });
 
-    const router = createLiveAudioStreamRouter({
+    const router = createUpstreamLiveChannel({
       session,
       setupMessage: { setup: { model: 'models/gemini-live-v3' } },
       upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
@@ -377,7 +373,7 @@ async function runTests() {
       liveModel: 'gemini-live-v3'
     });
 
-    router.connectGemini();
+    router.connect();
     const upstreamSocket = await upstream.waitForConnection();
 
     const upstreamReceived = [];
@@ -452,7 +448,6 @@ async function runTests() {
 
     const session = {
       clientSocket: clientPair.serverSide,
-      geminiSocket: null,
       isSetupComplete: true,
       frameQueue: [],
       sessionId: 'test_wb_silent',
@@ -469,7 +464,7 @@ async function runTests() {
       try { clientReceived.push(JSON.parse(raw.toString('utf8'))); } catch {}
     });
 
-    const router = createLiveAudioStreamRouter({
+    const router = createUpstreamLiveChannel({
       session,
       setupMessage: { setup: { model: 'models/gemini-live-v3' } },
       upstreamWsUrl: `ws://127.0.0.1:${upstream.port}`,
@@ -493,7 +488,7 @@ async function runTests() {
       liveModel: 'gemini-live-v3'
     });
 
-    router.connectGemini();
+    router.connect();
     const upstreamSocket = await upstream.waitForConnection();
 
     const upstreamReceived = [];

@@ -33,17 +33,21 @@ async function runTests() {
   clientSocket.close = () => {};
 
   const sentUpstreamFrames: any[] = [];
-  const geminiSocket = {
-    readyState: 1,
-    send: (data: string | Buffer) => {
+  const upstreamTransport = {
+    connect: () => {},
+    sendUpstream: (data: string | Buffer) => {
       try { sentUpstreamFrames.push(JSON.parse(data.toString())); } catch { sentUpstreamFrames.push(data); }
-    }
+      return true;
+    },
+    isUpstreamOpen: () => true,
+    reconnect: () => {},
+    close: () => {}
   };
 
   const session: any = {
     isTerminated: false,
     isSetupComplete: true,
-    geminiSocket,
+    upstreamTransport,
     frameQueue: [],
     fsm: { transition: () => {} },
     watchdogs: { arm: () => {}, armNudge: () => {}, armDeadAir: () => {}, disarmAll: () => {} }
@@ -108,14 +112,17 @@ async function runTests() {
     createUpstream: (opts) => {
       opts.session.isSetupComplete = true;
       return {
-        connectGemini: () => { upstreamConnectCalled = true; },
+        connect: () => { upstreamConnectCalled = true; },
+        sendUpstream: () => true,
+        isUpstreamOpen: () => true,
+        reconnect: () => {},
         close: () => { upstreamClosed = true; }
       };
     }
   });
 
   assert(Boolean(liveSession), 'LiveVoiceSession.start initializes cleanly with injected blueprint + UpstreamTransportPort');
-  assert(upstreamConnectCalled, 'Injected UpstreamTransportPort.connectGemini() invoked on start');
+  assert(upstreamConnectCalled, 'Injected UpstreamTransportPort.connect() invoked on start');
   assert(liveSession!.turnState.canExecuteGradingTools().allowed === false, 'Turn 0 lockdown blocks grading tools before candidate speech');
 
   SessionTurnState.armTurnWatchdogs(liveSession!.turnState.proxySession, sessionClient);
@@ -162,7 +169,7 @@ async function runTests() {
     },
     createUpstream: (opts) => {
       opts.session.isSetupComplete = true;
-      return { connectGemini: () => {}, close: () => {} };
+      return { connect: () => {}, sendUpstream: () => true, isUpstreamOpen: () => true, reconnect: () => {}, close: () => {} };
     }
   });
   const barrierElapsed = Date.now() - barrierStartedAt;
@@ -197,7 +204,7 @@ async function runTests() {
     },
     createUpstream: (opts) => {
       opts.session.isSetupComplete = true;
-      return { connectGemini: () => {}, close: () => {} };
+      return { connect: () => {}, sendUpstream: () => true, isUpstreamOpen: () => true, reconnect: () => {}, close: () => {} };
     }
   });
   assert(Boolean(timeoutSession) && timeoutInitFrame === undefined, 'Spec 53 ?awaitInit=1 timeout degrades gracefully without failing handshake');

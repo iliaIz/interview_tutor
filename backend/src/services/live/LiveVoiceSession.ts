@@ -14,7 +14,7 @@ import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
 import { LiveSessionBlueprint } from './liveSessionConfigTypes';
 import { getOrCreateSessionMemory } from './liveSessionRegistry';
 import { ProxySession, UpstreamTransportPort, toRawBuffer } from './liveSessionTypes';
-import { createLiveAudioStreamRouter, StreamRouterOptions } from './liveAudioStreamRouter';
+import { createUpstreamLiveChannel, UpstreamChannelOptions } from './UpstreamLiveChannel';
 import { DownstreamClientPipe } from './DownstreamClientPipe';
 import { WatchdogManager } from './WatchdogManager';
 import { SessionFsm, LiveSessionState } from './sessionFsm';
@@ -27,7 +27,7 @@ export interface SessionStartupOptions {
   request?: http.IncomingMessage;
   earlyQueue?: (Buffer | any)[];
   cleanupEarlyCapture?: () => void;
-  createUpstream?: (options: StreamRouterOptions) => UpstreamTransportPort;
+  createUpstream?: (options: UpstreamChannelOptions) => UpstreamTransportPort;
   blueprint?: LiveSessionBlueprint;
   blueprintBuilder?: (req: http.IncomingMessage, rawInitFrame?: any) => Promise<LiveSessionBlueprint | null>;
   initWaitTimeoutMs?: number;
@@ -199,7 +199,7 @@ export class LiveVoiceSession {
       if (instance) instance.terminate(reason ? reason.toString() : 'StreamRouter terminated', code, source);
     };
 
-    const upstreamFactory = options.createUpstream ?? createLiveAudioStreamRouter;
+    const upstreamFactory = options.createUpstream ?? createUpstreamLiveChannel;
     const router = upstreamFactory({
       session,
       setupMessage: blueprint.buildUpstreamSetup(session.resumptionHandle),
@@ -225,6 +225,7 @@ export class LiveVoiceSession {
       challengeCategory: config.challengeCategory,
       challengeTrack: config.challengeTrack
     });
+    session.upstreamTransport = router;
 
     session.streamSentinel = new LiveStreamSentinel({
       onPhase1ThinkingDelay: (elapsedMs) => {
@@ -244,9 +245,9 @@ export class LiveVoiceSession {
             clientSocket.send(JSON.stringify({ type: 'dead_air_recovery', reason, timestamp: Date.now() }));
           } catch {}
         }
-        const upstreamDead = !session.geminiSocket || session.geminiSocket.readyState !== WebSocket.OPEN;
-        if ((upstreamDead || consecutiveStalls >= 2) && !session.hotHandoffCoordinator?.isHandoffActive()) {
-          router.reconnect?.();
+        const upstreamDead = !router.isUpstreamOpen();
+        if ((upstreamDead || consecutiveStalls >= 2) && !router.isHandoffActive?.()) {
+          router.reconnect('stream_sentinel');
         }
       }
     });
@@ -278,7 +279,7 @@ export class LiveVoiceSession {
       instance.terminate(err.message, 1011, 'ClientSocketError');
     });
 
-    router.connectGemini(false);
+    router.connect();
 
     if (cleanupEarlyCapture) cleanupEarlyCapture();
     clientSocket.on('message', (data: RawData) => clientPipe.handleFrame(data));
@@ -303,7 +304,6 @@ export class LiveVoiceSession {
     this._fsm.transition('TERMINATED');
     this._watchdogs.dispose();
     this._session.streamSentinel?.dispose();
-    this._session.hotHandoffCoordinator?.dispose();
 
     console.log(`🔌 [LiveVoiceSession] Termination triggered by [${source}], code=${code}, reason=${reason}`);
     if (this._session.heartbeatInterval) {
@@ -332,11 +332,6 @@ export class LiveVoiceSession {
     }
     this._session.frameQueue = [];
     try { this._upstreamRouter.close?.(code || 1000, reason ? reason.toString() : 'Normal Closure'); } catch {}
-    try {
-      if (this._session.geminiSocket && (this._session.geminiSocket.readyState === WebSocket.OPEN || this._session.geminiSocket.readyState === WebSocket.CONNECTING)) {
-        this._session.geminiSocket.close(1000, 'Normal Closure');
-      }
-    } catch {}
     try {
       if (this._clientSocket.readyState === WebSocket.OPEN || this._clientSocket.readyState === WebSocket.CONNECTING) {
         this._clientSocket.close(code || 1000, reason ? reason.toString() : 'Normal Closure');

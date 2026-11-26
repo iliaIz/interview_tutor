@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import { ProxySession } from './liveSessionTypes';
+import { ProxySession, UpstreamTransportPort } from './liveSessionTypes';
 import {
   handleUpdateWhiteboard,
   handleReadFile,
@@ -66,7 +66,7 @@ export interface LiveToolDefinition {
 export interface ToolExecutorOptions {
   functionCalls: GeminiFunctionCall[];
   clientSocket: WebSocket;
-  geminiSocket: WebSocket;
+  upstream?: UpstreamTransportPort;
   session: ProxySession;
   parsedHints: string[];
   liveCoaching: boolean;
@@ -164,19 +164,19 @@ export const LIVE_TOOL_REGISTRY: ReadonlyMap<string, LiveToolDefinition> = new M
 
 export class LiveToolEngine {
   private static sendGeminiToolResponse(
-    geminiSocket: WebSocket,
+    upstream: UpstreamTransportPort | undefined,
     callId: string,
     toolName: string,
     payload: { result?: Record<string, any>; error?: string },
     scheduling: ToolScheduling = 'WHEN_IDLE'
   ): void {
-    if (geminiSocket.readyState !== WebSocket.OPEN) return;
+    if (!upstream?.isUpstreamOpen()) return;
 
     const responseBody = payload.error
       ? { error: payload.error }
       : { result: payload.result ?? { status: 'SUCCESS' } };
 
-    geminiSocket.send(
+    upstream.sendUpstream(
       JSON.stringify({
         toolResponse: {
           functionResponses: [
@@ -199,7 +199,8 @@ export class LiveToolEngine {
   }
 
   public static async executeFunctionCalls(options: ToolExecutorOptions): Promise<void> {
-    const { functionCalls, clientSocket, geminiSocket, session, parsedHints, liveCoaching } = options;
+    const { functionCalls, clientSocket, upstream, session, parsedHints, liveCoaching } = options;
+    const upstreamTarget = upstream || session.upstreamTransport;
 
     session.isToolCallPending = true;
     session.lastActivityAt = Date.now();
@@ -232,7 +233,7 @@ export class LiveToolEngine {
       if (!definition) {
         console.warn(`⚠️ Unhandled or unsupported tool call [${call.name}]. Emitting graceful negative toolResponse.`);
         this.sendGeminiToolResponse(
-          geminiSocket,
+          upstreamTarget,
           call.id,
           call.name,
           {
@@ -252,7 +253,7 @@ export class LiveToolEngine {
       if (definition.isGatedOnTurn0 && isBlockedByAggregate) {
         console.warn(`🛡️ [First-Turn Guard] Blocked premature ${call.name} before candidate spoke.`);
         this.sendGeminiToolResponse(
-          geminiSocket,
+          upstreamTarget,
           call.id,
           call.name,
           { error: definition.turn0ErrorMessage || DEFAULT_TURN0_ERROR },
@@ -284,7 +285,7 @@ export class LiveToolEngine {
             awaitingSpeechForTools = true;
           }
           this.sendGeminiToolResponse(
-            geminiSocket,
+            upstreamTarget,
             call.id,
             call.name,
             { result: definition.dedupResponseResult || { status: 'SUCCESS', deduplicated: true } },
@@ -313,7 +314,7 @@ export class LiveToolEngine {
           awaitingSpeechForTools = true;
         }
         this.sendGeminiToolResponse(
-          geminiSocket,
+          upstreamTarget,
           call.id,
           call.name,
           { result: outcome.result, error: outcome.error },
@@ -327,7 +328,7 @@ export class LiveToolEngine {
         const errorMessage = toolErr instanceof Error ? toolErr.message : 'Internal error';
         console.error(`❌ Error executing tool ${call.name}:`, toolErr);
         this.sendGeminiToolResponse(
-          geminiSocket,
+          upstreamTarget,
           call.id,
           call.name,
           { result: { error: `Tool execution failed: ${errorMessage}` } },

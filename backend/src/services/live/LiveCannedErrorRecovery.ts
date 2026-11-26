@@ -7,7 +7,7 @@
  */
 
 import { WebSocket } from 'ws';
-import { ProxySession } from './liveSessionTypes';
+import { ProxySession, UpstreamTransportPort } from './liveSessionTypes';
 import { isCannedErrorUtterance, isNonSpeechUtterance } from './liveStreamErrorDetector';
 
 export class LiveCannedErrorRecovery {
@@ -53,7 +53,7 @@ export class LiveCannedErrorRecovery {
    */
   public static executeRecoveryNudge(
     session: ProxySession,
-    geminiSocket: WebSocket
+    upstream?: UpstreamTransportPort
   ): void {
     const errorType = session.cannedErrorType || 'system_canned';
     console.log(`🔄 [ACOUSTIC_CIRCUIT_BREAKER] ${errorType === 'non_speech' ? 'Non-speech' : 'Canned error'} turn complete. Suppressing from history and dispatching active conversational recovery nudge (session: ${session.sessionId || 'anon'})...`);
@@ -94,8 +94,7 @@ export class LiveCannedErrorRecovery {
       }
     };
 
-    if (geminiSocket.readyState === WebSocket.OPEN) {
-      geminiSocket.send(JSON.stringify(recoveryNudge));
-    }
+    const target = upstream || session.upstreamTransport;
+    target?.sendUpstream(JSON.stringify(recoveryNudge));
   }
 }

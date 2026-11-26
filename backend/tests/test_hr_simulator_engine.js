@@ -384,7 +384,13 @@ async function runAllTests() {
       isSetupComplete: true,
       hasCandidateResponded: true,
       clientSocket: { readyState: 1, send: (s) => mockClientFrames.push(JSON.parse(s)) },
-      geminiSocket: { readyState: 1, send: (s) => mockGeminiFrames.push(JSON.parse(s)) },
+      upstreamTransport: {
+        connect: () => {},
+        sendUpstream: (s) => { mockGeminiFrames.push(JSON.parse(s)); return true; },
+        isUpstreamOpen: () => true,
+        reconnect: () => {},
+        close: () => {}
+      },
       hrGuidedState: gState
     };
 

@@ -12,7 +12,7 @@ import { ToolAudioMutex } from './ToolAudioMutex';
 import { SessionResumptionManager } from './SessionResumptionManager';
 import { LiveClientGuardService } from './liveClientGuardService';
 import { LiveSessionResolvedConfig } from './liveSessionConfigTypes';
-import { ProxySession } from './liveSessionTypes';
+import { CLOSED_UPSTREAM_TRANSPORT, ProxySession } from './liveSessionTypes';
 import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export class SessionTurnState {
@@ -30,7 +30,7 @@ export class SessionTurnState {
     this.fsm = fsm;
     this.proxySession = {
       clientSocket,
-      geminiSocket: null as any,
+      upstreamTransport: CLOSED_UPSTREAM_TRANSPORT,
       aggregate: this,
       isSetupComplete: false,
       frameQueue: [],
@@ -146,17 +146,15 @@ export class SessionTurnState {
     if (guardCheck.shouldDrop) {
       if (guardCheck.guardName === 'ZERO_CHUNK_GUARD') {
         console.log(`🎙️ [ZERO_CHUNK_RECOVERY] Candidate committed with 0 audio chunks for session ${session.sessionId || 'anon'}. Synthesizing conversational prompt.`);
-        if (session.geminiSocket && session.geminiSocket.readyState === WebSocket.OPEN) {
-          session.geminiSocket.send(JSON.stringify({
-            clientContent: {
-              turns: [{
-                role: 'user',
-                parts: [{ text: '[КАНДИДАТ ПЕРЕДАЛ СЛОВО: Завершил ответ. Задай следующий вопрос или дай обратную связь.]' }]
-              }],
-              turnComplete: true
-            }
-          }));
-        }
+        session.upstreamTransport?.sendUpstream(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: 'user',
+              parts: [{ text: '[КАНДИДАТ ПЕРЕДАЛ СЛОВО: Завершил ответ. Задай следующий вопрос или дай обратную связь.]' }]
+            }],
+            turnComplete: true
+          }
+        }));
         session.isAiGenerating = true;
         session.lastTurnCommitTime = Date.now();
         SessionTurnState.armTurnWatchdogs(session, clientSocket);

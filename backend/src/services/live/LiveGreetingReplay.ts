@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { HR_VOICE_EVENTS } from '@interview-prep/shared';
-import { ProxySession } from './liveSessionTypes';
+import { ProxySession, UpstreamTransportPort } from './liveSessionTypes';
 import { liveSessionRegistry } from './liveSessionRegistry';
 import { getHrQuestion } from './hrContextResolver';
 import { LiveSessionBlueprintBuilder } from './LiveSessionBlueprintBuilder';
@@ -12,7 +12,7 @@ import {
 
 export interface GreetingReplayOptions {
   session: ProxySession;
-  geminiSocket: WebSocket;
+  upstream: UpstreamTransportPort;
   clientSocket: WebSocket;
   sessionType: 'interview' | 'tutor' | 'system_design' | 'hr_simulation' | 'hr_micro_drill' | 'hr_tutor';
   tutorMode: string;
@@ -30,14 +30,14 @@ export interface GreetingReplayOptions {
 
 export function dispatchReconnectContextReplay(
   session: ProxySession,
-  geminiSocket: WebSocket,
+  upstream: UpstreamTransportPort,
   opts: { bugTitle?: string; questionText?: string; topic?: string } = {}
 ): void {
   const effectiveTitle = opts.bugTitle || session.bugTitle || opts.questionText || session.questionText || opts.topic || session.topic || 'Текущая тема';
   const mem = session.sessionId ? liveSessionRegistry.get(session.sessionId) : null;
   const recentTurns = (mem?.turns || []).slice(-4);
 
-  if (geminiSocket.readyState === WebSocket.OPEN) {
+  if (upstream.isUpstreamOpen()) {
     const turnsToSeed: Array<{ role: 'user' | 'model'; parts: [{ text: string }] }> = [];
 
     for (const t of recentTurns) {
@@ -54,7 +54,7 @@ export function dispatchReconnectContextReplay(
       }]
     });
 
-    geminiSocket.send(JSON.stringify({
+    upstream.sendUpstream(JSON.stringify({
       clientContent: {
         turns: turnsToSeed,
         turnComplete: false
@@ -71,7 +71,7 @@ export function dispatchReconnectContextReplay(
 export function handleSetupCompleteGreeting(options: GreetingReplayOptions): void {
   const {
     session,
-    geminiSocket,
+    upstream,
     clientSocket,
     sessionType,
     tutorMode,
@@ -92,7 +92,7 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
 
     // Avoid polluting native KV-cache with text replay when cryptographic resumption handle is active
     if (!session.resumptionHandle) {
-      dispatchReconnectContextReplay(session, geminiSocket, { bugTitle, questionText, topic });
+      dispatchReconnectContextReplay(session, upstream, { bugTitle, questionText, topic });
     }
 
     session.isGreetingSent = true;
@@ -182,8 +182,8 @@ export function handleSetupCompleteGreeting(options: GreetingReplayOptions): voi
     }
   };
 
-  if (geminiSocket.readyState === WebSocket.OPEN) {
-    geminiSocket.send(JSON.stringify(initialGreetingTurn));
+  if (upstream.isUpstreamOpen()) {
+    upstream.sendUpstream(JSON.stringify(initialGreetingTurn));
   }
   session.isGreetingSent = true;
   session.fsm?.transition('AI_SPEAKING');

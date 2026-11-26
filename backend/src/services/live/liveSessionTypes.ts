@@ -6,7 +6,6 @@ import { SessionFsm } from './sessionFsm';
 import type { LiveDeadAirGuard } from './LiveDeadAirGuard';
 import type { ToolAudioMutex } from './ToolAudioMutex';
 import type { SessionResumptionManager } from './SessionResumptionManager';
-import type { LiveHotHandoffCoordinator } from './LiveHotHandoffCoordinator';
 import type { LiveStreamSentinel } from './LiveStreamSentinel';
 import type { HrGuidedSessionState } from './hrGuidedStepper';
 
@@ -17,10 +16,22 @@ export function toRawBuffer(data: RawData): Buffer {
 }
 
 export interface UpstreamTransportPort {
-  connectGemini: (isReconnecting?: boolean) => void;
-  reconnect?: () => void;
-  close?: (code?: number, reason?: string) => void;
+  connect(): void;
+  sendUpstream(payload: string | Buffer): boolean;
+  isUpstreamOpen(): boolean;
+  isHandoffActive?(): boolean;
+  reconnect(reason?: string): void;
+  close(code?: number, reason?: string): void;
 }
+
+export const CLOSED_UPSTREAM_TRANSPORT: UpstreamTransportPort = {
+  connect: () => {},
+  sendUpstream: () => false,
+  isUpstreamOpen: () => false,
+  isHandoffActive: () => false,
+  reconnect: () => {},
+  close: () => {}
+};
 
 export interface CurrentTurnMetrics {
   turnIndex: number;
@@ -41,7 +52,7 @@ export interface CurrentTurnMetrics {
 
 export interface ProxySession {
   clientSocket: WebSocket;
-  geminiSocket: WebSocket;
+  upstreamTransport?: UpstreamTransportPort;
   aggregate?: any;
   isSetupComplete: boolean;
   frameQueue: Buffer[];
@@ -132,7 +143,6 @@ export interface ProxySession {
   toolAudioMutex?: ToolAudioMutex;
   resumptionManager?: SessionResumptionManager;
   resumptionHandle?: string;
-  hotHandoffCoordinator?: LiveHotHandoffCoordinator;
   streamSentinel?: LiveStreamSentinel;
   awaitingToolSpeech?: boolean;
 }

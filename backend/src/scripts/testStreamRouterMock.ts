@@ -2,14 +2,14 @@
  * testStreamRouterMock.ts
  *
  * SOTA September 2026 Headless Stream Router & Protocol Timing Test Suite.
- * Uses an in-memory WebSocket pair to test createLiveAudioStreamRouter
+ * Uses an in-memory WebSocket pair to test UpstreamLiveChannel
  * without external network, Docker, or Google API dependencies.
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { TurnTelemetryEvent } from '@interview-prep/shared';
-import { createLiveAudioStreamRouter } from '../services/live/liveAudioStreamRouter';
+import { createUpstreamLiveChannel } from '../services/live/UpstreamLiveChannel';
 import { ProxySession } from '../services/live/liveSessionTypes';
 import { SessionResumptionManager } from '../services/live/SessionResumptionManager';
 
@@ -81,12 +81,7 @@ async function teardownUpstreamServer(
   upstreamWss: WebSocketServer,
   session: ProxySession
 ): Promise<void> {
-  if (session.geminiSocket) {
-    try {
-      session.geminiSocket.removeAllListeners();
-      session.geminiSocket.terminate();
-    } catch {}
-  }
+  session.upstreamTransport?.close();
   upstreamWss.clients.forEach((c) => {
     try {
       c.removeAllListeners();
@@ -123,7 +118,6 @@ async function testTurn0StreamRouter(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_router_sess_0',
@@ -133,7 +127,7 @@ async function testTurn0StreamRouter(): Promise<void> {
     currentTurnIndex: 0
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -166,7 +160,7 @@ async function testTurn0StreamRouter(): Promise<void> {
   });
 
   // Connect router to mock upstream
-  router.connectGemini();
+  router.connect();
   const mockGemini = await upstreamConnectedPromise;
 
   // 1. Upstream emits thought part after 80ms
@@ -252,7 +246,6 @@ async function testMultiTurnStreamRouter(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_router_sess_multiturn',
@@ -262,7 +255,7 @@ async function testMultiTurnStreamRouter(): Promise<void> {
     currentTurnIndex: 1
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -293,7 +286,7 @@ async function testMultiTurnStreamRouter(): Promise<void> {
     } catch {}
   });
 
-  router.connectGemini();
+  router.connect();
   const mockGemini = await upstreamConnectedPromise;
 
   // Turn 1: Candidate commits at T=0
@@ -403,7 +396,6 @@ async function testBargeInFlagging(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: true,
     frameQueue: [],
     sessionId: 'test_router_bargein',
@@ -413,7 +405,7 @@ async function testBargeInFlagging(): Promise<void> {
     currentTurnIndex: 3
   };
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -437,7 +429,7 @@ async function testBargeInFlagging(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini();
+  router.connect();
   const mockGemini = await upstreamConnectedPromise;
 
   session.currentTurnMetrics = {
@@ -487,7 +479,6 @@ async function testGenerationCompleteNormalization(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: true,
     sessionId: 'test_router_gen_complete',
     questionId: 'Q_GEN_COMPLETE',
@@ -507,7 +498,7 @@ async function testGenerationCompleteNormalization(): Promise<void> {
     } catch {}
   });
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -531,7 +522,7 @@ async function testGenerationCompleteNormalization(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   await geminiConnected;
 
   // Upstream Gemini sends modelTurn text
@@ -614,7 +605,6 @@ async function testProactiveGoAwayHotHandoff(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: false,
     sessionId: 'test_router_goaway',
     questionId: 'Q_GOAWAY',
@@ -633,7 +623,7 @@ async function testProactiveGoAwayHotHandoff(): Promise<void> {
     try { clientFrames.push(JSON.parse(data.toString())); } catch {}
   });
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3', sessionResumption: {} } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -657,7 +647,7 @@ async function testProactiveGoAwayHotHandoff(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   const connA = await nextConnection();
   await connA.setupPromise;
   connA.ws.send(JSON.stringify({ setupComplete: {} }));
@@ -719,7 +709,6 @@ async function testUnexpectedCode1000ReconnectAndKeyRotation(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: false,
     sessionId: 'test_router_reconnect_rot',
     questionId: 'Q_ROT',
@@ -738,7 +727,7 @@ async function testUnexpectedCode1000ReconnectAndKeyRotation(): Promise<void> {
     try { clientFrames.push(JSON.parse(data.toString())); } catch {}
   });
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3', sessionResumption: {} } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -762,7 +751,7 @@ async function testUnexpectedCode1000ReconnectAndKeyRotation(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   const connA = await nextConnection();
   await connA.setupPromise;
   connA.ws.send(JSON.stringify({ setupComplete: {} }));
@@ -815,7 +804,6 @@ async function testCombinedToolCallAndServerContentStripping(): Promise<void> {
 
   const session: ProxySession = {
     clientSocket: clientPair.serverSide,
-    geminiSocket: null as any,
     isSetupComplete: true,
     sessionId: 'test_router_strip_tc',
     questionId: 'Q_STRIP',
@@ -834,7 +822,7 @@ async function testCombinedToolCallAndServerContentStripping(): Promise<void> {
     try { clientFrames.push(JSON.parse(data.toString())); } catch {}
   });
 
-  const router = createLiveAudioStreamRouter({
+  const router = createUpstreamLiveChannel({
     session,
     setupMessage: { setup: { model: 'models/gemini-live-v3' } },
     upstreamWsUrl: `ws://127.0.0.1:${upstreamPort}`,
@@ -858,7 +846,7 @@ async function testCombinedToolCallAndServerContentStripping(): Promise<void> {
     liveModel: 'gemini-live-v3'
   });
 
-  router.connectGemini(false);
+  router.connect();
   const conn = await nextConnection();
   await conn.setupPromise;
   conn.ws.send(JSON.stringify({ setupComplete: {} }));
