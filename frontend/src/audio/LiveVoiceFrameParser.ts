@@ -1,10 +1,10 @@
 /**
  * LiveVoiceFrameParser.ts
- * SOTA Late September 2026 Protocol Frame Parser for Gemini 3.8 Live & LiteLLM Gateway.
- * Exposes a closed discriminated control union and typed flags without leaky rawParsed.
+ * SOTA Late-2026 Discriminated Protocol Frame Parser for Gemini 3.8 Live & LiteLLM Gateway.
+ * Exposes 4 tagged slices (control, domainEvents, modelTurn, toolLifecycle) & domain dispatcher.
  */
 
-import { VoiceEvaluationResult } from './types';
+import { VoiceEngineCallbacks, VoiceEvaluationResult } from './types';
 
 export type LiveControlFrameKind =
   | 'ping'
@@ -38,7 +38,7 @@ export type LiveDomainFrameKind =
   | 'hr_user_transcript_delta'
   | 'hr_step_state';
 
-export type LiveFrameType = LiveControlFrameKind | LiveDomainFrameKind | 'unknown';
+export type LiveFrameType = LiveControlFrameKind | LiveDomainFrameKind | 'model_turn' | 'unknown';
 
 export interface SyncPongPayload {
   isUpstreamConnected?: boolean;
@@ -65,18 +65,21 @@ export type LiveControlSignal =
   | { kind: 'sync_pong'; payload: SyncPongPayload }
   | { kind: 'upstream_error'; payload: UpstreamErrorPayload };
 
-export interface ParsedLiveFrameResult {
-  type?: LiveFrameType;
-  controlSignal?: LiveControlSignal;
-  isPing?: boolean;
-  pingTimestamp?: number;
-  toolLifecycle?: 'executing' | 'complete';
-  isSetupComplete?: boolean;
-  isReconnected?: boolean;
-  isSilentSetup?: boolean;
-  isThinkingDelay?: boolean;
-  isDeadAirRecovery?: boolean;
-  deadAirReason?: string;
+export type LiveDomainEvent =
+  | { kind: 'evaluation'; payload: VoiceEvaluationResult }
+  | { kind: 'whiteboard_update'; payload: unknown }
+  | { kind: 'chaos_injected'; payload: unknown }
+  | { kind: 'hiring_committee_verdict'; payload: unknown }
+  | { kind: 'bug_solved'; payload: unknown }
+  | { kind: 'candidate_observation'; payload: unknown }
+  | { kind: 'smell_discovered'; payload: unknown }
+  | { kind: 'tool_call'; payload: unknown }
+  | { kind: 'hr_phase_transition'; payload: unknown }
+  | { kind: 'hr_scorecard_ready'; payload: unknown }
+  | { kind: 'hr_transcript_delta'; text: string }
+  | { kind: 'hr_step_state'; payload: unknown };
+
+export interface LiveModelTurnSlice {
   hasModelTurn: boolean;
   hasAudio: boolean;
   audioChunks: string[];
@@ -86,32 +89,14 @@ export interface ParsedLiveFrameResult {
   interactionStatus?: string;
   isInterrupted: boolean;
   voiceActivity?: 'ACTIVITY_START' | 'ACTIVITY_END';
-  evaluation?: VoiceEvaluationResult;
-  toolCallPayload?: unknown;
-  whiteboardPayload?: unknown;
-  chaosPayload?: unknown;
-  verdictPayload?: unknown;
-  bugSolvedPayload?: unknown;
-  candidateObservationPayload?: unknown;
-  smellDiscoveredPayload?: unknown;
-  hrPhaseTransitionPayload?: unknown;
-  hrScorecardPayload?: unknown;
-  hrTranscriptDelta?: string;
-  hrStepStatePayload?: unknown;
-  reconnectPayload?: { attempt?: number; maxAttempts?: number; mode?: string };
-  hotHandoffState?: 'started' | 'complete';
-  toolAwaitingSpeech?: boolean;
-  isStreamRecovery?: boolean;
-  syncPongPayload?: SyncPongPayload;
-  errorPayload?: UpstreamErrorPayload;
 }
 
-interface RawModelPart {
-  thought?: boolean;
-  isThought?: boolean;
-  text?: unknown;
-  inlineData?: { data?: string };
-  inline_data?: { data?: string };
+export interface ParsedLiveFrameResult {
+  readonly kind: LiveFrameType;
+  readonly control?: LiveControlSignal;
+  readonly domainEvents: LiveDomainEvent[];
+  readonly toolLifecycle?: 'executing' | 'complete';
+  readonly modelTurn?: LiveModelTurnSlice;
 }
 
 interface RawServerFrame {
@@ -136,7 +121,7 @@ interface RawServerFrame {
   errorCode?: string;
   retryable?: boolean;
   serverContent?: {
-    modelTurn?: { parts?: RawModelPart[] };
+    modelTurn?: { parts?: Array<{ thought?: boolean; isThought?: boolean; text?: unknown; inlineData?: { data?: string }; inline_data?: { data?: string } }> };
     outputTranscription?: { text?: unknown };
     output_transcription?: { text?: unknown };
     turnComplete?: boolean;
@@ -157,6 +142,44 @@ const KNOWN_FRAME_TYPES = new Set<string>([
   'hr_scorecard_ready', 'hr_user_transcript_delta', 'hr_step_state'
 ]);
 
+const DOMAIN_EVENT_BUILDERS: Record<string, (data: RawServerFrame) => LiveDomainEvent> = {
+  evaluation_completed: (d) => ({ kind: 'evaluation', payload: (d.evaluation || d.payload) as VoiceEvaluationResult }),
+  evaluation: (d) => ({ kind: 'evaluation', payload: (d.evaluation || d.payload) as VoiceEvaluationResult }),
+  whiteboard_update: (d) => ({ kind: 'whiteboard_update', payload: d.payload }),
+  chaos_injected: (d) => ({ kind: 'chaos_injected', payload: d.payload }),
+  hiring_committee_verdict: (d) => ({ kind: 'hiring_committee_verdict', payload: d.payload }),
+  bug_solved: (d) => ({ kind: 'bug_solved', payload: d.payload || d }),
+  candidate_observation_recorded: (d) => ({ kind: 'candidate_observation', payload: d.payload || d }),
+  candidate_observation: (d) => ({ kind: 'candidate_observation', payload: d.payload || d }),
+  smell_discovered: (d) => ({ kind: 'smell_discovered', payload: d.payload || d }),
+  tool_call: (d) => ({ kind: 'tool_call', payload: d }),
+  hr_phase_transition: (d) => ({ kind: 'hr_phase_transition', payload: d.payload || d }),
+  hr_scorecard_ready: (d) => ({ kind: 'hr_scorecard_ready', payload: d.scorecard || d.payload || d }),
+  hr_user_transcript_delta: (d) => ({ kind: 'hr_transcript_delta', text: d.delta || d.text || '' }),
+  hr_step_state: (d) => ({ kind: 'hr_step_state', payload: d.payload || d })
+};
+
+export function dispatchDomainEvents(callbacks: VoiceEngineCallbacks, events: LiveDomainEvent[]): void {
+  for (const event of events) {
+    switch (event.kind) {
+      case 'whiteboard_update': callbacks.onWhiteboardUpdate?.(event.payload); break;
+      case 'chaos_injected': callbacks.onChaosInjected?.(event.payload); break;
+      case 'hiring_committee_verdict': callbacks.onHiringCommitteeVerdict?.(event.payload); break;
+      case 'bug_solved': callbacks.onBugSolved?.(event.payload); break;
+      case 'candidate_observation': callbacks.onCandidateObservationRecorded?.(event.payload); break;
+      case 'smell_discovered':
+        callbacks.onSmellDiscovered?.(event.payload);
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('smell_discovered', { detail: event.payload }));
+        break;
+      case 'tool_call': callbacks.onToolCall?.(event.payload); break;
+      case 'hr_phase_transition': callbacks.onHrPhaseTransition?.(event.payload); break;
+      case 'hr_scorecard_ready': callbacks.onHrScorecardReady?.(event.payload); break;
+      case 'hr_transcript_delta': callbacks.onHrTranscriptDelta?.(event.text); break;
+      case 'hr_step_state': callbacks.onHrStepState?.(event.payload); break;
+    }
+  }
+}
+
 export class LiveVoiceFrameParser {
   public static parse(rawData: unknown): ParsedLiveFrameResult | null {
     try {
@@ -164,51 +187,24 @@ export class LiveVoiceFrameParser {
       if (text === null) return null;
       const data = JSON.parse(text) as RawServerFrame;
 
-      const resolvedType: LiveFrameType | undefined =
-        typeof data.type === 'string'
-          ? (KNOWN_FRAME_TYPES.has(data.type) ? (data.type as LiveFrameType) : 'unknown')
-          : undefined;
+      const control = parseControlSignal(data);
+      const kind: LiveFrameType =
+        data.type === 'setupComplete' || data.setupComplete !== undefined
+          ? 'setupComplete'
+          : typeof data.type === 'string'
+            ? (KNOWN_FRAME_TYPES.has(data.type) ? (data.type as LiveFrameType) : 'unknown')
+            : data.serverContent
+              ? 'model_turn'
+              : 'unknown';
 
-      const result: ParsedLiveFrameResult = {
-        type: resolvedType,
-        hasModelTurn: Boolean(data.serverContent?.modelTurn),
-        hasAudio: false,
-        audioChunks: [],
-        hasText: false,
-        textDeltas: [],
-        isTurnDone: false,
-        interactionStatus: data.serverContent?.interactionStatus,
-        isInterrupted: Boolean(data.serverContent?.interrupted),
-        voiceActivity: data.serverContent?.voiceActivity
-      };
+      const toolLifecycle = control?.kind === 'tool_lifecycle' ? control.phase : undefined;
+      if (control) return { kind, control, domainEvents: [], toolLifecycle };
 
-      if (parseControlFrame(data, result)) return result;
-      if (parseDomainFrame(data, result)) return result;
+      const domainBuilder = data.type ? DOMAIN_EVENT_BUILDERS[data.type] : undefined;
+      if (domainBuilder) return { kind, domainEvents: [domainBuilder(data)] };
 
-      // 1. Extract audio chunks and text from modelTurn.parts
-      for (const part of data.serverContent?.modelTurn?.parts ?? []) {
-        if (part.thought || part.isThought) continue;
-        appendCleanText(part.text, result);
-        const pcm = part.inlineData?.data || part.inline_data?.data;
-        if (pcm) {
-          result.hasAudio = true;
-          result.audioChunks.push(pcm);
-        }
-      }
-
-      // 2. Extract synthesized speech transcription tokens from outputTranscription
-      const outputTranscriptionText =
-        data.serverContent?.outputTranscription?.text ??
-        data.serverContent?.output_transcription?.text;
-      appendCleanText(outputTranscriptionText, result);
-
-      // 3. Terminal turn signals: generationComplete or turnComplete
-      result.isTurnDone = Boolean(
-        data.serverContent?.turnComplete ||
-        data.serverContent?.generationComplete
-      );
-
-      return result;
+      const modelTurn = parseModelTurn(data.serverContent);
+      return { kind, domainEvents: [], modelTurn };
     } catch {
       return null;
     }
@@ -224,157 +220,67 @@ function decodeFrameText(rawData: unknown): string | null {
   return null;
 }
 
-function parseControlFrame(data: RawServerFrame, result: ParsedLiveFrameResult): boolean {
-  if (data.type === 'ping') {
-    const pingTimestamp = typeof data.timestamp === 'number' ? data.timestamp : undefined;
-    result.isPing = true;
-    result.pingTimestamp = pingTimestamp;
-    result.controlSignal = { kind: 'ping', timestamp: pingTimestamp };
-    return true;
-  }
-
+function parseControlSignal(data: RawServerFrame): LiveControlSignal | undefined {
   if (data.type === 'setupComplete' || data.setupComplete !== undefined) {
-    result.type = 'setupComplete';
-    result.isSetupComplete = true;
-    result.isReconnected = Boolean(data.reconnected);
-    result.isSilentSetup = Boolean(data.silent);
-    result.controlSignal = {
-      kind: 'setup_complete',
-      reconnected: result.isReconnected,
-      silent: result.isSilentSetup
-    };
-    return true;
+    return { kind: 'setup_complete', reconnected: Boolean(data.reconnected), silent: Boolean(data.silent) };
   }
-
-  if (data.type === 'tool_executing' || data.type === 'tool_execution_complete') {
-    const phase = data.type === 'tool_executing' ? 'executing' : 'complete';
-    result.toolLifecycle = phase;
-    result.controlSignal = { kind: 'tool_lifecycle', phase };
-    return true;
-  }
-
-  if (data.type === 'thinking_delay') {
-    result.isThinkingDelay = true;
-    result.controlSignal = { kind: 'thinking_delay' };
-    return true;
-  }
-
-  if (data.type === 'dead_air_recovery') {
-    const deadAirReason = typeof data.reason === 'string' ? data.reason : undefined;
-    result.isDeadAirRecovery = true;
-    result.deadAirReason = deadAirReason;
-    result.controlSignal = { kind: 'dead_air_recovery', reason: deadAirReason };
-    return true;
-  }
-
-  if (data.type === 'upstream_reconnecting') {
-    result.reconnectPayload = { attempt: data.attempt, maxAttempts: data.maxAttempts, mode: data.mode };
-    result.controlSignal = { kind: 'upstream_reconnecting', ...result.reconnectPayload };
-    return true;
-  }
-
-  if (data.type === 'hot_handoff_started' || data.type === 'hot_handoff_complete') {
-    const state = data.type === 'hot_handoff_started' ? 'started' : 'complete';
-    result.hotHandoffState = state;
-    result.controlSignal = { kind: 'hot_handoff', state };
-    return true;
-  }
-
-  if (data.type === 'tool_awaiting_speech') {
-    result.toolAwaitingSpeech = true;
-    result.controlSignal = { kind: 'tool_awaiting_speech' };
-    return true;
-  }
-
-  if (data.type === 'stream_recovery' || data.type === 'stream_stall_detected') {
-    result.isStreamRecovery = true;
-    result.controlSignal = { kind: 'stream_recovery' };
-    return true;
-  }
-
-  if (data.type === 'sync_pong') {
-    const syncPongPayload: SyncPongPayload = {
-      isUpstreamConnected: data.isUpstreamConnected,
-      isUpstreamReconnecting: data.isUpstreamReconnecting,
-      isHandoffActive: data.isHandoffActive
-    };
-    result.syncPongPayload = syncPongPayload;
-    result.controlSignal = { kind: 'sync_pong', payload: syncPongPayload };
-    return true;
-  }
-
-  if (data.type === 'upstream_error' || (typeof data.error === 'string' && data.error.length > 0)) {
-    const errorPayload: UpstreamErrorPayload = {
-      error: String(data.error || 'Сбой голосового шлюза'),
-      errorCode: data.errorCode,
-      retryable: Boolean(data.retryable)
-    };
-    result.errorPayload = errorPayload;
-    result.controlSignal = { kind: 'upstream_error', payload: errorPayload };
-    return true;
-  }
-
-  return false;
-}
-
-function parseDomainFrame(data: RawServerFrame, result: ParsedLiveFrameResult): boolean {
   switch (data.type) {
-    case 'evaluation_completed':
-    case 'evaluation':
-      result.evaluation = (data.evaluation || data.payload) as VoiceEvaluationResult;
-      return true;
-    case 'whiteboard_update':
-      result.whiteboardPayload = data.payload;
-      return true;
-    case 'chaos_injected':
-      result.chaosPayload = data.payload;
-      return true;
-    case 'hiring_committee_verdict':
-      result.verdictPayload = data.payload;
-      return true;
-    case 'bug_solved':
-      result.bugSolvedPayload = data.payload || data;
-      return true;
-    case 'candidate_observation_recorded':
-    case 'candidate_observation':
-      result.candidateObservationPayload = data.payload || data;
-      return true;
-    case 'smell_discovered':
-      result.smellDiscoveredPayload = data.payload || data;
-      return true;
-    case 'tool_call':
-      result.toolCallPayload = data;
-      return true;
-    case 'hr_phase_transition':
-      result.hrPhaseTransitionPayload = data.payload || data;
-      return true;
-    case 'hr_scorecard_ready':
-      result.hrScorecardPayload = data.scorecard || data.payload || data;
-      return true;
-    case 'hr_user_transcript_delta':
-      result.hrTranscriptDelta = data.delta || data.text || '';
-      return true;
-    case 'hr_step_state':
-      result.hrStepStatePayload = data.payload || data;
-      return true;
+    case 'ping': return { kind: 'ping', timestamp: typeof data.timestamp === 'number' ? data.timestamp : undefined };
+    case 'tool_executing': return { kind: 'tool_lifecycle', phase: 'executing' };
+    case 'tool_execution_complete': return { kind: 'tool_lifecycle', phase: 'complete' };
+    case 'thinking_delay': return { kind: 'thinking_delay' };
+    case 'dead_air_recovery': return { kind: 'dead_air_recovery', reason: typeof data.reason === 'string' ? data.reason : undefined };
+    case 'upstream_reconnecting': return { kind: 'upstream_reconnecting', attempt: data.attempt, maxAttempts: data.maxAttempts, mode: data.mode };
+    case 'hot_handoff_started': return { kind: 'hot_handoff', state: 'started' };
+    case 'hot_handoff_complete': return { kind: 'hot_handoff', state: 'complete' };
+    case 'tool_awaiting_speech': return { kind: 'tool_awaiting_speech' };
+    case 'stream_recovery':
+    case 'stream_stall_detected': return { kind: 'stream_recovery' };
+    case 'sync_pong':
+      return {
+        kind: 'sync_pong',
+        payload: { isUpstreamConnected: data.isUpstreamConnected, isUpstreamReconnecting: data.isUpstreamReconnecting, isHandoffActive: data.isHandoffActive }
+      };
+    case 'upstream_error':
+      return { kind: 'upstream_error', payload: { error: String(data.error || 'Сбой голосового шлюза'), errorCode: data.errorCode, retryable: Boolean(data.retryable) } };
     default:
-      return false;
+      if (typeof data.error === 'string' && data.error.length > 0) {
+        return { kind: 'upstream_error', payload: { error: data.error, errorCode: data.errorCode, retryable: Boolean(data.retryable) } };
+      }
+      return undefined;
   }
 }
 
-function appendCleanText(rawText: unknown, result: ParsedLiveFrameResult): void {
+function parseModelTurn(sc?: RawServerFrame['serverContent']): LiveModelTurnSlice | undefined {
+  if (!sc) return undefined;
+  const audioChunks: string[] = [];
+  const textDeltas: string[] = [];
+  for (const part of sc.modelTurn?.parts ?? []) {
+    if (part.thought || part.isThought) continue;
+    appendCleanText(part.text, textDeltas);
+    const pcm = part.inlineData?.data || part.inline_data?.data;
+    if (pcm) audioChunks.push(pcm);
+  }
+  appendCleanText(sc.outputTranscription?.text ?? sc.output_transcription?.text, textDeltas);
+  return {
+    hasModelTurn: Boolean(sc.modelTurn),
+    hasAudio: audioChunks.length > 0,
+    audioChunks,
+    hasText: textDeltas.length > 0,
+    textDeltas,
+    isTurnDone: Boolean(sc.turnComplete || sc.generationComplete),
+    interactionStatus: sc.interactionStatus,
+    isInterrupted: Boolean(sc.interrupted),
+    voiceActivity: sc.voiceActivity
+  };
+}
+
+function appendCleanText(rawText: unknown, target: string[]): void {
   if (typeof rawText !== 'string' || rawText.length === 0) return;
-  const clean = sanitizeModelText(rawText);
-  if (clean.length > 0) {
-    result.hasText = true;
-    result.textDeltas.push(clean);
-  }
-}
-
-function sanitizeModelText(text: string): string {
-  return text
+  const clean = rawText
     .replace(/<no\s*speech>/gi, '')
     .replace(/\{pause\}/gi, '')
     .replace(/\[no\s*speech\]/gi, '')
     .replace(/<pause>/gi, '');
+  if (clean.length > 0) target.push(clean);
 }

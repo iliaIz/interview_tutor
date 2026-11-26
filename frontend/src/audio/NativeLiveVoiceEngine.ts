@@ -6,11 +6,10 @@
 
 import { MicrophoneMetrics } from './MicrophoneCapture';
 import { LiveVoiceStateMachine } from './LiveVoiceStateMachine';
-import { LiveVoiceFrameParser } from './LiveVoiceFrameParser';
+import { LiveVoiceFrameParser, LiveDomainEvent, dispatchDomainEvents } from './LiveVoiceFrameParser';
 import { buildLiveVoiceWebSocketUrl, sendLiveSessionInit } from './liveVoiceUrlBuilder';
 import { DialogueTurnManager } from './dialogueTurnManager';
 import { WakeLockManager } from './wakeLockManager';
-import { dispatchDomainEvents } from './liveVoiceDomainEvents';
 import { LiveMicChunkDispatcher } from './liveMicChunkDispatcher';
 import { LiveHeartbeatController } from './LiveHeartbeatController';
 import { LiveVoiceRecoveryController } from './LiveVoiceRecoveryController';
@@ -235,23 +234,23 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
     const parsed = LiveVoiceFrameParser.parse(rawData);
     if (!parsed) return;
 
-    if (parsed.isPing) {
-      this.heartbeat.handleIncomingPing(parsed.pingTimestamp);
+    if (parsed.control?.kind === 'ping') {
+      this.heartbeat.handleIncomingPing(parsed.control.timestamp);
       return;
     }
 
-    if (parsed.toolLifecycle === 'executing' || Boolean(parsed.toolCallPayload)) {
+    if (parsed.toolLifecycle === 'executing' || parsed.domainEvents.some((e) => e.kind === 'tool_call')) {
       this.isAudioMutexLocked = true;
     }
-    if (parsed.toolLifecycle === 'complete' || Boolean(parsed.whiteboardPayload)) {
+    if (parsed.toolLifecycle === 'complete' || parsed.domainEvents.some((e) => e.kind === 'whiteboard_update')) {
       this.isAudioMutexLocked = false;
     }
 
     if (this.recovery.handleControlFrame(parsed)) return;
 
-    if (parsed.isSetupComplete) {
+    if (parsed.control?.kind === 'setup_complete') {
       this.isSessionReady = true;
-      if (parsed.isReconnected || parsed.isSilentSetup) {
+      if (parsed.control.reconnected || parsed.control.silent) {
         this.isTurn0Lockdown = false;
       }
       this.fsm.transition({ type: 'SETUP_COMPLETE', isTurn0: this.isTurn0Lockdown });
@@ -259,9 +258,12 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    if (parsed.evaluation) {
+    const evalEvent = parsed.domainEvents.find(
+      (e): e is Extract<LiveDomainEvent, { kind: 'evaluation' }> => e.kind === 'evaluation'
+    );
+    if (evalEvent) {
       this.recovery.clearSafetyTimer();
-      this.pendingEvaluation = parsed.evaluation;
+      this.pendingEvaluation = evalEvent.payload;
       if (!this.audio.isPlaying() && this.isServerTurnComplete) {
         this.flushPendingEvaluation();
       } else {
@@ -270,38 +272,44 @@ export class NativeLiveVoiceEngine implements ILiveVoiceEngine {
       return;
     }
 
-    dispatchDomainEvents(this.callbacks, parsed);
+    if (parsed.domainEvents.length > 0) {
+      dispatchDomainEvents(this.callbacks, parsed.domainEvents);
+      return;
+    }
 
-    if (parsed.hasText) {
-      for (const textChunk of parsed.textDeltas) {
+    const turn = parsed.modelTurn;
+    if (!turn) return;
+
+    if (turn.hasText) {
+      for (const textChunk of turn.textDeltas) {
         this.currentAiTurnAccumulator += textChunk;
         this.callbacks.onTranscriptDelta?.('ai', textChunk);
         this.turnManager.updateLastAiTurn(this.currentAiTurnAccumulator);
       }
     }
 
-    if ((parsed.hasAudio && parsed.audioChunks.length > 0) || parsed.hasModelTurn) {
+    if ((turn.hasAudio && turn.audioChunks.length > 0) || turn.hasModelTurn) {
       this.isSessionReady = true;
       this.isServerTurnComplete = false;
       this.recovery.setAwaitingToolSpeech(false);
       this.recovery.clearSafetyTimer();
       this.fsm.transition({ type: 'FIRST_AUDIO_RECEIVED' });
       this.callbacks.onStatusMessage?.('🔊 ИИ говорит...');
-      for (const pcm of parsed.audioChunks) {
+      for (const pcm of turn.audioChunks) {
         this.audio.enqueuePcm(pcm);
       }
     }
 
-    if (parsed.isInterrupted) {
+    if (turn.isInterrupted) {
       this.audio.interruptPlayout();
       this.isServerTurnComplete = true;
       this.unlockCandidateTurn();
       return;
     }
 
-    if (parsed.isTurnDone) {
+    if (turn.isTurnDone) {
       this.isSessionReady = true;
-      if (parsed.interactionStatus === 'IN_PROGRESS') return;
+      if (turn.interactionStatus === 'IN_PROGRESS') return;
       this.isServerTurnComplete = true;
       this.audio.notifyTurnComplete();
       this.currentAiTurnAccumulator = '';

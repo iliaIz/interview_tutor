@@ -84,70 +84,57 @@ export class LiveVoiceRecoveryController {
    * Returns true if frame was fully consumed by the recovery controller.
    */
   public handleControlFrame(parsed: ParsedLiveFrameResult): boolean {
-    if (parsed.reconnectPayload) {
-      const { attempt = 1, maxAttempts = 3 } = parsed.reconnectPayload;
-      this.callbacks.onStatusMessage(`🔄 Восстанавливаем голосовую связь (${attempt}/${maxAttempts})...`);
-      this.clearSafetyTimer();
-      return true;
-    }
+    const ctrl = parsed.control;
+    if (!ctrl) return false;
 
-    if (parsed.hotHandoffState === 'started') {
-      this.callbacks.onStatusMessage('🔄 Бесшовное переключение голосового канала...');
-      return true;
-    }
-
-    if (parsed.hotHandoffState === 'complete') {
-      this.consecutiveUpstreamDown = 0;
-      this.callbacks.onStatusMessage('🎙️ Связь стабильна. Можете говорить...');
-      return true;
-    }
-
-    if (parsed.toolAwaitingSpeech) {
-      this.awaitingToolSpeech = true;
-      this.callbacks.onStatusMessage('🎨 ИИ готовит пояснение по доске...');
-      this.armSafetyTimer(8000);
-      return true;
-    }
-
-    if (parsed.isStreamRecovery) {
-      this.callbacks.onStatusMessage('🔄 Синхронизация голосового потока...');
-      return true;
-    }
-
-    if (parsed.syncPongPayload) {
-      const { isUpstreamConnected, isUpstreamReconnecting, isHandoffActive } = parsed.syncPongPayload;
-      if (isUpstreamConnected === false && !isUpstreamReconnecting && !isHandoffActive) {
-        this.consecutiveUpstreamDown += 1;
-        if (this.consecutiveUpstreamDown >= 2) {
-          this.callbacks.onFatalError(
-            'Голосовой поток к модели прерван. Нажмите «Переподключить».',
-            true,
-            'UPSTREAM_LINK_LOST'
-          );
-        }
-      } else {
-        this.consecutiveUpstreamDown = 0;
+    switch (ctrl.kind) {
+      case 'upstream_reconnecting': {
+        const attempt = ctrl.attempt ?? 1;
+        const maxAttempts = ctrl.maxAttempts ?? 3;
+        this.callbacks.onStatusMessage(`🔄 Восстанавливаем голосовую связь (${attempt}/${maxAttempts})...`);
+        this.clearSafetyTimer();
+        return true;
       }
-      return true;
+      case 'hot_handoff':
+        if (ctrl.state === 'started') {
+          this.callbacks.onStatusMessage('🔄 Бесшовное переключение голосового канала...');
+        } else {
+          this.consecutiveUpstreamDown = 0;
+          this.callbacks.onStatusMessage('🎙️ Связь стабильна. Можете говорить...');
+        }
+        return true;
+      case 'tool_awaiting_speech':
+        this.awaitingToolSpeech = true;
+        this.callbacks.onStatusMessage('🎨 ИИ готовит пояснение по доске...');
+        this.armSafetyTimer(8000);
+        return true;
+      case 'stream_recovery':
+        this.callbacks.onStatusMessage('🔄 Синхронизация голосового потока...');
+        return true;
+      case 'sync_pong': {
+        const { isUpstreamConnected, isUpstreamReconnecting, isHandoffActive } = ctrl.payload;
+        if (isUpstreamConnected === false && !isUpstreamReconnecting && !isHandoffActive) {
+          this.consecutiveUpstreamDown += 1;
+          if (this.consecutiveUpstreamDown >= 2) {
+            this.callbacks.onFatalError('Голосовой поток к модели прерван. Нажмите «Переподключить».', true, 'UPSTREAM_LINK_LOST');
+          }
+        } else {
+          this.consecutiveUpstreamDown = 0;
+        }
+        return true;
+      }
+      case 'thinking_delay':
+        this.callbacks.onStatusMessage('🧠 ИИ обдумывает ответ...');
+        return true;
+      case 'dead_air_recovery':
+        this.callbacks.onDeadAirRecovery();
+        return true;
+      case 'upstream_error':
+        this.callbacks.onFatalError(ctrl.payload.error, ctrl.payload.retryable, ctrl.payload.errorCode);
+        return true;
+      default:
+        return false;
     }
-
-    if (parsed.isThinkingDelay) {
-      this.callbacks.onStatusMessage('🧠 ИИ обдумывает ответ...');
-      return true;
-    }
-
-    if (parsed.isDeadAirRecovery) {
-      this.callbacks.onDeadAirRecovery();
-      return true;
-    }
-
-    if (parsed.errorPayload) {
-      const { error, retryable, errorCode } = parsed.errorPayload;
-      this.callbacks.onFatalError(error, retryable, errorCode);
-      return true;
-    }
-
-    return false;
   }
 
   public dispose(): void {
