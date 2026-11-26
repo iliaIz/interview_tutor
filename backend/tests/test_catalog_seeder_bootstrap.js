@@ -30,8 +30,8 @@ function runTests() {
 
   // 2. DatabaseBootstrap(':memory:') performs zero hidden auth DELETEs
   const memDb = DatabaseBootstrap.createDatabase(':memory:');
-  memDb.prepare("INSERT INTO users (id, email, name) VALUES ('user_keep', 'keep@test.local', 'Keep User')").run();
-  memDb.prepare("INSERT INTO invite_tokens (code, user_id, role, is_active) VALUES ('REVOKED1', 'user_keep', 'candidate', 0)").run();
+  memDb.prepare("INSERT INTO users (id, name, role) VALUES ('user_keep', 'Keep User', 'candidate')").run();
+  memDb.prepare("INSERT INTO invite_tokens (id, code_hash, label, user_id, role, is_active) VALUES ('tok_revoked_1', 'hash_revoked_1', 'Revoked Label', 'user_keep', 'candidate', 0)").run();
 
   // Re-running initSchema must NOT purge auth records silently
   DatabaseBootstrap.initSchema(memDb);
