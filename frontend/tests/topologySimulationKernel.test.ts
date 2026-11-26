@@ -21,7 +21,7 @@ console.log('🧪 Running TopologySimulationKernel in-process contract tests...'
   updateContinuousTopology(
     stateDefaultCache,
     [
-      { id: 'c1', type: 'client', label: 'Client', config: {} },
+      { id: 'c1', type: 'client', label: 'Client', config: { serviceRateMu: 5000 } },
       { id: 'cache1', type: 'cache', label: 'Redis', config: { readWriteRatio: 0.9, replicas: 2 } },
       { id: 'db1', type: 'database', label: 'Postgres', config: { replicas: 2, serviceRateMu: 5000 } }
     ],
@@ -39,7 +39,7 @@ console.log('🧪 Running TopologySimulationKernel in-process contract tests...'
   updateContinuousTopology(
     stateZeroCache,
     [
-      { id: 'c1', type: 'client', label: 'Client', config: {} },
+      { id: 'c1', type: 'client', label: 'Client', config: { serviceRateMu: 5000 } },
       { id: 'cache1', type: 'cache', label: 'Redis', config: { cacheHitRatio: 0, replicas: 2 } },
       { id: 'db1', type: 'database', label: 'Postgres', config: { replicas: 2, serviceRateMu: 5000 } }
     ],
