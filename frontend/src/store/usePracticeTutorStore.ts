@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import {
-  TutorActiveContext,
-  TutorPersona,
-  normalizePracticeContext
-} from '@interview-prep/shared';
+  normalizePracticeContext,
+  type TutorActiveContext,
+  type TutorPersona
+} from '@interview-prep/shared/tutor';
 import { TutorDomain } from '../components/practice/tutor/TutorDomain';
 import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
 import { TutorTransportPort, httpTutorTransport } from './tutorTransport';

@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
+      "@interview-prep/shared/tutor": ["../shared/src/schemas/tutorBarrel.ts"],
       "@interview-prep/shared": ["../shared/src/index.ts"]
     },
     "noEmit": true,

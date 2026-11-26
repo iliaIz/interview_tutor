@@ -14,7 +14,7 @@ import {
   type CompanyProfile,
   type TutorActiveContext,
   type TutorPersona
-} from '@interview-prep/shared';
+} from '@interview-prep/shared/tutor';
 import { CompanyTrackContextAdapter } from '../src/services/CompanyTrackContextAdapter';
 import {
   formatTutorRequestBody,

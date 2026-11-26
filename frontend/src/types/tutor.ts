@@ -3,7 +3,7 @@
  * Synthesized from Wave 4 Deep Research: Multimodal Socratic Curriculum Routing
  */
 
-import type { TutorPersona } from '@interview-prep/shared';
+import type { TutorPersona } from '@interview-prep/shared/tutor';
 
 export type { TutorPersona };
 

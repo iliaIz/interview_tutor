@@ -5,11 +5,11 @@
  */
 
 import {
-  TutorActiveContext,
-  TutorQuickActionChip,
-  CompanyProfile,
-  normalizeCompanyContext
-} from '@interview-prep/shared';
+  normalizeCompanyContext,
+  type TutorActiveContext,
+  type TutorQuickActionChip,
+  type CompanyProfile
+} from '@interview-prep/shared/tutor';
 
 export interface CompanyQuestionSummary {
   id: string;

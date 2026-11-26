@@ -9,7 +9,7 @@ import {
   normalizePracticeContext,
   type TutorActiveContext,
   type TutorPersona
-} from '@interview-prep/shared';
+} from '@interview-prep/shared/tutor';
 import { TRANSACTION_LAB_SCENARIOS } from '../../../data/transactionLabCatalog';
 import { selectActiveWhiteboardArtifact, type AppState } from '../../../store/useAppStore';
 import type {

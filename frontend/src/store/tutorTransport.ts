@@ -1,8 +1,8 @@
-import {
+import type {
   TutorActiveContext,
   TutorChatMessage,
   TutorPersona
-} from '@interview-prep/shared';
+} from '@interview-prep/shared/tutor';
 
 /**
  * tutorTransport.ts

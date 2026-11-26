@@ -5,9 +5,16 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@interview-prep/shared': path.resolve(__dirname, '../shared/src/index.ts')
-    }
+    alias: [
+      {
+        find: /^@interview-prep\/shared\/tutor$/,
+        replacement: path.resolve(__dirname, '../shared/src/schemas/tutorBarrel.ts')
+      },
+      {
+        find: /^@interview-prep\/shared$/,
+        replacement: path.resolve(__dirname, '../shared/src/index.ts')
+      }
+    ]
   },
   server: {
     port: 5173,
