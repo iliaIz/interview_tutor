@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Node, Edge } from '@xyflow/react';
-import { analyzeGraphSpof, SpofNodeAnalysis } from '../../../utils/spofAnalyzer';
+import { lintTopology, SpofNodeAnalysis } from '../simulation/TopologySimulationKernel';
 
 /**
  * Hook to continuously compute Single Point of Failure (SPOF) nodes
@@ -8,7 +8,7 @@ import { analyzeGraphSpof, SpofNodeAnalysis } from '../../../utils/spofAnalyzer'
  */
 export function useCanvasSPOF(nodes: Node[], edges: Edge[]) {
   const spofMap = useMemo<Map<string, SpofNodeAnalysis>>(() => {
-    return analyzeGraphSpof(
+    return lintTopology(
       nodes.map((n) => ({
         id: n.id,
         type: n.type,
@@ -18,7 +18,7 @@ export function useCanvasSPOF(nodes: Node[], edges: Edge[]) {
         source: e.source,
         target: e.target
       }))
-    );
+    ).spofMap;
   }, [nodes, edges]);
 
   const enrichedNodes = useMemo(() => {
