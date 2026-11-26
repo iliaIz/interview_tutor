@@ -1,5 +1,5 @@
-import { db } from '../db';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
+import { normalizeUserId } from '../evaluation/QuestionEvaluationRepository';
+import { ToolExecutionContext, ToolExecutionResult } from './LiveToolExecutor';
 
 export function handleInjectChaosFailure(
   args: Record<string, any>
@@ -59,6 +59,7 @@ export function handleSubmitHiringCommitteeVerdict(
   ctx: ToolExecutionContext
 ): ToolExecutionResult {
   const { session } = ctx;
+  const userId = normalizeUserId(session.userId);
   const targetLevel = args.target_level || 'L6';
   const calibratedLevel = args.calibrated_level || 'L5';
   const verdict = args.verdict || 'NO_HIRE';
@@ -69,6 +70,11 @@ export function handleSubmitHiringCommitteeVerdict(
     operational_excellence: 2.8
   };
   const defense = args.calibration_defense || 'Калибровочное заключение комитета по найму.';
+
+  const scoreValues = Object.values(scores).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const overallScore = scoreValues.length > 0
+    ? Number((scoreValues.reduce((acc, n) => acc + n, 0) / scoreValues.length).toFixed(2))
+    : 0;
 
   console.log(`⚖️ Hiring Committee Verdict Submitted: [${verdict}] Target: ${targetLevel} -> Calibrated: ${calibratedLevel}`);
 
@@ -83,22 +89,20 @@ export function handleSubmitHiringCommitteeVerdict(
     leveling_justification: defense
   };
 
-  if (session.questionId) {
+  if (session.questionId && ctx.persistencePort) {
     try {
-      db.prepare(`
-        INSERT INTO system_design_submissions (id, scenario_id, user_id, architecture_mermaid, notes_markdown, evaluation_json)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
+      ctx.persistencePort.saveSystemDesignSubmission({
         submissionId,
-        session.questionId,
-        session.userId || 'default_user',
-        session.currentArchitectureMermaid || '',
-        defense,
-        JSON.stringify(packet)
-      );
+        userId,
+        scenarioId: session.questionId,
+        diagramMermaid: session.currentArchitectureMermaid || '',
+        notesMarkdown: defense,
+        overallScore,
+        verdictJson: JSON.stringify(packet)
+      });
       console.log(`💾 Persisted Hiring Committee submission ${submissionId} for scenario ${session.questionId}`);
     } catch (dbErr) {
-      console.warn('Could not persist hiring committee submission to db:', dbErr);
+      console.warn('Could not persist hiring committee submission via ToolPersistencePort:', dbErr);
     }
   }
 

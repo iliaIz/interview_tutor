@@ -1,8 +1,6 @@
-import { envConfig } from '../../config/env';
 import {
   DEFAULT_TURN_MODE,
   DEFAULT_VAD_PAUSE_MS,
-  sanitizeVoiceName,
   clampVadPauseMs
 } from '../../config/liveDefaults';
 import { StrictnessLevel } from '../../prompts/core/antiSycophancy';
@@ -12,7 +10,7 @@ import {
   LiveSessionBlueprintParams,
   LiveSessionResolvedConfig
 } from './liveSessionConfigTypes';
-import { mergeWorkspaceManifests } from './workspaceManifestStore';
+import { LiveWorkspaceStore } from './LiveWorkspaceStore';
 
 export const VALID_GENDERS = new Set(['female', 'male', 'neutral']);
 const VALID_STRICTNESS = new Set(['learning', 'standard', 'hardcore']);
@@ -99,70 +97,5 @@ export function parseQueryToBlueprintParams(
 }
 
 export function mergeInitFrameIntoConfig(config: LiveSessionResolvedConfig, rawInitFrame?: any): void {
-  if (!rawInitFrame) return;
-  let init = rawInitFrame;
-  if (typeof init === 'string' || Buffer.isBuffer(init)) {
-    try {
-      init = JSON.parse(init.toString('utf8'));
-    } catch {
-      return;
-    }
-  }
-  if (!init || typeof init !== 'object') return;
-  if (init.sessionType) config.sessionType = init.sessionType;
-  if (init.tutorMode) config.tutorMode = init.tutorMode;
-  if (init.voice) config.voiceName = config.promptConfig.voiceName = sanitizeVoiceName(init.voice, config.voiceName);
-  if (VALID_GENDERS.has(init.userGender)) config.userGender = config.promptConfig.userGender = init.userGender;
-  if (init.turnMode === 'manual' || init.turnMode === 'auto') config.turnMode = config.promptConfig.turnMode = init.turnMode;
-  if (init.liveModel && envConfig.models.supportedLiveModels.includes(String(init.liveModel))) config.liveModel = String(init.liveModel);
-  if (init.vadPauseMs !== undefined) config.vadPauseMs = clampVadPauseMs(init.vadPauseMs, config.vadPauseMs);
-  if (typeof init.enableSilenceClarification === 'boolean') config.enableSilenceClarification = init.enableSilenceClarification;
-  if (VALID_STRICTNESS.has(init.strictness)) config.strictness = config.promptConfig.strictness = init.strictness;
-  if (typeof init.deepDive === 'boolean') config.deepDive = config.promptConfig.deepDive = init.deepDive;
-  if (typeof init.liveCoaching === 'boolean') config.liveCoaching = config.promptConfig.liveCoaching = init.liveCoaching;
-  if (typeof init.maxProbes === 'number' && Number.isFinite(init.maxProbes)) {
-    config.maxProbes = config.promptConfig.maxProbes = Math.max(1, Math.min(5, Math.round(init.maxProbes)));
-  }
-  if (init.challenge) {
-    const ch = init.challenge;
-    if (ch.category) config.challengeCategory = ch.category;
-    if (ch.track) config.challengeTrack = ch.track;
-    if (ch.title) { config.bugTitle = ch.title; config.questionText = ch.title; }
-    if (ch.instructions) config.bugExplanation = ch.instructions;
-    if (ch.activeFileContent) config.codeSnippet = ch.activeFileContent;
-    if (ch.activeFilePath) config.activeFilePath = ch.activeFilePath;
-    if (ch.workspaceManifest) config.manifest = config.workspaceManifest = mergeWorkspaceManifests(config.manifest, ch.workspaceManifest);
-  }
-  if (init.workspaceManifest) config.manifest = config.workspaceManifest = mergeWorkspaceManifests(config.manifest, init.workspaceManifest);
-  if (init.codeSnippet) config.codeSnippet = init.codeSnippet;
-  if (init.bugTitle) { config.bugTitle = init.bugTitle; config.questionText = init.bugTitle; }
-  if (init.bugExplanation) config.bugExplanation = init.bugExplanation;
-  if (init.questionText) config.questionText = init.questionText;
-  if (init.referenceAnswer) config.referenceAnswer = init.referenceAnswer;
-  if (init.topic) config.topic = init.topic;
-  if (init.persona) config.persona = config.promptConfig.persona = init.persona;
-  if (init.strategy) config.strategy = config.promptConfig.strategy = init.strategy;
-  if (init.targetGrade) config.targetGrade = config.promptConfig.targetGrade = init.targetGrade;
-  if (typeof init.customPrompt === 'string') config.customPromptOverride = config.promptConfig.customPromptOverride = init.customPrompt.slice(0, 4000);
-  if (typeof init.initialUserMessage === 'string') config.initialUserMessage = config.promptConfig.initialUserMessage = init.initialUserMessage.trim();
-  if (typeof init.temperature === 'number' && Number.isFinite(init.temperature)) config.temperature = config.promptConfig.temperature = init.temperature;
-  if (init.activeCodeArtifact) config.activeCodeArtifact = init.activeCodeArtifact;
-  if (init.academyBridgeContext) config.academyBridgeContext = init.academyBridgeContext;
-  if (init.seniorReview) config.seniorReview = init.seniorReview;
-  if (typeof init.questionIndex === 'number') config.questionIndex = init.questionIndex;
-  if (typeof init.totalQuestions === 'number') config.totalQuestions = init.totalQuestions;
-  if (typeof init.isRetry === 'boolean') config.isRetry = init.isRetry;
-  if (typeof init.isResumed === 'boolean') config.isResumed = init.isResumed;
-  if (init.hrMode) config.hrMode = init.hrMode;
-  if (init.hrPersonaId) config.hrPersonaId = init.hrPersonaId;
-  if (init.dossierId) config.dossierId = String(init.dossierId);
-  if (init.jobId) config.jobId = String(init.jobId);
-  if (init.questionMatrixId) config.questionMatrixId = String(init.questionMatrixId);
-  if (init.chunkId) config.chunkId = init.chunkId;
-  if (init.startBeatId) config.startBeatId = String(init.startBeatId);
-  if (init.beatScope === 'single_beat' || init.beatScope === 'all_from_beat') config.beatScope = init.beatScope;
-  if (init.academyCourse) config.academyCourse = init.academyCourse;
-  if (init.academyStep) config.academyStep = init.academyStep;
-  if (init.questionId) config.questionId = String(init.questionId);
-  if (init.sessionId) config.sessionId = init.sessionId;
+  LiveWorkspaceStore.mergeInitFrame(config, rawInitFrame, { preserveExistingQuestionText: false });
 }

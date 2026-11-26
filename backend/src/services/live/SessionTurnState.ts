@@ -17,6 +17,7 @@ import { DEFAULT_VAD_PAUSE_MS } from '../../config/liveDefaults';
 
 export class SessionTurnState {
   public readonly proxySession: ProxySession;
+  public readonly watchdogs: WatchdogManager;
   private readonly config: LiveSessionResolvedConfig;
   private readonly fsm: SessionFsm;
 
@@ -24,7 +25,7 @@ export class SessionTurnState {
     config: LiveSessionResolvedConfig,
     clientSocket: WebSocket,
     fsm: SessionFsm,
-    watchdogs: WatchdogManager
+    watchdogs?: WatchdogManager
   ) {
     this.config = config;
     this.fsm = fsm;
@@ -58,6 +59,9 @@ export class SessionTurnState {
       isToolCallPending: false,
       sessionType: config.sessionType,
       hrMode: config.hrMode,
+      dossierId: config.dossierId,
+      jobId: config.jobId,
+      questionMatrixId: config.questionMatrixId,
       chunkId: config.chunkId,
       startBeatId: config.startBeatId,
       beatScope: config.beatScope,
@@ -94,6 +98,8 @@ export class SessionTurnState {
       resumptionManager: new SessionResumptionManager(config.resumptionHandle),
       resumptionHandle: config.resumptionHandle
     };
+    this.watchdogs = watchdogs ?? WatchdogManager.ensureSessionWatchdogs(this.proxySession, clientSocket);
+    this.proxySession.watchdogs = this.watchdogs;
   }
 
   public get state(): LiveSessionState {

@@ -18,8 +18,7 @@ import { extractDefaultAnchors } from './liveRubricBuilder';
 import { resolvePreResolvedHrContext } from './hrContextResolver';
 import { getLiveToolDeclarations } from './liveToolDeclarations';
 import { buildGeminiLiveSetupMessage } from './liveGeminiConfigBuilder';
-import { LiveWorkspaceContext } from './LiveWorkspaceContext';
-import { mergeWorkspaceManifests } from './workspaceManifestStore';
+import { LiveWorkspaceStore } from './LiveWorkspaceStore';
 import {
   mergeInitFrameIntoConfig,
   parseQueryToBlueprintParams,
@@ -98,9 +97,10 @@ export class LiveSessionBlueprintBuilder {
     const userProfile = (deps.getUserProfile || getUserProfile)(userId);
     const questionId = params.questionId || params.challengeId || '';
     const challengeId = params.challengeId || params.questionId || '';
-    const resolveChallenge = deps.resolveChallenge || ((input: ChallengeResolutionInput) => LiveWorkspaceContext.resolve(input).getResolved());
+    const resolveChallenge = deps.resolveChallenge || ((input: ChallengeResolutionInput) => LiveWorkspaceStore.resolve(input).getResolved());
     const resolved = resolveChallenge({
       challengeId, questionId,
+      sessionType: params.sessionType,
       queryTopic: params.topic || 'Java & Spring Framework',
       queryBugTitle: params.bugTitle || '',
       queryQuestionText: params.questionText || '',
@@ -114,7 +114,7 @@ export class LiveSessionBlueprintBuilder {
     });
 
     if (params.workspaceManifest) {
-      resolved.workspaceManifest = mergeWorkspaceManifests(resolved.workspaceManifest, params.workspaceManifest);
+      resolved.workspaceManifest = LiveWorkspaceStore.mergeWorkspaceManifests(resolved.workspaceManifest, params.workspaceManifest);
     }
 
     const profileGender = (userProfile as any)?.gender;

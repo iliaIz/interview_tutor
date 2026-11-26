@@ -8,7 +8,7 @@ import { WebSocket } from 'ws';
 import { ProxySession, UpstreamTransportPort } from './liveSessionTypes';
 import { handleSetupCompleteGreeting } from './LiveGreetingReplay';
 import { LiveTelemetryAccumulator } from './LiveTelemetryAccumulator';
-import { LiveToolEngine } from './LiveToolEngine';
+import { LiveToolExecutor } from './LiveToolExecutor';
 import { isNonSpeechUtterance } from './liveStreamErrorDetector';
 import { LiveCannedErrorRecovery } from './LiveCannedErrorRecovery';
 import { envConfig } from '../../config/env';
@@ -177,12 +177,12 @@ export class UpstreamMessagePipeline {
     this.processModelOutput(parsed);
 
     if (parsed.toolCallCancellation?.ids) {
-      LiveToolEngine.handleCancellation(session, parsed.toolCallCancellation.ids);
+      LiveToolExecutor.handleCancellation(session, parsed.toolCallCancellation.ids);
     }
 
     if (parsed.toolCall?.functionCalls && this.upstream.isUpstreamOpen()) {
       isToolCallProcessed = true;
-      await LiveToolEngine.executeFunctionCalls({
+      await LiveToolExecutor.executeFunctionCalls({
         functionCalls: parsed.toolCall.functionCalls,
         clientSocket,
         upstream: this.upstream,
@@ -223,10 +223,12 @@ export class UpstreamMessagePipeline {
     if (parsed.serverContent?.modelTurn) {
       session.isAiGenerating = true;
       session.awaitingToolSpeech = false;
-      session.isToolCallPending = false;
+      if (!session.toolAudioMutex?.shouldGateMicAudio()) {
+        session.isToolCallPending = false;
+        if (session.toolCallSafetyTimeout) { clearTimeout(session.toolCallSafetyTimeout); session.toolCallSafetyTimeout = null; }
+      }
       const hasAudioPart = Boolean(parsed.serverContent.modelTurn.parts?.some((p: any) => p.inlineData || p.inline_data));
       session.streamSentinel?.observeUpstreamSignal(hasAudioPart ? 'model_audio_chunk' : 'model_text_or_thought');
-      if (session.toolCallSafetyTimeout) { clearTimeout(session.toolCallSafetyTimeout); session.toolCallSafetyTimeout = null; }
       const commitAnchor = session.currentTurnMetrics?.candidateSpeechEndedAt || session.lastTurnCommitTime || session.lastToolCallTime || session.lastActivityAt || Date.now();
       session.lastActivityAt = Date.now();
       session.probesCount = (session.probesCount || 0) + 1;

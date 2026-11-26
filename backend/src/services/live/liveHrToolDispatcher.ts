@@ -5,7 +5,7 @@
  */
 
 import { HR_VOICE_EVENTS, HrScorecard, HrStepControlAction } from '@interview-prep/shared';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
+import { ToolExecutionContext, ToolExecutionResult } from './LiveToolExecutor';
 import {
   applyGuidedStepAction,
   buildStepStatePayload,

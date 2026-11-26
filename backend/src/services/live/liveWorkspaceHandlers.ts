@@ -1,18 +1,20 @@
-import { db } from '../db';
-import { updateBugChallengeStatus } from '../tutorService';
-import { applyKnowledgeDecay } from '../vectorMemoryService';
-import { applyWorkspaceFileUpdate, matchWorkspaceFilePath } from './workspaceManifestStore';
-import { ToolExecutionContext, ToolExecutionResult } from './LiveToolEngine';
+import { normalizeUserId } from '../evaluation/QuestionEvaluationRepository';
+import {
+  applyWorkspaceFileUpdate,
+  matchWorkspaceFilePath,
+  normalizeWorkspacePath,
+  resolveWorkspaceFileMatch
+} from './LiveWorkspaceStore';
+import { ToolExecutionContext, ToolExecutionResult } from './LiveToolExecutor';
 
 /**
  * liveWorkspaceHandlers.ts
- * Чистые обработчики инструментов доски, чтения файлов, баг-хантинга и код-ревью.
- * Без прямого доступа к WebSocket.
+ * Pure handlers for whiteboard, workspace file reading, bug hunt resolution, and code smell reporting.
+ * Zero direct WebSocket or global SQLite dependencies (delegates storage to ToolPersistencePort).
  */
 
 export function handleUpdateWhiteboard(
-  args: Record<string, any>,
-  ctx?: ToolExecutionContext
+  args: Record<string, any>
 ): ToolExecutionResult {
   const action = args.action || 'write';
   const title = args.title || (action === 'clear' ? 'Доска очищена' : 'Демонстрация кода');
@@ -20,15 +22,14 @@ export function handleUpdateWhiteboard(
   const code = args.code || '';
   const highlightLines = Array.isArray(args.highlightLines) ? args.highlightLines : [];
   const explanation = args.explanation || '';
-  const spokenAudioBytes = ctx?.session?.currentTurnAudioBytes || 0;
-  const shouldStaySilent = action === 'clear' || spokenAudioBytes >= 24000;
+  const isClear = action === 'clear';
 
   console.log(
-    `🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length}, scheduling: ${shouldStaySilent ? 'SILENT' : 'WHEN_IDLE'})`
+    `🎨 Gemini Live emitted Whiteboard update: [${action}] "${title}" (lang: ${language}, lines: ${highlightLines.length})`
   );
 
   return {
-    result: shouldStaySilent
+    result: isClear
       ? {
           status: 'SUCCESS',
           message: 'Интерактивная доска обновлена на экране кандидата.'
@@ -51,54 +52,58 @@ export function handleUpdateWhiteboard(
         updatedAt: Date.now()
       }
     },
-    scheduling: shouldStaySilent ? 'SILENT' : 'WHEN_IDLE'
+    scheduling: isClear ? 'SILENT' : 'WHEN_IDLE'
   };
 }
 
-export function handleReadFile(
+export async function handleReadFile(
   args: Record<string, any>,
   ctx: ToolExecutionContext
-): ToolExecutionResult {
+): Promise<ToolExecutionResult> {
   const { session } = ctx;
   const rawPath = (args.filePath || '').trim();
   const manifest = session.workspaceManifest;
   let foundContent: string | null = null;
+  let ambiguousMatches: string[] = [];
 
   if (manifest) {
-    if (manifest.activeFile?.path && matchWorkspaceFilePath(manifest.activeFile.path, rawPath)) {
-      foundContent = manifest.activeFile.content;
-    }
-    if (!foundContent && Array.isArray(manifest.secondaryFiles)) {
-      const sec = manifest.secondaryFiles.find((f: any) => matchWorkspaceFilePath(f.path, rawPath));
-      if (sec) foundContent = sec.content;
-    }
-    if (!foundContent && Array.isArray(manifest.files)) {
-      const f = manifest.files.find((file: any) => matchWorkspaceFilePath(file.path, rawPath));
-      if (f) foundContent = f.content;
+    const candidates: Array<{ path: string; content: string }> = [];
+    const seen = new Set<string>();
+    const addCandidate = (f: any) => {
+      const norm = normalizeWorkspacePath(f?.path);
+      if (f?.path && norm && !seen.has(norm)) {
+        seen.add(norm);
+        candidates.push(f);
+      }
+    };
+    if (manifest.activeFile) addCandidate(manifest.activeFile);
+    if (Array.isArray(manifest.secondaryFiles)) manifest.secondaryFiles.forEach(addCandidate);
+    if (Array.isArray(manifest.files)) manifest.files.forEach(addCandidate);
+
+    const matchRes = resolveWorkspaceFileMatch(candidates, rawPath);
+    if (matchRes.match) {
+      foundContent = matchRes.match.content;
+    } else if (matchRes.ambiguous) {
+      ambiguousMatches = matchRes.matches.map((m) => m.path);
     }
   }
 
-  if (!foundContent && session.questionId) {
+  if (!foundContent && ambiguousMatches.length === 0 && session.questionId && ctx.persistencePort) {
     try {
-      const cRow = db
-        .prepare('SELECT manifest_json FROM coding_challenges WHERE id = ? OR slug = ?')
-        .get(session.questionId, session.questionId) as any;
-      if (cRow?.manifest_json) {
-        const parsed = JSON.parse(cRow.manifest_json);
-        if (Array.isArray(parsed.workspaceFiles)) {
-          const match = parsed.workspaceFiles.find((f: any) => matchWorkspaceFilePath(f.path, rawPath));
-          if (match) {
-            foundContent = match.content;
-            applyWorkspaceFileUpdate(session, match.path, match.content);
-          }
-        }
+      const stored = await ctx.persistencePort.readChallengeFileFromStore(session.questionId, rawPath);
+      if (stored) {
+        foundContent = stored.content;
+        applyWorkspaceFileUpdate(session, stored.path, stored.content, {
+          markActive: Boolean(args.markActive),
+          allowActivateIfEmpty: Boolean(args.markActive)
+        });
       }
     } catch (err) {
-      console.warn(`[READ_FILE] Could not fallback to SQLite for "${rawPath}":`, err);
+      console.warn(`[READ_FILE] Could not fallback to store for "${rawPath}":`, err);
     }
   }
 
-  if (!foundContent && session.codeSnippet) {
+  if (!foundContent && ambiguousMatches.length === 0 && session.codeSnippet) {
     const activePath = manifest?.activeFile?.path || session.activeFilePath || 'Solution.java';
     if (matchWorkspaceFilePath(activePath, rawPath)) {
       foundContent = session.codeSnippet;
@@ -106,33 +111,37 @@ export function handleReadFile(
   }
 
   // Fallback for Whiteboard queries: "Whiteboard.java", "whiteboard", "доска"
-  if (!foundContent) {
+  if (!foundContent && ambiguousMatches.length === 0) {
     const isWbQuery =
       rawPath.toLowerCase().includes('whiteboard') ||
       rawPath.toLowerCase().includes('доск');
     if (isWbQuery && manifest) {
       const allFiles = [...(manifest.files || []), ...(manifest.secondaryFiles || [])];
-      const wbFile = allFiles.find((f: any) =>
-        (f?.path || '').toLowerCase().includes('whiteboard')
-      );
-      if (wbFile) {
-        foundContent = wbFile.content;
-      }
+      const wbFile = allFiles.find((f: any) => (f?.path || '').toLowerCase().includes('whiteboard'));
+      if (wbFile) foundContent = wbFile.content;
     }
   }
 
-  const resolved = Boolean(foundContent);
+  const resolved = foundContent !== null;
   const availableFiles = manifest?.projectTree?.join(', ') || 'нет файлов';
-  const fileContent =
-    foundContent || `Файл "${rawPath}" не найден в структуре проекта. Доступные файлы:\n${availableFiles}`;
-  console.log(`📂 [READ_FILE] Gemini Live requested: "${rawPath}" (resolved: ${resolved}, len: ${fileContent.length})`);
+  const fileContent = resolved
+    ? foundContent!
+    : ambiguousMatches.length > 0
+      ? `Путь "${rawPath}" неоднозначен. Уточните полный путь из списка: ${ambiguousMatches.join(', ')}`
+      : `Файл "${rawPath}" не найден в структуре проекта. Доступные файлы:\n${availableFiles}`;
+
+  console.log(`📂 [READ_FILE] Gemini Live requested: "${rawPath}" (resolved: ${resolved}, ambiguous: ${ambiguousMatches.length}, len: ${fileContent.length})`);
 
   return {
     result: {
       filePath: rawPath,
       content: fileContent,
       success: resolved,
-      ...(resolved ? {} : { error: 'FILE_NOT_FOUND' })
+      ...(resolved
+        ? {}
+        : ambiguousMatches.length > 0
+          ? { error: 'AMBIGUOUS_FILE_PATH', matches: ambiguousMatches }
+          : { error: 'FILE_NOT_FOUND' })
     },
     scheduling: 'WHEN_IDLE'
   };
@@ -146,34 +155,33 @@ export async function handleMarkBugSolved(
   const isSolved = args.isSolved ?? true;
   const feedback = args.feedback || 'Отлично! Ошибка найдена верно.';
   const keyInsight = args.keyInsight || '';
+  const userId = normalizeUserId(session.userId);
+  const assistanceLevel: 'solo' | 'assisted' | 'relapse' = isSolved
+    ? (parsedHints.length > 0 ? 'assisted' : 'solo')
+    : 'relapse';
 
   console.log(`🎯 Bug challenge marked as solved: ${feedback}`);
 
   let decayResult: any = null;
-  if (session.questionId) {
+  if (session.questionId && ctx.persistencePort) {
     try {
-      updateBugChallengeStatus({
+      const persisted = await ctx.persistencePort.updateBugSolved({
         challengeId: session.questionId,
+        status: 'solved',
         isSolved: Boolean(isSolved),
         score: isSolved ? 10 : 5,
         feedback,
-        keyTakeaways: keyInsight ? [keyInsight] : undefined
+        keyTakeaways: keyInsight ? [keyInsight] : undefined,
+        decayedTopic: session.topic || 'General',
+        assistanceLevel,
+        resolvedGapIds: session.relevantGapIds,
+        userId
       });
-    } catch (e) {
-      console.warn('Could not update bug challenge status in db:', e);
-    }
-
-    try {
-      decayResult = await applyKnowledgeDecay({
-        userId: session.userId || 'anonymous',
-        questionId: session.questionId,
-        topic: session.topic || 'General',
-        assistanceLevel: isSolved ? (parsedHints.length > 0 ? 'assisted' : 'solo') : 'relapse',
-        resolvedGapIds: session.relevantGapIds
-      });
-      console.log(`🧠 Bug challenge decay applied:`, decayResult);
-    } catch (decayErr) {
-      console.warn('Bug challenge decay error:', decayErr);
+      decayResult = persisted && typeof persisted === 'object' && 'knowledgeUpdate' in persisted
+        ? persisted.knowledgeUpdate ?? null
+        : null;
+    } catch (err) {
+      console.warn('Bug challenge persistence error:', err);
     }
   }
 

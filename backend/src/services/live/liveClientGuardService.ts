@@ -102,7 +102,10 @@ export class LiveClientGuardService {
 
     // Audio Mutex Invariant: while a tool call is in-flight, MUST freeze mic chunks
     // regardless of turnMode to avoid Google WebSocket close 1008 Policy Violation!
-    if (session.isToolCallPending) {
+    const isToolMutexActive = session.toolAudioMutex
+      ? session.toolAudioMutex.shouldGateMicAudio()
+      : Boolean(session.isToolCallPending);
+    if (isToolMutexActive) {
       return true;
     }
 
@@ -124,7 +127,7 @@ export class LiveClientGuardService {
     const isPlayoutActive = !!session.aiPlayoutEstimatedEndEpoch && Date.now() < session.aiPlayoutEstimatedEndEpoch;
     const isAudioEmitting = session.isAiGenerating && !!session.firstAudioChunkLogged;
 
-    if (session.isToolCallPending || isAudioEmitting || isPlayoutActive) {
+    if (isToolMutexActive || isAudioEmitting || isPlayoutActive) {
       if (session.currentTurnMetrics) {
         session.currentTurnMetrics.droppedEchoChunksCount = (session.currentTurnMetrics.droppedEchoChunksCount || 0) + 1;
         if (session.currentTurnMetrics.droppedEchoChunksCount === 1 || session.currentTurnMetrics.droppedEchoChunksCount % 25 === 0) {
