@@ -103,3 +103,15 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
 - **Omnipresent AI Copilot:** A unified, cross-arena headless pair-programming engine (`useTutorStore`, `TutorDrawer`) that dynamically ingests active workspace context (code, SQL, compiler output, company DNA) without code duplication.
 - **Take-Home Project Lab:** An interactive post-mortem simulator evaluating real candidate pull requests against enterprise production standards, identifying concurrency race conditions and atomic SQL anti-patterns.
 - **Socratic Scaffold Ladder:** A pedagogical prompt progression (Tier 1 Nudge -> Tier 2 Architecture Scaffold -> Tier 3 Invariant Deep Dive) preventing premature solution leakage while maximizing candidate cognitive development.
+- **Unified Arena IDE Shell:** Full-viewport (`100dvh`) coding layout mode that suppresses global multi-studio navigation (`StudioHeader`) and outer bottom padding (`pb-24`), consolidating workspace navigation, timer, compass, and co-pilot triggers into a single `48px` arena bar.
+  - *Avoid*: Stacked multi-row headers, `overflow-x-hidden` ancestors breaking sticky headers, floating pills colliding with action footers
+  - *Durable Owner*: `frontend-practice-arena`
+  - *Invariants*: Entry scroll offset stays `0`; zero header/footer clipping across `1440px`, `1280px`, and `390px`; global bars stay `<= 12%` of viewport height.
+- **Stealth Co-Pilot Mode:** Workspace state where a configured and running `AI-Напарник` session (text or Gemini Live voice) stays connected while all drawer, HUD, and floating voice UI visuals are hidden, leaving only a single non-floating restore/status control inside the `48px` arena top bar.
+  - *Avoid*: Un-dismissible floating pills (`AmbientVoicePill`) covering primary CTA buttons or disconnecting live voice WebSockets when hiding UI
+  - *Durable Owner*: `usePracticeTutorStore` (`isCopilotStealth`) and `PracticeArenaHeader`
+  - *Invariants*: Toggling stealth mode never terminates `PracticeVoiceProvider` audio or SSE streams; reopening restores full chat/voice state immediately.
+- **Truth-in-Telemetry Invariant:** Frontend presentation contract forbidding static placeholder benchmarks (hardcoded radar scores or mirrored Golden Master diffs), celebratory passes on failed tests/gates, and non-violation sentinel items styled as warnings.
+  - *Avoid*: Hardcoded `88%` radar fixtures, fake `100% match` diffs, `isPassed` ignoring `failCount > 0`, `110%` weight sums
+  - *Durable Owner*: `frontend-practice-telemetry`
+  - *Invariants*: Clean AST state renders zero warning icons; `PracticeEvaluationModal` fires pass/confetti strictly when compilation, tests, Loom safety, and score gates all pass; pre-run benchmarks explicitly display empty/not-run state.
