@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Target, ShieldCheck, Zap, Activity, Info } from 'lucide-react';
+import { useAppStore } from '../../../store/useAppStore';
 
 interface AxisMetric {
   id: string;
   name: string;
   label: string;
-  value: number; // 0 to 100 normalized
+  value: number;
   displayValue: string;
   target: string;
   icon: React.ReactNode;
@@ -14,69 +15,101 @@ interface AxisMetric {
   sotaPrinciple: string;
 }
 
-const AXIS_METRICS: AxisMetric[] = [
-  {
-    id: 'MUTATION_SCORE',
-    name: 'Mutation Score',
-    label: 'Мутационный скор',
-    value: 88,
-    displayValue: '88%',
-    target: '>= 85%',
-    icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />,
-    color: '#10b981',
-    description: 'Доля уничтоженных инъецированных дефектов байткода.',
-    sotaPrinciple: 'Главный маркер: 100% Line Coverage ничего не стоит, если тесты не падают при замене < на <=.'
-  },
-  {
-    id: 'LINE_COVERAGE',
-    name: 'Line Coverage',
-    label: 'Покрытие строк',
-    value: 94,
-    displayValue: '94%',
-    target: '>= 90%',
-    icon: <Target className="w-4 h-4 text-sky-600" />,
-    color: '#0284c7',
-    description: 'Процент строк доменной логики, затронутых выполнением тестов.',
-    sotaPrinciple: 'Базовый санитарный порог. Гарантирует отсутствие "мертвого" или непроверенного кода.'
-  },
-  {
-    id: 'ASSERTION_DENSITY',
-    name: 'Assertion Density',
-    label: 'Плотность проверок',
-    value: 85,
-    displayValue: '2.4 / test',
-    target: '>= 1.5 / test',
-    icon: <Activity className="w-4 h-4 text-purple-600" />,
-    color: '#8b5cf6',
-    description: 'Среднее число утверждений (assertThat, verify) на один @Test метод.',
-    sotaPrinciple: 'Исключает Potemkin-тесты: тестовый метод обязан содержать хотя бы одну строгую проверку контракта.'
-  },
-  {
-    id: 'EXECUTION_SPEED',
-    name: 'Execution Speed',
-    label: 'Скорость прогона',
-    value: 92,
-    displayValue: '8.4 ms/mutant',
-    target: '< 15 ms/mutant',
-    icon: <Zap className="w-4 h-4 text-amber-600" />,
-    color: '#f59e0b',
-    description: 'Время выполнения одного мутационного прогона в горячем демоне JVM.',
-    sotaPrinciple: 'Инъекция java.time.Clock и запрет Thread.sleep обеспечивают сверхбыстрый TDD-цикл.'
-  }
-];
-
 export const TestingCompassRadar: React.FC = () => {
-  const [activeAxis, setActiveAxis] = useState<AxisMetric>(AXIS_METRICS[0]);
+  const latestMutationResult = useAppStore((s) => s.latestMutationResult);
+  const latestSandboxResult = useAppStore((s) => s.latestSandboxResult);
+  const [activeAxisId, setActiveAxisId] = useState<string>('MUTATION_SCORE');
 
-  // Polar coordinates for SVG diamond radar (size: 200x200, center: 100, 100, radius: 75)
+  const hasLiveRun = Boolean(latestMutationResult || latestSandboxResult);
+
+  const axisMetrics: AxisMetric[] = useMemo(() => {
+    const mutationScore = latestMutationResult ? Math.round(latestMutationResult.mutationScore) : 0;
+    const totalTests = latestSandboxResult
+      ? latestSandboxResult.passedCount + latestSandboxResult.failedCount
+      : 0;
+    const testPassPct =
+      latestSandboxResult && totalTests > 0
+        ? Math.round((latestSandboxResult.passedCount / totalTests) * 100)
+        : latestMutationResult?.baselinePassed
+        ? 100
+        : 0;
+    const killedRatio =
+      latestMutationResult && latestMutationResult.totalMutants > 0
+        ? Math.round((latestMutationResult.killedCount / latestMutationResult.totalMutants) * 100)
+        : 0;
+    const execMs = latestMutationResult?.executionTimeMs ?? latestSandboxResult?.executionTimeMs ?? null;
+    const speedScore = execMs === null ? 0 : execMs <= 500 ? 95 : execMs <= 2000 ? 75 : 50;
+
+    return [
+      {
+        id: 'MUTATION_SCORE',
+        name: 'Mutation Score',
+        label: 'Мутационный скор',
+        value: hasLiveRun ? mutationScore : 0,
+        displayValue: latestMutationResult ? `${mutationScore}%` : 'Не запускался',
+        target: `>= ${latestMutationResult?.requiredScore ?? 85}%`,
+        icon: <ShieldCheck className="w-4 h-4 text-emerald-700" />,
+        color: '#047857',
+        description: 'Доля уничтоженных инъецированных дефектов байткода.',
+        sotaPrinciple:
+          'Главный маркер: 100% Line Coverage ничего не стоит, если тесты не падают при замене < на <=.'
+      },
+      {
+        id: 'BASELINE_PASS',
+        name: 'Baseline Tests',
+        label: 'Эталонный прогон',
+        value: hasLiveRun ? testPassPct : 0,
+        displayValue: latestSandboxResult
+          ? `${latestSandboxResult.passedCount}/${totalTests}`
+          : latestMutationResult
+          ? latestMutationResult.baselinePassed
+            ? 'OK'
+            : 'FAIL'
+          : 'Не запускался',
+        target: '100% зелёных',
+        icon: <Target className="w-4 h-4 text-sky-700" />,
+        color: '#0369a1',
+        description: 'Текущий статус выполнения тестов на немодифицированном эталонном коде.',
+        sotaPrinciple: 'Тесты обязаны проходить на корректной реализации до инъекции мутантов.'
+      },
+      {
+        id: 'KILLED_MUTANTS',
+        name: 'Killed Mutants',
+        label: 'Убито мутантов',
+        value: hasLiveRun ? killedRatio : 0,
+        displayValue: latestMutationResult
+          ? `${latestMutationResult.killedCount} / ${latestMutationResult.totalMutants}`
+          : 'Не запускался',
+        target: 'Все мутанты',
+        icon: <Activity className="w-4 h-4 text-purple-700" />,
+        color: '#6d28d9',
+        description: 'Количество мутантов, выявленных вашими AssertJ-проверками.',
+        sotaPrinciple: 'Исключает Potemkin-тесты: каждый тестовый метод обязан проверять строгий инвариант.'
+      },
+      {
+        id: 'EXECUTION_SPEED',
+        name: 'Execution Speed',
+        label: 'Время прогона',
+        value: hasLiveRun ? speedScore : 0,
+        displayValue: execMs !== null ? `${execMs} мс` : 'Не запускался',
+        target: '< 2000 мс',
+        icon: <Zap className="w-4 h-4 text-amber-700" />,
+        color: '#b45309',
+        description: 'Фактическое время выполнения последнего прогона в песочнице JVM.',
+        sotaPrinciple: 'Инъекция java.time.Clock и запрет Thread.sleep обеспечивают сверхбыстрый TDD-цикл.'
+      }
+    ];
+  }, [hasLiveRun, latestMutationResult, latestSandboxResult]);
+
+  const activeAxis = axisMetrics.find((m) => m.id === activeAxisId) || axisMetrics[0];
+
   const cx = 100;
   const cy = 100;
   const r = 70;
 
-  // Axis positions: 0 = Top, 1 = Right, 2 = Bottom, 3 = Left
-  const points = AXIS_METRICS.map((axis, i) => {
+  const points = axisMetrics.map((axis, i) => {
     const angle = (i * Math.PI) / 2 - Math.PI / 2;
-    const norm = (axis.value / 100) * r;
+    const norm = (Math.max(0, Math.min(100, axis.value)) / 100) * r;
     return {
       x: cx + norm * Math.cos(angle),
       y: cy + norm * Math.sin(angle)
@@ -86,102 +119,108 @@ export const TestingCompassRadar: React.FC = () => {
   const polygonPath = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
   return (
-    <div className="flex flex-col lg:flex-row items-center gap-5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#FFF0F5]/80 via-white to-purple-50/50 border border-rose-100/90 shadow-xs mb-4">
-      {/* 1. Radar SVG Graphic */}
-      <div className="relative shrink-0 flex items-center justify-center w-48 h-48">
-        <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
-          {/* Concentric diamond grid rings */}
-          {[0.25, 0.5, 0.75, 1.0].map((step, idx) => (
-            <polygon
-              key={idx}
-              points={`100,${100 - r * step} ${100 + r * step},100 100,${100 + r * step} ${100 - r * step},100`}
-              fill="none"
-              stroke="#e2e8f0"
-              strokeWidth="1"
-              strokeDasharray={step === 1 ? 'none' : '2,2'}
-            />
-          ))}
-
-          {/* Axes lines */}
-          <line x1="100" y1="25" x2="100" y2="175" stroke="#cbd5e1" strokeWidth="1" />
-          <line x1="25" y1="100" x2="175" y2="100" stroke="#cbd5e1" strokeWidth="1" />
-
-          {/* Target polygon aura */}
-          <polygon
-            points={polygonPath}
-            fill="rgba(244, 114, 182, 0.25)"
-            stroke="#f472b6"
-            strokeWidth="2"
-            strokeLinejoin="round"
-          />
-
-          {/* Data point anchors */}
-          {points.map((p, idx) => (
-            <circle
-              key={idx}
-              cx={p.x}
-              cy={p.y}
-              r="4.5"
-              fill={AXIS_METRICS[idx].color}
-              stroke="#ffffff"
-              strokeWidth="1.5"
-              className="cursor-pointer transition-transform hover:scale-125"
-              onClick={() => setActiveAxis(AXIS_METRICS[idx])}
-            />
-          ))}
-        </svg>
-
-        {/* Center label */}
-        <div className="absolute text-center pointer-events-none">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">4-Axis</span>
-          <div className="text-xs font-extrabold text-slate-700">Radar</div>
+    <div className="flex flex-col gap-3 mb-4">
+      {!hasLiveRun && (
+        <div className="px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-center gap-2">
+          <Info className="w-4 h-4 text-amber-700 shrink-0" />
+          <span>
+            Тесты ещё не запускались: выполните прогон в Java 21 Sandbox или Mutation Runner (Ctrl+Enter), чтобы увидеть живую телеметрию.
+          </span>
         </div>
-      </div>
+      )}
 
-      {/* 2. Interactive Axis Cards & Diagnostics */}
-      <div className="flex-1 flex flex-col justify-between w-full">
-        {/* Metric Selector Buttons */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          {AXIS_METRICS.map((axis) => {
-            const isSelected = activeAxis.id === axis.id;
-            return (
-              <button
-                key={axis.id}
-                type="button"
-                onClick={() => setActiveAxis(axis)}
-                className={`flex flex-col p-2 rounded-xl text-left border transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-white border-rose-300 shadow-xs ring-2 ring-rose-100'
-                    : 'bg-white/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full mb-1">
-                  <span className="text-[10px] font-bold text-slate-500 truncate">{axis.name}</span>
-                  {axis.icon}
-                </div>
-                <div className="text-sm font-extrabold text-slate-800">{axis.displayValue}</div>
-                <div className="text-[9px] font-medium text-slate-400">Цель: {axis.target}</div>
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-col lg:flex-row items-center gap-5 p-4 sm:p-5 rounded-2xl bg-pastel-bg border border-pastel-border">
+        {/* Radar SVG Graphic */}
+        <div className="relative shrink-0 flex items-center justify-center w-44 h-44">
+          <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible" aria-hidden="true">
+            {[0.25, 0.5, 0.75, 1.0].map((step, idx) => (
+              <polygon
+                key={idx}
+                points={`100,${100 - r * step} ${100 + r * step},100 100,${100 + r * step} ${100 - r * step},100`}
+                fill="none"
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                strokeDasharray={step === 1 ? 'none' : '2,2'}
+              />
+            ))}
+            <line x1="100" y1="25" x2="100" y2="175" stroke="#cbd5e1" strokeWidth="1" />
+            <line x1="25" y1="100" x2="175" y2="100" stroke="#cbd5e1" strokeWidth="1" />
 
-        {/* Selected Axis Deep Diagnostic Box */}
-        <div className="p-3 rounded-xl bg-white/90 border border-rose-100 flex items-start gap-2.5">
-          <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 mt-0.5 shrink-0">
-            <Info className="w-4 h-4" />
+            {hasLiveRun && (
+              <>
+                <polygon
+                  points={polygonPath}
+                  fill="rgba(181, 67, 62, 0.2)"
+                  stroke="#B5433E"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+                {points.map((p, idx) => (
+                  <circle
+                    key={idx}
+                    cx={p.x}
+                    cy={p.y}
+                    r="4"
+                    fill={axisMetrics[idx].color}
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                ))}
+              </>
+            )}
+          </svg>
+
+          <div className="absolute text-center pointer-events-none">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted">
+              {hasLiveRun ? 'Live' : 'Ожидание'}
+            </span>
+            <div className="text-xs font-extrabold text-pastel-text">Radar</div>
           </div>
-          <div className="text-xs">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="font-bold text-slate-800">{activeAxis.label}</span>
-              <span className="text-[10px] font-semibold px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Целевой стандарт: {activeAxis.target}
-              </span>
+        </div>
+
+        {/* Interactive Axis Cards & Diagnostics */}
+        <div className="flex-1 flex flex-col justify-between w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            {axisMetrics.map((axis) => {
+              const isSelected = activeAxis.id === axis.id;
+              return (
+                <button
+                  key={axis.id}
+                  type="button"
+                  onClick={() => setActiveAxisId(axis.id)}
+                  className={`flex flex-col p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-white border-[#B5433E] shadow-2xs ring-1 ring-[#B5433E]/30'
+                      : 'bg-white/80 border-pastel-border hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-[10px] font-bold text-pastel-muted truncate">{axis.name}</span>
+                    {axis.icon}
+                  </div>
+                  <div className="text-xs sm:text-sm font-extrabold text-pastel-text truncate">{axis.displayValue}</div>
+                  <div className="text-[10px] font-medium text-pastel-muted">Цель: {axis.target}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-3 rounded-xl bg-white border border-pastel-border flex items-start gap-2.5">
+            <div className="p-1.5 rounded-lg bg-pastel-rose text-pastel-accentRoseText mt-0.5 shrink-0">
+              <Info className="w-4 h-4" />
             </div>
-            <p className="text-slate-600 mb-1 leading-snug">{activeAxis.description}</p>
-            <p className="text-[11px] font-medium text-rose-700/90 italic leading-snug">
-              💡 {activeAxis.sotaPrinciple}
-            </p>
+            <div className="text-xs">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <span className="font-bold text-pastel-text">{activeAxis.label}</span>
+                <span className="text-[10px] font-semibold px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Стандарт: {activeAxis.target}
+                </span>
+              </div>
+              <p className="text-pastel-muted mb-1 leading-snug">{activeAxis.description}</p>
+              <p className="text-[11px] font-medium text-pastel-accentRoseText leading-snug">
+                {activeAxis.sotaPrinciple}
+              </p>
+            </div>
           </div>
         </div>
       </div>

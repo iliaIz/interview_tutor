@@ -72,7 +72,12 @@ export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
             <Terminal className="w-3.5 h-3.5 text-pink-400" />
             <span className="font-semibold text-slate-200">MUTATION TESTING ARENA (Java 21 & Defect Injection)</span>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть консоль мутационных тестов"
+            className="touch-target-44 min-w-[28px] min-h-[28px] p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-white flex items-center justify-center cursor-pointer"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -152,7 +157,8 @@ export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+              aria-label="Закрыть консоль песочницы"
+              className="touch-target-44 min-w-[28px] min-h-[28px] p-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center justify-center cursor-pointer"
               title="Закрыть консоль"
             >
               <X className="w-3.5 h-3.5" />
@@ -217,30 +223,36 @@ export const SandboxTestConsole: React.FC<SandboxTestConsoleProps> = ({
                       : 'bg-rose-950/30 border-rose-900/50'
                   }`}
                 >
-                  <div
-                    onClick={() => !isTestPassed && setExpandedTest(isExpanded ? null : t.testName)}
-                    className={`flex items-center justify-between p-2 ${
-                      !isTestPassed ? 'cursor-pointer hover:bg-rose-950/40' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isTestPassed ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      ) : (
+                  {!isTestPassed ? (
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedTest(isExpanded ? null : t.testName)}
+                      className="w-full flex items-center justify-between p-2 text-left cursor-pointer hover:bg-rose-950/40"
+                    >
+                      <div className="flex items-center gap-2">
                         <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                      )}
-                      <span className={`text-[11px] font-medium ${isTestPassed ? 'text-slate-300' : 'text-rose-300 font-bold'}`}>
-                        {t.testName}
-                      </span>
-                    </div>
+                        <span className="text-[11px] font-bold text-rose-300">{t.testName}</span>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-500">{t.durationMs}мс</span>
-                      {!isTestPassed && (
-                        isExpanded ? <ChevronDown className="w-3 h-3 text-rose-400" /> : <ChevronRight className="w-3 h-3 text-rose-400" />
-                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-300">{t.durationMs}мс</span>
+                        {isExpanded ? (
+                          <ChevronDown className="w-3 h-3 text-rose-400" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3 text-rose-400" />
+                        )}
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between p-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-[11px] font-medium text-slate-200">{t.testName}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-300">{t.durationMs}мс</span>
                     </div>
-                  </div>
+                  )}
 
                   {/* Failure reason details */}
                   {isExpanded && t.failureReason && (

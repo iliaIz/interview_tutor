@@ -72,7 +72,8 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
           <button
             type="button"
             onClick={() => setIsMinimized(!isMinimized)}
-            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition cursor-pointer"
+            aria-label={isMinimized ? 'Развернуть консоль рецензии' : 'Свернуть консоль рецензии'}
+            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition cursor-pointer"
             title={isMinimized ? 'Развернуть консоль' : 'Свернуть консоль'}
           >
             {isMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -80,7 +81,8 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition cursor-pointer"
+            aria-label="Закрыть консоль рецензии"
+            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition cursor-pointer"
             title="Закрыть"
           >
             <X className="w-4 h-4" />
@@ -90,8 +92,8 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
 
       {!isMinimized && (
         <>
-          {/* 2. Visual 4-Stage Stepper */}
-          <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          {/* 2. Visual 5-Stage Stepper */}
+          <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
             {/* Step 1: Sandbox */}
             <div className={`p-2 rounded-xl border flex flex-col gap-1 transition ${
               stepperState.sandbox.status === 'running'
@@ -132,7 +134,26 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
               <span className="text-[10px] font-mono truncate opacity-90">{stepperState.ast.label}</span>
             </div>
 
-            {/* Step 3: AI Reasoning */}
+            {/* Step 3: Mutation Tests (PITest) */}
+            <div className={`p-2 rounded-xl border flex flex-col gap-1 transition ${
+              stepperState.mutation?.status === 'running'
+                ? 'bg-amber-950/20 border-amber-500/40 text-amber-200'
+                : stepperState.mutation?.status === 'success'
+                ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
+                : stepperState.mutation?.status === 'error'
+                ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
+                : 'bg-slate-900/40 border-slate-800 text-slate-300'
+            }`}>
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span>3. Мутации (PITest)</span>
+                {stepperState.mutation?.status === 'running' && <Loader2 className="w-3 h-3 animate-spin text-amber-400" />}
+                {stepperState.mutation?.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                {stepperState.mutation?.status === 'error' && <XCircle className="w-3.5 h-3.5 text-rose-400" />}
+              </div>
+              <span className="text-[10px] font-mono truncate opacity-90">{stepperState.mutation?.label || 'Ожидание'}</span>
+            </div>
+
+            {/* Step 4: AI Reasoning */}
             <div className={`p-2 rounded-xl border flex flex-col gap-1 transition ${
               stepperState.ai.status === 'running'
                 ? 'bg-purple-950/20 border-purple-500/40 text-purple-200 shadow-sm'
@@ -140,10 +161,10 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
                 ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
                 : stepperState.ai.status === 'error'
                 ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
-                : 'bg-slate-900/40 border-slate-800 text-slate-400'
+                : 'bg-slate-900/40 border-slate-800 text-slate-300'
             }`}>
               <div className="flex items-center justify-between text-[11px] font-bold">
-                <span>3. Senior AI Архитектор</span>
+                <span>4. Senior AI Архитектор</span>
                 {stepperState.ai.status === 'running' && <Loader2 className="w-3 h-3 animate-spin text-purple-400" />}
                 {stepperState.ai.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                 {stepperState.ai.status === 'error' && <XCircle className="w-3.5 h-3.5 text-rose-400" />}
@@ -151,16 +172,16 @@ export const ReviewProgressConsole: React.FC<ReviewProgressConsoleProps> = ({
               <span className="text-[10px] font-mono truncate opacity-90">{stepperState.ai.label}</span>
             </div>
 
-            {/* Step 4: Final Synthesis */}
+            {/* Step 5: Final Synthesis */}
             <div className={`p-2 rounded-xl border flex flex-col gap-1 transition ${
               stepperState.report.status === 'running'
                 ? 'bg-amber-950/20 border-amber-500/40 text-amber-200'
                 : stepperState.report.status === 'success'
                 ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
-                : 'bg-slate-900/40 border-slate-800 text-slate-400'
+                : 'bg-slate-900/40 border-slate-800 text-slate-300'
             }`}>
               <div className="flex items-center justify-between text-[11px] font-bold">
-                <span>4. Финализация</span>
+                <span>5. Финализация</span>
                 {stepperState.report.status === 'running' && <Loader2 className="w-3 h-3 animate-spin text-amber-400" />}
                 {stepperState.report.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
               </div>

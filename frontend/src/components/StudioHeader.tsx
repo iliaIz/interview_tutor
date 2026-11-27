@@ -38,9 +38,9 @@ export const StudioHeader: React.FC = () => {
       {/* Ambient Non-Blocking Network Banner */}
       <AmbientNetworkBanner />
 
-      <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-3">
+      <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-4 py-1.5 md:py-0 min-h-14 md:h-16 flex flex-wrap md:flex-nowrap items-center justify-between gap-1.5 sm:gap-3">
         {/* Brand Logo & Name */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 order-1">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-pastel-accentRose via-pink-400 to-pastel-accentViolet flex items-center justify-center text-white font-bold shadow-sm shadow-pastel-accentRose/20">
             <Sparkles className="w-4 h-4" />
           </div>
@@ -54,15 +54,15 @@ export const StudioHeader: React.FC = () => {
         </div>
 
         {/* Nav Tabs Bar */}
-        <div className="flex-1 min-w-0 mx-1 sm:mx-2 relative flex justify-center">
-          <nav className="flex items-center bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs gap-0.5 sm:gap-1">
+        <div className="w-full md:w-auto md:flex-1 min-w-0 md:mx-2 relative flex justify-center order-3 md:order-2">
+          <nav className="w-full md:w-auto max-w-full flex items-center justify-between md:justify-center overflow-x-auto no-scrollbar bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs gap-0.5 sm:gap-1">
             {/* 1. Академия */}
             <button
               onClick={() => {
                 setStudioTab('academy');
                 setIsArenaMenuOpen(false);
               }}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
                 currentStudioTab === 'academy' || currentStudioTab === 'roadmaps'
                   ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
                   : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
@@ -74,7 +74,7 @@ export const StudioHeader: React.FC = () => {
                   : 'text-pastel-muted'
               }`} />
               <span>Академия</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
                 8
               </span>
             </button>
@@ -85,7 +85,7 @@ export const StudioHeader: React.FC = () => {
                 setStudioTab('theory');
                 setIsArenaMenuOpen(false);
               }}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
                 currentStudioTab === 'theory'
                   ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
                   : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
@@ -96,7 +96,7 @@ export const StudioHeader: React.FC = () => {
               }`} />
               <span className="hidden sm:inline">База знаний</span>
               <span className="sm:hidden">Теория</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
                 816
               </span>
             </button>
@@ -107,7 +107,7 @@ export const StudioHeader: React.FC = () => {
                 setStudioTab('companies');
                 setIsArenaMenuOpen(false);
               }}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
                 currentStudioTab === 'companies'
                   ? 'bg-amber-400 text-amber-950 shadow-xs border border-amber-500/60'
                   : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
@@ -118,7 +118,7 @@ export const StudioHeader: React.FC = () => {
               }`} />
               <span className="hidden sm:inline">Компании</span>
               <span className="sm:hidden">Треки</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-amber-100 text-amber-950 border border-amber-300">
+              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-amber-100 text-amber-950 border border-amber-300">
                 Райф
               </span>
             </button>
@@ -133,7 +133,7 @@ export const StudioHeader: React.FC = () => {
         </div>
 
         {/* Breadcrumb Bridge, Health Status & User Profile Badge */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 order-2 md:order-3">
           {academyBreadcrumbContext && currentStudioTab !== 'academy' && (
             <button
               onClick={returnToAcademyStep}

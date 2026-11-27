@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Sparkles, Clock, Compass } from 'lucide-react';
+import { Sparkles, Clock } from 'lucide-react';
 import type { TutorDomain } from './TutorDomain';
 
 interface ChipDef {
@@ -124,21 +124,13 @@ export const TutorQuickActionChips: React.FC<Props> = ({
 
   return (
     <>
-      {/* Compass trigger — always first */}
-      <button
-        onClick={onOpenCompass}
-        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pastel-rose text-pastel-accentRoseText hover:bg-pastel-accentRose hover:text-white border border-pastel-accentRose/30 text-[11px] font-bold transition shrink-0 cursor-pointer"
-      >
-        <Compass className="w-3 h-3" />
-        <span>Компас (Ctrl+/)</span>
-      </button>
-
       {/* Domain-specific chips */}
       {chips.map((chip) => (
         <button
           key={chip.label}
+          type="button"
           onClick={() => onSendMessage(chip.message)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shrink-0 cursor-pointer"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition shrink-0 cursor-pointer"
         >
           {chip.icon}
           <span>{chip.label}</span>

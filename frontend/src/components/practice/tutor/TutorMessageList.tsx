@@ -5,6 +5,8 @@
  */
 
 import React, { useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Bot, User, ShieldAlert } from 'lucide-react';
 import { PracticeVoiceHUD } from './PracticeVoiceHUD';
 import { PracticeVoiceErrorBoundary } from './PracticeVoiceErrorBoundary';
@@ -29,7 +31,7 @@ export const TutorMessageList: React.FC<Props> = ({
   messages,
   isLoading,
   currentStreamingText,
-  onFallbackToText,
+  onFallbackToText
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,9 +40,9 @@ export const TutorMessageList: React.FC<Props> = ({
   }, [messages, currentStreamingText]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+    <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3 custom-scrollbar">
       {modality === 'voice' && (
-        <div className="mb-4">
+        <div className="mb-3">
           <PracticeVoiceErrorBoundary onFallbackToText={onFallbackToText}>
             <PracticeVoiceHUD />
           </PracticeVoiceErrorBoundary>
@@ -52,7 +54,7 @@ export const TutorMessageList: React.FC<Props> = ({
           key={msg.id}
           className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
         >
-          <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-semibold text-slate-400">
+          <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-semibold text-pastel-muted">
             {msg.role === 'user' ? (
               <>
                 <span>Вы</span>
@@ -60,26 +62,32 @@ export const TutorMessageList: React.FC<Props> = ({
               </>
             ) : (
               <>
-                <Bot className="w-3 h-3 text-pastel-accentRose" />
+                <Bot className="w-3 h-3 text-pastel-accentRoseText" />
                 <span>AI-Напарник</span>
               </>
             )}
           </div>
 
           <div
-            className={`p-3 rounded-2xl text-xs leading-relaxed max-w-[92%] shadow-xs break-words whitespace-pre-wrap ${
+            className={`p-3 rounded-2xl text-xs leading-relaxed max-w-[92%] shadow-xs break-anywhere ${
               msg.role === 'user'
-                ? 'bg-gradient-to-br from-pastel-accentRose to-pink-600 text-white rounded-tr-xs'
+                ? 'bg-[#B5433E] text-white rounded-tr-xs whitespace-pre-wrap'
                 : msg.role === 'system'
-                ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-xs'
-                : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs'
+                ? 'bg-rose-50 text-rose-900 border border-rose-200 rounded-tl-xs'
+                : 'bg-white text-pastel-text border border-pastel-border rounded-tl-xs'
             }`}
           >
-            {msg.content}
+            {msg.role === 'user' ? (
+              msg.content
+            ) : (
+              <div className="spec-markdown text-xs">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              </div>
+            )}
 
             {msg.leakDetected && (
-              <div className="mt-2.5 p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-1.5 text-[10px] text-amber-800 font-semibold">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <div className="mt-2.5 p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-1.5 text-[10px] text-amber-900 font-semibold">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                 <span>Socratic Anti-Cheat: Прямой код скрыт для тренировки самостоятельного мышления.</span>
               </div>
             )}
@@ -89,21 +97,22 @@ export const TutorMessageList: React.FC<Props> = ({
 
       {/* Live Streaming Delta */}
       {isLoading && currentStreamingText && (
-        <div className="flex flex-col items-start animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-semibold text-slate-400">
-            <Bot className="w-3 h-3 text-pastel-accentRose" />
+        <div className="flex flex-col items-start">
+          <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-semibold text-pastel-muted">
+            <Bot className="w-3 h-3 text-pastel-accentRoseText" />
             <span>AI-Напарник печатает...</span>
           </div>
-          <div className="p-3 rounded-2xl text-xs leading-relaxed max-w-[92%] bg-white text-slate-800 border border-pastel-accentRose/40 shadow-xs rounded-tl-xs whitespace-pre-wrap">
-            {currentStreamingText}
-            <span className="inline-block w-1.5 h-3.5 bg-pastel-accentRose ml-1 animate-pulse" />
+          <div className="p-3 rounded-2xl text-xs leading-relaxed max-w-[92%] bg-white text-pastel-text border border-pastel-accentRose/50 shadow-xs rounded-tl-xs break-anywhere">
+            <div className="spec-markdown text-xs">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentStreamingText}</ReactMarkdown>
+            </div>
           </div>
         </div>
       )}
 
       {isLoading && !currentStreamingText && (
-        <div className="flex items-center gap-2 text-xs text-slate-400 italic p-2">
-          <Bot className="w-4 h-4 text-pastel-accentRose animate-bounce" />
+        <div className="flex items-center gap-2 text-xs text-pastel-muted italic p-2">
+          <Bot className="w-4 h-4 text-pastel-accentRoseText" />
           <span>AI-напарник анализирует код...</span>
         </div>
       )}

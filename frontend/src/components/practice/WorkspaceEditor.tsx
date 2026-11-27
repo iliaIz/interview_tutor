@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { java } from '@codemirror/lang-java';
-import { Lock } from 'lucide-react';
+import { EditorView } from '@codemirror/view';
 import { useAppStore } from '../../store/useAppStore';
 import { useSelectionFocusStore } from '../../store/useSelectionFocusStore';
 import { usePracticeVoice } from './tutor/PracticeVoiceContext';
-import { evaluateAstRules } from '../../utils/astRules';
+import { evaluateAstRules, filterActiveAstViolations } from '../../utils/astRules';
 import { luxuryPastelTheme } from './editorTheme';
 import { createJavaSnippetsExtension } from './javaSnippets';
 import { useWorkspaceRunner } from './useWorkspaceRunner';
@@ -36,6 +36,7 @@ export const WorkspaceEditor: React.FC = () => {
   } = usePracticeVoice();
 
   const [isDiffOpen, setIsDiffOpen] = useState(false);
+  const [manualSaveBanner, setManualSaveBanner] = useState(false);
 
   const runner = useWorkspaceRunner();
   const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
@@ -47,35 +48,49 @@ export const WorkspaceEditor: React.FC = () => {
     }
   }, [activeWorkspaceFileIndex, isVoiceConnected, injectActiveFocusGroundingFrame]);
 
-  // Evaluate AST architectural rules against current code in real time
+  // Evaluate AST architectural rules against current code in real time (only active violations)
   const liveAstViolations = useMemo(() => {
     if (!currentFile || !currentFile.content) return [];
-    return evaluateAstRules(currentFile.content, activePracticeChallenge?.astRules || []);
+    return filterActiveAstViolations(
+      evaluateAstRules(currentFile.content, activePracticeChallenge?.astRules || [])
+    );
   }, [currentFile?.content, activePracticeChallenge?.astRules]);
 
-  // Editor extensions with Java language & JUnit 5 / AssertJ autocomplete
+  // Editor extensions with Java language, JUnit 5 autocomplete & accessible label
   const editorExtensions = useMemo(() => {
-    return [java(), createJavaSnippetsExtension()];
-  }, []);
+    const fileName = currentFile?.path?.split('/').pop() || 'Solution.java';
+    return [
+      java(),
+      createJavaSnippetsExtension(),
+      EditorView.contentAttributes.of({
+        'aria-label': `Редактор Java кода: ${fileName}`
+      })
+    ];
+  }, [currentFile?.path]);
 
   if (!currentFile || !activePracticeChallenge) return null;
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 relative">
+    <div className="flex flex-col flex-1 min-h-0 h-full bg-slate-950 text-slate-100 relative">
       {/* 1. File Tabs & Status Header */}
       <WorkspaceHeaderBar
         lastSavedTime={runner.lastSavedTime}
         syncStatus={runner.syncStatus}
-        onResetWorkspace={runner.handleResetWorkspace}
+        manualSaveBanner={manualSaveBanner}
       />
 
-      {/* 2. CodeMirror 6 Editor Body with Ctrl+Enter shortcut */}
+      {/* 2. CodeMirror 6 Editor Body with Ctrl+Enter & Ctrl+S shortcuts */}
       <div
-        className="flex-1 flex overflow-hidden relative font-mono text-xs"
+        className="flex-1 min-h-0 flex overflow-hidden relative font-mono text-xs"
         onKeyDown={(e) => {
           if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
             runner.handleRunSandbox();
+          } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            setManualSaveBanner(true);
+            setTimeout(() => setManualSaveBanner(false), 1800);
+            void runner.handleSaveDraft();
           }
         }}
       >
@@ -143,12 +158,6 @@ export const WorkspaceEditor: React.FC = () => {
             }
           }}
         />
-
-        {currentFile.readOnly && (
-          <div className="absolute top-3 right-5 bg-slate-900/90 text-slate-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-700 pointer-events-none flex items-center gap-1.5 shadow-md z-10">
-            <Lock className="w-3 h-3 text-amber-400" /> Контракт (Read-Only)
-          </div>
-        )}
       </div>
 
       {/* 3. Slide-Up In-Memory Sandbox Test Console (< 80ms) */}

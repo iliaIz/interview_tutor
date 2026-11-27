@@ -20,7 +20,7 @@ import { TransactionScenarioSelector } from './TransactionScenarioSelector';
 import { TransactionTimelineScrubber } from './TransactionTimelineScrubber';
 import { HikariPoolSlotMeter } from './HikariPoolSlotMeter';
 import { TransactionVerdictCard } from './TransactionVerdictCard';
-import { TransactionCompassSheet } from './compass/TransactionCompassSheet';
+import { CompassDialogShell } from './compass/CompassDialogShell';
 import { PracticeTutorDrawer } from './tutor/PracticeTutorDrawer';
 import { WhiteboardDrawer } from '../WhiteboardDrawer';
 import { normalizePracticeContext } from '@interview-prep/shared';
@@ -74,8 +74,20 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
     isCompassOpen,
     toggleCompass,
     toggleOpen,
+    exitStealthMode,
     sendMessage
   } = usePracticeTutorStore();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        toggleCompass();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleCompass]);
 
   const [activeScenarioId, setActiveScenarioId] = useState<string>(() => {
     return initialScenarioId || TRANSACTION_LAB_SCENARIOS[0].id;
@@ -289,11 +301,16 @@ export const TransactionLabArena: React.FC<TransactionLabArenaProps> = ({
         )}
       </main>
 
-      {/* Transaction Compass Drawer (Ctrl + /) */}
-      <TransactionCompassSheet
+      {/* Transaction Compass Dialog (Ctrl + /) */}
+      <CompassDialogShell
         isOpen={isCompassOpen}
         onClose={() => toggleCompass(false)}
-        onAskTutorAboutRule={handleAskTutorAboutRule}
+        domain="transaction"
+        onGroundRule={(rule) => {
+          toggleCompass(false);
+          exitStealthMode('tutor');
+          handleAskTutorAboutRule(rule.title, rule.shortFormula);
+        }}
       />
 
       {/* Socratic AI Tutor & Whiteboard */}

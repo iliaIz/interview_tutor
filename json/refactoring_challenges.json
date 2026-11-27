@@ -42,7 +42,7 @@
         "id": "l0-ref-01-smell-1",
         "name": "Arrow Anti-Pattern & High Cyclomatic Complexity",
         "category": "CLEAN_CODE",
-        "description": "На этапе устного архитектурного ревью от кандидата ожидается системная диагностика пяти взаимосвязанных дефектов проектирования. Прежде всего в глаза бросается стреловидный код и запредельная цикломат",
+        "description": "Прежде всего в глаза бросается стреловидный код и запредельная цикломатическая сложность (Arrow Anti-Pattern & High Cyclomatic Complexity): метод `calc` имеет пять уровней вложенности условий, а базовая валидация входных аргументов обернута вокруг всего тела метода вместо использования сторожевых условий (Guard Clauses) с ранним выходом, что заставляет читателя удерживать контекст условий до последних строк файла.",
         "voiceKeywords": [
           "arrow",
           "anti-pattern",
@@ -55,7 +55,7 @@
         "id": "l0-ref-01-smell-2",
         "name": "Guard Clauses",
         "category": "CLEAN_CODE",
-        "description": "Третий структурный запах — использование магических чисел и нетипобезопасных кодов состояний (Magic Numbers & Type-Unsafe Codes), где скорость доставки передается через `int spd` (`1`, `2`, `3`), тари",
+        "description": "На этапе устного архитектурного ревью от кандидата ожидается системная диагностика пяти взаимосвязанных дефектов проектирования.",
         "voiceKeywords": [
           "guard",
           "clauses"
@@ -66,7 +66,7 @@
         "id": "l0-ref-01-smell-3",
         "name": "Cryptic Naming & Long Parameter List",
         "category": "CLEAN_CODE",
-        "description": "Cryptic Naming & Long Parameter List",
+        "description": "Вторая проблема заключается в криптографическом именовании и длинном списке параметров (Cryptic Naming & Long Parameter List): однобуквенные и сокращенные идентификаторы `calc`, `z`, `w`, `l`, `h`, `spd`, `frg`, `mem` нарушают базовые конвенции читаемости и провоцируют перепутывание аргументов типа `double` при вызове.",
         "voiceKeywords": [
           "cryptic",
           "naming",
@@ -79,7 +79,7 @@
         "id": "l0-ref-01-smell-4",
         "name": "Magic Numbers & Type-Unsafe Codes",
         "category": "CLEAN_CODE",
-        "description": "Magic Numbers & Type-Unsafe Codes",
+        "description": "Третий структурный запах — использование магических чисел и нетипобезопасных кодов состояний (Magic Numbers & Type-Unsafe Codes), где скорость доставки передается через `int spd` (`1`, `2`, `3`), тарифные зоны — через `String z`, а уровни лояльности — через `String mem`, что полностью лишает систему проверки типов на этапе компиляции.",
         "voiceKeywords": [
           "magic",
           "numbers",
@@ -197,7 +197,7 @@
         "id": "l1-ref-02-smell-1",
         "name": "Open-Closed Principle, OCP",
         "category": "CLEAN_CODE",
-        "description": "На ревью этого класса кандидат уровня L1 должен выделить четыре фундаментальных архитектурных анти-паттерна. Главная проблема заключается в жестком нарушении принципа открытости/закрытости (Open-Close",
+        "description": "Главная проблема заключается в жестком нарушении принципа открытости/закрытости (Open-Closed Principle, OCP) и смешении уровней абстракции: добавление любой новой механики промокодов или новой товарной категории требует модификации единого цикла и разветвленных каскадов `if-else` внутри `calculateFinalTotal`.",
         "voiceKeywords": [
           "open-closed",
           "principle"
@@ -208,7 +208,7 @@
         "id": "l1-ref-02-smell-2",
         "name": "Anemic & Mutable Data Structure",
         "category": "CLEAN_CODE",
-        "description": "Третий запах представляет собой неявную связность параметров промо-акции и ग्राहकского профиля (Data Clump & Unmodeled Algebraic Sum Type): параметры `String promoType` и `BigDecimal promoValue` образ",
+        "description": "Вторая проблема связана с публичными мутабельными полями в классе `CartItem` (Anemic & Mutable Data Structure): поля `sku`, `category`, `unitPrice`, `quantity` объявлены как `public` без модификатора `final` и не защищены инвариантами в конструкторе, что позволяет внешнему коду мутировать элементы корзины прямо во время вычислений.",
         "voiceKeywords": [
           "anemic",
           "mutable",
@@ -221,7 +221,7 @@
         "id": "l1-ref-02-smell-3",
         "name": "Data Clump & Unmodeled Algebraic Sum Type",
         "category": "CLEAN_CODE",
-        "description": "Data Clump & Unmodeled Algebraic Sum Type",
+        "description": "Третий запах представляет собой неявную связность параметров промо-акции и клиентского профиля (Data Clump & Unmodeled Algebraic Sum Type): параметры `String promoType` и `BigDecimal promoValue` образуют неформализованное размеченное объединение (discriminated union), где для `NONE` и `BOGO_BOOKS` параметр `promoValue` бессмысленен и передается как `null`, а для `PERCENT` и `FIXED` он строго обязателен; аналогично `loyaltyYears` не используется для `EMPLOYEE`.",
         "voiceKeywords": [
           "data",
           "clump",
@@ -234,7 +234,7 @@
         "id": "l1-ref-02-smell-4",
         "name": "Temporal & Stage Coupling",
         "category": "CLEAN_CODE",
-        "description": "Temporal & Stage Coupling",
+        "description": "Четвертая проблема кроется в перекрестной связности этапов конвейера (Temporal & Stage Coupling): правило акции `BOGO_BOOKS` зашито внутрь цикла категориальных скидок отдельных товарных позиций, в то время как купоны `PERCENT` и `FIXED` вычисляются в нижней части метода после применения скидки лояльности.",
         "voiceKeywords": [
           "temporal",
           "stage",
@@ -351,7 +351,7 @@
         "id": "l0-ref-03-smell-1",
         "name": "Primitive Obsession & Data Clump",
         "category": "CLEAN_CODE",
-        "description": "В ходе ревью кандидат должен идентифицировать пять ключевых архитектурных и эксплуатационных дефектов. Первый дефект — классическая одержимость примитивами и скопление параметров (Primitive Obsession ",
+        "description": "Первый дефект — классическая одержимость примитивами и скопление параметров (Primitive Obsession & Data Clump): метод `registerNewUser` принимает восемь примитивных и строковых аргументов, при этом `currency` и `initialDeposit` оторваны друг от друга, хотя семантически образуют единый объект-значение `DepositAmount`.",
         "voiceKeywords": [
           "primitive",
           "obsession",
@@ -364,7 +364,7 @@
         "id": "l0-ref-03-smell-2",
         "name": "Mutable Aliasing Bug",
         "category": "CLEAN_CODE",
-        "description": "Третья проблема представляет собой прямое нарушение стандартов безопасности PCI-DSS в методе `toString()`: полный 16-значный номер банковской карты (`cardPan`) сериализуется в открытом текстовом виде,",
+        "description": "Второй критический запах — утечка мутабельного состояния (Mutable Aliasing Bug): выражение `user.tags = initialTags != null ? initialTags : new ArrayList<>()` сохраняет прямую ссылку на переданный извне список, поэтому последующая модификация `initialTags` на стороне клиента скрыто изменит состояние уже зарегистрированного пользователя.",
         "voiceKeywords": [
           "mutable",
           "aliasing"
@@ -477,7 +477,7 @@
         "id": "l1-ref-04-smell-1",
         "name": "Parallel Collections / Data Clump",
         "category": "CLEAN_CODE",
-        "description": "На этапе анализа кода кандидат должен сформулировать четыре ключевых архитектурных замечания. Первым выступает анти-паттерн параллельных коллекций (Parallel Collections / Data Clump): четыре списка (`",
+        "description": "Первым выступает анти-паттерн параллельных коллекций (Parallel Collections / Data Clump): четыре списка (`lineDescriptions`, `lineAmounts`, `lineCurrencies`, `lineTaxPercents`) связаны исключительно позиционным индексом `i`, что вынуждает писать громоздкие проверки совпадения размерностей и провоцирует ошибки индексации при модификации.",
         "voiceKeywords": [
           "parallel",
           "collections",
@@ -490,7 +490,7 @@
         "id": "l1-ref-04-smell-2",
         "name": "Primitive Obsession",
         "category": "CLEAN_CODE",
-        "description": "Третья проблема заключается в анемичной и открытой для мутации структуре результата `InvoiceSummary`: нефинальные публичные поля и изменяемый список `auditBreakdown` позволяют любому потребителю наруш",
+        "description": "Второй запах — отсутствие доменного типа `Money` (Primitive Obsession): код валюты (`String curr`) отделен от величины суммы (`BigDecimal amt`), поэтому компилятор никак не защищает разработчика от случайного сложения долларов и евро без предварительной конвертации.",
         "voiceKeywords": [
           "primitive",
           "obsession"
@@ -608,7 +608,7 @@
         "id": "l0-ref-05-smell-1",
         "name": "SRP Violation",
         "category": "CLEAN_CODE",
-        "description": "На этапе диагностики кода кандидат должен указать четыре фундаментальных нарушения принципов чистого кода и SOLID. Главное нарушение — игнорирование Принципа единственной ответственности (SRP Violatio",
+        "description": "Главное нарушение — игнорирование Принципа единственной ответственности (SRP Violation): класс `UserAccountLifecycleManager` совмещает как минимум четыре ортогональных актора и причины для модификации — правила валидации учетных записей, криптографический алгоритм хэширования паролей (`SHA-256` со статической солью), внутреннюю структуру хранения данных (`Map<String, AccountRecord>`) и верстку HTML-шаблонов писем.",
         "voiceKeywords": [
           "violation"
         ],
@@ -618,7 +618,7 @@
         "id": "l0-ref-05-smell-2",
         "name": "DIP Violation",
         "category": "CLEAN_CODE",
-        "description": "Третий дефект выражен в нарушении Принципа инверсии зависимостей (DIP Violation): высокоуровневый сервис управления жизненным циклом аккаунта жестко привязан к низкоуровневым `HashMap` и `ArrayList`, ",
+        "description": "Третий дефект выражен в нарушении Принципа инверсии зависимостей (DIP Violation): высокоуровневый сервис управления жизненным циклом аккаунта жестко привязан к низкоуровневым `HashMap` и `ArrayList`, что не позволяет внедрить моки в изолированных модульных тестах или подключить реляционную БД без переписывания бизнес-методов.",
         "voiceKeywords": [
           "violation"
         ],
@@ -730,7 +730,7 @@
         "id": "l1-ref-06-smell-1",
         "name": "Saga Rollback Duplication",
         "category": "CLEAN_CODE",
-        "description": "На этапе ревью этого класса от специалиста уровня L1 ожидается выявление четырех глубоких архитектурных проблем. Первая проблема — спагетти-оркестрация и четырехкратное дублирование компенсирующего ци",
+        "description": "Первая проблема — спагетти-оркестрация и четырехкратное дублирование компенсирующего цикла возврата товаров на склад (Saga Rollback Duplication): ручной цикл `for (OrderItemRequest reserved : reservedItems)` повторяется при ошибке валидации строки, при нехватке товара, при отказе платежного шлюза и при запрете зоны доставки.",
         "voiceKeywords": [
           "saga",
           "rollback",
@@ -742,7 +742,7 @@
         "id": "l1-ref-06-smell-2",
         "name": "Interleaved Validation and State Mutation",
         "category": "CLEAN_CODE",
-        "description": "Третий запах — строковое кодирование протокола ответа (`\"SUCCESS:...\"` и `\"FAILED:...\"`) вместо использования запечатанного алгебраического типа результата (`sealed interface FulfillmentOutcome`), что",
+        "description": "Вторая проблема заключается в смешении чистой валидации входных данных с мутацией состояния (Interleaved Validation and State Mutation): проверка `item.qty <= 0` выполняется прямо внутри цикла списания остатков `warehouseStock`, из-за чего ошибка во второй позиции корзины требует отката уже измененного состояния первой позиции.",
         "voiceKeywords": [
           "interleaved",
           "validation",
@@ -857,7 +857,7 @@
         "id": "l0-ref-07-smell-1",
         "name": "Object Seam",
         "category": "CLEAN_CODE",
-        "description": "При анализе `TripServiceKata` кандидат должен выделить четыре классических запаха унаследованного кода. Первым и главным препятствием выступает жесткая привязка к глобальному синглтону и статическому ",
+        "description": "Первым и главным препятствием выступает жесткая привязка к глобальному синглтону и статическому методу DAO («Once Dilemma» & Hardcoded Static Calls): вызовы `UserSession.getInstance().getLoggedUser()` и `TripDAO.findTripsByUser(user)` зашиты прямо в тело метода `getTripsByUser`, делая класс абсолютно нетестируемым без предварительного создания объектного шва (Object Seam).",
         "voiceKeywords": [
           "object",
           "seam"
@@ -868,7 +868,7 @@
         "id": "l0-ref-07-smell-2",
         "name": "Feature Envy",
         "category": "CLEAN_CODE",
-        "description": "Третья проблема связана с преждевременным выделением памяти и лишним мутабельным состоянием: пустой список `List<Trip> tripList = new ArrayList<Trip>()` создается в самой первой строке метода еще до п",
+        "description": "Второй запах — зависть к чужим данным (Feature Envy): цикл `for (User friend : user.getFriends())` внутри сервисного класса вручную итерирует внутреннюю коллекцию объекта `User`, вместо того чтобы делегировать проверку дружбы самому доменному объекту через `user.isFriendsWith(loggedUser)`.",
         "voiceKeywords": [
           "feature",
           "envy"
@@ -879,7 +879,7 @@
         "id": "l0-ref-07-smell-3",
         "name": "Missing Guard Clause",
         "category": "CLEAN_CODE",
-        "description": "Missing Guard Clause",
+        "description": "Четвертый запах — перевернутое условие авторизации без сторожевого условия (Missing Guard Clause), где проверка `if (loggedUser != null)` оборачивает всю бизнес-логику метода, а `throw new UserNotLoggedInException()` скрыт в нижней ветке `else`.",
         "voiceKeywords": [
           "missing",
           "guard",
@@ -991,9 +991,9 @@
     "smellsChecklist": [
       {
         "id": "l1-ref-08-smell-1",
-        "name": "Первая проблема — недетерминированная зависимость от физических системных часов",
+        "name": "Non-Deterministic Clock Dependency (System.currentTimeMillis)",
         "category": "CLEAN_CODE",
-        "description": "Первая проблема — недетерминированная зависимость от физических системных часов (`System.currentTimeMillis()`): расчет скользящего 24-часового окна, форматирование метки `GENERATED_AT` и определение ф",
+        "description": "На этапе ревью этого класса от кандидата уровня L1 ожидается точная идентификация четырех архитектурных и системных запахов. Первая проблема — недетерминированная зависимость от физических системных часов (`System.currentTimeMillis()`): расчет скользящего 24-часового окна, форматирование метки `GENERATED_AT` и определение флага выходного дня (`dayOfWeek == 6 |.",
         "voiceKeywords": [
           "первая",
           "проблема",
@@ -1004,9 +1004,9 @@
       },
       {
         "id": "l1-ref-08-smell-2",
-        "name": "Вторая проблема — жесткое инстанциирование внешнего сетевого клиента (`new Compl",
+        "name": "Hardcoded External Network Client Instantiation",
         "category": "CLEAN_CODE",
-        "description": "Вторая проблема — жесткое инстанциирование внешнего сетевого клиента (`new ComplianceBlacklistClient()`) непосредственно внутри метода, что блокирует выполнение модульных тестов и требует введения шва",
+        "description": "| dayOfWeek == 7`) зависят от момента запуска теста, что делает невозможным стабильное воспроизведение граничных и субботних сценариев без инъекции` java.time.Clock`.",
         "voiceKeywords": [
           "вторая",
           "проблема",
@@ -1017,9 +1017,9 @@
       },
       {
         "id": "l1-ref-08-smell-3",
-        "name": "Третий дефект связан с устаревшим управлением ресурсами ввода-вывода (`BufferedW",
+        "name": "Legacy Resource Management without try-with-resources",
         "category": "CLEAN_CODE",
-        "description": "Третий дефект связан с устаревшим управлением ресурсами ввода-вывода (`BufferedWriter` / `FileWriter` в ручном `try-finally` без `try-with-resources`): конструктор `new FileWriter(outputFile)` без ука",
+        "description": "Третий дефект связан с устаревшим управлением ресурсами ввода-вывода (`BufferedWriter` / `FileWriter` в ручном `try-finally` без `try-with-resources`): конструктор `new FileWriter(outputFile)` без указания кодировки опирается на платформозависимый charset, а ручной блок `finally` молча проглатывает `IOException` при закрытии дескриптора вместо использования механизма подавленных исключений (Suppressed Exceptions).",
         "voiceKeywords": [
           "третий",
           "дефект",
@@ -1030,7 +1030,7 @@
       },
       {
         "id": "l1-ref-08-smell-4",
-        "name": "Четвертый запах — смешение бизнес-правил AML-классификации транзакций, сериализа",
+        "name": "SRP Violation: Mixed AML Rules, CSV Serialization & I/O",
         "category": "CLEAN_CODE",
         "description": "Четвертый запах — смешение бизнес-правил AML-классификации транзакций, сериализации текстового отчета и дискового ввода-вывода в одном методе.",
         "voiceKeywords": [
@@ -1147,9 +1147,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-01-smell-1",
-        "name": "Первая и наиболее разрушительная проблема локализована в строках 48, 55 и 79, гд",
+        "name": "Synchronized Monitor Pinning with Blocking I/O",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая и наиболее разрушительная проблема локализована в строках 48, 55 и 79, где весь метод `authorizePayment` обернут в монитор `synchronized (this)` и содержит внутри два блокирующих сетевых вызова",
+        "description": "Первая и наиболее разрушительная проблема локализована в строках 48, 55 и 79, где весь метод `authorizePayment` обернут в монитор `synchronized (this)` и содержит внутри два блокирующих сетевых вызова `HttpClient.send()`. В Java 21 виртуальный поток не может быть размонтирован внутри `synchronized`.",
         "voiceKeywords": [
           "первая",
           "наиболее",
@@ -1160,9 +1160,9 @@
       },
       {
         "id": "l2-ref-01-smell-2",
-        "name": "Вторая проблема (строка 48) заключается в полной сериализации пропускной способн",
+        "name": "Global Monitor Throughput Serialization",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строка 48) заключается в полной сериализации пропускной способности сервиса. Даже при запуске на JDK 24+ (где JEP 491 устраняет пиннинг в `synchronized`), удержание глобального монито",
+        "description": "Вторая проблема (строка 48) заключается в полной сериализации пропускной способности сервиса. Даже при запуске на JDK 24+ (где JEP 491 устраняет пиннинг в `synchronized`), удержание глобального монитора `this` во время внешнего HTTP-вызова длительностью 50–100 мс превращает многопоточный сервис в однопоточную очередь с максимальной пропускной способностью $\\text{RPS}_{\\max} = \\frac{1000\\text{ мс}}{50\\text{ мс}} = 20\\text{ запросов/с}$ вместо требуемых 50 000 RPS.",
         "voiceKeywords": [
           "вторая",
           "проблема",
@@ -1173,9 +1173,9 @@
       },
       {
         "id": "l2-ref-01-smell-3",
-        "name": "Третий дефект (строки 59 и 105) вызван созданием нового экземпляра `HttpClient",
+        "name": "Per-Request HttpClient Instantiation Inside Lock",
         "category": "CONCURRENCY_JMM",
-        "description": "Третий дефект (строки 59 и 105) вызван созданием нового экземпляра `HttpClient.newBuilder().build()` на каждый входящий запрос внутри монитора. Каждый экземпляр `HttpClient` инициализирует собственный",
+        "description": "Третий дефект (строки 59 и 105) вызван созданием нового экземпляра `HttpClient.newBuilder().build()` на каждый входящий запрос внутри монитора. Каждый экземпляр `HttpClient` инициализирует собственный внутренний селектор-поток и пул соединений, игнорируя мультиплексирование HTTP/2 и приводя к исчерпанию файловых дескрипторов ОС и `OutOfMemoryError` при высокой нагрузке.",
         "voiceKeywords": [
           "третий",
           "дефект",
@@ -1292,7 +1292,7 @@
         "id": "l2-ref-02-smell-1",
         "name": "Read Skew / Torn Invariant",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая критическая уязвимость (строки 40, 62 и 73) порождена использованием единого глобального монитора `this` для совершенно независимых подсистем. Методы `tryAcquire`, `getOrLoadSession` и `updateR",
+        "description": "Вторая проблема (строки 28–29, 73–85 и 88–91) представляет собой несогласованное чтение инварианта риска (Read Skew / Torn Invariant).",
         "voiceKeywords": [
           "read",
           "skew",
@@ -1305,7 +1305,7 @@
         "id": "l2-ref-02-smell-2",
         "name": "Read-Heavy workloads",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строки 28–29, 73–85 и 88–91) представляет собой несогласованное чтение инварианта риска (Read Skew / Torn Invariant). Поля `globalRiskMultiplier` и `maxTransactionThreshold` связаны с",
+        "description": "Третья проблема (строки 62 и 88) заключается в сериализации операций чтения в сценариях с доминированием чтения (Read-Heavy workloads).",
         "voiceKeywords": [
           "read-heavy",
           "workloads"
@@ -1416,9 +1416,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-03-smell-1",
-        "name": "Первая критическая ошибка (строки 58–72) приводит к массовому оверселлингу (Over",
+        "name": "Non-Atomic State Mutation Outside ConcurrentHashMap",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая критическая ошибка (строки 58–72) приводит к массовому оверселлингу (Overselling / Double-Spending) из-за мутации полей объекта `SkuStockState` вне атомарных методов хеш-таблицы. Получение ссыл",
+        "description": "Первая критическая ошибка (строки 58–72) приводит к массовому оверселлингу (Overselling / Double-Spending) из-за мутации полей объекта `SkuStockState` вне атомарных методов хеш-таблицы. Получение ссылки через `inventoryMap.get(sku)` с последующей проверкой `if (stock.availableUnits < quantity)` и вычитанием `stock.availableUnits -= quantity` не защищено никакой синхронизацией.",
         "voiceKeywords": [
           "первая",
           "критическая",
@@ -1429,9 +1429,9 @@
       },
       {
         "id": "l2-ref-03-smell-2",
-        "name": "Вторая уязвимость (строки 50–56 и 75) позволяет злоумышленнику обойти ограничени",
+        "name": "Check-Then-Act Race Condition on User Limits",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая уязвимость (строки 50–56 и 75) позволяет злоумышленнику обойти ограничение `maxUnitsPerUser` через гонку Check-Then-Act между `getOrDefault` и `put`. Если один и тот же пользователь отправляет ",
+        "description": "Вторая уязвимость (строки 50–56 и 75) позволяет злоумышленнику обойти ограничение `maxUnitsPerUser` через гонку Check-Then-Act между `getOrDefault` и `put`. Если один и тот же пользователь отправляет 100 параллельных запросов на покупку 1 единицы лимитированного товара (при лимите 2 штуки в одни руки), все потоки одновременно читают `currentBought == 0` в строке 51, проходят проверку в строке 52 и перезаписывают значение `1` в строке 75.",
         "voiceKeywords": [
           "вторая",
           "уязвимость",
@@ -1442,9 +1442,9 @@
       },
       {
         "id": "l2-ref-03-smell-3",
-        "name": "Третий дефект (строки 32–33, 54 и 76) выражается в систематической потере обновл",
+        "name": "Lost Updates on Volatile Counters",
         "category": "CONCURRENCY_JMM",
-        "description": "Третий дефект (строки 32–33, 54 и 76) выражается в систематической потере обновлений глобальных счетчиков `totalUnitsAllocated` и `totalRejectedRequests`, объявленных как `volatile long` и изменяемых ",
+        "description": "Третий дефект (строки 32–33, 54 и 76) выражается в систематической потере обновлений глобальных счетчиков `totalUnitsAllocated` и `totalRejectedRequests`, объявленных как `volatile long` и изменяемых операторами `++` и `+=`. При высокой конкуренции даже простая замена на `AtomicLong` создает узкое место из-за постоянной инвалидации кэш-линий процессора между ядрами, что требует перехода на `LongAdder` (`Striped64`).",
         "voiceKeywords": [
           "третий",
           "дефект",
@@ -1559,7 +1559,7 @@
         "id": "l2-ref-04-smell-1",
         "name": "Data Race",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая фундаментальная уязвимость (строки 67, 74 и 98–100) заключается в циклическом дедлоке из-за инверсии порядка блокировок. В методе `transfer(fromId, toId, amount)` мониторы захватываются в поряд",
+        "description": "Третья проблема (строки 16, 29–31 и 86–92) проявляется как гонка данных (Data Race) и аномалия несогласованного чтения (Read Skew): поле `balanceCents` не является `volatile` и читается в `getBalanceCents()` без захвата блокировки счета, а метод `computeTotalSystemBalance()` суммирует балансы без согласованной блокировки, фиксируя фантомное изменение денежной массы во время активных переводов.",
         "voiceKeywords": [
           "data",
           "race"
@@ -1570,7 +1570,7 @@
         "id": "l2-ref-04-smell-2",
         "name": "Read Skew",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строки 67 и 74) связана с пиннингом виртуальных потоков при ожидании монитора `synchronized` и вызове `Thread.sleep(1)` внутри критической секции в Java 21, что монополизирует платфор",
+        "description": "Вторая проблема (строки 67 и 74) связана с пиннингом виртуальных потоков при ожидании монитора `synchronized` и вызове `Thread.sleep(1)` внутри критической секции в Java 21, что монополизирует платформенные потоки-носители `ForkJoinPool`.",
         "voiceKeywords": [
           "read",
           "skew"
@@ -1681,9 +1681,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-05-smell-1",
-        "name": "Первая критическая уязвимость (строки 25–53) порождает классическую аномалию пот",
+        "name": "Lost Update Anomaly under READ COMMITTED",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая критическая уязвимость (строки 25–53) порождает классическую аномалию потерянного обновления (Lost Update) при уровне изоляции PostgreSQL по умолчанию `READ COMMITTED`. Обычный запрос `SELECT b",
+        "description": "Первая критическая уязвимость (строки 25–53) порождает классическую аномалию потерянного обновления (Lost Update) при уровне изоляции PostgreSQL по умолчанию `READ COMMITTED`. Обычный запрос `SELECT balance_cents FROM accounts WHERE id = ?` в строке 33 читает снимок данных на момент начала оператора и не накладывает блокировку на строку.",
         "voiceKeywords": [
           "первая",
           "критическая",
@@ -1694,9 +1694,9 @@
       },
       {
         "id": "l2-ref-05-smell-2",
-        "name": "Вторая проблема (строки 71 и 77) вызывает взаимную блокировку строк в PostgreSQL",
+        "name": "Pessimistic Row-Lock Inversion Deadlock",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строки 71 и 77) вызывает взаимную блокировку строк в PostgreSQL (`ERROR: deadlock detected`). В методе `transferWithPessimisticLockInversion` оператор `SELECT ... FOR UPDATE` захватыв",
+        "description": "Вторая проблема (строки 71 и 77) вызывает взаимную блокировку строк в PostgreSQL (`ERROR: deadlock detected`). В методе `transferWithPessimisticLockInversion` оператор `SELECT ... FOR UPDATE` захватывает эксклюзивную блокировку кортежа сначала для `sourceAccountId`, а затем для `targetAccountId`.",
         "voiceKeywords": [
           "вторая",
           "проблема",
@@ -1809,9 +1809,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-06-smell-1",
-        "name": "Первая критическая проблема (строки 76–105) приводит к полному исчерпанию пула H",
+        "name": "HikariCP Pool Exhaustion (Idle-in-Transaction)",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая критическая проблема (строки 76–105) приводит к полному исчерпанию пула HikariCP из-за состояния `Idle-in-Transaction`. Физическое соединение с базой данных удерживается на протяжении `2 + 800 ",
+        "description": "Первая критическая проблема (строки 76–105) приводит к полному исчерпанию пула HikariCP из-за состояния `Idle-in-Transaction`. Физическое соединение с базой данных удерживается на протяжении `2 + 800 + 1500 + 2 + 700 = 3004 мс`, из которых 3000 мс (99,87% времени) соединение простаивает в ожидании завершения внешних HTTP-вызовов.",
         "voiceKeywords": [
           "первая",
           "критическая",
@@ -1822,9 +1822,9 @@
       },
       {
         "id": "l2-ref-06-smell-2",
-        "name": "Вторая проблема (строки 88–95) порождает критическую финансовую рассинхронизацию",
+        "name": "External Email I/O Inside Database Transaction",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строки 88–95) порождает критическую финансовую рассинхронизацию: вызов `emailClient.sendConfirmationEmail()` выполняется внутри той же транзакции БД уже после успешного списания денеж",
+        "description": "Вторая проблема (строки 88–95) порождает критическую финансовую рассинхронизацию: вызов `emailClient.sendConfirmationEmail()` выполняется внутри той же транзакции БД уже после успешного списания денежных средств в `paymentGateway.capturePayment()`.",
         "voiceKeywords": [
           "вторая",
           "проблема",
@@ -1835,9 +1835,9 @@
       },
       {
         "id": "l2-ref-06-smell-3",
-        "name": "Третья уязвимость (строка 98) связана с обходом прокси Spring AOP при самовызове",
+        "name": "Spring AOP Self-Invocation Proxy Bypass",
         "category": "CONCURRENCY_JMM",
-        "description": "Третья уязвимость (строка 98) связана с обходом прокси Spring AOP при самовызове `this.saveAuditRecordRequiresNewBypassed()`. Поскольку вызов осуществляется через ссылку `this`, перехватчик `Transacti",
+        "description": "Третья уязвимость (строка 98) связана с обходом прокси Spring AOP при самовызове `this.saveAuditRecordRequiresNewBypassed()`. Поскольку вызов осуществляется через ссылку `this`, перехватчик `TransactionInterceptor` не срабатывает и аннотация `@Transactional(propagation = Propagation.REQUIRES_NEW)` игнорируется.",
         "voiceKeywords": [
           "третья",
           "уязвимость",
@@ -1952,9 +1952,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-07-smell-1",
-        "name": "Первая архитектурная ошибка (строки 75–92) заключается в бесконтрольном порожден",
+        "name": "Unbounded Virtual Thread Concurrency Exhausting DB Pool",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая архитектурная ошибка (строки 75–92) заключается в бесконтрольном порождении виртуальных потоков для пакетной задачи, которые мгновенно монополизируют общий пул `sharedHikariPool`. В Spring Boot",
+        "description": "Первая архитектурная ошибка (строки 75–92) заключается в бесконтрольном порождении виртуальных потоков для пакетной задачи, которые мгновенно монополизируют общий пул `sharedHikariPool`.",
         "voiceKeywords": [
           "первая",
           "архитектурная",
@@ -1965,9 +1965,9 @@
       },
       {
         "id": "l2-ref-07-smell-2",
-        "name": "Вторая уязвимость (строки 56 и 80–91) вызывает резкую деградацию пользовательско",
+        "name": "p99 Latency Degradation & Cascading DB Timeouts",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая уязвимость (строки 56 и 80–91) вызывает резкую деградацию пользовательской латентности p99 и каскадные тайм-ауты. Поскольку каждая фоновая задача удерживает соединение БД в течение 253 мс (вклю",
+        "description": "Вторая уязвимость (строки 56 и 80–91) вызывает резкую деградацию пользовательской латентности p99 и каскадные тайм-ауты. Поскольку каждая фоновая задача удерживает соединение БД в течение 253 мс (включая 250 мс внешнего HTTP-вызова к санкционному API), очередь из 100 фоновых задач полностью блокирует пул из 10 соединений на 2 530 мс, заставляя быстрые 5-миллисекундные пользовательские запросы падать по тайм-ауту ожидания соединения.",
         "voiceKeywords": [
           "вторая",
           "уязвимость",
@@ -2080,9 +2080,9 @@
     "smellsChecklist": [
       {
         "id": "l2-ref-08-smell-1",
-        "name": "Первая критическая уязвимость (строки 13, 29, 37, 68 и 97) приводит к несанкцион",
+        "name": "InheritableThreadLocal Context Mutation & Privilege Leak",
         "category": "CONCURRENCY_JMM",
-        "description": "Первая критическая уязвимость (строки 13, 29, 37, 68 и 97) приводит к несанкционированной эскалации привилегий из-за мутации разделяемого объекта контекста в `InheritableThreadLocal`. При создании доч",
+        "description": "Первая критическая уязвимость (строки 13, 29, 37, 68 и 97) приводит к несанкционированной эскалации привилегий из-за мутации разделяемого объекта контекста в `InheritableThreadLocal`. При создании дочерних виртуальных потоков `InheritableThreadLocal` копирует ссылку на один и тот же экземпляр `MutableSecurityContext` из родительского потока в дочерние.",
         "voiceKeywords": [
           "первая",
           "критическая",
@@ -2093,9 +2093,9 @@
       },
       {
         "id": "l2-ref-08-smell-2",
-        "name": "Вторая проблема (строки 42–45, 57, 83 и 93) демонстрирует катастрофический взрыв",
+        "name": "ThreadLocal Allocation Explosion on Virtual Threads",
         "category": "CONCURRENCY_JMM",
-        "description": "Вторая проблема (строки 42–45, 57, 83 и 93) демонстрирует катастрофический взрыв аллокаций памяти при использовании `ThreadLocal.withInitial` в среде виртуальных потоков. На каждый входящий запрос соз",
+        "description": "Вторая проблема (строки 42–45, 57, 83 и 93) демонстрирует катастрофический взрыв аллокаций памяти при использовании `ThreadLocal.withInitial` в среде виртуальных потоков.",
         "voiceKeywords": [
           "вторая",
           "проблема",
@@ -2210,7 +2210,7 @@
         "id": "l3-ref-01-smell-1",
         "name": "Transport Layer Leakage",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Анализ представленного монолитного класса выявляет критическую концентрацию архитектурных антипаттернов, блокирующих горизонтальное масштабирование и эволюцию продукта. Прежде всего наблюдается прямое",
+        "description": "Прежде всего наблюдается прямое протекание транспортного уровня в доменную логику (Transport Layer Leakage): метод `checkoutOrder` принимает `HttpServletRequest` напрямую и извлекает заголовки `X-Forwarded-For` и `X-Customer-Vip` внутри транзакционного бизнес-метода.",
         "voiceKeywords": [
           "transport",
           "layer",
@@ -2222,7 +2222,7 @@
         "id": "l3-ref-01-smell-2",
         "name": "Anemic & Coupled Entity",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Вторым фундаментальным дефектом выступает слияние моделей персистентности, представления и домена (Anemic & Coupled Entity). Класс `LegacyOrderEntity` одновременно размечен аннотациями `@Entity`/`@Tab",
+        "description": "Вторым фундаментальным дефектом выступает слияние моделей персистентности, представления и домена (Anemic & Coupled Entity).",
         "voiceKeywords": [
           "anemic",
           "coupled",
@@ -2234,7 +2234,7 @@
         "id": "l3-ref-01-smell-3",
         "name": "Jakarta Persistence",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Еще более опасный эксплуатационный риск порождается выполнением сетевого ввода-вывода внутри открытой транзакции базы данных (I/O Inside Database Transaction). Вызов `s3Client.putObject(...)` выполняе",
+        "description": "Класс `LegacyOrderEntity` одновременно размечен аннотациями `@Entity`/`@Table` (Jakarta Persistence) и `@JsonProperty`/`@JsonIgnore` (Jackson), при этом часть инициализации состояния скрыта в колбэке жизненного цикла ORM `@PrePersist`.",
         "voiceKeywords": [
           "jakarta",
           "persistence"
@@ -2245,7 +2245,7 @@
         "id": "l3-ref-01-smell-4",
         "name": "Jackson",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Jackson",
+        "description": "Вторым фундаментальным дефектом выступает слияние моделей персистентности, представления и домена (Anemic & Coupled Entity). Класс `LegacyOrderEntity` одновременно размечен аннотациями `@Entity`/`@Table` (Jakarta Persistence) и `@JsonProperty`/`@JsonIgnore` (Jackson), при этом часть инициализации состояния скрыта в колбэке жизненного цикла ORM `@PrePersist`.",
         "voiceKeywords": [
           "jackson"
         ],
@@ -2255,7 +2255,7 @@
         "id": "l3-ref-01-smell-5",
         "name": "I/O Inside Database Transaction",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "I/O Inside Database Transaction",
+        "description": "Еще более опасный эксплуатационный риск порождается выполнением сетевого ввода-вывода внутри открытой транзакции базы данных (I/O Inside Database Transaction).",
         "voiceKeywords": [
           "inside",
           "database",
@@ -2369,7 +2369,7 @@
         "id": "l3-ref-02-smell-1",
         "name": "Stringly-Typed State Machine",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "В представленной реализации продления подписок присутствуют четыре взаимосвязанные архитектурные уязвимости. Во-первых, жесткая привязка к ThreadLocal-контексту безопасности (`LegacySecurityContextHol",
+        "description": "Во-вторых, переходы между состояниями `\"TRIAL\"`, `\"ACTIVE\"`, `\"PAST_DUE\"` и `\"CANCELLED\"` представляют собой строково-типизированный конечный автомат (Stringly-Typed State Machine), закодированный через условные операторы `if/else` над сырыми строками; отсутствие компиляторной проверки исчерпанности состояний (Exhaustiveness Check) позволяет случайно перевести отмененную подписку в активную или забыть обнулить счетчик `failedAttempts`.",
         "voiceKeywords": [
           "stringly-typed",
           "state",
@@ -2381,7 +2381,7 @@
         "id": "l3-ref-02-smell-2",
         "name": "Exhaustiveness Check",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "В-третьих, генерация недетерминированного `UUID.randomUUID()` в качестве ключа идемпотентности прямо перед вызовом платежного шлюза (`String chargeToken = UUID.randomUUID().toString()`) полностью обес",
+        "description": "В-третьих, генерация недетерминированного `UUID.randomUUID()` в качестве ключа идемпотентности прямо перед вызовом платежного шлюза (`String chargeToken = UUID.randomUUID().toString()`) полностью обесценивает защиту от повторных списаний. Если сетевой вызов к платежному шлюзу завершится по таймауту чтения, повторный запуск задачи сгенерирует новый UUID и спишет деньги с карты клиента второй раз.",
         "voiceKeywords": [
           "exhaustiveness",
           "check"
@@ -2492,9 +2492,9 @@
     "smellsChecklist": [
       {
         "id": "l3-ref-03-smell-1",
-        "name": "В представленном коде платежного сервиса переплетены три критических режима отка",
+        "name": "Dual-Write Phantom Events & Outbox Missing",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "В представленном коде платежного сервиса переплетены три критических режима отказа распределенных систем. Первая проблема заключается в генерации фантомных событий при откате транзакции и потере событ",
+        "description": "В представленном коде платежного сервиса переплетены три критических режима отказа распределенных систем. Первая проблема заключается в генерации фантомных событий при откате транзакции и потере событий при аварийном завершении JVM: в методе `captureAndNotify` вызов `kafkaProducer.sendEvent(...).get()` выполняется *до* завершения метода `@Transactional`.",
         "voiceKeywords": [
           "представленном",
           "коде",
@@ -2505,9 +2505,9 @@
       },
       {
         "id": "l3-ref-03-smell-2",
-        "name": "Второй системный риск связан с удержанием блокировки строки кошелька на время се",
+        "name": "Wallet Row Lock Held During Kafka Network I/O",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Второй системный риск связан с удержанием блокировки строки кошелька на время сетевого таймаута Kafka. Запрос `UPDATE customer_wallets ...` берет эксклюзивную блокировку строки клиента, после чего ожи",
+        "description": "Второй системный риск связан с удержанием блокировки строки кошелька на время сетевого таймаута Kafka. Запрос `UPDATE customer_wallets ...` берет эксклюзивную блокировку строки клиента, после чего ожидание `.get(5, TimeUnit.SECONDS)` при недоступности брокера блокирует рабочий поток и соединение БД на 5 секунд. При потоке 500 платежей в секунду пул HikariCP (обычно 20–50 соединений) исчерпывается за 100 миллисекунд, парализуя всю базу данных.",
         "voiceKeywords": [
           "второй",
           "системный",
@@ -2622,7 +2622,7 @@
         "id": "l3-ref-04-smell-1",
         "name": "Fat Payloads",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Данная подсистема сочетает в себе четыре тяжелых дефекта событийно-ориентированной архитектуры. Прежде всего, в вызовах `sendBlocking(\"orders-main-topic\", null, ...)` отсутствует ключ партиционировани",
+        "description": "Наряду с этим система страдает от антипаттерна «God Event» (Fat Payloads): встраивание полных JSON-дампов покупателя и каталога (`buyerFullDumpJson`, `catalogFullDumpJson`) в событие заказа раздувает сетевой трафик Kafka и жестко связывает схему события со внутренними структурами чужих ограниченных контекстов.",
         "voiceKeywords": [
           "payloads"
         ],
@@ -2632,7 +2632,7 @@
         "id": "l3-ref-04-smell-2",
         "name": "Missing Consumer Inbox",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Наряду с этим система страдает от антипаттерна «God Event» (Fat Payloads): встраивание полных JSON-дампов покупателя и каталога (`buyerFullDumpJson`, `catalogFullDumpJson`) в событие заказа раздувает ",
+        "description": "Наконец, на стороне консьюмера склада полностью отсутствует идемпотентность (Missing Consumer Inbox): поскольку доставка из Outbox и Kafka гарантирует семантику *at-least-once*, любой сетевой ретрай или ребалансировка консьюмер-группы вызовет `onWarehouseMessageReceived` повторно и выполнит двойное списание товара `allocated = allocated + :qty`.",
         "voiceKeywords": [
           "missing",
           "consumer",
@@ -2744,9 +2744,9 @@
     "smellsChecklist": [
       {
         "id": "l3-ref-05-smell-1",
-        "name": "Данный корпоративный шлюз содержит три критических дефекта, препятствующих мигра",
+        "name": "Carrier Thread Pinning & Global Monitor Deadlock",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Данный корпоративный шлюз содержит три критических дефекта, препятствующих миграции на Java 21 LTS и Spring Boot 3.4+. Главная проблема заключается в монополизации и взаимной блокировке потоков-носите",
+        "description": "Данный корпоративный шлюз содержит три критических дефекта, препятствующих миграции на Java 21 LTS и Spring Boot 3.4+.",
         "voiceKeywords": [
           "данный",
           "корпоративный",
@@ -2757,9 +2757,9 @@
       },
       {
         "id": "l3-ref-05-smell-2",
-        "name": "Вторым недостатком является использование устаревшего `RestTemplate` с россыпью",
+        "name": "Legacy RestTemplate & Unvalidated @Value Scatter",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Вторым недостатком является использование устаревшего `RestTemplate` с россыпью невалидируемых полей `@Value`: в Spring Framework 6.1 и Spring Boot 3.4 для императивного HTTP-взаимодействия поверх вир",
+        "description": "Вторым недостатком является использование устаревшего `RestTemplate` с россыпью невалидируемых полей `@Value`: в Spring Framework 6.1 и Spring Boot 3.4 для императивного HTTP-взаимодействия поверх виртуальных потоков стандартом де-факто стал текучий (fluent) интерфейс `RestClient`, который обеспечивает лучшую тестируемость и автоконфигурируется через `RestClient.Builder` и `ClientHttpRequestFactoryBuilder`.",
         "voiceKeywords": [
           "вторым",
           "недостатком",
@@ -2872,9 +2872,9 @@
     "smellsChecklist": [
       {
         "id": "l3-ref-06-smell-1",
-        "name": "Анализ данного фильтра безопасности выявляет четыре критических нарушения произв",
+        "name": "Synchronous CPU-Heavy Crypto on Request Thread",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Анализ данного фильтра безопасности выявляет четыре критических нарушения производительности и информационной безопасности. Первым и главным узким местом является синхронное выполнение CPU-емких крипт",
+        "description": "Анализ данного фильтра безопасности выявляет четыре критических нарушения производительности и информационной безопасности.",
         "voiceKeywords": [
           "анализ",
           "данного",
@@ -2885,9 +2885,9 @@
       },
       {
         "id": "l3-ref-06-smell-2",
-        "name": "Вторым фатальным дефектом является прямая утечка персональных и карточных данных",
+        "name": "Unmasked PAN/PII Leakage in Logs",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Вторым фатальным дефектом является прямая утечка персональных и карточных данных (PAN/PII) в логи: строка `log.info(\"... rawPayload={}\", requestPayloadSummary)` записывает немаскированный номер банков",
+        "description": "Вторым фатальным дефектом является прямая утечка персональных и карточных данных (PAN/PII) в логи: строка `log.info(\"... rawPayload={}\", requestPayloadSummary)` записывает немаскированный номер банковской карты в текстовый лог до выполнения редактирования, что является грубейшим нарушением стандартов PCI DSS и GDPR.",
         "voiceKeywords": [
           "вторым",
           "фатальным",
@@ -3000,9 +3000,9 @@
     "smellsChecklist": [
       {
         "id": "l3-ref-07-smell-1",
-        "name": "В представленном сервисе кредитного конвейера допущена полная коррупция доменной",
+        "name": "Ubiquitous Language Corruption by Legacy Protocol",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "В представленном сервисе кредитного конвейера допущена полная коррупция доменной модели внешним легаси-протоколом. Во-первых, наблюдается разрушение единого языка предметной области (Ubiquitous Langua",
+        "description": "В представленном сервисе кредитного конвейера допущена полная коррупция доменной модели внешним легаси-протоколом.",
         "voiceKeywords": [
           "представленном",
           "сервисе",
@@ -3013,9 +3013,9 @@
       },
       {
         "id": "l3-ref-07-smell-2",
-        "name": "Во-вторых, происходит сквозная утечка контракта мейнфрейма во внешнее API нового",
+        "name": "Mainframe Contract Leakage into Public API",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Во-вторых, происходит сквозная утечка контракта мейнфрейма во внешнее API нового микросервиса: метод `buildCorruptedResponse` помещает поля `CUST_STAT_CD_01`, `FLG_ACTIVE_YN` и `OVRDRFT_LMT_CD` напрям",
+        "description": "Во-вторых, происходит сквозная утечка контракта мейнфрейма во внешнее API нового микросервиса: метод `buildCorruptedResponse` помещает поля `CUST_STAT_CD_01`, `FLG_ACTIVE_YN` и `OVRDRFT_LMT_CD` напрямую в выходную карту ответа.",
         "voiceKeywords": [
           "во-вторых",
           "происходит",
@@ -3130,7 +3130,7 @@
         "id": "l3-ref-08-smell-1",
         "name": "Out-of-Order Webhook State Regression",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Данный сервис обработки логистических вебхуков подвержен трем разрушительным системным эффектам. Первая проблема заключается в регрессии состояния агрегата при доставке вебхуков не по порядку (Out-of-",
+        "description": "Первая проблема заключается в регрессии состояния агрегата при доставке вебхуков не по порядку (Out-of-Order Webhook State Regression): внешние 3PL-провайдеры отправляют HTTP-уведомления через распределенные пулы ретраев без гарантии сохранения хронологического порядка.",
         "voiceKeywords": [
           "out-of-order",
           "webhook",
@@ -3143,7 +3143,7 @@
         "id": "l3-ref-08-smell-2",
         "name": "Lost Update Conflict",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Вторая уязвимость связана с отсутствием оптимистической блокировки (`@Version`): когда внешний провайдер одновременно присылает два вебхука (или дубликат одного события), две параллельные транзакции ч",
+        "description": "Вторая уязвимость связана с отсутствием оптимистической блокировки (`@Version`): когда внешний провайдер одновременно присылает два вебхука (или дубликат одного события), две параллельные транзакции читают одно и то же состояние `LegacyShipmentEntity` и перезаписывают изменения друг друга, вызывая потерю обновлений (Lost Update Conflict).",
         "voiceKeywords": [
           "lost",
           "update",
@@ -3155,7 +3155,7 @@
         "id": "l3-ref-08-smell-3",
         "name": "Open-Closed Principle",
         "category": "ARCHITECTURAL_COUPLING",
-        "description": "Open-Closed Principle",
+        "description": "Третий дефект нарушает принцип открытости-закрытости (Open-Closed Principle) и разрушает изоляцию контекстов: подключение каждого нового логистического партнера вынуждает команду добавлять специфичные для провайдера столбцы (`raw_provider_bitmask`, `raw_provider_subcode`) в центральную таблицу `shipments` и пробрасывать их в выходные события Kafka, превращая внутреннюю схему БД в хрупкий публичный контракт.",
         "voiceKeywords": [
           "open-closed",
           "principle"

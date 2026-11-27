@@ -91,10 +91,23 @@ function sanitizeCodeForAst(raw: string): string {
     .replace(/"(?:\\.|[^"\\])*"/g, '""');
 }
 
+export interface AstRuleEvaluationItem {
+  id: string;
+  text: string;
+  isViolation: boolean;
+}
+
+/**
+ * Filters out informational non-violation sentinel entries so clean code yields [].
+ */
+export function filterActiveAstViolations<T extends { isViolation: boolean }>(items: T[]): T[] {
+  return items.filter((item) => item.isViolation);
+}
+
 /**
  * Deterministically evaluates code against unified AST rules.
  */
-export function evaluateAstRules(code: string, activeRuleIds?: string[]): { text: string; isViolation: boolean; id: string }[] {
+export function evaluateAstRules(code: string, activeRuleIds?: string[]): AstRuleEvaluationItem[] {
   if (!code || code.trim().length === 0) {
     return [{ text: 'Архитектурный шаблон проверен: чистая реализация', isViolation: false, id: 'clean' }];
   }

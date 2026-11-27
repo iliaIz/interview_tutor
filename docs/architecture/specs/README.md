@@ -62,6 +62,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **57** | **`DatabaseBootstrap` & JSON `CatalogSeeder`** | [`57_DATABASE_BOOTSTRAP_AND_JSON_CATALOG_SEEDER.md`](57_DATABASE_BOOTSTRAP_AND_JSON_CATALOG_SEEDER.md) | Disjoint `TST`/`DP`/`LLD` task codes, remove hidden auth `DELETE`s in `dbIndexes.ts`, externalize 12,897L TS seed blobs into TypeBox JSON catalogs |
 | **58** | **Unified `TutorActiveContext` & `TutorTransportPort`** | [`58_TUTOR_ACTIVE_CONTEXT_AND_TRANSPORT_PORT.md`](58_TUTOR_ACTIVE_CONTEXT_AND_TRANSPORT_PORT.md) | Unify 5 Copilot arenas on `TutorActiveContext` + injectable `TutorTransportPort`, fix `arena: 'practice'` & 5-map `/rule-grounding`, selectorize `PracticeTutorDrawer` |
 | **59** | **`useVoiceConfigStore` & `questionsSlice` Pruning** | [`59_VOICE_CONFIG_STORE_AND_QUESTIONS_SLICE_PRUNING.md`](59_VOICE_CONFIG_STORE_AND_QUESTIONS_SLICE_PRUNING.md) | Merge `runtimeConfig` & 10 `localStorage` keys into `useVoiceConfigStore`, eliminate `CustomEvent`/updater side effects, prune dead `questionsSlice` state |
+| **60** | **Unified Practice IDE Shell & UX Remediation** | [`60_PRACTICE_WORKSPACE_UX_REMEDIATION.md`](60_PRACTICE_WORKSPACE_UX_REMEDIATION.md) | `48px` `Unified Arena IDE Shell`, docked `AI-Напарник \| Доска ИИ` rail, `Stealth Co-Pilot Mode`, native `<dialog>`/`popover`, `Truth-in-Telemetry`, WCAG 2.1 AA |
 
 ---
 

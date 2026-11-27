@@ -71,21 +71,30 @@ export const PracticeVoiceHUD: React.FC<PracticeVoiceHUDProps> = ({ onAiTranscri
       <div className="w-full flex items-center justify-between z-10 mb-3 gap-1">
         <div className="flex items-center gap-1.5 overflow-hidden">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white border border-pastel-accentRose/20 text-[10px] font-bold text-pastel-accentRoseText shadow-2xs truncate">
-            <Radio className="w-3 h-3 text-pastel-accentRose animate-pulse shrink-0" />
+            <Radio className="w-3 h-3 text-pastel-accentRoseText shrink-0" />
             <span className="truncate">
-              {interviewConfig.voice || VOICE_DEFAULTS.voice} • {interviewConfig.userGender === 'male' ? 'Мужской' : interviewConfig.userGender === 'neutral' ? 'На «Вы»' : 'Женский'} • {isManualMode ? 'По кнопке' : 'Авто-VAD'}
+              {interviewConfig.voice || VOICE_DEFAULTS.voice} •{' '}
+              {interviewConfig.userGender === 'male'
+                ? 'Мужской'
+                : interviewConfig.userGender === 'female'
+                ? 'Женский'
+                : 'На «Вы»'}{' '}
+              • {isManualMode ? 'По кнопке' : 'Авто-VAD'}
             </span>
           </div>
         </div>
 
-        <button
-          onClick={disconnect}
-          className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer shrink-0"
-          title="Завершить голосовую сессию"
-        >
-          <PhoneOff className="w-3.5 h-3.5" />
-          <span>Отключить</span>
-        </button>
+        {(isConnected || isError) && (
+          <button
+            type="button"
+            onClick={disconnect}
+            className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer shrink-0"
+            title="Завершить голосовую сессию"
+          >
+            <PhoneOff className="w-3.5 h-3.5" />
+            <span>Отключить</span>
+          </button>
+        )}
       </div>
 
       {/* Central Tactile Circle Button (Tactile Barge-In / Auto-VAD / Commit) */}

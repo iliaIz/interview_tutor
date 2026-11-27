@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { usePracticeTutorStore } from '../../store/usePracticeTutorStore';
-import { FileCode, Lock, Clock, Compass, RotateCcw, Cloud, Check, Loader2, Laptop } from 'lucide-react';
+import { FileCode, Lock, Cloud, Check, Loader2, Laptop, ChevronDown } from 'lucide-react';
 import { AutosaveSyncStatus } from './useWorkspaceAutosave';
 import { useIdeBridge } from './useIdeBridge';
 import { IdeBridgeModal } from './IdeBridgeModal';
@@ -9,23 +8,23 @@ import { IdeBridgeModal } from './IdeBridgeModal';
 interface WorkspaceHeaderBarProps {
   lastSavedTime: string | null;
   syncStatus?: AutosaveSyncStatus;
-  onResetWorkspace: () => void;
+  manualSaveBanner?: boolean;
 }
 
 export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
   lastSavedTime,
   syncStatus = 'saved',
-  onResetWorkspace
+  manualSaveBanner = false
 }) => {
   const {
     practiceWorkspaceFiles,
     activeWorkspaceFileIndex,
     setActiveWorkspaceFileIndex,
-    practiceElapsedSeconds,
     activePracticeChallenge
   } = useAppStore();
 
-  const { toggleCompass } = usePracticeTutorStore();
+  const [isFilesPopoverOpen, setIsFilesPopoverOpen] = useState(false);
+  const filesPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const {
     status: ideStatus,
@@ -37,54 +36,133 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
     downloadProjectZip
   } = useIdeBridge();
 
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    if (!isFilesPopoverOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (filesPopoverRef.current && !filesPopoverRef.current.contains(e.target as Node)) {
+        setIsFilesPopoverOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFilesPopoverOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isFilesPopoverOpen]);
+
+  const currentFile = practiceWorkspaceFiles[activeWorkspaceFileIndex] || practiceWorkspaceFiles[0];
 
   return (
-    <div className="flex items-center justify-between bg-slate-900 border-b border-slate-800 px-3 py-1.5 gap-2 overflow-x-auto no-scrollbar">
-      {/* File Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x py-0.5">
-        {practiceWorkspaceFiles.map((file, idx) => {
-          const isActive = activeWorkspaceFileIndex === idx;
-          const fileName = file.path.split('/').pop() || file.path;
+    <div className="flex items-center justify-between bg-slate-900 border-b border-slate-800 px-3 py-1 gap-2 shrink-0">
+      {/* Left: File Tabs (isolated horizontal scroll) + Explicit Overflow Switcher */}
+      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div
+          role="tablist"
+          aria-label="Файлы проекта"
+          className="flex items-center gap-1.5 overflow-x-auto no-scrollbar mask-fade-end touch-pan-x py-0.5 flex-1 min-w-0 pr-6"
+        >
+          {practiceWorkspaceFiles.map((file, idx) => {
+            const isActive = activeWorkspaceFileIndex === idx;
+            const fileName = file.path.split('/').pop() || file.path;
 
-          return (
+            return (
+              <button
+                key={file.path}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveWorkspaceFileIndex(idx)}
+                className={`touch-target-44 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[32px] ${
+                  isActive
+                    ? 'bg-slate-800 text-rose-200 border border-pastel-accentRose/50 font-bold shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                }`}
+              >
+                <FileCode className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-pastel-accentRose' : 'text-slate-400'}`} />
+                <span>{fileName}</span>
+                {file.readOnly && (
+                  <span title="Read-only контракт" className="ml-0.5">
+                    <Lock className="w-3 h-3 text-amber-300" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Explicit File Overflow Switcher */}
+        {practiceWorkspaceFiles.length > 1 && (
+          <div className="relative shrink-0" ref={filesPopoverRef}>
             <button
-              key={file.path}
               type="button"
-              onClick={() => setActiveWorkspaceFileIndex(idx)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-colors cursor-pointer shrink-0 min-h-[36px] ${
-                isActive
-                  ? 'bg-slate-800 text-pastel-accentRose border border-pastel-accentRose/40 font-bold shadow-2xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
+              onClick={() => setIsFilesPopoverOpen((v) => !v)}
+              aria-expanded={isFilesPopoverOpen}
+              aria-haspopup="listbox"
+              className="touch-target-44 flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold cursor-pointer transition"
+              title="Показать все файлы проекта"
             >
-              <FileCode className={`w-3.5 h-3.5 ${isActive ? 'text-pastel-accentRose' : 'text-slate-500'}`} />
-              <span>{fileName}</span>
-              {file.readOnly && (
-                <span title="Read-only test contract" className="ml-0.5">
-                  <Lock className="w-3 h-3 text-slate-500" />
-                </span>
-              )}
+              <span>Файлы ({practiceWorkspaceFiles.length})</span>
+              <ChevronDown className="w-3 h-3" />
             </button>
-          );
-        })}
+
+            {isFilesPopoverOpen && (
+              <div
+                role="listbox"
+                aria-label="Список файлов проекта"
+                className="absolute right-0 top-full mt-1.5 w-72 max-h-72 overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-1.5 z-40"
+              >
+                {practiceWorkspaceFiles.map((file, idx) => {
+                  const isActive = activeWorkspaceFileIndex === idx;
+                  const fileName = file.path.split('/').pop() || file.path;
+                  return (
+                    <button
+                      key={file.path}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onClick={() => {
+                        setActiveWorkspaceFileIndex(idx);
+                        setIsFilesPopoverOpen(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-mono flex items-center justify-between gap-2 cursor-pointer transition ${
+                        isActive
+                          ? 'bg-slate-800 text-rose-200 font-bold'
+                          : 'text-slate-200 hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <span className="truncate">{fileName}</span>
+                      {file.readOnly && <Lock className="w-3 h-3 text-amber-300 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Actions, Compass & Timer */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
+      {/* Right: Read-Only indicator, IntelliJ Bridge & Autosave Status */}
+      <div className="flex items-center gap-2 shrink-0 text-xs">
+        {currentFile?.readOnly && (
+          <span className="hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/35 text-[10px] font-bold">
+            <Lock className="w-3 h-3 text-amber-300" />
+            <span>Read-Only</span>
+          </span>
+        )}
+
         <button
           type="button"
           onClick={() => setIsIdeModalOpen(true)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition cursor-pointer text-[11px] font-medium border ${
+          className={`touch-target-44 flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition cursor-pointer text-[11px] font-medium border ${
             ideStatus === 'connected' || ideStatus === 'syncing'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
               : ideStatus === 'connecting'
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-              : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+              ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+              : 'bg-slate-800 text-slate-200 hover:text-white border-slate-700 hover:bg-slate-700'
           }`}
           title="Решать в IntelliJ IDEA (Zero-Dependency Bridge)"
         >
@@ -98,49 +176,26 @@ export const WorkspaceHeaderBar: React.FC<WorkspaceHeaderBarProps> = ({
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => toggleCompass()}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer text-[11px] font-medium"
-          title="Открыть компас инженера (Ctrl + /)"
-        >
-          <Compass className="w-3.5 h-3.5 text-pastel-accentRose" />
-          <span className="hidden sm:inline">Compass</span>
-          <kbd className="hidden md:inline px-1 py-0.2 rounded bg-slate-900 border border-slate-700 text-[9px] text-slate-400">Ctrl+/</kbd>
-        </button>
-
-        <button
-          type="button"
-          onClick={onResetWorkspace}
-          className="flex items-center gap-1 px-2 py-1 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition cursor-pointer text-[11px]"
-          title="Сбросить воркспейс к исходным файлам"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span className="hidden lg:inline">Сброс</span>
-        </button>
-
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
-          <Clock className="w-3 h-3 text-pastel-accentRose animate-pulse" />
-          <span>{formatTime(practiceElapsedSeconds)}</span>
-        </div>
-
         <div className="hidden md:flex items-center gap-1 text-[10px]">
-          {syncStatus === 'saving' ? (
-            <span className="flex items-center gap-1 text-amber-400">
+          {manualSaveBanner ? (
+            <span className="flex items-center gap-1 text-emerald-300 font-semibold">
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span>Сохранено (Ctrl+S)</span>
+            </span>
+          ) : syncStatus === 'saving' ? (
+            <span className="flex items-center gap-1 text-amber-300">
               <Loader2 className="w-3 h-3 animate-spin" />
               <span>Сохранение...</span>
             </span>
           ) : syncStatus === 'local_only' ? (
-            <span className="flex items-center gap-1 text-amber-400/90" title="Сохранено в локальном кэше браузера">
+            <span className="flex items-center gap-1 text-amber-300" title="Сохранено в локальном кэше браузера">
               <Cloud className="w-3 h-3" />
               <span>Локальный кэш</span>
             </span>
           ) : syncStatus === 'dirty' ? (
-            <span className="text-slate-500">
-              Несохранено...
-            </span>
+            <span className="text-slate-300">Несохранено...</span>
           ) : lastSavedTime ? (
-            <span className="flex items-center gap-1 text-slate-400" title="Синхронизировано с базой данных">
+            <span className="flex items-center gap-1 text-slate-300" title="Синхронизировано с базой данных">
               <Check className="w-3 h-3 text-emerald-400" />
               <span>Сохранено {lastSavedTime}</span>
             </span>
