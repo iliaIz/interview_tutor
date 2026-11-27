@@ -140,7 +140,7 @@ export const HintTiersDropdown: React.FC<Props> = ({ domain, onSelectTier }) => 
       <div
         ref={popoverRef}
         id={popoverId}
-        popover="auto"
+        {...({ popover: 'auto' } as Record<string, string>)}
         style={{
           position: 'fixed',
           top: `${coords.top}px`,
