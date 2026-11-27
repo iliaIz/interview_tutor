@@ -29,6 +29,30 @@ export const INITIAL_GATES: Record<EvaluationGateType, GateState> = {
   PERSISTENCE: { gate: 'PERSISTENCE', status: 'PENDING', progressPercent: 0 }
 };
 
+/**
+ * Strict pass invariant: compiles cleanly, zero failing tests, zero Loom pinning/races, and score >= 70.
+ */
+export function resolveEvaluationPassStatus(result: EvaluationResult | null | undefined): boolean {
+  if (!result) return false;
+  const score = Math.round(result.scoreBreakdown?.overallScore ?? 0);
+  const isCompilable = result.compilationStatus?.isCompilable ?? false;
+  const failCount = result.virtualExecutionResult?.failCount ?? 0;
+  const hasCarrierThreadPinning = result.concurrencyAnalysis?.hasCarrierThreadPinning ?? false;
+  const hasRaceConditions = result.concurrencyAnalysis?.hasRaceConditions ?? false;
+  return isCompilable && failCount === 0 && !hasCarrierThreadPinning && !hasRaceConditions && score >= 70;
+}
+
+/**
+ * Computes consistent passCount / totalTests ratio even when testCases array is omitted.
+ */
+export function formatEvaluationTestRatio(result: EvaluationResult | null | undefined): { passed: number; total: number } {
+  const passCount = result?.virtualExecutionResult?.passCount ?? 0;
+  const failCount = result?.virtualExecutionResult?.failCount ?? 0;
+  const casesLen = result?.virtualExecutionResult?.testCases?.length ?? 0;
+  const total = passCount + failCount > 0 ? passCount + failCount : casesLen;
+  return { passed: passCount, total };
+}
+
 export function buildEvaluationReport(payload: any, gates: Record<EvaluationGateType, GateState>): EvaluationResult {
   if (payload?.evaluation?.scoreBreakdown) {
     return payload.evaluation;

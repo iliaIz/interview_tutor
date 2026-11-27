@@ -15,6 +15,31 @@ import {
 import { ScenarioEvaluationResult } from '../../types/transactionLab';
 import { getLocalDraft, removeLocalDraft } from '../../services/practiceDraftStorage';
 
+/**
+ * Resolves the initial active file index for a workspace manifest:
+ * 1) Explicit `isMainEntryPoint`
+ * 2) First editable (`!readOnly`) file
+ * 3) Fallback index 0
+ */
+export function resolveInitialWorkspaceFileIndex(files: FileNode[]): number {
+  if (!Array.isArray(files) || files.length === 0) return 0;
+  const mainIdx = files.findIndex((f) => f.isMainEntryPoint);
+  if (mainIdx >= 0) return mainIdx;
+  const editableIdx = files.findIndex((f) => !f.readOnly);
+  return editableIdx >= 0 ? editableIdx : 0;
+}
+
+/**
+ * Purely appends phase files whose paths are not already mounted in `existing`.
+ */
+export function mergePhaseFiles(existing: FileNode[], added: FileNode[]): FileNode[] {
+  const existingPaths = new Set(existing.map((f) => f.path));
+  const newEntries = added
+    .filter((f) => f && f.path && !existingPaths.has(f.path))
+    .map((f) => ({ ...f }));
+  return [...existing, ...newEntries];
+}
+
 export interface PracticeSlice {
   activePracticeChallenge: CodingChallenge | null;
   practiceWorkspaceFiles: FileNode[];

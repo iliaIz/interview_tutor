@@ -154,3 +154,114 @@
   mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
 }
+
+/* Practice Specification & Co-Pilot Editorial Prose Styles */
+.spec-markdown {
+  color: #2C303E;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.spec-markdown h2 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #2C303E;
+  margin: 1rem 0 0.45rem;
+}
+.spec-markdown h3 {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #4A3B7A;
+  margin: 0.75rem 0 0.35rem;
+}
+.spec-markdown p {
+  margin: 0.45rem 0;
+}
+.spec-markdown ul,
+.spec-markdown ol {
+  margin: 0.45rem 0;
+  padding-left: 1.25rem;
+}
+.spec-markdown ul {
+  list-style-type: disc;
+}
+.spec-markdown ol {
+  list-style-type: decimal;
+}
+.spec-markdown li {
+  margin: 0.25rem 0;
+}
+.spec-markdown code {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78em;
+  background-color: #F4F1F9;
+  color: #4A3B7A;
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.375rem;
+  border: 1px solid #E2DCF0;
+}
+.spec-markdown pre {
+  background-color: #121622;
+  color: #E2E8F0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  margin: 0.65rem 0;
+  border: 1px solid #1E2638;
+}
+.spec-markdown pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  font-size: 0.75rem;
+}
+.spec-markdown blockquote {
+  border-left: 3px solid #9B3B36;
+  background-color: #FFF4F2;
+  padding: 0.4rem 0.75rem;
+  margin: 0.5rem 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #525866;
+}
+.spec-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.65rem 0;
+  font-size: 0.75rem;
+}
+.spec-markdown th,
+.spec-markdown td {
+  border: 1px solid #EFECE6;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+.spec-markdown th {
+  background-color: #FAF8F5;
+  font-weight: 700;
+}
+
+/* Native dialog reset */
+dialog.open\:flex[open] {
+  display: flex;
+}
+
+/* Coarse pointer touch target floor (WCAG 2.5.8 mobile ergonomics) */
+@media (pointer: coarse) {
+  .touch-target-44 {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Reduced motion accessibility invariant */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

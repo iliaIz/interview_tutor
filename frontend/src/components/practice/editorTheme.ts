@@ -16,11 +16,11 @@ export const luxuryPastelTheme = createTheme({
     selectionMatch: '#1a233a',
     lineHighlight: 'rgba(244, 114, 182, 0.05)',
     gutterBackground: '#121622',
-    gutterForeground: '#64748b',
+    gutterForeground: '#8A99B0',
     gutterBorder: '#1e2638'
   },
   styles: [
-    { tag: t.comment, color: '#64748b', fontStyle: 'italic' },
+    { tag: t.comment, color: '#8A99B0', fontStyle: 'italic' },
     { tag: [t.keyword, t.modifier], color: '#f472b6', fontWeight: 'bold' }, // Rose keywords (class, record, public, volatile)
     { tag: [t.typeName, t.className, t.definition(t.typeName)], color: '#38bdf8' }, // Sky-blue types (String, TokenBucket, Map)
     { tag: [t.string, t.special(t.string)], color: '#34d399' }, // Emerald strings & text blocks

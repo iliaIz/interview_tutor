@@ -10,6 +10,7 @@ import { TutorTransportPort, httpTutorTransport } from './tutorTransport';
 
 export type { TutorPersona };
 export type AssistanceLevel = 1 | 2 | 3 | 4;
+export type CopilotDockTab = 'tutor' | 'whiteboard';
 
 export interface TutorMessage {
   id: string;
@@ -22,6 +23,8 @@ export interface TutorMessage {
 
 export interface PracticeTutorState {
   isOpen: boolean;
+  rightDockTab: CopilotDockTab;
+  isCopilotStealth: boolean;
   isCompassOpen: boolean;
   activeCompassRuleId: string | null;
   modality: 'text' | 'voice';
@@ -37,6 +40,9 @@ export interface PracticeTutorState {
 
   // Actions
   toggleOpen: (open?: boolean) => void;
+  setRightDockTab: (tab: CopilotDockTab) => void;
+  enterStealthMode: () => void;
+  exitStealthMode: (tab?: CopilotDockTab) => void;
   toggleCompass: (open?: boolean) => void;
   setActiveCompassRuleId: (ruleId: string | null) => void;
   setModality: (modality: 'text' | 'voice') => void;
@@ -117,6 +123,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
         messages: nextMessages,
         isLoading: true,
         isOpen: true,
+        isCopilotStealth: false,
         currentStreamingText: '',
         abortController: controller,
         ...extraState
@@ -159,6 +166,8 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
 
     return {
       isOpen: false,
+      rightDockTab: 'tutor',
+      isCopilotStealth: false,
       isCompassOpen: false,
       activeCompassRuleId: null,
       modality: 'text',
@@ -177,7 +186,22 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       abortController: null,
       activeContext: null,
 
-      toggleOpen: (open) => set((state) => ({ isOpen: open !== undefined ? open : !state.isOpen })),
+      toggleOpen: (open) =>
+        set((state) => {
+          const nextOpen = open !== undefined ? open : !state.isOpen;
+          return {
+            isOpen: nextOpen,
+            ...(nextOpen ? { isCopilotStealth: false } : {})
+          };
+        }),
+      setRightDockTab: (rightDockTab) => set({ rightDockTab }),
+      enterStealthMode: () => set({ isOpen: false, isCopilotStealth: true }),
+      exitStealthMode: (tab) =>
+        set((state) => ({
+          isCopilotStealth: false,
+          isOpen: true,
+          rightDockTab: tab ?? state.rightDockTab
+        })),
       toggleCompass: (open) => set((state) => ({ isCompassOpen: open !== undefined ? open : !state.isCompassOpen })),
       setActiveCompassRuleId: (ruleId) => set({ activeCompassRuleId: ruleId }),
       setModality: (modality) => set({ modality }),
@@ -231,6 +255,8 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
         set({
           activeContext: null,
           activeCompassRuleId: null,
+          isCopilotStealth: false,
+          rightDockTab: 'tutor',
           ...(resetCompanyPersona ? { persona: 'middle_scaffold', assistanceLevel: 2 } : {}),
           messages: [
             {
