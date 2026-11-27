@@ -25,6 +25,7 @@ export interface PracticeTutorState {
   isOpen: boolean;
   rightDockTab: CopilotDockTab;
   isCopilotStealth: boolean;
+  draftInput: string;
   isCompassOpen: boolean;
   activeCompassRuleId: string | null;
   modality: 'text' | 'voice';
@@ -43,6 +44,7 @@ export interface PracticeTutorState {
   setRightDockTab: (tab: CopilotDockTab) => void;
   enterStealthMode: () => void;
   exitStealthMode: (tab?: CopilotDockTab) => void;
+  setDraftInput: (text: string) => void;
   toggleCompass: (open?: boolean) => void;
   setActiveCompassRuleId: (ruleId: string | null) => void;
   setModality: (modality: 'text' | 'voice') => void;
@@ -168,6 +170,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       isOpen: false,
       rightDockTab: 'tutor',
       isCopilotStealth: false,
+      draftInput: '',
       isCompassOpen: false,
       activeCompassRuleId: null,
       modality: 'text',
@@ -202,6 +205,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
           isOpen: true,
           rightDockTab: tab ?? state.rightDockTab
         })),
+      setDraftInput: (draftInput) => set({ draftInput }),
       toggleCompass: (open) => set((state) => ({ isCompassOpen: open !== undefined ? open : !state.isCompassOpen })),
       setActiveCompassRuleId: (ruleId) => set({ activeCompassRuleId: ruleId }),
       setModality: (modality) => set({ modality }),

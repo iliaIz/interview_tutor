@@ -7,8 +7,6 @@ import {
   Maximize2,
   Minimize2,
   Compass,
-  Bot,
-  Sparkles,
   Clock,
   ChevronDown,
   Layers
@@ -264,42 +262,7 @@ export const PracticeArenaHeader: React.FC<PracticeArenaHeaderProps> = ({
           <span className="hidden lg:inline">Компас</span>
         </button>
 
-        {dockHeaderSlot ?? (
-          <>
-            <button
-              type="button"
-              onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-              aria-label="Открыть интерактивную доску ИИ"
-              title="Интерактивная доска ИИ (код, диаграммы, diff)"
-              className={`touch-target-44 flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
-                isWhiteboardOpen
-                  ? 'bg-violet-700 text-white border-violet-700'
-                  : 'bg-white text-slate-700 border-pastel-border hover:border-purple-400'
-              }`}
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isWhiteboardOpen ? 'text-white' : 'text-purple-700'}`} />
-              <span className="hidden xl:inline">Доска ИИ</span>
-              {activeWhiteboardState?.code && (
-                <span className="w-2 h-2 rounded-full bg-[#B5433E]" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => toggleTutorDrawer()}
-              aria-label="Открыть AI-Напарника"
-              title="AI-Напарник (Парное программирование & подсказки)"
-              className={`touch-target-44 flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
-                isTutorOpen
-                  ? 'bg-[#B5433E] text-white border-[#B5433E]'
-                  : 'bg-white text-slate-700 border-pastel-border hover:border-pastel-accentRose/50'
-              }`}
-            >
-              <Bot className={`w-3.5 h-3.5 ${isTutorOpen ? 'text-current' : 'text-pastel-accentRoseText'}`} />
-              <span className="hidden xl:inline">AI-Напарник</span>
-            </button>
-          </>
-        )}
+        {dockHeaderSlot}
 
         {activePracticeReport && (
           <button

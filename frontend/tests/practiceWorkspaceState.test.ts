@@ -21,6 +21,12 @@ import {
   formatEvaluationTestRatio
 } from '../src/components/practice/evaluationReportBuilder';
 import { createPracticeTutorStore } from '../src/store/usePracticeTutorStore';
+import {
+  COMPASS_DOMAINS,
+  resolveCompassDomainKey,
+  buildCompassGroundingPrompt,
+  type CompassDomainKey
+} from '../src/components/practice/compass/compassDomains';
 import type { TutorTransportPort } from '../src/store/tutorTransport';
 import type { EvaluationResult, FileNode } from '../src/types/practice';
 
@@ -165,17 +171,35 @@ function runTests(): void {
     assert.strictEqual(store.getState().isOpen, true);
     assert.strictEqual(store.getState().rightDockTab, 'whiteboard');
 
+    store.getState().setDraftInput('Почему тест падает?');
     const initialMsgCount = store.getState().messages.length;
     store.getState().enterStealthMode();
     assert.strictEqual(store.getState().isOpen, false, 'enterStealthMode hides dock');
     assert.strictEqual(store.getState().isCopilotStealth, true, 'enterStealthMode activates stealth');
     assert.strictEqual(store.getState().messages.length, initialMsgCount, 'enterStealthMode preserves messages');
+    assert.strictEqual(store.getState().draftInput, 'Почему тест падает?', 'enterStealthMode preserves draftInput');
 
     store.getState().exitStealthMode('tutor');
     assert.strictEqual(store.getState().isCopilotStealth, false, 'exitStealthMode clears stealth');
     assert.strictEqual(store.getState().isOpen, true, 'exitStealthMode reopens dock');
     assert.strictEqual(store.getState().rightDockTab, 'tutor', 'exitStealthMode switches to requested tab');
+    assert.strictEqual(store.getState().draftInput, 'Почему тест падает?', 'exitStealthMode preserves draftInput');
     console.log('  ✅ Passed: usePracticeTutorStore dock & stealth transitions');
+  }
+
+  // 6. Compass 5-domain registry & grounding prompt
+  {
+    const domains: CompassDomainKey[] = ['lld', 'testing', 'refactoring', 'concurrency', 'transaction'];
+    for (const d of domains) {
+      const cfg = COMPASS_DOMAINS[d];
+      assert.ok(cfg, `Missing compass config for ${d}`);
+      assert.strictEqual(cfg.rules.length, 5, `${d} has 5 rules`);
+      const prompt = buildCompassGroundingPrompt(d, cfg.rules[0]);
+      assert.ok(prompt.includes(cfg.rules[0].title) && prompt.includes(d));
+    }
+    assert.strictEqual(resolveCompassDomainKey('transactions'), 'transaction');
+    assert.strictEqual(resolveCompassDomainKey('java21'), 'lld');
+    console.log('  ✅ Passed: Compass 5/5 domain registry & grounding prompt');
   }
 
   console.log('\n🎉 ALL SPEC 60 PRACTICE WORKSPACE STATE TESTS PASSED!');
