@@ -4,8 +4,8 @@ import {
   BookOpen,
   Code,
   Trophy,
-  Maximize2,
-  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Compass,
   Clock,
   ChevronDown,
@@ -31,13 +31,8 @@ export interface PracticeArenaHeaderProps {
   elapsedSeconds: number;
   mobileTab: 'spec' | 'editor';
   setMobileTab: (tab: 'spec' | 'editor') => void;
-  isFocusMode: boolean;
-  setIsFocusMode: (v: boolean) => void;
-  isWhiteboardOpen: boolean;
-  setIsWhiteboardOpen: (v: boolean) => void;
-  activeWhiteboardState: any;
-  isTutorOpen: boolean;
-  toggleTutorDrawer: () => void;
+  isSpecCollapsed: boolean;
+  onToggleSpecCollapsed: () => void;
   toggleCompass: () => void;
   academyBreadcrumbContext: any;
   returnToAcademyStep: () => void;
@@ -60,13 +55,8 @@ export const PracticeArenaHeader: React.FC<PracticeArenaHeaderProps> = ({
   elapsedSeconds,
   mobileTab,
   setMobileTab,
-  isFocusMode,
-  setIsFocusMode,
-  isWhiteboardOpen,
-  setIsWhiteboardOpen,
-  activeWhiteboardState,
-  isTutorOpen,
-  toggleTutorDrawer,
+  isSpecCollapsed,
+  onToggleSpecCollapsed,
   toggleCompass,
   academyBreadcrumbContext,
   returnToAcademyStep,
@@ -235,20 +225,22 @@ export const PracticeArenaHeader: React.FC<PracticeArenaHeaderProps> = ({
 
         <button
           type="button"
-          onClick={() => setIsFocusMode(!isFocusMode)}
-          title={isFocusMode ? 'Показать спецификацию' : 'Развернуть редактор на 100% ширины (Focus Mode)'}
+          onClick={onToggleSpecCollapsed}
+          aria-pressed={isSpecCollapsed}
+          aria-label={isSpecCollapsed ? 'Показать спецификацию' : 'Свернуть спецификацию'}
+          title={isSpecCollapsed ? 'Показать спецификацию (Ctrl+B)' : 'Свернуть спецификацию (Ctrl+B)'}
           className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
-            isFocusMode
+            isSpecCollapsed
               ? 'bg-pastel-rose text-pastel-accentRoseText border-pastel-accentRose/40 shadow-2xs'
               : 'bg-white text-pastel-text border-pastel-border hover:bg-pastel-bg'
           }`}
         >
-          {isFocusMode ? (
-            <Minimize2 className="w-3.5 h-3.5 text-pastel-accentRoseText" />
+          {isSpecCollapsed ? (
+            <PanelLeftOpen className="w-3.5 h-3.5 text-pastel-accentRoseText" />
           ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-pastel-muted" />
+            <PanelLeftClose className="w-3.5 h-3.5 text-pastel-muted" />
           )}
-          <span className="hidden lg:inline">{isFocusMode ? 'Показать спеку' : 'Focus Mode'}</span>
+          <span className="hidden lg:inline">Спец.</span>
         </button>
 
         <button

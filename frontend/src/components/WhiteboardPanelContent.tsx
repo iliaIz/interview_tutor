@@ -139,7 +139,11 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
   return (
     <div className="flex flex-col h-full w-full bg-[#121622] text-slate-200 overflow-hidden">
       {/* Header Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#181E2E] border-b border-[#2A344E] select-none gap-2">
+      <div
+        className={`flex items-center justify-between bg-[#181E2E] border-b border-[#2A344E] select-none gap-2 ${
+          mode === 'dock' ? 'px-3 py-1.5' : 'px-4 py-2.5'
+        }`}
+      >
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-[#B5433E] flex items-center justify-center text-white shadow-xs shrink-0">
             <Code2 className="w-4 h-4" />
@@ -151,9 +155,11 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
                 {actionLabel}
               </span>
             </div>
-            <p className="text-[10px] text-slate-300 truncate">
-              {activeLanguage ? activeLanguage.toUpperCase() : 'JAVA 21'} • Артефакты и код AI-Напарника
-            </p>
+            {mode !== 'dock' && (
+              <p className="text-[10px] text-slate-300 truncate">
+                {activeLanguage ? activeLanguage.toUpperCase() : 'JAVA 21'} • Артефакты и код AI-Напарника
+              </p>
+            )}
           </div>
         </div>
 
@@ -247,15 +253,20 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
       )}
 
       {/* Code Artifact History & Viewer Body */}
-      <div className="flex-1 overflow-y-auto p-2.5 sm:p-3.5 custom-scrollbar space-y-3">
+      <div
+        className={`flex-1 overflow-y-auto custom-scrollbar ${
+          mode === 'dock' ? 'p-2 space-y-2' : 'p-2.5 sm:p-3.5 space-y-3'
+        }`}
+      >
         {hasRevisions ? (
           <CodeArtifactTimeline
             showDiffToggle={true}
             onCheckoutToIde={handleCheckoutToIde}
             isIdeConnected={ideStatus === 'connected'}
+            compactHeader={mode === 'dock'}
           />
         ) : hasCode ? (
-          <CodeViewer code={activeCode} language={activeLanguage} />
+          <CodeViewer code={activeCode} language={activeLanguage} compactHeader={mode === 'dock'} />
         ) : (
           <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center p-6 rounded-2xl bg-slate-900/50 border border-dashed border-slate-700">
             <div className="w-11 h-11 rounded-2xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-300 mb-3">
@@ -290,20 +301,25 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
         )}
       </div>
 
-      {/* Footer Bar */}
-      <div className="px-4 py-2 bg-[#141220] border-t border-[#2A243E] flex items-center justify-between text-[11px] text-slate-300">
-        <span className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          <span>Синхронизировано с AI-Напарником</span>
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="touch-target-44 min-h-[28px] px-2.5 py-1 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800/70 transition cursor-pointer"
+      {/* Footer Bar (Drawer mode only; Dock mode uses single top header to maximize code canvas) */}
+      {mode !== 'dock' && (
+        <div
+          data-testid="whiteboard-drawer-footer"
+          className="px-4 py-2 bg-[#141220] border-t border-[#2A243E] flex items-center justify-between text-[11px] text-slate-300"
         >
-          Свернуть панель
-        </button>
-      </div>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span>Синхронизировано с AI-Напарником</span>
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="touch-target-44 min-h-[28px] px-2.5 py-1 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800/70 transition cursor-pointer"
+          >
+            Свернуть панель
+          </button>
+        </div>
+      )}
 
       <WhiteboardIdeModal
         isOpen={isIdeModalOpen}

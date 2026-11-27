@@ -237,11 +237,14 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
   - Never wrap `<NativeModalDialog>` in CSS `display: none` responsive wrappers while `isOpen` can become `true`; gate modal mounting in JS via viewport media query.
   - Primary navigation containers hosting dropdown menus MUST stay `overflow-visible` and fit `navScrollW === navW` cleanly across `390px`, `1024px`, `1280px`, and `1440px`.
 
+---
 
-
-
-
-
-
-
+### 2.19 `Spec 61 (#219–#223): Adaptive Workbench Grid, Spatial Spec Rail & Mode-Coupled Expandable Whiteboard`
+- **Location:** [`workbenchLayoutKernel.ts`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/arena/workbenchLayoutKernel.ts), [`WorkbenchDragSplitter.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/arena/WorkbenchDragSplitter.tsx), [`useWorkbenchViewport.ts`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/arena/useWorkbenchViewport.ts), [`workbenchDockSlice.ts`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/store/slices/workbenchDockSlice.ts), [`PracticeArenaWorkspace.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/arena/PracticeArenaWorkspace.tsx), [`ChallengeSpecPanel.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/ChallengeSpecPanel.tsx), [`PracticeCopilotDock.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/practice/tutor/PracticeCopilotDock.tsx), [`WhiteboardPanelContent.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/WhiteboardPanelContent.tsx)
+- **What Was Done:**
+  1. Replaced static flex percentages in `PracticeArenaWorkspace` with a pure CSS Grid layout kernel (`computeWorkbenchGridTracks`) parameterized by `--spec-w` and `--copilot-w`, preserving `minmax(360px, 1fr)` for CodeMirror across all desktop viewports (`1024px–1440px+`).
+  2. Added `Mode-Coupled Dock Memory` in `workbenchDockSlice.ts` (`tutorWidthPx` `380px` vs `whiteboardWidthPx` `520px`, plus instant `Maximize2`/`Minimize2` `"Широкая доска"` expand toggle up to ~54% viewport capped at `0.65`) and de-chromed `mode="dock"` headers/footers while leaving `mode="drawer"` unchanged.
+  3. Unified header `Спец.` toggle, Left Spec `PanelLeftClose` button, `32px` vertical `Spatial Spec Rail`, and `Ctrl+B`/`Cmd+B` onto a single `isSpecCollapsed` SSOT with bidirectional Spec re-expand dock trimming (`resolveWidthsForExplicitSpecExpand`).
+  4. Implemented `rAF`-throttled accessible WAI-ARIA `WorkbenchDragSplitter` (`role="separator"`, keyboard arrow stepping, double-click reset, single `pointerup` store persist) and corrupted `localStorage` sanitization.
+- **Invariants:** Total panels never push CodeMirror below `HARD_MIN_EDITOR_WIDTH_PX (360)`; dragging never triggers per-pixel Zustand/localStorage writes; clicking `Spatial Spec Rail` always re-opens Spec by trimming wide docks first.
 

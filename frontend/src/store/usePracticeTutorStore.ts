@@ -7,8 +7,12 @@ import {
 import { TutorDomain } from '../components/practice/tutor/TutorDomain';
 import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
 import { TutorTransportPort, httpTutorTransport } from './tutorTransport';
+import {
+  buildWorkbenchDockSlice,
+  type WorkbenchDockStateSlice
+} from './slices/workbenchDockSlice';
 
-export type { TutorPersona };
+export type { TutorPersona, WorkbenchDockStateSlice };
 export type AssistanceLevel = 1 | 2 | 3 | 4;
 export type CopilotDockTab = 'tutor' | 'whiteboard';
 
@@ -21,7 +25,7 @@ export interface TutorMessage {
   similarity?: number;
 }
 
-export interface PracticeTutorState {
+export interface PracticeTutorState extends WorkbenchDockStateSlice {
   isOpen: boolean;
   rightDockTab: CopilotDockTab;
   isCopilotStealth: boolean;
@@ -167,6 +171,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
     };
 
     return {
+      ...buildWorkbenchDockSlice(set),
       isOpen: false,
       rightDockTab: 'tutor',
       isCopilotStealth: false,

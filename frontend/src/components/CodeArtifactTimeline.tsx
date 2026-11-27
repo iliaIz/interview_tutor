@@ -38,6 +38,7 @@ export interface CodeArtifactTimelineProps {
   showDiffToggle?: boolean;
   onCheckoutToIde?: (rev: CodeArtifactRevision) => void;
   isIdeConnected?: boolean;
+  compactHeader?: boolean;
 }
 
 export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
@@ -45,7 +46,8 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
   onSelectRevision,
   showDiffToggle = true,
   onCheckoutToIde,
-  isIdeConnected = false
+  isIdeConnected = false,
+  compactHeader = false
 }) => {
   const {
     codeRevisions,
@@ -144,14 +146,18 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div className={`${compactHeader ? 'space-y-2' : 'space-y-3'} ${className}`}>
       {/* Header Bar with Version Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 text-xs shadow-lg">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-800 text-xs shadow-lg ${
+          compactHeader ? 'p-1.5 rounded-xl' : 'p-2.5 rounded-2xl'
+        }`}
+      >
         {/* Left: Revisions Timeline Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-pastel-accentViolet px-2 py-1 rounded-lg bg-pastel-accentViolet/10 mr-1 shrink-0">
             <History className="w-3.5 h-3.5" />
-            <span>Версии ({codeRevisions.length}/10):</span>
+            <span>{compactHeader ? `${codeRevisions.length}/10` : `Версии (${codeRevisions.length}/10):`}</span>
           </span>
 
           {codeRevisions.map((rev) => {
@@ -242,7 +248,7 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
       </div>
 
       {/* Active Revision Info Banner */}
-      {activeRev && (
+      {activeRev && !compactHeader && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-pastel-lavender/30 rounded-xl border border-pastel-accentViolet/20 text-[11px] text-pastel-text">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-bold text-pastel-accentViolet shrink-0 font-mono">
@@ -270,6 +276,7 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
               isDiff={true}
               title={`Дифф: v${prevRev.index} ➔ v${activeRev.index} (${activeRev.title})`}
               showLineNumbers={true}
+              compactHeader={compactHeader}
               revisionIndex={activeRev.index}
               revisionTitle={activeRev.title}
               revisionId={activeRev.id}
@@ -281,6 +288,7 @@ export const CodeArtifactTimeline: React.FC<CodeArtifactTimelineProps> = ({
               isDiff={false}
               title={`Версия ${activeRev.index}: ${activeRev.title}`}
               showLineNumbers={true}
+              compactHeader={compactHeader}
               revisionIndex={activeRev.index}
               revisionTitle={activeRev.title}
               revisionId={activeRev.id}

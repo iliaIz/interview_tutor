@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Sparkles, X } from 'lucide-react';
+import { Bot, Maximize2, Minimize2, Sparkles, X } from 'lucide-react';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { PracticeTutorPanelContent } from './PracticeTutorDrawer';
@@ -30,6 +30,8 @@ export const PracticeCopilotDock: React.FC = () => {
   const rightDockTab = usePracticeTutorStore((s) => s.rightDockTab);
   const setRightDockTab = usePracticeTutorStore((s) => s.setRightDockTab);
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
+  const isWhiteboardExpanded = usePracticeTutorStore((s) => s.isWhiteboardExpanded);
+  const toggleWhiteboardExpanded = usePracticeTutorStore((s) => s.toggleWhiteboardExpanded);
 
   const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
   const [hasEverOpened, setHasEverOpened] = useState(false);
@@ -87,15 +89,34 @@ export const PracticeCopilotDock: React.FC = () => {
       </div>
 
       {showCloseButton && (
-        <button
-          type="button"
-          onClick={() => toggleOpen(false)}
-          aria-label="Свернуть боковую панель"
-          className="touch-target-44 p-1.5 rounded-lg text-pastel-muted hover:text-pastel-text hover:bg-white transition cursor-pointer flex items-center justify-center"
-          title="Свернуть панель"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {isDesktopLg && rightDockTab === 'whiteboard' && (
+            <button
+              type="button"
+              onClick={() => toggleWhiteboardExpanded()}
+              aria-pressed={isWhiteboardExpanded}
+              aria-label={isWhiteboardExpanded ? 'Обычная ширина' : 'Широкая доска'}
+              title={isWhiteboardExpanded ? 'Обычная ширина' : 'Широкая доска'}
+              data-testid="whiteboard-expand-toggle"
+              className={`touch-target-44 p-1.5 rounded-lg transition cursor-pointer flex items-center justify-center ${
+                isWhiteboardExpanded
+                  ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                  : 'text-pastel-muted hover:text-pastel-text hover:bg-white'
+              }`}
+            >
+              {isWhiteboardExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => toggleOpen(false)}
+            aria-label="Свернуть боковую панель"
+            className="touch-target-44 p-1.5 rounded-lg text-pastel-muted hover:text-pastel-text hover:bg-white transition cursor-pointer flex items-center justify-center"
+            title="Свернуть панель"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -124,9 +145,10 @@ export const PracticeCopilotDock: React.FC = () => {
     return (
       <aside
         aria-label="Панель AI Co-Pilot"
+        data-testid="practice-copilot-dock"
         className={
           isVisible
-            ? 'flex flex-col w-[340px] xl:w-[380px] 2xl:w-[410px] shrink-0 border-l border-pastel-border bg-white h-full min-h-0 overflow-hidden'
+            ? 'flex flex-col w-full border-l border-pastel-border bg-white h-full min-h-0 overflow-hidden'
             : 'hidden'
         }
       >

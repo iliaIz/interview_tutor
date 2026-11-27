@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Sparkles, Radio } from 'lucide-react';
 import { CodingChallenge } from '../../../types/practice';
 import { useAppStore } from '../../../store/useAppStore';
@@ -11,6 +11,9 @@ import { PracticeCopilotDock } from '../tutor/PracticeCopilotDock';
 import { usePracticeVoice } from '../tutor/PracticeVoiceContext';
 import { PracticeArenaHeader } from './PracticeArenaHeader';
 import { usePracticeFindingBridge } from './usePracticeFindingBridge';
+import { WorkbenchDragSplitter } from './WorkbenchDragSplitter';
+import { useWorkbenchViewport } from './useWorkbenchViewport';
+import { WORKBENCH_BOUNDS, computeWorkbenchGridTracks } from './workbenchLayoutKernel';
 
 export interface PracticeArenaWorkspaceProps {
   activePracticeChallenge: CodingChallenge;
@@ -26,14 +29,13 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     academyBreadcrumbContext,
     returnToAcademyStep,
     activeWhiteboardState,
-    isWhiteboardOpen,
-    setIsWhiteboardOpen,
     practiceElapsedSeconds,
     setPracticeElapsedSeconds
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
-  const [isFocusMode, setIsFocusMode] = useState(false);
+  const workspaceGridRef = useRef<HTMLDivElement | null>(null);
+  const { containerWidth, isDesktopMd, isDesktopLg } = useWorkbenchViewport(workspaceGridRef);
 
   const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
   const toggleTutorDrawer = usePracticeTutorStore((s) => s.toggleOpen);
@@ -42,9 +44,47 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
   const setRightDockTab = usePracticeTutorStore((s) => s.setRightDockTab);
   const isCopilotStealth = usePracticeTutorStore((s) => s.isCopilotStealth);
   const exitStealthMode = usePracticeTutorStore((s) => s.exitStealthMode);
+  const isSpecCollapsed = usePracticeTutorStore((s) => s.isSpecCollapsed);
+  const isWhiteboardExpanded = usePracticeTutorStore((s) => s.isWhiteboardExpanded);
+  const specWidthPx = usePracticeTutorStore((s) => s.specWidthPx);
+  const tutorWidthPx = usePracticeTutorStore((s) => s.tutorWidthPx);
+  const whiteboardWidthPx = usePracticeTutorStore((s) => s.whiteboardWidthPx);
+  const setSpecCollapsed = usePracticeTutorStore((s) => s.setSpecCollapsed);
+  const setPanelWidth = usePracticeTutorStore((s) => s.setPanelWidth);
 
   const { isConnected: isVoiceConnected, isError: isVoiceError } = usePracticeVoice();
   const { handleStartVoiceDiscussion } = usePracticeFindingBridge();
+
+  const isDockVisible = isTutorOpen && !isCopilotStealth;
+  const isDockInline = isDockVisible && isDesktopLg;
+
+  const gridTracks = useMemo(
+    () =>
+      computeWorkbenchGridTracks({
+        viewportWidth: containerWidth,
+        isSpecCollapsed,
+        isDockVisible: isDockInline,
+        rightDockTab,
+        isWhiteboardExpanded,
+        specWidthPx,
+        tutorWidthPx,
+        whiteboardWidthPx
+      }),
+    [
+      containerWidth,
+      isSpecCollapsed,
+      isDockInline,
+      rightDockTab,
+      isWhiteboardExpanded,
+      specWidthPx,
+      tutorWidthPx,
+      whiteboardWidthPx
+    ]
+  );
+
+  const handleToggleSpecCollapsed = React.useCallback(() => {
+    setSpecCollapsed(!gridTracks.effectiveSpecCollapsed, containerWidth);
+  }, [setSpecCollapsed, gridTracks.effectiveSpecCollapsed, containerWidth]);
 
   // Live visibility-aware 1s workspace timer
   useEffect(() => {
@@ -56,19 +96,21 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     return () => clearInterval(timer);
   }, [activePracticeChallenge.id, setPracticeElapsedSeconds]);
 
-  // Centralized Ctrl+/ shortcut registry for all Practice domains
+  // Centralized Ctrl+/ & Ctrl+B shortcut registry for Practice domains
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
         toggleCompass();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'b' || e.code === 'KeyB')) {
+        e.preventDefault();
+        setSpecCollapsed(!gridTracks.effectiveSpecCollapsed, containerWidth);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleCompass]);
+  }, [toggleCompass, setSpecCollapsed, gridTracks.effectiveSpecCollapsed, containerWidth]);
 
-  const isDockVisible = isTutorOpen && !isCopilotStealth;
   const showStealthRestorePill = isCopilotStealth;
 
   const handleSelectDockTab = (tab: 'tutor' | 'whiteboard') => {
@@ -152,6 +194,17 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     </div>
   );
 
+  const gridTemplateColumns = useMemo(() => {
+    if (isDockInline) {
+      return gridTracks.effectiveSpecCollapsed
+        ? `var(--spec-w) ${gridTracks.editorTrack} ${WORKBENCH_BOUNDS.SASH_WIDTH_PX}px var(--copilot-w)`
+        : `var(--spec-w) ${WORKBENCH_BOUNDS.SASH_WIDTH_PX}px ${gridTracks.editorTrack} ${WORKBENCH_BOUNDS.SASH_WIDTH_PX}px var(--copilot-w)`;
+    }
+    return gridTracks.effectiveSpecCollapsed
+      ? `var(--spec-w) ${gridTracks.editorTrack}`
+      : `var(--spec-w) ${WORKBENCH_BOUNDS.SASH_WIDTH_PX}px ${gridTracks.editorTrack}`;
+  }, [isDockInline, gridTracks.effectiveSpecCollapsed, gridTracks.editorTrack]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-pastel-bg relative">
       <PracticeArenaHeader
@@ -161,13 +214,8 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
         elapsedSeconds={practiceElapsedSeconds}
         mobileTab={mobileTab}
         setMobileTab={setMobileTab}
-        isFocusMode={isFocusMode}
-        setIsFocusMode={setIsFocusMode}
-        isWhiteboardOpen={isWhiteboardOpen}
-        setIsWhiteboardOpen={setIsWhiteboardOpen}
-        activeWhiteboardState={activeWhiteboardState}
-        isTutorOpen={isTutorOpen}
-        toggleTutorDrawer={toggleTutorDrawer}
+        isSpecCollapsed={gridTracks.effectiveSpecCollapsed}
+        onToggleSpecCollapsed={handleToggleSpecCollapsed}
         toggleCompass={toggleCompass}
         academyBreadcrumbContext={academyBreadcrumbContext}
         returnToAcademyStep={returnToAcademyStep}
@@ -177,33 +225,83 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
         dockHeaderSlot={dockHeaderSlot}
       />
 
-      {/* Main Split Workspace: Spec Panel + Editor + Docked Right Co-Pilot Rail */}
-      <div className="flex-1 min-h-0 flex overflow-hidden relative">
+      {/* Adaptive Workbench Grid: Spec / Rail + Drag Sashes + CodeMirror Editor + Right Co-Pilot Dock */}
+      <div
+        ref={workspaceGridRef}
+        data-testid="practice-workbench-grid"
+        style={
+          isDesktopMd
+            ? ({
+                '--spec-w': gridTracks.specTrack,
+                '--copilot-w': gridTracks.copilotTrack,
+                gridTemplateColumns
+              } as React.CSSProperties)
+            : undefined
+        }
+        className="flex-1 min-h-0 flex md:grid overflow-hidden relative"
+      >
         <div
-          className={`h-full overflow-hidden shrink-0 border-r border-pastel-border transition-all duration-200 ${
-            isFocusMode
-              ? 'hidden'
+          className={`h-full min-h-0 overflow-hidden ${
+            isDesktopMd
+              ? 'flex flex-col'
               : mobileTab === 'spec'
-              ? 'flex flex-col w-full md:w-[34%] 2xl:w-[30%] 2xl:max-w-[780px]'
-              : isDockVisible
-              ? 'hidden md:flex flex-col md:w-[33%] xl:w-[31%] 2xl:w-[28%] 2xl:max-w-[680px]'
-              : 'hidden md:flex flex-col md:w-[37%] 2xl:w-[30%] 2xl:max-w-[780px]'
+                ? 'flex flex-col flex-1 w-full'
+                : 'hidden'
           }`}
         >
-          <ChallengeSpecPanel />
+          <ChallengeSpecPanel
+            isCollapsed={isDesktopMd && gridTracks.effectiveSpecCollapsed}
+            onToggleCollapse={handleToggleSpecCollapsed}
+          />
         </div>
 
+        {isDesktopMd && !gridTracks.effectiveSpecCollapsed && (
+          <WorkbenchDragSplitter
+            edge="left"
+            label="Изменить ширину спецификации"
+            minWidth={WORKBENCH_BOUNDS.MIN_SPEC_WIDTH_PX}
+            maxWidth={gridTracks.maxSpecPx}
+            currentWidth={gridTracks.resolvedSpecPx}
+            onPreviewWidth={(px) => workspaceGridRef.current?.style.setProperty('--spec-w', `${px}px`)}
+            onCommitWidth={(px) => setPanelWidth('spec', px, containerWidth)}
+            onResetWidth={() => setPanelWidth('spec', WORKBENCH_BOUNDS.DEFAULT_SPEC_WIDTH_PX, containerWidth)}
+            testId="spec-drag-splitter"
+          />
+        )}
+
         <div
-          className={`flex-1 min-w-0 h-full overflow-hidden ${
-            isFocusMode
-              ? 'flex flex-col w-full'
-              : mobileTab === 'editor'
+          className={`min-w-0 h-full min-h-0 overflow-hidden ${
+            isDesktopMd
               ? 'flex flex-col'
-              : 'hidden md:flex flex-col'
+              : mobileTab === 'editor'
+                ? 'flex flex-col flex-1 w-full'
+                : 'hidden'
           }`}
         >
           <WorkspaceEditor />
         </div>
+
+        {isDockInline && (
+          <WorkbenchDragSplitter
+            edge="right"
+            label={rightDockTab === 'whiteboard' ? 'Изменить ширину Доски ИИ' : 'Изменить ширину AI-Напарника'}
+            minWidth={WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX}
+            maxWidth={gridTracks.maxCopilotPx}
+            currentWidth={gridTracks.resolvedCopilotPx}
+            onPreviewWidth={(px) => workspaceGridRef.current?.style.setProperty('--copilot-w', `${px}px`)}
+            onCommitWidth={(px) => setPanelWidth(rightDockTab, px, containerWidth)}
+            onResetWidth={() =>
+              setPanelWidth(
+                rightDockTab,
+                rightDockTab === 'whiteboard'
+                  ? WORKBENCH_BOUNDS.DEFAULT_WHITEBOARD_WIDTH_PX
+                  : WORKBENCH_BOUNDS.DEFAULT_TUTOR_WIDTH_PX,
+                containerWidth
+              )
+            }
+            testId="copilot-drag-splitter"
+          />
+        )}
 
         <PracticeCopilotDock />
       </div>

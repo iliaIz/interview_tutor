@@ -35,6 +35,7 @@ export interface CodeViewerProps {
   className?: string;
   maxHeight?: string;
   searchQuery?: string;
+  compactHeader?: boolean;
   revisionIndex?: number;
   revisionTitle?: string;
   revisionId?: string;
@@ -50,6 +51,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = (props) => {
     className = '',
     maxHeight,
     searchQuery = '',
+    compactHeader = false,
     revisionIndex
   } = props;
 
@@ -77,19 +79,31 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = (props) => {
     <div
       data-selection-zone="code"
       data-revision-index={revisionIndex}
-      className={`relative overflow-hidden rounded-2xl border border-[#2A243E] bg-[#0B0C10] font-mono text-[11.5px] sm:text-xs md:text-sm shadow-xl ${className}`}
+      className={`relative overflow-hidden border border-[#2A243E] bg-[#0B0C10] font-mono text-[11.5px] sm:text-xs md:text-sm shadow-xl ${
+        compactHeader ? 'rounded-xl' : 'rounded-2xl'
+      } ${className}`}
       style={{ contain: 'content' }}
     >
-      {/* Header bar with macOS window dots and copy button */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#141220] border-b border-[#2A243E] select-none">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shadow-sm" />
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80 shadow-sm" />
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-sm" />
-          </div>
+      {/* Header bar with optional macOS window dots and copy button */}
+      <div
+        className={`flex items-center justify-between bg-[#141220] border-b border-[#2A243E] select-none ${
+          compactHeader ? 'px-3 py-1.5' : 'px-4 py-2.5'
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {!compactHeader && (
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shadow-sm" />
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80 shadow-sm" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-sm" />
+            </div>
+          )}
           {title && (
-            <span className="text-[11px] font-sans font-medium text-[#B3A9D4] tracking-wide ml-2">
+            <span
+              className={`text-[11px] font-sans font-medium text-[#B3A9D4] tracking-wide truncate ${
+                compactHeader ? '' : 'ml-2'
+              }`}
+            >
               {title}
             </span>
           )}
@@ -137,7 +151,7 @@ const CodeViewerComponent: React.FC<CodeViewerProps> = (props) => {
             className={`${highlightClass} m-0 overflow-x-auto p-0 selection:bg-[#3D3558] scroll-touch-x ${maxHeight ? maxHeight : ''}`}
             style={{ ...style, backgroundColor: '#0B0C10' }}
           >
-            <code className="block min-w-full py-3">
+            <code className={`block min-w-full ${compactHeader ? 'py-2' : 'py-3'}`}>
               <div className="w-max min-w-full">
                 {tokens.map((lineTokens, lineIndex) => {
                   const meta = linesMeta[lineIndex] || { diffKind: 'neutral', isMatch: false };
