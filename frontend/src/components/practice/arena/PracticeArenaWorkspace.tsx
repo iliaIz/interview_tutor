@@ -9,7 +9,6 @@ import { PracticeEvaluationModal } from '../PracticeEvaluationModal';
 import { PracticeCompassSheet } from '../compass/PracticeCompassSheet';
 import { PracticeCopilotDock } from '../tutor/PracticeCopilotDock';
 import { usePracticeVoice } from '../tutor/PracticeVoiceContext';
-import { resolveTutorDomain } from '../tutor/TutorDomain';
 import { PracticeArenaHeader } from './PracticeArenaHeader';
 import { usePracticeFindingBridge } from './usePracticeFindingBridge';
 
@@ -57,26 +56,17 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     return () => clearInterval(timer);
   }, [activePracticeChallenge.id, setPracticeElapsedSeconds]);
 
-  // Centralized Ctrl+/ shortcut registry for Practice domains
+  // Centralized Ctrl+/ shortcut registry for all Practice domains
   useEffect(() => {
-    const domain = resolveTutorDomain({
-      category: activePracticeChallenge.category,
-      track: activePracticeChallenge.track,
-      title: activePracticeChallenge.title
-    });
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-        if (domain === 'refactoring' || domain === 'concurrency') {
-          // Legacy sheets still own Ctrl+/ during T5 until T6/T7 migration
-          return;
-        }
         e.preventDefault();
         toggleCompass();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activePracticeChallenge.category, activePracticeChallenge.track, activePracticeChallenge.title, toggleCompass]);
+  }, [toggleCompass]);
 
   const isDockVisible = isTutorOpen && !isCopilotStealth;
   const showStealthRestorePill = isCopilotStealth && (isVoiceConnected || isVoiceError);

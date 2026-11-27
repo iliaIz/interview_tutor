@@ -299,7 +299,7 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-[28px] px-2.5 py-1 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800/70 transition cursor-pointer"
+          className="touch-target-44 min-h-[28px] px-2.5 py-1 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800/70 transition cursor-pointer"
         >
           Свернуть панель
         </button>

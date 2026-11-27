@@ -34,37 +34,49 @@ export const HealthStatusBadge: React.FC = () => {
   let badge = null;
   if (systemHealth.isAiReady) {
     badge = (
-      <div
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label="Статус AI шлюза: готов"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-emerald-50/90 hover:bg-emerald-100/90 text-emerald-700 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
+        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-emerald-50/90 hover:bg-emerald-100/90 text-emerald-800 border border-emerald-200/80 shadow-2xs backdrop-blur-sm cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
       >
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <Headphones className="w-3.5 h-3.5 text-emerald-600" />
+        <span className="w-2 h-2 rounded-full bg-emerald-600" />
+        <Headphones className="w-3.5 h-3.5 text-emerald-700" />
         <span className="hidden xl:inline text-[11px]">AI Шлюз</span>
         {systemHealth.latencyMs && (
-          <span className="text-[10px] opacity-70 hidden sm:inline">({systemHealth.latencyMs}мс)</span>
+          <span className="text-[10px] opacity-80 hidden sm:inline">({systemHealth.latencyMs}мс)</span>
         )}
-      </div>
+      </button>
     );
   } else if (systemHealth.status === 'warming_up' || systemHealth.status === 'checking') {
     badge = (
-      <div
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label="Статус AI шлюза: запуск"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 shadow-2xs animate-pulse cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
+        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 shadow-2xs cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
       >
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-700" />
         <span className="hidden xl:inline text-[11px]">{systemHealth.error ? 'Синхронизация...' : 'Запуск AI...'}</span>
-      </div>
+      </button>
     );
   } else {
     badge = (
-      <div
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label="Статус AI шлюза: офлайн"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
+        className="flex items-center gap-1.5 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs cursor-pointer shrink-0 transition active:scale-95 touch-manipulation"
       >
-        <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+        <AlertCircle className="w-3.5 h-3.5 text-rose-700" />
         <span className="hidden xl:inline text-[11px]">AI Офлайн</span>
-      </div>
+      </button>
     );
   }
 
@@ -80,8 +92,10 @@ export const HealthStatusBadge: React.FC = () => {
               <h4 className="text-xs font-bold text-pastel-text">LiteLLM AI Gateway Status</h4>
             </div>
             <button
+              type="button"
+              aria-label="Закрыть панель статуса AI шлюза"
               onClick={() => setIsOpen(false)}
-              className="p-1 text-pastel-muted hover:text-pastel-text rounded-lg hover:bg-pastel-bg"
+              className="p-1.5 text-pastel-muted hover:text-pastel-text rounded-lg hover:bg-pastel-bg cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>

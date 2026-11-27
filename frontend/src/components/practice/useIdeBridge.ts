@@ -94,7 +94,11 @@ export function useIdeBridge() {
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       console.error('Failed to download project zip:', err);
-      alert('Не удалось скачать проект: ' + (err.message || 'Ошибка сервера'));
+      useAppStore.getState().showToast({
+        type: 'error',
+        title: 'Ошибка скачивания проекта',
+        message: 'Не удалось скачать проект: ' + (err?.message || 'Ошибка сервера')
+      });
     } finally {
       setIsDownloading(false);
     }

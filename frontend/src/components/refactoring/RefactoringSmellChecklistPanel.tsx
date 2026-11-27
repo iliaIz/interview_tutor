@@ -136,10 +136,13 @@ export const RefactoringSmellChecklistPanel: React.FC<Props> = ({ challenge }) =
             const justification = discoveredMap[smell.id]?.justification;
 
             return (
-              <div
+              <button
                 key={smell.id}
+                type="button"
+                role="checkbox"
+                aria-checked={isDiscovered}
                 onClick={() => toggleManualCheck(smell.id)}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none space-y-2 ${
+                className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer select-none space-y-2 ${
                   isDiscovered
                     ? 'bg-emerald-50/40 border-emerald-300 shadow-2xs ring-1 ring-emerald-200'
                     : 'bg-white hover:bg-slate-50/80 border-pastel-border shadow-2xs'
@@ -147,12 +150,16 @@ export const RefactoringSmellChecklistPanel: React.FC<Props> = ({ challenge }) =
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isDiscovered}
-                      onChange={() => {}} // handled by div
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 pointer-events-none"
-                    />
+                    <span
+                      aria-hidden="true"
+                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        isDiscovered
+                          ? 'bg-emerald-700 border-emerald-700 text-white'
+                          : 'bg-white border-slate-300'
+                      }`}
+                    >
+                      {isDiscovered && <CheckCircle2 className="w-3 h-3" />}
+                    </span>
                     <span className="font-bold text-xs text-pastel-text">{smell.name}</span>
                   </div>
 
@@ -160,7 +167,7 @@ export const RefactoringSmellChecklistPanel: React.FC<Props> = ({ challenge }) =
                     <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${getSeverityBadge(smell.severity)}`}>
                       {smell.severity}
                     </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                       {smell.category}
                     </span>
                   </div>
@@ -171,13 +178,13 @@ export const RefactoringSmellChecklistPanel: React.FC<Props> = ({ challenge }) =
                 </p>
 
                 {smell.targetLinesSnippet && (
-                  <div className="ml-6 p-2 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[10px] overflow-x-auto">
+                  <div className="ml-6 p-2 rounded-xl bg-slate-900 text-emerald-300 font-mono text-[10px] overflow-x-auto">
                     <code>{smell.targetLinesSnippet}</code>
                   </div>
                 )}
 
                 {isDiscovered && justification && (
-                  <div className="ml-6 p-2 rounded-xl bg-emerald-100/60 border border-emerald-300/80 text-[11px] text-emerald-900 flex items-start gap-1.5 animate-fade-in">
+                  <div className="ml-6 p-2 rounded-xl bg-emerald-100/60 border border-emerald-300/80 text-[11px] text-emerald-950 flex items-start gap-1.5 animate-fade-in">
                     <Mic className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
                     <div>
                       <strong className="font-bold text-emerald-950">Зафиксировано ИИ-собеседующим: </strong>
@@ -185,7 +192,7 @@ export const RefactoringSmellChecklistPanel: React.FC<Props> = ({ challenge }) =
                     </div>
                   </div>
                 )}
-              </div>
+              </button>
             );
           })
         )}
