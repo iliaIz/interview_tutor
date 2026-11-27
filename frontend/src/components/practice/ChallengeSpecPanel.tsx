@@ -1,14 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import {
   BookOpen,
   CheckCircle2,
-  HelpCircle,
-  Clock,
-  Layers,
   ChevronDown,
   ChevronUp,
-  AlertTriangle,
   Lightbulb,
   Sparkles,
   Zap,
@@ -17,78 +13,165 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { CodingChallenge } from '../../types/practice';
 import { RefactoringSmellChecklistPanel } from '../refactoring/RefactoringSmellChecklistPanel';
+
+interface HintItem {
+  title: string;
+  content: string;
+}
+
+function buildDomainHints(challenge: CodingChallenge): HintItem[] {
+  if (Array.isArray(challenge.hints) && challenge.hints.length > 0) {
+    return challenge.hints.map((h, i) => ({
+      title: `Подсказка ${i + 1}`,
+      content: h
+    }));
+  }
+
+  if (challenge.designPatternContext) {
+    const dp = challenge.designPatternContext;
+    return [
+      {
+        title: `Подсказка 1: Устранение запаха (${dp.antiPatternSmell.name})`,
+        content: dp.antiPatternSmell.description
+      },
+      {
+        title: `Подсказка 2: Целевой паттерн (${dp.targetPattern})`,
+        content: dp.modernAlternativeTip || 'Разделите контракты на интерфейсы и инъектируйте зависимости через конструктор.'
+      },
+      {
+        title: 'Подсказка 3: Защита контрактов',
+        content: 'Все публичные сигнатуры, проверяемые существующими тестами, должны оставаться совместимыми во время рефакторинга.'
+      }
+    ];
+  }
+
+  if (challenge.challengeMode === 'write_the_tests' || challenge.track === 'testing_mutation') {
+    return [
+      {
+        title: 'Подсказка 1: Граничные значения и эквивалентность',
+        content: 'Проверьте нули, отрицательные значения, границы диапазонов (< vs <=) и null/empty входы, чтобы убивать мутантов границ.'
+      },
+      {
+        title: 'Подсказка 2: Изоляция и детерминизм',
+        content: 'Передавайте фиксированный java.time.Clock и проверяйте точные вызовы зависимостей и возвращаемые BigDecimal значения.'
+      },
+      {
+        title: 'Подсказка 3: Антипаттерны AssertJ',
+        content: 'Избегайте общих проверок isNotNull() без проверки полей. Каждый @Test должен проверять конкретный инвариант домена.'
+      }
+    ];
+  }
+
+  if (Array.isArray(challenge.smellsChecklist) && challenge.smellsChecklist.length > 0) {
+    return challenge.smellsChecklist.slice(0, 3).map((s, idx) => ({
+      title: `Подсказка ${idx + 1}: ${s.name}`,
+      content: s.description
+    }));
+  }
+
+  return [
+    {
+      title: 'Подсказка 1: Детерминизм и инварианты времени',
+      content: 'Внедряйте java.time.Clock через конструктор и избегайте прямых вызовов Instant.now() или System.currentTimeMillis().'
+    },
+    {
+      title: 'Подсказка 2: Финансовая точность и контракты',
+      content: 'Используйте BigDecimal с RoundingMode.HALF_EVEN для денежных расчетов и не блокируйте поток I/O внутри synchronized.'
+    },
+    {
+      title: 'Подсказка 3: Чистая структура модулей',
+      content: 'Разделяйте публичные интерфейсы, доменную модель и детали хранения, сохраняя публичные контракты тестов.'
+    }
+  ];
+}
+
+function normalizeFourWeights(weights?: CodingChallenge['scoringWeights']): [number, number, number, number] {
+  if (!weights) return [35, 25, 25, 15];
+  const raw = [
+    weights.functionalCorrectness ?? 0.35,
+    weights.concurrencySafety ?? 0.25,
+    weights.architectureAndCleanCode ?? 0.25,
+    weights.modernIdioms ?? 0.15
+  ];
+  const sum = raw.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return [35, 25, 25, 15];
+  const p1 = Math.round((raw[0] / sum) * 100);
+  const p2 = Math.round((raw[1] / sum) * 100);
+  const p3 = Math.round((raw[2] / sum) * 100);
+  const p4 = Math.max(0, 100 - p1 - p2 - p3);
+  return [p1, p2, p3, p4];
+}
 
 export const ChallengeSpecPanel: React.FC = () => {
   const {
     activePracticeChallenge,
     activePracticePhase,
-    setActivePracticePhase,
-    practiceElapsedSeconds
+    setActivePracticePhase
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<'spec' | 'phase2' | 'hints' | 'smells'>('spec');
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
 
+  useEffect(() => {
+    setActiveTab('spec');
+    setRevealedHints([]);
+  }, [activePracticeChallenge?.id]);
+
+  const derivedHints = useMemo(
+    () => (activePracticeChallenge ? buildDomainHints(activePracticeChallenge) : []),
+    [activePracticeChallenge]
+  );
+
   if (!activePracticeChallenge) return null;
 
   const challenge = activePracticeChallenge;
-  const isRefactoring = challenge.category === 'refactoring_kata' || Boolean(challenge.smellsChecklist && challenge.smellsChecklist.length > 0);
+  const isRefactoring =
+    challenge.category === 'refactoring_kata' ||
+    Boolean(challenge.smellsChecklist && challenge.smellsChecklist.length > 0);
   const phasedReq = challenge.phasedRequirements?.[0];
   const isPhase2Available = Boolean(phasedReq);
-  const unlockMinutes = phasedReq?.unlockTimeMinutes || 45;
-  const isPhase2TimeReached = practiceElapsedSeconds >= unlockMinutes * 60;
+  const [wFunc, wConc, wArch, wIdiom] = normalizeFourWeights(challenge.scoringWeights);
 
   const toggleHint = (index: number) => {
-    if (revealedHints.includes(index)) {
-      setRevealedHints(revealedHints.filter((h) => h !== index));
-    } else {
-      setRevealedHints([...revealedHints, index]);
+    setRevealedHints((prev) =>
+      prev.includes(index) ? prev.filter((h) => h !== index) : [...prev, index]
+    );
+  };
+
+  const handleOpenPhase2Tab = () => {
+    setActiveTab('phase2');
+    if (activePracticePhase !== 2) {
+      setActivePracticePhase(2);
     }
   };
 
-  const defaultHints = [
-    {
-      title: 'Подсказка 1: Архитектурное направление',
-      content: 'Используйте паттерны Strategy / Factory для разделения алгоритмов от бизнес-логики сервиса. Избегайте жесткой привязки к конкретным классам.'
-    },
-    {
-      title: 'Подсказка 2: Потокобезопасность & JMM',
-      content: 'Для высоких нагрузок избегайте synchronized на весь метод. Используйте ConcurrentHashMap.computeIfAbsent, AtomicLong или ReentrantLock для изоляции критических секций.'
-    },
-    {
-      title: 'Подсказка 3: Совместимость с Virtual Threads (Loom)',
-      content: 'Никогда не выполняйте блокирующий I/O (HTTP, БД, Thread.sleep) внутри блоков synchronized. Это приводит к carrier thread pinning.'
-    }
-  ];
-
   return (
     <div className="flex flex-col h-full bg-white/95 backdrop-blur-md border-r border-pastel-border/80 text-pastel-text">
-      {/* Top Header info */}
-      <div className="p-4 border-b border-pastel-border/60 bg-pastel-bg/50">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pastel-rose text-pastel-accentRose border border-pastel-accentRose/20">
-            {challenge.badge}
-          </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-card border border-pastel-border text-pastel-muted">
-            {challenge.difficulty}
-          </span>
-        </div>
-        <h2 className="font-bold text-base text-pastel-text leading-snug">
-          {challenge.title}
-        </h2>
-        <p className="text-[11px] text-pastel-muted mt-1 font-mono">
-          🛠️ {challenge.targetStack}
-        </p>
+      {/* Compact Stack Metadata Strip (Title & Badge live in PracticeArenaHeader) */}
+      <div className="px-4 py-2 border-b border-pastel-border/60 bg-pastel-bg/60 flex items-center justify-between gap-2 text-[11px] text-pastel-muted font-mono shrink-0">
+        <span className="truncate">{challenge.targetStack}</span>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-pastel-border text-pastel-text shrink-0 font-sans">
+          {challenge.difficulty}
+        </span>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center border-b border-pastel-border/60 px-3 bg-white">
+      {/* WAI-ARIA Tablist */}
+      <div
+        role="tablist"
+        aria-label="Разделы спецификации задачи"
+        className="flex items-center border-b border-pastel-border/60 px-2 bg-white overflow-x-auto no-scrollbar shrink-0"
+      >
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'spec'}
           onClick={() => setActiveTab('spec')}
-          className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+          className={`touch-target-44 flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
             activeTab === 'spec'
-              ? 'border-pastel-accentRose text-pastel-accentRose'
+              ? 'border-[#B5433E] text-pastel-accentRoseText'
               : 'border-transparent text-pastel-muted hover:text-pastel-text'
           }`}
         >
@@ -98,8 +181,11 @@ export const ChallengeSpecPanel: React.FC = () => {
 
         {isPhase2Available && (
           <button
-            onClick={() => setActiveTab('phase2')}
-            className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer relative ${
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'phase2'}
+            onClick={handleOpenPhase2Tab}
+            className={`touch-target-44 flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer relative shrink-0 ${
               activeTab === 'phase2'
                 ? 'border-pastel-accentViolet text-pastel-accentViolet'
                 : 'border-transparent text-pastel-muted hover:text-pastel-text'
@@ -108,16 +194,19 @@ export const ChallengeSpecPanel: React.FC = () => {
             <Zap className="w-3.5 h-3.5" />
             <span>Фаза 2 (OCP)</span>
             {activePracticePhase === 2 && (
-              <span className="w-2 h-2 rounded-full bg-pastel-accentViolet animate-pulse ml-1" />
+              <span className="w-2 h-2 rounded-full bg-pastel-accentViolet ml-0.5" />
             )}
           </button>
         )}
 
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'hints'}
           onClick={() => setActiveTab('hints')}
-          className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+          className={`touch-target-44 flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
             activeTab === 'hints'
-              ? 'border-amber-500 text-amber-600'
+              ? 'border-amber-600 text-amber-800'
               : 'border-transparent text-pastel-muted hover:text-pastel-text'
           }`}
         >
@@ -127,17 +216,20 @@ export const ChallengeSpecPanel: React.FC = () => {
 
         {isRefactoring && (
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'smells'}
             onClick={() => setActiveTab('smells')}
-            className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`touch-target-44 flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer shrink-0 ${
               activeTab === 'smells'
-                ? 'border-amber-500 text-amber-700 font-extrabold'
+                ? 'border-amber-600 text-amber-800 font-extrabold'
                 : 'border-transparent text-pastel-muted hover:text-pastel-text'
             }`}
           >
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
             <span>Аудит запахов</span>
             {challenge.smellsChecklist && challenge.smellsChecklist.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 font-bold border border-amber-300">
                 {challenge.smellsChecklist.length}
               </span>
             )}
@@ -146,79 +238,87 @@ export const ChallengeSpecPanel: React.FC = () => {
       </div>
 
       {/* Tab Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs leading-relaxed custom-scrollbar">
+      <div
+        role="tabpanel"
+        className="flex-1 overflow-y-auto p-4 space-y-4 text-xs leading-relaxed custom-scrollbar"
+      >
         {activeTab === 'spec' && (
           <div className="space-y-4">
             {challenge.designPatternContext && (
               <div className="p-3.5 rounded-2xl bg-indigo-50/90 border border-indigo-200/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-700" />
                     Целевой паттерн: {challenge.designPatternContext.targetPattern}
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                    {challenge.designPatternContext.categoryTier === 'modern_alternatives' ? '⚡ Java 21' : challenge.designPatternContext.categoryTier === 'anti_patterns' ? '🚫 Anti-Pattern' : '🏛️ Spring GoF'}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200">
+                    {challenge.designPatternContext.categoryTier === 'modern_alternatives'
+                      ? 'Java 21'
+                      : challenge.designPatternContext.categoryTier === 'anti_patterns'
+                      ? 'Anti-Pattern'
+                      : 'Spring GoF'}
                   </span>
                 </div>
                 <div className="text-[11px] text-indigo-950 font-medium">
-                  <span className="font-bold text-rose-700">Устраняемый запах: </span>
-                  {challenge.designPatternContext.antiPatternSmell.name} — {challenge.designPatternContext.antiPatternSmell.description}
+                  <span className="font-bold text-rose-800">Устраняемый запах: </span>
+                  {challenge.designPatternContext.antiPatternSmell.name} —{' '}
+                  {challenge.designPatternContext.antiPatternSmell.description}
                 </div>
                 {challenge.designPatternContext.modernAlternativeTip && (
-                  <div className="text-[11px] text-emerald-800 bg-emerald-50/90 p-2 rounded-xl border border-emerald-200/80">
-                    <span className="font-bold">💡 SOTA 2026 Идиома: </span>
+                  <div className="text-[11px] text-emerald-900 bg-emerald-50/90 p-2 rounded-xl border border-emerald-200/80">
+                    <span className="font-bold">SOTA 2026 Идиома: </span>
                     {challenge.designPatternContext.modernAlternativeTip}
                   </div>
                 )}
               </div>
             )}
-            <div className="prose prose-xs max-w-none text-pastel-text prose-headings:text-pastel-text prose-strong:text-pastel-text prose-code:text-pastel-accentViolet prose-code:bg-pastel-bg prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
-              <ReactMarkdown>{challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''}</ReactMarkdown>
+
+            <div className="spec-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {challenge.instructionsMarkdown || challenge.scenarioMarkdown || ''}
+              </ReactMarkdown>
             </div>
 
-            {/* Invariants and Scoring Rules */}
+            {/* Normalized 4-Axis Scoring Weights (Strictly 100%) */}
             <div className="p-3.5 rounded-2xl bg-pastel-bg/80 border border-pastel-border space-y-2">
-              <h4 className="font-bold text-xs text-pastel-text flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Критерии оценки решения (Веса SOTA 2026):</span>
-              </h4>
+              <h2 className="font-bold text-xs text-pastel-text flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Критерии оценки решения (100%):</span>
+              </h2>
               <ul className="space-y-1 text-[11px] text-pastel-muted">
-                <li>• Функциональная корректность & Бизнес-логика: <strong>{Math.round((challenge.scoringWeights?.functionalCorrectness ?? 0.4) * 100)}%</strong></li>
-                <li>• Потокобезопасность & Ресурсы: <strong>{Math.round((challenge.scoringWeights?.concurrencySafety ?? 0.2) * 100)}%</strong></li>
-                <li>• Архитектура, SOLID & Clean Code (OCP): <strong>{Math.round((challenge.scoringWeights?.architectureAndCleanCode ?? 0.2) * 100)}%</strong></li>
-                <li>• Детерминированность & Тестируемость (Clock): <strong>{Math.round((challenge.scoringWeights?.modernIdioms ?? 0.1) * 100)}%</strong></li>
-                <li>• Идиомы Java 21 (Records / Sealed): <strong>10%</strong></li>
+                <li>• Функциональная корректность &amp; Бизнес-логика: <strong>{wFunc}%</strong></li>
+                <li>• Потокобезопасность &amp; Ресурсы: <strong>{wConc}%</strong></li>
+                <li>• Архитектура, SOLID &amp; Clean Code (OCP): <strong>{wArch}%</strong></li>
+                <li>• Идиомы Java 21, Clock &amp; Тестируемость: <strong>{wIdiom}%</strong></li>
               </ul>
             </div>
           </div>
         )}
 
-
         {activeTab === 'phase2' && isPhase2Available && phasedReq && (
           <div className="space-y-4">
             <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200/80 text-purple-950 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-950">
                   {phasedReq.title}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setActivePracticePhase(activePracticePhase === 1 ? 2 : 1)}
-                  className="flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer"
+                  className="flex items-center gap-1 text-[11px] font-bold text-purple-800 hover:text-purple-950 underline cursor-pointer"
                 >
                   {activePracticePhase === 2 ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                  <span>{activePracticePhase === 2 ? 'Фаза 2 активна' : 'Активировать Фазу 2 вручную'}</span>
+                  <span>{activePracticePhase === 2 ? 'Фаза 2 активна' : 'Активировать Фазу 2'}</span>
                 </button>
               </div>
-              <p className="text-xs leading-relaxed">
-                {phasedReq.descriptionMarkdown}
-              </p>
+              <p className="text-xs leading-relaxed">{phasedReq.descriptionMarkdown}</p>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-white border border-pastel-border space-y-2">
-              <h4 className="font-bold text-xs text-pastel-text">Добавленные контракты Фазы 2:</h4>
+              <h3 className="font-bold text-xs text-pastel-text">Добавленные контракты Фазы 2:</h3>
               {phasedReq.addedFiles.map((f, i) => (
                 <div key={i} className="text-[11px] font-mono bg-pastel-bg p-2 rounded-xl border border-pastel-border/60">
-                  📄 {f.path}
+                  {f.path}
                 </div>
               ))}
             </div>
@@ -231,7 +331,7 @@ export const ChallengeSpecPanel: React.FC = () => {
               Раскрывайте подсказки пошагово, если застряли. Каждая подсказка приближает к эталонной архитектуре:
             </p>
 
-            {defaultHints.map((hint, idx) => {
+            {derivedHints.map((hint, idx) => {
               const isRevealed = revealedHints.includes(idx);
 
               return (
@@ -240,17 +340,23 @@ export const ChallengeSpecPanel: React.FC = () => {
                   className="rounded-2xl border border-pastel-border/80 bg-white overflow-hidden shadow-2xs"
                 >
                   <button
+                    type="button"
+                    aria-expanded={isRevealed}
                     onClick={() => toggleHint(idx)}
                     className="w-full p-3 flex items-center justify-between text-left hover:bg-pastel-bg/50 transition cursor-pointer"
                   >
                     <span className="font-bold text-xs text-pastel-text flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      {hint.title}
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{hint.title}</span>
                     </span>
-                    {isRevealed ? <ChevronUp className="w-4 h-4 text-pastel-muted" /> : <ChevronDown className="w-4 h-4 text-pastel-muted" />}
+                    {isRevealed ? (
+                      <ChevronUp className="w-4 h-4 text-pastel-muted shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-pastel-muted shrink-0" />
+                    )}
                   </button>
                   {isRevealed && (
-                    <div className="p-3 pt-0 text-[11px] text-pastel-muted leading-relaxed border-t border-pastel-border/40 bg-amber-50/20">
+                    <div className="p-3 pt-2 text-[11px] text-pastel-text leading-relaxed border-t border-pastel-border/40 bg-amber-50/40">
                       {hint.content}
                     </div>
                   )}

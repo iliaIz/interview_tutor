@@ -24,7 +24,6 @@ export function useWorkspaceRunner() {
     toggleAcademyStepProgress,
     setLatestSandboxResult,
     setLatestMutationResult,
-    updateWorkspaceFileContent,
     setPracticeWorkspaceFiles
   } = useAppStore();
 
@@ -133,9 +132,6 @@ export function useWorkspaceRunner() {
 
   const handleResetWorkspace = useCallback(async () => {
     if (!activePracticeChallenge) return;
-    if (!window.confirm('Сбросить весь воркспейс к начальному состоянию? Текущие изменения будут удалены.')) {
-      return;
-    }
 
     try {
       removeLocalDraft(activePracticeChallenge.id);
@@ -152,7 +148,7 @@ export function useWorkspaceRunner() {
     } catch (e) {
       console.error('Error resetting workspace:', e);
     }
-  }, [activePracticeChallenge, updateWorkspaceFileContent, autosave, showToast]);
+  }, [activePracticeChallenge, setPracticeWorkspaceFiles, autosave, showToast]);
 
   return {
     isSandboxRunning,

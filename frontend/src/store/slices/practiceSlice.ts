@@ -98,6 +98,7 @@ export const createPracticeSlice: StateCreator<any, [], [], PracticeSlice> = (se
 
     let rawDraft = (draftFiles && draftFiles.length > 0) ? draftFiles : null;
     let activeIndex = 0;
+    let hasSavedFileIndex = false;
     let activePhase = 1;
 
     if (!rawDraft) {
@@ -106,7 +107,10 @@ export const createPracticeSlice: StateCreator<any, [], [], PracticeSlice> = (se
       if (localDraft && localDraft.files && localDraft.files.length > 0) {
         if (challengeUpdatedEpoch === 0 || localDraft.updatedAt >= challengeUpdatedEpoch) {
           rawDraft = localDraft.files;
-          activeIndex = localDraft.activeWorkspaceFileIndex ?? 0;
+          if (typeof localDraft.activeWorkspaceFileIndex === 'number') {
+            activeIndex = localDraft.activeWorkspaceFileIndex;
+            hasSavedFileIndex = true;
+          }
           activePhase = localDraft.activePhase ?? 1;
         } else {
           removeLocalDraft(challenge.id);
@@ -129,9 +133,8 @@ export const createPracticeSlice: StateCreator<any, [], [], PracticeSlice> = (se
       }
     }
 
-    const mainIndex = filesToUse.findIndex(f => f.isMainEntryPoint);
-    if (activeIndex >= filesToUse.length) {
-      activeIndex = mainIndex >= 0 ? mainIndex : 0;
+    if (!hasSavedFileIndex || activeIndex < 0 || activeIndex >= filesToUse.length) {
+      activeIndex = resolveInitialWorkspaceFileIndex(filesToUse);
     }
 
     set({
@@ -209,7 +212,23 @@ export const createPracticeSlice: StateCreator<any, [], [], PracticeSlice> = (se
   }),
 
   setActiveWorkspaceFileIndex: (idx) => set({ activeWorkspaceFileIndex: idx }),
-  setActivePracticePhase: (phase) => set({ activePracticePhase: phase }),
+  setActivePracticePhase: (phase) => set((state: any) => {
+    if (phase !== 2) {
+      return { activePracticePhase: phase };
+    }
+    const added: FileNode[] = state.activePracticeChallenge?.phasedRequirements?.[0]?.addedFiles || [];
+    if (!Array.isArray(added) || added.length === 0) {
+      return { activePracticePhase: 2 };
+    }
+    const existing: FileNode[] = state.practiceWorkspaceFiles || [];
+    const merged = mergePhaseFiles(existing, added);
+    const firstNewIdx = merged.length > existing.length ? existing.length : state.activeWorkspaceFileIndex;
+    return {
+      activePracticePhase: 2,
+      practiceWorkspaceFiles: merged,
+      activeWorkspaceFileIndex: firstNewIdx
+    };
+  }),
   setIsPracticeEvaluating: (isEval) => set({ isPracticeEvaluating: isEval }),
   setActivePracticeReport: (report) => set({
     activePracticeReport: report,

@@ -69,6 +69,26 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
     setExpandedMutantId(prev => (prev === id ? null : id));
   };
 
+  const formatBreachUnit = (count: number): string => {
+    const abs = Math.abs(count) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return 'брешей';
+    if (last === 1) return 'брешь';
+    if (last >= 2 && last <= 4) return 'бреши';
+    return 'брешей';
+  };
+
+  const formatErrorUnit = (count: number): string => {
+    const abs = Math.abs(count) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return 'ошибок';
+    if (last === 1) return 'ошибка';
+    if (last >= 2 && last <= 4) return 'ошибки';
+    return 'ошибок';
+  };
+
+  const formatKilledBy = (name: string): string => (name.endsWith(')') ? name : `${name}()`);
+
   return (
     <div className="flex flex-col gap-4 p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/95 border border-slate-800 shadow-2xl backdrop-blur-xl text-slate-200">
       {/* 1. Header Banner & Score Meter */}
@@ -86,8 +106,8 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
                 {isPassed ? 'ПРОЙДЕНО' : 'ТРЕБУЕТСЯ ДОРАБОТКА'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Двухступенчатая проверка: Baseline Check $\rightarrow$ прогон против инъецированных дефектов
+            <p className="text-xs text-slate-300 mt-0.5">
+              Двухступенчатая проверка: Baseline Check → прогон против инъецированных дефектов
             </p>
           </div>
         </div>
@@ -124,8 +144,8 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
           )}
           <span>
             {report.baselinePassed
-              ? '✓ Baseline Check пройден: все ваши тесты успешно прошли на немодифицированном эталонном сервисе.'
-              : '❌ Baseline Check не пройден: ваши тесты упали на исходном эталоне! Тесты обязаны быть зелеными на корректной реализации.'}
+              ? 'Baseline Check пройден: все ваши тесты успешно прошли на немодифицированном эталонном сервисе.'
+              : 'Baseline Check не пройден: ваши тесты упали на исходном эталоне! Тесты обязаны быть зелеными на корректной реализации.'}
           </span>
         </div>
         <div className="flex items-center gap-1 text-slate-400">
@@ -148,18 +168,18 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
           </div>
         </div>
         <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/20 flex flex-col justify-between">
-          <span className="text-xs text-rose-400/80 font-medium">Выжило (Survived)</span>
+          <span className="text-xs text-rose-300 font-medium">Выжило (Survived)</span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className="text-xl font-bold text-rose-400">{report.survivedCount}</span>
-            <span className="text-xs text-rose-500/70">брешей</span>
+            <span className="text-xs text-rose-300/90">{formatBreachUnit(report.survivedCount)}</span>
           </div>
         </div>
         {(report.stillbornCount ?? 0) > 0 && (
           <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 flex flex-col justify-between">
-            <span className="text-xs text-amber-400/80 font-medium">Синтаксис (Stillborn)</span>
+            <span className="text-xs text-amber-300 font-medium">Синтаксис (Stillborn)</span>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="text-xl font-bold text-amber-400">{report.stillbornCount}</span>
-              <span className="text-xs text-amber-500/70">ошибок</span>
+              <span className="text-xs text-amber-300/90">{formatErrorUnit(report.stillbornCount ?? 0)}</span>
             </div>
           </div>
         )}
@@ -193,78 +213,84 @@ export const MutationRadarWidget: React.FC<MutationRadarWidgetProps> = ({
           <span>Кликните на мутанта для деталей</span>
         </div>
 
-        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+        <div className="flex flex-col gap-2">
           {report.mutantResults?.map((mutant) => {
             const isKilled = mutant.status === 'KILLED';
             const isStillborn = mutant.status === 'STILLBORN';
-            const isExpanded = expandedMutantId === (mutant.id || mutant.mutantId);
+            const mutantKey = mutant.id || mutant.mutantId;
+            const isExpanded = expandedMutantId === mutantKey;
 
             return (
               <div
-                key={mutant.id || mutant.mutantId}
-                onClick={() => toggleMutant(mutant.id || mutant.mutantId)}
-                className={`flex flex-col rounded-xl border transition-all cursor-pointer p-3 ${
+                key={mutantKey}
+                className={`flex flex-col rounded-xl border transition-all p-3 ${
                   isKilled
                     ? 'bg-emerald-950/15 border-emerald-500/25 hover:border-emerald-500/40'
                     : isStillborn
-                    ? 'bg-slate-900/30 border-slate-800 hover:border-slate-700 opacity-80'
+                    ? 'bg-slate-900/30 border-slate-800 hover:border-slate-700 opacity-85'
                     : 'bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  onClick={() => toggleMutant(mutantKey)}
+                  className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {isKilled ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                         KILLED
                       </span>
                     ) : isStillborn ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/40 text-slate-400 border border-slate-600/40" title="Не скомпилировался (Stillborn Mutant) - исключен из скора">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/40 text-slate-300 border border-slate-600/40 shrink-0" title="Не скомпилировался (Stillborn Mutant) - исключен из скора">
                         STILLBORN
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 shrink-0">
                         SURVIVED
                       </span>
                     )}
 
-                    <span className="font-mono text-xs font-semibold text-white">
+                    <span className="font-mono text-xs font-semibold text-white truncate">
                       {mutant.name}
                     </span>
 
                     {mutant.line > 0 && (
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-slate-300 font-mono shrink-0">
                         (строка {mutant.line})
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     {isKilled && mutant.killedBy && (
-                      <span className="hidden sm:inline text-xs text-emerald-400/90 font-mono">
-                        убит: {mutant.killedBy}()
+                      <span className="hidden sm:inline text-xs text-emerald-300 font-mono">
+                        убит: {formatKilledBy(mutant.killedBy)}
                       </span>
                     )}
                     {isStillborn && (
-                      <span className="text-xs text-amber-400 font-medium">
+                      <span className="text-xs text-amber-300 font-medium">
                         Ошибка компиляции
                       </span>
                     )}
                     {!isKilled && !isStillborn && (
-                      <span className="text-xs text-rose-400 font-medium">
+                      <span className="text-xs text-rose-300 font-medium">
                         Брешь в тестах
                       </span>
                     )}
                     {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-slate-400" />
+                      <ChevronUp className="w-4 h-4 text-slate-300" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-slate-300" />
                     )}
                   </div>
-                </div>
+                </button>
 
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div
+                      key={`mutant-detail-${mutantKey}`}
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}

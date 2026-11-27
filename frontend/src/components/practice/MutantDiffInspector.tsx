@@ -124,7 +124,9 @@ void testDefectResistance_Line${mutant.line}() {
       {isKilled && mutant.killedBy && (
         <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-900/30 text-[11px] text-emerald-300 flex items-center gap-2">
           <span>Убит тестовым методом:</span>
-          <span className="font-mono font-bold text-emerald-200">{mutant.killedBy}()</span>
+          <span className="font-mono font-bold text-emerald-200">
+            {mutant.killedBy.endsWith(')') ? mutant.killedBy : `${mutant.killedBy}()`}
+          </span>
         </div>
       )}
 

@@ -169,7 +169,7 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
           <>
             <activeArena.icon className={`w-3.5 h-3.5 shrink-0 ${activeArena.theme.iconColor}`} />
             <span className="font-extrabold">{activeArena.shortLabel}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${activeArena.theme.badgeStyle}`}>
+            <span className={`hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${activeArena.theme.badgeStyle}`}>
               {activeArena.badge.split(' ')[0]}
             </span>
           </>
@@ -178,7 +178,7 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
             <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
             <span className="hidden sm:inline">Инженерные Арены</span>
             <span className="sm:hidden">Арены</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+            <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
               5
             </span>
           </>

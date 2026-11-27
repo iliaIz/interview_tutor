@@ -56,6 +56,19 @@ export const App: React.FC = () => {
   const activeTopicBugHunt = useAppStore((s) => s.activeTopicBugHunt);
   const activeSystemDesignScenario = useAppStore((s) => s.activeSystemDesignScenario);
   const activeTriageIncident = useAppStore((s) => s.activeTriageIncident);
+  const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
+  const activeTransactionLabScenarioId = useAppStore((s) => s.activeTransactionLabScenarioId);
+
+  const isPracticeIdeActive =
+    currentStudioTab === 'practice' &&
+    activePracticeChallenge !== null &&
+    activeTransactionLabScenarioId === null;
+
+  React.useEffect(() => {
+    if (isPracticeIdeActive && typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [isPracticeIdeActive, activePracticeChallenge?.id]);
 
   React.useEffect(() => {
     // Initial Auth, Health & Dynamic Voice Config Discovery (mount-only)
@@ -124,14 +137,20 @@ export const App: React.FC = () => {
 
   // 3. Authenticated: Render full studio with dynamic lazy suspense
   return (
-    <div className="min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose font-sans">
+    <div
+      className={
+        isPracticeIdeActive
+          ? 'h-dvh overflow-hidden flex flex-col bg-pastel-bg text-pastel-text relative selection:bg-pastel-rose selection:text-pastel-accentRose font-sans'
+          : 'min-h-screen flex flex-col bg-pastel-bg text-pastel-text relative pb-24 overflow-x-hidden selection:bg-pastel-rose selection:text-pastel-accentRose font-sans'
+      }
+    >
       {/* Floating Ambient Mesh Auras for High-End Luxury Feel */}
       <div className="fixed -top-28 -left-28 w-96 h-96 rounded-full bg-gradient-to-br from-pastel-accentRose/15 to-transparent blur-3xl pointer-events-none animate-aura-slow z-0" />
       <div className="fixed top-1/3 -right-28 w-[420px] h-[420px] rounded-full bg-gradient-to-bl from-pastel-accentViolet/15 via-pastel-lavender/30 to-transparent blur-3xl pointer-events-none animate-aura-reverse z-0" />
       <div className="fixed -bottom-20 left-1/3 w-[360px] h-[360px] rounded-full bg-gradient-to-tr from-pastel-peach/30 to-transparent blur-3xl pointer-events-none z-0" />
 
-      {/* Studio Segmented Navigation Header */}
-      <StudioHeader />
+      {/* Studio Segmented Navigation Header (suppressed in Unified Arena IDE Shell) */}
+      {!isPracticeIdeActive && <StudioHeader />}
 
       {/* Main Content Area wrapped in Resilient Error Boundary & Suspense */}
       <PracticeVoiceProvider>
@@ -139,7 +158,7 @@ export const App: React.FC = () => {
           fallbackTitle="Студия временно восстанавливает отображение"
           fallbackDescription="Произошел сбой при отрисовке модуля. Вы можете повторить попытку или перейти в другой раздел."
         >
-          <main className="flex-1 flex flex-col">
+          <main className={isPracticeIdeActive ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : 'flex-1 flex flex-col'}>
             <Suspense fallback={<StudioSuspenseLoader />}>
               {(currentStudioTab === 'academy' || currentStudioTab === 'roadmaps') && <AcademyStudio />}
               

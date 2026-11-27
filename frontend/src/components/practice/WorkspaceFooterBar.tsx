@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   RotateCcw,
@@ -7,9 +7,11 @@ import {
   Shield,
   Bug,
   AlertTriangle,
-  Sparkles
+  CheckCircle2
 } from 'lucide-react';
 import { EvaluationStageState } from './useWorkspaceRunner';
+import { filterActiveAstViolations } from '../../utils/astRules';
+import { NativeModalDialog } from '../shared/NativeModalDialog';
 
 interface WorkspaceFooterBarProps {
   hasGoldenMaster: boolean;
@@ -20,7 +22,7 @@ interface WorkspaceFooterBarProps {
   isSandboxRunning: boolean;
   isPracticeEvaluating: boolean;
   isWriteTheTestsMode: boolean;
-  liveAstViolations: Array<{ id: string; text: string }>;
+  liveAstViolations: Array<{ id: string; text: string; isViolation?: boolean }>;
   evaluationStage: EvaluationStageState;
   evaluationTimer: number;
   onRunSandbox: () => void;
@@ -44,129 +46,173 @@ export const WorkspaceFooterBar: React.FC<WorkspaceFooterBarProps> = ({
   onStartEvaluation,
   onToggleReviewConsole
 }) => {
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  const activeAstViolations = filterActiveAstViolations(
+    liveAstViolations.map((v) => ({ ...v, isViolation: v.isViolation ?? v.id !== 'clean' }))
+  );
+
   return (
-    <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-      {/* Left utility buttons */}
-      <div className="flex items-center gap-2">
-        {hasGoldenMaster && (
-          <button
-            type="button"
-            onClick={onOpenDiff}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-bold transition border border-emerald-500/30 cursor-pointer"
-          >
-            <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Golden Master Diff</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onSaveDraft}
-          disabled={isSavingDraft || isPracticeEvaluating || isSandboxRunning}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700 cursor-pointer"
-          title="Сохранить черновик"
-        >
-          {isSavingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">Сохранить</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onResetWorkspace}
-          disabled={isPracticeEvaluating || isSandboxRunning}
-          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer"
-          title="Сбросить воркспейс к начальному состоянию"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Center AST live indicator */}
-      <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs">
-        {liveAstViolations.length === 0 ? (
-          <span className="text-emerald-400 font-medium flex items-center gap-1.5 text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Инварианты соблюдены (Clock, BigDecimal)</span>
-          </span>
-        ) : (
-          <span
-            className="text-amber-300 font-medium flex items-center gap-1.5 text-[11px]"
-            title={liveAstViolations.map((v) => v.text).join('\n')}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span className="max-w-[240px] truncate">{liveAstViolations[0].text}</span>
-            {liveAstViolations.length > 1 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-amber-400/20 text-[10px]">
-                +{liveAstViolations.length - 1}
-              </span>
-            )}
-          </span>
-        )}
-      </div>
-
-      {/* Right execution actions */}
-      <div className="flex items-center gap-2">
-        {/* Fast In-Memory Java 21 Sandbox / Mutation Run Button */}
-        <button
-          type="button"
-          onClick={onRunSandbox}
-          disabled={isSandboxRunning || isPracticeEvaluating}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl font-bold text-xs transition shadow-md active:scale-95 cursor-pointer disabled:opacity-50 ${
-            isWriteTheTestsMode
-              ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white shadow-rose-600/25'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25'
-          }`}
-          title={
-            isWriteTheTestsMode
-              ? 'Прогон тестов кандидата против мутантов байткода (Ctrl+Enter)'
-              : 'Быстрый прогон JUnit 5 тестов в Java 21 Sandbox (Ctrl+Enter)'
-          }
-        >
-          {isSandboxRunning ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : isWriteTheTestsMode ? (
-            <Bug className="w-3.5 h-3.5" />
-          ) : (
-            <Play className="w-3.5 h-3.5 fill-current" />
+    <>
+      <div className="p-2.5 sm:p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0">
+        {/* Left utility buttons */}
+        <div className="flex items-center gap-2">
+          {hasGoldenMaster && (
+            <button
+              type="button"
+              onClick={onOpenDiff}
+              className="touch-target-44 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-bold transition border border-emerald-500/30 cursor-pointer"
+            >
+              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Golden Master Diff</span>
+            </button>
           )}
-          <span>
-            {isSandboxRunning
-              ? isWriteTheTestsMode
-                ? 'Анализ мутаций...'
-                : 'Запуск тестов...'
-              : isWriteTheTestsMode
-              ? '▶ Проверить на мутантах'
-              : '▶ Тесты (Java 21)'}
-          </span>
-          <span className="hidden sm:inline text-[10px] opacity-75 font-mono">(Ctrl+↵)</span>
-        </button>
 
-        {/* Senior AI Review Button */}
-        {isPracticeEvaluating ? (
           <button
             type="button"
-            onClick={onToggleReviewConsole}
-            title="Нажмите, чтобы развернуть/свернуть детальную консоль статусов Senior AI Review"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/40 text-slate-200 text-xs font-bold shadow-sm hover:border-pastel-accentRose hover:bg-slate-750 transition cursor-pointer active:scale-95"
+            onClick={onSaveDraft}
+            disabled={isSavingDraft || isPracticeEvaluating || isSandboxRunning}
+            className="touch-target-44 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition border border-slate-700 cursor-pointer disabled:opacity-50"
+            title="Сохранить черновик (Ctrl+S)"
           >
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose flex-shrink-0" />
-            <span className="truncate max-w-[240px]">
-              {evaluationStage.label || 'Senior AI Рецензия...'}
+            {isSavingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">Сохранить</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsResetConfirmOpen(true)}
+            disabled={isPracticeEvaluating || isSandboxRunning}
+            aria-label="Сбросить воркспейс к начальному состоянию"
+            className="touch-target-44 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-slate-300 hover:text-rose-300 hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+            title="Сбросить воркспейс к начальному состоянию"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline text-xs font-medium">Сброс</span>
+          </button>
+        </div>
+
+        {/* Center AST live indicator */}
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-xs">
+          {activeAstViolations.length === 0 ? (
+            <span className="text-emerald-300 font-medium flex items-center gap-1.5 text-[11px]">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>0 нарушений AST</span>
             </span>
-            <span className="text-[10px] text-pastel-muted font-mono opacity-75">({evaluationTimer}с)</span>
-          </button>
-        ) : (
+          ) : (
+            <span
+              className="text-amber-300 font-medium flex items-center gap-1.5 text-[11px]"
+              title={activeAstViolations.map((v) => v.text).join('\n')}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="max-w-[240px] truncate">{activeAstViolations[0].text}</span>
+              {activeAstViolations.length > 1 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-400/20 text-[10px]">
+                  +{activeAstViolations.length - 1}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* Right execution actions */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onStartEvaluation}
-            disabled={isSandboxRunning}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-pastel-accentRose via-pink-500 to-pastel-accentViolet text-white font-bold text-xs hover:opacity-95 transition shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+            onClick={onRunSandbox}
+            disabled={isSandboxRunning || isPracticeEvaluating}
+            className={`touch-target-44 flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-2xl font-bold text-xs transition shadow-md cursor-pointer disabled:opacity-50 ${
+              isWriteTheTestsMode
+                ? 'bg-[#B5433E] hover:bg-[#9B3B36] text-white'
+                : 'bg-emerald-700 hover:bg-emerald-600 text-white'
+            }`}
+            title={
+              isWriteTheTestsMode
+                ? 'Прогон тестов кандидата против мутантов байткода (Ctrl+Enter)'
+                : 'Быстрый прогон JUnit 5 тестов в Java 21 Sandbox (Ctrl+Enter)'
+            }
           >
-            <Shield className="w-3.5 h-3.5" />
-            <span>Senior AI Review</span>
+            {isSandboxRunning ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : isWriteTheTestsMode ? (
+              <Bug className="w-3.5 h-3.5" />
+            ) : (
+              <Play className="w-3.5 h-3.5 fill-current" />
+            )}
+            <span>
+              {isSandboxRunning
+                ? isWriteTheTestsMode
+                  ? 'Анализ мутаций...'
+                  : 'Запуск тестов...'
+                : isWriteTheTestsMode
+                ? 'Проверить на мутантах'
+                : 'Тесты (Java 21)'}
+            </span>
+            <span className="hidden sm:inline text-[10px] opacity-85 font-mono">(Ctrl+↵)</span>
           </button>
-        )}
+
+          {isPracticeEvaluating ? (
+            <button
+              type="button"
+              onClick={onToggleReviewConsole}
+              title="Нажмите, чтобы развернуть/свернуть детальную консоль статусов Senior AI Review"
+              className="touch-target-44 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-pastel-accentRose/50 text-slate-100 text-xs font-bold shadow-sm hover:border-pastel-accentRose transition cursor-pointer"
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-pastel-accentRose shrink-0" />
+              <span className="truncate max-w-[200px]">
+                {evaluationStage.label || 'Senior AI Рецензия...'}
+              </span>
+              <span className="text-[10px] text-slate-300 font-mono">({evaluationTimer}с)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onStartEvaluation}
+              disabled={isSandboxRunning}
+              className="touch-target-44 flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-2xl bg-[#B5433E] hover:bg-[#9B3B36] text-white font-bold text-xs transition shadow-md cursor-pointer disabled:opacity-50"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Senior AI Review</span>
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Native <dialog> Reset Confirmation */}
+      <NativeModalDialog
+        isOpen={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        ariaLabelledBy="reset-workspace-dialog-title"
+        panelClassName="relative w-full max-w-md rounded-2xl bg-white border border-pastel-border shadow-2xl overflow-hidden text-pastel-text"
+      >
+        <div className="p-5 space-y-3">
+          <h3 id="reset-workspace-dialog-title" className="text-sm font-bold text-pastel-text">
+            Сбросить воркспейс к начальному состоянию?
+          </h3>
+          <p className="text-xs text-pastel-muted leading-relaxed">
+            Все текущие правки в файлах задачи и локальный черновик будут удалены и заменены исходным шаблоном.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsResetConfirmOpen(false)}
+              className="px-3.5 py-2 rounded-xl border border-pastel-border text-xs font-semibold text-pastel-text hover:bg-pastel-bg transition cursor-pointer"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsResetConfirmOpen(false);
+                onResetWorkspace();
+              }}
+              className="px-4 py-2 rounded-xl bg-[#B5433E] hover:bg-[#9B3B36] text-white text-xs font-bold transition cursor-pointer"
+            >
+              Сбросить файлы
+            </button>
+          </div>
+        </div>
+      </NativeModalDialog>
+    </>
   );
 };

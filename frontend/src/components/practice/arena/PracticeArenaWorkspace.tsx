@@ -25,7 +25,9 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     returnToAcademyStep,
     activeWhiteboardState,
     isWhiteboardOpen,
-    setIsWhiteboardOpen
+    setIsWhiteboardOpen,
+    practiceElapsedSeconds,
+    setPracticeElapsedSeconds
   } = useAppStore();
 
   const [mobileTab, setMobileTab] = useState<'spec' | 'editor'>('editor');
@@ -38,11 +40,23 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
 
   const { handleStartVoiceDiscussion } = usePracticeFindingBridge();
 
+  // Live visibility-aware 1s workspace timer
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        setPracticeElapsedSeconds((prev) => prev + 1);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [activePracticeChallenge.id, setPracticeElapsedSeconds]);
+
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden bg-pastel-bg relative">
+    <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-pastel-bg relative">
       <PracticeArenaHeader
         title={activePracticeChallenge.title}
         badge={activePracticeChallenge.badge}
+        difficulty={activePracticeChallenge.difficulty}
+        elapsedSeconds={practiceElapsedSeconds}
         mobileTab={mobileTab}
         setMobileTab={setMobileTab}
         isFocusMode={isFocusMode}
