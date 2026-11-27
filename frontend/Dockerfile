@@ -15,6 +15,7 @@ COPY frontend/package*.json frontend/tsconfig*.json frontend/vite.config.ts fron
 RUN npm ci
 
 COPY frontend/index.html ./
+COPY frontend/scripts/ ./scripts/
 COPY frontend/public/ ./public/
 COPY frontend/src/ ./src/
 

@@ -1,0 +1,35 @@
+# Git & IDE
+.git
+.github
+.idea
+.playwright-mcp
+.venv
+__pycache__
+_temp_enhorse
+
+# Dependencies & Local Builds
+node_modules
+frontend/node_modules
+backend/node_modules
+backend/dist
+shared/node_modules
+shared/dist
+
+# Logs & Diagnostics
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Audio & Temporary Data
+audio/
+scratch/
+scratch001/
+/scripts/
+backend/data/
+backend/storage/
+*.db*
+
+# Environment & Documentation
+.env
+.env.local
+*.md

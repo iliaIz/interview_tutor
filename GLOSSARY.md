@@ -115,3 +115,15 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
   - *Avoid*: Hardcoded `88%` radar fixtures, fake `100% match` diffs, `isPassed` ignoring `failCount > 0`, `110%` weight sums
   - *Durable Owner*: `frontend-practice-telemetry`
   - *Invariants*: Clean AST state renders zero warning icons; `PracticeEvaluationModal` fires pass/confetti strictly when compilation, tests, Loom safety, and score gates all pass; pre-run benchmarks explicitly display empty/not-run state.
+- **Adaptive Workbench Grid:** Single `display: grid` shell in `PracticeArenaWorkspace` driven by CSS custom properties (`--spec-w`, `--copilot-w`) and accessible `role="separator"` drag sashes that coordinate Spec, Editor, and Co-Pilot column tracks without per-frame React re-renders or `CodeMirror` width thrashing.
+  - *Avoid*: Hardcoded competing `md:w-[%]` + `w-[px]` flex widths, `window.innerWidth` resize hacks without clamping, unkeyboardable drag dividers
+  - *Durable Owner*: `workbenchLayoutKernel` (`frontend-practice-arena`)
+  - *Invariants*: Central `WorkspaceEditor` track never shrinks below `MIN_EDITOR_WIDTH_PX` (`420px` when auto-collapse triggers, `380px` hard clamp on drag); drag motion commits live to CSS variables via `requestAnimationFrame` and persists state once on `pointerup`.
+- **Mode-Coupled Dock Memory:** Independent width profiles inside `PracticeCopilotDock` for conversational prose (`Напарник`: `380px` default) versus wide code/diff/architecture canvases (`Доска ИИ`: `520px` default and `50%` expandable preset), preventing chat bubbles from stretching overly wide and diffs/diagrams from wrapping awkwardly.
+  - *Avoid*: Single shared fixed `380px` rail for both text chat and wide Java diffs; full-screen whiteboard overlays that occlude the user's editor
+  - *Durable Owner*: `usePracticeTutorStore` + `PracticeCopilotDock`
+  - *Invariants*: Toggling `Напарник <-> Доска ИИ` smoothly restores each tab's stored/preset width; expanding `Доска ИИ` never covers the active `WorkspaceEditor`.
+- **Spatial Spec Rail:** Unified single-source-of-truth collapse state (`isSpecCollapsed`) shared by the inline left-pane chevron trigger (`Ctrl+B`), left-edge `32px` vertical restore rail (`Спецификация`), and header `Focus Mode` toggle, with automatic collapse when expanding `Доска ИИ` would crush the center editor.
+  - *Avoid*: Separate `isFocusMode` and `isSpecCollapsed` booleans that drift out of sync; adding redundant 4th collapse arrows to the right Co-Pilot rail
+  - *Durable Owner*: `usePracticeTutorStore` + `PracticeArenaWorkspace`
+  - *Invariants*: `Focus Mode` header active state strictly equals `isSpecCollapsed === true`; manual expand of Spec works in one click from the vertical left rail.

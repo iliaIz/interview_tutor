@@ -99,8 +99,13 @@ export const HintTiersDropdown: React.FC<Props> = ({ domain, onSelectTier }) => 
       setIsOpen(nextOpen);
       if (nextOpen) syncPosition();
     };
+    const handleReposition = () => syncPosition();
     pop.addEventListener('toggle', handleToggle);
-    return () => pop.removeEventListener('toggle', handleToggle);
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      pop.removeEventListener('toggle', handleToggle);
+      window.removeEventListener('resize', handleReposition);
+    };
   }, []);
 
   const handleToggleClick = () => {
@@ -149,8 +154,8 @@ export const HintTiersDropdown: React.FC<Props> = ({ domain, onSelectTier }) => 
           insetBlockEnd: 'auto',
           insetInlineEnd: 'auto'
         }}
-        className={`w-[264px] bg-white rounded-2xl shadow-2xl border border-pastel-border p-1.5 z-50 flex-col gap-0.5 ${
-          isOpen ? 'flex' : 'hidden open:flex'
+        className={`w-[264px] max-h-[60dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-pastel-border p-1.5 z-50 flex-col gap-0.5 ${
+          isOpen ? 'flex' : '[&:popover-open]:flex'
         }`}
       >
         {tiers.map((tier, i) => (

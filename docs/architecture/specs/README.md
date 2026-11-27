@@ -63,6 +63,7 @@ All subsystems in InterviewPrep AI are governed by dedicated, single-responsibil
 | **58** | **Unified `TutorActiveContext` & `TutorTransportPort`** | [`58_TUTOR_ACTIVE_CONTEXT_AND_TRANSPORT_PORT.md`](58_TUTOR_ACTIVE_CONTEXT_AND_TRANSPORT_PORT.md) | Unify 5 Copilot arenas on `TutorActiveContext` + injectable `TutorTransportPort`, fix `arena: 'practice'` & 5-map `/rule-grounding`, selectorize `PracticeTutorDrawer` |
 | **59** | **`useVoiceConfigStore` & `questionsSlice` Pruning** | [`59_VOICE_CONFIG_STORE_AND_QUESTIONS_SLICE_PRUNING.md`](59_VOICE_CONFIG_STORE_AND_QUESTIONS_SLICE_PRUNING.md) | Merge `runtimeConfig` & 10 `localStorage` keys into `useVoiceConfigStore`, eliminate `CustomEvent`/updater side effects, prune dead `questionsSlice` state |
 | **60** | **Unified Practice IDE Shell & UX Remediation** | [`60_PRACTICE_WORKSPACE_UX_REMEDIATION.md`](60_PRACTICE_WORKSPACE_UX_REMEDIATION.md) | `48px` `Unified Arena IDE Shell`, docked `AI-Напарник \| Доска ИИ` rail, `Stealth Co-Pilot Mode`, native `<dialog>`/`popover`, `Truth-in-Telemetry`, WCAG 2.1 AA |
+| **61** | **Adaptive Workbench Grid & Expandable Board** | [`61_ADAPTIVE_WORKBENCH_RESIZE_AND_COLLAPSE.md`](61_ADAPTIVE_WORKBENCH_RESIZE_AND_COLLAPSE.md) | CSS Grid `--spec-w`/`--copilot-w` splitters, unified `Spatial Spec Rail` + `Focus Mode` (`Ctrl+B`), `Mode-Coupled Dock Memory` (`Напарник` vs `Доска ИИ`), auto-collapse on expand |
 
 ---
 

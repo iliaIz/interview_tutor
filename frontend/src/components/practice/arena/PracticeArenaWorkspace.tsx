@@ -69,9 +69,13 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
   }, [toggleCompass]);
 
   const isDockVisible = isTutorOpen && !isCopilotStealth;
-  const showStealthRestorePill = isCopilotStealth && (isVoiceConnected || isVoiceError);
+  const showStealthRestorePill = isCopilotStealth;
 
   const handleSelectDockTab = (tab: 'tutor' | 'whiteboard') => {
+    if (isCopilotStealth) {
+      exitStealthMode(tab);
+      return;
+    }
     if (isDockVisible && rightDockTab === tab) {
       toggleTutorDrawer(false);
     } else {
@@ -84,16 +88,32 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
     <button
       type="button"
       onClick={() => exitStealthMode('tutor')}
-      aria-label={isVoiceError ? 'Восстановить панель AI: ошибка связи' : 'Восстановить панель AI: в эфире'}
-      className={`touch-target-44 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
+      aria-label={
+        isVoiceError
+          ? 'Восстановить панель AI: ошибка связи'
+          : isVoiceConnected
+          ? 'Восстановить панель AI: в эфире'
+          : 'Вернуть панель AI из тихого режима'
+      }
+      className={`touch-target-44 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs shrink-0 ${
         isVoiceError
           ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-          : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+          : isVoiceConnected
+          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+          : 'bg-pastel-rose text-pastel-accentRoseText border-pastel-accentRose/40 hover:bg-[#B5433E] hover:text-white'
       }`}
       title="Вернуть панель AI-Напарника из тихого режима"
     >
-      <Radio className={`w-3.5 h-3.5 ${isVoiceError ? 'text-rose-700' : 'text-emerald-700'}`} />
-      <span>{isVoiceError ? 'Ошибка связи' : 'AI в эфире'}</span>
+      <Radio
+        className={`w-3.5 h-3.5 ${
+          isVoiceError
+            ? 'text-rose-700'
+            : isVoiceConnected
+            ? 'text-emerald-700'
+            : 'text-current'
+        }`}
+      />
+      <span>{isVoiceError ? 'Ошибка связи' : isVoiceConnected ? 'AI в эфире' : 'Вернуть AI'}</span>
     </button>
   ) : (
     <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-pastel-border gap-0.5 shrink-0">
@@ -109,7 +129,7 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
         }`}
       >
         <Bot className="w-3.5 h-3.5 text-current" />
-        <span className="hidden xl:inline">AI-Напарник</span>
+        <span className="hidden lg:inline">Напарник</span>
       </button>
 
       <button
@@ -124,7 +144,7 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
         }`}
       >
         <Sparkles className="w-3.5 h-3.5 text-current" />
-        <span className="hidden xl:inline">Доска ИИ</span>
+        <span className="hidden lg:inline">Доска</span>
         {activeWhiteboardState?.code && (
           <span className="w-1.5 h-1.5 rounded-full bg-[#B5433E]" />
         )}
@@ -164,8 +184,10 @@ export const PracticeArenaWorkspace: React.FC<PracticeArenaWorkspaceProps> = ({ 
             isFocusMode
               ? 'hidden'
               : mobileTab === 'spec'
-              ? 'flex flex-col w-full md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
-              : 'hidden md:flex flex-col md:w-[38%] 2xl:w-[30%] 2xl:max-w-[780px]'
+              ? 'flex flex-col w-full md:w-[34%] 2xl:w-[30%] 2xl:max-w-[780px]'
+              : isDockVisible
+              ? 'hidden md:flex flex-col md:w-[33%] xl:w-[31%] 2xl:w-[28%] 2xl:max-w-[680px]'
+              : 'hidden md:flex flex-col md:w-[37%] 2xl:w-[30%] 2xl:max-w-[780px]'
           }`}
         >
           <ChallengeSpecPanel />

@@ -1,10 +1,28 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bot, Sparkles, X } from 'lucide-react';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { PracticeTutorPanelContent } from './PracticeTutorDrawer';
 import { WhiteboardPanelContent } from '../../WhiteboardPanelContent';
 import { NativeModalDialog } from '../../shared/NativeModalDialog';
+
+function useIsDesktopLg(): boolean {
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia('(min-width: 1024px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return isDesktop;
+}
 
 export const PracticeCopilotDock: React.FC = () => {
   const isOpen = usePracticeTutorStore((s) => s.isOpen);
@@ -14,9 +32,10 @@ export const PracticeCopilotDock: React.FC = () => {
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
 
   const activeWhiteboardState = useAppStore((s) => s.activeWhiteboardState);
-  const [hasEverOpened, setHasEverOpened] = React.useState(false);
+  const [hasEverOpened, setHasEverOpened] = useState(false);
+  const isDesktopLg = useIsDesktopLg();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setHasEverOpened(true);
     }
@@ -99,34 +118,34 @@ export const PracticeCopilotDock: React.FC = () => {
     </div>
   );
 
-  return (
-    <>
-      {/* Desktop >= lg: Docked sibling rail inside Workspace (never overlaps header/footer) */}
+  // Mount ONLY the desktop <aside> OR the mobile/tablet <dialog> so dialog.showModal()
+  // never marks the desktop page inert when hidden under a CSS media query.
+  if (isDesktopLg) {
+    return (
       <aside
         aria-label="Панель AI Co-Pilot"
         className={
           isVisible
-            ? 'hidden lg:flex flex-col w-[380px] xl:w-[420px] shrink-0 border-l border-pastel-border bg-white h-full min-h-0 overflow-hidden'
+            ? 'flex flex-col w-[340px] xl:w-[380px] 2xl:w-[410px] shrink-0 border-l border-pastel-border bg-white h-full min-h-0 overflow-hidden'
             : 'hidden'
         }
       >
         {dockTabsBar(true)}
         {dockBody}
       </aside>
+    );
+  }
 
-      {/* Mobile / Tablet < lg: Top-layer native <dialog> drawer */}
-      <div className="lg:hidden">
-        <NativeModalDialog
-          isOpen={isVisible}
-          onClose={() => toggleOpen(false)}
-          ariaLabel="AI-Напарник и Доска ИИ"
-          panelClassName="w-full max-w-lg h-[88dvh] bg-white rounded-3xl border border-pastel-border shadow-2xl flex flex-col overflow-hidden"
-        >
-          {dockTabsBar(true)}
-          {dockBody}
-        </NativeModalDialog>
-      </div>
-    </>
+  return (
+    <NativeModalDialog
+      isOpen={isVisible}
+      onClose={() => toggleOpen(false)}
+      ariaLabel="AI-Напарник и Доска ИИ"
+      panelClassName="w-full max-w-lg h-[88dvh] bg-white rounded-3xl border border-pastel-border shadow-2xl flex flex-col overflow-hidden"
+    >
+      {dockTabsBar(true)}
+      {dockBody}
+    </NativeModalDialog>
   );
 };
 

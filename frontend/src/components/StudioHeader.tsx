@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Sparkles, BookOpen, Brain, Building2 } from 'lucide-react';
+import { Sparkles, BookOpen, Brain } from 'lucide-react';
 import { MemoryRadarDrawer } from './MemoryRadarDrawer';
 import { fetchFsrsQueue } from '../services/fsrsApi';
 import { GlobalAudioControlPill } from './voice/GlobalAudioControlPill';
@@ -53,16 +53,20 @@ export const StudioHeader: React.FC = () => {
           </div>
         </div>
 
-        {/* Nav Tabs Bar */}
+        {/* Nav Tabs Bar (overflow-visible so ArenaMegaMenu dropdown is never clipped) */}
         <div className="w-full md:w-auto md:flex-1 min-w-0 md:mx-2 relative flex justify-center order-3 md:order-2">
-          <nav className="w-full md:w-auto max-w-full flex items-center justify-between md:justify-center overflow-x-auto no-scrollbar bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs gap-0.5 sm:gap-1">
+          <nav
+            aria-label="Основные разделы студии"
+            className="w-full md:w-auto flex items-center justify-between md:justify-center bg-pastel-bg/90 p-0.5 sm:p-1 rounded-2xl border border-pastel-border shadow-2xs gap-0.5 sm:gap-1 overflow-visible"
+          >
             {/* 1. Академия */}
             <button
+              type="button"
               onClick={() => {
                 setStudioTab('academy');
                 setIsArenaMenuOpen(false);
               }}
-              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+              className={`flex-1 md:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] whitespace-nowrap ${
                 currentStudioTab === 'academy' || currentStudioTab === 'roadmaps'
                   ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
                   : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
@@ -74,18 +78,19 @@ export const StudioHeader: React.FC = () => {
                   : 'text-pastel-muted'
               }`} />
               <span>Академия</span>
-              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+              <span className="hidden xl:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
                 8
               </span>
             </button>
 
             {/* 2. База знаний (Теория) */}
             <button
+              type="button"
               onClick={() => {
                 setStudioTab('theory');
                 setIsArenaMenuOpen(false);
               }}
-              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+              className={`flex-1 md:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] whitespace-nowrap ${
                 currentStudioTab === 'theory'
                   ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
                   : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
@@ -96,34 +101,12 @@ export const StudioHeader: React.FC = () => {
               }`} />
               <span className="hidden sm:inline">База знаний</span>
               <span className="sm:hidden">Теория</span>
-              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+              <span className="hidden xl:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
                 816
               </span>
             </button>
 
-            {/* 3. Целевая подготовка (Компании) */}
-            <button
-              onClick={() => {
-                setStudioTab('companies');
-                setIsArenaMenuOpen(false);
-              }}
-              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
-                currentStudioTab === 'companies'
-                  ? 'bg-amber-400 text-amber-950 shadow-xs border border-amber-500/60'
-                  : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
-              }`}
-            >
-              <Building2 className={`w-3.5 h-3.5 shrink-0 ${
-                currentStudioTab === 'companies' ? 'text-amber-950' : 'text-amber-600'
-              }`} />
-              <span className="hidden sm:inline">Компании</span>
-              <span className="sm:hidden">Треки</span>
-              <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-amber-100 text-amber-950 border border-amber-300">
-                Райф
-              </span>
-            </button>
-
-            {/* 3. Инженерные Арены Mega-Menu */}
+            {/* 3. Инженерные Арены & Треки компаний (Mega-Menu) */}
             <ArenaMegaMenu
               isOpen={isArenaMenuOpen}
               onToggle={() => setIsArenaMenuOpen(!isArenaMenuOpen)}

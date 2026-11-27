@@ -155,31 +155,34 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
   const isArenaActive = Boolean(activeArena);
 
   return (
-    <div className="relative" ref={arenaMenuRef}>
+    <div className="relative flex-1 md:flex-none" ref={arenaMenuRef}>
       <button
+        type="button"
         onClick={onToggle}
-        className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] ${
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+        className={`w-full md:w-auto flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer relative shrink-0 active:scale-95 touch-manipulation min-h-[32px] whitespace-nowrap ${
           isArenaActive || isOpen
             ? 'bg-white text-pastel-text shadow-xs border border-pastel-border/60'
             : 'text-pastel-muted hover:text-pastel-text hover:bg-white/40'
         }`}
-        title="Инженерные полигоны: System Design, Machine Coding, Баг-Хант, Триаж Аварий"
+        title="Инженерные полигоны: System Design, Machine Coding, Баг-Хант, Триаж, HR и Компании"
       >
         {activeArena ? (
           <>
             <activeArena.icon className={`w-3.5 h-3.5 shrink-0 ${activeArena.theme.iconColor}`} />
             <span className="font-extrabold">{activeArena.shortLabel}</span>
-            <span className={`hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${activeArena.theme.badgeStyle}`}>
+            <span className={`hidden xl:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${activeArena.theme.badgeStyle}`}>
               {activeArena.badge.split(' ')[0]}
             </span>
           </>
         ) : (
           <>
             <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-            <span className="hidden sm:inline">Инженерные Арены</span>
-            <span className="sm:hidden">Арены</span>
-            <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
-              5
+            <span className="hidden lg:inline">Инженерные Арены</span>
+            <span className="lg:hidden">Арены</span>
+            <span className="hidden xl:inline text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 bg-pastel-rose text-pastel-accentRoseText border border-pastel-accentRose/30">
+              {engineeringArenas.length}
             </span>
           </>
         )}
@@ -190,19 +193,19 @@ export const ArenaMegaMenu: React.FC<{ isOpen: boolean; onToggle: () => void; on
       </button>
 
       {isOpen && (
-        <div className="absolute left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 top-full mt-2.5 w-[calc(100vw-1.5rem)] max-w-sm sm:max-w-md md:w-[520px] bg-white/95 backdrop-blur-2xl border border-pastel-border/90 rounded-3xl p-3 sm:p-4 shadow-2xl z-50 font-sans space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-x-3 top-[118px] sm:inset-x-auto sm:absolute sm:right-0 sm:top-full sm:mt-2.5 sm:w-[480px] md:w-[540px] max-h-[75dvh] overflow-y-auto bg-white border border-pastel-border rounded-3xl p-3 sm:p-4 shadow-2xl z-50 font-sans space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between border-b border-pastel-border/60 pb-2.5 px-1">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-500 to-rose-400 flex items-center justify-center text-white text-xs font-bold shadow-xs">
                 <Zap className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="font-extrabold text-xs text-pastel-text">Инженерные Полигоны</div>
+                <div className="font-extrabold text-xs text-pastel-text">Инженерные Полигоны и Треки</div>
                 <div className="text-[10px] text-pastel-muted hidden sm:block">Интерактивные тренажеры для подготовки к Hard Skills</div>
               </div>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pastel-bg text-pastel-muted border border-pastel-border shrink-0">
-              5 арен • 229 задач
+              {engineeringArenas.length} арен
             </span>
           </div>
 

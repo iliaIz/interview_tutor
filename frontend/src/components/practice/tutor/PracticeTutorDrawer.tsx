@@ -205,7 +205,7 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
       </div>
 
       {/* Hints & Quick Chips */}
-      <div className="px-3 py-2 border-b border-pastel-border/50 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0 no-scrollbar">
+      <div className="px-3 py-2 border-b border-pastel-border/50 bg-white flex flex-wrap items-center gap-1.5 shrink-0">
         {isPracticeDomainContext && (
           <HintTiersDropdown
             domain={domain}

@@ -40,24 +40,16 @@ export const GlobalAudioControlPill: React.FC = () => {
           <Headphones className="w-3.5 h-3.5 text-pastel-accentRose" />
         </span>
 
-        <span className="hidden sm:inline font-bold text-[11px] text-pastel-text">
+        <span className="hidden md:inline font-bold text-[11px] text-pastel-text">
           {voice}
-        </span>
-
-        <span className="hidden md:inline text-[10px] text-pastel-muted font-normal">
-          ·
-        </span>
-
-        <span className="hidden md:inline text-[10px] font-medium text-pastel-muted">
-          {turnMode === 'auto' ? '⚡ Авто' : '✋ По очереди'}
         </span>
 
         <span className="hidden xl:inline text-[10px] text-pastel-muted font-normal">
           ·
         </span>
 
-        <span className="hidden xl:inline text-[10px] font-bold text-pastel-accentViolet">
-          {getGradeShort(targetGrade)}
+        <span className="hidden xl:inline text-[10px] font-medium text-pastel-muted">
+          {turnMode === 'auto' ? 'Авто' : 'По очереди'}
         </span>
 
         <ChevronDown className={`w-3 h-3 text-pastel-muted transition-transform duration-200 ${isOpen ? 'rotate-180 text-pastel-accentRose' : ''}`} />

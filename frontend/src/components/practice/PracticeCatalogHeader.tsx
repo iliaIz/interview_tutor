@@ -168,14 +168,15 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
       </div>
 
       {/* Search & Category Filter Bar */}
-      <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar touch-pan-x">
+      <div className="mt-5 pt-4 border-t border-pastel-border/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 w-full md:flex-1">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             const isSelected = selectedCategory === cat.id;
             return (
               <button
                 key={cat.id}
+                type="button"
                 onClick={() => onSelectCategory(cat.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
                   isSelected
@@ -190,7 +191,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
           })}
         </div>
 
-        <div className="relative w-full md:w-72 shrink-0">
+        <div className="relative w-full md:w-64 lg:w-72 shrink-0">
           <Search className="w-4 h-4 text-pastel-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -203,7 +204,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
       </div>
 
       {/* Status Filters */}
-      <div className="mt-4 pt-3 border-t border-pastel-border/60 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+      <div className="mt-4 pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-2 animate-fade-in">
         <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
           <Filter className="w-3 h-3 text-slate-400" />
           Статус:
@@ -238,7 +239,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
 
       {/* Refactoring Levels */}
       {selectedCategory === 'refactoring_kata' && (
-        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-1.5 animate-fade-in">
           <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
             <Shield className="w-3 h-3 text-amber-600" />
             Уровни:
@@ -262,7 +263,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
 
       {/* Design Pattern Archetypes */}
       {selectedCategory === 'design_patterns' && (
-        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-1.5 animate-fade-in">
           <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-indigo-500" />
             Паттерны:
@@ -286,7 +287,7 @@ export const PracticeCatalogHeader: React.FC<Props> = ({
 
       {/* Testing Archetypes */}
       {selectedCategory === 'testing_mutation' && (
-        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-pastel-border/60 flex flex-wrap items-center gap-1.5 animate-fade-in">
           <span className="text-[11px] font-bold text-pastel-muted uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-rose-500" />
             Архетипы:
