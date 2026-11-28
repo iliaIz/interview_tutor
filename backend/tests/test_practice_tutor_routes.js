@@ -5,6 +5,7 @@ const http = require('http');
 const express = require('express');
 const {
   normalizePracticeContext,
+  normalizeIncidentsContext,
   normalizeSystemDesignContext
 } = require('../../shared/dist');
 const { db } = require('../dist/services/db');
@@ -48,6 +49,25 @@ function seedInMemoryChallenge() {
   ).run(
     manifest.id, manifest.slug, manifest.title, manifest.category, 'testing_mutation',
     manifest.badge, manifest.difficulty, 'Java 21 LTS', manifest.shortDescription, manifest.instructionsMarkdown, JSON.stringify(manifest)
+  );
+
+  db.prepare(
+    `INSERT INTO bug_challenges (id, topic_id, topic_name, preset, difficulty, category_badge, title, subtopic, language, code_snippet, bug_explanation, fixed_code, hints_json, is_solved)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  ).run(
+    'bug_spec62_guard',
+    'concurrency',
+    'Concurrency & JMM',
+    'race_condition',
+    'Senior',
+    '⚡ Concurrency',
+    'Spec 62 Check-Then-Act Map Bug',
+    'ConcurrentHashMap atomicity',
+    'java',
+    'if (!map.containsKey(key)) { map.put(key, expensiveInit(key)); }',
+    'Операции containsKey и put не атомарны, два потока одновременно вычисляют и перезаписывают значение.',
+    'public Value getOrCreate(String key) {\n  return map.computeIfAbsent(key, k -> expensiveInit(k));\n}',
+    JSON.stringify(['Посмотри на атомарность связки containsKey + put'])
   );
 }
 
@@ -292,6 +312,81 @@ async function run() {
       assert.strictEqual(data.rules.length, 5, `${ep} must return 5 rules`);
     }
     console.log('✅ GET /*compass-rules (all 5 endpoints): PASSED');
+
+    // 8. Spec 62: Bug Hunt ground-truth hydration, TreeEditDistanceGuard & POST /verify-diagnosis
+    {
+      const leakedFixText = '```java\npublic Value getOrCreate(String key) {\n  return map.computeIfAbsent(key, k -> expensiveInit(k));\n}\n```';
+      mockBehavior = { mode: 'text', text: leakedFixText };
+      const bugHintRes = await postJson(
+        '/hint',
+        {
+          ...normalizeIncidentsContext({
+            bugId: 'bug_spec62_guard',
+            title: 'Spec 62 Check-Then-Act Map Bug',
+            topic: 'concurrency',
+            buggyCode: 'if (!map.containsKey(key)) { map.put(key, expensiveInit(key)); }',
+            tutorRole: 'code_review'
+          }),
+          hintTier: 1
+        }
+      );
+      assert.strictEqual(bugHintRes.status, 200);
+      const bugHintJson = await bugHintRes.json();
+      assert.strictEqual(bugHintJson.leakDetected, true, 'Unsolved Bug Hunt /hint must trigger TreeEditDistanceGuard on fixed_code leak');
+      assert.ok(lastExecOpts.systemPrompt.includes('containsKey и put не атомарны'), 'Server prompt must hydrate bug_explanation from SQLite');
+
+      assert.strictEqual((await postJson('/verify-diagnosis', { diagnosis: '   ' })).status, 400);
+      assert.strictEqual((await postJson('/verify-diagnosis', { bugId: 'non_existent_bug', diagnosis: 'race' })).status, 404);
+
+      mockBehavior = {
+        mode: 'text',
+        text: JSON.stringify({
+          verdict: 'partial',
+          feedback: 'Верно про потоки, но используйте:\n```java\npublic Value getOrCreate(String key) {\n  return map.computeIfAbsent(key, k -> expensiveInit(k));\n}\n```'
+        })
+      };
+      const partialRes = await postJson('/verify-diagnosis', {
+        bugId: 'bug_spec62_guard',
+        diagnosis: 'Тут проблемы с потоками в мапе',
+        context: normalizeIncidentsContext({
+          bugId: 'bug_spec62_guard',
+          title: 'Spec 62 Check-Then-Act Map Bug',
+          buggyCode: 'if (!map.containsKey(key)) { map.put(key, expensiveInit(key)); }'
+        })
+      });
+      assert.strictEqual(partialRes.status, 200);
+      const partialJson = await partialRes.json();
+      assert.strictEqual(partialJson.verdict, 'partial');
+      assert.strictEqual(partialJson.isCorrect, false);
+      assert.strictEqual(partialJson.fsrsRecorded, false);
+      assert.ok(!partialJson.feedback.includes('expensiveInit(k));\n```'), 'Partial feedback must redact leaked fixed_code');
+
+      mockBehavior = {
+        mode: 'text',
+        text: JSON.stringify({
+          verdict: 'solved',
+          feedback: 'Точно: containsKey и put образуют гонку check-then-act.'
+        })
+      };
+      const solvedRes = await postJson('/verify-diagnosis', {
+        bugId: 'bug_spec62_guard',
+        diagnosis: 'Неатомарная связка containsKey + put допускает двойную инициализацию и перезапись.',
+        context: normalizeIncidentsContext({
+          bugId: 'bug_spec62_guard',
+          title: 'Spec 62 Check-Then-Act Map Bug',
+          buggyCode: 'if (!map.containsKey(key)) { map.put(key, expensiveInit(key)); }'
+        })
+      });
+      assert.strictEqual(solvedRes.status, 200);
+      const solvedJson = await solvedRes.json();
+      assert.strictEqual(solvedJson.verdict, 'solved');
+      assert.strictEqual(solvedJson.isCorrect, true);
+      assert.strictEqual(solvedJson.fsrsRecorded, true);
+      assert.ok(solvedJson.revealedExplanation.includes('не атомарны'));
+      const rowAfter = db.prepare('SELECT is_solved FROM bug_challenges WHERE id = ?').get('bug_spec62_guard');
+      assert.strictEqual(rowAfter.is_solved, 1, 'verify-diagnosis solved verdict must persist is_solved=1 in SQLite');
+      console.log('✅ Spec 62 Bug Hunt ground-truth guard & POST /verify-diagnosis: PASSED');
+    }
   } finally {
     llmGateway.completeText = origCompleteText;
     llmGateway.streamChat = origStreamChat;

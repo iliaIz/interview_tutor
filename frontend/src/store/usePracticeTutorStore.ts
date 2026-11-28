@@ -1,29 +1,30 @@
 import { create } from 'zustand';
-import {
-  normalizePracticeContext,
-  type TutorActiveContext,
-  type TutorPersona
+import type {
+  TutorActiveContext,
+  TutorPersona,
+  TutorRole,
+  TutorVerifyDiagnosisResponse
 } from '@interview-prep/shared/tutor';
 import { TutorDomain } from '../components/practice/tutor/TutorDomain';
 import { getDomainWelcomeMessage } from '../components/practice/tutor/tutorWelcomeMessages';
-import { TutorTransportPort, httpTutorTransport } from './tutorTransport';
+import { TutorTransportPort } from './tutorTransport';
 import {
   buildWorkbenchDockSlice,
   type WorkbenchDockStateSlice
 } from './slices/workbenchDockSlice';
+import {
+  ASSISTANCE_TO_PERSONA,
+  DEFAULT_TUTOR_TRANSPORT,
+  resolveTargetContext,
+  setTutorTransportPort,
+  singletonTransportProxy,
+  type AssistanceLevel,
+  type CopilotDockTab,
+  type TutorMessage
+} from './tutorStoreHelpers';
 
-export type { TutorPersona, WorkbenchDockStateSlice };
-export type AssistanceLevel = 1 | 2 | 3 | 4;
-export type CopilotDockTab = 'tutor' | 'whiteboard';
-
-export interface TutorMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: number;
-  leakDetected?: boolean;
-  similarity?: number;
-}
+export type { TutorPersona, TutorRole, WorkbenchDockStateSlice, AssistanceLevel, CopilotDockTab, TutorMessage };
+export { DEFAULT_TUTOR_TRANSPORT, setTutorTransportPort };
 
 export interface PracticeTutorState extends WorkbenchDockStateSlice {
   isOpen: boolean;
@@ -35,15 +36,14 @@ export interface PracticeTutorState extends WorkbenchDockStateSlice {
   modality: 'text' | 'voice';
   persona: TutorPersona;
   assistanceLevel: number;
+  tutorRole: TutorRole;
+  isVerifyingDiagnosis: boolean;
   messages: TutorMessage[];
   isLoading: boolean;
   currentStreamingText: string;
   abortController: AbortController | null;
-
-  // Polymorphic Active Context (Pillar 11 Hub-and-Spoke)
   activeContext: TutorActiveContext | null;
 
-  // Actions
   toggleOpen: (open?: boolean) => void;
   setRightDockTab: (tab: CopilotDockTab) => void;
   enterStealthMode: () => void;
@@ -54,61 +54,17 @@ export interface PracticeTutorState extends WorkbenchDockStateSlice {
   setModality: (modality: 'text' | 'voice') => void;
   setPersona: (persona: TutorPersona) => void;
   setAssistanceLevel: (level: number) => void;
+  setTutorRole: (role: TutorRole) => void;
   setActiveContext: (context: TutorActiveContext | null) => void;
   clearMessages: () => void;
-  initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => void;
+  initChallengeContext: (domain: TutorDomain, challengeTitle?: string, arena?: 'practice' | 'incidents') => void;
   abortGeneration: () => void;
 
   sendMessage: (text: string, context?: TutorActiveContext) => Promise<void>;
   requestHint: (hintTier: number, context?: TutorActiveContext) => Promise<void>;
   groundRule: (ruleId: string, context?: TutorActiveContext) => Promise<void>;
+  verifyBugDiagnosis: (diagnosis: string, context?: TutorActiveContext) => Promise<TutorVerifyDiagnosisResponse | null>;
 }
-
-const ASSISTANCE_TO_PERSONA: Record<number, TutorPersona> = {
-  1: 'junior_explainer',
-  2: 'middle_scaffold',
-  3: 'senior_socratic',
-  4: 'faang_interviewer'
-};
-
-function resolveTargetContext(
-  provided: TutorActiveContext | undefined,
-  activeContext: TutorActiveContext | null,
-  persona: TutorPersona,
-  assistanceLevel: number,
-  patch?: { hintTier?: number; activeCompassRuleId?: string }
-): TutorActiveContext {
-  const base =
-    provided ||
-    activeContext ||
-    normalizePracticeContext({
-      kataId: 'practice-kata',
-      kataTitle: 'Practice Kata',
-      persona,
-      assistanceLevel
-    });
-
-  return {
-    ...base,
-    persona,
-    assistanceLevel,
-    ...(patch?.hintTier !== undefined ? { hintTier: patch.hintTier } : {}),
-    ...(patch?.activeCompassRuleId !== undefined ? { activeCompassRuleId: patch.activeCompassRuleId } : {})
-  };
-}
-
-export const DEFAULT_TUTOR_TRANSPORT: TutorTransportPort = httpTutorTransport;
-let activeSingletonTransport: TutorTransportPort = DEFAULT_TUTOR_TRANSPORT;
-
-export function setTutorTransportPort(transport: TutorTransportPort): void {
-  activeSingletonTransport = transport;
-}
-
-const singletonTransportProxy: TutorTransportPort = {
-  streamChat: (opts) => activeSingletonTransport.streamChat(opts),
-  fetchHint: (ctx, persona, lvl, signal) => activeSingletonTransport.fetchHint(ctx, persona, lvl, signal),
-  groundRule: (ruleId, ctx, persona, lvl, signal) => activeSingletonTransport.groundRule(ruleId, ctx, persona, lvl, signal)
-};
 
 export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT_TUTOR_TRANSPORT) {
   return create<PracticeTutorState>((set, get) => {
@@ -142,6 +98,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       set((state) => ({
         messages: [...state.messages, assistantMessage],
         isLoading: false,
+        isVerifyingDiagnosis: false,
         currentStreamingText: '',
         abortController: null
       }));
@@ -150,7 +107,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
     const failTurn = (controller: AbortController, err: any, prefix: string, fallback: string) => {
       if (err?.name === 'AbortError' || controller.signal.aborted) {
         if (get().abortController === controller) {
-          set({ abortController: null, isLoading: false, currentStreamingText: '' });
+          set({ abortController: null, isLoading: false, isVerifyingDiagnosis: false, currentStreamingText: '' });
         }
         return;
       }
@@ -165,6 +122,7 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       set((state) => ({
         messages: [...state.messages, errorMessage],
         isLoading: false,
+        isVerifyingDiagnosis: false,
         currentStreamingText: '',
         abortController: null
       }));
@@ -181,6 +139,8 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       modality: 'text',
       persona: 'middle_scaffold',
       assistanceLevel: 2,
+      tutorRole: 'code_review',
+      isVerifyingDiagnosis: false,
       messages: [
         {
           id: 'welcome',
@@ -232,11 +192,18 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
         }));
       },
 
+      setTutorRole: (tutorRole) =>
+        set((state) => ({
+          tutorRole,
+          activeContext:
+            state.activeContext && state.activeContext.arena === 'incidents'
+              ? { ...state.activeContext, tutorRole }
+              : state.activeContext
+        })),
+
       setActiveContext: (activeContext) =>
         set((state) => {
-          if (!activeContext) {
-            return { activeContext: null };
-          }
+          if (!activeContext) return { activeContext: null };
           const isContextSwitch =
             !state.activeContext ||
             state.activeContext.arena !== activeContext.arena ||
@@ -245,36 +212,33 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
             return {
               activeContext,
               persona: activeContext.persona,
-              assistanceLevel: activeContext.assistanceLevel
+              assistanceLevel: activeContext.assistanceLevel,
+              ...(activeContext.tutorRole ? { tutorRole: activeContext.tutorRole } : {})
             };
           }
           return {
             activeContext: {
               ...activeContext,
               persona: state.persona,
-              assistanceLevel: state.assistanceLevel
+              assistanceLevel: state.assistanceLevel,
+              ...(activeContext.arena === 'incidents' ? { tutorRole: state.tutorRole } : {})
             }
           };
         }),
 
-      initChallengeContext: (domain: TutorDomain, challengeTitle?: string) => {
+      initChallengeContext: (domain: TutorDomain, challengeTitle?: string, arena?: 'practice' | 'incidents') => {
         get().abortGeneration();
-        const welcome = getDomainWelcomeMessage(domain, challengeTitle);
+        const welcome = getDomainWelcomeMessage(domain, challengeTitle, arena);
         const resetCompanyPersona = get().persona === 'company_interviewer';
         set({
           activeContext: null,
           activeCompassRuleId: null,
           isCopilotStealth: false,
           rightDockTab: 'tutor',
+          tutorRole: 'code_review',
+          isVerifyingDiagnosis: false,
           ...(resetCompanyPersona ? { persona: 'middle_scaffold', assistanceLevel: 2 } : {}),
-          messages: [
-            {
-              id: `welcome_${Date.now()}`,
-              role: 'assistant',
-              content: welcome,
-              timestamp: Date.now()
-            }
-          ],
+          messages: [{ id: `welcome_${Date.now()}`, role: 'assistant', content: welcome, timestamp: Date.now() }],
           currentStreamingText: '',
           isLoading: false
         });
@@ -296,13 +260,13 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
         const { abortController } = get();
         if (abortController) {
           abortController.abort();
-          set({ abortController: null, isLoading: false, currentStreamingText: '' });
+          set({ abortController: null, isLoading: false, isVerifyingDiagnosis: false, currentStreamingText: '' });
         }
       },
 
       sendMessage: async (text: string, context?: TutorActiveContext) => {
-        const { persona, assistanceLevel, activeContext } = get();
-        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel);
+        const { persona, assistanceLevel, activeContext, tutorRole } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, tutorRole);
         const { controller, messages } = startAbortableTurn(text);
         let streamedText = '';
         let doneMeta: { leakDetected?: boolean; maxSimilarity?: number } = {};
@@ -339,8 +303,8 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       },
 
       requestHint: async (hintTier: number, context?: TutorActiveContext) => {
-        const { persona, assistanceLevel, activeContext } = get();
-        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, { hintTier });
+        const { persona, assistanceLevel, activeContext, tutorRole } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, tutorRole, { hintTier });
         const { controller } = startAbortableTurn(`💡 Запрос подсказки уровня ${hintTier} (Socratic Scaffold)`);
 
         try {
@@ -358,14 +322,10 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
       },
 
       groundRule: async (ruleId: string, context?: TutorActiveContext) => {
-        const { persona, assistanceLevel, activeContext } = get();
-        const targetContext = resolveTargetContext(
-          context,
-          activeContext,
-          persona,
-          assistanceLevel,
-          { activeCompassRuleId: ruleId }
-        );
+        const { persona, assistanceLevel, activeContext, tutorRole } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, tutorRole, {
+          activeCompassRuleId: ruleId
+        });
         const { controller } = startAbortableTurn(
           `🧭 Проверка кода по правилу Компаса: ${ruleId}`,
           { isCompassOpen: false, activeCompassRuleId: ruleId }
@@ -383,12 +343,41 @@ export function createPracticeTutorStore(transport: TutorTransportPort = DEFAULT
         } catch (err: any) {
           failTurn(controller, err, 'Ошибка проверки правила', 'Ошибка');
         }
+      },
+
+      verifyBugDiagnosis: async (diagnosis: string, context?: TutorActiveContext) => {
+        const trimmed = diagnosis.trim();
+        if (!trimmed || !transport.verifyBugDiagnosis) return null;
+        const { persona, assistanceLevel, activeContext, tutorRole } = get();
+        const targetContext = resolveTargetContext(context, activeContext, persona, assistanceLevel, tutorRole);
+        const { controller } = startAbortableTurn(`🧪 Проверка диагноза:\n${trimmed}`, { isVerifyingDiagnosis: true });
+
+        try {
+          const result = await transport.verifyBugDiagnosis(trimmed, targetContext, controller.signal);
+          const badge =
+            result.verdict === 'solved'
+              ? '✅ **Диагноз подтверждён!**'
+              : result.verdict === 'partial'
+                ? '🟡 **На верном пути (нужно уточнение):**'
+                : '❌ **Гипотеза пока не подтвердилась:**';
+          const explanationBlock = result.revealedExplanation
+            ? `\n\n---\n**Разбор причины:** ${result.revealedExplanation}`
+            : '';
+          completeTurn(controller, {
+            id: `diag_${Date.now()}`,
+            role: 'assistant',
+            content: `${badge}\n\n${result.feedback}${explanationBlock}`,
+            timestamp: Date.now()
+          });
+          return result;
+        } catch (err: any) {
+          failTurn(controller, err, 'Не удалось проверить диагноз', 'Ошибка проверки диагноза');
+          return null;
+        }
       }
     };
   });
 }
 
 export const usePracticeTutorStore = createPracticeTutorStore(singletonTransportProxy);
-
-// Pillar 11 SSOT alias for Omnipresent Copilot
 export const useTutorStore = usePracticeTutorStore;

@@ -7,7 +7,23 @@
 export * from './tutorContext';
 export * from './tutorNormalizer';
 export * from './tutorPracticeNormalizer';
+export * from './tutorIncidentsNormalizer';
 export type { CompanyProfile } from './companyProfile';
+export {
+  TutorArenaType,
+  TutorPersona,
+  TutorRoleSchema,
+  TutorIncidentMetaSchema,
+  TutorVerifyDiagnosisRequestSchema,
+  TutorVerifyDiagnosisResponseSchema,
+  TutorQuickActionChipSchema,
+  TutorCompanyContextSchema,
+  TutorChatMessageSchema,
+  TutorWhiteboardSnippetSchema,
+  TutorWorkspaceManifestSchema,
+  TutorAcademyBridgeContextSchema,
+  TutorActiveContextSchema
+} from './tutorContext';
 export {
   DEFAULT_SOCRATIC_COMPANY_CHIPS,
   normalizeSqlArenaContext,
@@ -15,3 +31,4 @@ export {
   normalizeSystemDesignContext
 } from './tutorNormalizer';
 export { normalizePracticeContext } from './tutorPracticeNormalizer';
+export { normalizeIncidentsContext } from './tutorIncidentsNormalizer';

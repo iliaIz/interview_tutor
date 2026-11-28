@@ -52,14 +52,18 @@ export const AmbientVoicePill: React.FC = () => {
   const currentStudioTab = useAppStore((s) => s.currentStudioTab);
   const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
   const activeTransactionLabScenarioId = useAppStore((s) => s.activeTransactionLabScenarioId);
+  const activeTopicBugHunt = useAppStore((s) => s.activeTopicBugHunt);
 
   const isPracticeIdeActive =
     currentStudioTab === 'practice' &&
     activePracticeChallenge !== null &&
     activeTransactionLabScenarioId === null;
+  const isBugHuntIdeActive =
+    currentStudioTab === 'incidents' &&
+    activeTopicBugHunt !== null;
 
-  // In Practice IDE, PracticeArenaHeader hosts the Stealth Restore Pill (zero floating pills over editor/CTA)
-  if (isPracticeIdeActive || isCopilotStealth) return null;
+  // In Unified Workbench Shells, headers host the Stealth Restore Pill cleanly
+  if (isPracticeIdeActive || isBugHuntIdeActive || isCopilotStealth) return null;
   if ((!isConnected && (!isError || dismissedError)) || isOpen) return null;
 
   return (

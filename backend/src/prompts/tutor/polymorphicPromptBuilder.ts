@@ -6,6 +6,7 @@ import {
   HintTier,
   PracticeTutorContext
 } from '../practiceTutorPrompts';
+import { buildBugHuntTutorPrompt, type BugHuntServerGroundTruth } from './bugHuntPromptBuilder';
 
 /**
  * polymorphicPromptBuilder.ts
@@ -24,7 +25,10 @@ const POLYMORPHIC_EPISTEMIC_FOOTER = `
 4. Отвечай емко, уважительно, без воды, на русском языке, используя Markdown.
 `.trim();
 
-export function buildPolymorphicTutorSystemPrompt(context: TutorActiveContext): string {
+export function buildPolymorphicTutorSystemPrompt(
+  context: TutorActiveContext,
+  incidentsGroundTruth?: BugHuntServerGroundTruth
+): string {
   if (context.arena === 'practice') {
     const practiceCtx: PracticeTutorContext = {
       persona: context.persona,
@@ -51,6 +55,9 @@ export function buildPolymorphicTutorSystemPrompt(context: TutorActiveContext): 
   if (context.arena === 'sql_arena') return buildSqlArenaTutorPrompt(context);
   if (context.arena === 'companies') return buildCompanyStudioTutorPrompt(context);
   if (context.arena === 'system_design') return buildSystemDesignTutorPrompt(context);
+  if (context.arena === 'incidents') {
+    return buildBugHuntTutorPrompt(context, POLYMORPHIC_EPISTEMIC_FOOTER, incidentsGroundTruth);
+  }
   return buildGeneralEnterpriseTutorPrompt(context);
 }
 

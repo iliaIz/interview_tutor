@@ -30,6 +30,8 @@ export interface WhiteboardPanelContentProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onSwitchToTutor?: () => void;
+  canInsertToEditor?: boolean;
+  showIdeBridge?: boolean;
 }
 
 export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
@@ -38,7 +40,9 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
   mode = 'drawer',
   isExpanded = false,
   onToggleExpand,
-  onSwitchToTutor
+  onSwitchToTutor,
+  canInsertToEditor = true,
+  showIdeBridge = true
 }) => {
   const [copied, setCopied] = React.useState(false);
 
@@ -164,29 +168,31 @@ export const WhiteboardPanelContent: React.FC<WhiteboardPanelContentProps> = ({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsIdeModalOpen(true)}
-            className={`min-h-[28px] px-2 py-1 rounded-lg transition cursor-pointer border text-xs font-semibold flex items-center gap-1.5 ${
-              ideStatus === 'connected' || ideStatus === 'syncing'
-                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
-                : ideStatus === 'connecting'
-                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                : 'bg-[#1E1A2E] hover:bg-[#2A243E] text-slate-200 hover:text-white border-[#2A243E]'
-            }`}
-            title="Подключить IntelliJ IDEA к доске (ws://127.0.0.1:41790)"
-          >
-            <Laptop className="w-3.5 h-3.5 text-pastel-accentRose" />
-            <span className="hidden sm:inline text-[11px]">
-              {ideStatus === 'connected'
-                ? 'IDE: Подключена'
-                : ideStatus === 'syncing'
-                ? 'Синхронизация...'
-                : 'В IntelliJ'}
-            </span>
-          </button>
+          {showIdeBridge && (
+            <button
+              type="button"
+              onClick={() => setIsIdeModalOpen(true)}
+              className={`min-h-[28px] px-2 py-1 rounded-lg transition cursor-pointer border text-xs font-semibold flex items-center gap-1.5 ${
+                ideStatus === 'connected' || ideStatus === 'syncing'
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+                  : ideStatus === 'connecting'
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                  : 'bg-[#1E1A2E] hover:bg-[#2A243E] text-slate-200 hover:text-white border-[#2A243E]'
+              }`}
+              title="Подключить IntelliJ IDEA к доске (ws://127.0.0.1:41790)"
+            >
+              <Laptop className="w-3.5 h-3.5 text-pastel-accentRose" />
+              <span className="hidden sm:inline text-[11px]">
+                {ideStatus === 'connected'
+                  ? 'IDE: Подключена'
+                  : ideStatus === 'syncing'
+                  ? 'Синхронизация...'
+                  : 'В IntelliJ'}
+              </span>
+            </button>
+          )}
 
-          {hasCode && practiceWorkspaceFiles.length > 0 && (
+          {canInsertToEditor && hasCode && practiceWorkspaceFiles.length > 0 && (
             <button
               type="button"
               onClick={handleInsertIntoEditor}

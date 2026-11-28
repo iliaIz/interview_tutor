@@ -22,6 +22,7 @@ import {
   ResolvedTutorRouteContext
 } from './tutorContextResolver';
 import { resolveCompassRule } from './compassRuleResolver';
+import { getBugChallengeGroundTruth, verifyBugDiagnosisOutcome } from './bugDiagnosisVerifier';
 
 export { resolveTutorRouteContext } from './tutorContextResolver';
 
@@ -72,7 +73,17 @@ function hydrateAndBuildPrompt(
   opts: { hintTier?: HintTier; activeCompassRuleId?: string; fallbackCategory?: string; extraRule?: CompassRule } = {}
 ): { systemPrompt: string; targetSolutions: string[] } {
   if (!resolved.isPracticeArena) {
-    let prompt = buildPolymorphicTutorSystemPrompt(resolved.context);
+    const incidentId = resolved.context.incidentMeta?.incidentId || resolved.rawEntityId;
+    const bugGroundTruth =
+      resolved.context.arena === 'incidents' && incidentId
+        ? getBugChallengeGroundTruth(incidentId)
+        : null;
+    let prompt = buildPolymorphicTutorSystemPrompt(
+      resolved.context,
+      bugGroundTruth
+        ? { bugExplanation: bugGroundTruth.bugExplanation, isSolved: bugGroundTruth.isSolved }
+        : undefined
+    );
     if (resolved.pruned.earlierTurnsSummary) {
       prompt += `\n\n=== РЕЗЮМЕ РАННЕГО ДИАЛОГА (СЖАТЫЙ КОНТЕКСТ) ===\n${resolved.pruned.earlierTurnsSummary}`;
     }
@@ -85,7 +96,11 @@ function hydrateAndBuildPrompt(
     if (opts.extraRule) {
       prompt += `\n\nАКТИВНОЕ ПРАВИЛО КОМПАСА: "${opts.extraRule.name}" — ${opts.extraRule.shortFormula}`;
     }
-    return { systemPrompt: prompt, targetSolutions: [] };
+    const targetSolutions =
+      bugGroundTruth && !bugGroundTruth.isSolved && bugGroundTruth.fixedCode
+        ? [bugGroundTruth.fixedCode]
+        : [];
+    return { systemPrompt: prompt, targetSolutions };
   }
 
   let resolvedInstructions = resolved.context.instructions || '';
@@ -283,6 +298,44 @@ router.post('/rule-grounding', async (req: Request, res: Response): Promise<void
     });
   } catch (err: any) {
     handleTutorRouteError(err, res, 'rule-grounding', 'Failed to ground rule');
+  }
+});
+
+// POST /api/practice-tutor/verify-diagnosis (Bug Hunt Root-Cause Check & FSRS Sync)
+router.post('/verify-diagnosis', async (req: Request, res: Response): Promise<void> => {
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
+  });
+
+  try {
+    const diagnosis = String(req.body?.diagnosis || '').trim();
+    if (!diagnosis) {
+      res.status(400).json({ error: 'diagnosis must be a non-empty string' });
+      return;
+    }
+
+    const rawCtx = req.body?.context && typeof req.body.context === 'object' ? req.body.context : req.body;
+    const resolved = resolveTutorRouteContext(rawCtx);
+    const bugId = String(req.body?.bugId || resolved.context.incidentMeta?.incidentId || resolved.rawEntityId || '');
+    const userId = String((req as any).user?.id || req.headers['x-user-id'] || req.body?.userId || 'anonymous');
+
+    const outcome = await verifyBugDiagnosisOutcome({
+      bugId,
+      diagnosis,
+      context: resolved.context,
+      userId,
+      abortSignal: abortController.signal
+    });
+
+    if (outcome.notFound) {
+      res.status(404).json({ error: `Bug challenge not found: ${bugId || 'unknown'}` });
+      return;
+    }
+
+    res.json(outcome.result);
+  } catch (err: any) {
+    handleTutorRouteError(err, res, 'verify-diagnosis', 'Failed to verify bug diagnosis');
   }
 });
 

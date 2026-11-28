@@ -93,6 +93,7 @@ export function runPromptLiveAssertions(assert: PromptAssertFn): void {
   assert(!bugHuntLivePrompt.includes('похвали, в 1-2 предложениях'), 'Bug hunt prompt does NOT contain sycophantic "похвали" command');
   assert(!bugHuntLivePrompt.includes('мягко подтверди'), 'Bug hunt prompt does NOT contain "мягко подтверди"');
   assert(bugHuntLivePrompt.includes('НАСТАВНИЧЕСТВО И ДЕМАРКАЦИЯ ГИПОТЕЗ'), 'Bug hunt prompt contains hypothesis triage & demarcation directive');
+  assert(bugHuntLivePrompt.includes('РЕЖИМ СХЕМ И АНТИ-СПОЙЛЕР'), 'Bug hunt live prompt restricts update_whiteboard to non-spoiler diagrams and symptoms');
 
   const examLivePrompt = composeLiveSystemPrompt({
     topic: 'Spring Boot',
