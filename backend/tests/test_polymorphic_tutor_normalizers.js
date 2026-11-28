@@ -5,6 +5,7 @@ const {
   normalizeSqlArenaContext,
   normalizeCompanyContext,
   normalizePracticeContext,
+  normalizeIncidentsContext,
   normalizeSystemDesignContext
 } = require('../../shared/dist');
 
@@ -207,6 +208,33 @@ console.log('🧪 Starting Polymorphic Tutor Normalizers Test Suite...');
   assert.strictEqual(sdContext.arena, 'system_design');
   assert.ok(Value.Check(TutorActiveContextSchema, sdContext), 'System Design context must pass TutorActiveContextSchema');
   console.log('✅ normalizeSystemDesignContext + schema parity: PASSED');
+}
+
+// 5. Test Spec 62 Incidents / Bug Hunt Context Normalizer
+{
+  const bugCtx = normalizeIncidentsContext({
+    bugId: 'bug-race-counter-01',
+    title: 'Thread-Unsafe Counter Under Virtual Threads',
+    topic: 'concurrency',
+    difficulty: 'Senior',
+    buggyCode: 'private int count = 0;\npublic void inc() { count++; }',
+    bugType: 'RACE_CONDITION',
+    incidentContext: 'Счётчик теряет инкременты под нагрузкой.',
+    hintCost: 'Подумай об атомарности RMW',
+    language: 'java',
+    selectedCodeSnippet: 'public void inc() { count++; }',
+    cursorLine: 2,
+    tutorRole: 'code_review',
+    persona: 'senior_socratic',
+    assistanceLevel: 3
+  });
+  assert.strictEqual(bugCtx.arena, 'incidents');
+  assert.strictEqual(bugCtx.tutorRole, 'code_review');
+  assert.strictEqual(bugCtx.cursorLine, 2);
+  assert.strictEqual(bugCtx.incidentMeta.bugType, 'RACE_CONDITION');
+  assert.ok(bugCtx.quickActionChips && bugCtx.quickActionChips.length >= 3);
+  assert.ok(Value.Check(TutorActiveContextSchema, bugCtx), 'Bug Hunt incidents context must pass TutorActiveContextSchema');
+  console.log('✅ normalizeIncidentsContext + schema parity: PASSED');
 }
 
 console.log('🎉 All Polymorphic Tutor Normalizer tests passed deterministically in 0ms!');

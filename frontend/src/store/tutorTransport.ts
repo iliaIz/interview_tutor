@@ -1,7 +1,8 @@
 import type {
   TutorActiveContext,
   TutorChatMessage,
-  TutorPersona
+  TutorPersona,
+  TutorVerifyDiagnosisResponse
 } from '@interview-prep/shared/tutor';
 
 /**
@@ -55,6 +56,11 @@ export interface TutorTransportPort {
     assistanceLevel: number,
     signal?: AbortSignal
   ): Promise<TutorRuleGroundingResponse>;
+  verifyBugDiagnosis?(
+    diagnosis: string,
+    context: TutorActiveContext,
+    signal?: AbortSignal
+  ): Promise<TutorVerifyDiagnosisResponse>;
 }
 
 export function formatTutorRequestBody(
@@ -214,8 +220,46 @@ export async function fetchTutorRuleGrounding(
   };
 }
 
+export async function verifyTutorBugDiagnosis(
+  diagnosis: string,
+  context: TutorActiveContext,
+  signal?: AbortSignal
+): Promise<TutorVerifyDiagnosisResponse> {
+  const response = await fetch('/api/practice-tutor/verify-diagnosis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    signal,
+    body: JSON.stringify({
+      bugId: context.incidentMeta?.incidentId || context.entityId,
+      diagnosis,
+      context
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await readTutorErrorMessage(response));
+  }
+
+  const data = (await response.json()) as Partial<TutorVerifyDiagnosisResponse>;
+  const verdict =
+    data.verdict === 'solved' || data.verdict === 'partial' || data.verdict === 'incorrect'
+      ? data.verdict
+      : data.isCorrect
+        ? 'solved'
+        : 'incorrect';
+  return {
+    verdict,
+    isCorrect: Boolean(data.isCorrect ?? verdict === 'solved'),
+    feedback: data.feedback || 'Проверка выполнена.',
+    revealedExplanation: data.revealedExplanation,
+    fsrsRecorded: Boolean(data.fsrsRecorded)
+  };
+}
+
 export const httpTutorTransport: TutorTransportPort = {
   streamChat: streamTutorChat,
   fetchHint: fetchTutorHint,
-  groundRule: fetchTutorRuleGrounding
+  groundRule: fetchTutorRuleGrounding,
+  verifyBugDiagnosis: verifyTutorBugDiagnosis
 };

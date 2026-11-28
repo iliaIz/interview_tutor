@@ -195,6 +195,16 @@ Handles candidate Java 21 workspace submission evaluation, orchestrating the In-
 
 ---
 
+### 2.18 `Spec 62 (#224–#229): Bug Hunt Ground-Truth Guard, /verify-diagnosis & Truth-in-Telemetry AST`
+- **Location:** [`bugDiagnosisVerifier.ts`](file:///D:/projects/synced_with_vps/interview_tutor/backend/src/routes/bugDiagnosisVerifier.ts), [`practiceTutor.ts`](file:///D:/projects/synced_with_vps/interview_tutor/backend/src/routes/practiceTutor.ts), [`BugChallengeCard.tsx`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/src/components/BugChallengeCard.tsx), [`bugHuntWorkspaceState.test.ts`](file:///D:/projects/synced_with_vps/interview_tutor/frontend/tests/bugHuntWorkspaceState.test.ts)
+- **What Was Done:**
+  1. Connected `/api/practice-tutor/*` (`arena === 'incidents'`) to SQLite `bug_challenges` ground-truth hydration (`bug_explanation` + `TreeEditDistanceGuard` over `fixed_code` when unsolved).
+  2. Added `POST /api/practice-tutor/verify-diagnosis` grading root-cause explanations via LiteLLM (`solved | partial | incorrect`), redacting leaked fixes on non-solved verdicts, and persisting solves/FSRS through `createDefaultToolPersistencePort().updateBugSolved`.
+  3. Replaced misleading green `clean` badge rendering in `BugChallengeCard.tsx` with `filterActiveAstViolations(evaluateAstRules(...))`.
+- **Invariants:** `POST /api/practice-tutor/verify-diagnosis` never marks `solved` on empty or unparsed responses and synchronizes both HTTP text and Live Voice (`mark_bug_solved`) via `bugHuntSolvedSignal`.
+
+---
+
 ### 2.15 `LlmGatewayClient(HttpTransportPort) & TopologySimulationKernel (Spec 49 & 52 / #183, #184, #185, #189)`
 - **Location:** [`LlmGatewayClient.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/LlmGatewayClient.ts), [`SystemDesignProbeGateway.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/SystemDesignProbeGateway.ts), [`systemDesignEvaluator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/systemDesignEvaluator.ts), [`dynamicTaskGenerator.ts`](file:///home/djelu/projects/interview_tutor/backend/src/services/dynamicTaskGenerator.ts), [`practiceTutor.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/practiceTutor.ts), [`triage.ts`](file:///home/djelu/projects/interview_tutor/backend/src/routes/triage.ts), [`TopologySimulationKernel.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/system_design/simulation/TopologySimulationKernel.ts), [`topologySpofLinter.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/components/system_design/simulation/linter/topologySpofLinter.ts), [`desScenarioRunner.ts`](file:///home/djelu/projects/interview_tutor/frontend/src/workers/des/desScenarioRunner.ts)
 - **What Was Done:**

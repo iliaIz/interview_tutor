@@ -24,7 +24,20 @@ function useIsDesktopLg(): boolean {
   return isDesktop;
 }
 
-export const PracticeCopilotDock: React.FC = () => {
+export interface PracticeCopilotCapabilities {
+  canInsertToEditor?: boolean;
+  showIdeBridge?: boolean;
+  showPersonasAndHints?: boolean;
+  showBugRoleSwitcher?: boolean;
+  showVerifyDiagnosis?: boolean;
+  onVerifyDiagnosisSuccess?: (bugId: string) => void;
+}
+
+export interface PracticeCopilotDockProps {
+  capabilities?: PracticeCopilotCapabilities;
+}
+
+export const PracticeCopilotDock: React.FC<PracticeCopilotDockProps> = ({ capabilities }) => {
   const isOpen = usePracticeTutorStore((s) => s.isOpen);
   const isCopilotStealth = usePracticeTutorStore((s) => s.isCopilotStealth);
   const rightDockTab = usePracticeTutorStore((s) => s.rightDockTab);
@@ -124,7 +137,7 @@ export const PracticeCopilotDock: React.FC = () => {
   const dockBody = (
     <div role="tabpanel" className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className={rightDockTab === 'tutor' ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : 'hidden'}>
-        <PracticeTutorPanelContent mode="dock" />
+        <PracticeTutorPanelContent mode="dock" capabilities={capabilities} />
       </div>
       {rightDockTab === 'whiteboard' && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -133,6 +146,8 @@ export const PracticeCopilotDock: React.FC = () => {
             state={activeWhiteboardState}
             onClose={() => toggleOpen(false)}
             onSwitchToTutor={() => setRightDockTab('tutor')}
+            canInsertToEditor={capabilities?.canInsertToEditor ?? true}
+            showIdeBridge={capabilities?.showIdeBridge ?? true}
           />
         </div>
       )}

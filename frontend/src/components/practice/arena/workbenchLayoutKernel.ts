@@ -271,3 +271,84 @@ export function computeWorkbenchGridTracks(input: WorkbenchGridInput): Workbench
     maxCopilotPx
   };
 }
+
+export interface TwoColumnWorkbenchInput {
+  viewportWidth: number;
+  isDockVisible: boolean;
+  rightDockTab: 'tutor' | 'whiteboard';
+  isWhiteboardExpanded: boolean;
+  tutorWidthPx: number;
+  whiteboardWidthPx: number;
+}
+
+export interface TwoColumnWorkbenchTracks {
+  primaryTrack: string;
+  copilotTrack: string;
+  resolvedCopilotPx: number;
+  primaryAvailablePx: number;
+  maxCopilotPx: number;
+}
+
+/**
+ * Computes responsive 2-column CSS Grid tracks for Code Review / Bug Hunt workbenches
+ * (Primary Pane | 6px Sash | Right Co-Pilot Dock) reusing Spec 61 viewport safety invariants.
+ */
+export function computeTwoColumnWorkbenchTracks(
+  input: TwoColumnWorkbenchInput
+): TwoColumnWorkbenchTracks {
+  const safeVp = sanitizeWidthPx(input.viewportWidth, 1440);
+  const sash = WORKBENCH_BOUNDS.SASH_WIDTH_PX;
+  const primaryTrack = `minmax(${WORKBENCH_BOUNDS.HARD_MIN_EDITOR_WIDTH_PX}px, 1fr)`;
+
+  if (!input.isDockVisible) {
+    return {
+      primaryTrack: 'minmax(0, 1fr)',
+      copilotTrack: '0px',
+      resolvedCopilotPx: 0,
+      primaryAvailablePx: safeVp,
+      maxCopilotPx: 0
+    };
+  }
+
+  const ratioCeiling = Math.floor(safeVp * WORKBENCH_BOUNDS.MAX_COPILOT_VIEWPORT_RATIO);
+  const hardSpaceCeiling = Math.max(
+    WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX,
+    safeVp - sash - WORKBENCH_BOUNDS.HARD_MIN_EDITOR_WIDTH_PX
+  );
+  const preferredSpaceCeiling = Math.max(
+    WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX,
+    safeVp - sash - WORKBENCH_BOUNDS.MIN_EDITOR_WIDTH_PX
+  );
+
+  const requested =
+    input.rightDockTab === 'whiteboard'
+      ? input.isWhiteboardExpanded
+        ? Math.max(WORKBENCH_BOUNDS.DEFAULT_WHITEBOARD_WIDTH_PX, Math.round(safeVp * 0.54))
+        : sanitizeWidthPx(input.whiteboardWidthPx, WORKBENCH_BOUNDS.DEFAULT_WHITEBOARD_WIDTH_PX)
+      : sanitizeWidthPx(input.tutorWidthPx, WORKBENCH_BOUNDS.DEFAULT_TUTOR_WIDTH_PX);
+
+  const tabCeiling =
+    input.rightDockTab === 'tutor'
+      ? Math.min(WORKBENCH_BOUNDS.MAX_TUTOR_WIDTH_PX, ratioCeiling)
+      : ratioCeiling;
+
+  const capForPrimary =
+    safeVp >= WORKBENCH_BOUNDS.MIN_EDITOR_WIDTH_PX + sash + WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX
+      ? Math.min(tabCeiling, preferredSpaceCeiling, hardSpaceCeiling)
+      : Math.min(tabCeiling, hardSpaceCeiling);
+
+  const maxCopilotPx = Math.max(WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX, capForPrimary);
+  const resolvedCopilotPx = clampNumeric(
+    requested,
+    WORKBENCH_BOUNDS.MIN_COPILOT_WIDTH_PX,
+    maxCopilotPx
+  );
+
+  return {
+    primaryTrack,
+    copilotTrack: `${resolvedCopilotPx}px`,
+    resolvedCopilotPx,
+    primaryAvailablePx: Math.max(0, safeVp - sash - resolvedCopilotPx),
+    maxCopilotPx
+  };
+}

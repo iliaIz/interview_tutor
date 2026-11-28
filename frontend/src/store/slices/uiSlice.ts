@@ -6,6 +6,7 @@
 
 import { StateCreator } from 'zustand';
 import { ProductionIncident } from '../../types/nextgen';
+import type { BugChallenge } from '../../components/BugChallengeCard';
 
 export type StudioTab = 'academy' | 'roadmaps' | 'theory' | 'incidents' | 'practice' | 'system_design' | 'triage' | 'hr_screening' | 'live_debug' | 'companies';
 
@@ -60,6 +61,10 @@ export interface UiSlice {
   activeTopicBugHunt: { topicId: string; topicName: string } | null;
   openTopicBugHunt: (topicId: string, topicName: string) => void;
   closeTopicBugHunt: () => void;
+  activeBugHuntChallenge: BugChallenge | null;
+  setActiveBugHuntChallenge: (challenge: BugChallenge | null) => void;
+  bugHuntSolvedSignal: { bugId: string; timestamp: number } | null;
+  notifyBugHuntSolved: (bugId: string) => void;
 
   systemHealth: SystemHealth;
   checkHealth: () => Promise<void>;
@@ -135,7 +140,11 @@ export const createUiSlice: StateCreator<any, [], [], UiSlice> = (set, get) => (
       activeTopicBugHunt: { topicId, topicName }
     });
   },
-  closeTopicBugHunt: () => set({ activeTopicBugHunt: null }),
+  closeTopicBugHunt: () => set({ activeTopicBugHunt: null, activeBugHuntChallenge: null }),
+  activeBugHuntChallenge: null,
+  setActiveBugHuntChallenge: (challenge) => set({ activeBugHuntChallenge: challenge }),
+  bugHuntSolvedSignal: null,
+  notifyBugHuntSolved: (bugId) => set({ bugHuntSolvedSignal: { bugId, timestamp: Date.now() } }),
 
   systemHealth: {
     status: 'checking',

@@ -95,6 +95,23 @@ export const TutorAcademyBridgeContextSchema = Type.Object({
 });
 export type TutorAcademyBridgeContext = Static<typeof TutorAcademyBridgeContextSchema>;
 
+export const TutorRoleSchema = Type.Union([
+  Type.Literal('code_review'),
+  Type.Literal('free_chat')
+]);
+export type TutorRole = Static<typeof TutorRoleSchema>;
+
+export const TutorIncidentMetaSchema = Type.Object({
+  incidentId: Type.Optional(Type.String()),
+  bugType: Type.Optional(Type.String()),
+  difficulty: Type.Optional(Type.String()),
+  incidentContext: Type.Optional(Type.String()),
+  hintCost: Type.Optional(Type.String()),
+  topic: Type.Optional(Type.String()),
+  language: Type.Optional(Type.String())
+});
+export type TutorIncidentMeta = Static<typeof TutorIncidentMetaSchema>;
+
 export const TutorActiveContextSchema = Type.Object({
   arena: TutorArenaType,
   entityId: Type.String({ minLength: 1 }),
@@ -118,6 +135,8 @@ export const TutorActiveContextSchema = Type.Object({
   workspaceManifest: Type.Optional(TutorWorkspaceManifestSchema),
   academyBridgeContext: Type.Optional(TutorAcademyBridgeContextSchema),
   hintTier: Type.Optional(Type.Number({ minimum: 0, maximum: 4 })),
+  tutorRole: Type.Optional(TutorRoleSchema),
+  incidentMeta: Type.Optional(TutorIncidentMetaSchema),
 
   // Real-Time Execution Feedback
   compilerError: Type.Optional(Type.String()),
@@ -134,3 +153,23 @@ export const TutorActiveContextSchema = Type.Object({
   messages: Type.Optional(Type.Array(TutorChatMessageSchema))
 });
 export type TutorActiveContext = Static<typeof TutorActiveContextSchema>;
+
+export const TutorVerifyDiagnosisRequestSchema = Type.Object({
+  bugId: Type.Optional(Type.String()),
+  diagnosis: Type.String({ minLength: 1 }),
+  context: TutorActiveContextSchema
+});
+export type TutorVerifyDiagnosisRequest = Static<typeof TutorVerifyDiagnosisRequestSchema>;
+
+export const TutorVerifyDiagnosisResponseSchema = Type.Object({
+  verdict: Type.Union([
+    Type.Literal('solved'),
+    Type.Literal('partial'),
+    Type.Literal('incorrect')
+  ]),
+  isCorrect: Type.Boolean(),
+  feedback: Type.String(),
+  revealedExplanation: Type.Optional(Type.String()),
+  fsrsRecorded: Type.Optional(Type.Boolean())
+});
+export type TutorVerifyDiagnosisResponse = Static<typeof TutorVerifyDiagnosisResponseSchema>;

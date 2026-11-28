@@ -103,7 +103,7 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
 - **Omnipresent AI Copilot:** A unified, cross-arena headless pair-programming engine (`useTutorStore`, `TutorDrawer`) that dynamically ingests active workspace context (code, SQL, compiler output, company DNA) without code duplication.
 - **Take-Home Project Lab:** An interactive post-mortem simulator evaluating real candidate pull requests against enterprise production standards, identifying concurrency race conditions and atomic SQL anti-patterns.
 - **Socratic Scaffold Ladder:** A pedagogical prompt progression (Tier 1 Nudge -> Tier 2 Architecture Scaffold -> Tier 3 Invariant Deep Dive) preventing premature solution leakage while maximizing candidate cognitive development.
-- **Unified Arena IDE Shell:** Full-viewport (`100dvh`) coding layout mode that suppresses global multi-studio navigation (`StudioHeader`) and outer bottom padding (`pb-24`), consolidating workspace navigation, timer, compass, and co-pilot triggers into a single `48px` arena bar.
+- **Unified Arena IDE Shell:** Full-viewport (`100dvh`) workbench layout mode in Practice IDE and Bug Hunt Workbench (`isPracticeIdeActive` / `isBugHuntIdeActive`) that suppresses global multi-studio navigation (`StudioHeader`) and outer bottom padding (`pb-24`), consolidating workspace navigation (`ArenaSwitcherMenu`), timer, compass/radar, and co-pilot triggers into a single `48px` arena bar.
   - *Avoid*: Stacked multi-row headers, `overflow-x-hidden` ancestors breaking sticky headers, floating pills colliding with action footers
   - *Durable Owner*: `frontend-practice-arena`
   - *Invariants*: Entry scroll offset stays `0`; zero header/footer clipping across `1440px`, `1280px`, and `390px`; global bars stay `<= 12%` of viewport height.
@@ -115,7 +115,7 @@ An evaluation check and Socratic AI prompt penalizing unnecessary pattern comple
   - *Avoid*: Hardcoded `88%` radar fixtures, fake `100% match` diffs, `isPassed` ignoring `failCount > 0`, `110%` weight sums
   - *Durable Owner*: `frontend-practice-telemetry`
   - *Invariants*: Clean AST state renders zero warning icons; `PracticeEvaluationModal` fires pass/confetti strictly when compilation, tests, Loom safety, and score gates all pass; pre-run benchmarks explicitly display empty/not-run state.
-- **Adaptive Workbench Grid:** Single `display: grid` shell in `PracticeArenaWorkspace` driven by CSS custom properties (`--spec-w`, `--copilot-w`) and accessible `role="separator"` drag sashes that coordinate Spec, Editor, and Co-Pilot column tracks without per-frame React re-renders or `CodeMirror` width thrashing.
+- **Adaptive Workbench Grid:** Single `display: grid` shell in `PracticeArenaWorkspace` (3-column) and `BugHuntArena` (2-column `computeTwoColumnWorkbenchTracks`) driven by CSS custom properties (`--spec-w`, `--copilot-w`) and accessible `role="separator"` drag sashes that coordinate panes without per-frame React re-renders or width thrashing.
   - *Avoid*: Hardcoded competing `md:w-[%]` + `w-[px]` flex widths, `window.innerWidth` resize hacks without clamping, unkeyboardable drag dividers
   - *Durable Owner*: `workbenchLayoutKernel` (`frontend-practice-arena`)
   - *Invariants*: Central `WorkspaceEditor` track never shrinks below `MIN_EDITOR_WIDTH_PX` (`420px` when auto-collapse triggers, `380px` hard clamp on drag); drag motion commits live to CSS variables via `requestAnimationFrame` and persists state once on `pointerup`.

@@ -1,9 +1,13 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
+import type { TutorRole } from '@interview-prep/shared/tutor';
 import { useLiveVoiceSession, AudioLevelSubscriber } from '../../../audio/useLiveVoiceSession';
 import { useAppStore, selectActiveWhiteboardArtifact } from '../../../store/useAppStore';
 import { useInterviewConfig } from '../../../hooks/useInterviewConfig';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
+import { useSelectionFocusStore } from '../../../store/useSelectionFocusStore';
+import type { BugChallenge } from '../../BugChallengeCard';
 import { buildPracticeSessionParams } from './practiceSessionParamsBuilder';
+import { buildBugHuntSessionParams } from './bugHuntSessionParamsBuilder';
 
 interface PracticeVoiceContextType {
   isConnected: boolean;
@@ -22,6 +26,7 @@ interface PracticeVoiceContextType {
   subscribeAudioLevel: AudioLevelSubscriber;
   startPracticeSession: () => Promise<void>;
   startPracticeSessionWithReview: (focusedFinding?: any) => Promise<void>;
+  launchBugHuntSession: (challengeOverride?: BugChallenge | null, roleOverride?: TutorRole) => Promise<void>;
   syncEditorCode?: (code: string, fileName?: string, language?: string, immediate?: boolean) => void;
   injectActiveFocusGroundingFrame?: () => void;
 }
@@ -36,31 +41,84 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
   const { config: interviewConfig } = useInterviewConfig();
   const tutorPersona = usePracticeTutorStore((s) => s.persona);
   const setModality = usePracticeTutorStore((s) => s.setModality);
+  const visitedBugIdsRef = useRef<Set<string>>(new Set());
 
   const session = useLiveVoiceSession({
     onError: (err) => console.error('Practice voice error:', err),
     onWhiteboardUpdate: (payload) => {
       useAppStore.getState().setWhiteboardState(payload);
     },
+    onBugSolved: () => {
+      const bugId = useAppStore.getState().activeBugHuntChallenge?.id;
+      if (bugId) {
+        useAppStore.getState().notifyBugHuntSolved(bugId);
+      }
+    },
     getActiveCode: () => {
       const state = useAppStore.getState();
+      if (state.currentStudioTab === 'incidents' && state.activeBugHuntChallenge) {
+        return state.activeBugHuntChallenge.codeSnippet || '';
+      }
       const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
       return current?.content || '';
     },
     getActiveFileName: () => {
       const state = useAppStore.getState();
+      if (state.currentStudioTab === 'incidents' && state.activeBugHuntChallenge) {
+        return `${state.activeBugHuntChallenge.title || 'BugChallenge'}.${state.activeBugHuntChallenge.language || 'java'}`;
+      }
       const current = state.practiceWorkspaceFiles[state.activeWorkspaceFileIndex] || state.practiceWorkspaceFiles[0];
       return current?.path?.split('/').pop() || current?.path || 'Solution.java';
     },
-    getActiveLanguage: () => 'java',
+    getActiveLanguage: () => {
+      const state = useAppStore.getState();
+      if (state.currentStudioTab === 'incidents' && state.activeBugHuntChallenge) {
+        return state.activeBugHuntChallenge.language || 'java';
+      }
+      return 'java';
+    },
     enableGlobalSelection: true
   });
 
   const { connect, disconnect, toggleMic, handleInteraction, sendTextMessage, sendCustomFrame, subscribeAudioLevel } = session;
 
+  const launchBugHuntSession = useCallback(async (challengeOverride?: BugChallenge | null, roleOverride?: TutorRole) => {
+    try {
+      const state = useAppStore.getState();
+      const targetChallenge = challengeOverride ?? state.activeBugHuntChallenge;
+      if (!targetChallenge) return;
+      const role = roleOverride ?? usePracticeTutorStore.getState().tutorRole;
+      const focus = useSelectionFocusStore.getState().activeFocus;
+      const bugId = targetChallenge.id;
+      const isRevisit = bugId ? visitedBugIdsRef.current.has(bugId) : false;
+      if (bugId) visitedBugIdsRef.current.add(bugId);
+
+      const params = buildBugHuntSessionParams({
+        challenge: targetChallenge,
+        tutorRole: role,
+        interviewConfig,
+        tutorPersona,
+        activeArtifact: selectActiveWhiteboardArtifact(state),
+        codeRevisions: state.codeRevisions || [],
+        selectedCodeSnippet: focus?.text || null,
+        cursorLine: focus?.startLine || null,
+        isRevisit
+      });
+      await connect(params);
+      setModality('voice');
+    } catch (err) {
+      console.error('Failed to start Bug Hunt Voice session:', err);
+    }
+  }, [interviewConfig, tutorPersona, connect, setModality]);
+
   const launchPracticeSession = useCallback(async (seniorReviewPayload?: any) => {
     try {
       const state = useAppStore.getState();
+      const activeCtx = usePracticeTutorStore.getState().activeContext;
+      if (state.currentStudioTab === 'incidents' && state.activeBugHuntChallenge && activeCtx?.arena === 'incidents') {
+        await launchBugHuntSession(state.activeBugHuntChallenge);
+        return;
+      }
       const files = state.practiceWorkspaceFiles.length > 0 ? state.practiceWorkspaceFiles : practiceWorkspaceFiles;
       const activeIndex = typeof state.activeWorkspaceFileIndex === 'number' ? state.activeWorkspaceFileIndex : activeWorkspaceFileIndex;
       const params = buildPracticeSessionParams({
@@ -88,7 +146,8 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
     interviewConfig,
     tutorPersona,
     connect,
-    setModality
+    setModality,
+    launchBugHuntSession
   ]);
 
   const startPracticeSession = useCallback(async () => launchPracticeSession(undefined), [launchPracticeSession]);
@@ -168,6 +227,7 @@ export const PracticeVoiceProvider: React.FC<{ children: React.ReactNode }> = ({
         subscribeAudioLevel,
         startPracticeSession,
         startPracticeSessionWithReview,
+        launchBugHuntSession,
         syncEditorCode,
         injectActiveFocusGroundingFrame
       }}

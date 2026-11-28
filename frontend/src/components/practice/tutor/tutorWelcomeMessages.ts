@@ -17,7 +17,15 @@ export const DOMAIN_WELCOME_MESSAGES: Record<TutorDomain, string> = {
   testing: '👋 Привет! Я твой AI-напарник по парному программированию и мутационному тестированию. Я могу объяснить устройство любого теста, подсказать граничные случаи по модели RIPR или проверить твой код по Тестинг-Компасу (`Ctrl + /`). Чем помочь?'
 };
 
-export function getDomainWelcomeMessage(domain: TutorDomain, challengeTitle?: string): string {
+export function getDomainWelcomeMessage(
+  domain: TutorDomain,
+  challengeTitle?: string,
+  arena?: string
+): string {
+  if (arena === 'incidents') {
+    const label = challengeTitle?.trim() ? ` «${challengeTitle.trim()}»` : '';
+    return `🕵️ Я твой Senior Code Reviewer по инциденту${label}. Выдели подозрительную строку в коде или опиши свою гипотезу о корневой причине бага — разберём без спойлеров и проверим диагноз.`;
+  }
   const base = DOMAIN_WELCOME_MESSAGES[domain] || DOMAIN_WELCOME_MESSAGES.testing;
   if (challengeTitle && challengeTitle.trim().length > 0) {
     return base;

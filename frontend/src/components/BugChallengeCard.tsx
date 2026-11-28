@@ -5,9 +5,10 @@
  */
 
 import React, { useState } from 'react';
-import { Lightbulb, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Lightbulb, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CodeViewer } from './CodeViewer';
+import { filterActiveAstViolations } from '../utils/astRules';
 import {
   BugChallenge,
   useBugChallengeInspection,
@@ -51,6 +52,8 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
     handleToggleBookmark
   } = useBugChallengeInspection(challenge);
 
+  const activeAstViolations = filterActiveAstViolations(astAnalysis);
+
   return (
     <div className="w-full space-y-4">
       {/* 1. Header Banner */}
@@ -84,25 +87,24 @@ export const BugChallengeCard: React.FC<BugChallengeCardProps> = ({
         </div>
       )}
 
-      {/* 3. AST Static Audit Indicator Bar */}
-      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
-        {astAnalysis.map((item, aIdx) => (
-          <span
-            key={aIdx}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border shadow-2xs ${
-              item.isViolation
-                ? 'bg-rose-50 text-rose-900 border-rose-200/80'
-                : 'bg-emerald-50 text-emerald-900 border-emerald-200/80'
-            }`}
-          >
-            {item.isViolation ? (
+      {/* 3. Honest AST Static Audit Indicator Bar (Truth-in-Telemetry Invariant) */}
+      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1" data-testid="bug-ast-telemetry-bar">
+        {activeAstViolations.length > 0 ? (
+          activeAstViolations.map((item, aIdx) => (
+            <span
+              key={item.id || aIdx}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border shadow-2xs bg-rose-50 text-rose-900 border-rose-200/80"
+            >
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            )}
-            <span>{item.text}</span>
+              <span>{item.text}</span>
+            </span>
+          ))
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold border shadow-2xs bg-slate-100/90 text-slate-700 border-slate-200">
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span>Статический AST-фильтр: эвристик не сработало (ищите логический сбой)</span>
           </span>
-        ))}
+        )}
       </div>
 
       {/* 4. Production Incident Lore Accordion */}

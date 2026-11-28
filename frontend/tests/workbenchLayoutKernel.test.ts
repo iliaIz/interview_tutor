@@ -13,6 +13,7 @@ import {
   WORKBENCH_BOUNDS,
   clampPanelWidth,
   computeExpandedWhiteboardWidth,
+  computeTwoColumnWorkbenchTracks,
   computeWorkbenchGridTracks,
   resolveWidthsForExplicitSpecExpand
 } from '../src/components/practice/arena/workbenchLayoutKernel';
@@ -193,7 +194,44 @@ function runTests(): void {
     delete (globalThis as Record<string, unknown>).localStorage;
   }
 
-  console.log('✅ All Spec 61 Adaptive Workbench Grid contract tests passed!');
+  // 7. Spec 62: 2-Column Bug Hunt / Code Review layout invariants
+  {
+    const tracks = computeTwoColumnWorkbenchTracks({
+      viewportWidth: 1440,
+      isDockVisible: true,
+      rightDockTab: 'tutor',
+      isWhiteboardExpanded: false,
+      tutorWidthPx: 380,
+      whiteboardWidthPx: 520
+    });
+    assert.strictEqual(tracks.resolvedCopilotPx, 380);
+    assert.ok(tracks.primaryAvailablePx >= WORKBENCH_BOUNDS.MIN_EDITOR_WIDTH_PX);
+
+    const stealth = computeTwoColumnWorkbenchTracks({
+      viewportWidth: 1440,
+      isDockVisible: false,
+      rightDockTab: 'tutor',
+      isWhiteboardExpanded: false,
+      tutorWidthPx: 380,
+      whiteboardWidthPx: 520
+    });
+    assert.strictEqual(stealth.resolvedCopilotPx, 0);
+    assert.strictEqual(stealth.copilotTrack, '0px');
+    assert.strictEqual(stealth.primaryAvailablePx, 1440);
+
+    const expanded1024 = computeTwoColumnWorkbenchTracks({
+      viewportWidth: 1024,
+      isDockVisible: true,
+      rightDockTab: 'whiteboard',
+      isWhiteboardExpanded: true,
+      tutorWidthPx: 380,
+      whiteboardWidthPx: 900
+    });
+    assert.ok(expanded1024.resolvedCopilotPx <= Math.floor(1024 * WORKBENCH_BOUNDS.MAX_COPILOT_VIEWPORT_RATIO));
+    assert.ok(expanded1024.primaryAvailablePx >= WORKBENCH_BOUNDS.HARD_MIN_EDITOR_WIDTH_PX);
+  }
+
+  console.log('✅ All Spec 61 & Spec 62 Adaptive Workbench Grid contract tests passed!');
 }
 
 runTests();

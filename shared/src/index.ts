@@ -10,6 +10,7 @@ export * from './schemas/companyProfile';
 export * from './schemas/tutorContext';
 export * from './schemas/tutorNormalizer';
 export * from './schemas/tutorPracticeNormalizer';
+export * from './schemas/tutorIncidentsNormalizer';
 export * from './validation/celEvaluator';
 export * from './validation/invariantEngine';
 export { evaluateCel } from './validation/celEvaluator';
@@ -21,6 +22,7 @@ export {
   normalizeSystemDesignContext
 } from './schemas/tutorNormalizer';
 export { normalizePracticeContext } from './schemas/tutorPracticeNormalizer';
+export { normalizeIncidentsContext } from './schemas/tutorIncidentsNormalizer';
 export { Value } from '@sinclair/typebox/value';
 export { Type } from '@sinclair/typebox';
 

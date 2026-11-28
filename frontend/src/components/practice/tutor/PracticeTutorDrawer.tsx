@@ -2,6 +2,7 @@ import React from 'react';
 import type { TutorPersona } from '@interview-prep/shared';
 import { usePracticeTutorStore } from '../../../store/usePracticeTutorStore';
 import { useAppStore } from '../../../store/useAppStore';
+import { useSelectionFocusStore } from '../../../store/useSelectionFocusStore';
 import { HintTiersDropdown } from './HintTiersDropdown';
 import { TutorQuickActionChips } from './TutorQuickActionChips';
 import { TutorMessageList } from './TutorMessageList';
@@ -9,6 +10,7 @@ import { TutorInputFooter } from './TutorInputFooter';
 import { resolveTutorDomain, DOMAIN_LABELS } from './TutorDomain';
 import { buildLivePracticeContext } from './practiceContextBuilder';
 import { usePracticeVoice } from './PracticeVoiceContext';
+import type { PracticeCopilotCapabilities } from './PracticeCopilotDock';
 import { X, MessageSquare, Mic, Bot, EyeOff } from 'lucide-react';
 
 const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
@@ -21,10 +23,12 @@ const PERSONA_LABELS: Record<TutorPersona, { name: string; badge: string }> = {
 
 export interface PracticeTutorPanelContentProps {
   mode?: 'drawer' | 'dock';
+  capabilities?: PracticeCopilotCapabilities;
 }
 
 export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps> = ({
-  mode = 'drawer'
+  mode = 'drawer',
+  capabilities
 }) => {
   const toggleOpen = usePracticeTutorStore((s) => s.toggleOpen);
   const toggleCompass = usePracticeTutorStore((s) => s.toggleCompass);
@@ -34,6 +38,10 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
   const persona = usePracticeTutorStore((s) => s.persona);
   const assistanceLevel = usePracticeTutorStore((s) => s.assistanceLevel);
   const setAssistanceLevel = usePracticeTutorStore((s) => s.setAssistanceLevel);
+  const tutorRole = usePracticeTutorStore((s) => s.tutorRole);
+  const setTutorRole = usePracticeTutorStore((s) => s.setTutorRole);
+  const isVerifyingDiagnosis = usePracticeTutorStore((s) => s.isVerifyingDiagnosis);
+  const verifyBugDiagnosis = usePracticeTutorStore((s) => s.verifyBugDiagnosis);
   const messages = usePracticeTutorStore((s) => s.messages);
   const isLoading = usePracticeTutorStore((s) => s.isLoading);
   const currentStreamingText = usePracticeTutorStore((s) => s.currentStreamingText);
@@ -42,6 +50,8 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
   const abortGeneration = usePracticeTutorStore((s) => s.abortGeneration);
   const clearMessages = usePracticeTutorStore((s) => s.clearMessages);
   const activeContext = usePracticeTutorStore((s) => s.activeContext);
+  const activeFocus = useSelectionFocusStore((s) => s.activeFocus);
+  const clearFocus = useSelectionFocusStore((s) => s.clearFocus);
 
   const { isConnected: isVoiceConnected, isError: isVoiceError } = usePracticeVoice();
 
@@ -66,13 +76,24 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
       ? `${companyName} Bar-Raiser`
       : PERSONA_LABELS[persona].name;
 
-  const isPracticeDomainContext =
-    !activeContext || (activeContext.arena !== 'companies' && activeContext.arena !== 'sql_arena');
+  const isIncidentsArena = activeContext?.arena === 'incidents';
+  const showBugRoleSwitcher = Boolean(capabilities?.showBugRoleSwitcher ?? isIncidentsArena);
+  const showVerifyAction = Boolean(capabilities?.showVerifyDiagnosis ?? isIncidentsArena);
+  const showPersonasAndHints =
+    (capabilities?.showPersonasAndHints ?? true) &&
+    (!activeContext || (activeContext.arena !== 'companies' && activeContext.arena !== 'sql_arena'));
 
   const canEnterStealth = isVoiceConnected || isVoiceError || messages.length > 1;
 
-  const resolveDispatchContext = () =>
-    activeContext || buildLivePracticeContext(useAppStore.getState(), domain, persona, assistanceLevel);
+  const resolveDispatchContext = () => {
+    const base = activeContext || buildLivePracticeContext(useAppStore.getState(), domain, persona, assistanceLevel);
+    if (!activeFocus?.text) return base;
+    return {
+      ...base,
+      selectedCodeSnippet: activeFocus.text,
+      ...(activeFocus.startLine ? { cursorLine: activeFocus.startLine } : {})
+    };
+  };
 
   const handleSend = () => {
     if (!inputVal.trim() || isLoading) return;
@@ -81,12 +102,35 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
     void sendMessage(text, resolveDispatchContext());
   };
 
+  const handleVerifyDiagnosis = async () => {
+    if (!inputVal.trim() || isLoading) return;
+    const text = inputVal;
+    setInputVal('');
+    const ctx = resolveDispatchContext();
+    const res = await verifyBugDiagnosis(text, ctx);
+    if (res?.isCorrect) {
+      const bugId = ctx.incidentMeta?.incidentId || ctx.entityId;
+      useAppStore.getState().notifyBugHuntSolved(bugId);
+      capabilities?.onVerifyDiagnosisSuccess?.(bugId);
+    }
+  };
+
   const resolvedDomainHeader =
     activeContext?.arena === 'companies'
       ? companyName || 'Company Track'
       : activeContext?.arena === 'sql_arena'
       ? 'PostgreSQL 16 SQL'
+      : isIncidentsArena
+      ? 'Bug Hunt & Code Review'
       : DOMAIN_LABELS[domain];
+
+  const selectionChip = activeFocus?.text
+    ? {
+        label: activeFocus.startLine ? `Строка ${activeFocus.startLine}` : 'Фрагмент кода',
+        snippet: activeFocus.text.split(/\r?\n/)[0]?.trim(),
+        onClear: clearFocus
+      }
+    : null;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full w-full bg-white overflow-hidden">
@@ -179,34 +223,65 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
       </div>
 
       {/* Assistance Level Control */}
-      <div className="px-3.5 py-2 border-b border-pastel-border/60 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted">
-            Степень подсказок:
-          </span>
-          <span className="text-[11px] font-semibold text-pastel-text">{personaLabel}</span>
+      {showPersonasAndHints && (
+        <div className="px-3.5 py-2 border-b border-pastel-border/60 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted">
+              Степень подсказок:
+            </span>
+            <span className="text-[11px] font-semibold text-pastel-text truncate">{personaLabel}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {[1, 2, 3, 4].map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setAssistanceLevel(lvl)}
+                className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer text-center ${
+                  assistanceLevel === lvl
+                    ? 'bg-[#B5433E] text-white border-[#B5433E] shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-pastel-accentRose/50'
+                }`}
+              >
+                {lvl === 1 ? 'Junior' : lvl === 2 ? 'Middle' : lvl === 3 ? 'Senior' : 'FAANG'}
+              </button>
+            ))}
+          </div>
+          {showBugRoleSwitcher && (
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-pastel-border/40">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-pastel-muted">Роль ИИ:</span>
+              <div role="tablist" aria-label="Роль наставника Bug Hunt" className="flex bg-white p-0.5 rounded-lg border border-slate-200 gap-0.5">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tutorRole === 'code_review'}
+                  onClick={() => setTutorRole('code_review')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                    tutorRole === 'code_review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Код-ревью
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tutorRole === 'free_chat'}
+                  onClick={() => setTutorRole('free_chat')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                    tutorRole === 'free_chat' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Свободный диалог
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-1.5">
-          {[1, 2, 3, 4].map((lvl) => (
-            <button
-              key={lvl}
-              type="button"
-              onClick={() => setAssistanceLevel(lvl)}
-              className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer text-center ${
-                assistanceLevel === lvl
-                  ? 'bg-[#B5433E] text-white border-[#B5433E] shadow-2xs'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-pastel-accentRose/50'
-              }`}
-            >
-              {lvl === 1 ? 'Junior' : lvl === 2 ? 'Middle' : lvl === 3 ? 'Senior' : 'FAANG'}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Hints & Quick Chips */}
       <div className="px-3 py-2 border-b border-pastel-border/50 bg-white flex flex-wrap items-center gap-1.5 shrink-0">
-        {isPracticeDomainContext && (
+        {showPersonasAndHints && (
           <HintTiersDropdown
             domain={domain}
             onSelectTier={(tier) => void requestHint(tier, resolveDispatchContext())}
@@ -235,6 +310,15 @@ export const PracticeTutorPanelContent: React.FC<PracticeTutorPanelContentProps>
         onSend={handleSend}
         onAbort={abortGeneration}
         onClear={clearMessages}
+        placeholder={
+          isIncidentsArena
+            ? 'Опишите вашу гипотезу о причине бага или задайте вопрос... (Enter)'
+            : undefined
+        }
+        showVerifyAction={showVerifyAction}
+        isVerifyingDiagnosis={isVerifyingDiagnosis}
+        onVerifyDiagnosis={() => void handleVerifyDiagnosis()}
+        selectionChip={selectionChip}
       />
     </div>
   );
@@ -245,14 +329,18 @@ export const PracticeTutorDrawer: React.FC = () => {
   const currentStudioTab = useAppStore((s) => s.currentStudioTab);
   const activePracticeChallenge = useAppStore((s) => s.activePracticeChallenge);
   const activeTransactionLabScenarioId = useAppStore((s) => s.activeTransactionLabScenarioId);
+  const activeTopicBugHunt = useAppStore((s) => s.activeTopicBugHunt);
 
   const isPracticeIdeActive =
     currentStudioTab === 'practice' &&
     activePracticeChallenge !== null &&
     activeTransactionLabScenarioId === null;
+  const isBugHuntIdeActive =
+    currentStudioTab === 'incidents' &&
+    activeTopicBugHunt !== null;
 
-  // Inside Practice IDE, PracticeCopilotDock owns the docked right rail
-  if (isPracticeIdeActive || !isOpen) return null;
+  // Inside Unified Arena Workbenches (Practice IDE & Bug Hunt IDE), PracticeCopilotDock owns the right rail
+  if (isPracticeIdeActive || isBugHuntIdeActive || !isOpen) return null;
 
   return (
     <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[420px] bg-white/95 backdrop-blur-2xl border-l border-pastel-accentRose/30 shadow-2xl flex flex-col overflow-hidden">

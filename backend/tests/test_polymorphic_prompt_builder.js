@@ -188,7 +188,42 @@ console.log('🧪 Starting Polymorphic Tutor Prompt Builder Test Suite...');
   assert.ok(incPrompt.includes('restClient.call()'));
   assert.ok(incPrompt.includes('SQLTransientConnectionException'));
   assert.ok(incPrompt.includes('FinCore'));
-  console.log('✅ Incidents arena prompt preservation: PASSED');
+
+  const reviewWithSelectionPrompt = buildPolymorphicTutorSystemPrompt(
+    {
+      arena: 'incidents',
+      entityId: 'bug-race-01',
+      entityTitle: 'Non-Atomic Check-Then-Act',
+      domain: 'concurrency',
+      persona: 'senior_socratic',
+      assistanceLevel: 3,
+      tutorRole: 'code_review',
+      activeCodeOrQuery: 'if (!map.containsKey(k)) { map.put(k, v); }',
+      selectedCodeSnippet: 'if (!map.containsKey(k))',
+      cursorLine: 12,
+      incidentMeta: { bugType: 'RACE_CONDITION', language: 'java' },
+      quickActionChips: []
+    },
+    { bugExplanation: 'Two threads pass containsKey simultaneously', isSolved: false }
+  );
+  assert.ok(reviewWithSelectionPrompt.includes('RACE_CONDITION'));
+  assert.ok(reviewWithSelectionPrompt.includes('строка 12'));
+  assert.ok(reviewWithSelectionPrompt.includes('Two threads pass containsKey simultaneously'));
+  assert.ok(reviewWithSelectionPrompt.includes('ЗАПРЕЩЕНО выдавать готовый исправленный код'));
+
+  const freeChatBugPrompt = buildPolymorphicTutorSystemPrompt({
+    arena: 'incidents',
+    entityId: 'bug-race-01',
+    entityTitle: 'Non-Atomic Check-Then-Act',
+    domain: 'concurrency',
+    persona: 'senior_socratic',
+    assistanceLevel: 3,
+    tutorRole: 'free_chat',
+    activeCodeOrQuery: 'if (!map.containsKey(k)) { map.put(k, v); }',
+    quickActionChips: []
+  });
+  assert.ok(freeChatBugPrompt.includes('СВОБОДНЫЙ ТЕХНИЧЕСКИЙ ДИАЛОГ'));
+  console.log('✅ Incidents arena prompt preservation & Spec 62 role/truth modes: PASSED');
 }
 
 console.log('🎉 All Polymorphic Prompt Builder tests passed deterministically in 0ms!');

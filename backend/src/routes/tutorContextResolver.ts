@@ -77,6 +77,14 @@ export function resolveTutorRouteContext(rawBody: Record<string, any> | undefine
     workspaceManifest,
     academyBridgeContext: body.academyBridgeContext,
     hintTier: body.hintTier !== undefined ? Number(body.hintTier) : undefined,
+    tutorRole:
+      body.tutorRole === 'free_chat'
+        ? 'free_chat'
+        : body.tutorRole === 'code_review'
+        ? 'code_review'
+        : undefined,
+    incidentMeta:
+      body.incidentMeta && typeof body.incidentMeta === 'object' ? body.incidentMeta : undefined,
     quickActionChips: Array.isArray(body.quickActionChips) ? body.quickActionChips : [],
     messages: pruned.prunedMessages as TutorActiveContext['messages']
   };
